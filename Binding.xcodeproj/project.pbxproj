@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		24D800422EF1A91500021B5A /* CellApple in Frameworks */ = {isa = PBXBuildFile; productRef = 24D800412EF1A91500021B5A /* CellApple */; };
+		24D800442EF1A91500021B5A /* CellBase in Frameworks */ = {isa = PBXBuildFile; productRef = 24D800432EF1A91500021B5A /* CellBase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		24D800232EF195A200021B5A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +34,29 @@
 		24D8002C2EF195A200021B5A /* BindingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "Binding" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CONTRIBUTING.md,
+			);
+			target = 24D800142EF195A000021B5A /* Binding */;
+		};
+		24D8005F2EF3077D00021B5A /* Exceptions for "Binding" folder in "Binding" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 24D800142EF195A000021B5A /* Binding */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		24D800172EF195A000021B5A /* Binding */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				24D8005F2EF3077D00021B5A /* Exceptions for "Binding" folder in "Binding" target */,
+			);
 			path = Binding;
 			sourceTree = "<group>";
 		};
@@ -45,6 +70,19 @@
 			path = BindingUITests;
 			sourceTree = "<group>";
 		};
+		24D8004D2EF2D58E00021B5A /* Documentation */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Documentation;
+			sourceTree = "<group>";
+		};
+		24D8004F2EF2D5AE00021B5A /* Prompts */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "Binding" target */,
+			);
+			path = Prompts;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,6 +90,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				24D800422EF1A91500021B5A /* CellApple in Frameworks */,
+				24D800442EF1A91500021B5A /* CellBase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,6 +115,8 @@
 		24D8000C2EF195A000021B5A = {
 			isa = PBXGroup;
 			children = (
+				24D8004F2EF2D5AE00021B5A /* Prompts */,
+				24D8004D2EF2D58E00021B5A /* Documentation */,
 				24D800172EF195A000021B5A /* Binding */,
 				24D800252EF195A200021B5A /* BindingTests */,
 				24D8002F2EF195A200021B5A /* BindingUITests */,
@@ -109,9 +151,13 @@
 			);
 			fileSystemSynchronizedGroups = (
 				24D800172EF195A000021B5A /* Binding */,
+				24D8004D2EF2D58E00021B5A /* Documentation */,
+				24D8004F2EF2D5AE00021B5A /* Prompts */,
 			);
 			name = Binding;
 			packageProductDependencies = (
+				24D800412EF1A91500021B5A /* CellApple */,
+				24D800432EF1A91500021B5A /* CellBase */,
 			);
 			productName = Binding;
 			productReference = 24D800152EF195A000021B5A /* Binding.app */;
@@ -195,6 +241,10 @@
 			);
 			mainGroup = 24D8000C2EF195A000021B5A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				24D8003F2EF1A86C00021B5A /* XCRemoteSwiftPackageReference "FileUtils-c" */,
+				24D800402EF1A91500021B5A /* XCRemoteSwiftPackageReference "CellProtocol" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
 			projectDirPath = "";
@@ -398,6 +448,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Binding/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -442,6 +493,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Binding/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -615,6 +667,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		24D8003F2EF1A86C00021B5A /* XCRemoteSwiftPackageReference "FileUtils-c" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "git@github.com:Digipomps/FileUtils-c";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		24D800402EF1A91500021B5A /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "git@github.com:Digipomps/CellProtocol.git";
+			requirement = {
+				branch = "Purpose&Interest";
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		24D800412EF1A91500021B5A /* CellApple */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 24D800402EF1A91500021B5A /* XCRemoteSwiftPackageReference "CellProtocol" */;
+			productName = CellApple;
+		};
+		24D800432EF1A91500021B5A /* CellBase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 24D800402EF1A91500021B5A /* XCRemoteSwiftPackageReference "CellProtocol" */;
+			productName = CellBase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24D8000D2EF195A000021B5A /* Project object */;
 }

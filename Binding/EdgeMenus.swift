@@ -1,4 +1,6 @@
 import SwiftUI
+import CellBase
+import CellApple
 
 // MARK: - Models
 struct MenuItem: Identifiable {

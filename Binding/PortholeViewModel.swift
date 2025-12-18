@@ -1,9 +1,11 @@
 import Foundation
 import SwiftUI
 import Combine
+import CellBase
+import CellApple
 
 @MainActor
-final class PortholeViewModel: ObservableObject {
+final class PortholeBindingViewModel: ObservableObject {
     @Published var currentSkeleton: SkeletonElement = .VStack(
         SkeletonVStack(elements: [
             .Text(SkeletonText(text: "Porthole")),
@@ -20,22 +22,20 @@ final class PortholeViewModel: ObservableObject {
     func connectIfNeeded() async {
         guard portholeEmit == nil || portholeMeddle == nil else { return }
         guard let resolver = CellBase.defaultCellResolver else { return }
-        guard let identity = await (CellBase.defaultIdentityVault as? IdentityVault)?.identity(for: "private", makeNewIfNotFound: true) else { return }
+        guard let vault = CellBase.defaultIdentityVault as? IdentityVault else { return }
+        guard let identity = await vault.identity(for: "private", makeNewIfNotFound: true) else { return }
 
         do {
-            let cell = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: identity!)
-            self.portholeEmit = cell as? Emit
+            let cell = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: identity)
+            self.portholeEmit = cell 
             self.portholeMeddle = cell as? Meddle
 
-            // Try to subscribe to its flow and update skeleton if it publishes a skeleton
             if let emit = self.portholeEmit {
-                let publisher = try await emit.flow(requester: identity!)
+                let publisher = try await emit.flow(requester: identity)
                 self.flowCancellable = publisher
                     .receive(on: DispatchQueue.main)
                     .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] element in
                         guard let self else { return }
-                        // If the feed contains a skeleton description, update the UI.
-                        // This is a placeholder mapping; adapt to your actual payloads.
                         switch element.content {
                         case .object(let obj):
                             if let skeleton = try? Self.decodeSkeleton(from: obj) {
@@ -60,9 +60,10 @@ final class PortholeViewModel: ObservableObject {
 
         // Also try to tell the porthole to load this configuration
         if let meddle = self.portholeMeddle,
-           let identity = await (CellBase.defaultIdentityVault as? IdentityVault)?.identity(for: "private", makeNewIfNotFound: true) {
+           let vault = CellBase.defaultIdentityVault as? IdentityVault,
+           let identity = await vault.identity(for: "private", makeNewIfNotFound: true) {
             do {
-                _ = try await meddle.set(keypath: "configuration", value: .cellConfiguration(configuration), requester: identity!)
+                _ = try await meddle.set(keypath: "configuration", value: .cellConfiguration(configuration), requester: identity)
             } catch {
                 print("PortholeViewModel: setting configuration on porthole failed: \(error)")
             }
@@ -75,3 +76,4 @@ final class PortholeViewModel: ObservableObject {
         return element
     }
 }
+

@@ -1,4 +1,6 @@
 import SwiftUI
+import CellBase
+import CellApple
 
 struct SkeletonView: View {
     let element: SkeletonElement
@@ -7,48 +9,64 @@ struct SkeletonView: View {
         render(element)
     }
 
-    @ViewBuilder
-    private func render(_ element: SkeletonElement) -> some View {
+    private func render(_ element: SkeletonElement) -> AnyView {
         switch element {
         case .Text(let text):
-            Text(text.text ?? "")
-                .frame(maxWidth: .infinity, alignment: .leading)
+            return AnyView(Text(text.text ?? "").frame(maxWidth: .infinity, alignment: .leading))
         case .Image(let image):
-            Group {
-                if let name = image.name { Image(name) } else { Image(systemName: "photo") }
-            }
-            .resizableIfNeeded(image.resizable)
-            .scaledToFitIfNeeded(image.scaledToFit)
-            .padding(image.padding ?? 0)
+            let img: Image = image.name.map { Image($0) } ?? Image(systemName: "photo")
+            return AnyView(
+                img
+                    .if(image.resizable) { $0.resizable() }
+                    .if(image.scaledToFit) { $0.scaledToFit() }
+                    .padding(CGFloat(image.padding ?? 0))
+            )
         case .Spacer(let spacer):
-            Spacer().frame(width: spacer.width)
+            return AnyView(Spacer().frame(width: spacer.width.map { CGFloat($0) }))
         case .HStack(let h):
-            HStack(alignment: .center, spacing: 8) {
-                ForEach(h.elements, id: \.id) { render($0) }
-            }
-        case .VStack(let v):
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(v.elements, id: \.id) { render($0) }
-            }
-        case .List(let l):
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(l.elements.enumerated()), id: \.offset) { _, val in
-                    Text("\(describe(val))")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 2)
+            return AnyView(
+                HStack(alignment: .center, spacing: 8) {
+                    ForEach(h.elements, id: \.id) { el in
+                        render(el)
+                    }
                 }
-            }
+            )
+        case .VStack(let v):
+            return AnyView(
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(v.elements, id: \.id) { el in
+                        render(el)
+                    }
+                }
+            )
+        case .List(let l):
+            return AnyView(
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(l.elements.enumerated()), id: \.offset) { _, val in
+                        Text("\(describe(val))")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 2)
+                    }
+                }
+            )
         case .Reference(let ref):
-            // Placeholder for nested cell reference rendering
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.secondary, lineWidth: 1)
-                .overlay(Text("Reference: \(ref.keypath)").padding(6))
+            return AnyView(
+                CellReferenceView(skeletonReference: skeletonCellReference, userInfoValue: userInfoValue)
+                    .if(skeletonCellReference.scaledToFit) { view in
+                        view.scaledToFit()
+                    }
+                
+                
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(.secondary, lineWidth: 1)
+                    .overlay(Text("Reference: \(ref.keypath)").padding(6))
+            )
         case .Object(_):
-            Text("Object")
+            return AnyView(Text("Object"))
         case .Button(let btn):
-            Button(btn.label) {
+            return AnyView(Button(btn.label) {
                 Task { _ = await btn.execute() }
-            }
+            })
         }
     }
 
@@ -59,11 +77,7 @@ struct SkeletonView: View {
 
 private extension View {
     @ViewBuilder
-    func resizableIfNeeded(_ needed: Bool) -> some View {
-        if needed { self.resizable() } else { self }
-    }
-    @ViewBuilder
-    func scaledToFitIfNeeded(_ needed: Bool) -> some View {
-        if needed { self.scaledToFit() } else { self }
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition { transform(self) } else { self }
     }
 }
