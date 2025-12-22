@@ -2,6 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Cell Configuration</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.haven.cellconfig</string>
+			</array>
+		</dict>
+	</array>
 	<key>UTTypeDeclarations</key>
 	<array>
 		<dict>
@@ -12,17 +27,15 @@
 			<key>UTTypeDescription</key>
 			<string>Cell Configuration</string>
 			<key>UTTypeIdentifier</key>
-			<string>app.binding.cellconfiguration</string>
+			<string>com.haven.cellconfig</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
-				<key>New item</key>
+				<key>public.filename-extension</key>
 				<array>
-					<string>cellconfig</string>
+					<string>ditt</string>
 				</array>
-				<key>UTTypeExportedType</key>
-				<true/>
 				<key>public.mime-type</key>
-				<string>application/x-cellconfiguration</string>
+				<string>application/x-cellconfig</string>
 			</dict>
 		</dict>
 	</array>

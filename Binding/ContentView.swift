@@ -29,12 +29,12 @@ struct ContentView: View {
             if !menusHidden {
                 // Edge menus overlay
                 EdgeMenusOverlay(
-                    upperLeft: sampleMenuItems(prefix: "UL"),
-                    upperMid: sampleMenuItems(prefix: "UM"),
-                    upperRight: sampleMenuItems(prefix: "UR"),
-                    lowerLeft: sampleMenuItems(prefix: "LL"),
-                    lowerMid: sampleMenuItems(prefix: "LM"),
-                    lowerRight: sampleMenuItems(prefix: "LR"),
+                    upperLeft: menuItems(from: viewModel.upperLeftMenu),
+                    upperMid: menuItems(from: viewModel.upperMidMenu),
+                    upperRight: menuItems(from: viewModel.upperRightMenu),
+                    lowerLeft: menuItems(from: viewModel.lowerLeftMenu),
+                    lowerMid: menuItems(from: viewModel.lowerMidMenu),
+                    lowerRight: menuItems(from: viewModel.lowerRightMenu),
                     onSelect: { config in
                         Task { await viewModel.load(configuration: config) }
                     }
@@ -102,6 +102,14 @@ struct ContentView: View {
             )
         ]
     }
+
+    private func menuItems(from configs: [CellConfiguration]) -> [MenuItem] {
+        return configs.map { config in
+            // Choose an icon heuristically; you can expand this mapping later
+            let icon = config.skeletonIconName
+            return MenuItem(icon: icon, configuration: config)
+        }
+    }
 }
 
 // MARK: - Porthole canvas hosting the Skeleton renderer
@@ -110,9 +118,20 @@ private struct PortholeCanvas: View {
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
-            SkeletonView(element: skeleton)
-                .padding()
+#if canImport(UIKit)
+            Color(UIColor.systemBackground)
+#elseif canImport(AppKit)
+            Color(NSColor.windowBackgroundColor)
+#else
+            Color(.white)
+#endif
+            GeometryReader { proxy in
+                SkeletonView(element: skeleton)
+                    .environmentObject(PortholeViewModel())
+                    .padding()
+                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
         }
     }
 }
@@ -170,8 +189,25 @@ private struct EdgeMenusOverlay: View {
     }
 }
 
+private extension CellConfiguration {
+    var skeletonIconName: String {
+        if let s = skeleton {
+            switch s {
+            case .Image: return "photo"
+            case .List: return "list.bullet"
+            case .Button: return "square.and.arrow.down"
+            case .Reference: return "link"
+            case .HStack, .VStack: return "square.grid.2x2"
+            case .Text: return "text.justify"
+            case .Object: return "square.grid.3x3"
+            case .Spacer: return "rectangle.dashed"
+            }
+        }
+        return "square.grid.2x2"
+    }
+}
+
 // MARK: - Preview
 #Preview {
     ContentView()
 }
-

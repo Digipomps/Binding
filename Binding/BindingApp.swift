@@ -6,12 +6,16 @@
 //
 
 import SwiftUI
+import CellApple
 
 @main
 struct BindingApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            BootstrapView {
+                RootView()
+            }
         }
     }
 }
+
