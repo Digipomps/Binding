@@ -22,3 +22,25 @@ Dette dokumentet skisserer hovedprinsippene for arkitekturen i prosjektet.
 - Se også `Prompts/EdgeMenusOverlay.md` for et eksempel på komponentdokumentasjon og regler.
 
 
+## Access Control Policy
+
+This project enforces access control through CellProtocol, with state access mediated exclusively by the Meddle interface:
+
+
+## Moduler og ansvar
+- CellBase: Plattform-agnostisk kjerne (protokoller som CellProtocol, verdityper som ValueType, domenemodeller som Perspective og CellConfiguration, og annen logikk uten OS-avhengighet).
+- CellApple: OS-spesifikke integrasjoner og visninger (SwiftUI, UI-komponenter, EdgeMenus, SkeletonView, Apple Intelligence-komponenter ligger her under `CellApple/Intelligence`).
+- CellVapor: Server-/web-relatert funksjonalitet (Vapor-integrasjoner og tjenester).
+
+Apple Intelligence-komponenter som krever OS-funksjonalitet (f.eks. visninger, runtime-integrasjoner, Flow-abonnement i UI) ligger i `CellApple/Intelligence`. Plattform-agnostisk logikk kan ekstrakteres til CellBase ved behov.
+
+## Prosjektstrukturkrav
+Prosjekter som importerer CellProtocol skal inneholde:
+- `Documentation/`: Overordnet arkitektur og utviklerdokumentasjon.
+- `Prompts/`: Operativ dokumentasjon, system-/LLM-prompter, komponentbeskrivelser (for eksempel `EdgeMenusOverlay.md`, `AppleIntelligenceCell.md`, `ExplainToAnotherLLM.md`).
+
+## Apple Intelligence – plassering og flyt (kort)
+- State kun via `Meddle.get/set` (med `requester: Identity`).
+- Oppdateringer og intent meldinger sendes som `FlowElement` (Emit/flow) med `.object`-payload.
+- Porthole (eller andre konsumenter) henter state ved behov via `get` og reagerer på `FlowElement`-oppdateringer.
+- Utforskning (explore) bruker standardiserte nøkkelnavn over Flow (se `Prompts/AppleIntelligenceCell.md`).
