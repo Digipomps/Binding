@@ -1,33 +1,33 @@
-# Porthole og Skeleton
+# Porthole and Skeleton
 
-Denne dokumentasjonen forklarer hvordan Porthole og Skeleton henger sammen i prosjektet, hvordan data flyter, og hvordan du legger til eller endrer visninger.
+This document explains how Porthole and Skeleton relate in the project, how data flows, and how to add or modify views.
 
-## Oversikt
-- **Porthole** er en Cell som kan motta og sende UI-konfigurasjon og innhold via `flow` og `get/set`-operasjoner.
-- **Skeleton** er en deklarativ beskrivelse av UI (som en liten DSL) med elementer som `.VStack`, `.HStack`, `.Text`, `.Image`, `.List`, `.Reference`, `.Button` osv.
-- **Klienten (appen)** rendrer Skeleton i SwiftUI via `SkeletonView(element:)` og oppdaterer seg når Porthole publiserer nye elementer i strømmen.
+## Overview
+- **Porthole** is a Cell that can receive and send UI configuration and content via `flow` and `get/set` operations.
+- **Skeleton** is a declarative description of UI (a small DSL) with elements like `.VStack`, `.HStack`, `.Text`, `.Image`, `.List`, `.Reference`, `.Button`, etc.
+- **The client (app)** renders Skeleton in SwiftUI using `SkeletonView(element:)` and updates when Porthole publishes new elements on the stream.
 
-## Arkitektur
-1. Porthole (server):
-   - Eksponerer en strøm (`flow`) av innhold. Innholdet kan være:
-     - Et objekt som dekodes direkte til `SkeletonElement`, eller
-     - En `CellConfiguration` som inneholder et `skeleton`-felt.
-   - Tar imot `set(keypath:value:)`-kall for å bytte konfigurasjon eller trigge handlinger.
+## Architecture
+1. Porthole (server/cell):
+   - Exposes a `flow` of content. The content can be:
+     - An object that decodes directly to `SkeletonElement`, or
+     - A `CellConfiguration` that contains a `skeleton` field.
+   - Accepts `set(keypath:value:)` calls to switch configuration or trigger actions.
 
-2. Klient (UI):
-   - Har en view model som kobler til Porthole, lytter på `flow`, og publiserer gjeldende `SkeletonElement` til visningen.
-   - Kan sende `set(...)` for å be Porthole laste en ny konfigurasjon.
+2. Client (UI):
+   - Owns a view model that connects to Porthole, listens to `flow`, and publishes the current `SkeletonElement` to the view.
+   - Can send `set(...)` to instruct Porthole to load a new configuration.
 
 ## View model: PortholeBindingViewModel
-Den konsoliderte view-modellen for Porthole heter `PortholeBindingViewModel` og finnes i `PortholeViewModel-Binding.swift`.
+The consolidated view model for Porthole is `PortholeBindingViewModel` in `PortholeViewModel-Binding.swift`.
 
-Ansvar:
-- Koble til Porthole én gang (`connectIfNeeded()`).
-- Abonnere på `flow` og dekode innkommende objekter til `SkeletonElement`.
-- Eksponere `@Published var currentSkeleton` som UI rendrer.
-- Sende `set(keypath:value:)` når brukeren velger en ny konfigurasjon (via `load(configuration:)`).
+Responsibilities:
+- Connect to Porthole once (`connectIfNeeded()`).
+- Subscribe to `flow` and decode incoming objects into `SkeletonElement`.
+- Expose `@Published var currentSkeleton` that the UI renders.
+- Send `set(keypath:value:)` when the user selects a new configuration (via `load(configuration:)`).
 
-Forenklet bruk:
+Minimal usage:
 ```swift
 @StateObject private var viewModel = PortholeBindingViewModel()
 
