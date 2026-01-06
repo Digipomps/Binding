@@ -115,6 +115,7 @@ struct ContentView: View {
 // MARK: - Porthole canvas hosting the Skeleton renderer
 private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
+    @StateObject private var portholeVM = PortholeViewModel()
 
     var body: some View {
         ZStack {
@@ -127,7 +128,7 @@ private struct PortholeCanvas: View {
 #endif
             GeometryReader { proxy in
                 SkeletonView(element: skeleton)
-                    .environmentObject(PortholeViewModel())
+                    .environmentObject(portholeVM)
                     .padding()
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -191,19 +192,28 @@ private struct EdgeMenusOverlay: View {
 
 private extension CellConfiguration {
     var skeletonIconName: String {
-        if let s = skeleton {
-            switch s {
-            case .Image: return "photo"
-            case .List: return "list.bullet"
-            case .Button: return "square.and.arrow.down"
-            case .Reference: return "link"
-            case .HStack, .VStack: return "square.grid.2x2"
-            case .Text: return "text.justify"
-            case .Object: return "square.grid.3x3"
-            case .Spacer: return "rectangle.dashed"
-            }
+        guard let s = skeleton else { return "square.grid.2x2" }
+        switch s {
+        case .Image:
+            return "photo"
+        case .List:
+            return "list.bullet"
+        case .Button:
+            return "square.and.arrow.down"
+        case .Reference:
+            return "link"
+        case .HStack, .VStack:
+            return "square.grid.2x2"
+        case .Text:
+            return "text.justify"
+        case .Object:
+            return "square.grid.3x3"
+        case .Spacer:
+            return "rectangle.dashed"
+        default:
+            // Fallback for any future or platform-specific cases to keep the switch exhaustive
+            return "square.grid.2x2"
         }
-        return "square.grid.2x2"
     }
 }
 
@@ -211,3 +221,4 @@ private extension CellConfiguration {
 #Preview {
     ContentView()
 }
+

@@ -1,4 +1,5 @@
 import SwiftUI
+import CellBase
 import CellApple
 
 struct BootstrapView<Content: View>: View {
@@ -15,6 +16,14 @@ struct BootstrapView<Content: View>: View {
         }
         .task {
             await AppInitializer.initialize()
+//            ****** Register scaffold local resolves here ******
+            
+            let resolver = CellResolver.sharedInstance
+            do {
+                try await resolver.addCellResolve(name: "EventEmitter",         cellScope: .template,       identityDomain: "private", type: EventEmitterCell.self)
+            } catch {
+                print("Scaffold added cellResolve failed with error: \(error)")
+            }
             isReady = true
         }
     }

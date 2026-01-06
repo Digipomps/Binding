@@ -17,7 +17,7 @@
 			</array>
 		</dict>
 	</array>
-	<key>UTTypeDeclarations</key>
+	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -27,15 +27,37 @@
 			<key>UTTypeDescription</key>
 			<string>Cell Configuration</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.haven.cellconfig</string>
+			<string>app.binding.cellconfiguration</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
-					<string>ditt</string>
+					<string>cellconfig</string>
 				</array>
 				<key>public.mime-type</key>
-				<string>application/x-cellconfig</string>
+				<string>application/x-cellconfiguration</string>
+			</dict>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Cell Configuration</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.binding.cellconfiguration</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cellconfig</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-cellconfiguration</string>
 			</dict>
 		</dict>
 	</array>

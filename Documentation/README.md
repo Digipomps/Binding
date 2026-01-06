@@ -21,8 +21,19 @@ Projects importing CellProtocol must include:
 - `Documentation/`: Architecture and developer docs.
 - `Prompts/`: Operational docs, system prompts, and component guides.
 
+### Quick links
+- Architecture overview: [Prompts/Architecture.md](Prompts/Architecture.md)
+- Contributing guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Edge menus overlay: [Prompts/EdgeMenusOverlay.md](Prompts/EdgeMenusOverlay.md)
+- Apple Intelligence cell: [Prompts/AppleIntelligenceCell.md](Prompts/AppleIntelligenceCell.md)
+- Explainer for LLMs: [Prompts/ExplainToAnotherLLM.md](Prompts/ExplainToAnotherLLM.md)
+- Documentation index (folder): [Documentation/](Documentation/)
+- Prompts index (folder): [Prompts/](Prompts/)
+- Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
+
 See also:
 - `Prompts/EdgeMenusOverlay.md`
 - `Prompts/AppleIntelligenceCell.md`
 - `Prompts/ExplainToAnotherLLM.md`
-- `Architecture.md`
+- `Prompts/Architecture.md`
+

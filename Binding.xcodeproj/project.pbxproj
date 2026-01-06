@@ -88,6 +88,11 @@
 			path = gfx;
 			sourceTree = "<group>";
 		};
+		24D800CB2F0286AB00021B5A /* Cells */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Cells;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +125,7 @@
 		24D8000C2EF195A000021B5A = {
 			isa = PBXGroup;
 			children = (
+				24D800CB2F0286AB00021B5A /* Cells */,
 				24D800BB2EF9AB1300021B5A /* gfx */,
 				24D8004F2EF2D5AE00021B5A /* Prompts */,
 				24D8004D2EF2D58E00021B5A /* Documentation */,
@@ -159,6 +165,7 @@
 				24D800172EF195A000021B5A /* Binding */,
 				24D8004D2EF2D58E00021B5A /* Documentation */,
 				24D8004F2EF2D5AE00021B5A /* Prompts */,
+				24D800CB2F0286AB00021B5A /* Cells */,
 			);
 			name = Binding;
 			packageProductDependencies = (
@@ -446,6 +453,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Binding/Binding.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 58VP3BNL4B;
@@ -492,6 +501,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Binding/Binding.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 58VP3BNL4B;
