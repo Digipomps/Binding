@@ -10,3 +10,5 @@ Husk at jeg også implementerer og har tilgang til alt i CellProtocol så om det
 
 Dokumentasjon skrives på engelsk så lenge jeg ikke eksplisitt sier noe annet.
 Dokumentasjon og forslag til prompter legges i md filer
+
+Les dokumentasjonen i mappene Prompts og Documentation i Binding prosjektet. Les filene i CellProtocol/Documentation 

@@ -1,26 +1,34 @@
-// Contributing
+# Contributing Guidelines
 
-Takk for at du vil bidra! Denne veiledningen beskriver hvordan vi jobber og hvilke prinsipper vi følger.
+This document provides conventions for contributing to the Binding app and the broader CellProtocol ecosystem.
 
-## Prinsipper
-- Hold komponenter fokusert på én oppgave og separer ansvar. UI-komponenter skal ikke inneholde forretningslogikk når det kan unngås.
-- Foretrekk Swift Concurrency (async/await) og SwiftUI-mønstre konsistent på tvers av prosjektet.
-- Skriv tydelige, små commits med beskrivende meldinger.
-- Legg til eller oppdater dokumentasjon i `Prompts/` når du introduserer nye mønstre eller komponenter.
+## Scope and repos
+- Binding: focus app in this repository.
+- CellProtocol: shared framework used across projects (e.g., CellScaffold, CellUtility, HAVEN_MVP). Only one project in a workspace should have write access to shared framework sources at a time.
 
-## Kodekvalitet
-- Bruk eksplisitt typekvalifisering når typeinferens kan feile (f.eks. `EdgePosition.upperLeft`).
-- Pakk layout-/state-endringer som påvirker UI i `withAnimation` for en jevn opplevelse.
-- Test tilgjengelighet (VoiceOver, Dynamic Type) der det er relevant.
+## Architecture and documentation
+- Follow the rules in `Prompts/Architecture.md`. That document is authoritative.
+- Keep documentation in English unless explicitly requested otherwise.
+- Add or update component guides under `Prompts/` (e.g., `EdgeMenusOverlay.md`, `AppleIntelligenceCell.md`).
 
-## Testing
-- Skriv tester for kritisk logikk. For SwiftUI-visninger, vurder snapshot-/interaksjonstester der det gir verdi.
+## Interface policy (Cells)
+- Expose behavior/state only through interceptors:
+  - `addInterceptForGet(key:getValueIntercept:)`
+  - `addInterceptForSet(key:setValueIntercept:)`
+- Do not use ad-hoc side channels or `registerAction` / `registerSetter`.
+- Publish events/intents via `Emit.flow` using `FlowElement` with `.object` payloads.
+- Enforce access control inside the cell (per-keypath authorization via the agreement/contract model).
 
-## Dokumentasjon
-- Oppdater relevante `.md`-filer i `Prompts/` ved større endringer.
-- Legg korte referansekommentarer i koden som peker til dokumentasjonen.
+## Code style and Swift conventions
+- Prefer Swift Concurrency (`async/await`).
+- Keep UI logic declarative; avoid side effects in SwiftUI bodies.
+- Minimize coupling to third-party packages; wrap in adapters if needed.
 
-## Pull Requests
-- Beskriv hva som er endret, hvorfor, og eventuelle følgeeffekter.
-- Link til relevante issues og dokumenter i `Prompts/`.
+## Testing and verification
+- Prefer the Swift Testing framework for new tests when XCTest isn’t already in use.
+- Validate that skeletons render on iPhone and iPad and that edge menu items remain within visible bounds.
 
+## Pull requests
+- Keep changes minimal and focused.
+- Include a short rationale and a reference to related docs or prompts.
+- Update relevant `.md` files when behavior or conventions change.

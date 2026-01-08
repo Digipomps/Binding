@@ -92,3 +92,52 @@
 // Tips
 // - Combine `modifiers` to achieve layout: padding, alignment, maxWidthInfinity, background, cornerRadius, shadow.
 // - For text, use typography modifiers (fontStyle, fontSize, fontWeight, lineLimit, multilineTextAlignment, minimumScaleFactor) for consistent typography.
+
+
+## Endpoint vs keypath and Porthole (OrchestratorCell)
+
+There are two ways to point to a data source in skeleton JSON:
+
+1) Endpoint (cell://...)
+- A full `cell://` URL, e.g. `cell:///AppleIntelligence/ai.candidates`.
+- `CellResolver` resolves the cell by name/UUID and ensures the correct instance (including scope/persistence).
+- Then `get`/`set` (via `Resolver`) is called on the keypath after the last `/`.
+
+2) Relative `keypath` (without endpoint)
+- If you only write `"ai.candidates"`, this is interpreted as `cell:///Porthole/ai.candidates` for `List` (see `urlFromKeypath`).
+- Porthole is an `OrchestratorCell` registered with scope `identityUnique` and persisted. The same Identity will reuse the same Porthole across app sessions.
+- Benefit: Less verbosity when Porthole is your default hub/anchor for UI/state.
+
+Choose based on whether you want to explicitly target a specific cell, or you’re working within the Porthole context.
+
+Examples:
+
+- Endpoint (explicit):
+```json
+{ "List": { "keypath": "ai.candidates" } }
+
+import UIKit
+
+class MyCustomView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupView()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupView()
+    }
+    
+    private func setupView() {
+        backgroundColor = .white
+    }
+    
+    func updateContent(with text: String) {
+        // Update the view content with the provided text
+    }
+}
+
+## See also
+- Skeleton elements reference: [Documentation/SkeletonElements.md](SkeletonElements.md)
+- How to create a Cell: [Documentation/HowTo_CreateCell.md](HowTo_CreateCell.md)

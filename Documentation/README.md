@@ -23,13 +23,15 @@ Projects importing CellProtocol must include:
 
 ### Quick links
 - Architecture overview: [Prompts/Architecture.md](Prompts/Architecture.md)
-- Contributing guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Contributing guidelines: [Prompts/CONTRIBUTING.md](Prompts/CONTRIBUTING.md)
 - Edge menus overlay: [Prompts/EdgeMenusOverlay.md](Prompts/EdgeMenusOverlay.md)
 - Apple Intelligence cell: [Prompts/AppleIntelligenceCell.md](Prompts/AppleIntelligenceCell.md)
 - Explainer for LLMs: [Prompts/ExplainToAnotherLLM.md](Prompts/ExplainToAnotherLLM.md)
 - Documentation index (folder): [Documentation/](Documentation/)
 - Prompts index (folder): [Prompts/](Prompts/)
 - Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
+- Skeleton elements reference: [Documentation/SkeletonElements.md](Documentation/SkeletonElements.md)
+- How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
 
 See also:
 - `Prompts/EdgeMenusOverlay.md`

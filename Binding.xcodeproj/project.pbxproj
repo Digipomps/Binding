@@ -35,6 +35,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "Binding" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				HowTo_CreateCell.md,
+			);
+			target = 24D800142EF195A000021B5A /* Binding */;
+		};
 		24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "Binding" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -72,6 +79,9 @@
 		};
 		24D8004D2EF2D58E00021B5A /* Documentation */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "Binding" target */,
+			);
 			path = Documentation;
 			sourceTree = "<group>";
 		};
