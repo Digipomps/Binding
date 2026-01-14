@@ -39,6 +39,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				HowTo_CreateCell.md,
+				SkeletonElements_Detailed.md,
 			);
 			target = 24D800142EF195A000021B5A /* Binding */;
 		};

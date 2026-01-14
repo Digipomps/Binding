@@ -115,7 +115,7 @@ struct ContentView: View {
 // MARK: - Porthole canvas hosting the Skeleton renderer
 private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
-    @StateObject private var portholeVM = PortholeViewModel()
+    @StateObject private var portholeVM = PortholeBindingViewModel()
 
     var body: some View {
         ZStack {
@@ -132,6 +132,7 @@ private struct PortholeCanvas: View {
                     .padding()
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                
             }
         }
     }

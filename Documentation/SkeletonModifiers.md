@@ -141,3 +141,17 @@ class MyCustomView: UIView {
 ## See also
 - Skeleton elements reference: [Documentation/SkeletonElements.md](SkeletonElements.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](HowTo_CreateCell.md)
+
+## Example
+```json
+{
+  "Text": {
+    "text": "Bordered",
+    "modifiers": {
+      "padding": 8,
+      "cornerRadius": 8,
+      "borderWidth": 1,
+      "borderColor": "#FF0000"
+    }
+  }
+}
