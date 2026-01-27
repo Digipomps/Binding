@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2430C8F32F18FB4B008F5B80 /* MultipeerConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2430C8F22F18FB4B008F5B80 /* MultipeerConnectivity.framework */; };
+		2430C8F52F18FB57008F5B80 /* NearbyInteraction.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2430C8F42F18FB57008F5B80 /* NearbyInteraction.framework */; platformFilters = (ios, macos, ); };
 		24D800422EF1A91500021B5A /* CellApple in Frameworks */ = {isa = PBXBuildFile; productRef = 24D800412EF1A91500021B5A /* CellApple */; };
 		24D800442EF1A91500021B5A /* CellBase in Frameworks */ = {isa = PBXBuildFile; productRef = 24D800432EF1A91500021B5A /* CellBase */; };
 /* End PBXBuildFile section */
@@ -29,6 +31,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		2430C8F22F18FB4B008F5B80 /* MultipeerConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MultipeerConnectivity.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MultipeerConnectivity.framework; sourceTree = DEVELOPER_DIR; };
+		2430C8F42F18FB57008F5B80 /* NearbyInteraction.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NearbyInteraction.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/NearbyInteraction.framework; sourceTree = DEVELOPER_DIR; };
 		24D800152EF195A000021B5A /* Binding.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Binding.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D800222EF195A200021B5A /* BindingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D8002C2EF195A200021B5A /* BindingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -38,6 +42,7 @@
 		24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "Binding" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppleIntelligence_Workflow.md,
 				HowTo_CreateCell.md,
 				SkeletonElements_Detailed.md,
 			);
@@ -111,6 +116,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2430C8F52F18FB57008F5B80 /* NearbyInteraction.framework in Frameworks */,
+				2430C8F32F18FB4B008F5B80 /* MultipeerConnectivity.framework in Frameworks */,
 				24D800422EF1A91500021B5A /* CellApple in Frameworks */,
 				24D800442EF1A91500021B5A /* CellBase in Frameworks */,
 			);
@@ -133,6 +140,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2430C8F12F18FB4B008F5B80 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2430C8F42F18FB57008F5B80 /* NearbyInteraction.framework */,
+				2430C8F22F18FB4B008F5B80 /* MultipeerConnectivity.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		24D8000C2EF195A000021B5A = {
 			isa = PBXGroup;
 			children = (
@@ -143,6 +159,7 @@
 				24D800172EF195A000021B5A /* Binding */,
 				24D800252EF195A200021B5A /* BindingTests */,
 				24D8002F2EF195A200021B5A /* BindingUITests */,
+				2430C8F12F18FB4B008F5B80 /* Frameworks */,
 				24D800162EF195A000021B5A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -400,6 +417,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx26.2;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -455,6 +473,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				SDKROOT = macosx26.2;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
