@@ -7,4 +7,7 @@
    <FileRef
       location = "container:../CellProtocol">
    </FileRef>
+   <FileRef
+      location = "group:CellProtocolDocuments">
+   </FileRef>
 </Workspace>
