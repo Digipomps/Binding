@@ -7,6 +7,9 @@ Subscription & filtering
 - Use `topic` to select which messages to display.
 - Use `filterTypes: [String]` to restrict by FlowElement type (e.g., `event`, `alert`, `content`).
 
+- Skeleton elements represents the json document that is being used to describe how to set up the view or user unterface and map it to the underlying cells. Skeleton elements (SkeletonDescription) is a part of CellBase must never refer to 
+
+
 ## Common: SkeletonModifiers
 
 Supported fields and their rendering effects:

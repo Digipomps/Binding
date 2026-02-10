@@ -19,6 +19,7 @@ struct ContentView: View {
         ZStack {
             // Full-screen porthole canvas rendering current skeleton
             PortholeCanvas(skeleton: viewModel.currentSkeleton)
+                .environmentObject(viewModel)
                 .ignoresSafeArea()
                 .dropDestination(for: CellConfiguration.self) { items, location in
                     // On drop, load the configuration into the porthole
@@ -115,7 +116,7 @@ struct ContentView: View {
 // MARK: - Porthole canvas hosting the Skeleton renderer
 private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
-    @StateObject private var portholeVM = PortholeBindingViewModel()
+    @EnvironmentObject private var viewModel: PortholeBindingViewModel
 
     var body: some View {
         ZStack {
@@ -128,7 +129,7 @@ private struct PortholeCanvas: View {
 #endif
             GeometryReader { proxy in
                 SkeletonView(element: skeleton)
-                    .environmentObject(portholeVM)
+                    .environmentObject(viewModel)
                     .padding()
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
