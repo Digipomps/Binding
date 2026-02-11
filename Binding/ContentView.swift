@@ -12,13 +12,15 @@ import CellApple
 
 struct ContentView: View {
     @StateObject private var viewModel = PortholeBindingViewModel()
+    @StateObject private var editorState = EditorState()
+    @State private var editorMode: EditorMode = .view
     @State private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
 
     var body: some View {
         ZStack {
             // Full-screen porthole canvas rendering current skeleton
-            PortholeCanvas(skeleton: viewModel.currentSkeleton)
+            PortholeCanvas(skeleton: renderedSkeleton)
                 .environmentObject(viewModel)
                 .ignoresSafeArea()
                 .dropDestination(for: CellConfiguration.self) { items, location in
@@ -45,6 +47,22 @@ struct ContentView: View {
             }
         }
         .gesture(rotationHideShowGesture)
+        .safeAreaInset(edge: .top, alignment: .trailing) {
+            editorModePanel
+                .padding(.trailing, 12)
+                .padding(.top, 6)
+        }
+        .onChange(of: editorMode) { _, mode in
+            switch mode {
+            case .view:
+                editorState.endEditing()
+            case .edit:
+                editorState.beginEditing(from: viewModel.currentSkeleton)
+            }
+        }
+        .onReceive(viewModel.$currentSkeleton) { next in
+            editorState.captureViewerSnapshot(next)
+        }
         .task {
             // Ensure IdentityVault is available for the model
             if CellBase.defaultIdentityVault == nil {
@@ -52,6 +70,7 @@ struct ContentView: View {
                 _ = await IdentityVault.shared.initialize()
             }
             await viewModel.connectIfNeeded()
+            editorState.captureViewerSnapshot(viewModel.currentSkeleton)
         }
     }
 
@@ -110,6 +129,37 @@ struct ContentView: View {
             let icon = config.skeletonIconName
             return MenuItem(icon: icon, configuration: config)
         }
+    }
+
+    private var renderedSkeleton: SkeletonElement {
+        if editorMode == .edit, let workingCopy = editorState.workingCopy {
+            return workingCopy
+        }
+        return viewModel.currentSkeleton
+    }
+
+    private var editorModePanel: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            Picker("Mode", selection: $editorMode) {
+                ForEach(EditorMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 180)
+
+            if editorMode == .edit {
+                HStack(spacing: 8) {
+                    Button("Undo") { editorState.undo() }
+                        .disabled(!editorState.canUndo)
+                    Button("Redo") { editorState.redo() }
+                        .disabled(!editorState.canRedo)
+                }
+                .font(.caption)
+            }
+        }
+        .padding(10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -223,4 +273,3 @@ private extension CellConfiguration {
 #Preview {
     ContentView()
 }
-
