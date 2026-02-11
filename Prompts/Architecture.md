@@ -38,6 +38,22 @@ Guidelines:
 - SET interceptors: implement commands/actions with structured `ValueType` payloads (e.g., `ai.send`, `ai.sendPrompt`, `ai.discover`).
 - Events/Intents: publish via `Emit.flow` as `FlowElement` with `.object` payloads; consumers listen and react.
 
+## Perspective Matching Policy
+When a `GeneralCell` subclass provides Perspective-aware matching (`Purpose` and `Interest`):
+
+- Use explicit, local weights only; never infer behavior from hidden profiling.
+- Expose parameterized matching queries through `SET` intercepts (not ad-hoc APIs).
+- Return enough data for downstream matching and ranking:
+  - direct purpose hits with source/target purpose weights
+  - via-interest hits with source/target purpose weights and source/target interest weights
+- Keep scoring deterministic and transparent so identical inputs produce identical ordering.
+
+Canonical shared contract lives in:
+- `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+- `CellProtocolDocuments/Book/13_Agent_Instructions.md`
+
+Use `Binding` docs only for app-specific integration details.
+
 ## Moduler og ansvar
 - CellBase: Plattform-agnostisk kjerne (protokoller som CellProtocol, verdityper som ValueType, domenemodeller som Perspective og CellConfiguration, og annen logikk uten OS-avhengighet).
 - CellApple: OS-spesifikke integrasjoner og visninger (SwiftUI, UI-komponenter, EdgeMenus, SkeletonView, Apple Intelligence-komponenter ligger her under `CellApple/Intelligence`).
@@ -60,4 +76,3 @@ Prosjekter som importerer CellProtocol skal inneholde:
 - Oppdateringer og intent meldinger sendes som `FlowElement` (Emit/flow) med `.object`-payload.
 - Porthole (eller andre konsumenter) henter state ved behov via `get` og reagerer på `FlowElement`-oppdateringer.
 - Utforskning (explore) bruker standardiserte nøkkelnavn over Flow (se `Prompts/AppleIntelligenceCell.md`).
-

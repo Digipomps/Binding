@@ -54,6 +54,17 @@ You are an expert assistant working inside an Xcode project that adopts the Cell
 - Maintain 32pt edge margins for menu anchors, and ≥10pt padding to keep items fully visible.
 - Use `.spring()` animations for toggles and interactive transitions.
 - Avoid introducing third-party dependencies; rely on CellProtocol and SwiftUI.
+- For `GeneralCell` subclasses that work with Perspectives, expose matching through intercepts only:
+  - `GET` for snapshots/state
+  - `SET` for parameterized queries (`activePurposes`, `interestsFromActivePurposes`, `match`)
+- Perspective matching outputs must include explicit weights and route type:
+  - direct purpose hits (`route = directPurpose`)
+  - via-interest hits (`route = viaInterest`)
+- Keep matching deterministic and transparent; avoid inferred or opaque scoring.
+- Canonical Perspective runtime docs are in:
+  - `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+  - `CellProtocolDocuments/Book/13_Agent_Instructions.md`
+- Keep `Binding/Documentation` focused on app/product integration notes, not protocol duplication.
 
 ## How to Generate New Cells and Features (Step-by-Step)
 1. Clarify intent:
@@ -98,4 +109,3 @@ You are an expert assistant working inside an Xcode project that adopts the Cell
 
 ---
 If documentation (Architecture, other md files, CellProtocol) seems unclear or contradictory, ask clarifying questions and propose a minimal path forward.
-

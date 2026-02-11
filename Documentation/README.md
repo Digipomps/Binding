@@ -21,6 +21,14 @@ Projects importing CellProtocol must include:
 - `Documentation/`: Architecture and developer docs.
 - `Prompts/`: Operational docs, system prompts, and component guides.
 
+## Canonical doc placement
+- Core protocol/runtime documentation needed for CellProtocol/HAVEN interoperability belongs in:
+  - `CellProtocolDocuments` (submodule), for example:
+    - `CellProtocolDocuments/Book/13_Agent_Instructions.md`
+    - `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+- Binding `Documentation/` should primarily contain Binding-specific integration notes.
+- Product/commercial behavior built on top of CellProtocol/HAVEN should stay in product repositories (for example DiMy repos), including their product docs.
+
 ### Quick links
 - Architecture overview: [Prompts/Architecture.md](Prompts/Architecture.md)
 - Contributing guidelines: [Prompts/CONTRIBUTING.md](Prompts/CONTRIBUTING.md)
@@ -32,10 +40,11 @@ Projects importing CellProtocol must include:
 - Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
 - Skeleton elements reference: [Documentation/SkeletonElements.md](Documentation/SkeletonElements.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
+- Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
+- Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)
 
 See also:
 - `Prompts/EdgeMenusOverlay.md`
 - `Prompts/AppleIntelligenceCell.md`
 - `Prompts/ExplainToAnotherLLM.md`
 - `Prompts/Architecture.md`
-
