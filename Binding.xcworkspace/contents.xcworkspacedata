@@ -5,7 +5,7 @@
       location = "group:Binding.xcodeproj">
    </FileRef>
    <FileRef
-      location = "container:../CellProtocol">
+      location = "group:../CellProtocol">
    </FileRef>
    <FileRef
       location = "group:CellProtocolDocuments">

@@ -840,11 +840,11 @@
             landmarkType = "7">
             <Locations>
                <Location
-                  uuid = "1B579EE7-7AD3-4B7E-B194-0D231550D974 - 3a2942ee079857fb"
+                  uuid = "1B579EE7-7AD3-4B7E-B194-0D231550D974 - 10f1e0bda4a470f"
                   shouldBeEnabled = "Yes"
                   ignoreCount = "0"
                   continueAfterRunningActions = "No"
-                  symbolName = "(10) suspend resume partial function for CellBase.SkeletonButton.execute() async -&gt; Swift.Optional&lt;CellBase.ValueType&gt;"
+                  symbolName = "CellBase.SkeletonButton.execute() async -&gt; Swift.Optional&lt;CellBase.ValueType&gt;"
                   moduleName = "Binding.debug.dylib"
                   usesParentBreakpointCondition = "Yes"
                   urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Skeleton/SkeletonDescription.swift"
@@ -854,25 +854,11 @@
                   endingLineNumber = "733">
                </Location>
                <Location
-                  uuid = "1B579EE7-7AD3-4B7E-B194-0D231550D974 - 24a833583e9232f8"
+                  uuid = "1B579EE7-7AD3-4B7E-B194-0D231550D974 - 99aa75f9395d5abe"
                   shouldBeEnabled = "Yes"
                   ignoreCount = "0"
                   continueAfterRunningActions = "No"
-                  symbolName = "(11) suspend resume partial function for CellBase.SkeletonButton.execute() async -&gt; Swift.Optional&lt;CellBase.ValueType&gt;"
-                  moduleName = "Binding.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Skeleton/SkeletonDescription.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "733"
-                  endingLineNumber = "733">
-               </Location>
-               <Location
-                  uuid = "1B579EE7-7AD3-4B7E-B194-0D231550D974 - 4d2b200af1ab91f9"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(12) suspend resume partial function for CellBase.SkeletonButton.execute() async -&gt; Swift.Optional&lt;CellBase.ValueType&gt;"
+                  symbolName = "(1) suspend resume partial function for CellBase.SkeletonButton.execute() async -&gt; Swift.Optional&lt;CellBase.ValueType&gt;"
                   moduleName = "Binding.debug.dylib"
                   usesParentBreakpointCondition = "Yes"
                   urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Skeleton/SkeletonDescription.swift"

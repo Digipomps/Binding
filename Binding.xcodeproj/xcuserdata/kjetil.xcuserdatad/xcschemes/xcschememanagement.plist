@@ -7,7 +7,25 @@
 		<key>Binding.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>6</integer>
+			<integer>0</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>24D800142EF195A000021B5A</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>24D800212EF195A200021B5A</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>24D8002B2EF195A200021B5A</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>
