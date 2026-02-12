@@ -9,6 +9,13 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - CellApple: platform-specific integrations and views (SwiftUI, SkeletonView, EdgeMenus, Apple Intelligence under `CellApple/Intelligence`).
   - CellVapor: server-side (Vapor) integrations.
 
+## Latest successful changes (February 11, 2026)
+- Added a local `ConfigurationCatalogCell` in Binding at `Cells/ConfigurationCatalogCell.swift`, modeled after the scaffold catalog contract (`upperLeftMenu`, `upperMidMenu`, `upperRightMenu`, `lowerLeftMenu`, `lowerMidMenu`, `lowerRightMenu`, `syncScaffoldPurposeGoals`).
+- Registered `ConfigurationCatalog` resolve in `Binding/BootstrapView.swift` so Binding can instantiate and serve catalog data locally.
+- Updated `Binding/ContentView.swift` to fetch menu configurations directly from `cell:///ConfigurationCatalog` after `connectIfNeeded()`, and to trigger `syncScaffoldPurposeGoals` before reading menus.
+- Enhanced menu examples/configurations to more polished card-style skeletons (title, subtitle, chip/badge, border/shadow styling), while still supporting imports from scaffold cells when available.
+- Validation status: build did not report errors in the changed Binding files; full `xcodebuild` currently fails on an existing dependency-side availability issue in `CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift` (`PurposeWrapper` availability), outside these Binding changes.
+
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.
 - State is accessed exclusively via `Meddle.get/set(keypath:value:requester:)`.

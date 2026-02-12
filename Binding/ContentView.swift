@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var editorMode: EditorMode = .view
     @State private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
+    @State private var didAttemptCatalogMenuSync: Bool = false
 
     var body: some View {
         ZStack {
@@ -70,6 +71,10 @@ struct ContentView: View {
                 _ = await IdentityVault.shared.initialize()
             }
             await viewModel.connectIfNeeded()
+            if !didAttemptCatalogMenuSync {
+                didAttemptCatalogMenuSync = true
+                await refreshMenusFromCatalogIfAvailable()
+            }
             editorState.captureViewerSnapshot(viewModel.currentSkeleton)
         }
     }
@@ -131,6 +136,49 @@ struct ContentView: View {
         }
     }
 
+    @MainActor
+    private func refreshMenusFromCatalogIfAvailable() async {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
+        guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else { return }
+        guard let catalogEmit = try? await resolver.cellAtEndpoint(endpoint: "cell:///ConfigurationCatalog", requester: identity),
+              let catalog = catalogEmit as? Meddle
+        else {
+            return
+        }
+
+        let hasExistingMenus = !viewModel.upperLeftMenu.isEmpty
+            || !viewModel.upperMidMenu.isEmpty
+            || !viewModel.upperRightMenu.isEmpty
+            || !viewModel.lowerLeftMenu.isEmpty
+            || !viewModel.lowerMidMenu.isEmpty
+            || !viewModel.lowerRightMenu.isEmpty
+        if !hasExistingMenus {
+            _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
+        }
+
+        func fetchMenu(_ keypath: String) async -> [CellConfiguration] {
+            guard let value = try? await catalog.get(keypath: keypath, requester: identity) else { return [] }
+            return value.cellConfigurations
+        }
+
+        let upperLeft = await fetchMenu("upperLeftMenu")
+        let upperMid = await fetchMenu("upperMidMenu")
+        let upperRight = await fetchMenu("upperRightMenu")
+        let lowerLeft = await fetchMenu("lowerLeftMenu")
+        let lowerMid = await fetchMenu("lowerMidMenu")
+        let lowerRight = await fetchMenu("lowerRightMenu")
+
+        let hasCatalogData = !upperLeft.isEmpty || !upperMid.isEmpty || !upperRight.isEmpty || !lowerLeft.isEmpty || !lowerMid.isEmpty || !lowerRight.isEmpty
+        guard hasCatalogData else { return }
+
+        viewModel.upperLeftMenu = upperLeft
+        viewModel.upperMidMenu = upperMid
+        viewModel.upperRightMenu = upperRight
+        viewModel.lowerLeftMenu = lowerLeft
+        viewModel.lowerMidMenu = lowerMid
+        viewModel.lowerRightMenu = lowerRight
+    }
+
     private var renderedSkeleton: SkeletonElement {
         if editorMode == .edit, let workingCopy = editorState.workingCopy {
             return workingCopy
@@ -160,6 +208,23 @@ struct ContentView: View {
         }
         .padding(10)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private extension ValueType {
+    var cellConfigurations: [CellConfiguration] {
+        guard case let .list(values) = self else { return [] }
+        return values.compactMap { value in
+            switch value {
+            case .cellConfiguration(let configuration):
+                return configuration
+            case .object(let object):
+                guard let data = try? JSONEncoder().encode(object) else { return nil }
+                return try? JSONDecoder().decode(CellConfiguration.self, from: data)
+            default:
+                return nil
+            }
+        }
     }
 }
 

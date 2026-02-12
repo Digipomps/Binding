@@ -65,4 +65,25 @@ final class EditorState: ObservableObject {
         undoStack.append(current)
         workingCopy = next
     }
+
+    func updateModifier(at path: SkeletonNodePath, mutate: (inout SkeletonModifiers) -> Void) {
+        guard let workingCopy,
+              let updated = SkeletonTreeMutations.updateModifier(in: workingCopy, at: path, mutate: mutate) else { return }
+        replaceWorkingCopy(with: updated)
+        selectedNodePath = path
+    }
+
+    func deleteNode(at path: SkeletonNodePath) {
+        guard let workingCopy,
+              let updated = SkeletonTreeMutations.delete(in: workingCopy, at: path) else { return }
+        replaceWorkingCopy(with: updated)
+        selectedNodePath = path.parent
+    }
+
+    func insertNode(_ element: SkeletonElement, into parentPath: SkeletonNodePath, at index: Int? = nil) {
+        guard let workingCopy,
+              let updated = SkeletonTreeMutations.insert(element, in: workingCopy, parentPath: parentPath, at: index) else { return }
+        replaceWorkingCopy(with: updated)
+        selectedNodePath = parentPath
+    }
 }

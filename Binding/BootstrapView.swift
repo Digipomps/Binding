@@ -21,6 +21,7 @@ struct BootstrapView<Content: View>: View {
             let resolver = CellResolver.sharedInstance
             do {
                 try await resolver.addCellResolve(name: "EventEmitter",         cellScope: .template,       identityDomain: "private", type: EventEmitterCell.self)
+                try await resolver.addCellResolve(name: "ConfigurationCatalog", cellScope: .scaffoldUnique, persistency: .persistant, identityDomain: "private", type: ConfigurationCatalogCell.self)
             } catch {
                 print("Scaffold added cellResolve failed with error: \(error)")
             }
