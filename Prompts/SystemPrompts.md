@@ -8,6 +8,7 @@ This file is now an index to avoid prompt drift across assistants.
 - `Prompts/CurrentState.md` (living implementation status)
 - `Prompts/Architecture.md` (authoritative architecture policy)
 - `Prompts/CONTRIBUTING.md` (contribution conventions)
+- `Prompts/AgreementTemplateEditorPlan.md` (approved draft plan for agreement template editor)
 
 ## Assistant Wrappers
 - `Prompts/SystemPrompt-Codex.md`

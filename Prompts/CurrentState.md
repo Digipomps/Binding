@@ -19,6 +19,15 @@ This file captures current implementation status, active decisions, and near-ter
   - mode switching (`View`/`Edit`)
   - editor state (`workingCopy`, selection, undo/redo)
   - tree mutations (`updateModifier`, `delete`, `insert`)
+- Agreement-template policy clarified:
+  - authorization is capability/grant-based per `Identity` (not role labels),
+  - template updates may target only new connections or also re-evaluate existing identities,
+  - revocation can force renewed `signContract` when allowed by active contract terms,
+  - `agreementTemplate.access.manage` can be delegated explicitly,
+  - agreements should support signatures from all parties and retrieval for storage in each party-controlled entity context,
+  - `Entity` is digital presence/resources/functionality controlled by a person (not the person itself),
+  - non-compliance should be surfaced explicitly and handled by selected policy,
+  - changes that may break CellProtocol concepts must be discussed with the user before implementation.
 
 ## Known Build Notes
 - Some builds may fail due to unrelated local changes (for example actor isolation issues in non-editor files).
@@ -29,8 +38,8 @@ This file captures current implementation status, active decisions, and near-ter
 - Add node selection overlay in edit mode.
 - Add add/delete actions in GUI.
 - Add drag-and-drop palette insertion.
+- Define and review agreement-template editor implementation plan before code changes.
 
 ## Open Decisions
 - Exact UX for edit mode toolbar placement on small screens.
 - Whether to persist edits immediately or stage them until explicit save.
-

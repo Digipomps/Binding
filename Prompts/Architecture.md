@@ -26,6 +26,18 @@ This project enforces access control through CellProtocol, with state access med
 - All state access and mutation must go through `Meddle.get/set(keypath:value:requester:)`.
 - Authorization is enforced per keypath by the cell itself.
 
+## Agreement Evolution Policy (authoritative)
+- Do not model authorization as static role labels (for example, `level2`). Authorization is capability-based and derived only from grants issued to a concrete `Identity`.
+- When editing an agreement template, support explicit rollout mode:
+  - apply to new connections only, or
+  - apply and re-evaluate currently connected identities.
+- Re-evaluation may revoke existing access and force a new `signContract` flow, but only if this does not violate active contract conditions/terms.
+- `agreementTemplate.access.manage` is delegable, but delegation remains capability-based and identity-scoped.
+- Agreement workflows should support signatures from all involved parties and retrieval for storage in each party-controlled entity context.
+- `Entity` means digital presence/resources/functionality controlled by a person, not the person directly.
+- If a user marks a contract change as non-compliant, emit an explicit event and apply configured policy (manual/escalation/automatic handling) instead of silently overriding state.
+- Any proposed implementation that could conflict with CellProtocol concepts in `Prompts/` or `CellProtocolDocuments/` must be discussed with the user before code changes are made.
+
 ## Interceptor policy (authoritative)
 We only use `addInterceptForGet` and `addInterceptForSet` to expose behavior and state externally. Do not use `registerAction`/`registerSetter` or ad‑hoc side channels.
 

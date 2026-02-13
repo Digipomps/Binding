@@ -19,6 +19,18 @@ This document provides conventions for contributing to the Binding app and the b
 - Publish events/intents via `Emit.flow` using `FlowElement` with `.object` payloads.
 - Enforce access control inside the cell (per-keypath authorization via the agreement/contract model).
 
+## Agreement and compatibility policy
+- Treat authorization as capability grants bound to `Identity`, not role labels.
+- Agreement template updates must support explicit behavior selection:
+  - affect only new connections, or
+  - also re-evaluate existing identities and require a new `signContract` when revocation/re-approval is valid under contract terms.
+- `agreementTemplate.access.manage` may be delegated to other identities when explicitly granted.
+- Agreement flows should support signatures from all parties and retrieval for storage in each party-controlled entity context.
+- `Entity` refers to digital presence/resources/functionality under a person's control, not the person itself.
+- Non-compliance must be represented explicitly (`non-compliant` event/report) and handled by declared policy, not hidden implicit logic.
+- Before implementing behavior that may break or reinterpret CellProtocol concepts, stop and discuss the change with the user first.
+- Always evaluate proposed solutions against concepts documented in `Prompts/` and `CellProtocolDocuments/`.
+
 ## Code style and Swift conventions
 - Prefer Swift Concurrency (`async/await`).
 - Keep UI logic declarative; avoid side effects in SwiftUI bodies.
