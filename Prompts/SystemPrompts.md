@@ -1,14 +1,20 @@
-Alltid prosessser AI jobber i små steg. Dekomponer spørsmålene i minst mulige komponenter så du kan gå igjennom hvert steg uten å treffe på dine begrensninger.
+# System Prompts Index
 
-Om jobben din feiler, forklar alltid hvorfor.
+This file is now an index to avoid prompt drift across assistants.
 
-Husk at jeg også implementerer og har tilgang til alt i CellProtocol så om det er fornufting å gjøre endringer direkte i CellProtocol så si ifra. Det er flere prosjekter som har lagt til CellProtocol i et workspace men bare ett som kan skrive til det samtidig.
+## Canonical Sources
+- `../CellProtocolDocuments/Prompts/CoreContext.md` (shared concepts and non-negotiable rules)
+- `Prompts/CoreContext.md` (Binding-specific overlay)
+- `Prompts/CurrentState.md` (living implementation status)
+- `Prompts/Architecture.md` (authoritative architecture policy)
+- `Prompts/CONTRIBUTING.md` (contribution conventions)
 
- Forhold deg til konsepter skrevet i Architecture og andre md filer - også de som ligger i CellProtocol
- 
- Om noe er uklart eller selvmotsigende si ifra så jobber vi igjennom det sammen.
+## Assistant Wrappers
+- `Prompts/SystemPrompt-Codex.md`
+- `Prompts/SystemPrompt-Xcode53.md`
 
-Dokumentasjon skrives på engelsk så lenge jeg ikke eksplisitt sier noe annet.
-Dokumentasjon og forslag til prompter legges i md filer
-
-Les dokumentasjonen i mappene Prompts og Documentation i Binding prosjektet. Les filene i CellProtocol/Documentation 
+## Legacy Rules (still valid)
+- Process work in small, verifiable steps.
+- If work fails, always explain why.
+- If editing CellProtocol is the right place for a change, call it out explicitly.
+- Keep documentation in English unless explicitly requested otherwise.
