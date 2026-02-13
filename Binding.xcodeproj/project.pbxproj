@@ -193,8 +193,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				24D800172EF195A000021B5A /* Binding */,
-				24D8004D2EF2D58E00021B5A /* Documentation */,
-				24D8004F2EF2D5AE00021B5A /* Prompts */,
 				24D800CB2F0286AB00021B5A /* Cells */,
 			);
 			name = Binding;

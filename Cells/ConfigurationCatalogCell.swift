@@ -644,6 +644,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                 if shouldSkipResolverLookup(for: endpoint) {
                     continue
                 }
+                if let missingHost = missingRemoteHostRoute(for: endpoint, resolver: resolver) {
+                    await reportMissingEndpoint(
+                        endpoint: endpoint,
+                        operation: "syncScaffoldPurposeGoals",
+                        message: "Missing remote host route for '\(missingHost)'. Register with resolver.registerRemoteCellHost(host:route:).",
+                        requester: requester
+                    )
+                    continue
+                }
                 guard let emit = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester),
                       let meddle = emit as? Meddle,
                       let purposeGoalPayload = try? await meddle.get(keypath: "purposeGoal", requester: requester),
@@ -674,6 +683,17 @@ final class ConfigurationCatalogCell: GeneralCell {
         stateQueue.sync {
             syncInProgress = false
         }
+    }
+
+    private func missingRemoteHostRoute(for endpoint: String, resolver: CellResolverProtocol) -> String? {
+        guard let url = URL(string: endpoint) else { return nil }
+        guard url.scheme == "cell" else { return nil }
+        guard let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines), !host.isEmpty else { return nil }
+        if host.lowercased() == "localhost" { return nil }
+
+        let routes = resolver.remoteCellHostRoutesSnapshot()
+        let normalizedHost = host.lowercased()
+        return routes[normalizedHost] == nil ? host : nil
     }
 
     private func shouldSkipResolverLookup(for endpoint: String) -> Bool {

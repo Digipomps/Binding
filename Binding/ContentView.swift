@@ -11,6 +11,19 @@ import CellBase
 import CellApple
 
 struct ContentView: View {
+    private struct CatalogSource {
+        let endpoint: String
+        let allowSync: Bool
+    }
+
+    private struct CatalogOrigin {
+        let host: String
+        let port: Int?
+        let route: RemoteCellHostRoute
+        let websocketScheme: String
+        let useDirectWebSocketForLocalReferences: Bool
+    }
+
     @StateObject private var viewModel = PortholeBindingViewModel()
     @StateObject private var editorState = EditorState()
     @State private var editorMode: EditorMode = .view
@@ -140,43 +153,208 @@ struct ContentView: View {
     private func refreshMenusFromCatalogIfAvailable() async {
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
         guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else { return }
-        guard let catalogEmit = try? await resolver.cellAtEndpoint(endpoint: "cell:///ConfigurationCatalog", requester: identity),
-              let catalog = catalogEmit as? Meddle
-        else {
-            return
-        }
-
         let hasExistingMenus = !viewModel.upperLeftMenu.isEmpty
             || !viewModel.upperMidMenu.isEmpty
             || !viewModel.upperRightMenu.isEmpty
             || !viewModel.lowerLeftMenu.isEmpty
             || !viewModel.lowerMidMenu.isEmpty
             || !viewModel.lowerRightMenu.isEmpty
-        if !hasExistingMenus {
-            _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
+
+        for source in configuredCatalogSources() {
+            let origin = catalogOrigin(from: source.endpoint)
+            if let origin {
+                registerRemoteCatalogHostIfNeeded(origin, resolver: resolver)
+            }
+
+            guard let catalogEmit = try? await resolver.cellAtEndpoint(endpoint: source.endpoint, requester: identity),
+                  let catalog = catalogEmit as? Meddle
+            else {
+                continue
+            }
+
+            if source.allowSync && !hasExistingMenus {
+                _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
+            }
+
+            func fetchMenu(_ keypath: String) async -> [CellConfiguration] {
+                guard let value = try? await catalog.get(keypath: keypath, requester: identity) else { return [] }
+                return normalizeCatalogMenu(value.cellConfigurations, origin: origin, resolver: resolver)
+            }
+
+            let upperLeft = await fetchMenu("upperLeftMenu")
+            let upperMid = await fetchMenu("upperMidMenu")
+            let upperRight = await fetchMenu("upperRightMenu")
+            let lowerLeft = await fetchMenu("lowerLeftMenu")
+            let lowerMid = await fetchMenu("lowerMidMenu")
+            let lowerRight = await fetchMenu("lowerRightMenu")
+
+            let hasCatalogData = !upperLeft.isEmpty || !upperMid.isEmpty || !upperRight.isEmpty || !lowerLeft.isEmpty || !lowerMid.isEmpty || !lowerRight.isEmpty
+            guard hasCatalogData else { continue }
+
+            viewModel.upperLeftMenu = upperLeft
+            viewModel.upperMidMenu = upperMid
+            viewModel.upperRightMenu = upperRight
+            viewModel.lowerLeftMenu = lowerLeft
+            viewModel.lowerMidMenu = lowerMid
+            viewModel.lowerRightMenu = lowerRight
+            return
+        }
+    }
+
+    private func configuredCatalogSources() -> [CatalogSource] {
+        let raw = ProcessInfo.processInfo.environment["BINDING_REMOTE_CATALOG_ENDPOINTS"] ?? ""
+        let separators = CharacterSet(charactersIn: ",;\n")
+        let remoteEndpoints = raw
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        var sources = remoteEndpoints.map { CatalogSource(endpoint: $0, allowSync: false) }
+        sources.append(CatalogSource(endpoint: "cell:///ConfigurationCatalog", allowSync: true))
+        return sources
+    }
+
+    private func catalogOrigin(from endpoint: String) -> CatalogOrigin? {
+        guard let components = URLComponents(string: endpoint),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.isEmpty
+        else {
+            return nil
         }
 
-        func fetchMenu(_ keypath: String) async -> [CellConfiguration] {
-            guard let value = try? await catalog.get(keypath: keypath, requester: identity) else { return [] }
-            return value.cellConfigurations
+        switch scheme {
+        case "cell":
+            guard host.lowercased() != "localhost" else { return nil }
+            let route = RemoteCellHostRoute(websocketEndpoint: "publishersws", schemePreference: .automatic)
+            return CatalogOrigin(
+                host: host,
+                port: components.port,
+                route: route,
+                websocketScheme: CellBase.allowsInsecureWebSockets ? "ws" : "wss",
+                useDirectWebSocketForLocalReferences: false
+            )
+        case "ws", "wss":
+            let routePath = inferredWebsocketRoutePath(fromCatalogEndpointPath: components.path)
+            let schemePreference: RemoteCellHostRoute.SchemePreference = scheme == "ws" ? .ws : .wss
+            let route = RemoteCellHostRoute(websocketEndpoint: routePath, schemePreference: schemePreference)
+            return CatalogOrigin(
+                host: host,
+                port: components.port,
+                route: route,
+                websocketScheme: scheme,
+                useDirectWebSocketForLocalReferences: host.lowercased() == "localhost"
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func registerRemoteCatalogHostIfNeeded(_ origin: CatalogOrigin, resolver: CellResolver) {
+        registerRemoteHostIfNeeded(origin.host, route: origin.route, resolver: resolver)
+    }
+
+    private func registerRemoteHostIfNeeded(_ host: String, route: RemoteCellHostRoute, resolver: CellResolver) {
+        let normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedHost.isEmpty, normalizedHost != "localhost" else { return }
+        let snapshot = resolver.remoteCellHostRoutesSnapshot()
+        if snapshot[normalizedHost] == nil {
+            resolver.registerRemoteCellHost(host, route: route)
+        }
+    }
+
+    private func inferredWebsocketRoutePath(fromCatalogEndpointPath path: String) -> String {
+        let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalizedPath.isEmpty else { return "publishersws" }
+
+        let components = normalizedPath.split(separator: "/").map(String.init)
+        guard components.count > 1 else { return "" }
+        return components.dropLast().joined(separator: "/")
+    }
+
+    private func normalizeCatalogMenu(_ configs: [CellConfiguration], origin: CatalogOrigin?, resolver: CellResolver) -> [CellConfiguration] {
+        configs.map { normalizeConfigurationForResolver($0, origin: origin, resolver: resolver) }
+    }
+
+    private func normalizeConfigurationForResolver(_ configuration: CellConfiguration, origin: CatalogOrigin?, resolver: CellResolver) -> CellConfiguration {
+        var normalized = configuration
+        if let references = configuration.cellReferences {
+            normalized.cellReferences = references.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
+        }
+        return normalized
+    }
+
+    private func normalizeReferenceForResolver(_ reference: CellReference, origin: CatalogOrigin?, resolver: CellResolver) -> CellReference {
+        var normalized = reference
+        normalized.endpoint = normalizeEndpointForResolver(reference.endpoint, origin: origin, resolver: resolver)
+        normalized.subscriptions = reference.subscriptions.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
+        normalized.setKeysAndValues = reference.setKeysAndValues.map { kv in
+            var current = kv
+            if let target = current.target {
+                current.target = normalizeEndpointForResolver(target, origin: origin, resolver: resolver)
+            }
+            return current
+        }
+        return normalized
+    }
+
+    private func normalizeEndpointForResolver(_ endpoint: String, origin: CatalogOrigin?, resolver: CellResolver) -> String {
+        guard var components = URLComponents(string: endpoint),
+              let scheme = components.scheme?.lowercased()
+        else {
+            return endpoint
+        }
+        if scheme == "ws" || scheme == "wss" {
+            return endpoint
+        }
+        guard scheme == "cell" else {
+            return endpoint
         }
 
-        let upperLeft = await fetchMenu("upperLeftMenu")
-        let upperMid = await fetchMenu("upperMidMenu")
-        let upperRight = await fetchMenu("upperRightMenu")
-        let lowerLeft = await fetchMenu("lowerLeftMenu")
-        let lowerMid = await fetchMenu("lowerMidMenu")
-        let lowerRight = await fetchMenu("lowerRightMenu")
+        let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalizedPath.isEmpty else { return endpoint }
 
-        let hasCatalogData = !upperLeft.isEmpty || !upperMid.isEmpty || !upperRight.isEmpty || !lowerLeft.isEmpty || !lowerMid.isEmpty || !lowerRight.isEmpty
-        guard hasCatalogData else { return }
+        let currentHost = components.host?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isLocal = currentHost == nil || currentHost?.isEmpty == true || currentHost?.lowercased() == "localhost"
 
-        viewModel.upperLeftMenu = upperLeft
-        viewModel.upperMidMenu = upperMid
-        viewModel.upperRightMenu = upperRight
-        viewModel.lowerLeftMenu = lowerLeft
-        viewModel.lowerMidMenu = lowerMid
-        viewModel.lowerRightMenu = lowerRight
+        if isLocal {
+            guard let origin else { return endpoint }
+
+            if origin.useDirectWebSocketForLocalReferences {
+                return makeWebSocketEndpoint(forCellPath: normalizedPath, origin: origin) ?? endpoint
+            }
+
+            registerRemoteCatalogHostIfNeeded(origin, resolver: resolver)
+
+            var rewritten = URLComponents()
+            rewritten.scheme = "cell"
+            rewritten.host = origin.host
+            rewritten.port = origin.port
+            rewritten.path = "/" + normalizedPath
+            return rewritten.string ?? endpoint
+        }
+
+        if let host = currentHost {
+            let fallbackRoute = origin?.route ?? RemoteCellHostRoute(websocketEndpoint: "publishersws", schemePreference: .automatic)
+            registerRemoteHostIfNeeded(host, route: fallbackRoute, resolver: resolver)
+        }
+
+        components.path = "/" + normalizedPath
+        return components.string ?? endpoint
+    }
+
+    private func makeWebSocketEndpoint(forCellPath cellPath: String, origin: CatalogOrigin) -> String? {
+        var components = URLComponents()
+        components.scheme = origin.websocketScheme
+        components.host = origin.host
+        components.port = origin.port
+
+        let routePath = origin.route.websocketEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if routePath.isEmpty {
+            components.path = "/\(cellPath)"
+        } else {
+            components.path = "/\(routePath)/\(cellPath)"
+        }
+        return components.string
     }
 
     private var renderedSkeleton: SkeletonElement {
