@@ -153,12 +153,6 @@ struct ContentView: View {
     private func refreshMenusFromCatalogIfAvailable() async {
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
         guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else { return }
-        let hasExistingMenus = !viewModel.upperLeftMenu.isEmpty
-            || !viewModel.upperMidMenu.isEmpty
-            || !viewModel.upperRightMenu.isEmpty
-            || !viewModel.lowerLeftMenu.isEmpty
-            || !viewModel.lowerMidMenu.isEmpty
-            || !viewModel.lowerRightMenu.isEmpty
 
         for source in configuredCatalogSources() {
             let origin = catalogOrigin(from: source.endpoint)
@@ -172,7 +166,7 @@ struct ContentView: View {
                 continue
             }
 
-            if source.allowSync && !hasExistingMenus {
+            if source.allowSync {
                 _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
             }
 

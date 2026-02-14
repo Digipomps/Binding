@@ -28,6 +28,13 @@ This file captures current implementation status, active decisions, and near-ter
   - `Entity` is digital presence/resources/functionality controlled by a person (not the person itself),
   - non-compliance should be surfaced explicitly and handled by selected policy,
   - changes that may break CellProtocol concepts must be discussed with the user before implementation.
+- Initial implementation added in `Cells/ConfigurationCatalogCell.swift`:
+  - agreement template endpoints (`agreementTemplate.state/preview/apply/access.*`, `agreementTemplate.auditLog`)
+  - agreement lifecycle endpoints (`agreements.current/history/sign`)
+  - non-compliance endpoints (`agreements.nonCompliant.report/policy`)
+  - agreement event topic (`agreements`) and persisted audit/non-compliance state
+  - skeleton-based "Agreement Template Workbench" configuration in scaffold defaults.
+- `Binding/ContentView.swift` now always triggers catalog sync on startup for local catalog source so newly added scaffold templates can appear without manual reset.
 
 ## Known Build Notes
 - Some builds may fail due to unrelated local changes (for example actor isolation issues in non-editor files).
