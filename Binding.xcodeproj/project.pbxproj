@@ -9,8 +9,8 @@
 /* Begin PBXBuildFile section */
 		2430C8F32F18FB4B008F5B80 /* MultipeerConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2430C8F22F18FB4B008F5B80 /* MultipeerConnectivity.framework */; };
 		2430C8F52F18FB57008F5B80 /* NearbyInteraction.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2430C8F42F18FB57008F5B80 /* NearbyInteraction.framework */; platformFilters = (ios, macos, ); };
-		24D800422EF1A91500021B5A /* CellApple in Frameworks */ = {isa = PBXBuildFile; productRef = 24D800412EF1A91500021B5A /* CellApple */; };
-		24D800442EF1A91500021B5A /* CellBase in Frameworks */ = {isa = PBXBuildFile; productRef = 24D800432EF1A91500021B5A /* CellBase */; };
+		2468DE052F421297000334E1 /* CellBase in Frameworks */ = {isa = PBXBuildFile; productRef = 2468DE042F421297000334E1 /* CellBase */; };
+		2468DE072F42129D000334E1 /* CellApple in Frameworks */ = {isa = PBXBuildFile; productRef = 2468DE062F42129D000334E1 /* CellApple */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,10 +117,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2468DE052F421297000334E1 /* CellBase in Frameworks */,
 				2430C8F52F18FB57008F5B80 /* NearbyInteraction.framework in Frameworks */,
 				2430C8F32F18FB4B008F5B80 /* MultipeerConnectivity.framework in Frameworks */,
-				24D800422EF1A91500021B5A /* CellApple in Frameworks */,
-				24D800442EF1A91500021B5A /* CellBase in Frameworks */,
+				2468DE072F42129D000334E1 /* CellApple in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -197,8 +197,8 @@
 			);
 			name = Binding;
 			packageProductDependencies = (
-				24D800412EF1A91500021B5A /* CellApple */,
-				24D800432EF1A91500021B5A /* CellBase */,
+				2468DE042F421297000334E1 /* CellBase */,
+				2468DE062F42129D000334E1 /* CellApple */,
 			);
 			productName = Binding;
 			productReference = 24D800152EF195A000021B5A /* Binding.app */;
@@ -283,8 +283,8 @@
 			mainGroup = 24D8000C2EF195A000021B5A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				24D8003F2EF1A86C00021B5A /* XCRemoteSwiftPackageReference "FileUtils-c" */,
-				24D800402EF1A91500021B5A /* XCLocalSwiftPackageReference "../CellProtocol" */,
+				2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */,
+				2468DE032F4204DC000334E1 /* XCRemoteSwiftPackageReference "FileUtils-c" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
@@ -717,15 +717,16 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		24D800402EF1A91500021B5A /* XCLocalSwiftPackageReference "../CellProtocol" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../CellProtocol;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
-		24D8003F2EF1A86C00021B5A /* XCRemoteSwiftPackageReference "FileUtils-c" */ = {
+		2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "git@github.com:Digipomps/CellProtocol.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		2468DE032F4204DC000334E1 /* XCRemoteSwiftPackageReference "FileUtils-c" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "git@github.com:Digipomps/FileUtils-c";
 			requirement = {
@@ -736,15 +737,13 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		24D800412EF1A91500021B5A /* CellApple */ = {
+		2468DE042F421297000334E1 /* CellBase */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 24D800402EF1A91500021B5A /* XCLocalSwiftPackageReference "../CellProtocol" */;
-			productName = CellApple;
-		};
-		24D800432EF1A91500021B5A /* CellBase */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 24D800402EF1A91500021B5A /* XCLocalSwiftPackageReference "../CellProtocol" */;
 			productName = CellBase;
+		};
+		2468DE062F42129D000334E1 /* CellApple */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CellApple;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
