@@ -9,12 +9,18 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - CellApple: platform-specific integrations and views (SwiftUI, SkeletonView, EdgeMenus, Apple Intelligence under `CellApple/Intelligence`).
   - CellVapor: server-side (Vapor) integrations.
 
-## Latest successful changes (February 11, 2026)
+## Latest successful changes (February 16, 2026)
 - Added a local `ConfigurationCatalogCell` in Binding at `Cells/ConfigurationCatalogCell.swift`, modeled after the scaffold catalog contract (`upperLeftMenu`, `upperMidMenu`, `upperRightMenu`, `lowerLeftMenu`, `lowerMidMenu`, `lowerRightMenu`, `syncScaffoldPurposeGoals`).
 - Registered `ConfigurationCatalog` resolve in `Binding/BootstrapView.swift` so Binding can instantiate and serve catalog data locally.
 - Updated `Binding/ContentView.swift` to fetch menu configurations directly from `cell:///ConfigurationCatalog` after `connectIfNeeded()`, and to trigger `syncScaffoldPurposeGoals` before reading menus.
 - Enhanced menu examples/configurations to more polished card-style skeletons (title, subtitle, chip/badge, border/shadow styling), while still supporting imports from scaffold cells when available.
-- Validation status: build did not report errors in the changed Binding files; full `xcodebuild` currently fails on an existing dependency-side availability issue in `CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift` (`PurposeWrapper` availability), outside these Binding changes.
+- Added interactive Skeleton editing:
+  - Select elements from canvas/tree.
+  - Add/delete elements.
+  - Add/edit/delete modifiers.
+  - Add/edit/delete element parameters (for example `endpoint`, `name`, `text`, `keypath`, `topic`, `label`).
+- Added macOS floating editor tool windows (`NSPanel`) for `Elements` and `Inspector`, while keeping mode switching (`view`/`edit`) in the main window.
+- Validation status: `xcodebuild` succeeded for Binding after these editor changes.
 
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.
@@ -44,6 +50,7 @@ Projects importing CellProtocol must include:
 - Explainer for LLMs: [Prompts/ExplainToAnotherLLM.md](Prompts/ExplainToAnotherLLM.md)
 - Documentation index (folder): [Documentation/](Documentation/)
 - Prompts index (folder): [Prompts/](Prompts/)
+- Skeleton editor: [Documentation/SkeletonEditor.md](Documentation/SkeletonEditor.md)
 - Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
 - Skeleton elements reference: [Documentation/SkeletonElements.md](Documentation/SkeletonElements.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)

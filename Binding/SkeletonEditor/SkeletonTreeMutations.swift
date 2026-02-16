@@ -2,6 +2,14 @@ import Foundation
 import CellBase
 
 enum SkeletonTreeMutations {
+    static func updateElement(
+        in root: SkeletonElement,
+        at path: SkeletonNodePath,
+        mutate: (inout SkeletonElement) -> Void
+    ) -> SkeletonElement? {
+        updateElement(in: root, remainingPath: ArraySlice(path.indices), mutate: mutate)
+    }
+
     static func updateModifier(
         in root: SkeletonElement,
         at path: SkeletonNodePath,
@@ -30,6 +38,25 @@ enum SkeletonTreeMutations {
     }
 
     // MARK: - Recursive operations
+
+    private static func updateElement(
+        in element: SkeletonElement,
+        remainingPath: ArraySlice<Int>,
+        mutate: (inout SkeletonElement) -> Void
+    ) -> SkeletonElement? {
+        guard let next = remainingPath.first else {
+            var updated = element
+            mutate(&updated)
+            return updated
+        }
+
+        guard let child = child(at: next, in: element),
+              let updatedChild = updateElement(in: child, remainingPath: remainingPath.dropFirst(), mutate: mutate) else {
+            return nil
+        }
+
+        return replacingChild(at: next, with: updatedChild, in: element)
+    }
 
     private static func updateModifier(
         in element: SkeletonElement,

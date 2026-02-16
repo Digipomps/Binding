@@ -26,6 +26,7 @@ struct ContentView: View {
 
     @StateObject private var viewModel = PortholeBindingViewModel()
     @StateObject private var editorState = EditorState()
+    @State private var floatingPanelsController = SkeletonEditorFloatingPanelsController()
     @State private var editorMode: EditorMode = .view
     @State private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
@@ -69,24 +70,32 @@ struct ContentView: View {
             }
         }
         .gesture(rotationHideShowGesture)
-        .safeAreaInset(edge: .top, alignment: .trailing) {
+        .overlay(alignment: .topTrailing) {
             editorModePanel
                 .padding(.trailing, 12)
                 .padding(.top, 6)
         }
-        .safeAreaInset(edge: .leading, alignment: .top) {
+        .overlay(alignment: .topLeading) {
+#if os(macOS)
+            EmptyView()
+#else
             if editorMode == .edit {
                 SkeletonTreePanel(editorState: editorState)
                     .padding(.leading, 12)
                     .padding(.top, 56)
             }
+#endif
         }
-        .safeAreaInset(edge: .trailing, alignment: .top) {
+        .overlay(alignment: .topTrailing) {
+#if os(macOS)
+            EmptyView()
+#else
             if editorMode == .edit {
                 SkeletonModifierInspectorPanel(editorState: editorState)
                     .padding(.trailing, 12)
                     .padding(.top, 56)
             }
+#endif
         }
         .onChange(of: editorMode) { _, mode in
             switch mode {
@@ -96,6 +105,13 @@ struct ContentView: View {
             case .edit:
                 editorState.beginEditing(from: viewModel.currentSkeleton)
             }
+            floatingPanelsController.setEditing(mode == .edit, editorState: editorState)
+        }
+        .onAppear {
+            floatingPanelsController.setEditing(editorMode == .edit, editorState: editorState)
+        }
+        .onDisappear {
+            floatingPanelsController.closePanels()
         }
         .onReceive(viewModel.$currentSkeleton) { next in
             if !editorState.isEditing {

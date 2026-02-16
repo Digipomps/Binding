@@ -130,6 +130,10 @@ struct SkeletonTreePanel: View {
 
 struct SkeletonModifierInspectorPanel: View {
     @ObservedObject var editorState: EditorState
+    @State private var addParameterSelection: SkeletonElementParameterKey?
+    @State private var parameterValueDrafts: [SkeletonElementParameterKey: String] = [:]
+    @State private var invalidParameterDrafts: Set<SkeletonElementParameterKey> = []
+
     @State private var addSelection: SkeletonModifierKey?
     @State private var valueDrafts: [SkeletonModifierKey: String] = [:]
     @State private var invalidDrafts: Set<SkeletonModifierKey> = []
@@ -146,6 +150,14 @@ struct SkeletonModifierInspectorPanel: View {
         editorState.selectedModifiers
     }
 
+    private var activeParameterKeys: [SkeletonElementParameterKey] {
+        SkeletonElementParameterCatalog.activeKeys(for: selectedElement)
+    }
+
+    private var addableParameterKeys: [SkeletonElementParameterKey] {
+        SkeletonElementParameterCatalog.addableKeys(for: selectedElement)
+    }
+
     private var activeKeys: [SkeletonModifierKey] {
         SkeletonModifierCatalog.activeKeys(modifiers: selectedModifiers)
     }
@@ -156,7 +168,7 @@ struct SkeletonModifierInspectorPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Modifiers")
+            Text("Inspector")
                 .font(.headline)
 
             if let selectedElement, let selectedPath {
@@ -170,6 +182,8 @@ struct SkeletonModifierInspectorPanel: View {
             }
 
             if selectedPath != nil {
+                parameterSection
+
                 HStack(spacing: 8) {
                     Picker("Add Modifier", selection: $addSelection) {
                         Text("Select").tag(Optional<SkeletonModifierKey>.none)
@@ -189,6 +203,9 @@ struct SkeletonModifierInspectorPanel: View {
 
                 Divider()
 
+                Text("Modifiers")
+                    .font(.subheadline.weight(.semibold))
+
                 if activeKeys.isEmpty {
                     Text("No modifiers on selected element")
                         .font(.caption)
@@ -201,12 +218,13 @@ struct SkeletonModifierInspectorPanel: View {
                             }
                         }
                     }
+                    .frame(maxHeight: 150)
                 }
             }
         }
         .padding(10)
-        .frame(width: 340)
-        .frame(maxHeight: 420, alignment: .topLeading)
+        .frame(width: 360)
+        .frame(maxHeight: 520, alignment: .topLeading)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onAppear {
             refreshFromState()
@@ -217,6 +235,125 @@ struct SkeletonModifierInspectorPanel: View {
         .onChange(of: editorState.revision) { _, _ in
             refreshFromState()
         }
+    }
+
+    @ViewBuilder
+    private var parameterSection: some View {
+        Text("Parameters")
+            .font(.subheadline.weight(.semibold))
+
+        HStack(spacing: 8) {
+            Picker("Add Parameter", selection: $addParameterSelection) {
+                Text("Select").tag(Optional<SkeletonElementParameterKey>.none)
+                ForEach(addableParameterKeys) { key in
+                    Text(key.title).tag(Optional(key))
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+
+            Button("Add") {
+                guard let key = addParameterSelection else { return }
+                addParameter(key)
+            }
+            .disabled(addParameterSelection == nil)
+        }
+
+        if activeParameterKeys.isEmpty {
+            Text("No parameters on selected element")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(activeParameterKeys) { key in
+                        parameterRow(for: key)
+                    }
+                }
+            }
+            .frame(maxHeight: 170)
+        }
+
+        Divider()
+    }
+
+    @ViewBuilder
+    private func parameterRow(for key: SkeletonElementParameterKey) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(key.title)
+                    .font(.caption)
+                Spacer()
+
+                let removable = selectedElement.map { key.canRemove(on: $0) } ?? false
+                Button(role: .destructive) {
+                    removeParameter(key)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .disabled(!removable)
+            }
+
+            switch key.valueKind {
+            case .bool:
+                Toggle(
+                    "Enabled",
+                    isOn: Binding(
+                        get: {
+                            selectedElement.flatMap { key.boolValue(on: $0) } ?? false
+                        },
+                        set: { newValue in
+                            updateSelectedElement { element in
+                                key.set(bool: newValue, on: &element)
+                            }
+                        }
+                    )
+                )
+                .font(.caption)
+            case .double, .string:
+                HStack(spacing: 8) {
+                    TextField(
+                        "Value",
+                        text: Binding(
+                            get: {
+                                if let draft = parameterValueDrafts[key] {
+                                    return draft
+                                }
+                                guard let selectedElement else { return "" }
+                                return key.textValue(on: selectedElement) ?? ""
+                            },
+                            set: { newValue in
+                                parameterValueDrafts[key] = newValue
+                                invalidParameterDrafts.remove(key)
+                            }
+                        )
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .onSubmit {
+                        applyParameterValueDraft(for: key)
+                    }
+
+                    Button("Set") {
+                        applyParameterValueDraft(for: key)
+                    }
+                    .font(.caption)
+                }
+            }
+
+            if invalidParameterDrafts.contains(key) {
+                Text("Invalid value for \(key.title)")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.04))
+        )
     }
 
     @ViewBuilder
@@ -292,6 +429,53 @@ struct SkeletonModifierInspectorPanel: View {
         )
     }
 
+    private func addParameter(_ key: SkeletonElementParameterKey) {
+        updateSelectedElement { element in
+            key.setDefault(on: &element)
+        }
+        addParameterSelection = addableParameterKeys.first
+    }
+
+    private func removeParameter(_ key: SkeletonElementParameterKey) {
+        guard let selectedElement, key.canRemove(on: selectedElement) else { return }
+        updateSelectedElement { element in
+            key.clear(on: &element)
+        }
+        parameterValueDrafts.removeValue(forKey: key)
+        invalidParameterDrafts.remove(key)
+        if addParameterSelection == nil {
+            addParameterSelection = addableParameterKeys.first
+        }
+    }
+
+    private func applyParameterValueDraft(for key: SkeletonElementParameterKey) {
+        let draft = (parameterValueDrafts[key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch key.valueKind {
+        case .bool:
+            return
+        case .double:
+            guard let value = parseDouble(draft) else {
+                invalidParameterDrafts.insert(key)
+                return
+            }
+            updateSelectedElement { element in
+                key.set(double: value, on: &element)
+            }
+            invalidParameterDrafts.remove(key)
+        case .string:
+            var isValid = false
+            updateSelectedElement { element in
+                isValid = key.set(string: draft, on: &element)
+            }
+            if isValid {
+                invalidParameterDrafts.remove(key)
+            } else {
+                invalidParameterDrafts.insert(key)
+            }
+        }
+    }
+
     private func addModifier(_ key: SkeletonModifierKey) {
         updateSelectedModifiers { modifiers in
             key.setDefault(in: &modifiers)
@@ -346,7 +530,22 @@ struct SkeletonModifierInspectorPanel: View {
         editorState.updateModifier(at: path, mutate: mutate)
     }
 
+    private func updateSelectedElement(_ mutate: (inout SkeletonElement) -> Void) {
+        guard let path = selectedPath else { return }
+        editorState.updateElement(at: path, mutate: mutate)
+    }
+
     private func refreshFromState() {
+        addParameterSelection = addableParameterKeys.first
+        var updatedParameterDrafts: [SkeletonElementParameterKey: String] = [:]
+        if let selectedElement {
+            for key in activeParameterKeys where key.valueKind == .string || key.valueKind == .double {
+                updatedParameterDrafts[key] = key.textValue(on: selectedElement) ?? ""
+            }
+        }
+        parameterValueDrafts = updatedParameterDrafts
+        invalidParameterDrafts.removeAll()
+
         let active = activeKeys
         addSelection = addableKeys.first
 

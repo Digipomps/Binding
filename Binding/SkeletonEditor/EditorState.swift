@@ -84,6 +84,13 @@ final class EditorState: ObservableObject {
         selectedNodePath = path
     }
 
+    func updateElement(at path: SkeletonNodePath, mutate: (inout SkeletonElement) -> Void) {
+        guard let workingCopy,
+              let updated = SkeletonTreeMutations.updateElement(in: workingCopy, at: path, mutate: mutate) else { return }
+        replaceWorkingCopy(with: updated)
+        selectedNodePath = path
+    }
+
     func deleteNode(at path: SkeletonNodePath) {
         guard let workingCopy,
               let updated = SkeletonTreeMutations.delete(in: workingCopy, at: path) else { return }

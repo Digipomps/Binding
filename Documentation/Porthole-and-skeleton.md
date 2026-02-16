@@ -35,3 +35,11 @@ var body: some View {
     PortholeCanvas(skeleton: viewModel.currentSkeleton)
         .task { await viewModel.connectIfNeeded() }
 }
+```
+
+## Edit mode (Binding)
+- Binding can switch between `view` and `edit` mode for the currently loaded `CellConfiguration.skeleton`.
+- In `edit` mode, the rendered skeleton is interactive and supports selecting elements directly in the canvas.
+- Element updates are made on a working copy and then applied back to the configuration with `Apply` (or reverted with `Discard`).
+- On macOS, editor tools are shown in two floating utility windows (`Elements` and `Modifiers/Inspector`) that can be moved outside the main app window.
+- For implementation details, see [Documentation/SkeletonEditor.md](SkeletonEditor.md).
