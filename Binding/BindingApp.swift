@@ -10,6 +10,10 @@ import CellApple
 
 @main
 struct BindingApp: App {
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(BindingAppDelegate.self) private var appDelegate
+    #endif
+
     var body: some Scene {
         WindowGroup {
             BootstrapView {
@@ -18,4 +22,3 @@ struct BindingApp: App {
         }
     }
 }
-
