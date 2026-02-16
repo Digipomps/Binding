@@ -30,16 +30,24 @@ struct ContentView: View {
     @State private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
     @State private var didAttemptCatalogMenuSync: Bool = false
+    @State private var activeConfiguration: CellConfiguration?
 
     var body: some View {
         ZStack {
             // Full-screen porthole canvas rendering current skeleton
-            PortholeCanvas(skeleton: renderedSkeleton)
+            PortholeCanvas(
+                skeleton: renderedSkeleton,
+                isEditing: editorMode == .edit,
+                selectedNodePath: editorState.selectedNodePath,
+                onSelectPath: { selectedPath in
+                    editorState.selectNode(selectedPath)
+                }
+            )
                 .environmentObject(viewModel)
                 .ignoresSafeArea()
                 .dropDestination(for: CellConfiguration.self) { items, location in
                     // On drop, load the configuration into the porthole
-                    Task { await viewModel.load(configuration: items.first) }
+                    Task { await loadConfigurationForEditing(items.first) }
                     return !items.isEmpty
                 }
 
@@ -53,7 +61,7 @@ struct ContentView: View {
                     lowerMid: menuItems(from: viewModel.lowerMidMenu),
                     lowerRight: menuItems(from: viewModel.lowerRightMenu),
                     onSelect: { config in
-                        Task { await viewModel.load(configuration: config) }
+                        Task { await loadConfigurationForEditing(config) }
                     }
                 )
                 .allowsHitTesting(true)
@@ -66,16 +74,33 @@ struct ContentView: View {
                 .padding(.trailing, 12)
                 .padding(.top, 6)
         }
+        .safeAreaInset(edge: .leading, alignment: .top) {
+            if editorMode == .edit {
+                SkeletonTreePanel(editorState: editorState)
+                    .padding(.leading, 12)
+                    .padding(.top, 56)
+            }
+        }
+        .safeAreaInset(edge: .trailing, alignment: .top) {
+            if editorMode == .edit {
+                SkeletonModifierInspectorPanel(editorState: editorState)
+                    .padding(.trailing, 12)
+                    .padding(.top, 56)
+            }
+        }
         .onChange(of: editorMode) { _, mode in
             switch mode {
             case .view:
+                applyWorkingCopyToViewer()
                 editorState.endEditing()
             case .edit:
                 editorState.beginEditing(from: viewModel.currentSkeleton)
             }
         }
         .onReceive(viewModel.$currentSkeleton) { next in
-            editorState.captureViewerSnapshot(next)
+            if !editorState.isEditing {
+                editorState.captureViewerSnapshot(next)
+            }
         }
         .task {
             // Ensure IdentityVault is available for the model
@@ -376,10 +401,45 @@ struct ContentView: View {
                         .disabled(!editorState.canRedo)
                 }
                 .font(.caption)
+
+                HStack(spacing: 8) {
+                    Button("Discard") {
+                        editorState.discardChanges()
+                    }
+                    Button("Apply") {
+                        applyWorkingCopyToViewer()
+                    }
+                    .disabled(editorState.workingCopy == nil)
+                }
+                .font(.caption)
             }
         }
         .padding(10)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func applyWorkingCopyToViewer() {
+        guard let committed = editorState.commitChanges() else { return }
+        if var configuration = activeConfiguration {
+            configuration.skeleton = committed
+            activeConfiguration = configuration
+            Task { await viewModel.load(configuration: configuration) }
+        } else {
+            var fallback = CellConfiguration(name: "Edited Skeleton")
+            fallback.skeleton = committed
+            activeConfiguration = fallback
+            Task { await viewModel.load(configuration: fallback) }
+        }
+    }
+
+    @MainActor
+    private func loadConfigurationForEditing(_ configuration: CellConfiguration?) async {
+        guard let configuration else { return }
+        activeConfiguration = configuration
+        await viewModel.load(configuration: configuration)
+        if editorMode == .edit, let skeleton = configuration.skeleton {
+            editorState.beginEditing(from: skeleton)
+        }
     }
 }
 
@@ -403,6 +463,9 @@ private extension ValueType {
 // MARK: - Porthole canvas hosting the Skeleton renderer
 private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
+    var isEditing: Bool
+    var selectedNodePath: SkeletonNodePath?
+    var onSelectPath: (SkeletonNodePath) -> Void
     @EnvironmentObject private var viewModel: PortholeBindingViewModel
 
     var body: some View {
@@ -415,7 +478,18 @@ private struct PortholeCanvas: View {
             Color(.white)
 #endif
             GeometryReader { proxy in
-                SkeletonView(element: skeleton)
+                Group {
+                    if isEditing {
+                        EditorSelectableSkeletonView(
+                            element: skeleton,
+                            path: .root,
+                            selectedPath: selectedNodePath,
+                            onSelect: onSelectPath
+                        )
+                    } else {
+                        SkeletonView(element: skeleton)
+                    }
+                }
                     .environmentObject(viewModel)
                     .padding()
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)

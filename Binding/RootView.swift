@@ -21,6 +21,7 @@ struct RootView: View {
                                 let resolver = CellResolver.sharedInstance
                                 do {
                                     try await resolver.addCellResolve(name: "EventEmitter",         cellScope: .template,       identityDomain: "private", type: EventEmitterCell.self)
+                                    try await resolver.addCellResolve(name: "FolderWatch",          cellScope: .template,       identityDomain: "private", type: FolderWatchCell.self)
 //                                    try loadScaffoldCellsDict()
 //                                    try await self.setupPorthole()
                                 } catch {

@@ -7,6 +7,7 @@ final class EditorState: ObservableObject {
     @Published private(set) var viewerSnapshot: SkeletonElement?
     @Published private(set) var workingCopy: SkeletonElement?
     @Published var selectedNodePath: SkeletonNodePath?
+    @Published private(set) var revision: Int = 0
 
     private var undoStack: [SkeletonElement] = []
     private var redoStack: [SkeletonElement] = []
@@ -29,6 +30,7 @@ final class EditorState: ObservableObject {
         selectedNodePath = .root
         undoStack.removeAll()
         redoStack.removeAll()
+        revision &+= 1
     }
 
     func endEditing() {
@@ -36,9 +38,15 @@ final class EditorState: ObservableObject {
         selectedNodePath = nil
         undoStack.removeAll()
         redoStack.removeAll()
+        revision &+= 1
     }
 
     func selectNode(_ path: SkeletonNodePath?) {
+        guard let path else {
+            selectedNodePath = nil
+            return
+        }
+        guard let workingCopy, SkeletonTreeQueries.element(in: workingCopy, at: path) != nil else { return }
         selectedNodePath = path
     }
 
@@ -52,18 +60,21 @@ final class EditorState: ObservableObject {
             redoStack.removeAll()
         }
         workingCopy = newValue
+        revision &+= 1
     }
 
     func undo() {
         guard let previous = undoStack.popLast(), let current = workingCopy else { return }
         redoStack.append(current)
         workingCopy = previous
+        revision &+= 1
     }
 
     func redo() {
         guard let next = redoStack.popLast(), let current = workingCopy else { return }
         undoStack.append(current)
         workingCopy = next
+        revision &+= 1
     }
 
     func updateModifier(at path: SkeletonNodePath, mutate: (inout SkeletonModifiers) -> Void) {
@@ -85,5 +96,34 @@ final class EditorState: ObservableObject {
               let updated = SkeletonTreeMutations.insert(element, in: workingCopy, parentPath: parentPath, at: index) else { return }
         replaceWorkingCopy(with: updated)
         selectedNodePath = parentPath
+    }
+
+    func discardChanges() {
+        guard let viewerSnapshot else { return }
+        workingCopy = viewerSnapshot
+        selectedNodePath = .root
+        undoStack.removeAll()
+        redoStack.removeAll()
+        revision &+= 1
+    }
+
+    @discardableResult
+    func commitChanges() -> SkeletonElement? {
+        guard let workingCopy else { return nil }
+        viewerSnapshot = workingCopy
+        undoStack.removeAll()
+        redoStack.removeAll()
+        revision &+= 1
+        return workingCopy
+    }
+
+    var selectedElement: SkeletonElement? {
+        guard let workingCopy, let selectedNodePath else { return nil }
+        return SkeletonTreeQueries.element(in: workingCopy, at: selectedNodePath)
+    }
+
+    var selectedModifiers: SkeletonModifiers? {
+        guard let selectedElement else { return nil }
+        return SkeletonTreeQueries.modifiers(on: selectedElement)
     }
 }

@@ -430,8 +430,8 @@
             filePath = "../CellProtocol/Sources/CellBase/Skeleton/SkeletonDescription.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1255"
-            endingLineNumber = "1255"
+            startingLineNumber = "1260"
+            endingLineNumber = "1260"
             landmarkName = "init(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -526,9 +526,9 @@
             filePath = "../CellProtocol/Sources/CellBase/Skeleton/SkeletonDescription.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "733"
-            endingLineNumber = "733"
-            landmarkName = "execute()"
+            startingLineNumber = "738"
+            endingLineNumber = "738"
+            landmarkName = "encode(to:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
