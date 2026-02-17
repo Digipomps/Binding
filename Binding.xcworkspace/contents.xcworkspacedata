@@ -5,9 +5,6 @@
       location = "group:Binding.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:../CellProtocol">
-   </FileRef>
-   <FileRef
       location = "group:CellProtocolDocuments">
    </FileRef>
 </Workspace>
