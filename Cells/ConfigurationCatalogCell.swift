@@ -96,6 +96,137 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
     }
 
+    private struct MatchingSuggestion: Codable {
+        var id: String
+        var sourceEntryID: String
+        var prompt: String
+        var purpose: String
+        var interests: [String]
+        var overlappingInterests: [String]
+        var menuSlots: [MenuSlot]
+        var configuration: CellConfiguration
+        var matchScore: Double
+        var matchMeaning: String
+        var hasSkeleton: Bool
+        var matchedAt: Double
+
+        func asObject() -> Object {
+            let interestsSummary = interests.joined(separator: ", ")
+            let overlapSummary = overlappingInterests.isEmpty
+                ? "Ingen direkte interesseoverlapp."
+                : "Interesseoverlapp: \(overlappingInterests.joined(separator: ", "))."
+            let slotSummary = menuSlots.isEmpty ? "Ingen anbefalt meny-slot." : menuSlots.map(\.rawValue).joined(separator: ", ")
+            let scoreLabel = String(format: "%.2f", matchScore)
+            let skeletonStatus = hasSkeleton ? "Har skeleton - klar for preview/load i Porthole." : "Ingen skeleton i konfigurasjonen."
+            var object: Object = [
+                "id": .string(id),
+                "sourceEntryId": .string(sourceEntryID),
+                "prompt": .string(prompt),
+                "purpose": .string(purpose),
+                "interests": .list(interests.map { .string($0) }),
+                "interestsSummary": .string(interestsSummary),
+                "overlappingInterests": .list(overlappingInterests.map { .string($0) }),
+                "overlapSummary": .string(overlapSummary),
+                "menuSlots": .list(menuSlots.map { .string($0.rawValue) }),
+                "menuSlotsSummary": .string(slotSummary),
+                "configuration": .cellConfiguration(configuration),
+                "name": .string(configuration.name),
+                "matchScore": .float(matchScore),
+                "matchScoreLabel": .string(scoreLabel),
+                "matchMeaning": .string(matchMeaning),
+                "hasSkeleton": .bool(hasSkeleton),
+                "skeletonStatus": .string(skeletonStatus),
+                "scoreAndSkeleton": .string("Score \(scoreLabel) | \(hasSkeleton ? "skeleton klar" : "ingen skeleton")"),
+                "matchedAt": .float(matchedAt)
+            ]
+            if let description = configuration.description, !description.isEmpty {
+                object["description"] = .string(description)
+            }
+            if let firstReference = configuration.cellReferences?.first {
+                object["primaryEndpoint"] = .string(firstReference.endpoint)
+            }
+            if let skeleton = configuration.skeleton,
+               let skeletonData = try? JSONEncoder().encode(skeleton),
+               let skeletonString = String(data: skeletonData, encoding: .utf8) {
+                let preview = String(skeletonString.prefix(240))
+                object["skeletonPreview"] = .string(preview)
+            }
+            return object
+        }
+    }
+
+    private struct PurposeUsageStat: Codable {
+        var purpose: String
+        var useCount: Int
+        var achievedCount: Int
+        var effectiveness: Double
+        var currentWeight: Double
+        var lastUsedAt: Double
+
+        func asObject() -> Object {
+            let effectivenessPercent = Int((effectiveness * 100.0).rounded())
+            let usageSummary = "\(achievedCount) av \(useCount) oppnadd maal."
+            return [
+                "purpose": .string(purpose),
+                "useCount": .integer(useCount),
+                "achievedCount": .integer(achievedCount),
+                "effectiveness": .float(effectiveness),
+                "effectivenessPercent": .string("\(effectivenessPercent)%"),
+                "currentWeight": .float(currentWeight),
+                "weightLabel": .string(String(format: "%.2f", currentWeight)),
+                "usageSummary": .string(usageSummary),
+                "lastUsedAt": .float(lastUsedAt)
+            ]
+        }
+    }
+
+    private struct PublishedEntityPurpose: Codable {
+        var id: String
+        var entityName: String
+        var entityType: String
+        var entitySubtype: String?
+        var purpose: String
+        var sourceSuggestionID: String?
+        var note: String?
+        var publishedAt: Double
+
+        func asObject() -> Object {
+            let typeLabel: String = {
+                if let entitySubtype, !entitySubtype.isEmpty {
+                    return "\(entityType) (\(entitySubtype))"
+                }
+                return entityType
+            }()
+            let meaning = "\(entityName) publiserer formaal: \(purpose)."
+            var object: Object = [
+                "id": .string(id),
+                "entityName": .string(entityName),
+                "entityType": .string(entityType),
+                "entityTypeLabel": .string(typeLabel),
+                "purpose": .string(purpose),
+                "meaning": .string(meaning),
+                "publishedAt": .float(publishedAt)
+            ]
+            if let entitySubtype, !entitySubtype.isEmpty {
+                object["entitySubtype"] = .string(entitySubtype)
+            }
+            if let sourceSuggestionID, !sourceSuggestionID.isEmpty {
+                object["sourceSuggestionId"] = .string(sourceSuggestionID)
+            }
+            if let note, !note.isEmpty {
+                object["note"] = .string(note)
+            }
+            return object
+        }
+    }
+
+    private struct DetailedCatalogMatch {
+        var entry: CatalogEntry
+        var score: Double
+        var overlapInterests: [String]
+        var reasons: [String]
+    }
+
     private enum AgreementRolloutMode: String, Codable {
         case newConnectionsOnly = "new_connections_only"
         case reEvaluateExisting = "re_evaluate_existing"
@@ -274,6 +405,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         case agreementNonComplianceReports
         case agreementNonCompliancePolicyByIdentity
         case agreementAuditLog
+        case matchingPromptText
+        case matchingSelectedIndex
+        case matchingSuggestions
+        case matchingBookmarks
+        case matchingPurposeStatsByPurpose
+        case matchingPublishedEntityPurposes
+        case matchingPublishPersonName
+        case matchingPublishGroupName
+        case matchingPublishGroupType
+        case matchingPublishNote
     }
 
     private let stateQueue = DispatchQueue(label: "Binding.ConfigurationCatalogCell.State")
@@ -289,6 +430,16 @@ final class ConfigurationCatalogCell: GeneralCell {
     private var agreementNonComplianceReports: [AgreementNonComplianceReport] = []
     private var agreementNonCompliancePolicyByIdentity: [String: AgreementNonCompliancePolicy] = [:]
     private var agreementAuditLog: [AgreementAuditEntry] = []
+    private var matchingPromptText: String = ""
+    private var matchingSelectedIndex: Int = -1
+    private var matchingSuggestions: [MatchingSuggestion] = []
+    private var matchingBookmarks: [MatchingSuggestion] = []
+    private var matchingPurposeStatsByPurpose: [String: PurposeUsageStat] = [:]
+    private var matchingPublishedEntityPurposes: [PublishedEntityPurpose] = []
+    private var matchingPublishPersonName: String = ""
+    private var matchingPublishGroupName: String = ""
+    private var matchingPublishGroupType: String = "selskap"
+    private var matchingPublishNote: String = ""
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -311,6 +462,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         self.agreementNonComplianceReports = (try? container.decode([AgreementNonComplianceReport].self, forKey: .agreementNonComplianceReports)) ?? []
         self.agreementNonCompliancePolicyByIdentity = (try? container.decode([String: AgreementNonCompliancePolicy].self, forKey: .agreementNonCompliancePolicyByIdentity)) ?? [:]
         self.agreementAuditLog = (try? container.decode([AgreementAuditEntry].self, forKey: .agreementAuditLog)) ?? []
+        self.matchingPromptText = (try? container.decode(String.self, forKey: .matchingPromptText)) ?? ""
+        self.matchingSelectedIndex = (try? container.decode(Int.self, forKey: .matchingSelectedIndex)) ?? -1
+        self.matchingSuggestions = (try? container.decode([MatchingSuggestion].self, forKey: .matchingSuggestions)) ?? []
+        self.matchingBookmarks = (try? container.decode([MatchingSuggestion].self, forKey: .matchingBookmarks)) ?? []
+        self.matchingPurposeStatsByPurpose = (try? container.decode([String: PurposeUsageStat].self, forKey: .matchingPurposeStatsByPurpose)) ?? [:]
+        self.matchingPublishedEntityPurposes = (try? container.decode([PublishedEntityPurpose].self, forKey: .matchingPublishedEntityPurposes)) ?? []
+        self.matchingPublishPersonName = (try? container.decode(String.self, forKey: .matchingPublishPersonName)) ?? ""
+        self.matchingPublishGroupName = (try? container.decode(String.self, forKey: .matchingPublishGroupName)) ?? ""
+        self.matchingPublishGroupType = (try? container.decode(String.self, forKey: .matchingPublishGroupType)) ?? "selskap"
+        self.matchingPublishNote = (try? container.decode(String.self, forKey: .matchingPublishNote)) ?? ""
         if let owner = try container.decodeIfPresent(Identity.self, forKey: .owner) {
             Task {
                 await self.setupPermissions(owner: owner)
@@ -334,6 +495,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         try container.encode(agreementNonComplianceReports, forKey: .agreementNonComplianceReports)
         try container.encode(agreementNonCompliancePolicyByIdentity, forKey: .agreementNonCompliancePolicyByIdentity)
         try container.encode(agreementAuditLog, forKey: .agreementAuditLog)
+        try container.encode(matchingPromptText, forKey: .matchingPromptText)
+        try container.encode(matchingSelectedIndex, forKey: .matchingSelectedIndex)
+        try container.encode(matchingSuggestions, forKey: .matchingSuggestions)
+        try container.encode(matchingBookmarks, forKey: .matchingBookmarks)
+        try container.encode(matchingPurposeStatsByPurpose, forKey: .matchingPurposeStatsByPurpose)
+        try container.encode(matchingPublishedEntityPurposes, forKey: .matchingPublishedEntityPurposes)
+        try container.encode(matchingPublishPersonName, forKey: .matchingPublishPersonName)
+        try container.encode(matchingPublishGroupName, forKey: .matchingPublishGroupName)
+        try container.encode(matchingPublishGroupType, forKey: .matchingPublishGroupType)
+        try container.encode(matchingPublishNote, forKey: .matchingPublishNote)
     }
 
     private func setupPermissions(owner: Identity) async {
@@ -349,6 +520,34 @@ final class ConfigurationCatalogCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "match")
         agreementTemplate.addGrant("rw--", for: "matchPurpose")
         agreementTemplate.addGrant("rw--", for: "matchInterests")
+        agreementTemplate.addGrant("r---", for: "matching.state")
+        agreementTemplate.addGrant("r---", for: "matching.promptText")
+        agreementTemplate.addGrant("rw--", for: "matching.promptText")
+        agreementTemplate.addGrant("r---", for: "matching.suggestions")
+        agreementTemplate.addGrant("r---", for: "matching.selectedSuggestion")
+        agreementTemplate.addGrant("r---", for: "matching.selectedIndex")
+        agreementTemplate.addGrant("rw--", for: "matching.selectedIndex")
+        agreementTemplate.addGrant("r---", for: "matching.bookmarks")
+        agreementTemplate.addGrant("r---", for: "matching.purposeStats")
+        agreementTemplate.addGrant("r---", for: "matching.entityPurposePublications")
+        agreementTemplate.addGrant("r---", for: "matching.publish.personName")
+        agreementTemplate.addGrant("rw--", for: "matching.publish.personName")
+        agreementTemplate.addGrant("r---", for: "matching.publish.groupName")
+        agreementTemplate.addGrant("rw--", for: "matching.publish.groupName")
+        agreementTemplate.addGrant("r---", for: "matching.publish.groupType")
+        agreementTemplate.addGrant("rw--", for: "matching.publish.groupType")
+        agreementTemplate.addGrant("r---", for: "matching.publish.note")
+        agreementTemplate.addGrant("rw--", for: "matching.publish.note")
+        agreementTemplate.addGrant("rw--", for: "matching.runPrompt")
+        agreementTemplate.addGrant("rw--", for: "matching.select")
+        agreementTemplate.addGrant("rw--", for: "matching.selectIndex")
+        agreementTemplate.addGrant("rw--", for: "matching.loadSelectedToPorthole")
+        agreementTemplate.addGrant("rw--", for: "matching.saveSelectedToMenu")
+        agreementTemplate.addGrant("rw--", for: "matching.bookmarkSelected")
+        agreementTemplate.addGrant("rw--", for: "matching.markSelectedUsed")
+        agreementTemplate.addGrant("rw--", for: "matching.markSelectedGoalAchieved")
+        agreementTemplate.addGrant("rw--", for: "matching.publishEntityPurpose")
+        agreementTemplate.addGrant("rw--", for: "matching.clear")
         agreementTemplate.addGrant("rw--", for: "syncScaffoldPurposeGoals")
         agreementTemplate.addGrant("r---", for: "feed")
         agreementTemplate.addGrant("r---", for: "agreementTemplate.state")
@@ -474,6 +673,174 @@ final class ConfigurationCatalogCell: GeneralCell {
             return .list(result.map { .cellConfiguration($0.configuration) })
         }
 
+        await registerGet(key: "matching.state", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.state", for: requester) else { return .string("denied") }
+            return self.matchingStateValue()
+        }
+
+        await registerGet(key: "matching.promptText", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.promptText", for: requester) else { return .string("denied") }
+            return self.matchingPromptTextValue()
+        }
+
+        await registerSet(key: "matching.promptText", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.promptText", for: requester) else { return .string("denied") }
+            return self.updateMatchingPromptText(payload)
+        }
+
+        await registerGet(key: "matching.publish.personName", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.publish.personName", for: requester) else { return .string("denied") }
+            return self.matchingPublishPersonNameValue()
+        }
+
+        await registerSet(key: "matching.publish.personName", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.publish.personName", for: requester) else { return .string("denied") }
+            return self.updateMatchingPublishField(payload, field: .personName)
+        }
+
+        await registerGet(key: "matching.publish.groupName", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.publish.groupName", for: requester) else { return .string("denied") }
+            return self.matchingPublishGroupNameValue()
+        }
+
+        await registerSet(key: "matching.publish.groupName", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.publish.groupName", for: requester) else { return .string("denied") }
+            return self.updateMatchingPublishField(payload, field: .groupName)
+        }
+
+        await registerGet(key: "matching.publish.groupType", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.publish.groupType", for: requester) else { return .string("denied") }
+            return self.matchingPublishGroupTypeValue()
+        }
+
+        await registerSet(key: "matching.publish.groupType", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.publish.groupType", for: requester) else { return .string("denied") }
+            return self.updateMatchingPublishField(payload, field: .groupType)
+        }
+
+        await registerGet(key: "matching.publish.note", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.publish.note", for: requester) else { return .string("denied") }
+            return self.matchingPublishNoteValue()
+        }
+
+        await registerSet(key: "matching.publish.note", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.publish.note", for: requester) else { return .string("denied") }
+            return self.updateMatchingPublishField(payload, field: .note)
+        }
+
+        await registerGet(key: "matching.suggestions", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.suggestions", for: requester) else { return .string("denied") }
+            return self.matchingSuggestionsValue()
+        }
+
+        await registerGet(key: "matching.selectedSuggestion", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.selectedSuggestion", for: requester) else { return .string("denied") }
+            return self.matchingSelectedSuggestionValue()
+        }
+
+        await registerGet(key: "matching.selectedIndex", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.selectedIndex", for: requester) else { return .string("denied") }
+            return self.matchingSelectedIndexValue()
+        }
+
+        await registerSet(key: "matching.selectedIndex", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.selectedIndex", for: requester) else { return .string("denied") }
+            return self.selectMatchingSuggestionByIndexPayload(payload)
+        }
+
+        await registerGet(key: "matching.bookmarks", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.bookmarks", for: requester) else { return .string("denied") }
+            return self.matchingBookmarksValue()
+        }
+
+        await registerGet(key: "matching.purposeStats", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.purposeStats", for: requester) else { return .string("denied") }
+            return self.matchingPurposeStatsValue()
+        }
+
+        await registerGet(key: "matching.entityPurposePublications", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.entityPurposePublications", for: requester) else { return .string("denied") }
+            return self.matchingEntityPurposePublicationsValue()
+        }
+
+        await registerSet(key: "matching.runPrompt", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.runPrompt", for: requester) else { return .string("denied") }
+            return self.runMatchingPrompt(payload)
+        }
+
+        await registerSet(key: "matching.select", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.select", for: requester) else { return .string("denied") }
+            return self.selectMatchingSuggestion(payload)
+        }
+
+        await registerSet(key: "matching.selectIndex", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.selectIndex", for: requester) else { return .string("denied") }
+            return self.selectMatchingSuggestionByIndexPayload(payload)
+        }
+
+        await registerSet(key: "matching.loadSelectedToPorthole", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.loadSelectedToPorthole", for: requester) else { return .string("denied") }
+            return await self.loadSelectedMatchingSuggestionToPorthole(requester: requester)
+        }
+
+        await registerSet(key: "matching.saveSelectedToMenu", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.saveSelectedToMenu", for: requester) else { return .string("denied") }
+            return await self.saveSelectedMatchingSuggestionToMenu(payload: payload, requester: requester)
+        }
+
+        await registerSet(key: "matching.bookmarkSelected", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.bookmarkSelected", for: requester) else { return .string("denied") }
+            return self.bookmarkSelectedMatchingSuggestion()
+        }
+
+        await registerSet(key: "matching.markSelectedUsed", owner: owner) { [weak self] requester, _ in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.markSelectedUsed", for: requester) else { return .string("denied") }
+            return await self.markSelectedSuggestionUsage(achievedGoal: false, requester: requester)
+        }
+
+        await registerSet(key: "matching.markSelectedGoalAchieved", owner: owner) { [weak self] requester, _ in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.markSelectedGoalAchieved", for: requester) else { return .string("denied") }
+            return await self.markSelectedSuggestionUsage(achievedGoal: true, requester: requester)
+        }
+
+        await registerSet(key: "matching.publishEntityPurpose", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.publishEntityPurpose", for: requester) else { return .string("denied") }
+            return await self.publishEntityPurpose(payload: payload, requester: requester)
+        }
+
+        await registerSet(key: "matching.clear", owner: owner) { [weak self] requester, _ in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.clear", for: requester) else { return .string("denied") }
+            return self.clearMatchingSuggestions()
+        }
+
         await registerSet(key: "syncScaffoldPurposeGoals", owner: owner) { [weak self] requester, _ in
             guard let self = self else { return .null }
             guard await self.validateAccess("rw--", at: "syncScaffoldPurposeGoals", for: requester) else { return .string("denied") }
@@ -579,6 +946,9 @@ final class ConfigurationCatalogCell: GeneralCell {
         object["agreementTemplateVersion"] = .integer(agreementVersion)
         object["agreementDelegationCount"] = .integer(delegationCount)
         object["agreementNonCompliantOpenCount"] = .integer(nonCompliantOpenCount)
+        let matchingSnapshot = stateQueue.sync { (matchingSuggestions.count, matchingBookmarks.count) }
+        object["matchingSuggestionCount"] = .integer(matchingSnapshot.0)
+        object["matchingBookmarkCount"] = .integer(matchingSnapshot.1)
         if let currentAgreementID {
             object["currentAgreementId"] = .string(currentAgreementID)
         }
@@ -1519,68 +1889,788 @@ final class ConfigurationCatalogCell: GeneralCell {
         return nil
     }
 
-    private func matchConfigurations(
+    private enum MatchingPublishField {
+        case personName
+        case groupName
+        case groupType
+        case note
+    }
+
+    private func extractTextInput(_ payload: ValueType, preferredKey: String? = nil) -> String? {
+        switch payload {
+        case .string(let value):
+            return value
+        case .object(let object):
+            if let preferredKey,
+               case let .string(value)? = object[preferredKey] {
+                return value
+            }
+            if case let .string(value)? = object["value"] {
+                return value
+            }
+            if case let .string(value)? = object["text"] {
+                return value
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private func matchingPublishPersonNameValue() -> ValueType {
+        stateQueue.sync {
+            .string(matchingPublishPersonName)
+        }
+    }
+
+    private func matchingPublishGroupNameValue() -> ValueType {
+        stateQueue.sync {
+            .string(matchingPublishGroupName)
+        }
+    }
+
+    private func matchingPublishGroupTypeValue() -> ValueType {
+        stateQueue.sync {
+            .string(matchingPublishGroupType)
+        }
+    }
+
+    private func matchingPublishNoteValue() -> ValueType {
+        stateQueue.sync {
+            .string(matchingPublishNote)
+        }
+    }
+
+    private func updateMatchingPublishField(_ payload: ValueType, field: MatchingPublishField) -> ValueType {
+        let preferredKey: String = {
+            switch field {
+            case .personName: return "personName"
+            case .groupName: return "groupName"
+            case .groupType: return "groupType"
+            case .note: return "note"
+            }
+        }()
+        guard let rawValue = extractTextInput(payload, preferredKey: preferredKey) else {
+            return .string("error: invalid publish field payload")
+        }
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        stateQueue.sync {
+            switch field {
+            case .personName:
+                matchingPublishPersonName = value
+            case .groupName:
+                matchingPublishGroupName = value
+            case .groupType:
+                matchingPublishGroupType = value.isEmpty ? "selskap" : value
+            case .note:
+                matchingPublishNote = value
+            }
+        }
+        switch field {
+        case .personName:
+            return matchingPublishPersonNameValue()
+        case .groupName:
+            return matchingPublishGroupNameValue()
+        case .groupType:
+            return matchingPublishGroupTypeValue()
+        case .note:
+            return matchingPublishNoteValue()
+        }
+    }
+
+    private func matchingPromptTextValue() -> ValueType {
+        stateQueue.sync {
+            .string(matchingPromptText)
+        }
+    }
+
+    private func matchingSuggestionsValue() -> ValueType {
+        stateQueue.sync {
+            .list(matchingSuggestions.map { .object($0.asObject()) })
+        }
+    }
+
+    private func matchingBookmarksValue() -> ValueType {
+        stateQueue.sync {
+            .list(matchingBookmarks.map { .object($0.asObject()) })
+        }
+    }
+
+    private func matchingPurposeStatsValue() -> ValueType {
+        stateQueue.sync {
+            let sorted = matchingPurposeStatsByPurpose.values.sorted { lhs, rhs in
+                if lhs.effectiveness == rhs.effectiveness {
+                    return lhs.lastUsedAt > rhs.lastUsedAt
+                }
+                return lhs.effectiveness > rhs.effectiveness
+            }
+            return .list(sorted.map { .object($0.asObject()) })
+        }
+    }
+
+    private func matchingEntityPurposePublicationsValue() -> ValueType {
+        stateQueue.sync {
+            .list(matchingPublishedEntityPurposes.map { .object($0.asObject()) })
+        }
+    }
+
+    private func matchingSelectedSuggestionValue() -> ValueType {
+        stateQueue.sync {
+            guard matchingSelectedIndex >= 0, matchingSelectedIndex < matchingSuggestions.count else {
+                return .list([])
+            }
+            return .list([.object(matchingSuggestions[matchingSelectedIndex].asObject())])
+        }
+    }
+
+    private func matchingSelectedIndexValue() -> ValueType {
+        stateQueue.sync {
+            .integer(matchingSelectedIndex)
+        }
+    }
+
+    private func matchingStateValue() -> ValueType {
+        stateQueue.sync {
+            var object: Object = [
+                "promptText": .string(matchingPromptText),
+                "suggestionCount": .integer(matchingSuggestions.count),
+                "bookmarkCount": .integer(matchingBookmarks.count),
+                "purposeStatsCount": .integer(matchingPurposeStatsByPurpose.count),
+                "entityPurposePublicationCount": .integer(matchingPublishedEntityPurposes.count),
+                "selectedIndex": .integer(matchingSelectedIndex),
+                "publishPersonName": .string(matchingPublishPersonName),
+                "publishGroupName": .string(matchingPublishGroupName),
+                "publishGroupType": .string(matchingPublishGroupType),
+                "publishNote": .string(matchingPublishNote)
+            ]
+            if matchingSelectedIndex >= 0, matchingSelectedIndex < matchingSuggestions.count {
+                object["selectedName"] = .string(matchingSuggestions[matchingSelectedIndex].configuration.name)
+                object["selectedId"] = .string(matchingSuggestions[matchingSelectedIndex].id)
+                object["selectedMeaning"] = .string(matchingSuggestions[matchingSelectedIndex].matchMeaning)
+            }
+            return .object(object)
+        }
+    }
+
+    private func updateMatchingPromptText(_ payload: ValueType) -> ValueType {
+        let prompt: String?
+        switch payload {
+        case .string(let value):
+            prompt = value
+        case .object(let object):
+            if case let .string(value)? = object["prompt"] {
+                prompt = value
+            } else {
+                prompt = nil
+            }
+        default:
+            prompt = nil
+        }
+        guard let prompt else { return .string("error: invalid prompt payload") }
+        stateQueue.sync {
+            matchingPromptText = prompt
+        }
+        return .string(prompt)
+    }
+
+    private func runMatchingPrompt(_ payload: ValueType) -> ValueType {
+        let explicitPrompt: String?
+        switch payload {
+        case .string(let prompt):
+            explicitPrompt = prompt
+        case .object(let object):
+            if case let .string(prompt)? = object["prompt"] {
+                explicitPrompt = prompt
+            } else {
+                explicitPrompt = nil
+            }
+        default:
+            explicitPrompt = nil
+        }
+
+        let prompt = stateQueue.sync {
+            let resolved = explicitPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !resolved.isEmpty {
+                matchingPromptText = resolved
+                return resolved
+            }
+            return matchingPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        guard !prompt.isEmpty else {
+            return .object([
+                "status": .string("empty_prompt"),
+                "state": matchingStateValue()
+            ])
+        }
+
+        let query = deriveMatchingQuery(from: prompt)
+        let matchedEntries = matchConfigurationsDetailed(
+            purpose: query.purpose,
+            interests: query.interests,
+            menuSlot: nil,
+            limit: 10
+        )
+
+        let now = Date().timeIntervalSince1970
+        let suggestions: [MatchingSuggestion] = matchedEntries.map { entry in
+            MatchingSuggestion(
+                id: UUID().uuidString,
+                sourceEntryID: entry.entry.id,
+                prompt: prompt,
+                purpose: entry.entry.purpose,
+                interests: entry.entry.interests,
+                overlappingInterests: entry.overlapInterests,
+                menuSlots: entry.entry.menuSlots,
+                configuration: entry.entry.configuration,
+                matchScore: entry.score,
+                matchMeaning: entry.reasons.joined(separator: " | "),
+                hasSkeleton: entry.entry.configuration.skeleton != nil,
+                matchedAt: now
+            )
+        }
+
+        stateQueue.sync {
+            matchingSuggestions = suggestions
+            matchingSelectedIndex = suggestions.isEmpty ? -1 : 0
+        }
+
+        return .object([
+            "status": .string("ok"),
+            "prompt": .string(prompt),
+            "queryPurpose": query.purpose.map { .string($0) } ?? .null,
+            "queryInterests": .list(query.interests.map { .string($0) }),
+            "count": .integer(suggestions.count),
+            "state": matchingStateValue(),
+            "suggestions": matchingSuggestionsValue()
+        ])
+    }
+
+    private func selectMatchingSuggestion(_ payload: ValueType) -> ValueType {
+        if let index = matchingIndex(from: payload) {
+            return selectMatchingSuggestion(at: index)
+        }
+
+        let selectedID: String?
+        switch payload {
+        case .string(let id):
+            selectedID = id
+        case .object(let object):
+            if case let .string(id)? = object["id"] {
+                selectedID = id
+            } else if case let .string(id)? = object["selectedId"] {
+                selectedID = id
+            } else {
+                selectedID = nil
+            }
+        default:
+            selectedID = nil
+        }
+
+        guard let selectedID else { return .string("error: invalid select payload") }
+        let index = stateQueue.sync {
+            matchingSuggestions.firstIndex(where: { $0.id == selectedID })
+        }
+        guard let index else { return .string("error: suggestion not found") }
+        return selectMatchingSuggestion(at: index)
+    }
+
+    private func selectMatchingSuggestionByIndexPayload(_ payload: ValueType) -> ValueType {
+        guard let index = matchingIndex(from: payload) else {
+            return .string("error: invalid index")
+        }
+        return selectMatchingSuggestion(at: index)
+    }
+
+    private func selectMatchingSuggestion(at index: Int) -> ValueType {
+        let normalized = stateQueue.sync {
+            guard !matchingSuggestions.isEmpty else { return -1 }
+            let clamped = max(0, min(index, matchingSuggestions.count - 1))
+            matchingSelectedIndex = clamped
+            return clamped
+        }
+        guard normalized >= 0 else { return .string("error: no suggestions") }
+        return .object([
+            "status": .string("ok"),
+            "selectedIndex": .integer(normalized),
+            "selected": matchingSelectedSuggestionValue(),
+            "state": matchingStateValue()
+        ])
+    }
+
+    private func matchingIndex(from payload: ValueType) -> Int? {
+        switch payload {
+        case .integer(let index):
+            return index
+        case .number(let index):
+            return index
+        case .string(let value):
+            return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        case .object(let object):
+            if case let .integer(index)? = object["index"] {
+                return index
+            }
+            if case let .number(index)? = object["index"] {
+                return index
+            }
+            if case let .string(value)? = object["index"] {
+                return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private func selectedMatchingSuggestion() -> MatchingSuggestion? {
+        stateQueue.sync {
+            guard matchingSelectedIndex >= 0, matchingSelectedIndex < matchingSuggestions.count else { return nil }
+            return matchingSuggestions[matchingSelectedIndex]
+        }
+    }
+
+    private func loadSelectedMatchingSuggestionToPorthole(requester: Identity) async -> ValueType {
+        guard let selected = selectedMatchingSuggestion() else {
+            return .string("error: no selected suggestion")
+        }
+        guard let resolver = CellBase.defaultCellResolver else {
+            return .string("error: no resolver")
+        }
+        do {
+            guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: requester) as? Meddle else {
+                return .string("error: porthole unavailable")
+            }
+            _ = try await porthole.set(
+                keypath: "setConfiguration",
+                value: .cellConfiguration(selected.configuration),
+                requester: requester
+            )
+            let usageResult = await markSelectedSuggestionUsage(achievedGoal: false, requester: requester)
+            return .object([
+                "status": .string("loaded"),
+                "selected": .list([.object(selected.asObject())]),
+                "usage": usageResult,
+                "state": matchingStateValue()
+            ])
+        } catch {
+            return .string("error: failed loading selected suggestion")
+        }
+    }
+
+    private func saveSelectedMatchingSuggestionToMenu(payload: ValueType, requester: Identity) async -> ValueType {
+        guard let selected = selectedMatchingSuggestion() else {
+            return .string("error: no selected suggestion")
+        }
+
+        let menuSlot = extractMenuSlot(payload) ?? .upperMid
+        var purpose = selected.purpose
+        if case let .object(object) = payload,
+           case let .string(value)? = object["purpose"],
+           !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            purpose = value
+        }
+
+        let payloadObject = CatalogPayload(
+            id: nil,
+            sourceCellEndpoint: selected.configuration.cellReferences?.first?.endpoint ?? "cell:///Unknown",
+            sourceCellName: selected.configuration.name,
+            purpose: purpose,
+            purposeDescription: selected.configuration.description,
+            interests: selected.interests,
+            menuSlots: [menuSlot],
+            goal: selected.configuration,
+            configuration: selected.configuration
+        )
+        let entry = upsert(from: payloadObject, keepExistingIDWhenMissing: true)
+        await emitCatalogEvent(operation: "matching.saveSelectedToMenu", entry: entry, requester: requester)
+
+        return .object([
+            "status": .string("saved"),
+            "menuSlot": .string(menuSlot.rawValue),
+            "entry": .object(entry.asObject()),
+            "state": stateValue()
+        ])
+    }
+
+    private func bookmarkSelectedMatchingSuggestion() -> ValueType {
+        guard let selected = selectedMatchingSuggestion() else {
+            return .string("error: no selected suggestion")
+        }
+        stateQueue.sync {
+            if matchingBookmarks.contains(where: { $0.configuration.uuid == selected.configuration.uuid }) == false {
+                matchingBookmarks.insert(selected, at: 0)
+                if matchingBookmarks.count > 30 {
+                    matchingBookmarks = Array(matchingBookmarks.prefix(30))
+                }
+            }
+        }
+        return .object([
+            "status": .string("bookmarked"),
+            "bookmarks": matchingBookmarksValue(),
+            "state": matchingStateValue()
+        ])
+    }
+
+    private func markSelectedSuggestionUsage(achievedGoal: Bool, requester: Identity) async -> ValueType {
+        guard let selected = selectedMatchingSuggestion() else {
+            return .string("error: no selected suggestion")
+        }
+
+        let timestamp = Date().timeIntervalSince1970
+        let updated = stateQueue.sync {
+            var stat = matchingPurposeStatsByPurpose[selected.purpose] ?? PurposeUsageStat(
+                purpose: selected.purpose,
+                useCount: 0,
+                achievedCount: 0,
+                effectiveness: 0.0,
+                currentWeight: 0.4,
+                lastUsedAt: timestamp
+            )
+            stat.useCount += 1
+            if achievedGoal {
+                stat.achievedCount += 1
+            }
+            stat.effectiveness = stat.useCount > 0 ? Double(stat.achievedCount) / Double(stat.useCount) : 0.0
+            let usageSignal = achievedGoal ? 0.55 : 0.04
+            let effectivenessSignal = achievedGoal ? (0.2 * stat.effectiveness) : 0.0
+            stat.currentWeight = min(5.0, max(0.1, stat.currentWeight + usageSignal + effectivenessSignal))
+            stat.lastUsedAt = timestamp
+            matchingPurposeStatsByPurpose[selected.purpose] = stat
+            return stat
+        }
+
+        await nudgePerspectivePurposeWeight(
+            purpose: selected.purpose,
+            suggestedWeight: updated.currentWeight,
+            achievedGoal: achievedGoal,
+            requester: requester
+        )
+
+        var payload: Object = [
+            "purpose": .string(selected.purpose),
+            "suggestionId": .string(selected.id),
+            "achievedGoal": .bool(achievedGoal),
+            "useCount": .integer(updated.useCount),
+            "achievedCount": .integer(updated.achievedCount),
+            "effectiveness": .float(updated.effectiveness),
+            "currentWeight": .float(updated.currentWeight)
+        ]
+        payload["state"] = matchingStateValue()
+        var flow = FlowElement(
+            title: achievedGoal ? "purpose.goalAchieved" : "purpose.activated",
+            content: .object(payload),
+            properties: FlowElement.Properties(type: .event, contentType: .object)
+        )
+        flow.topic = "purpose.outcome"
+        flow.origin = uuid
+        pushFlowElement(flow, requester: requester)
+
+        return .object([
+            "status": .string(achievedGoal ? "goal_achieved" : "used"),
+            "purposeStat": .object(updated.asObject()),
+            "state": matchingStateValue()
+        ])
+    }
+
+    private func nudgePerspectivePurposeWeight(
+        purpose: String,
+        suggestedWeight: Double,
+        achievedGoal: Bool,
+        requester: Identity
+    ) async {
+        guard let resolver = CellBase.defaultCellResolver else { return }
+        guard let perspective = try? await resolver.cellAtEndpoint(endpoint: "cell:///Perspective", requester: requester) as? Meddle else { return }
+
+        let purposeObject: Object = [
+            "name": .string(purpose),
+            "description": .string(achievedGoal ? "Goal achieved via AppleIntelligence matcher." : "Activated via AppleIntelligence matcher."),
+            "types": .list([]),
+            "subTypes": .list([]),
+            "parts": .list([]),
+            "partOf": .list([]),
+            "purposes": .list([]),
+            "interests": .list([]),
+            "entities": .list([]),
+            "states": .list([])
+        ]
+        let payload: Object = [
+            "purpose": .object(purposeObject),
+            "purposeWeight": .float(suggestedWeight)
+        ]
+        _ = try? await perspective.set(keypath: "addPurpose", value: .object(payload), requester: requester)
+    }
+
+    private func publishEntityPurpose(payload: ValueType, requester: Identity) async -> ValueType {
+        let object: Object = {
+            if case let .object(value) = payload {
+                return value
+            }
+            return [:]
+        }()
+        let publishDefaults = stateQueue.sync {
+            (
+                personName: matchingPublishPersonName.trimmingCharacters(in: .whitespacesAndNewlines),
+                groupName: matchingPublishGroupName.trimmingCharacters(in: .whitespacesAndNewlines),
+                groupType: matchingPublishGroupType.trimmingCharacters(in: .whitespacesAndNewlines),
+                note: matchingPublishNote.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        }
+
+        let entityTypeRaw: String = {
+            if case let .string(value)? = object["entityType"], !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            }
+            return "person"
+        }()
+        let entityType: String = (entityTypeRaw == "group" || entityTypeRaw == "person") ? entityTypeRaw : "person"
+
+        let payloadEntityName: String? = {
+            if case let .string(value)? = object["entityName"] {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            return nil
+        }()
+
+        let fallbackEntityName = entityType == "group"
+            ? (publishDefaults.groupName.isEmpty ? "Ukjent gruppe" : publishDefaults.groupName)
+            : (publishDefaults.personName.isEmpty ? "Ukjent person" : publishDefaults.personName)
+        let entityName = payloadEntityName ?? fallbackEntityName
+
+        let entitySubtype: String? = {
+            if case let .string(value)? = object["entitySubtype"] {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            if case let .string(value)? = object["groupType"] {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            if entityType == "group" {
+                return publishDefaults.groupType.isEmpty ? "selskap" : publishDefaults.groupType
+            }
+            return nil
+        }()
+
+        let selected = selectedMatchingSuggestion()
+        let purpose: String = {
+            if case let .string(value)? = object["purpose"], !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return value.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return selected?.purpose ?? "Unknown Purpose"
+        }()
+        let note: String? = {
+            if case let .string(value)? = object["note"] {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            return publishDefaults.note.isEmpty ? nil : publishDefaults.note
+        }()
+
+        let publication = PublishedEntityPurpose(
+            id: UUID().uuidString,
+            entityName: entityName,
+            entityType: entityType,
+            entitySubtype: entitySubtype,
+            purpose: purpose,
+            sourceSuggestionID: selected?.id,
+            note: note,
+            publishedAt: Date().timeIntervalSince1970
+        )
+
+        stateQueue.sync {
+            matchingPublishedEntityPurposes.insert(publication, at: 0)
+            if matchingPublishedEntityPurposes.count > 100 {
+                matchingPublishedEntityPurposes = Array(matchingPublishedEntityPurposes.prefix(100))
+            }
+        }
+
+        var flow = FlowElement(
+            title: "purpose.entity.published",
+            content: .object(publication.asObject()),
+            properties: FlowElement.Properties(type: .event, contentType: .object)
+        )
+        flow.topic = "purpose.entity.publications"
+        flow.origin = uuid
+        pushFlowElement(flow, requester: requester)
+
+        return .object([
+            "status": .string("published"),
+            "publication": .object(publication.asObject()),
+            "publications": matchingEntityPurposePublicationsValue(),
+            "state": matchingStateValue()
+        ])
+    }
+
+    private func clearMatchingSuggestions() -> ValueType {
+        stateQueue.sync {
+            matchingSuggestions = []
+            matchingSelectedIndex = -1
+        }
+        return .object([
+            "status": .string("cleared"),
+            "state": matchingStateValue()
+        ])
+    }
+
+    private func deriveMatchingQuery(from prompt: String) -> (purpose: String?, interests: [String]) {
+        let lower = prompt.lowercased()
+        var interests = Set<String>()
+        var purpose: String?
+
+        if lower.contains("chat") || lower.contains("venn") || lower.contains("melding") || lower.contains("snakk") {
+            purpose = "Kommunikasjon og samarbeid"
+            interests.formUnion(["chat", "communication", "collaboration"])
+        }
+        if lower.contains("ai") || lower.contains("personvern") || lower.contains("privacy") || lower.contains("konfer") || lower.contains("conference") {
+            if purpose == nil { purpose = "Tidslinje og planlegging" }
+            interests.formUnion(["ai", "privacy", "conference", "events"])
+        }
+        if lower.contains("asiat") || lower.contains("spicy") || lower.contains("restaurant") || lower.contains("mat") || lower.contains("frisk") {
+            if purpose == nil { purpose = "Stedsbevissthet" }
+            interests.formUnion(["location", "restaurant", "maps", "presence"])
+        }
+        if lower.contains("lignende") || lower.contains("interesser") || lower.contains("personer") || lower.contains("nettverk") {
+            if purpose == nil { purpose = "Entitetsoversikt" }
+            interests.formUnion(["entities", "network", "people"])
+        }
+
+        if interests.isEmpty {
+            let tokens = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+            for token in tokens where token.count > 2 {
+                interests.insert(token)
+                if interests.count >= 6 { break }
+            }
+        }
+
+        return (purpose, Array(interests).sorted())
+    }
+
+    private func matchConfigurationsDetailed(
         purpose: String?,
         interests: [String]?,
         menuSlot: MenuSlot?,
         limit: Int?
-    ) -> [CatalogEntry] {
+    ) -> [DetailedCatalogMatch] {
         let normalizedPurpose = purpose?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedInterestSet: Set<String> = Set((interests ?? []).map { $0.lowercased() })
+        let normalizedInterestSet: Set<String> = Set((interests ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty })
+        let purposeStats: [String: PurposeUsageStat] = stateQueue.sync {
+            matchingPurposeStatsByPurpose.values.reduce(into: [:]) { partialResult, stat in
+                partialResult[stat.purpose.lowercased()] = stat
+            }
+        }
+        let isBroadQuery = (normalizedPurpose == nil || normalizedPurpose?.isEmpty == true) && normalizedInterestSet.isEmpty
 
-        let scored: [(CatalogEntry, Double)] = sortedEntries()
+        let scored: [DetailedCatalogMatch] = sortedEntries()
             .filter { entry in
                 if let menuSlot {
                     return entry.menuSlots.contains(menuSlot)
                 }
                 return true
             }
-            .map { entry in
+            .compactMap { entry in
                 var score = 0.0
+                var reasons: [String] = []
+                let entryPurposeLower = entry.purpose.lowercased()
+                let entryNameLower = entry.configuration.name.lowercased()
+                let entryDescriptionLower = (entry.purposeDescription ?? entry.configuration.description ?? "").lowercased()
 
                 if let normalizedPurpose, !normalizedPurpose.isEmpty {
-                    if entry.purpose.lowercased().contains(normalizedPurpose) {
-                        score += 2.0
+                    if entryPurposeLower == normalizedPurpose {
+                        score += 2.8
+                        reasons.append("Direkte formaal-treff.")
+                    } else if entryPurposeLower.contains(normalizedPurpose) {
+                        score += 2.1
+                        reasons.append("Formaal matcher delvis.")
+                    } else if normalizedPurpose.contains(entryPurposeLower), entryPurposeLower.count >= 4 {
+                        score += 1.4
+                        reasons.append("Konfigurasjonens formaal dekker forespurt tema.")
                     }
-                    if entry.configuration.name.lowercased().contains(normalizedPurpose) {
-                        score += 1.0
-                    }
-                    if entry.purposeDescription?.lowercased().contains(normalizedPurpose) == true {
+
+                    if entryNameLower.contains(normalizedPurpose) {
                         score += 0.8
+                        reasons.append("Navn matcher formaal.")
+                    }
+                    if entryDescriptionLower.contains(normalizedPurpose) {
+                        score += 0.6
+                        reasons.append("Beskrivelse matcher formaal.")
                     }
                 }
 
+                var overlapInterests: [String] = []
                 if !normalizedInterestSet.isEmpty {
-                    let entryInterests = Set(entry.interests.map { $0.lowercased() })
-                    let overlap = normalizedInterestSet.intersection(entryInterests)
-                    if !overlap.isEmpty {
-                        score += Double(overlap.count) / Double(normalizedInterestSet.count)
+                    let entryInterestsLower = Set(entry.interests.map { $0.lowercased() })
+                    let overlap = normalizedInterestSet.intersection(entryInterestsLower)
+                    overlapInterests = overlap.sorted()
+                    if !overlapInterests.isEmpty {
+                        let ratio = Double(overlapInterests.count) / Double(normalizedInterestSet.count)
+                        score += 2.4 * ratio
+                        reasons.append("Interessematch: \(overlapInterests.joined(separator: ", ")).")
+                    } else {
+                        reasons.append("Ingen direkte interesse-overlapp.")
                     }
                 }
 
-                if normalizedPurpose == nil && normalizedInterestSet.isEmpty {
+                if entry.configuration.skeleton != nil {
+                    score += 0.55
+                    reasons.append("Har skeleton og kan lastes direkte i Porthole.")
+                } else {
                     score += 0.1
+                    reasons.append("Ingen skeleton i konfigurasjonen.")
                 }
 
-                return (entry, score)
-            }
-            .filter { pair in
-                if normalizedPurpose != nil || !normalizedInterestSet.isEmpty {
-                    return pair.1 > 0.0
+                if let stat = purposeStats[entry.purpose.lowercased()] {
+                    let learnedBoost = min(1.5, (stat.effectiveness * 1.0) + (stat.currentWeight * 0.2))
+                    if learnedBoost > 0 {
+                        score += learnedBoost
+                        let effectivenessPercent = Int((stat.effectiveness * 100.0).rounded())
+                        reasons.append("Historikk: \(effectivenessPercent)% maaloppnaaelse for dette formaalet.")
+                    }
                 }
-                return true
+
+                if isBroadQuery {
+                    score += 0.2
+                    reasons.append("Bredt soek - rangerer etter generell egnethet.")
+                }
+
+                if !isBroadQuery && score <= 0.0 {
+                    return nil
+                }
+
+                return DetailedCatalogMatch(
+                    entry: entry,
+                    score: score,
+                    overlapInterests: overlapInterests,
+                    reasons: reasons
+                )
             }
             .sorted { lhs, rhs in
-                if lhs.1 == rhs.1 {
-                    return lhs.0.configuration.name.localizedCaseInsensitiveCompare(rhs.0.configuration.name) == .orderedAscending
+                if lhs.score == rhs.score {
+                    return lhs.entry.configuration.name.localizedCaseInsensitiveCompare(rhs.entry.configuration.name) == .orderedAscending
                 }
-                return lhs.1 > rhs.1
+                return lhs.score > rhs.score
             }
 
         if let limit {
-            return Array(scored.prefix(limit).map(\.0))
+            return Array(scored.prefix(limit))
         }
-        return scored.map(\.0)
+        return scored
+    }
+
+    private func matchConfigurations(
+        purpose: String?,
+        interests: [String]?,
+        menuSlot: MenuSlot?,
+        limit: Int?
+    ) -> [CatalogEntry] {
+        matchConfigurationsDetailed(
+            purpose: purpose,
+            interests: interests,
+            menuSlot: menuSlot,
+            limit: limit
+        ).map(\.entry)
     }
 
     private func bootstrapDefaultsIfNeeded(requester: Identity) async {
@@ -2495,167 +3585,607 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     private static func appleIntelligenceLandingConfiguration() -> CellConfiguration {
-        var configuration = CellConfiguration(name: "Purpose Landing (AI)")
-        configuration.description = "Landingsside for å finne formål og fylle appen med relevante forslag."
+        let chatScenarioConfig = appleIntelligenceScenarioConfiguration(
+            name: "Vennechat",
+            description: "Kommunikasjon med fokus pa direkte melding og tilstedevaer.",
+            endpoint: "cell:///Chat",
+            label: "chat",
+            accentColor: "#2563EB",
+            summary: "Formaal: chatte med en venn."
+        )
+        let conferenceScenarioConfig = appleIntelligenceScenarioConfiguration(
+            name: "AI + personvern konferanser",
+            description: "Lering og events rundt AI/personvern.",
+            endpoint: "cell:///TimesWrapper",
+            label: "times",
+            accentColor: "#0EA5E9",
+            summary: "Formaal: lere og velge konferanser."
+        )
+        let restaurantScenarioConfig = appleIntelligenceScenarioConfiguration(
+            name: "Asiatisk, friskt, spicy",
+            description: "Restaurant-fokus med smak og timing.",
+            endpoint: "cell:///LocationsWrapper",
+            label: "locations",
+            accentColor: "#EA580C",
+            summary: "Formaal: finne sted a spise i dag."
+        )
+        let peopleScenarioConfig = appleIntelligenceScenarioConfiguration(
+            name: "Lignende personer",
+            description: "Entitetsmatching pa interesser.",
+            endpoint: "cell:///EntitiesWrapper",
+            label: "entities",
+            accentColor: "#16A34A",
+            summary: "Formaal: finne folk med lignende interesser."
+        )
+        let scenarioConfigurations = [chatScenarioConfig, conferenceScenarioConfig, restaurantScenarioConfig, peopleScenarioConfig]
+
+        var configuration = CellConfiguration(name: "Apple Intelligence Purpose Matcher")
+        configuration.description = "Prompt-til-match med tydelig forklaring, skeleton preview, lasting i Porthole, laering og publisering av formaal."
 
         var aiReference = CellReference(endpoint: "cell:///AppleIntelligence", label: "intelligence")
         aiReference.subscribeFeed = true
         configuration.addReference(aiReference)
 
-        var title = SkeletonText(text: "Trenger du hjelp til å finne formål?")
-        title.modifiers = modifier {
-            $0.fontStyle = "title3"
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
-        }
+        var catalogReference = CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")
+        catalogReference.subscribeFeed = false
+        configuration.addReference(catalogReference)
 
-        var intro = SkeletonText(text: "Denne landingssiden bruker AppleIntelligenceCell for å foreslå retning, formål og neste steg.")
-        intro.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-        }
-
-        var sendPrompt = SkeletonButton(
-            keypath: "intelligence.ai.sendPrompt",
-            label: "Finn formål for meg",
-            payload: .object([
-                "prompt": .string("Hjelp meg finne 3 konkrete formål jeg kan fylle appen med i dag."),
-                "topic": .string("explore.request")
-            ])
-        )
-        sendPrompt.modifiers = modifier {
-            $0.padding = 10
-            $0.background = "#D1FAE5"
-            $0.borderWidth = 1
-            $0.borderColor = "#059669"
+        let sectionCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
             $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
         }
 
-        var discover = SkeletonButton(keypath: "intelligence.ai.discover", label: "Discover", payload: .null)
-        discover.modifiers = modifier {
-            $0.padding = 10
+        let listLarge = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#BFD1E4"
+            $0.height = 220
+        }
+
+        let listMedium = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#C8D5E6"
+            $0.height = 140
+        }
+
+        let listSmall = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#C8D5E6"
+            $0.height = 96
+        }
+
+        let neutralButton = modifier {
+            $0.padding = 6
+            $0.background = "#EDF2F7"
+            $0.borderWidth = 1
+            $0.borderColor = "#B7C5D6"
+            $0.cornerRadius = 8
+        }
+
+        let primaryButton = modifier {
+            $0.padding = 6
             $0.background = "#DBEAFE"
             $0.borderWidth = 1
-            $0.borderColor = "#2563EB"
-            $0.cornerRadius = 10
+            $0.borderColor = "#60A5FA"
+            $0.cornerRadius = 8
         }
 
-        var ensurePurpose = SkeletonButton(keypath: "intelligence.ai.ensurePurpose", label: "Ensure Purpose", payload: .null)
-        ensurePurpose.modifiers = modifier {
-            $0.padding = 10
-            $0.background = "#EDE9FE"
+        let successButton = modifier {
+            $0.padding = 6
+            $0.background = "#DCFCE7"
             $0.borderWidth = 1
-            $0.borderColor = "#7C3AED"
-            $0.cornerRadius = 10
+            $0.borderColor = "#4ADE80"
+            $0.cornerRadius = 8
         }
 
-        var buildCluster = SkeletonButton(keypath: "intelligence.ai.buildCluster", label: "Build Cluster", payload: .null)
-        buildCluster.modifiers = modifier {
-            $0.padding = 10
-            $0.background = "#FFEDD5"
+        let warningButton = modifier {
+            $0.padding = 6
+            $0.background = "#FEF3C7"
             $0.borderWidth = 1
-            $0.borderColor = "#EA580C"
-            $0.cornerRadius = 10
+            $0.borderColor = "#F59E0B"
+            $0.cornerRadius = 8
         }
 
-        var rank = SkeletonButton(keypath: "intelligence.ai.rank", label: "Rank", payload: .null)
-        rank.modifiers = modifier {
-            $0.padding = 10
-            $0.background = "#F1F5F9"
+        let inputModifier = modifier {
+            $0.padding = 7
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 8
             $0.borderWidth = 1
-            $0.borderColor = "#475569"
-            $0.cornerRadius = 10
+            $0.borderColor = "#D3DEEB"
         }
 
-        var aiStateStatus = SkeletonText(keypath: "status")
-        aiStateStatus.modifiers = modifier {
+        var title = SkeletonText(text: "Apple Intelligence: Purpose matcher")
+        title.modifiers = modifier {
+            $0.fontStyle = "headline"
             $0.fontWeight = "semibold"
             $0.foregroundColor = "#0F172A"
         }
 
-        var aiStatePurpose = SkeletonText(keypath: "currentPurposeRef")
-        aiStatePurpose.modifiers = modifier {
+        var intro = SkeletonText(text: "Tools-match pa purpose/interests. Treff viser hvorfor de passer, om skeleton finnes, og kan lastes direkte i Porthole.")
+        intro.modifiers = modifier {
             $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+            $0.lineLimit = 2
         }
 
-        var aiStateCluster = SkeletonText(keypath: "purposeClusterRefs")
-        aiStateCluster.modifiers = modifier {
-            $0.foregroundColor = "#64748B"
+        let promptField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "catalog.matching.promptText",
+            targetKeypath: "catalog.matching.promptText",
+            placeholder: "Skriv brukerprompt...",
+            modifiers: inputModifier
+        )
+
+        let selectedIndexField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "catalog.matching.selectedIndex",
+            targetKeypath: "catalog.matching.selectedIndex",
+            placeholder: "Velg forslag med indeks (0..n)",
+            modifiers: inputModifier
+        )
+
+        var runMatching = SkeletonButton(keypath: "catalog.matching.runPrompt", label: "Kjor matching", payload: .string(""))
+        runMatching.modifiers = primaryButton
+
+        var clearMatching = SkeletonButton(keypath: "catalog.matching.clear", label: "Nullstill", payload: .bool(true))
+        clearMatching.modifiers = neutralButton
+
+        var aiSendPrompt = SkeletonButton(keypath: "intelligence.ai.sendPrompt", label: "Kjor AI prompt", payload: .string(""))
+        aiSendPrompt.modifiers = neutralButton
+
+        var seedCandidates = SkeletonButton(
+            keypath: "intelligence.ai.ingestConfigurations",
+            label: "Seed candidates",
+            payload: .object(["configurations": .list(scenarioConfigurations.map { .cellConfiguration($0) })])
+        )
+        seedCandidates.modifiers = neutralButton
+
+        var quickChat = SkeletonButton(
+            keypath: "catalog.matching.runPrompt",
+            label: "Chatte med venn",
+            payload: .object(["prompt": .string("jeg skal chatte med en venn")])
+        )
+        quickChat.modifiers = neutralButton
+
+        var quickConference = SkeletonButton(
+            keypath: "catalog.matching.runPrompt",
+            label: "AI + personvern konferanser",
+            payload: .object(["prompt": .string("jeg vil laere om ai og personvern, hvilke konferanser boer jeg melde meg paa?")])
+        )
+        quickConference.modifiers = neutralButton
+
+        var quickRestaurant = SkeletonButton(
+            keypath: "catalog.matching.runPrompt",
+            label: "Asiatisk, frisk, spicy",
+            payload: .object(["prompt": .string("jeg kan tenke meg noe asiatisk, friskt og spicy i dag hvilke restauranter boer jeg se paa?")])
+        )
+        quickRestaurant.modifiers = neutralButton
+
+        var quickPeople = SkeletonButton(
+            keypath: "catalog.matching.runPrompt",
+            label: "Lignende interesser",
+            payload: .object(["prompt": .string("jeg har lyst til aa finne andre som har lignende interesser som meg")])
+        )
+        quickPeople.modifiers = neutralButton
+
+        var suggestionName = SkeletonText(keypath: "name")
+        suggestionName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var suggestionPurpose = SkeletonText(keypath: "purpose")
+        suggestionPurpose.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
             $0.fontSize = 12
         }
 
-        var aiStateRow = SkeletonVStack(elements: [
-            .Text(aiStateStatus),
-            .Text(aiStatePurpose),
-            .Text(aiStateCluster)
+        var suggestionMeaning = SkeletonText(keypath: "matchMeaning")
+        suggestionMeaning.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+
+        var suggestionOverlap = SkeletonText(keypath: "overlapSummary")
+        suggestionOverlap.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 1
+        }
+
+        var suggestionScore = SkeletonText(keypath: "scoreAndSkeleton")
+        suggestionScore.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 11
+            $0.lineLimit = 1
+        }
+
+        var suggestionEndpoint = SkeletonText(keypath: "primaryEndpoint")
+        suggestionEndpoint.modifiers = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 11
+            $0.lineLimit = 1
+        }
+
+        var suggestionRow = SkeletonVStack(elements: [
+            .Text(suggestionName),
+            .Text(suggestionPurpose),
+            .Text(suggestionMeaning),
+            .Text(suggestionOverlap),
+            .Text(suggestionScore),
+            .Text(suggestionEndpoint)
         ])
-        aiStateRow.modifiers = modifier {
-            $0.padding = 10
-            $0.background = "#F8FAFC"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#E2E8F0"
-        }
-
-        var recommendationsFlow = SkeletonList(topic: "ai.assistant.recommendations", keypath: nil, flowElementSkeleton: aiStateRow)
-        recommendationsFlow.modifiers = modifier {
-            $0.padding = 4
+        suggestionRow.modifiers = modifier {
+            $0.padding = 6
             $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
+            $0.cornerRadius = 8
             $0.borderWidth = 1
-            $0.borderColor = "#CBD5E1"
+            $0.borderColor = "#D3DEEB"
         }
 
-        var requestPrompt = SkeletonText(keypath: "prompt")
-        requestPrompt.modifiers = modifier {
+        var suggestionList = SkeletonList(topic: nil, keypath: "catalog.matching.suggestions", flowElementSkeleton: suggestionRow)
+        suggestionList.modifiers = listLarge
+
+        var selectedName = SkeletonText(keypath: "name")
+        selectedName.modifiers = modifier {
             $0.fontWeight = "semibold"
             $0.foregroundColor = "#0F172A"
         }
 
-        var requestInstructions = SkeletonText(keypath: "instructions")
-        requestInstructions.modifiers = modifier {
-            $0.foregroundColor = "#475569"
+        var selectedPurpose = SkeletonText(keypath: "purpose")
+        selectedPurpose.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
+            $0.fontSize = 12
         }
 
-        var requestRow = SkeletonVStack(elements: [
-            .Text(requestPrompt),
-            .Text(requestInstructions)
+        var selectedMeaning = SkeletonText(keypath: "matchMeaning")
+        selectedMeaning.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+
+        var selectedSkeletonStatus = SkeletonText(keypath: "skeletonStatus")
+        selectedSkeletonStatus.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 11
+            $0.lineLimit = 1
+        }
+
+        var selectedSkeletonPreview = SkeletonText(keypath: "skeletonPreview")
+        selectedSkeletonPreview.modifiers = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+
+        var selectedRow = SkeletonVStack(elements: [
+            .Text(selectedName),
+            .Text(selectedPurpose),
+            .Text(selectedMeaning),
+            .Text(selectedSkeletonStatus),
+            .Text(selectedSkeletonPreview)
         ])
-        requestRow.modifiers = modifier {
-            $0.padding = 10
+        selectedRow.modifiers = modifier {
+            $0.padding = 6
             $0.background = "#FFFFFF"
-            $0.cornerRadius = 10
+            $0.cornerRadius = 8
             $0.borderWidth = 1
-            $0.borderColor = "#E2E8F0"
+            $0.borderColor = "#C9D8EC"
         }
 
-        var exploreRequests = SkeletonList(topic: "explore.request", keypath: nil, flowElementSkeleton: requestRow)
-        exploreRequests.modifiers = modifier {
-            $0.padding = 4
-            $0.background = "#F8FAFC"
-            $0.cornerRadius = 12
+        var selectedSuggestion = SkeletonList(topic: nil, keypath: "catalog.matching.selectedSuggestion", flowElementSkeleton: selectedRow)
+        selectedSuggestion.modifiers = listMedium
+
+        var purposeStatPurpose = SkeletonText(keypath: "purpose")
+        purposeStatPurpose.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var purposeStatUsage = SkeletonText(keypath: "usageSummary")
+        purposeStatUsage.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+        }
+
+        var purposeStatEffectiveness = SkeletonText(keypath: "effectivenessPercent")
+        purposeStatEffectiveness.modifiers = modifier {
+            $0.foregroundColor = "#15803D"
+            $0.fontSize = 11
+        }
+
+        var purposeStatWeight = SkeletonText(keypath: "weightLabel")
+        purposeStatWeight.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 11
+        }
+
+        var purposeStatRow = SkeletonVStack(elements: [
+            .Text(purposeStatPurpose),
+            .Text(purposeStatUsage),
+            .Text(purposeStatEffectiveness),
+            .Text(purposeStatWeight)
+        ])
+        purposeStatRow.modifiers = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 8
             $0.borderWidth = 1
-            $0.borderColor = "#CBD5E1"
+            $0.borderColor = "#D9E6C7"
+        }
+
+        var purposeStatsList = SkeletonList(topic: nil, keypath: "catalog.matching.purposeStats", flowElementSkeleton: purposeStatRow)
+        purposeStatsList.modifiers = listMedium
+
+        var publicationEntity = SkeletonText(keypath: "entityName")
+        publicationEntity.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var publicationType = SkeletonText(keypath: "entityTypeLabel")
+        publicationType.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+        }
+
+        var publicationPurpose = SkeletonText(keypath: "purpose")
+        publicationPurpose.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
+            $0.fontSize = 12
+        }
+
+        var publicationMeaning = SkeletonText(keypath: "meaning")
+        publicationMeaning.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 1
+        }
+
+        var publicationRow = SkeletonVStack(elements: [
+            .Text(publicationEntity),
+            .Text(publicationType),
+            .Text(publicationPurpose),
+            .Text(publicationMeaning)
+        ])
+        publicationRow.modifiers = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#E4D8F8"
+        }
+
+        var publicationList = SkeletonList(topic: nil, keypath: "catalog.matching.entityPurposePublications", flowElementSkeleton: publicationRow)
+        publicationList.modifiers = listMedium
+
+        var bookmarkList = SkeletonList(topic: nil, keypath: "catalog.matching.bookmarks", flowElementSkeleton: suggestionRow)
+        bookmarkList.modifiers = listSmall
+
+        var loadSelected = SkeletonButton(keypath: "catalog.matching.loadSelectedToPorthole", label: "Load valgt i Porthole", payload: .bool(true))
+        loadSelected.modifiers = primaryButton
+
+        var markSelectedUsed = SkeletonButton(keypath: "catalog.matching.markSelectedUsed", label: "Marker brukt", payload: .bool(true))
+        markSelectedUsed.modifiers = neutralButton
+
+        var markGoalAchieved = SkeletonButton(keypath: "catalog.matching.markSelectedGoalAchieved", label: "Maal oppnaadd", payload: .bool(true))
+        markGoalAchieved.modifiers = successButton
+
+        var bookmarkSelected = SkeletonButton(keypath: "catalog.matching.bookmarkSelected", label: "Bokmerk valgt", payload: .bool(true))
+        bookmarkSelected.modifiers = neutralButton
+
+        var saveSelectedUpperMid = SkeletonButton(
+            keypath: "catalog.matching.saveSelectedToMenu",
+            label: "Lagre i upperMid",
+            payload: .object(["menuSlot": .string("upperMid")])
+        )
+        saveSelectedUpperMid.modifiers = warningButton
+
+        var saveSelectedLowerMid = SkeletonButton(
+            keypath: "catalog.matching.saveSelectedToMenu",
+            label: "Lagre i lowerMid",
+            payload: .object(["menuSlot": .string("lowerMid")])
+        )
+        saveSelectedLowerMid.modifiers = warningButton
+
+        let publishPersonName = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "catalog.matching.publish.personName",
+            targetKeypath: "catalog.matching.publish.personName",
+            placeholder: "Personnavn",
+            modifiers: inputModifier
+        )
+
+        let publishGroupName = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "catalog.matching.publish.groupName",
+            targetKeypath: "catalog.matching.publish.groupName",
+            placeholder: "Gruppenavn / selskap / butikk",
+            modifiers: inputModifier
+        )
+
+        let publishGroupType = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "catalog.matching.publish.groupType",
+            targetKeypath: "catalog.matching.publish.groupType",
+            placeholder: "Gruppetype (selskap, butikk, team...)",
+            modifiers: inputModifier
+        )
+
+        let publishNote = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "catalog.matching.publish.note",
+            targetKeypath: "catalog.matching.publish.note",
+            placeholder: "Notat om hvorfor formaalet passer",
+            modifiers: inputModifier
+        )
+
+        var publishPersonPurpose = SkeletonButton(
+            keypath: "catalog.matching.publishEntityPurpose",
+            label: "Publiser formaal for person",
+            payload: .object(["entityType": .string("person")])
+        )
+        publishPersonPurpose.modifiers = neutralButton
+
+        var publishGroupPurpose = SkeletonButton(
+            keypath: "catalog.matching.publishEntityPurpose",
+            label: "Publiser formaal for gruppe",
+            payload: .object(["entityType": .string("group")])
+        )
+        publishGroupPurpose.modifiers = neutralButton
+
+        var sectionMatches = SkeletonText(text: "Treff fra Tools/Purpose/Interest matching")
+        sectionMatches.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+        }
+
+        var sectionSelected = SkeletonText(text: "Valgt forslag (lastbar CellConfiguration med skeleton)")
+        sectionSelected.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+        }
+
+        var sectionLearning = SkeletonText(text: "Formaal-laering (maaloppnaaelse teller mest)")
+        sectionLearning.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+        }
+
+        var sectionPublish = SkeletonText(text: "Publiser formaal for personer og grupper")
+        sectionPublish.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+        }
+
+        var sectionBookmarks = SkeletonText(text: "Bokmerker")
+        sectionBookmarks.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
         }
 
         var root = SkeletonVStack(elements: [
             .Text(title),
             .Text(intro),
-            .HStack(SkeletonHStack(elements: [.Button(sendPrompt)])),
-            .HStack(SkeletonHStack(elements: [.Button(discover), .Button(ensurePurpose), .Button(buildCluster), .Button(rank)])),
-            .Text(SkeletonText(text: "Anbefalinger")),
-            .List(recommendationsFlow),
-            .Text(SkeletonText(text: "Incoming explore-requests")),
-            .List(exploreRequests)
+            .TextField(promptField),
+            .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(aiSendPrompt)])),
+            .HStack(SkeletonHStack(elements: [.Button(seedCandidates), .Button(clearMatching)])),
+            .HStack(SkeletonHStack(elements: [.Button(quickChat), .Button(quickConference)])),
+            .HStack(SkeletonHStack(elements: [.Button(quickRestaurant), .Button(quickPeople)])),
+            .TextField(selectedIndexField),
+            .Text(sectionMatches),
+            .List(suggestionList),
+            .Text(sectionSelected),
+            .List(selectedSuggestion),
+            .HStack(SkeletonHStack(elements: [.Button(loadSelected), .Button(markSelectedUsed)])),
+            .HStack(SkeletonHStack(elements: [.Button(markGoalAchieved), .Button(bookmarkSelected)])),
+            .HStack(SkeletonHStack(elements: [.Button(saveSelectedUpperMid), .Button(saveSelectedLowerMid)])),
+            .Text(sectionLearning),
+            .List(purposeStatsList),
+            .Text(sectionPublish),
+            .TextField(publishPersonName),
+            .TextField(publishGroupName),
+            .TextField(publishGroupType),
+            .TextField(publishNote),
+            .HStack(SkeletonHStack(elements: [.Button(publishPersonPurpose), .Button(publishGroupPurpose)])),
+            .List(publicationList),
+            .Text(sectionBookmarks),
+            .List(bookmarkList)
         ])
         root.modifiers = modifier {
-            $0.padding = 14
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 14
+            $0.padding = 8
+            $0.background = "#EEF5FB"
+            $0.cornerRadius = 12
             $0.borderWidth = 1
-            $0.borderColor = "#94A3B8"
+            $0.borderColor = "#C5D5E8"
+            $0.maxWidthInfinity = true
         }
 
-        configuration.skeleton = .VStack(root)
+        var framedRoot = SkeletonVStack(elements: [.VStack(root)])
+        framedRoot.modifiers = sectionCard
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(framedRoot)])
+        scroll.modifiers = modifier {
+            $0.maxWidthInfinity = true
+            $0.maxHeightInfinity = true
+            $0.background = "#E7F0F9"
+        }
+
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    private static func appleIntelligenceScenarioConfiguration(
+        name: String,
+        description: String,
+        endpoint: String,
+        label: String,
+        accentColor: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: name)
+        configuration.description = description
+
+        let reference = CellReference(endpoint: endpoint, label: label)
+        configuration.addReference(reference)
+
+        var titleText = SkeletonText(text: name)
+        titleText.modifiers = modifier {
+            $0.fontStyle = "headline"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var descriptionText = SkeletonText(text: description)
+        descriptionText.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+        }
+
+        var summaryText = SkeletonText(text: summary)
+        summaryText.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 12
+        }
+
+        var endpointText = SkeletonText(text: endpoint)
+        endpointText.modifiers = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 12
+        }
+
+        var card = SkeletonVStack(elements: [
+            .Text(titleText),
+            .Text(descriptionText),
+            .Text(summaryText),
+            .Text(endpointText)
+        ])
+        card.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = accentColor
+        }
+
+        configuration.skeleton = .VStack(card)
         return configuration
     }
 

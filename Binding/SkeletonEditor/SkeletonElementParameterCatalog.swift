@@ -638,6 +638,8 @@ enum SkeletonElementParameterCatalog {
             return [.text, .endpoint, .keypath]
         case .TextField:
             return [.text, .sourceKeypath, .targetKeypath, .placeholder]
+        case .TextArea:
+            return [.text, .sourceKeypath, .targetKeypath, .placeholder]
         case .Image:
             return [.name, .endpoint, .type, .resizable, .scaledToFit, .padding]
         case .Spacer:

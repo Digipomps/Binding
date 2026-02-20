@@ -22,6 +22,7 @@ enum SkeletonTreeQueries {
         case .Image(let image): return image.modifiers
         case .Text(let text): return text.modifiers
         case .TextField(let textField): return textField.modifiers
+        case .TextArea(let textArea): return textArea.modifiers
         case .HStack(let stack): return stack.modifiers
         case .VStack(let stack): return stack.modifiers
         case .Reference(let reference): return reference.modifiers
@@ -49,6 +50,7 @@ enum SkeletonTreeQueries {
         case .Image: return "Image"
         case .Text: return "Text"
         case .TextField: return "TextField"
+        case .TextArea: return "TextArea"
         case .HStack: return "HStack"
         case .VStack: return "VStack"
         case .Reference: return "Reference"

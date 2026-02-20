@@ -153,6 +153,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             textField.modifiers = modifiers
             return .TextField(textField)
+        case .TextArea(var textArea):
+            var modifiers = textArea.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            textArea.modifiers = modifiers
+            return .TextArea(textArea)
         case .HStack(var stack):
             var modifiers = stack.modifiers ?? SkeletonModifiers()
             mutate(&modifiers)

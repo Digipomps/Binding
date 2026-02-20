@@ -7,6 +7,9 @@
 import SwiftUI
 import CellBase
 import CellApple
+#if canImport(DiMyCellProtocolCells)
+import DiMyCellProtocolCells
+#endif
 
 struct RootView: View {
     @State private var initialized = false
@@ -27,6 +30,17 @@ struct RootView: View {
                     } catch {
                         print("Scaffold added cellResolve failed with error: \(error)")
                     }
+
+#if canImport(DiMyCellProtocolCells)
+                    do {
+                        try await DiMyCellRuntimeRegistration.registerBindingCells(
+                            resolver: resolver,
+                            identityDomain: "private"
+                        )
+                    } catch {
+                        print("DiMy micropayment cell registration failed with error: \(error)")
+                    }
+#endif
 
                     await MainActor.run {
                         NotificationEnrollmentManager.shared.bootstrapIfNeeded()

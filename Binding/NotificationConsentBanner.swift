@@ -8,7 +8,7 @@ struct NotificationConsentBanner: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Aktiver varsler")
                     .font(.headline)
-                Text("For å varsle deg om møterespons og handlinger som krever enheten din, må vi lagre en enhets-ID og push-token.")
+                Text("For å varsle deg om møterespons og handlinger som krever enheten din, må du lagre en enhets-ID og push-token og gi tillatelse til varsling.")
                     .font(.subheadline)
                 HStack {
                     Button("Ikke nå") {
