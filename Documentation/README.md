@@ -22,6 +22,24 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 - Added macOS floating editor tool windows (`NSPanel`) for `Elements` and `Inspector`, while keeping mode switching (`view`/`edit`) in the main window.
 - Validation status: `xcodebuild` succeeded for Binding after these editor changes.
 
+## Latest successful changes (February 23, 2026)
+- `ConfigurationCatalogCell` now exposes purpose-aware library query endpoints:
+  - `query` (ranked retrieval with deterministic score breakdown and explainability)
+  - `facetCounts` (facet aggregation for Full Library filters)
+  - `query.state` (latest query snapshot for UI status/debug)
+- Catalog entries now carry richer metadata for large-scale discovery:
+  - display metadata (`displayName`, `summary`, `categoryPath`, `tags`)
+  - purpose/interest refs (`portableRefs-v1`)
+  - compatibility hints (`supportedInsertionModes`, `supportedTargetKinds`)
+  - IO/auth hints (`ioSignature`, `authRequired`, `policyHints`, `flowDriven`, `editable`)
+- Existing persisted catalog entries are migrated on load through metadata enrichment defaults.
+- Added Binding tests for:
+  - ranked query response contract
+  - facet bucket contract for `supportedInsertionModes`.
+- Build verification:
+  - `xcodebuild ... build` succeeded for Binding.
+  - `xcodebuild ... build-for-testing` succeeded for Binding + BindingTests.
+
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.
 - State is accessed exclusively via `Meddle.get/set(keypath:value:requester:)`.

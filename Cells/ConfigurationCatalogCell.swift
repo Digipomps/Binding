@@ -20,6 +20,13 @@ final class ConfigurationCatalogCell: GeneralCell {
         var keypath: String { "\(rawValue)Menu" }
     }
 
+    private enum SupportedInsertionMode: String, Codable, CaseIterable {
+        case root
+        case component
+        case both
+        case unknown
+    }
+
     private struct CatalogEntry: Codable {
         var id: String
         var sourceCellEndpoint: String
@@ -30,6 +37,23 @@ final class ConfigurationCatalogCell: GeneralCell {
         var menuSlots: [MenuSlot]
         var goal: CellConfiguration
         var configuration: CellConfiguration
+        var displayName: String?
+        var summary: String?
+        var categoryPath: [String]?
+        var tags: [String]?
+        var purposeRefs: [String]?
+        var interestRefs: [String]?
+        var supportedInsertionModes: [SupportedInsertionMode]?
+        var supportedTargetKinds: [String]?
+        var ioGetKeys: [String]?
+        var ioSetKeys: [String]?
+        var ioTopics: [String]?
+        var ioFilterTypes: [String]?
+        var authRequired: Bool?
+        var policyHints: [String]?
+        var flowDriven: Bool?
+        var editable: Bool?
+        var recommendedContexts: [String]?
         var updatedAt: Double
 
         func asObject() -> Object {
@@ -44,6 +68,61 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "configuration": .cellConfiguration(configuration),
                 "updatedAt": .float(updatedAt)
             ]
+            if let displayName, !displayName.isEmpty {
+                object["displayName"] = .string(displayName)
+            }
+            if let summary, !summary.isEmpty {
+                object["summary"] = .string(summary)
+            }
+            if let categoryPath, !categoryPath.isEmpty {
+                object["categoryPath"] = .list(categoryPath.map { .string($0) })
+            }
+            if let tags, !tags.isEmpty {
+                object["tags"] = .list(tags.map { .string($0) })
+            }
+            if let purposeRefs, !purposeRefs.isEmpty {
+                object["purposeRefs"] = .list(purposeRefs.map { .string($0) })
+            }
+            if let interestRefs, !interestRefs.isEmpty {
+                object["interestRefs"] = .list(interestRefs.map { .string($0) })
+            }
+            if let supportedInsertionModes, !supportedInsertionModes.isEmpty {
+                object["supportedInsertionModes"] = .list(supportedInsertionModes.map { .string($0.rawValue) })
+            }
+            if let supportedTargetKinds, !supportedTargetKinds.isEmpty {
+                object["supportedTargetKinds"] = .list(supportedTargetKinds.map { .string($0) })
+            }
+            var ioSignature: Object = [:]
+            if let ioGetKeys, !ioGetKeys.isEmpty {
+                ioSignature["getKeys"] = .list(ioGetKeys.map { .string($0) })
+            }
+            if let ioSetKeys, !ioSetKeys.isEmpty {
+                ioSignature["setKeys"] = .list(ioSetKeys.map { .string($0) })
+            }
+            if let ioTopics, !ioTopics.isEmpty {
+                ioSignature["topics"] = .list(ioTopics.map { .string($0) })
+            }
+            if let ioFilterTypes, !ioFilterTypes.isEmpty {
+                ioSignature["filterTypes"] = .list(ioFilterTypes.map { .string($0) })
+            }
+            if !ioSignature.isEmpty {
+                object["ioSignature"] = .object(ioSignature)
+            }
+            if let authRequired {
+                object["authRequired"] = .bool(authRequired)
+            }
+            if let policyHints, !policyHints.isEmpty {
+                object["policyHints"] = .list(policyHints.map { .string($0) })
+            }
+            if let flowDriven {
+                object["flowDriven"] = .bool(flowDriven)
+            }
+            if let editable {
+                object["editable"] = .bool(editable)
+            }
+            if let recommendedContexts, !recommendedContexts.isEmpty {
+                object["recommendedContexts"] = .list(recommendedContexts.map { .string($0) })
+            }
             if let purposeDescription {
                 object["purposeDescription"] = .string(purposeDescription)
             }
@@ -61,6 +140,23 @@ final class ConfigurationCatalogCell: GeneralCell {
         var menuSlots: [MenuSlot]
         var goal: CellConfiguration
         var configuration: CellConfiguration
+        var displayName: String? = nil
+        var summary: String? = nil
+        var categoryPath: [String]? = nil
+        var tags: [String]? = nil
+        var purposeRefs: [String]? = nil
+        var interestRefs: [String]? = nil
+        var supportedInsertionModes: [SupportedInsertionMode]? = nil
+        var supportedTargetKinds: [String]? = nil
+        var ioGetKeys: [String]? = nil
+        var ioSetKeys: [String]? = nil
+        var ioTopics: [String]? = nil
+        var ioFilterTypes: [String]? = nil
+        var authRequired: Bool? = nil
+        var policyHints: [String]? = nil
+        var flowDriven: Bool? = nil
+        var editable: Bool? = nil
+        var recommendedContexts: [String]? = nil
     }
 
     private struct ScaffoldPurposeTemplate {
@@ -225,6 +321,79 @@ final class ConfigurationCatalogCell: GeneralCell {
         var score: Double
         var overlapInterests: [String]
         var reasons: [String]
+    }
+
+    private enum QueryResourceBudget: String {
+        case low
+        case balanced
+        case high
+    }
+
+    private enum QueryNetworkPolicy: String {
+        case preferHealthyThenCached
+        case healthyOnly
+        case cacheOnly
+    }
+
+    private struct QueryConstraints {
+        var maxResults: Int
+        var maxSources: Int
+        var latencyBudgetMs: Int
+        var resourceBudget: QueryResourceBudget
+        var networkPolicy: QueryNetworkPolicy
+        var allowDegradedSources: Bool
+    }
+
+    private struct QueryContext {
+        var editMode: Bool
+        var selectedNodeKind: String?
+        var insertionIntent: SupportedInsertionMode
+    }
+
+    private struct QueryFilters {
+        var categoryPath: Set<String>
+        var sourceRefs: Set<String>
+        var authRequired: Set<Bool>
+        var supportedInsertionModes: Set<SupportedInsertionMode>
+        var flowDriven: Set<Bool>
+        var editable: Set<Bool>
+    }
+
+    private enum SourceHealth: String {
+        case online
+        case degraded
+        case offline
+    }
+
+    private struct SourceCandidate {
+        var endpoint: String
+        var health: SourceHealth
+        var purposeFit: Double
+        var interestFit: Double
+        var sizePenalty: Double
+        var score: Double
+        var reason: String
+        var estimatedRttMs: Int
+    }
+
+    private struct QueryScoreBreakdown {
+        var text: Double
+        var purpose: Double
+        var interest: Double
+        var compatibility: Double
+        var connectivity: Double
+        var resourceFit: Double
+        var recency: Double
+
+        var finalScore: Double {
+            (0.32 * text) +
+            (0.24 * purpose) +
+            (0.16 * interest) +
+            (0.10 * compatibility) +
+            (0.08 * connectivity) +
+            (0.06 * resourceFit) +
+            (0.04 * recency)
+        }
     }
 
     private enum AgreementRolloutMode: String, Codable {
@@ -440,9 +609,11 @@ final class ConfigurationCatalogCell: GeneralCell {
     private var matchingPublishGroupName: String = ""
     private var matchingPublishGroupType: String = "selskap"
     private var matchingPublishNote: String = ""
+    private var lastQueryState: ValueType = .object([:])
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
+        migrateEntriesForMetadataIfNeeded()
         await setupPermissions(owner: owner)
         await setupKeys(owner: owner)
         await bootstrapDefaultsIfNeeded(requester: owner)
@@ -472,8 +643,10 @@ final class ConfigurationCatalogCell: GeneralCell {
         self.matchingPublishGroupName = (try? container.decode(String.self, forKey: .matchingPublishGroupName)) ?? ""
         self.matchingPublishGroupType = (try? container.decode(String.self, forKey: .matchingPublishGroupType)) ?? "selskap"
         self.matchingPublishNote = (try? container.decode(String.self, forKey: .matchingPublishNote)) ?? ""
-        if let owner = try container.decodeIfPresent(Identity.self, forKey: .owner) {
-            Task {
+        let decodedOwner = try container.decodeIfPresent(Identity.self, forKey: .owner)
+        Task { @MainActor in
+            self.migrateEntriesForMetadataIfNeeded()
+            if let owner = decodedOwner {
                 await self.setupPermissions(owner: owner)
                 await self.setupKeys(owner: owner)
                 await self.bootstrapDefaultsIfNeeded(requester: owner)
@@ -520,6 +693,9 @@ final class ConfigurationCatalogCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "match")
         agreementTemplate.addGrant("rw--", for: "matchPurpose")
         agreementTemplate.addGrant("rw--", for: "matchInterests")
+        agreementTemplate.addGrant("rw--", for: "query")
+        agreementTemplate.addGrant("rw--", for: "facetCounts")
+        agreementTemplate.addGrant("r---", for: "query.state")
         agreementTemplate.addGrant("r---", for: "matching.state")
         agreementTemplate.addGrant("r---", for: "matching.promptText")
         agreementTemplate.addGrant("rw--", for: "matching.promptText")
@@ -671,6 +847,24 @@ final class ConfigurationCatalogCell: GeneralCell {
             let limit = self.extractLimit(payload)
             let result = self.matchConfigurations(purpose: purpose, interests: interests, menuSlot: menuSlot, limit: limit)
             return .list(result.map { .cellConfiguration($0.configuration) })
+        }
+
+        await registerSet(key: "query", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "query", for: requester) else { return .string("denied") }
+            return self.queryCatalog(payload: payload, requester: requester)
+        }
+
+        await registerSet(key: "facetCounts", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "facetCounts", for: requester) else { return .string("denied") }
+            return self.queryFacetCounts(payload: payload, requester: requester)
+        }
+
+        await registerGet(key: "query.state", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "query.state", for: requester) else { return .string("denied") }
+            return self.stateQueue.sync { self.lastQueryState }
         }
 
         await registerGet(key: "matching.state", owner: owner) { [weak self] requester in
@@ -1066,6 +1260,34 @@ final class ConfigurationCatalogCell: GeneralCell {
             return flag
         }
         return defaultValue
+    }
+
+    private func extractInt(_ value: ValueType?, default defaultValue: Int) -> Int {
+        guard let value else { return defaultValue }
+        switch value {
+        case .integer(let number):
+            return number
+        case .number(let number):
+            return number
+        case .float(let number):
+            return Int(number)
+        default:
+            return defaultValue
+        }
+    }
+
+    private func extractDouble(_ value: ValueType?, default defaultValue: Double) -> Double {
+        guard let value else { return defaultValue }
+        switch value {
+        case .float(let number):
+            return number
+        case .integer(let number):
+            return Double(number)
+        case .number(let number):
+            return Double(number)
+        default:
+            return defaultValue
+        }
     }
 
     private func extractCapabilityList(_ value: ValueType?) -> [String] {
@@ -1732,6 +1954,48 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         let interests = extractInterestList(from: object["interests"]) ?? []
         let menuSlots = extractMenuSlots(from: object["menuSlots"]) ?? [.upperLeft]
+        let displayName = extractString(object["displayName"])
+        let summary = extractString(object["summary"])
+        let categoryPath = extractStringList(from: object["categoryPath"])
+        let tags = extractStringList(from: object["tags"])
+        let purposeRefs = extractStringList(from: object["purposeRefs"])
+        let interestRefs = extractStringList(from: object["interestRefs"])
+
+        let compatibilityObject: Object = {
+            if case let .object(object)? = object["compatibility"] {
+                return object
+            }
+            return [:]
+        }()
+        let supportedInsertionModes = extractInsertionModes(
+            from: object["supportedInsertionModes"] ?? compatibilityObject["supportedInsertionModes"]
+        )
+        let supportedTargetKinds = extractStringList(
+            from: object["supportedTargetKinds"] ?? compatibilityObject["supportedTargetKinds"]
+        )
+
+        let ioSignature: Object = {
+            if case let .object(object)? = object["ioSignature"] {
+                return object
+            }
+            return [:]
+        }()
+        let ioGetKeys = extractStringList(from: ioSignature["getKeys"])
+        let ioSetKeys = extractStringList(from: ioSignature["setKeys"])
+        let ioTopics = extractStringList(from: ioSignature["topics"])
+        let ioFilterTypes = extractStringList(from: ioSignature["filterTypes"])
+
+        let authPolicyHints: Object = {
+            if case let .object(object)? = object["authPolicyHints"] {
+                return object
+            }
+            return [:]
+        }()
+        let authRequired = extractOptionalBool(object["authRequired"] ?? authPolicyHints["authRequired"])
+        let policyHints = extractStringList(from: object["policyHints"] ?? authPolicyHints["policyHints"])
+        let flowDriven = extractOptionalBool(object["flowDriven"])
+        let editable = extractOptionalBool(object["editable"])
+        let recommendedContexts = extractStringList(from: object["recommendedContexts"])
 
         return CatalogPayload(
             id: id,
@@ -1742,7 +2006,24 @@ final class ConfigurationCatalogCell: GeneralCell {
             interests: interests,
             menuSlots: menuSlots,
             goal: goal,
-            configuration: configuration
+            configuration: configuration,
+            displayName: displayName,
+            summary: summary,
+            categoryPath: categoryPath,
+            tags: tags,
+            purposeRefs: purposeRefs,
+            interestRefs: interestRefs,
+            supportedInsertionModes: supportedInsertionModes,
+            supportedTargetKinds: supportedTargetKinds,
+            ioGetKeys: ioGetKeys,
+            ioSetKeys: ioSetKeys,
+            ioTopics: ioTopics,
+            ioFilterTypes: ioFilterTypes,
+            authRequired: authRequired,
+            policyHints: policyHints,
+            flowDriven: flowDriven,
+            editable: editable,
+            recommendedContexts: recommendedContexts
         )
     }
 
@@ -1771,6 +2052,41 @@ final class ConfigurationCatalogCell: GeneralCell {
                 }
                 return nil
             }
+        default:
+            return nil
+        }
+    }
+
+    private func extractStringList(from value: ValueType?) -> [String]? {
+        guard let values = extractInterestList(from: value) else { return nil }
+        let normalized = values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return normalized.isEmpty ? nil : Array(Set(normalized)).sorted()
+    }
+
+    private func extractOptionalBool(_ value: ValueType?) -> Bool? {
+        guard let value else { return nil }
+        if case let .bool(flag) = value {
+            return flag
+        }
+        return nil
+    }
+
+    private func extractInsertionModes(from value: ValueType?) -> [SupportedInsertionMode]? {
+        guard let value else { return nil }
+        switch value {
+        case .string(let single):
+            if let mode = SupportedInsertionMode(rawValue: single.lowercased()) {
+                return [mode]
+            }
+            return nil
+        case .list(let list):
+            let modes = list.compactMap { current -> SupportedInsertionMode? in
+                guard case let .string(raw) = current else { return nil }
+                return SupportedInsertionMode(rawValue: raw.lowercased())
+            }
+            return modes.isEmpty ? nil : Array(Set(modes)).sorted(by: { $0.rawValue < $1.rawValue })
         default:
             return nil
         }
@@ -1815,7 +2131,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             return UUID().uuidString
         }()
 
-        let updatedEntry = CatalogEntry(
+        var updatedEntry = CatalogEntry(
             id: resolvedID,
             sourceCellEndpoint: payload.sourceCellEndpoint,
             sourceCellName: payload.sourceCellName,
@@ -1825,8 +2141,26 @@ final class ConfigurationCatalogCell: GeneralCell {
             menuSlots: payload.menuSlots,
             goal: payload.goal,
             configuration: payload.configuration,
+            displayName: payload.displayName,
+            summary: payload.summary,
+            categoryPath: payload.categoryPath,
+            tags: payload.tags,
+            purposeRefs: payload.purposeRefs,
+            interestRefs: payload.interestRefs,
+            supportedInsertionModes: payload.supportedInsertionModes,
+            supportedTargetKinds: payload.supportedTargetKinds,
+            ioGetKeys: payload.ioGetKeys,
+            ioSetKeys: payload.ioSetKeys,
+            ioTopics: payload.ioTopics,
+            ioFilterTypes: payload.ioFilterTypes,
+            authRequired: payload.authRequired,
+            policyHints: payload.policyHints,
+            flowDriven: payload.flowDriven,
+            editable: payload.editable,
+            recommendedContexts: payload.recommendedContexts,
             updatedAt: Date().timeIntervalSince1970
         )
+        updatedEntry = enrichCatalogEntryMetadata(updatedEntry)
 
         stateQueue.sync {
             entriesByID[resolvedID] = updatedEntry
@@ -1887,6 +2221,888 @@ final class ConfigurationCatalogCell: GeneralCell {
             return max(1, limit)
         }
         return nil
+    }
+
+    private func migrateEntriesForMetadataIfNeeded() {
+        stateQueue.sync {
+            entriesByID = entriesByID.mapValues { enrichCatalogEntryMetadata($0) }
+        }
+    }
+
+    private func enrichCatalogEntryMetadata(_ entry: CatalogEntry) -> CatalogEntry {
+        var enriched = entry
+
+        if enriched.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+            enriched.displayName = entry.configuration.name
+        }
+
+        if enriched.summary?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+            enriched.summary = entry.purposeDescription ?? entry.configuration.description ?? "Ingen sammendrag tilgjengelig."
+        }
+
+        if enriched.categoryPath?.isEmpty ?? true {
+            enriched.categoryPath = ["purpose", slugify(entry.purpose)]
+        }
+
+        if enriched.purposeRefs?.isEmpty ?? true {
+            enriched.purposeRefs = [portablePurposeRef(for: entry.purpose)]
+        }
+
+        if enriched.interestRefs?.isEmpty ?? true {
+            let refs = entry.interests.map { portableInterestRef(for: $0) }
+            enriched.interestRefs = refs.isEmpty ? nil : refs
+        }
+
+        if enriched.supportedInsertionModes?.isEmpty ?? true {
+            enriched.supportedInsertionModes = [.unknown]
+        }
+
+        if enriched.supportedTargetKinds?.isEmpty ?? true {
+            enriched.supportedTargetKinds = nil
+        }
+
+        let derivedSetKeys = Set(entry.configuration.cellReferences?.flatMap { reference in
+            reference.setKeysAndValues.map(\.key)
+        } ?? [])
+
+        if enriched.ioSetKeys?.isEmpty ?? true {
+            enriched.ioSetKeys = derivedSetKeys.isEmpty ? nil : Array(derivedSetKeys).sorted()
+        }
+
+        if enriched.ioGetKeys?.isEmpty ?? true {
+            enriched.ioGetKeys = nil
+        }
+
+        if enriched.ioTopics?.isEmpty ?? true {
+            let topicKeys = derivedSetKeys.filter { $0.lowercased().contains("topic") }
+            enriched.ioTopics = topicKeys.isEmpty ? nil : Array(topicKeys).sorted()
+        }
+
+        if enriched.ioFilterTypes?.isEmpty ?? true {
+            enriched.ioFilterTypes = nil
+        }
+
+        if enriched.authRequired == nil {
+            let source = entry.sourceCellEndpoint.lowercased()
+            let looksProtected = source.contains("auth") || source.contains("security") || source.contains("agreement")
+            enriched.authRequired = looksProtected
+        }
+
+        if enriched.policyHints?.isEmpty ?? true {
+            if enriched.authRequired == true {
+                enriched.policyHints = ["auth-required"]
+            } else {
+                enriched.policyHints = nil
+            }
+        }
+
+        if enriched.flowDriven == nil {
+            enriched.flowDriven = !(enriched.ioTopics?.isEmpty ?? true)
+        }
+
+        if enriched.editable == nil {
+            enriched.editable = entry.configuration.skeleton != nil
+        }
+
+        if enriched.recommendedContexts?.isEmpty ?? true {
+            let contexts = entry.menuSlots.map { "menu.\($0.rawValue)" }
+            enriched.recommendedContexts = contexts.isEmpty ? nil : contexts
+        }
+
+        if enriched.tags?.isEmpty ?? true {
+            var all = Set<String>()
+            all.insert(slugify(entry.purpose))
+            entry.interests.forEach { all.insert(slugify($0)) }
+            enriched.categoryPath?.forEach { all.insert(slugify($0)) }
+            if let insertion = enriched.supportedInsertionModes {
+                insertion.forEach { all.insert($0.rawValue) }
+            }
+            enriched.tags = all.isEmpty ? nil : Array(all).sorted()
+        }
+
+        return enriched
+    }
+
+    private func slugify(_ value: String) -> String {
+        let lowered = value.lowercased()
+        let scalars = lowered.unicodeScalars.map { scalar -> Character in
+            if CharacterSet.alphanumerics.contains(scalar) { return Character(String(scalar)) }
+            return "-"
+        }
+        let collapsed = String(scalars)
+            .replacingOccurrences(of: "--+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return collapsed.isEmpty ? "unknown" : collapsed
+    }
+
+    private func portablePurposeRef(for purpose: String) -> String {
+        "purpose://\(slugify(purpose))"
+    }
+
+    private func portableInterestRef(for interest: String) -> String {
+        "interest://\(slugify(interest))"
+    }
+
+    private func normalizePurposeRef(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("purpose://") {
+            return trimmed.lowercased()
+        }
+        return portablePurposeRef(for: trimmed)
+    }
+
+    private func normalizeInterestRef(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("interest://") {
+            return trimmed.lowercased()
+        }
+        return portableInterestRef(for: trimmed)
+    }
+
+    private func parseQueryConstraints(from value: ValueType?) -> QueryConstraints {
+        guard case let .object(object)? = value else {
+            return QueryConstraints(
+                maxResults: 50,
+                maxSources: 6,
+                latencyBudgetMs: 350,
+                resourceBudget: .balanced,
+                networkPolicy: .preferHealthyThenCached,
+                allowDegradedSources: true
+            )
+        }
+
+        let maxResults = min(200, max(1, extractInt(object["maxResults"], default: 50)))
+        let maxSources = min(12, max(1, extractInt(object["maxSources"], default: 6)))
+        let latencyBudgetMs = min(5000, max(100, extractInt(object["latencyBudgetMs"], default: 350)))
+        let resourceBudget = QueryResourceBudget(rawValue: extractString(object["resourceBudget"]) ?? "") ?? .balanced
+        let networkPolicy = QueryNetworkPolicy(rawValue: extractString(object["networkPolicy"]) ?? "") ?? .preferHealthyThenCached
+        let allowDegradedSources = extractBool(object["allowDegradedSources"], default: true)
+
+        return QueryConstraints(
+            maxResults: maxResults,
+            maxSources: maxSources,
+            latencyBudgetMs: latencyBudgetMs,
+            resourceBudget: resourceBudget,
+            networkPolicy: networkPolicy,
+            allowDegradedSources: allowDegradedSources
+        )
+    }
+
+    private func parseQueryContext(from value: ValueType?) -> QueryContext {
+        guard case let .object(object)? = value else {
+            return QueryContext(editMode: true, selectedNodeKind: nil, insertionIntent: .unknown)
+        }
+
+        let editMode = extractBool(object["editMode"], default: true)
+        let selectedNodeKind = extractString(object["selectedNodeKind"])
+        let insertionIntent: SupportedInsertionMode = {
+            let raw = (extractString(object["insertionIntent"]) ?? "").lowercased()
+            return SupportedInsertionMode(rawValue: raw) ?? .unknown
+        }()
+
+        return QueryContext(
+            editMode: editMode,
+            selectedNodeKind: selectedNodeKind,
+            insertionIntent: insertionIntent
+        )
+    }
+
+    private func extractBoolSet(from value: ValueType?) -> Set<Bool> {
+        guard let value else { return [] }
+        switch value {
+        case .bool(let value):
+            return [value]
+        case .list(let list):
+            return Set(list.compactMap {
+                if case let .bool(value) = $0 { return value }
+                return nil
+            })
+        default:
+            return []
+        }
+    }
+
+    private func parseQueryFilters(from value: ValueType?) -> QueryFilters {
+        guard case let .object(object)? = value else {
+            return QueryFilters(
+                categoryPath: [],
+                sourceRefs: [],
+                authRequired: [],
+                supportedInsertionModes: [],
+                flowDriven: [],
+                editable: []
+            )
+        }
+
+        let categoryPath = Set((extractStringList(from: object["categoryPath"]) ?? []).map { $0.lowercased() })
+        let sourceRefs = Set((extractStringList(from: object["sourceRefs"]) ?? []).map { $0.lowercased() })
+        let authRequired = extractBoolSet(from: object["authRequired"])
+        let supportedInsertionModes = Set(extractInsertionModes(from: object["supportedInsertionModes"]) ?? [])
+        let flowDriven = extractBoolSet(from: object["flowDriven"])
+        let editable = extractBoolSet(from: object["editable"])
+
+        return QueryFilters(
+            categoryPath: categoryPath,
+            sourceRefs: sourceRefs,
+            authRequired: authRequired,
+            supportedInsertionModes: supportedInsertionModes,
+            flowDriven: flowDriven,
+            editable: editable
+        )
+    }
+
+    private func mergeFilters(_ lhs: QueryFilters, _ rhs: QueryFilters) -> QueryFilters {
+        QueryFilters(
+            categoryPath: lhs.categoryPath.union(rhs.categoryPath),
+            sourceRefs: lhs.sourceRefs.union(rhs.sourceRefs),
+            authRequired: lhs.authRequired.union(rhs.authRequired),
+            supportedInsertionModes: lhs.supportedInsertionModes.union(rhs.supportedInsertionModes),
+            flowDriven: lhs.flowDriven.union(rhs.flowDriven),
+            editable: lhs.editable.union(rhs.editable)
+        )
+    }
+
+    private func entryMatchesFilters(_ entry: CatalogEntry, filters: QueryFilters) -> Bool {
+        if !filters.categoryPath.isEmpty {
+            let entryPath = (entry.categoryPath ?? []).map { $0.lowercased() }
+            let joined = entryPath.joined(separator: "/")
+            let hasCategory = filters.categoryPath.contains(where: { filter in
+                joined.contains(filter) || entryPath.contains(filter)
+            })
+            if !hasCategory { return false }
+        }
+
+        if !filters.sourceRefs.isEmpty, !filters.sourceRefs.contains(entry.sourceCellEndpoint.lowercased()) {
+            return false
+        }
+
+        if !filters.authRequired.isEmpty {
+            let authValue = entry.authRequired ?? false
+            if !filters.authRequired.contains(authValue) {
+                return false
+            }
+        }
+
+        if !filters.supportedInsertionModes.isEmpty {
+            let entryModes = Set(entry.supportedInsertionModes ?? [.unknown])
+            if entryModes.intersection(filters.supportedInsertionModes).isEmpty {
+                return false
+            }
+        }
+
+        if !filters.flowDriven.isEmpty {
+            let value = entry.flowDriven ?? false
+            if !filters.flowDriven.contains(value) {
+                return false
+            }
+        }
+
+        if !filters.editable.isEmpty {
+            let value = entry.editable ?? false
+            if !filters.editable.contains(value) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func tokenize(_ text: String) -> [String] {
+        text
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count > 1 }
+    }
+
+    private func sourceHealth(for endpoint: String, errors: [String: CatalogErrorEntry]) -> SourceHealth {
+        guard let error = errors[endpoint] else { return .online }
+        if error.count >= 5 { return .offline }
+        return .degraded
+    }
+
+    private func sourceHealthScore(_ health: SourceHealth) -> Double {
+        switch health {
+        case .online: return 1.0
+        case .degraded: return 0.55
+        case .offline: return 0.15
+        }
+    }
+
+    private func scoreSource(
+        endpoint: String,
+        entries: [CatalogEntry],
+        purposeRefs: Set<String>,
+        interestRefs: Set<String>,
+        queryTokens: [String],
+        errors: [String: CatalogErrorEntry]
+    ) -> SourceCandidate {
+        let purposeUniverse = Set(entries.flatMap { ($0.purposeRefs ?? []).map { $0.lowercased() } })
+        let interestUniverse = Set(entries.flatMap { ($0.interestRefs ?? []).map { $0.lowercased() } })
+
+        let purposeFit: Double = {
+            guard !purposeRefs.isEmpty else { return 0.5 }
+            return Double(purposeRefs.intersection(purposeUniverse).count) / Double(max(1, purposeRefs.count))
+        }()
+
+        let interestFit: Double = {
+            guard !interestRefs.isEmpty else { return 0.5 }
+            return Double(interestRefs.intersection(interestUniverse).count) / Double(max(1, interestRefs.count))
+        }()
+
+        let textFit: Double = {
+            guard !queryTokens.isEmpty else { return 0.5 }
+            let corpus = entries.map {
+                [
+                    $0.displayName ?? "",
+                    $0.summary ?? "",
+                    $0.purpose,
+                    ($0.tags ?? []).joined(separator: " "),
+                    ($0.interests).joined(separator: " ")
+                ].joined(separator: " ").lowercased()
+            }.joined(separator: " ")
+            let matches = Set(queryTokens.filter { corpus.contains($0) })
+            return Double(matches.count) / Double(max(1, Set(queryTokens).count))
+        }()
+
+        let health = sourceHealth(for: endpoint, errors: errors)
+        let healthScore = sourceHealthScore(health)
+        let sizePenalty = min(1.0, Double(entries.count) / 1200.0)
+        let score = (0.32 * purposeFit) + (0.22 * interestFit) + (0.16 * textFit) + (0.20 * healthScore) + (0.10 * (1.0 - sizePenalty))
+        let estimatedRttMs: Int = {
+            switch health {
+            case .online: return 20 + min(80, entries.count / 6)
+            case .degraded: return 120 + min(250, entries.count / 3)
+            case .offline: return 700
+            }
+        }()
+
+        return SourceCandidate(
+            endpoint: endpoint,
+            health: health,
+            purposeFit: purposeFit,
+            interestFit: interestFit,
+            sizePenalty: sizePenalty,
+            score: score,
+            reason: "source_rank",
+            estimatedRttMs: estimatedRttMs
+        )
+    }
+
+    private func isLocalSource(_ endpoint: String) -> Bool {
+        endpoint.lowercased().hasPrefix("cell:///")
+    }
+
+    private func selectSources(
+        entries: [CatalogEntry],
+        purposeRefs: Set<String>,
+        interestRefs: Set<String>,
+        queryTokens: [String],
+        constraints: QueryConstraints
+    ) -> (selected: [SourceCandidate], skipped: [SourceCandidate]) {
+        let grouped = Dictionary(grouping: entries, by: \.sourceCellEndpoint)
+        let errors = stateQueue.sync { catalogErrorsByEndpoint }
+        var selectedPool: [SourceCandidate] = []
+        var skipped: [SourceCandidate] = []
+
+        for (endpoint, sourceEntries) in grouped {
+            var candidate = scoreSource(
+                endpoint: endpoint,
+                entries: sourceEntries,
+                purposeRefs: purposeRefs,
+                interestRefs: interestRefs,
+                queryTokens: queryTokens,
+                errors: errors
+            )
+
+            switch constraints.networkPolicy {
+            case .healthyOnly where candidate.health != .online:
+                candidate.reason = "healthyOnlyPolicy"
+                skipped.append(candidate)
+                continue
+            case .cacheOnly where !isLocalSource(endpoint):
+                candidate.reason = "cacheOnlyPolicy"
+                skipped.append(candidate)
+                continue
+            default:
+                break
+            }
+
+            if !constraints.allowDegradedSources, candidate.health != .online {
+                candidate.reason = "degradedSourcesNotAllowed"
+                skipped.append(candidate)
+                continue
+            }
+
+            selectedPool.append(candidate)
+        }
+
+        selectedPool.sort { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.endpoint.localizedCaseInsensitiveCompare(rhs.endpoint) == .orderedAscending
+            }
+            return lhs.score > rhs.score
+        }
+
+        let selected = Array(selectedPool.prefix(constraints.maxSources))
+        if selectedPool.count > constraints.maxSources {
+            for candidate in selectedPool.dropFirst(constraints.maxSources) {
+                var skippedCandidate = candidate
+                skippedCandidate.reason = "maxSourcesLimit"
+                skipped.append(skippedCandidate)
+            }
+        }
+
+        return (selected, skipped)
+    }
+
+    private func queryWorkingSet(
+        from object: Object,
+        additionalFilters: QueryFilters? = nil
+    ) -> (
+        requestId: String,
+        queryText: String,
+        purposeRefs: Set<String>,
+        interestRefs: Set<String>,
+        constraints: QueryConstraints,
+        context: QueryContext,
+        entries: [CatalogEntry],
+        selectedSources: [SourceCandidate],
+        skippedSources: [SourceCandidate]
+    ) {
+        let requestId = extractString(object["requestId"]) ?? UUID().uuidString
+        let queryText = extractString(object["q"]) ?? extractString(object["query"]) ?? ""
+        var purposeRefs = Set((extractStringList(from: object["purposeRefs"]) ?? []).map { normalizePurposeRef($0) })
+        var interestRefs = Set((extractStringList(from: object["interestRefs"]) ?? []).map { normalizeInterestRef($0) })
+
+        if let fallbackPurposes = extractStringList(from: object["purposes"]) {
+            fallbackPurposes.forEach { purposeRefs.insert(normalizePurposeRef($0)) }
+        }
+        if let fallbackInterests = extractStringList(from: object["interests"]) {
+            fallbackInterests.forEach { interestRefs.insert(normalizeInterestRef($0)) }
+        }
+
+        var queryTokens = tokenize(queryText)
+        if case let .list(tokenList)? = object["tokens"] {
+            for token in tokenList {
+                guard case let .object(tokenObject) = token else { continue }
+                let kind = (extractString(tokenObject["kind"]) ?? "").lowercased()
+                guard let value = extractString(tokenObject["value"]), !value.isEmpty else { continue }
+                switch kind {
+                case "purpose":
+                    purposeRefs.insert(normalizePurposeRef(value))
+                case "interest":
+                    interestRefs.insert(normalizeInterestRef(value))
+                default:
+                    queryTokens.append(contentsOf: tokenize(value))
+                }
+            }
+        }
+
+        let filters = parseQueryFilters(from: object["filters"])
+        let mergedFilters = mergeFilters(filters, additionalFilters ?? QueryFilters(
+            categoryPath: [],
+            sourceRefs: [],
+            authRequired: [],
+            supportedInsertionModes: [],
+            flowDriven: [],
+            editable: []
+        ))
+        let constraints = parseQueryConstraints(from: object["constraints"])
+        let context = parseQueryContext(from: object["context"])
+
+        let allEntries = sortedEntries().map { enrichCatalogEntryMetadata($0) }
+        let sourceSelection = selectSources(
+            entries: allEntries,
+            purposeRefs: purposeRefs,
+            interestRefs: interestRefs,
+            queryTokens: queryTokens,
+            constraints: constraints
+        )
+        let selectedSet = Set(sourceSelection.selected.map { $0.endpoint.lowercased() })
+        let filteredEntries = allEntries.filter { entry in
+            selectedSet.contains(entry.sourceCellEndpoint.lowercased()) &&
+            entryMatchesFilters(entry, filters: mergedFilters)
+        }
+
+        return (
+            requestId: requestId,
+            queryText: queryText,
+            purposeRefs: purposeRefs,
+            interestRefs: interestRefs,
+            constraints: constraints,
+            context: context,
+            entries: filteredEntries,
+            selectedSources: sourceSelection.selected,
+            skippedSources: sourceSelection.skipped
+        )
+    }
+
+    private func textScore(for entry: CatalogEntry, queryText: String) -> Double {
+        let tokens = tokenize(queryText)
+        guard !tokens.isEmpty else { return 0.5 }
+        let corpus = [
+            entry.displayName ?? "",
+            entry.summary ?? "",
+            entry.purpose,
+            entry.purposeDescription ?? "",
+            (entry.tags ?? []).joined(separator: " "),
+            entry.interests.joined(separator: " "),
+            (entry.categoryPath ?? []).joined(separator: " "),
+            entry.configuration.name,
+            entry.configuration.description ?? ""
+        ].joined(separator: " ").lowercased()
+        let matches = Set(tokens.filter { corpus.contains($0) })
+        return Double(matches.count) / Double(max(1, Set(tokens).count))
+    }
+
+    private func purposeScore(for entry: CatalogEntry, purposeRefs: Set<String>) -> Double {
+        guard !purposeRefs.isEmpty else { return 0.5 }
+        let entryRefs = Set((entry.purposeRefs ?? []).map { $0.lowercased() })
+        let overlap = purposeRefs.intersection(entryRefs)
+        return Double(overlap.count) / Double(max(1, purposeRefs.count))
+    }
+
+    private func interestScore(for entry: CatalogEntry, interestRefs: Set<String>) -> Double {
+        guard !interestRefs.isEmpty else { return 0.5 }
+        let entryRefs = Set((entry.interestRefs ?? []).map { $0.lowercased() })
+        let overlap = interestRefs.intersection(entryRefs)
+        return Double(overlap.count) / Double(max(1, interestRefs.count))
+    }
+
+    private func compatibilityScore(for entry: CatalogEntry, context: QueryContext) -> Double {
+        var score = 0.5
+        let modes = Set(entry.supportedInsertionModes ?? [.unknown])
+        switch context.insertionIntent {
+        case .unknown:
+            score = 0.5
+        case .root:
+            score = modes.contains(.root) || modes.contains(.both) ? 1.0 : (modes.contains(.unknown) ? 0.35 : 0.0)
+        case .component:
+            score = modes.contains(.component) || modes.contains(.both) ? 1.0 : (modes.contains(.unknown) ? 0.35 : 0.0)
+        case .both:
+            score = modes.contains(.both) ? 1.0 : 0.7
+        }
+
+        if let selectedNodeKind = context.selectedNodeKind?.lowercased(),
+           let kinds = entry.supportedTargetKinds?.map({ $0.lowercased() }),
+           !kinds.isEmpty {
+            if kinds.contains(selectedNodeKind) {
+                score = min(1.0, score + 0.2)
+            } else {
+                score *= 0.5
+            }
+        }
+
+        return min(1.0, max(0.0, score))
+    }
+
+    private func resourceScore(for entry: CatalogEntry, budget: QueryResourceBudget) -> Double {
+        let references = entry.configuration.cellReferences?.count ?? 0
+        let setOps = entry.configuration.cellReferences?.reduce(0, { $0 + $1.setKeysAndValues.count }) ?? 0
+        let complexity = Double(references) + (entry.configuration.skeleton != nil ? 1.5 : 0.5) + (Double(setOps) * 0.2)
+
+        switch budget {
+        case .low:
+            return max(0.0, 1.0 - min(1.0, complexity / 8.0))
+        case .balanced:
+            return max(0.0, 1.0 - min(1.0, abs(complexity - 3.0) / 7.0))
+        case .high:
+            return min(1.0, 0.35 + min(0.65, complexity / 9.0))
+        }
+    }
+
+    private func recencyScore(for entry: CatalogEntry) -> Double {
+        let ageSeconds = max(0.0, Date().timeIntervalSince1970 - entry.updatedAt)
+        let ageDays = ageSeconds / 86400.0
+        return exp(-ageDays / 30.0)
+    }
+
+    private func badges(for entry: CatalogEntry) -> [String] {
+        var badges: [String] = []
+        let insertion = Set(entry.supportedInsertionModes ?? [.unknown])
+        if insertion.contains(.both) {
+            badges.append("Both")
+        } else if insertion.contains(.root) {
+            badges.append("Root")
+        } else if insertion.contains(.component) {
+            badges.append("Component")
+        } else {
+            badges.append("Unknown")
+        }
+        if entry.authRequired == true {
+            badges.append("Auth-required")
+        }
+        if entry.flowDriven == true {
+            badges.append("Flow-driven")
+        }
+        if entry.editable == true {
+            badges.append("Editable")
+        }
+        return badges
+    }
+
+    private func queryCatalog(payload: ValueType, requester: Identity) -> ValueType {
+        guard case let .object(object) = payload else {
+            return .object([
+                "status": .string("error"),
+                "message": .string("query forventer object payload")
+            ])
+        }
+
+        let startedAt = Date()
+        let sourceSelectionStarted = Date()
+        let workingSet = queryWorkingSet(from: object)
+        let sourceSelectionMs = Int(Date().timeIntervalSince(sourceSelectionStarted) * 1000.0)
+        let selectedByEndpoint = Dictionary(uniqueKeysWithValues: workingSet.selectedSources.map { ($0.endpoint.lowercased(), $0) })
+        let scoringStarted = Date()
+
+        struct ScoredItem {
+            var entry: CatalogEntry
+            var score: QueryScoreBreakdown
+            var route: String
+        }
+
+        let hasSignal = !workingSet.queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !workingSet.purposeRefs.isEmpty || !workingSet.interestRefs.isEmpty
+
+        let scored: [ScoredItem] = workingSet.entries.compactMap { entry in
+            let entryHealth = selectedByEndpoint[entry.sourceCellEndpoint.lowercased()]?.health ?? .online
+            let breakdown = QueryScoreBreakdown(
+                text: textScore(for: entry, queryText: workingSet.queryText),
+                purpose: purposeScore(for: entry, purposeRefs: workingSet.purposeRefs),
+                interest: interestScore(for: entry, interestRefs: workingSet.interestRefs),
+                compatibility: compatibilityScore(for: entry, context: workingSet.context),
+                connectivity: sourceHealthScore(entryHealth),
+                resourceFit: resourceScore(for: entry, budget: workingSet.constraints.resourceBudget),
+                recency: recencyScore(for: entry)
+            )
+
+            if hasSignal && breakdown.text <= 0.0 && breakdown.purpose <= 0.0 && breakdown.interest <= 0.0 {
+                return nil
+            }
+
+            let route: String = {
+                if breakdown.purpose > 0.0 && breakdown.purpose >= breakdown.interest { return "directPurpose" }
+                if breakdown.interest > 0.0 { return "viaInterest" }
+                return "text"
+            }()
+
+            return ScoredItem(entry: entry, score: breakdown, route: route)
+        }
+        .sorted { lhs, rhs in
+            if lhs.score.finalScore == rhs.score.finalScore {
+                if lhs.score.purpose == rhs.score.purpose {
+                    let lhsName = lhs.entry.displayName ?? lhs.entry.configuration.name
+                    let rhsName = rhs.entry.displayName ?? rhs.entry.configuration.name
+                    if lhsName.caseInsensitiveCompare(rhsName) == .orderedSame {
+                        return lhs.entry.id.localizedCaseInsensitiveCompare(rhs.entry.id) == .orderedAscending
+                    }
+                    return lhsName.localizedCaseInsensitiveCompare(rhsName) == .orderedAscending
+                }
+                return lhs.score.purpose > rhs.score.purpose
+            }
+            return lhs.score.finalScore > rhs.score.finalScore
+        }
+
+        let limited = Array(scored.prefix(workingSet.constraints.maxResults))
+        let scoringMs = Int(Date().timeIntervalSince(scoringStarted) * 1000.0)
+
+        let resultObjects: [ValueType] = limited.map { item in
+            let entry = item.entry
+            let purposeRefs = entry.purposeRefs ?? [portablePurposeRef(for: entry.purpose)]
+            let interestRefs = entry.interestRefs ?? entry.interests.map { portableInterestRef(for: $0) }
+            let supportedModes = (entry.supportedInsertionModes ?? [.unknown]).map { ValueType.string($0.rawValue) }
+            let targetKinds = (entry.supportedTargetKinds ?? []).map { ValueType.string($0) }
+            let overlapPurposes = purposeRefs.filter { workingSet.purposeRefs.contains($0.lowercased()) }
+            let overlapInterests = interestRefs.filter { workingSet.interestRefs.contains($0.lowercased()) }
+            let purposeSupport = (overlapPurposes.isEmpty ? Array(purposeRefs.prefix(1)) : overlapPurposes)
+                .map { ValueType.object(["portablePurposeRef": .string($0), "weight": .float(item.score.purpose)]) }
+            let interestSupport = (overlapInterests.isEmpty ? Array(interestRefs.prefix(2)) : overlapInterests)
+                .map { ValueType.object(["portableInterestRef": .string($0), "weight": .float(item.score.interest)]) }
+
+            return .object([
+                "configurationId": .string(entry.id),
+                "displayName": .string(entry.displayName ?? entry.configuration.name),
+                "summary": .string(entry.summary ?? ""),
+                "sourceRef": .string(entry.sourceCellEndpoint),
+                "score": .float(item.score.finalScore),
+                "scoreBreakdown": .object([
+                    "text": .float(item.score.text),
+                    "purpose": .float(item.score.purpose),
+                    "interest": .float(item.score.interest),
+                    "compatibility": .float(item.score.compatibility),
+                    "connectivity": .float(item.score.connectivity),
+                    "resourceFit": .float(item.score.resourceFit),
+                    "recency": .float(item.score.recency)
+                ]),
+                "route": .string(item.route),
+                "supportingPurposes": .list(purposeSupport),
+                "supportingInterests": .list(interestSupport),
+                "compatibility": .object([
+                    "supportedInsertionModes": .list(supportedModes),
+                    "supportedTargetKinds": .list(targetKinds)
+                ]),
+                "badges": .list(badges(for: entry).map { .string($0) }),
+                "configuration": .cellConfiguration(entry.configuration)
+            ])
+        }
+
+        let selectedSourceObjects: [ValueType] = workingSet.selectedSources.map { source in
+            .object([
+                "sourceRef": .string(source.endpoint),
+                "reason": .string(source.reason),
+                "health": .string(source.health.rawValue),
+                "rttMs": .integer(source.estimatedRttMs)
+            ])
+        }
+
+        let skippedSourceObjects: [ValueType] = workingSet.skippedSources.map { source in
+            .object([
+                "sourceRef": .string(source.endpoint),
+                "reason": .string(source.reason),
+                "health": .string(source.health.rawValue)
+            ])
+        }
+
+        let totalMs = Int(Date().timeIntervalSince(startedAt) * 1000.0)
+        let responseObject: Object = [
+            "requestId": .string(workingSet.requestId),
+            "status": .string("ok"),
+            "resultCount": .integer(resultObjects.count),
+            "results": .list(resultObjects),
+            "sourceSelection": .object([
+                "selected": .list(selectedSourceObjects),
+                "skipped": .list(skippedSourceObjects)
+            ]),
+            "timing": .object([
+                "sourceSelectionMs": .integer(sourceSelectionMs),
+                "rankMs": .integer(scoringMs),
+                "totalMs": .integer(totalMs)
+            ]),
+            "connectivity": .object([
+                "onlineSources": .integer(workingSet.selectedSources.filter { $0.health == .online }.count),
+                "degradedSources": .integer(workingSet.selectedSources.filter { $0.health == .degraded }.count),
+                "offlineSources": .integer(workingSet.selectedSources.filter { $0.health == .offline }.count)
+            ]),
+            "warnings": .list(workingSet.skippedSources.map { .string("\($0.endpoint): \($0.reason)") })
+        ]
+
+        stateQueue.sync {
+            lastQueryState = .object(responseObject)
+        }
+        return .object(responseObject)
+    }
+
+    private func queryFacetCounts(payload: ValueType, requester: Identity) -> ValueType {
+        guard case let .object(object) = payload else {
+            return .object([
+                "status": .string("error"),
+                "message": .string("facetCounts forventer object payload")
+            ])
+        }
+
+        let requestId = extractString(object["requestId"]) ?? UUID().uuidString
+        let maxBuckets = min(50, max(1, extractInt(object["maxBucketsPerFacet"], default: 20)))
+        let countMode = (extractString(object["countMode"]) ?? "exactOrApprox").lowercased()
+        let baseQueryObject: Object = {
+            if case let .object(base)? = object["baseQuery"] {
+                return base
+            }
+            return [:]
+        }()
+        let activeFilters = parseQueryFilters(from: object["activeFilters"])
+        var mergedBase = baseQueryObject
+        mergedBase["requestId"] = .string(requestId)
+        if mergedBase["constraints"] == nil, let constraints = object["constraints"] {
+            mergedBase["constraints"] = constraints
+        }
+
+        let startedAt = Date()
+        let workingSet = queryWorkingSet(from: mergedBase, additionalFilters: activeFilters)
+        let exact = workingSet.skippedSources.isEmpty && countMode != "approxonly"
+        let facetKeys = extractStringList(from: object["facetKeys"]) ?? [
+            "categoryPath",
+            "sourceRef",
+            "supportedInsertionModes",
+            "authRequired"
+        ]
+
+        var facetsObject: Object = [:]
+        for facetKey in facetKeys {
+            var counts: [String: Int] = [:]
+            for entry in workingSet.entries {
+                switch facetKey {
+                case "categoryPath":
+                    let value = (entry.categoryPath ?? ["unknown"]).joined(separator: "/")
+                    counts[value, default: 0] += 1
+                case "sourceRef":
+                    counts[entry.sourceCellEndpoint, default: 0] += 1
+                case "supportedInsertionModes", "compatibility":
+                    for mode in (entry.supportedInsertionModes ?? [.unknown]) {
+                        counts[mode.rawValue, default: 0] += 1
+                    }
+                case "authRequired":
+                    let value = entry.authRequired == nil ? "unknown" : ((entry.authRequired ?? false) ? "true" : "false")
+                    counts[value, default: 0] += 1
+                case "flowDriven":
+                    let value = (entry.flowDriven ?? false) ? "true" : "false"
+                    counts[value, default: 0] += 1
+                case "editable":
+                    let value = (entry.editable ?? false) ? "true" : "false"
+                    counts[value, default: 0] += 1
+                case "purposeRef":
+                    for purposeRef in entry.purposeRefs ?? [portablePurposeRef(for: entry.purpose)] {
+                        counts[purposeRef, default: 0] += 1
+                    }
+                case "interestRef":
+                    for interestRef in entry.interestRefs ?? entry.interests.map({ portableInterestRef(for: $0) }) {
+                        counts[interestRef, default: 0] += 1
+                    }
+                default:
+                    continue
+                }
+            }
+
+            let buckets: [ValueType] = counts
+                .map { ($0.key, $0.value) }
+                .sorted { lhs, rhs in
+                    if lhs.1 == rhs.1 {
+                        return lhs.0.localizedCaseInsensitiveCompare(rhs.0) == .orderedAscending
+                    }
+                    return lhs.1 > rhs.1
+                }
+                .prefix(maxBuckets)
+                .map { value, count in
+                    var bucket: Object = [
+                        "value": .string(value),
+                        "count": .integer(count),
+                        "exact": .bool(exact)
+                    ]
+                    if !exact {
+                        bucket["note"] = .string("partial due to source limits/policy")
+                    }
+                    return .object(bucket)
+                }
+
+            facetsObject[facetKey] = .list(Array(buckets))
+        }
+
+        let responseObject: Object = [
+            "requestId": .string(requestId),
+            "status": .string("ok"),
+            "facets": .object(facetsObject),
+            "coverage": .object([
+                "sourcesConsidered": .integer(workingSet.selectedSources.count + workingSet.skippedSources.count),
+                "sourcesResponded": .integer(workingSet.selectedSources.count),
+                "fromCache": .integer(workingSet.selectedSources.filter { isLocalSource($0.endpoint) }.count)
+            ]),
+            "timing": .object([
+                "totalMs": .integer(Int(Date().timeIntervalSince(startedAt) * 1000.0))
+            ]),
+            "warnings": .list(workingSet.skippedSources.map { .string("\($0.endpoint): \($0.reason)") })
+        ]
+
+        return .object(responseObject)
     }
 
     private enum MatchingPublishField {
