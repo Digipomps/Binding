@@ -32,6 +32,7 @@ struct ContentView: View {
     @State private var rotationAccumulator: Angle = .zero
     @State private var didAttemptCatalogMenuSync: Bool = false
     @State private var activeConfiguration: CellConfiguration?
+    @State private var presentingFullLibrary: Bool = false
 
     var body: some View {
         ZStack {
@@ -61,6 +62,11 @@ struct ContentView: View {
                     lowerLeft: menuItems(from: viewModel.lowerLeftMenu),
                     lowerMid: menuItems(from: viewModel.lowerMidMenu),
                     lowerRight: menuItems(from: viewModel.lowerRightMenu),
+                    onPrimaryAction: { position in
+                        guard position == .upperMid else { return false }
+                        presentingFullLibrary = true
+                        return true
+                    },
                     onSelect: { config in
                         Task { await loadConfigurationForEditing(config) }
                     }
@@ -117,6 +123,21 @@ struct ContentView: View {
             if !editorState.isEditing {
                 editorState.captureViewerSnapshot(next)
             }
+        }
+        .sheet(isPresented: $presentingFullLibrary) {
+            FullLibraryView(
+                catalogEndpoints: configuredCatalogSources().map(\.endpoint),
+                queryContext: FullLibraryQueryContext(
+                    editMode: editorMode == .edit,
+                    selectedNodeKind: selectedNodeKindForLibrary,
+                    insertionIntent: editorMode == .edit ? .component : .root
+                ),
+                favorites: viewModel.upperRightMenu,
+                templates: viewModel.lowerLeftMenu,
+                onAddConfiguration: { configuration in
+                    Task { await loadConfigurationForEditing(configuration) }
+                }
+            )
         }
         .task {
             // Ensure IdentityVault is available for the model
@@ -401,6 +422,11 @@ struct ContentView: View {
 
     private var editorModePanel: some View {
         VStack(alignment: .trailing, spacing: 8) {
+            Button("Library") {
+                presentingFullLibrary = true
+            }
+            .font(.caption)
+
             Picker("Mode", selection: $editorMode) {
                 ForEach(EditorMode.allCases) { mode in
                     Text(mode.title).tag(mode)
@@ -456,6 +482,17 @@ struct ContentView: View {
         if editorMode == .edit, let skeleton = configuration.skeleton {
             editorState.beginEditing(from: skeleton)
         }
+    }
+
+    private var selectedNodeKindForLibrary: String? {
+        guard editorMode == .edit,
+              let workingCopy = editorState.workingCopy,
+              let selectedPath = editorState.selectedNodePath,
+              let element = SkeletonTreeQueries.element(in: workingCopy, at: selectedPath)
+        else {
+            return nil
+        }
+        return SkeletonTreeQueries.displayName(for: element).lowercased()
     }
 }
 
@@ -526,6 +563,7 @@ private struct EdgeMenusOverlay: View {
     var lowerLeft: [MenuItem]
     var lowerMid: [MenuItem]
     var lowerRight: [MenuItem]
+    var onPrimaryAction: (EdgePosition) -> Bool
     var onSelect: (CellConfiguration) -> Void
 
     @State private var expanded: Set<EdgePosition> = []
@@ -559,7 +597,9 @@ private struct EdgeMenusOverlay: View {
 
     private func action(_ position: EdgePosition, _ config: CellConfiguration?) {
         if let config { onSelect(config) }
-        else { toggle(position) }
+        else if !onPrimaryAction(position) {
+            toggle(position)
+        }
     }
 
     private func toggle(_ position: EdgePosition) {

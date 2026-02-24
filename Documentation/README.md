@@ -36,6 +36,15 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 - Added Binding tests for:
   - ranked query response contract
   - facet bucket contract for `supportedInsertionModes`.
+- Added Full Library UI in Binding:
+  - New `FullLibraryView` sheet with tabs (`All configs`, `For my purposes`, `Sources`, `Templates`)
+  - Search-as-you-type + token input (`purpose:`, `interest:`, `category:`, `source:`, `compatibility:`)
+  - Facet panel backed by `facetCounts` and result list backed by `query`
+  - Preview pane with score breakdown, badges and skeleton preview
+  - Offline fallback surface for cached favorites/templates when catalog is unavailable
+- Edge menu behavior update:
+  - `upperMid` main action now opens Full Library directly (search-first role)
+  - Added a `Library` button in mode panel for explicit access
 - Build verification:
   - `xcodebuild ... build` succeeded for Binding.
   - `xcodebuild ... build-for-testing` succeeded for Binding + BindingTests.
@@ -71,6 +80,7 @@ Projects importing CellProtocol must include:
 - Skeleton editor: [Documentation/SkeletonEditor.md](Documentation/SkeletonEditor.md)
 - Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
 - Skeleton elements reference: [Documentation/SkeletonElements.md](Documentation/SkeletonElements.md)
+- Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
 - Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
 - Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)
