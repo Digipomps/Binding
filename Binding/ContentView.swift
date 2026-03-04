@@ -11,6 +11,37 @@ import CellBase
 import CellApple
 
 struct ContentView: View {
+    private static let stagingHost = "staging.haven.digipomps.org"
+    private static let defaultRemoteWebSocketPath = "publishersws"
+    private static let stagingRemoteWebSocketPath = "bridgehead"
+    private static let stagingFallbackCells: Set<String> = [
+        "appleintelligence",
+        "entityscanner",
+        "chat",
+        "conferenceuirouter",
+        "todo",
+        "adminentry",
+        "adminoverview",
+        "adminfunding",
+        "adminfundingqueue",
+        "adminresolverstats",
+        "adminstoragestats",
+        "adminhostmetrics",
+        "adminprocesses",
+        "adminroleenrollment",
+        "adminsecuritypolicy",
+        "timeswrapper",
+        "entitieswrapper",
+        "locationswrapper",
+        "leadvault",
+        "consentreceipt",
+        "exhibitoraccess",
+        "deviceregistration",
+        "notificationoutbox",
+        "notificationpolicy",
+        "devicecallbackbridge"
+    ]
+
     private struct CatalogSource {
         let endpoint: String
         let allowSync: Bool
@@ -25,6 +56,7 @@ struct ContentView: View {
     }
 
     @StateObject private var viewModel = PortholeBindingViewModel()
+    @StateObject private var legacyPortholeViewModel = PortholeViewModel()
     @StateObject private var editorState = EditorState()
     @State private var floatingPanelsController = SkeletonEditorFloatingPanelsController()
     @State private var editorMode: EditorMode = .view
@@ -33,6 +65,16 @@ struct ContentView: View {
     @State private var didAttemptCatalogMenuSync: Bool = false
     @State private var activeConfiguration: CellConfiguration?
     @State private var presentingFullLibrary: Bool = false
+    @State private var loadErrorMessage: String?
+
+    private static let defaultRemoteRoute = RemoteCellHostRoute(
+        websocketEndpoint: Self.defaultRemoteWebSocketPath,
+        schemePreference: .automatic
+    )
+    private static let stagingRemoteRoute = RemoteCellHostRoute(
+        websocketEndpoint: Self.stagingRemoteWebSocketPath,
+        schemePreference: .wss
+    )
 
     var body: some View {
         ZStack {
@@ -46,7 +88,7 @@ struct ContentView: View {
                 }
             )
                 .environmentObject(viewModel)
-                .ignoresSafeArea()
+                .ignoresSafeArea(.container, edges: [.leading, .trailing, .bottom])
                 .dropDestination(for: CellConfiguration.self) { items, location in
                     // On drop, load the configuration into the porthole
                     Task { await loadConfigurationForEditing(items.first) }
@@ -76,9 +118,31 @@ struct ContentView: View {
             }
         }
         .gesture(rotationHideShowGesture)
-        .overlay(alignment: .topTrailing) {
-            editorModePanel
-                .padding(.trailing, 12)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 6) {
+                appToolbar
+                if let loadErrorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text(loadErrorMessage)
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Button("Dismiss") {
+                            self.loadErrorMessage = nil
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+                .padding(.horizontal, 12)
                 .padding(.top, 6)
         }
         .overlay(alignment: .topLeading) {
@@ -88,7 +152,7 @@ struct ContentView: View {
             if editorMode == .edit {
                 SkeletonTreePanel(editorState: editorState)
                     .padding(.leading, 12)
-                    .padding(.top, 56)
+                    .padding(.top, 72)
             }
 #endif
         }
@@ -99,7 +163,7 @@ struct ContentView: View {
             if editorMode == .edit {
                 SkeletonModifierInspectorPanel(editorState: editorState)
                     .padding(.trailing, 12)
-                    .padding(.top, 56)
+                    .padding(.top, 72)
             }
 #endif
         }
@@ -138,6 +202,9 @@ struct ContentView: View {
                     Task { await loadConfigurationForEditing(configuration) }
                 }
             )
+#if os(macOS)
+            .frame(minWidth: 1020, minHeight: 720)
+#endif
         }
         .task {
             // Ensure IdentityVault is available for the model
@@ -145,6 +212,9 @@ struct ContentView: View {
                 CellBase.defaultIdentityVault = IdentityVault.shared
                 _ = await IdentityVault.shared.initialize()
             }
+            // SkeletonList.getElements() uses makeNewIfNotFound=false.
+            // Ensure the default private identity exists before list tasks execute.
+            _ = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
             await viewModel.connectIfNeeded()
             if !didAttemptCatalogMenuSync {
                 didAttemptCatalogMenuSync = true
@@ -152,6 +222,7 @@ struct ContentView: View {
             }
             editorState.captureViewerSnapshot(viewModel.currentSkeleton)
         }
+        .environmentObject(legacyPortholeViewModel)
     }
 
     // MARK: - Rotation gesture to hide/show menus
@@ -216,6 +287,19 @@ struct ContentView: View {
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
         guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else { return }
 
+        registerRemoteHostIfNeeded(
+            Self.stagingHost,
+            route: remoteRoute(forHost: Self.stagingHost),
+            resolver: resolver
+        )
+
+        var mergedUpperLeft: [CellConfiguration] = []
+        var mergedUpperMid: [CellConfiguration] = []
+        var mergedUpperRight: [CellConfiguration] = []
+        var mergedLowerLeft: [CellConfiguration] = []
+        var mergedLowerMid: [CellConfiguration] = []
+        var mergedLowerRight: [CellConfiguration] = []
+
         for source in configuredCatalogSources() {
             let origin = catalogOrigin(from: source.endpoint)
             if let origin {
@@ -234,7 +318,8 @@ struct ContentView: View {
 
             func fetchMenu(_ keypath: String) async -> [CellConfiguration] {
                 guard let value = try? await catalog.get(keypath: keypath, requester: identity) else { return [] }
-                return normalizeCatalogMenu(value.cellConfigurations, origin: origin, resolver: resolver)
+                let normalized = normalizeCatalogMenu(value.cellConfigurations, origin: origin, resolver: resolver)
+                return normalized.filter { !isEmitterConfiguration($0) }
             }
 
             let upperLeft = await fetchMenu("upperLeftMenu")
@@ -244,17 +329,28 @@ struct ContentView: View {
             let lowerMid = await fetchMenu("lowerMidMenu")
             let lowerRight = await fetchMenu("lowerRightMenu")
 
-            let hasCatalogData = !upperLeft.isEmpty || !upperMid.isEmpty || !upperRight.isEmpty || !lowerLeft.isEmpty || !lowerMid.isEmpty || !lowerRight.isEmpty
-            guard hasCatalogData else { continue }
-
-            viewModel.upperLeftMenu = upperLeft
-            viewModel.upperMidMenu = upperMid
-            viewModel.upperRightMenu = upperRight
-            viewModel.lowerLeftMenu = lowerLeft
-            viewModel.lowerMidMenu = lowerMid
-            viewModel.lowerRightMenu = lowerRight
-            return
+            appendUnique(upperLeft, into: &mergedUpperLeft)
+            appendUnique(upperMid, into: &mergedUpperMid)
+            appendUnique(upperRight, into: &mergedUpperRight)
+            appendUnique(lowerLeft, into: &mergedLowerLeft)
+            appendUnique(lowerMid, into: &mergedLowerMid)
+            appendUnique(lowerRight, into: &mergedLowerRight)
         }
+
+        let curated = curatedMenuSeedConfigurations()
+        appendUnique(curated.upperLeft, into: &mergedUpperLeft)
+        appendUnique(curated.upperMid, into: &mergedUpperMid)
+        appendUnique(curated.upperRight, into: &mergedUpperRight)
+        appendUnique(curated.lowerLeft, into: &mergedLowerLeft)
+        appendUnique(curated.lowerMid, into: &mergedLowerMid)
+        appendUnique(curated.lowerRight, into: &mergedLowerRight)
+
+        viewModel.upperLeftMenu = mergedUpperLeft
+        viewModel.upperMidMenu = mergedUpperMid
+        viewModel.upperRightMenu = mergedUpperRight
+        viewModel.lowerLeftMenu = mergedLowerLeft
+        viewModel.lowerMidMenu = mergedLowerMid
+        viewModel.lowerRightMenu = mergedLowerRight
     }
 
     private func configuredCatalogSources() -> [CatalogSource] {
@@ -264,7 +360,14 @@ struct ContentView: View {
             .components(separatedBy: separators)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        var sources = remoteEndpoints.map { CatalogSource(endpoint: $0, allowSync: false) }
+
+        var sources: [CatalogSource] = []
+        var seen: Set<String> = []
+        for endpoint in remoteEndpoints + ["cell://\(Self.stagingHost)/ConfigurationCatalog"] {
+            let key = endpoint.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            sources.append(CatalogSource(endpoint: endpoint, allowSync: false))
+        }
         sources.append(CatalogSource(endpoint: "cell:///ConfigurationCatalog", allowSync: true))
         return sources
     }
@@ -281,7 +384,7 @@ struct ContentView: View {
         switch scheme {
         case "cell":
             guard host.lowercased() != "localhost" else { return nil }
-            let route = RemoteCellHostRoute(websocketEndpoint: "publishersws", schemePreference: .automatic)
+            let route = remoteRoute(forHost: host)
             return CatalogOrigin(
                 host: host,
                 port: components.port,
@@ -313,14 +416,15 @@ struct ContentView: View {
         let normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalizedHost.isEmpty, normalizedHost != "localhost" else { return }
         let snapshot = resolver.remoteCellHostRoutesSnapshot()
-        if snapshot[normalizedHost] == nil {
-            resolver.registerRemoteCellHost(host, route: route)
+        if let existing = snapshot[normalizedHost], routesMatch(existing, route) {
+            return
         }
+        resolver.registerRemoteCellHost(host, route: route)
     }
 
     private func inferredWebsocketRoutePath(fromCatalogEndpointPath path: String) -> String {
         let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !normalizedPath.isEmpty else { return "publishersws" }
+        guard !normalizedPath.isEmpty else { return Self.defaultRemoteWebSocketPath }
 
         let components = normalizedPath.split(separator: "/").map(String.init)
         guard components.count > 1 else { return "" }
@@ -390,7 +494,7 @@ struct ContentView: View {
         }
 
         if let host = currentHost {
-            let fallbackRoute = origin?.route ?? RemoteCellHostRoute(websocketEndpoint: "publishersws", schemePreference: .automatic)
+            let fallbackRoute = origin?.route ?? remoteRoute(forHost: host)
             registerRemoteHostIfNeeded(host, route: fallbackRoute, resolver: resolver)
         }
 
@@ -420,12 +524,15 @@ struct ContentView: View {
         return viewModel.currentSkeleton
     }
 
-    private var editorModePanel: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            Button("Library") {
+    private var appToolbar: some View {
+        HStack(spacing: 10) {
+            Button {
                 presentingFullLibrary = true
+            } label: {
+                Label("Library", systemImage: "books.vertical")
             }
-            .font(.caption)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
 
             Picker("Mode", selection: $editorMode) {
                 ForEach(EditorMode.allCases) { mode in
@@ -433,7 +540,9 @@ struct ContentView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 180)
+            .frame(width: 200)
+
+            Spacer(minLength: 8)
 
             if editorMode == .edit {
                 HStack(spacing: 8) {
@@ -457,7 +566,7 @@ struct ContentView: View {
             }
         }
         .padding(10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func applyWorkingCopyToViewer() {
@@ -477,11 +586,127 @@ struct ContentView: View {
     @MainActor
     private func loadConfigurationForEditing(_ configuration: CellConfiguration?) async {
         guard let configuration else { return }
-        activeConfiguration = configuration
-        await viewModel.load(configuration: configuration)
-        if editorMode == .edit, let skeleton = configuration.skeleton {
+        loadErrorMessage = nil
+        let normalizedConfiguration = retargetConfigurationToStagingIfNeeded(configuration)
+        activeConfiguration = normalizedConfiguration
+
+        var loadConfiguration = normalizedConfiguration
+        if let probeFailureMessage = await probeFirstReferenceFailure(in: normalizedConfiguration) {
+            loadErrorMessage = probeFailureMessage
+            // Keep skeleton preview visible even when references fail to load.
+            loadConfiguration.cellReferences = []
+        }
+
+        await viewModel.load(configuration: loadConfiguration)
+        if editorMode == .edit, let skeleton = loadConfiguration.skeleton {
             editorState.beginEditing(from: skeleton)
         }
+    }
+
+    private func remoteRoute(forHost host: String) -> RemoteCellHostRoute {
+        if host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == Self.stagingHost {
+            return Self.stagingRemoteRoute
+        }
+        return Self.defaultRemoteRoute
+    }
+
+    private func routesMatch(_ lhs: RemoteCellHostRoute, _ rhs: RemoteCellHostRoute) -> Bool {
+        let lhsPath = lhs.websocketEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        let rhsPath = rhs.websocketEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        guard lhsPath == rhsPath else { return false }
+        return schemePreferenceLabel(lhs.schemePreference) == schemePreferenceLabel(rhs.schemePreference)
+    }
+
+    private func schemePreferenceLabel(_ preference: RemoteCellHostRoute.SchemePreference) -> String {
+        switch preference {
+        case .automatic: return "automatic"
+        case .ws: return "ws"
+        case .wss: return "wss"
+        }
+    }
+
+    private func probeFirstReferenceFailure(in configuration: CellConfiguration) async -> String? {
+        guard let references = configuration.cellReferences, !references.isEmpty else { return nil }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            return "CellResolver mangler. Kunne ikke laste konfigurasjonen."
+        }
+        guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            return "Identity 'private' mangler. Kunne ikke laste konfigurasjonen."
+        }
+
+        for reference in references {
+            if let failure = await probeReferenceTree(reference, resolver: resolver, identity: identity) {
+                return failure
+            }
+        }
+        return nil
+    }
+
+    private func probeReferenceTree(_ reference: CellReference, resolver: CellResolver, identity: Identity) async -> String? {
+        if shouldProbeEndpoint(reference.endpoint) {
+            ensureRemoteHostRouteRegistered(for: reference.endpoint, resolver: resolver)
+            do {
+                _ = try await resolver.cellAtEndpoint(endpoint: reference.endpoint, requester: identity)
+            } catch {
+                return probeFailureMessage(endpoint: reference.endpoint, error: error)
+            }
+        }
+
+        for subscription in reference.subscriptions {
+            if let failure = await probeReferenceTree(subscription, resolver: resolver, identity: identity) {
+                return failure
+            }
+        }
+
+        for keyValue in reference.setKeysAndValues {
+            guard let target = keyValue.target, shouldProbeEndpoint(target) else { continue }
+            ensureRemoteHostRouteRegistered(for: target, resolver: resolver)
+            do {
+                _ = try await resolver.cellAtEndpoint(endpoint: target, requester: identity)
+            } catch {
+                return probeFailureMessage(endpoint: target, error: error)
+            }
+        }
+
+        return nil
+    }
+
+    private func shouldProbeEndpoint(_ endpoint: String) -> Bool {
+        guard let components = URLComponents(string: endpoint),
+              let scheme = components.scheme?.lowercased()
+        else {
+            return false
+        }
+        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let isStagingHost = host == Self.stagingHost
+
+        switch scheme {
+        case "ws", "wss":
+            return isStagingHost
+        case "cell":
+            return isStagingHost
+        default:
+            return false
+        }
+    }
+
+    private func ensureRemoteHostRouteRegistered(for endpoint: String, resolver: CellResolver) {
+        guard let components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell",
+              let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.isEmpty
+        else {
+            return
+        }
+        registerRemoteHostIfNeeded(host, route: remoteRoute(forHost: host), resolver: resolver)
+    }
+
+    private func probeFailureMessage(endpoint: String, error: Error) -> String {
+        let errorText = String(describing: error)
+        if errorText.lowercased().contains("timeout") {
+            return "Timeout ved lasting av \(endpoint). Sjekk staging bridgehead-tilkobling."
+        }
+        return "Kunne ikke laste \(endpoint): \(errorText)"
     }
 
     private var selectedNodeKindForLibrary: String? {
@@ -493,6 +718,234 @@ struct ContentView: View {
             return nil
         }
         return SkeletonTreeQueries.displayName(for: element).lowercased()
+    }
+
+    private func appendUnique(_ incoming: [CellConfiguration], into target: inout [CellConfiguration]) {
+        for configuration in incoming where !isEmitterConfiguration(configuration) {
+            let key = menuIdentityKey(for: configuration)
+            guard !target.contains(where: { menuIdentityKey(for: $0) == key }) else { continue }
+            target.append(configuration)
+        }
+    }
+
+    private func menuIdentityKey(for configuration: CellConfiguration) -> String {
+        let refs = configuration.cellReferences?.map(\.endpoint).joined(separator: "|") ?? ""
+        return "\(configuration.name.lowercased())|\(refs.lowercased())"
+    }
+
+    private func isEmitterConfiguration(_ configuration: CellConfiguration) -> Bool {
+        let loweredName = configuration.name.lowercased()
+        if loweredName.contains("emitter") || loweredName.contains("signal workbench") {
+            return true
+        }
+        if let description = configuration.description?.lowercased(),
+           description.contains("event emitter") {
+            return true
+        }
+        guard let references = configuration.cellReferences else { return false }
+        return references.contains(where: containsEmitterReference)
+    }
+
+    private func containsEmitterReference(_ reference: CellReference) -> Bool {
+        if endpointLooksEmitter(reference.endpoint) {
+            return true
+        }
+        if reference.subscriptions.contains(where: containsEmitterReference) {
+            return true
+        }
+        return reference.setKeysAndValues.contains { item in
+            if let target = item.target {
+                return endpointLooksEmitter(target)
+            }
+            return false
+        }
+    }
+
+    private func endpointLooksEmitter(_ endpoint: String) -> Bool {
+        let lowered = endpoint.lowercased()
+        return lowered.contains("eventemitter") || lowered.contains("/emitter") || lowered.hasSuffix("emitter")
+    }
+
+    private func curatedMenuSeedConfigurations() -> (
+        upperLeft: [CellConfiguration],
+        upperMid: [CellConfiguration],
+        upperRight: [CellConfiguration],
+        lowerLeft: [CellConfiguration],
+        lowerMid: [CellConfiguration],
+        lowerRight: [CellConfiguration]
+    ) {
+        func stagingEndpoint(_ cellName: String) -> String {
+            "cell://\(Self.stagingHost)/\(cellName)"
+        }
+
+        let chat = referenceMenuConfiguration(
+            name: "Scaffold Chat",
+            endpoint: stagingEndpoint("Chat"),
+            label: "chat",
+            title: "Chat",
+            subtitle: "Meldinger og samarbeid fra CellScaffold staging."
+        )
+        let conference = referenceMenuConfiguration(
+            name: "Conference MVP",
+            endpoint: stagingEndpoint("ConferenceUIRouter"),
+            label: "conference",
+            title: "Conference",
+            subtitle: "Konferanseflyt med routing, matchmaking og scheduling."
+        )
+        let todo = referenceMenuConfiguration(
+            name: "Todo MVP",
+            endpoint: stagingEndpoint("Todo"),
+            label: "todo",
+            title: "Todo",
+            subtitle: "Personlig oppgaveliste fra CellScaffold."
+        )
+        let admin = referenceMenuConfiguration(
+            name: "Admin Overview",
+            endpoint: stagingEndpoint("AdminOverview"),
+            label: "admin",
+            title: "Admin",
+            subtitle: "Drift og sikkerhet via admin-celler i CellScaffold."
+        )
+        let adminFundingQueue = referenceMenuConfiguration(
+            name: "Admin Funding Queue",
+            endpoint: stagingEndpoint("AdminFundingQueue"),
+            label: "adminFundingQueue",
+            title: "Funding Queue",
+            subtitle: "Godkjenning/avslag av funding-requests."
+        )
+        let leadVault = referenceMenuConfiguration(
+            name: "Lead Vault",
+            endpoint: stagingEndpoint("LeadVault"),
+            label: "leadVault",
+            title: "Lead Vault",
+            subtitle: "Conference leads, consent og tilgangsstyring."
+        )
+        let consentReceipt = referenceMenuConfiguration(
+            name: "Consent Receipt",
+            endpoint: stagingEndpoint("ConsentReceipt"),
+            label: "consentReceipt",
+            title: "Consent Receipt",
+            subtitle: "Samtykkelogg fra Conference/LeadVault-løpet."
+        )
+        let appleIntelligence = referenceMenuConfiguration(
+            name: "Apple Intelligence",
+            endpoint: stagingEndpoint("AppleIntelligence"),
+            label: "intelligence",
+            title: "Apple Intelligence",
+            subtitle: "Formål- og matchingstøtte fra CellProtocol."
+        )
+        let entityScanner = referenceMenuConfiguration(
+            name: "Entity Scanner",
+            endpoint: stagingEndpoint("EntityScanner"),
+            label: "scanner",
+            title: "Entity Scanner",
+            subtitle: "EntityRadar-skanning og oppdagelse."
+        )
+        let times = referenceMenuConfiguration(
+            name: "Times Wrapper",
+            endpoint: stagingEndpoint("TimesWrapper"),
+            label: "times",
+            title: "Times",
+            subtitle: "Tidslinje og hendelsesflyt."
+        )
+        let entities = referenceMenuConfiguration(
+            name: "Entities Wrapper",
+            endpoint: stagingEndpoint("EntitiesWrapper"),
+            label: "entities",
+            title: "Entities",
+            subtitle: "Entiteter, relasjoner og kontekst."
+        )
+        let locations = referenceMenuConfiguration(
+            name: "Locations Wrapper",
+            endpoint: stagingEndpoint("LocationsWrapper"),
+            label: "locations",
+            title: "Locations",
+            subtitle: "Stedsdata og tilstedeværelse."
+        )
+        let perspective = referenceMenuConfiguration(
+            name: "Perspective",
+            endpoint: "cell:///Perspective",
+            label: "perspective",
+            title: "Perspective",
+            subtitle: "Lokalt perspektiv- og formålslager fra CellProtocol."
+        )
+
+        return (
+            upperLeft: [chat, conference, appleIntelligence],
+            upperMid: [chat, leadVault, appleIntelligence],
+            upperRight: [admin, adminFundingQueue, conference],
+            lowerLeft: [entities, entityScanner, locations],
+            lowerMid: [times, todo, leadVault],
+            lowerRight: [admin, todo, consentReceipt, perspective]
+        )
+    }
+
+    private func referenceMenuConfiguration(
+        name: String,
+        endpoint: String,
+        label: String,
+        title: String,
+        subtitle: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: name)
+        configuration.description = subtitle
+        configuration.addReference(CellReference(endpoint: endpoint, label: label))
+
+        let headline = SkeletonText(text: title)
+        let body = SkeletonText(text: subtitle)
+        let endpointText = SkeletonText(text: endpoint)
+        configuration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Text(headline),
+                .Text(body),
+                .Text(endpointText)
+            ])
+        )
+        return configuration
+    }
+
+    private func retargetConfigurationToStagingIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration {
+        var updated = configuration
+        guard let references = configuration.cellReferences, !references.isEmpty else { return updated }
+        updated.cellReferences = references.map { retargetReferenceToStagingIfNeeded($0) }
+        return updated
+    }
+
+    private func retargetReferenceToStagingIfNeeded(_ reference: CellReference) -> CellReference {
+        var updated = reference
+        updated.endpoint = maybeRetargetLocalEndpointToStaging(reference.endpoint)
+        updated.subscriptions = reference.subscriptions.map { retargetReferenceToStagingIfNeeded($0) }
+        updated.setKeysAndValues = reference.setKeysAndValues.map { item in
+            var next = item
+            if let target = item.target {
+                next.target = maybeRetargetLocalEndpointToStaging(target)
+            }
+            return next
+        }
+        return updated
+    }
+
+    private func maybeRetargetLocalEndpointToStaging(_ endpoint: String) -> String {
+        guard var components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell"
+        else {
+            return endpoint
+        }
+        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let isLocal = host == nil || host?.isEmpty == true || host == "localhost"
+        guard isLocal else { return endpoint }
+
+        let pathParts = components.path.split(separator: "/").map(String.init)
+        guard let firstPart = pathParts.first?.lowercased(),
+              Self.stagingFallbackCells.contains(firstPart)
+        else {
+            return endpoint
+        }
+
+        components.host = Self.stagingHost
+        components.port = nil
+        components.path = "/" + pathParts.joined(separator: "/")
+        return components.string ?? endpoint
     }
 }
 
@@ -611,6 +1064,24 @@ private struct EdgeMenusOverlay: View {
 
 private extension CellConfiguration {
     var skeletonIconName: String {
+        let loweredName = name.lowercased()
+        let loweredEndpoints = (cellReferences ?? []).map { $0.endpoint.lowercased() }
+
+        func contains(_ token: String) -> Bool {
+            loweredName.contains(token) || loweredEndpoints.contains(where: { $0.contains(token) })
+        }
+
+        if contains("chat") { return "bubble.left.and.bubble.right.fill" }
+        if contains("conference") { return "person.3.sequence.fill" }
+        if contains("todo") { return "checkmark.circle.fill" }
+        if contains("admin") { return "shield.lefthalf.filled.badge.checkmark" }
+        if contains("appleintelligence") || contains("intelligence") { return "sparkles" }
+        if contains("entityscanner") || contains("entities") { return "point.3.connected.trianglepath.dotted" }
+        if contains("locations") { return "map.fill" }
+        if contains("times") { return "clock.fill" }
+        if contains("funding") { return "creditcard.fill" }
+        if contains("leadvault") || contains("consent") { return "lock.doc.fill" }
+
         guard let s = skeleton else { return "square.grid.2x2" }
         switch s {
         case .Image:
