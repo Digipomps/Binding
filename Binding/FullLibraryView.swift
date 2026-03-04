@@ -21,6 +21,7 @@ struct FullLibraryView: View {
     @StateObject private var model: FullLibraryViewModel
     @FocusState private var queryFocused: Bool
     @State private var closeAfterInsert = true
+    @State private var showAdvancedFilters = false
 
     private let onAddConfiguration: (CellConfiguration) -> Void
 
@@ -46,14 +47,28 @@ struct FullLibraryView: View {
         NavigationStack {
             GeometryReader { proxy in
                 let compact = proxy.size.width < 980
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
+                    headerCard
+                    actionBar
                     tabPicker
-                    searchBar
+                    searchBar(compact: compact)
                     if !model.searchSuggestions.isEmpty {
                         suggestionsRow
                     }
                     tokenBar
-                    sourcePolicyControls
+                    if showAdvancedFilters {
+                        advancedControls(compact: compact)
+                    } else {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showAdvancedFilters = true
+                            }
+                        } label: {
+                            Label("Vis avanserte filtre", systemImage: "slider.horizontal.3")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
 
                     if case .unavailable(let reason) = model.availability, model.results.isEmpty {
                         unavailableView(reason: reason)
@@ -70,22 +85,10 @@ struct FullLibraryView: View {
                 .padding(12)
             }
             .navigationTitle("Full Library")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Lukk") { dismiss() }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Oppdater") {
-                        Task { await model.refreshNow() }
-                    }
-                    .disabled(model.isLoading)
-                }
-                ToolbarItem(placement: .automatic) {
-                    Toggle("Lukk etter innsetting", isOn: $closeAfterInsert)
-                        .toggleStyle(.switch)
-                }
-            }
         }
+#if os(macOS)
+        .frame(minWidth: 1020, minHeight: 720)
+#endif
         .task {
             await model.loadInitial()
             queryFocused = true
@@ -119,36 +122,95 @@ struct FullLibraryView: View {
         .pickerStyle(.segmented)
     }
 
-    private var searchBar: some View {
-        HStack(spacing: 8) {
-            TextField("Søk i konfigurasjoner, tags eller beskrivelser", text: $model.queryText)
-                .textFieldStyle(.roundedBorder)
-                .focused($queryFocused)
-                .submitLabel(.search)
-                .onSubmit {
-                    Task { await model.refreshNow() }
-                }
+    private var headerCard: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "books.vertical")
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Søk, filtrer, forhåndsvis og legg til.")
+                    .font(.subheadline.weight(.semibold))
+                Text("Start med søkefeltet. Bruk avanserte filtre ved behov.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
 
-            TextField("Token: purpose:... / interest:...", text: $model.tokenDraft)
-                .textFieldStyle(.roundedBorder)
-                .submitLabel(.done)
-                .onSubmit {
-                    model.consumeTokenDraft()
-                }
+    private var actionBar: some View {
+        HStack(spacing: 12) {
+            Toggle("Lukk etter legg til", isOn: $closeAfterInsert)
+                .toggleStyle(.switch)
+                .font(.caption)
+
+            Spacer()
 
             Button {
-                model.consumeTokenDraft()
+                Task { await model.refreshNow() }
             } label: {
-                Image(systemName: "plus.circle")
+                Label("Oppdater", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
-            .help("Legg til token")
+            .disabled(model.isLoading)
 
-            Button("Søk") {
-                Task { await model.refreshNow() }
+            Button("Lukk") {
+                dismiss()
             }
             .buttonStyle(.borderedProminent)
         }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func searchBar(compact: Bool) -> some View {
+        Group {
+            if compact {
+                VStack(alignment: .leading, spacing: 8) {
+                    primarySearchField
+                    HStack(spacing: 8) {
+                        Button("Søk") {
+                            Task { await model.refreshNow() }
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button {
+                            showAdvancedFilters.toggle()
+                        } label: {
+                            Label(showAdvancedFilters ? "Skjul filtre" : "Avansert", systemImage: "slider.horizontal.3")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            } else {
+                HStack(spacing: 10) {
+                    primarySearchField
+                    Button("Søk") {
+                        Task { await model.refreshNow() }
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button {
+                        showAdvancedFilters.toggle()
+                    } label: {
+                        Label(showAdvancedFilters ? "Skjul filtre" : "Avansert", systemImage: "slider.horizontal.3")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+    }
+
+    private var primarySearchField: some View {
+        TextField("Søk i konfigurasjoner, tags eller beskrivelser", text: $model.queryText)
+            .textFieldStyle(.roundedBorder)
+            .focused($queryFocused)
+            .submitLabel(.search)
+            .onSubmit {
+                Task { await model.refreshNow() }
+            }
     }
 
     private var suggestionsRow: some View {
@@ -184,26 +246,100 @@ struct FullLibraryView: View {
         }
     }
 
-    private var sourcePolicyControls: some View {
+    private func advancedControls(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            tokenInputControls(compact: compact)
+            sourcePolicyControls(compact: compact)
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showAdvancedFilters = false
+                }
+            } label: {
+                Label("Skjul avanserte filtre", systemImage: "chevron.up")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func tokenInputControls(compact: Bool) -> some View {
+        Group {
+            if compact {
+                VStack(alignment: .leading, spacing: 8) {
+                    tokenDraftField
+                    addTokenButton
+                }
+            } else {
+                HStack(spacing: 10) {
+                    tokenDraftField
+                    addTokenButton
+                }
+            }
+        }
+    }
+
+    private var tokenDraftField: some View {
+        TextField("Token: purpose:... / interest:...", text: $model.tokenDraft)
+            .textFieldStyle(.roundedBorder)
+            .submitLabel(.done)
+            .onSubmit {
+                model.consumeTokenDraft()
+            }
+    }
+
+    private var addTokenButton: some View {
+        Button {
+            model.consumeTokenDraft()
+        } label: {
+            Label("Legg til token", systemImage: "plus.circle")
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func sourcePolicyControls(compact: Bool) -> some View {
         DisclosureGroup("Kilde- og ressurspolicy") {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    Picker("Network", selection: $model.networkPolicy) {
-                        ForEach(FullLibraryViewModel.NetworkPolicy.allCases) { policy in
-                            Text(policy.title).tag(policy)
+                if compact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Network", selection: $model.networkPolicy) {
+                            ForEach(FullLibraryViewModel.NetworkPolicy.allCases) { policy in
+                                Text(policy.title).tag(policy)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Picker("Ressurs", selection: $model.resourceBudget) {
+                            ForEach(FullLibraryViewModel.ResourceBudget.allCases) { budget in
+                                Text(budget.title).tag(budget)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Stepper(value: $model.maxSources, in: 1 ... 12) {
+                            Text("Maks kilder: \(model.maxSources)")
                         }
                     }
-                    .pickerStyle(.menu)
-
-                    Picker("Ressurs", selection: $model.resourceBudget) {
-                        ForEach(FullLibraryViewModel.ResourceBudget.allCases) { budget in
-                            Text(budget.title).tag(budget)
+                } else {
+                    HStack(spacing: 12) {
+                        Picker("Network", selection: $model.networkPolicy) {
+                            ForEach(FullLibraryViewModel.NetworkPolicy.allCases) { policy in
+                                Text(policy.title).tag(policy)
+                            }
                         }
-                    }
-                    .pickerStyle(.menu)
+                        .pickerStyle(.menu)
 
-                    Stepper(value: $model.maxSources, in: 1 ... 12) {
-                        Text("Max sources: \(model.maxSources)")
+                        Picker("Ressurs", selection: $model.resourceBudget) {
+                            ForEach(FullLibraryViewModel.ResourceBudget.allCases) { budget in
+                                Text(budget.title).tag(budget)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Stepper(value: $model.maxSources, in: 1 ... 12) {
+                            Text("Maks kilder: \(model.maxSources)")
+                        }
                     }
                 }
                 Toggle("Tillat degraderte kilder", isOn: $model.allowDegradedSources)
@@ -1031,6 +1167,7 @@ final class FullLibraryViewModel: ObservableObject {
             parsedResults = items.compactMap { item in
                 guard case let .object(object) = item else { return nil }
                 guard let configuration = decodeCellConfiguration(from: object["configuration"]) else { return nil }
+                guard !isEmitterConfiguration(configuration) else { return nil }
 
                 let scoreBreakdownObject = object["scoreBreakdown"]?.objectValue ?? [:]
                 let breakdown = ScoreBreakdown(
@@ -1143,6 +1280,21 @@ final class FullLibraryViewModel: ObservableObject {
             return try? JSONDecoder().decode(CellConfiguration.self, from: data)
         default:
             return nil
+        }
+    }
+
+    private func isEmitterConfiguration(_ configuration: CellConfiguration) -> Bool {
+        let loweredName = configuration.name.lowercased()
+        if loweredName.contains("emitter") || loweredName.contains("signal workbench") {
+            return true
+        }
+        if let description = configuration.description?.lowercased(),
+           description.contains("event emitter") {
+            return true
+        }
+        guard let references = configuration.cellReferences else { return false }
+        return references.contains { reference in
+            reference.endpoint.lowercased().contains("eventemitter")
         }
     }
 }

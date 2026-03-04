@@ -35,6 +35,7 @@ class EventEmitterCell: GeneralCell {
 
 private func setupPermissions(owner: Identity) async  {
     self.agreementTemplate.addGrant("rw-", for: "mintVerifiableCredential")
+    self.agreementTemplate.addGrant("r---", for: "state")
     
     do {
 //        let grantSaveVCCondition = GrantCondition(requestedGrant: "identity.proofs.smi.products.purchased", requestedPermission: "-w-")
@@ -45,41 +46,49 @@ private func setupPermissions(owner: Identity) async  {
 }
 
 private func setupKeys(owner: Identity) async  {
-    
+        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
+            guard let self = self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            return self.stateValue()
+        })
 
         
         await addInterceptForGet(requester: owner, key: "start", getValueIntercept:  {
             [weak self] keypath, requester  in
             guard let self = self else { return .string("failure")}
-            var resultString = "denied"
-            if await self.validateAccess("r---", at: "start", for: requester) {
-                do {
-                    try await self.startEmitter()
-                    resultString = "ok"
-                } catch {
-                        resultString = "error: \(error)"
-                }
-
-
-            }
-            return .string(resultString)
+            guard await self.validateAccess("r---", at: "start", for: requester) else { return .string("denied") }
+            return self.stateValue()
         })
         
         await addInterceptForGet(requester: owner, key: "stop", getValueIntercept:  {
             [weak self]  keypath, requester  in
             guard let self = self else { return .string("failure")}
-            var resultString = "denied"
-            if await self.validateAccess("r---", at: "stop", for: requester) {
-                do {
-                    try await self.stopEmitter()
-                    resultString = "ok"
-                } catch {
-//                        resultString = "error: \(error)"
-                }
-                
-                
+            guard await self.validateAccess("r---", at: "stop", for: requester) else { return .string("denied") }
+            return self.stateValue()
+        })
+
+        await addInterceptForSet(requester: owner, key: "start", setValueIntercept:  {
+            [weak self] keypath, value, requester  in
+            guard let self = self else { return .string("failure")}
+            guard await self.validateAccess("rw--", at: "start", for: requester) else { return .string("denied") }
+            do {
+                try await self.startEmitter()
+            } catch {
+                return .string("error: \(error)")
             }
-            return .string(resultString)
+            return self.stateValue()
+        })
+
+        await addInterceptForSet(requester: owner, key: "stop", setValueIntercept:  {
+            [weak self] keypath, value, requester  in
+            guard let self = self else { return .string("failure")}
+            guard await self.validateAccess("rw--", at: "stop", for: requester) else { return .string("denied") }
+            do {
+                try await self.stopEmitter()
+            } catch {
+                return .string("error: \(error)")
+            }
+            return self.stateValue()
         })
     }
     
@@ -89,12 +98,15 @@ private func setupKeys(owner: Identity) async  {
     
     
     func startEmitter() async throws {
+        if running { return }
         print("Starting emitter")
         running = true
         await runEmitter()
     }
     
     func runEmitter() async {
+        guard running else { return }
+
         var flowElement = FlowElement(id: UUID().uuidString, title: "TestEvent", content: .object(["key" : .string("value")]), properties: FlowElement.Properties(type: .content, contentType: .object)) // Remember to change to .event
         
         flowElement.topic = "test"
@@ -116,5 +128,8 @@ private func setupKeys(owner: Identity) async  {
     func stopEmitter() async throws {
         self.running = false
     }
-}
 
+    private func stateValue() -> ValueType {
+        .object(["running": .bool(running)])
+    }
+}
