@@ -275,7 +275,9 @@ struct ContentView: View {
     }
 
     private func menuItems(from configs: [CellConfiguration]) -> [MenuItem] {
-        return configs.map { config in
+        return configs
+            .filter { !containsUnavailableIntelligenceBindings($0) }
+            .map { config in
             // Choose an icon heuristically; you can expand this mapping later
             let icon = config.skeletonIconName
             return MenuItem(icon: icon, configuration: config)
@@ -591,10 +593,22 @@ struct ContentView: View {
         activeConfiguration = normalizedConfiguration
 
         var loadConfiguration = normalizedConfiguration
-        if let probeFailureMessage = await probeFirstReferenceFailure(in: normalizedConfiguration) {
-            loadErrorMessage = probeFailureMessage
-            // Keep skeleton preview visible even when references fail to load.
-            loadConfiguration.cellReferences = []
+        if let references = normalizedConfiguration.cellReferences, !references.isEmpty {
+            let probeResult = await probeFailingTopLevelReferences(in: normalizedConfiguration)
+            if !probeResult.failingReferenceEndpoints.isEmpty {
+                let retainedReferences = references.filter { reference in
+                    !probeResult.failingReferenceEndpoints.contains(endpointIdentity(reference.endpoint))
+                }
+                let removedCount = references.count - retainedReferences.count
+                if removedCount > 0 {
+                    loadConfiguration.cellReferences = retainedReferences
+                    if retainedReferences.isEmpty {
+                        loadErrorMessage = "Ingen referanser kunne lastes. \(probeResult.firstFailureMessage ?? "")"
+                    } else {
+                        loadErrorMessage = "Noen referanser feilet og ble hoppet over (\(removedCount)). \(probeResult.firstFailureMessage ?? "")"
+                    }
+                }
+            }
         }
 
         await viewModel.load(configuration: loadConfiguration)
@@ -625,21 +639,39 @@ struct ContentView: View {
         }
     }
 
-    private func probeFirstReferenceFailure(in configuration: CellConfiguration) async -> String? {
-        guard let references = configuration.cellReferences, !references.isEmpty else { return nil }
+    private struct ReferenceProbeResult {
+        var failingReferenceEndpoints: Set<String>
+        var firstFailureMessage: String?
+    }
+
+    private func probeFailingTopLevelReferences(in configuration: CellConfiguration) async -> ReferenceProbeResult {
+        guard let references = configuration.cellReferences, !references.isEmpty else {
+            return ReferenceProbeResult(failingReferenceEndpoints: [], firstFailureMessage: nil)
+        }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            return "CellResolver mangler. Kunne ikke laste konfigurasjonen."
+            return ReferenceProbeResult(
+                failingReferenceEndpoints: Set(references.map { endpointIdentity($0.endpoint) }),
+                firstFailureMessage: "CellResolver mangler. Kunne ikke laste konfigurasjonen."
+            )
         }
         guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
-            return "Identity 'private' mangler. Kunne ikke laste konfigurasjonen."
+            return ReferenceProbeResult(
+                failingReferenceEndpoints: Set(references.map { endpointIdentity($0.endpoint) }),
+                firstFailureMessage: "Identity 'private' mangler. Kunne ikke laste konfigurasjonen."
+            )
         }
 
+        var failures = Set<String>()
+        var firstMessage: String?
         for reference in references {
             if let failure = await probeReferenceTree(reference, resolver: resolver, identity: identity) {
-                return failure
+                failures.insert(endpointIdentity(reference.endpoint))
+                if firstMessage == nil {
+                    firstMessage = failure
+                }
             }
         }
-        return nil
+        return ReferenceProbeResult(failingReferenceEndpoints: failures, firstFailureMessage: firstMessage)
     }
 
     private func probeReferenceTree(_ reference: CellReference, resolver: CellResolver, identity: Identity) async -> String? {
@@ -669,6 +701,10 @@ struct ContentView: View {
         }
 
         return nil
+    }
+
+    private func endpointIdentity(_ endpoint: String) -> String {
+        endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private func shouldProbeEndpoint(_ endpoint: String) -> Bool {
@@ -722,6 +758,13 @@ struct ContentView: View {
 
     private func appendUnique(_ incoming: [CellConfiguration], into target: inout [CellConfiguration]) {
         for configuration in incoming where !isEmitterConfiguration(configuration) {
+            if let existingIndex = target.firstIndex(where: { $0.name.lowercased() == configuration.name.lowercased() }) {
+                let existing = target[existingIndex]
+                if containsUnavailableIntelligenceBindings(existing) && !containsUnavailableIntelligenceBindings(configuration) {
+                    target[existingIndex] = configuration
+                }
+                continue
+            }
             let key = menuIdentityKey(for: configuration)
             guard !target.contains(where: { menuIdentityKey(for: $0) == key }) else { continue }
             target.append(configuration)
@@ -764,6 +807,43 @@ struct ContentView: View {
     private func endpointLooksEmitter(_ endpoint: String) -> Bool {
         let lowered = endpoint.lowercased()
         return lowered.contains("eventemitter") || lowered.contains("/emitter") || lowered.hasSuffix("emitter")
+    }
+
+    private func containsUnavailableIntelligenceBindings(_ configuration: CellConfiguration) -> Bool {
+        if let references = configuration.cellReferences,
+           references.contains(where: referenceLooksUnavailableAppleIntelligence) {
+            return true
+        }
+        guard let skeleton = configuration.skeleton,
+              let data = try? JSONEncoder().encode(skeleton),
+              let raw = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+        else {
+            return false
+        }
+        return raw.contains("intelligence.ai.")
+    }
+
+    private func referenceLooksUnavailableAppleIntelligence(_ reference: CellReference) -> Bool {
+        if endpointLooksUnavailableAppleIntelligence(reference.endpoint) {
+            return true
+        }
+        if reference.subscriptions.contains(where: referenceLooksUnavailableAppleIntelligence) {
+            return true
+        }
+        return reference.setKeysAndValues.contains { item in
+            if let target = item.target {
+                return endpointLooksUnavailableAppleIntelligence(target)
+            }
+            return false
+        }
+    }
+
+    private func endpointLooksUnavailableAppleIntelligence(_ endpoint: String) -> Bool {
+        let lowered = endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard lowered.hasPrefix("cell://") else { return false }
+        return lowered.contains("/appleintelligence")
     }
 
     private func curatedMenuSeedConfigurations() -> (

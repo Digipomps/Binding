@@ -168,6 +168,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var menuSlots: [MenuSlot]
         var goal: CellConfiguration
         var configuration: CellConfiguration
+        var forceRefreshExisting: Bool = false
     }
 
     private struct CatalogErrorEntry: Codable {
@@ -724,6 +725,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "matching.markSelectedGoalAchieved")
         agreementTemplate.addGrant("rw--", for: "matching.publishEntityPurpose")
         agreementTemplate.addGrant("rw--", for: "matching.clear")
+        agreementTemplate.addGrant("r---", for: "syncScaffoldPurposeGoals")
         agreementTemplate.addGrant("rw--", for: "syncScaffoldPurposeGoals")
         agreementTemplate.addGrant("r---", for: "feed")
         agreementTemplate.addGrant("r---", for: "agreementTemplate.state")
@@ -1033,6 +1035,15 @@ final class ConfigurationCatalogCell: GeneralCell {
             guard let self = self else { return .null }
             guard await self.validateAccess("rw--", at: "matching.clear", for: requester) else { return .string("denied") }
             return self.clearMatchingSuggestions()
+        }
+
+        await registerGet(key: "syncScaffoldPurposeGoals", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "syncScaffoldPurposeGoals", for: requester) else { return .string("denied") }
+            return .object([
+                "status": .string("ready"),
+                "state": self.stateValue()
+            ])
         }
 
         await registerSet(key: "syncScaffoldPurposeGoals", owner: owner) { [weak self] requester, _ in
@@ -3903,7 +3914,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         let templates = Self.scaffoldPurposeTemplates()
 
         for template in templates {
-            let payload = CatalogPayload(
+            let existingMatch = sortedEntries().first {
+                $0.sourceCellEndpoint == template.sourceCellEndpoint && $0.purpose == template.purpose
+            }
+
+            var payload = CatalogPayload(
                 id: nil,
                 sourceCellEndpoint: template.sourceCellEndpoint,
                 sourceCellName: template.sourceCellName,
@@ -3915,12 +3930,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 configuration: template.configuration
             )
 
-            let existingMatch = sortedEntries().first {
-                $0.sourceCellEndpoint == template.sourceCellEndpoint && $0.purpose == template.purpose
+            let shouldRefreshExisting = template.forceRefreshExisting && existingMatch != nil
+            if shouldRefreshExisting, let existingID = existingMatch?.id {
+                payload.id = existingID
             }
 
-            if existingMatch == nil {
-                _ = upsert(from: payload, keepExistingIDWhenMissing: false)
+            if existingMatch == nil || shouldRefreshExisting {
+                _ = upsert(from: payload, keepExistingIDWhenMissing: true)
                 importedCount += 1
             }
         }
@@ -3988,7 +4004,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     private func shouldSkipResolverLookup(for endpoint: String) -> Bool {
         guard let url = URL(string: endpoint) else { return false }
         let pathName = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
-        return pathName == "configurationcatalog"
+        return pathName == "configurationcatalog" || pathName == "appleintelligence"
     }
 
     private func clearCatalogError(for endpoint: String) {
@@ -4193,7 +4209,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 interests: ["purpose", "assistant", "onboarding", "explore"],
                 menuSlots: [.upperMid, .upperRight],
                 goal: purposeLanding,
-                configuration: purposeLanding
+                configuration: purposeLanding,
+                forceRefreshExisting: true
             )
         ]
     }
@@ -4284,7 +4301,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#334155"
         }
 
-        var startButton = SkeletonButton(keypath: "signals.start", label: "Start")
+        var startButton = SkeletonButton(keypath: "signals.start", label: "Start", payload: .bool(true))
         startButton.modifiers = modifier {
             $0.padding = 10
             $0.background = "#DCFCE7"
@@ -4293,7 +4310,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 10
         }
 
-        var stopButton = SkeletonButton(keypath: "signals.stop", label: "Stop")
+        var stopButton = SkeletonButton(keypath: "signals.stop", label: "Stop", payload: .bool(true))
         stopButton.modifiers = modifier {
             $0.padding = 10
             $0.background = "#FEE2E2"
@@ -4308,7 +4325,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#0F172A"
         }
 
-        var signalRowValue = SkeletonText(keypath: "key")
+        var signalRowValue = SkeletonText(keypath: "content.key")
         signalRowValue.modifiers = modifier {
             $0.foregroundColor = "#475569"
         }
@@ -4326,6 +4343,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         var incomingSignals = SkeletonList(topic: "test", keypath: nil, flowElementSkeleton: signalRow)
+        incomingSignals.filterTypes = ["content"]
         incomingSignals.modifiers = modifier {
             $0.padding = 4
             $0.background = "#FFFFFF"
@@ -4442,13 +4460,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#CBD5E1"
         }
 
-        var eventOperation = SkeletonText(keypath: "operation")
+        var eventOperation = SkeletonText(keypath: "content.operation")
         eventOperation.modifiers = modifier {
             $0.fontWeight = "semibold"
             $0.foregroundColor = "#0F172A"
         }
 
-        var eventCount = SkeletonText(keypath: "state.count")
+        var eventCount = SkeletonText(keypath: "content.state.count")
         eventCount.modifiers = modifier {
             $0.foregroundColor = "#334155"
         }
@@ -4466,6 +4484,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         var catalogEvents = SkeletonList(topic: "configurationCatalog", keypath: nil, flowElementSkeleton: eventRow)
+        catalogEvents.filterTypes = ["event"]
         catalogEvents.modifiers = modifier {
             $0.padding = 4
             $0.background = "#F8FAFC"
@@ -4742,13 +4761,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#CBD5E1"
         }
 
-        var eventAction = SkeletonText(keypath: "action")
+        var eventAction = SkeletonText(keypath: "content.action")
         eventAction.modifiers = modifier {
             $0.fontWeight = "semibold"
             $0.foregroundColor = "#0F172A"
         }
 
-        var eventAgreement = SkeletonText(keypath: "agreementId")
+        var eventAgreement = SkeletonText(keypath: "content.agreementId")
         eventAgreement.modifiers = modifier {
             $0.foregroundColor = "#64748B"
             $0.fontSize = 12
@@ -4767,6 +4786,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         var events = SkeletonList(topic: "agreements", keypath: nil, flowElementSkeleton: eventRow)
+        events.filterTypes = ["event"]
         events.modifiers = modifier {
             $0.padding = 4
             $0.background = "#FFFFFF"
@@ -4801,46 +4821,8 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     private static func appleIntelligenceLandingConfiguration() -> CellConfiguration {
-        let chatScenarioConfig = appleIntelligenceScenarioConfiguration(
-            name: "Vennechat",
-            description: "Kommunikasjon med fokus pa direkte melding og tilstedevaer.",
-            endpoint: "cell:///Chat",
-            label: "chat",
-            accentColor: "#2563EB",
-            summary: "Formaal: chatte med en venn."
-        )
-        let conferenceScenarioConfig = appleIntelligenceScenarioConfiguration(
-            name: "AI + personvern konferanser",
-            description: "Lering og events rundt AI/personvern.",
-            endpoint: "cell:///TimesWrapper",
-            label: "times",
-            accentColor: "#0EA5E9",
-            summary: "Formaal: lere og velge konferanser."
-        )
-        let restaurantScenarioConfig = appleIntelligenceScenarioConfiguration(
-            name: "Asiatisk, friskt, spicy",
-            description: "Restaurant-fokus med smak og timing.",
-            endpoint: "cell:///LocationsWrapper",
-            label: "locations",
-            accentColor: "#EA580C",
-            summary: "Formaal: finne sted a spise i dag."
-        )
-        let peopleScenarioConfig = appleIntelligenceScenarioConfiguration(
-            name: "Lignende personer",
-            description: "Entitetsmatching pa interesser.",
-            endpoint: "cell:///EntitiesWrapper",
-            label: "entities",
-            accentColor: "#16A34A",
-            summary: "Formaal: finne folk med lignende interesser."
-        )
-        let scenarioConfigurations = [chatScenarioConfig, conferenceScenarioConfig, restaurantScenarioConfig, peopleScenarioConfig]
-
         var configuration = CellConfiguration(name: "Apple Intelligence Purpose Matcher")
         configuration.description = "Prompt-til-match med tydelig forklaring, skeleton preview, lasting i Porthole, laering og publisering av formaal."
-
-        var aiReference = CellReference(endpoint: "cell:///AppleIntelligence", label: "intelligence")
-        aiReference.subscribeFeed = true
-        configuration.addReference(aiReference)
 
         var catalogReference = CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")
         catalogReference.subscribeFeed = false
@@ -4957,15 +4939,12 @@ final class ConfigurationCatalogCell: GeneralCell {
         var clearMatching = SkeletonButton(keypath: "catalog.matching.clear", label: "Nullstill", payload: .bool(true))
         clearMatching.modifiers = neutralButton
 
-        var aiSendPrompt = SkeletonButton(keypath: "intelligence.ai.sendPrompt", label: "Kjor AI prompt", payload: .string(""))
-        aiSendPrompt.modifiers = neutralButton
-
-        var seedCandidates = SkeletonButton(
-            keypath: "intelligence.ai.ingestConfigurations",
-            label: "Seed candidates",
-            payload: .object(["configurations": .list(scenarioConfigurations.map { .cellConfiguration($0) })])
+        var syncCandidates = SkeletonButton(
+            keypath: "catalog.syncScaffoldPurposeGoals",
+            label: "Sync kandidater",
+            payload: .bool(true)
         )
-        seedCandidates.modifiers = neutralButton
+        syncCandidates.modifiers = neutralButton
 
         var quickChat = SkeletonButton(
             keypath: "catalog.matching.runPrompt",
@@ -5051,7 +5030,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#D3DEEB"
         }
 
-        var suggestionList = SkeletonList(topic: nil, keypath: "catalog.matching.suggestions", flowElementSkeleton: suggestionRow)
+        var suggestionList = SkeletonList(topic: "catalog.matching.suggestions", keypath: "catalog.matching.suggestions", flowElementSkeleton: suggestionRow)
         suggestionList.modifiers = listLarge
 
         var selectedName = SkeletonText(keypath: "name")
@@ -5102,7 +5081,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#C9D8EC"
         }
 
-        var selectedSuggestion = SkeletonList(topic: nil, keypath: "catalog.matching.selectedSuggestion", flowElementSkeleton: selectedRow)
+        var selectedSuggestion = SkeletonList(topic: "catalog.matching.selectedSuggestion", keypath: "catalog.matching.selectedSuggestion", flowElementSkeleton: selectedRow)
         selectedSuggestion.modifiers = listMedium
 
         var purposeStatPurpose = SkeletonText(keypath: "purpose")
@@ -5143,8 +5122,51 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#D9E6C7"
         }
 
-        var purposeStatsList = SkeletonList(topic: nil, keypath: "catalog.matching.purposeStats", flowElementSkeleton: purposeStatRow)
+        var purposeStatsList = SkeletonList(topic: "catalog.matching.purposeStats", keypath: "catalog.matching.purposeStats", flowElementSkeleton: purposeStatRow)
         purposeStatsList.modifiers = listMedium
+
+        var outcomeEventTitle = SkeletonText(keypath: "title")
+        outcomeEventTitle.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+            $0.fontSize = 12
+        }
+
+        var outcomeEventPurpose = SkeletonText(keypath: "content.purpose")
+        outcomeEventPurpose.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
+            $0.fontSize = 12
+        }
+
+        var outcomeEventGoal = SkeletonText(keypath: "content.achievedGoal")
+        outcomeEventGoal.modifiers = modifier {
+            $0.foregroundColor = "#15803D"
+            $0.fontSize = 11
+        }
+
+        var outcomeEventWeight = SkeletonText(keypath: "content.currentWeight")
+        outcomeEventWeight.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 11
+        }
+
+        var outcomeEventRow = SkeletonVStack(elements: [
+            .Text(outcomeEventTitle),
+            .Text(outcomeEventPurpose),
+            .Text(outcomeEventGoal),
+            .Text(outcomeEventWeight)
+        ])
+        outcomeEventRow.modifiers = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#D9E6C7"
+        }
+
+        var purposeOutcomeEventsList = SkeletonList(topic: "purpose.outcome", keypath: nil, flowElementSkeleton: outcomeEventRow)
+        purposeOutcomeEventsList.filterTypes = ["event"]
+        purposeOutcomeEventsList.modifiers = listSmall
 
         var publicationEntity = SkeletonText(keypath: "entityName")
         publicationEntity.modifiers = modifier {
@@ -5185,10 +5207,54 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#E4D8F8"
         }
 
-        var publicationList = SkeletonList(topic: nil, keypath: "catalog.matching.entityPurposePublications", flowElementSkeleton: publicationRow)
+        var publicationList = SkeletonList(topic: "catalog.matching.entityPurposePublications", keypath: "catalog.matching.entityPurposePublications", flowElementSkeleton: publicationRow)
         publicationList.modifiers = listMedium
 
-        var bookmarkList = SkeletonList(topic: nil, keypath: "catalog.matching.bookmarks", flowElementSkeleton: suggestionRow)
+        var publicationEventTitle = SkeletonText(keypath: "title")
+        publicationEventTitle.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+            $0.fontSize = 12
+        }
+
+        var publicationEventEntity = SkeletonText(keypath: "content.entityName")
+        publicationEventEntity.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+        }
+
+        var publicationEventPurpose = SkeletonText(keypath: "content.purpose")
+        publicationEventPurpose.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
+            $0.fontSize = 12
+        }
+
+        var publicationEventMeaning = SkeletonText(keypath: "content.meaning")
+        publicationEventMeaning.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 1
+        }
+
+        var publicationEventRow = SkeletonVStack(elements: [
+            .Text(publicationEventTitle),
+            .Text(publicationEventEntity),
+            .Text(publicationEventPurpose),
+            .Text(publicationEventMeaning)
+        ])
+        publicationEventRow.modifiers = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#E4D8F8"
+        }
+
+        var purposePublicationEventsList = SkeletonList(topic: "purpose.entity.publications", keypath: nil, flowElementSkeleton: publicationEventRow)
+        purposePublicationEventsList.filterTypes = ["event"]
+        purposePublicationEventsList.modifiers = listSmall
+
+        var bookmarkList = SkeletonList(topic: "catalog.matching.bookmarks", keypath: "catalog.matching.bookmarks", flowElementSkeleton: suggestionRow)
         bookmarkList.modifiers = listSmall
 
         var loadSelected = SkeletonButton(keypath: "catalog.matching.loadSelectedToPorthole", label: "Load valgt i Porthole", payload: .bool(true))
@@ -5284,11 +5350,25 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontSize = 12
         }
 
+        var sectionOutcomeEvents = SkeletonText(text: "Flow events (topic: purpose.outcome)")
+        sectionOutcomeEvents.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+        }
+
         var sectionPublish = SkeletonText(text: "Publiser formaal for personer og grupper")
         sectionPublish.modifiers = modifier {
             $0.foregroundColor = "#0F172A"
             $0.fontWeight = "semibold"
             $0.fontSize = 12
+        }
+
+        var sectionPublicationEvents = SkeletonText(text: "Flow events (topic: purpose.entity.publications)")
+        sectionPublicationEvents.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
         }
 
         var sectionBookmarks = SkeletonText(text: "Bokmerker")
@@ -5302,8 +5382,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Text(title),
             .Text(intro),
             .TextField(promptField),
-            .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(aiSendPrompt)])),
-            .HStack(SkeletonHStack(elements: [.Button(seedCandidates), .Button(clearMatching)])),
+            .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(syncCandidates)])),
+            .HStack(SkeletonHStack(elements: [.Button(clearMatching)])),
             .HStack(SkeletonHStack(elements: [.Button(quickChat), .Button(quickConference)])),
             .HStack(SkeletonHStack(elements: [.Button(quickRestaurant), .Button(quickPeople)])),
             .TextField(selectedIndexField),
@@ -5316,12 +5396,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             .HStack(SkeletonHStack(elements: [.Button(saveSelectedUpperMid), .Button(saveSelectedLowerMid)])),
             .Text(sectionLearning),
             .List(purposeStatsList),
+            .Text(sectionOutcomeEvents),
+            .List(purposeOutcomeEventsList),
             .Text(sectionPublish),
             .TextField(publishPersonName),
             .TextField(publishGroupName),
             .TextField(publishGroupType),
             .TextField(publishNote),
             .HStack(SkeletonHStack(elements: [.Button(publishPersonPurpose), .Button(publishGroupPurpose)])),
+            .Text(sectionPublicationEvents),
+            .List(purposePublicationEventsList),
             .List(publicationList),
             .Text(sectionBookmarks),
             .List(bookmarkList)
@@ -5346,62 +5430,6 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         configuration.skeleton = .ScrollView(scroll)
-        return configuration
-    }
-
-    private static func appleIntelligenceScenarioConfiguration(
-        name: String,
-        description: String,
-        endpoint: String,
-        label: String,
-        accentColor: String,
-        summary: String
-    ) -> CellConfiguration {
-        var configuration = CellConfiguration(name: name)
-        configuration.description = description
-
-        let reference = CellReference(endpoint: endpoint, label: label)
-        configuration.addReference(reference)
-
-        var titleText = SkeletonText(text: name)
-        titleText.modifiers = modifier {
-            $0.fontStyle = "headline"
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
-        }
-
-        var descriptionText = SkeletonText(text: description)
-        descriptionText.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-        }
-
-        var summaryText = SkeletonText(text: summary)
-        summaryText.modifiers = modifier {
-            $0.foregroundColor = "#475569"
-            $0.fontSize = 12
-        }
-
-        var endpointText = SkeletonText(text: endpoint)
-        endpointText.modifiers = modifier {
-            $0.foregroundColor = "#64748B"
-            $0.fontSize = 12
-        }
-
-        var card = SkeletonVStack(elements: [
-            .Text(titleText),
-            .Text(descriptionText),
-            .Text(summaryText),
-            .Text(endpointText)
-        ])
-        card.modifiers = modifier {
-            $0.padding = 12
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = accentColor
-        }
-
-        configuration.skeleton = .VStack(card)
         return configuration
     }
 
