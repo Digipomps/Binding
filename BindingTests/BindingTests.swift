@@ -7,6 +7,7 @@
 
 import Testing
 import CellBase
+import CellApple
 @testable import Binding
 
 struct BindingTests {
@@ -93,6 +94,105 @@ struct BindingTests {
             return bucket["value"] == .string("component")
         }
         #expect(hasComponent)
+    }
+
+    @Test func portholeAbsorbsCatalogReference() async throws {
+        await AppInitializer.initialize()
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Missing CellResolver")
+            return
+        }
+        guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+
+        // Binding registers this in BootstrapView, tests need explicit registration.
+        try? await resolver.addCellResolve(
+            name: "ConfigurationCatalog",
+            cellScope: .scaffoldUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: ConfigurationCatalogCell.self
+        )
+
+        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: identity) as? OrchestratorCell else {
+            Issue.record("Could not resolve Porthole")
+            return
+        }
+
+        porthole.detachAll(requester: identity)
+
+        var config = CellConfiguration(name: "Catalog Absorb Test")
+        config.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
+
+        _ = try await resolver.loadCell(from: config, into: porthole, requester: identity)
+
+        let status = try await porthole.attachedStatus(for: "catalog", requester: identity)
+        #expect(status.name == "catalog")
+        #expect(status.active)
+
+        let stateValue = try await porthole.get(keypath: "catalog.state", requester: identity)
+        guard case .object = stateValue else {
+            Issue.record("Expected object from catalog.state, got \(stateValue)")
+            return
+        }
+    }
+
+    @Test func configurationCatalogRemovesBlockedReferencesWhenOtherReferencesExist() async throws {
+        let owner = makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        var configuration = CellConfiguration(name: "Mixed References")
+        configuration.addReference(CellReference(endpoint: "cell:///EventEmitter", label: "signals"))
+        configuration.addReference(CellReference(endpoint: "cell:///Chat", label: "chat"))
+
+        let payload: Object = [
+            "sourceCellEndpoint": .string("cell:///EventEmitter"),
+            "sourceCellName": .string("MixedCell"),
+            "purpose": .string("Test blocked filtering"),
+            "interests": .list([.string("chat")]),
+            "menuSlots": .list([.string("upperLeft")]),
+            "configuration": .cellConfiguration(configuration),
+            "goal": .cellConfiguration(configuration)
+        ]
+
+        _ = try await cell.set(keypath: "addConfiguration", value: .object(payload), requester: owner)
+
+        let entriesValue = try await cell.get(keypath: "catalogEntries", requester: owner)
+        guard case let .list(entries) = entriesValue,
+              let first = entries.first,
+              case let .object(object) = first,
+              case let .cellConfiguration(storedConfiguration)? = object["configuration"],
+              let references = storedConfiguration.cellReferences
+        else {
+            Issue.record("Expected stored catalog entry with configuration references")
+            return
+        }
+
+        #expect(references.contains(where: { $0.endpoint == "cell:///Chat" }))
+        #expect(!references.contains(where: { $0.endpoint.lowercased().contains("eventemitter") }))
+    }
+
+    @Test func configurationCatalogRejectsConfigurationsWithOnlyBlockedReferences() async throws {
+        let owner = makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        var configuration = CellConfiguration(name: "Only Blocked")
+        configuration.addReference(CellReference(endpoint: "cell:///TimesWrapper", label: "times"))
+
+        let payload: Object = [
+            "sourceCellEndpoint": .string("cell:///TimesWrapper"),
+            "sourceCellName": .string("TimesOnlyCell"),
+            "purpose": .string("Should be rejected"),
+            "interests": .list([.string("time")]),
+            "menuSlots": .list([.string("upperLeft")]),
+            "configuration": .cellConfiguration(configuration),
+            "goal": .cellConfiguration(configuration)
+        ]
+
+        let response = try await cell.set(keypath: "addConfiguration", value: .object(payload), requester: owner)
+        #expect(response == .string("error: invalid payload for addConfiguration"))
     }
 
     private func makeOwnerIdentity() -> Identity {

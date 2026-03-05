@@ -14,6 +14,12 @@ struct ContentView: View {
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "publishersws"
     private static let stagingRemoteWebSocketPath = "bridgehead"
+    private static let blockedLoadedReferenceNames: Set<String> = [
+        "eventemitter",
+        "entitieswrapper",
+        "timeswrapper",
+        "locationswrapper"
+    ]
     private static let stagingFallbackCells: Set<String> = [
         "appleintelligence",
         "entityscanner",
@@ -30,9 +36,6 @@ struct ContentView: View {
         "adminprocesses",
         "adminroleenrollment",
         "adminsecuritypolicy",
-        "timeswrapper",
-        "entitieswrapper",
-        "locationswrapper",
         "leadvault",
         "consentreceipt",
         "exhibitoraccess",
@@ -434,7 +437,10 @@ struct ContentView: View {
     }
 
     private func normalizeCatalogMenu(_ configs: [CellConfiguration], origin: CatalogOrigin?, resolver: CellResolver) -> [CellConfiguration] {
-        configs.map { normalizeConfigurationForResolver($0, origin: origin, resolver: resolver) }
+        configs.compactMap { config in
+            let normalized = normalizeConfigurationForResolver(config, origin: origin, resolver: resolver)
+            return sanitizedLoadedConfiguration(normalized, allowReferenceFree: false)
+        }
     }
 
     private func normalizeConfigurationForResolver(_ configuration: CellConfiguration, origin: CatalogOrigin?, resolver: CellResolver) -> CellConfiguration {
@@ -588,19 +594,35 @@ struct ContentView: View {
     @MainActor
     private func loadConfigurationForEditing(_ configuration: CellConfiguration?) async {
         guard let configuration else { return }
+        guard let sanitizedConfiguration = sanitizedLoadedConfiguration(configuration, allowReferenceFree: true) else {
+            loadErrorMessage = "Konfigurasjonen ble filtrert bort fordi den mangler gyldige CellReferences."
+            return
+        }
         loadErrorMessage = nil
-        let normalizedConfiguration = retargetConfigurationToStagingIfNeeded(configuration)
+        let normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
         activeConfiguration = normalizedConfiguration
 
         var loadConfiguration = normalizedConfiguration
         if let references = normalizedConfiguration.cellReferences, !references.isEmpty {
             let probeResult = await probeFailingTopLevelReferences(in: normalizedConfiguration)
             if !probeResult.failingReferenceEndpoints.isEmpty {
-                let retainedReferences = references.filter { reference in
-                    !probeResult.failingReferenceEndpoints.contains(endpointIdentity(reference.endpoint))
+                let (retainedReferences, removedReferences) = references.reduce(into: ([CellReference](), [CellReference]())) { acc, reference in
+                    if probeResult.failingReferenceEndpoints.contains(endpointIdentity(reference.endpoint)) {
+                        acc.1.append(reference)
+                    } else {
+                        acc.0.append(reference)
+                    }
                 }
                 let removedCount = references.count - retainedReferences.count
                 if removedCount > 0 {
+                    let removedLabels = removedReferences.compactMap { reference in
+                        let trimmed = reference.label.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return trimmed.isEmpty ? nil : trimmed.lowercased()
+                    }
+                    if skeletonDependsOnRemovedReferenceLabels(loadConfiguration.skeleton, removedLabels: removedLabels) {
+                        loadErrorMessage = "Kritisk referanse kunne ikke lastes (\(removedCount)). \(probeResult.firstFailureMessage ?? "")"
+                        return
+                    }
                     loadConfiguration.cellReferences = retainedReferences
                     if retainedReferences.isEmpty {
                         loadErrorMessage = "Ingen referanser kunne lastes. \(probeResult.firstFailureMessage ?? "")"
@@ -680,7 +702,11 @@ struct ContentView: View {
             do {
                 _ = try await resolver.cellAtEndpoint(endpoint: reference.endpoint, requester: identity)
             } catch {
-                return probeFailureMessage(endpoint: reference.endpoint, error: error)
+                if await tryProbeEndpointWithFallbackRoutes(reference.endpoint, resolver: resolver, identity: identity) {
+                    // A fallback route worked; keep this reference.
+                } else {
+                    return probeFailureMessage(endpoint: reference.endpoint, error: error)
+                }
             }
         }
 
@@ -696,11 +722,40 @@ struct ContentView: View {
             do {
                 _ = try await resolver.cellAtEndpoint(endpoint: target, requester: identity)
             } catch {
+                if await tryProbeEndpointWithFallbackRoutes(target, resolver: resolver, identity: identity) {
+                    continue
+                }
                 return probeFailureMessage(endpoint: target, error: error)
             }
         }
 
         return nil
+    }
+
+    private func tryProbeEndpointWithFallbackRoutes(_ endpoint: String, resolver: CellResolver, identity: Identity) async -> Bool {
+        guard let components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell",
+              let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              host == Self.stagingHost
+        else {
+            return false
+        }
+
+        let fallbackCandidates: [RemoteCellHostRoute] = [
+            RemoteCellHostRoute(websocketEndpoint: Self.stagingRemoteWebSocketPath, schemePreference: .wss),
+            RemoteCellHostRoute(websocketEndpoint: Self.defaultRemoteWebSocketPath, schemePreference: .wss)
+        ]
+
+        for route in fallbackCandidates {
+            registerRemoteHostIfNeeded(host, route: route, resolver: resolver)
+            do {
+                _ = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity)
+                return true
+            } catch {
+                continue
+            }
+        }
+        return false
     }
 
     private func endpointIdentity(_ endpoint: String) -> String {
@@ -740,9 +795,26 @@ struct ContentView: View {
     private func probeFailureMessage(endpoint: String, error: Error) -> String {
         let errorText = String(describing: error)
         if errorText.lowercased().contains("timeout") {
-            return "Timeout ved lasting av \(endpoint). Sjekk staging bridgehead-tilkobling."
+            return "Timeout ved lasting av \(endpoint). Sjekk staging websocket-route (bridgehead/publishersws)."
         }
         return "Kunne ikke laste \(endpoint): \(errorText)"
+    }
+
+    private func skeletonDependsOnRemovedReferenceLabels(_ skeleton: SkeletonElement?, removedLabels: [String]) -> Bool {
+        guard let skeleton,
+              !removedLabels.isEmpty,
+              let data = try? JSONEncoder().encode(skeleton),
+              let raw = String(data: data, encoding: .utf8)?.lowercased()
+        else {
+            return false
+        }
+
+        for label in removedLabels where !label.isEmpty {
+            if raw.contains("\(label).") {
+                return true
+            }
+        }
+        return false
     }
 
     private var selectedNodeKindForLibrary: String? {
@@ -807,6 +879,59 @@ struct ContentView: View {
     private func endpointLooksEmitter(_ endpoint: String) -> Bool {
         let lowered = endpoint.lowercased()
         return lowered.contains("eventemitter") || lowered.contains("/emitter") || lowered.hasSuffix("emitter")
+    }
+
+    private func sanitizedLoadedConfiguration(_ configuration: CellConfiguration, allowReferenceFree: Bool) -> CellConfiguration? {
+        guard let references = configuration.cellReferences, !references.isEmpty else {
+            return allowReferenceFree ? configuration : nil
+        }
+        let sanitizedReferences = references.compactMap { sanitizedLoadedReference($0) }
+        guard !sanitizedReferences.isEmpty else { return nil }
+
+        var sanitized = configuration
+        sanitized.cellReferences = sanitizedReferences
+        return sanitized
+    }
+
+    private func sanitizedLoadedReference(_ reference: CellReference) -> CellReference? {
+        if endpointShouldBeRemovedFromLoadedConfiguration(reference.endpoint) {
+            return nil
+        }
+
+        var sanitized = reference
+        sanitized.subscriptions = reference.subscriptions.compactMap { sanitizedLoadedReference($0) }
+        sanitized.setKeysAndValues = reference.setKeysAndValues.compactMap { item in
+            guard let target = item.target else { return item }
+            if endpointShouldBeRemovedFromLoadedConfiguration(target) {
+                return nil
+            }
+            return item
+        }
+        return sanitized
+    }
+
+    private func endpointShouldBeRemovedFromLoadedConfiguration(_ endpoint: String) -> Bool {
+        let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let lowered = trimmed.lowercased()
+        if Self.blockedLoadedReferenceNames.contains(lowered) {
+            return true
+        }
+
+        let pathName: String = {
+            if let components = URLComponents(string: trimmed) {
+                let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                if let last = path.split(separator: "/").last {
+                    return String(last).lowercased()
+                }
+            }
+            return lowered
+                .split(separator: "/")
+                .last
+                .map(String.init)?
+                .lowercased() ?? lowered
+        }()
+        return Self.blockedLoadedReferenceNames.contains(pathName)
     }
 
     private func containsUnavailableIntelligenceBindings(_ configuration: CellConfiguration) -> Bool {
@@ -921,27 +1046,6 @@ struct ContentView: View {
             title: "Entity Scanner",
             subtitle: "EntityRadar-skanning og oppdagelse."
         )
-        let times = referenceMenuConfiguration(
-            name: "Times Wrapper",
-            endpoint: stagingEndpoint("TimesWrapper"),
-            label: "times",
-            title: "Times",
-            subtitle: "Tidslinje og hendelsesflyt."
-        )
-        let entities = referenceMenuConfiguration(
-            name: "Entities Wrapper",
-            endpoint: stagingEndpoint("EntitiesWrapper"),
-            label: "entities",
-            title: "Entities",
-            subtitle: "Entiteter, relasjoner og kontekst."
-        )
-        let locations = referenceMenuConfiguration(
-            name: "Locations Wrapper",
-            endpoint: stagingEndpoint("LocationsWrapper"),
-            label: "locations",
-            title: "Locations",
-            subtitle: "Stedsdata og tilstedeværelse."
-        )
         let perspective = referenceMenuConfiguration(
             name: "Perspective",
             endpoint: "cell:///Perspective",
@@ -954,8 +1058,8 @@ struct ContentView: View {
             upperLeft: [chat, conference, appleIntelligence],
             upperMid: [chat, leadVault, appleIntelligence],
             upperRight: [admin, adminFundingQueue, conference],
-            lowerLeft: [entities, entityScanner, locations],
-            lowerMid: [times, todo, leadVault],
+            lowerLeft: [entityScanner, leadVault, consentReceipt],
+            lowerMid: [todo, conference, leadVault],
             lowerRight: [admin, todo, consentReceipt, perspective]
         )
     }

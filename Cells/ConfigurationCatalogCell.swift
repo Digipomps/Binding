@@ -9,6 +9,13 @@ import Foundation
 import CellBase
 
 final class ConfigurationCatalogCell: GeneralCell {
+    private static let blockedCatalogReferenceNames: Set<String> = [
+        "eventemitter",
+        "entitieswrapper",
+        "timeswrapper",
+        "locationswrapper"
+    ]
+
     private enum MenuSlot: String, Codable, CaseIterable {
         case upperLeft
         case upperMid
@@ -715,6 +722,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "matching.publish.groupType")
         agreementTemplate.addGrant("r---", for: "matching.publish.note")
         agreementTemplate.addGrant("rw--", for: "matching.publish.note")
+        agreementTemplate.addGrant("r---", for: "matching.runPrompt")
         agreementTemplate.addGrant("rw--", for: "matching.runPrompt")
         agreementTemplate.addGrant("rw--", for: "matching.select")
         agreementTemplate.addGrant("rw--", for: "matching.selectIndex")
@@ -975,6 +983,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             guard let self = self else { return .null }
             guard await self.validateAccess("r---", at: "matching.entityPurposePublications", for: requester) else { return .string("denied") }
             return self.matchingEntityPurposePublicationsValue()
+        }
+
+        await registerGet(key: "matching.runPrompt", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.runPrompt", for: requester) else { return .string("denied") }
+            return .object([
+                "status": .string("ready"),
+                "promptText": .string(self.stateQueue.sync { self.matchingPromptText }),
+                "state": self.matchingStateValue()
+            ])
         }
 
         await registerSet(key: "matching.runPrompt", owner: owner) { [weak self] requester, payload in
@@ -1929,12 +1947,19 @@ final class ConfigurationCatalogCell: GeneralCell {
             return nil
         }
 
-        guard let configuration = decodeConfiguration(from: object["configuration"]) else { return nil }
+        guard let decodedConfiguration = decodeConfiguration(from: object["configuration"]),
+              let configuration = sanitizeCatalogConfiguration(decodedConfiguration)
+        else {
+            return nil
+        }
 
-        let goal = decodeConfiguration(from: object["goal"]) ?? configuration
+        let decodedGoal = decodeConfiguration(from: object["goal"]) ?? decodedConfiguration
+        let goal = sanitizeCatalogConfiguration(decodedGoal) ?? configuration
 
         let sourceCellEndpoint: String
-        if case let .string(endpoint)? = object["sourceCellEndpoint"], !endpoint.isEmpty {
+        if case let .string(endpoint)? = object["sourceCellEndpoint"],
+           !endpoint.isEmpty,
+           !isBlockedCatalogEndpoint(endpoint) {
             sourceCellEndpoint = endpoint
         } else if let firstEndpoint = configuration.cellReferences?.first?.endpoint {
             sourceCellEndpoint = firstEndpoint
@@ -2236,8 +2261,71 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     private func migrateEntriesForMetadataIfNeeded() {
         stateQueue.sync {
-            entriesByID = entriesByID.mapValues { enrichCatalogEntryMetadata($0) }
+            entriesByID = entriesByID.reduce(into: [:]) { sanitized, item in
+                var entry = item.value
+                guard let configuration = sanitizeCatalogConfiguration(entry.configuration) else { return }
+                let goal = sanitizeCatalogConfiguration(entry.goal) ?? configuration
+                entry.configuration = configuration
+                entry.goal = goal
+                if isBlockedCatalogEndpoint(entry.sourceCellEndpoint),
+                   let firstEndpoint = configuration.cellReferences?.first?.endpoint {
+                    entry.sourceCellEndpoint = firstEndpoint
+                }
+                sanitized[item.key] = enrichCatalogEntryMetadata(entry)
+            }
         }
+    }
+
+    private func sanitizeCatalogConfiguration(_ configuration: CellConfiguration) -> CellConfiguration? {
+        guard let references = configuration.cellReferences else { return nil }
+        let sanitizedReferences = references.compactMap { sanitizeCatalogReference($0) }
+        guard !sanitizedReferences.isEmpty else { return nil }
+
+        var sanitized = configuration
+        sanitized.cellReferences = sanitizedReferences
+        return sanitized
+    }
+
+    private func sanitizeCatalogReference(_ reference: CellReference) -> CellReference? {
+        if isBlockedCatalogEndpoint(reference.endpoint) {
+            return nil
+        }
+
+        var sanitized = reference
+        sanitized.subscriptions = reference.subscriptions.compactMap { sanitizeCatalogReference($0) }
+        sanitized.setKeysAndValues = reference.setKeysAndValues.compactMap { item in
+            guard let target = item.target else { return item }
+            if isBlockedCatalogEndpoint(target) {
+                return nil
+            }
+            return item
+        }
+        return sanitized
+    }
+
+    private func isBlockedCatalogEndpoint(_ endpoint: String) -> Bool {
+        let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let lowered = trimmed.lowercased()
+
+        if Self.blockedCatalogReferenceNames.contains(lowered) {
+            return true
+        }
+
+        let pathName: String = {
+            if let components = URLComponents(string: trimmed) {
+                let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                if let last = path.split(separator: "/").last {
+                    return String(last).lowercased()
+                }
+            }
+            return lowered
+                .split(separator: "/")
+                .last
+                .map(String.init)?
+                .lowercased() ?? lowered
+        }()
+        return Self.blockedCatalogReferenceNames.contains(pathName)
     }
 
     private func enrichCatalogEntryMetadata(_ entry: CatalogEntry) -> CatalogEntry {
@@ -4078,44 +4166,6 @@ final class ConfigurationCatalogCell: GeneralCell {
             chip: "LIVE",
             borderColor: "#7C3AED"
         )
-        let timesConfig = referenceCardConfiguration(
-            name: "Scaffold Timeline",
-            endpoint: "cell:///TimesWrapper",
-            label: "times",
-            title: "Tidslinje",
-            subtitle: "Strukturert flyt av hendelser og planlagte aktiviteter.",
-            chip: "PLAN",
-            borderColor: "#0EA5E9"
-        )
-        let entitiesConfig = referenceCardConfiguration(
-            name: "Scaffold Entities",
-            endpoint: "cell:///EntitiesWrapper",
-            label: "entities",
-            title: "Entitetsnettverk",
-            subtitle: "Se relasjoner, roller og avhengigheter mellom aktører.",
-            chip: "MAP",
-            borderColor: "#16A34A"
-        )
-        let locationsConfig = referenceCardConfiguration(
-            name: "Scaffold Locations",
-            endpoint: "cell:///LocationsWrapper",
-            label: "locations",
-            title: "Stedsbevissthet",
-            subtitle: "Live oversikt over steder, nærvær og bevegelser.",
-            chip: "GEO",
-            borderColor: "#EA580C"
-        )
-        let signalConfig = referenceCardConfiguration(
-            name: "Binding Signals",
-            endpoint: "cell:///EventEmitter",
-            label: "signals",
-            title: "Signal Feed",
-            subtitle: "Lokale events for rask verifisering av flyt i Binding.",
-            chip: "TEST",
-            borderColor: "#334155",
-            startKey: "start"
-        )
-        let signalWorkbench = signalWorkbenchConfiguration()
         let catalogWorkbench = catalogWorkbenchConfiguration()
         let agreementWorkbench = agreementTemplateWorkbenchConfiguration()
         let purposeLanding = appleIntelligenceLandingConfiguration()
@@ -4130,56 +4180,6 @@ final class ConfigurationCatalogCell: GeneralCell {
                 menuSlots: [.upperLeft, .upperMid],
                 goal: chatConfig,
                 configuration: chatConfig
-            ),
-            ScaffoldPurposeTemplate(
-                sourceCellEndpoint: "cell:///TimesWrapper",
-                sourceCellName: "TimesWrapperCell",
-                purpose: "Tidslinje og planlegging",
-                purposeDescription: "Følg tidsbaserte hendelser i en feed.",
-                interests: ["time", "events", "planning"],
-                menuSlots: [.upperRight],
-                goal: timesConfig,
-                configuration: timesConfig
-            ),
-            ScaffoldPurposeTemplate(
-                sourceCellEndpoint: "cell:///EntitiesWrapper",
-                sourceCellName: "EntitiesWrapperCell",
-                purpose: "Entitetsoversikt",
-                purposeDescription: "Vis relaterte entiteter og hendelser.",
-                interests: ["entities", "network", "people"],
-                menuSlots: [.lowerLeft],
-                goal: entitiesConfig,
-                configuration: entitiesConfig
-            ),
-            ScaffoldPurposeTemplate(
-                sourceCellEndpoint: "cell:///LocationsWrapper",
-                sourceCellName: "LocationsWrapperCell",
-                purpose: "Stedsbevissthet",
-                purposeDescription: "Følg stedshendelser i sanntid.",
-                interests: ["location", "maps", "presence"],
-                menuSlots: [.lowerMid],
-                goal: locationsConfig,
-                configuration: locationsConfig
-            ),
-            ScaffoldPurposeTemplate(
-                sourceCellEndpoint: "cell:///EventEmitter",
-                sourceCellName: "EventEmitterCell",
-                purpose: "Signaler og diagnostikk",
-                purposeDescription: "Bruk lokale signaler for å verifisere menyer og flyt.",
-                interests: ["signals", "testing", "diagnostics"],
-                menuSlots: [.lowerRight],
-                goal: signalConfig,
-                configuration: signalConfig
-            ),
-            ScaffoldPurposeTemplate(
-                sourceCellEndpoint: "cell:///EventEmitter",
-                sourceCellName: "EventEmitterCell",
-                purpose: "Signalmonitor og knapper",
-                purposeDescription: "Start/stopp signalstrøm og se innkommende FlowElements live.",
-                interests: ["signals", "events", "debug"],
-                menuSlots: [.upperLeft],
-                goal: signalWorkbench,
-                configuration: signalWorkbench
             ),
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///ConfigurationCatalog",
