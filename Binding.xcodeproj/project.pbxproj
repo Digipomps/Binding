@@ -723,7 +723,7 @@
 /* Begin XCRemoteSwiftPackageReference section */
 			2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
 				isa = XCRemoteSwiftPackageReference;
-				repositoryURL = "git@github.com:Digipomps/CellProtocol.git";
+				repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
 				requirement = {
 					kind = revision;
 					revision = 13f2f5e607f0527778c2ddb4f58a58b320b48a6e;
