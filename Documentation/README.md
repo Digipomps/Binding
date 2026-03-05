@@ -70,19 +70,19 @@ Projects importing CellProtocol must include:
 - Product/commercial behavior built on top of CellProtocol/HAVEN should stay in product repositories (for example DiMy repos), including their product docs.
 
 ### Quick links
-- Architecture overview: [Prompts/Architecture.md](Prompts/Architecture.md)
-- Contributing guidelines: [Prompts/CONTRIBUTING.md](Prompts/CONTRIBUTING.md)
-- Edge menus overlay: [Prompts/EdgeMenusOverlay.md](Prompts/EdgeMenusOverlay.md)
-- Apple Intelligence cell: [Prompts/AppleIntelligenceCell.md](Prompts/AppleIntelligenceCell.md)
-- Explainer for LLMs: [Prompts/ExplainToAnotherLLM.md](Prompts/ExplainToAnotherLLM.md)
-- Documentation index (folder): [Documentation/](Documentation/)
-- Prompts index (folder): [Prompts/](Prompts/)
+- Architecture overview: [Prompts/Architecture.md](../Prompts/Architecture.md)
+- Contributing guidelines: [Prompts/CONTRIBUTING.md](../Prompts/CONTRIBUTING.md)
+- Edge menus overlay: [Prompts/EdgeMenusOverlay.md](../Prompts/EdgeMenusOverlay.md)
+- Apple Intelligence cell: [Prompts/AppleIntelligenceCell.md](../Prompts/AppleIntelligenceCell.md)
+- Explainer for LLMs: [Prompts/ExplainToAnotherLLM.md](../Prompts/ExplainToAnotherLLM.md)
+- Documentation index (folder): [Documentation/](./)
+- Prompts index (folder): [Prompts/](../Prompts/)
 - Skeleton editor: [Documentation/SkeletonEditor.md](Documentation/SkeletonEditor.md)
 - Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
-- Skeleton elements reference: [Documentation/SkeletonElements.md](Documentation/SkeletonElements.md)
+- Skeleton elements reference: [Documentation/SkeletonElements_Detailed.md](Documentation/SkeletonElements_Detailed.md)
 - Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
-- Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
+- Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
 - Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)
 
 See also:
