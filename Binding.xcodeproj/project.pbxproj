@@ -282,10 +282,9 @@
 			);
 			mainGroup = 24D8000C2EF195A000021B5A;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */,
-				2468DE032F4204DC000334E1 /* XCRemoteSwiftPackageReference "FileUtils-c" */,
-			);
+				packageReferences = (
+					2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */,
+				);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
 			projectDirPath = "";
@@ -722,22 +721,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "git@github.com:Digipomps/CellProtocol.git";
-			requirement = {
-				branch = main;
-				kind = branch;
+			2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
+				isa = XCRemoteSwiftPackageReference;
+				repositoryURL = "git@github.com:Digipomps/CellProtocol.git";
+				requirement = {
+					kind = revision;
+					revision = c485893fe2ea16c44fb3eaecc754fe2d612c2523;
+				};
 			};
-		};
-		2468DE032F4204DC000334E1 /* XCRemoteSwiftPackageReference "FileUtils-c" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "git@github.com:Digipomps/FileUtils-c";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
