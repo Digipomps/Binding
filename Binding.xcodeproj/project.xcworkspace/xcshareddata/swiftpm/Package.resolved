@@ -33,7 +33,7 @@
       "kind" : "remoteSourceControl",
       "location" : "git@github.com:Digipomps/CellProtocol.git",
       "state" : {
-        "revision" : "c329a3c460b30c7493e215032420c3bbe7d351c0"
+        "revision" : "13f2f5e607f0527778c2ddb4f58a58b320b48a6e"
       }
     },
     {
@@ -57,7 +57,7 @@
     {
       "identity" : "fileutils-c",
       "kind" : "remoteSourceControl",
-      "location" : "git@github.com:Digipomps/FileUtils-c",
+      "location" : "https://github.com/Digipomps/FileUtils-c.git",
       "state" : {
         "branch" : "main",
         "revision" : "26f365ca39955ee693e138ef028560df3bdf218c"
