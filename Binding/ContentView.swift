@@ -9,6 +9,11 @@ import SwiftUI
 import Combine
 import CellBase
 import CellApple
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct ContentView: View {
     private static let stagingHost = "staging.haven.digipomps.org"
@@ -25,6 +30,7 @@ struct ContentView: View {
         "entityscanner",
         "chat",
         "conferenceuirouter",
+        "vault",
         "todo",
         "adminentry",
         "adminoverview",
@@ -58,6 +64,15 @@ struct ContentView: View {
         let useDirectWebSocketForLocalReferences: Bool
     }
 
+    private typealias MenuConfigurationBuckets = (
+        upperLeft: [CellConfiguration],
+        upperMid: [CellConfiguration],
+        upperRight: [CellConfiguration],
+        lowerLeft: [CellConfiguration],
+        lowerMid: [CellConfiguration],
+        lowerRight: [CellConfiguration]
+    )
+
     @StateObject private var viewModel = PortholeBindingViewModel()
     @StateObject private var legacyPortholeViewModel = PortholeViewModel()
     @StateObject private var editorState = EditorState()
@@ -69,6 +84,7 @@ struct ContentView: View {
     @State private var activeConfiguration: CellConfiguration?
     @State private var presentingFullLibrary: Bool = false
     @State private var loadErrorMessage: String?
+    @State private var copyStatusMessage: String?
 
     private static let defaultRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.defaultRemoteWebSocketPath,
@@ -139,6 +155,21 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
                         .font(.caption)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                if let copyStatusMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text(copyStatusMessage)
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
@@ -304,6 +335,7 @@ struct ContentView: View {
         var mergedLowerLeft: [CellConfiguration] = []
         var mergedLowerMid: [CellConfiguration] = []
         var mergedLowerRight: [CellConfiguration] = []
+        var discoveredByEndpoint: [String: CellConfiguration] = [:]
 
         for source in configuredCatalogSources() {
             let origin = catalogOrigin(from: source.endpoint)
@@ -327,6 +359,11 @@ struct ContentView: View {
                 return normalized.filter { !isEmitterConfiguration($0) }
             }
 
+            let discoveredConfigurations = await fetchMenu("configurations")
+            for discovered in discoveredConfigurations {
+                indexDiscoveredConfiguration(discovered, into: &discoveredByEndpoint)
+            }
+
             let upperLeft = await fetchMenu("upperLeftMenu")
             let upperMid = await fetchMenu("upperMidMenu")
             let upperRight = await fetchMenu("upperRightMenu")
@@ -343,12 +380,26 @@ struct ContentView: View {
         }
 
         let curated = curatedMenuSeedConfigurations()
-        appendUnique(curated.upperLeft, into: &mergedUpperLeft)
-        appendUnique(curated.upperMid, into: &mergedUpperMid)
-        appendUnique(curated.upperRight, into: &mergedUpperRight)
-        appendUnique(curated.lowerLeft, into: &mergedLowerLeft)
-        appendUnique(curated.lowerMid, into: &mergedLowerMid)
-        appendUnique(curated.lowerRight, into: &mergedLowerRight)
+        let fallbackEndpoints = curatedFallbackEndpoints(from: curated)
+        for endpoint in fallbackEndpoints {
+            let endpointKey = endpointIdentity(endpoint)
+            guard discoveredByEndpoint[endpointKey] == nil else { continue }
+            if let recovered = await recoverConfigurationFromEndpoint(
+                endpoint,
+                resolver: resolver,
+                identity: identity
+            ) {
+                indexDiscoveredConfiguration(recovered, into: &discoveredByEndpoint)
+            }
+        }
+
+        let enrichedCurated = enrichCuratedMenuSeedConfigurations(curated, discoveredByEndpoint: discoveredByEndpoint)
+        appendUnique(enrichedCurated.upperLeft, into: &mergedUpperLeft)
+        appendUnique(enrichedCurated.upperMid, into: &mergedUpperMid)
+        appendUnique(enrichedCurated.upperRight, into: &mergedUpperRight)
+        appendUnique(enrichedCurated.lowerLeft, into: &mergedLowerLeft)
+        appendUnique(enrichedCurated.lowerMid, into: &mergedLowerMid)
+        appendUnique(enrichedCurated.lowerRight, into: &mergedLowerRight)
 
         viewModel.upperLeftMenu = mergedUpperLeft
         viewModel.upperMidMenu = mergedUpperMid
@@ -368,12 +419,15 @@ struct ContentView: View {
 
         var sources: [CatalogSource] = []
         var seen: Set<String> = []
+        let localEndpoint = "cell:///ConfigurationCatalog"
+        sources.append(CatalogSource(endpoint: localEndpoint, allowSync: true))
+        seen.insert(localEndpoint.lowercased())
+
         for endpoint in remoteEndpoints + ["cell://\(Self.stagingHost)/ConfigurationCatalog"] {
             let key = endpoint.lowercased()
             guard seen.insert(key).inserted else { continue }
             sources.append(CatalogSource(endpoint: endpoint, allowSync: false))
         }
-        sources.append(CatalogSource(endpoint: "cell:///ConfigurationCatalog", allowSync: true))
         return sources
     }
 
@@ -448,7 +502,51 @@ struct ContentView: View {
         if let references = configuration.cellReferences {
             normalized.cellReferences = references.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
         }
+        return ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
+    }
+
+    private func ensureCatalogReferenceBindingIfNeeded(
+        _ configuration: CellConfiguration,
+        origin: CatalogOrigin?,
+        resolver: CellResolver
+    ) -> CellConfiguration {
+        guard skeletonUsesCatalogNamespace(configuration.skeleton) else { return configuration }
+
+        var normalized = configuration
+        var references = normalized.cellReferences ?? []
+
+        if let index = references.firstIndex(where: referenceTargetsConfigurationCatalog) {
+            var reference = references[index]
+            reference.label = "catalog"
+            references[index] = normalizeReferenceForResolver(reference, origin: origin, resolver: resolver)
+        } else {
+            // Keep catalog-binding local to avoid remote bridge dependency for catalog.* keypaths.
+            var catalogReference = CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")
+            catalogReference.subscribeFeed = false
+            references.append(catalogReference)
+        }
+
+        normalized.cellReferences = references
         return normalized
+    }
+
+    private func skeletonUsesCatalogNamespace(_ skeleton: SkeletonElement?) -> Bool {
+        guard let skeleton,
+              let data = try? JSONEncoder().encode(skeleton),
+              let raw = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+        else {
+            return false
+        }
+        return raw.contains("\"catalog.")
+    }
+
+    private func referenceTargetsConfigurationCatalog(_ reference: CellReference) -> Bool {
+        guard let components = URLComponents(string: reference.endpoint) else { return false }
+        let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        guard !path.isEmpty else { return false }
+        return path.split(separator: "/").contains { $0 == "configurationcatalog" }
     }
 
     private func normalizeReferenceForResolver(_ reference: CellReference, origin: CatalogOrigin?, resolver: CellResolver) -> CellReference {
@@ -542,6 +640,15 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
 
+            Button {
+                copyLoadedConfigurationJSONToClipboard()
+            } label: {
+                Label("Copy JSON", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(activeConfiguration == nil && editorState.workingCopy == nil)
+
             Picker("Mode", selection: $editorMode) {
                 ForEach(EditorMode.allCases) { mode in
                     Text(mode.title).tag(mode)
@@ -599,7 +706,14 @@ struct ContentView: View {
             return
         }
         loadErrorMessage = nil
-        let normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
+        var normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
+        if let resolver = CellBase.defaultCellResolver as? CellResolver {
+            normalizedConfiguration = normalizeConfigurationForResolver(
+                normalizedConfiguration,
+                origin: nil,
+                resolver: resolver
+            )
+        }
         activeConfiguration = normalizedConfiguration
 
         var loadConfiguration = normalizedConfiguration
@@ -637,6 +751,76 @@ struct ContentView: View {
         if editorMode == .edit, let skeleton = loadConfiguration.skeleton {
             editorState.beginEditing(from: skeleton)
         }
+    }
+
+    private func copyLoadedConfigurationJSONToClipboard() {
+        guard let configuration = configurationForClipboardExport() else {
+            loadErrorMessage = "Ingen CellConfiguration er lastet i Porthole."
+            copyStatusMessage = nil
+            return
+        }
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            let data = try encoder.encode(configuration)
+            guard let json = String(data: data, encoding: .utf8) else {
+                loadErrorMessage = "Kunne ikke lage tekst fra serialisert CellConfiguration."
+                copyStatusMessage = nil
+                return
+            }
+            guard copyTextToClipboard(json) else {
+                loadErrorMessage = "Clipboard er ikke tilgjengelig i denne plattformen."
+                copyStatusMessage = nil
+                return
+            }
+            loadErrorMessage = nil
+            let message = "CellConfiguration kopiert som JSON."
+            copyStatusMessage = message
+            Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if copyStatusMessage == message {
+                    copyStatusMessage = nil
+                }
+            }
+        } catch {
+            loadErrorMessage = "Kunne ikke serialisere CellConfiguration: \(error)"
+            copyStatusMessage = nil
+        }
+    }
+
+    private func configurationForClipboardExport() -> CellConfiguration? {
+        if editorMode == .edit, let workingCopy = editorState.workingCopy {
+            if var activeConfiguration {
+                activeConfiguration.skeleton = workingCopy
+                return activeConfiguration
+            }
+            var fallback = CellConfiguration(name: "Porthole Export")
+            fallback.skeleton = workingCopy
+            return fallback
+        }
+
+        if var activeConfiguration {
+            if activeConfiguration.skeleton == nil {
+                activeConfiguration.skeleton = viewModel.currentSkeleton
+            }
+            return activeConfiguration
+        }
+
+        return nil
+    }
+
+    private func copyTextToClipboard(_ text: String) -> Bool {
+#if canImport(UIKit)
+        UIPasteboard.general.string = text
+        return true
+#elseif canImport(AppKit)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+#else
+        return false
+#endif
     }
 
     private func remoteRoute(forHost host: String) -> RemoteCellHostRoute {
@@ -828,6 +1012,188 @@ struct ContentView: View {
         return SkeletonTreeQueries.displayName(for: element).lowercased()
     }
 
+    private func indexDiscoveredConfiguration(_ configuration: CellConfiguration, into index: inout [String: CellConfiguration]) {
+        let endpointIdentities = allReferenceEndpointIdentities(in: configuration)
+        guard !endpointIdentities.isEmpty else { return }
+
+        for endpoint in endpointIdentities {
+            if let existing = index[endpoint] {
+                if shouldPreferDiscoveredConfiguration(configuration, over: existing) {
+                    index[endpoint] = configuration
+                }
+            } else {
+                index[endpoint] = configuration
+            }
+        }
+    }
+
+    private func curatedFallbackEndpoints(from curated: MenuConfigurationBuckets) -> Set<String> {
+        let allConfigurations = curated.upperLeft + curated.upperMid + curated.upperRight + curated.lowerLeft + curated.lowerMid + curated.lowerRight
+        var endpoints: Set<String> = []
+        for configuration in allConfigurations {
+            guard let references = configuration.cellReferences else { continue }
+            for reference in references {
+                let endpoint = reference.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !endpoint.isEmpty {
+                    endpoints.insert(endpoint)
+                }
+            }
+        }
+        return endpoints
+    }
+
+    private func enrichCuratedMenuSeedConfigurations(
+        _ curated: MenuConfigurationBuckets,
+        discoveredByEndpoint: [String: CellConfiguration]
+    ) -> MenuConfigurationBuckets {
+        (
+            upperLeft: curated.upperLeft.map { enrichCuratedConfiguration($0, discoveredByEndpoint: discoveredByEndpoint) },
+            upperMid: curated.upperMid.map { enrichCuratedConfiguration($0, discoveredByEndpoint: discoveredByEndpoint) },
+            upperRight: curated.upperRight.map { enrichCuratedConfiguration($0, discoveredByEndpoint: discoveredByEndpoint) },
+            lowerLeft: curated.lowerLeft.map { enrichCuratedConfiguration($0, discoveredByEndpoint: discoveredByEndpoint) },
+            lowerMid: curated.lowerMid.map { enrichCuratedConfiguration($0, discoveredByEndpoint: discoveredByEndpoint) },
+            lowerRight: curated.lowerRight.map { enrichCuratedConfiguration($0, discoveredByEndpoint: discoveredByEndpoint) }
+        )
+    }
+
+    private func enrichCuratedConfiguration(
+        _ configuration: CellConfiguration,
+        discoveredByEndpoint: [String: CellConfiguration]
+    ) -> CellConfiguration {
+        let endpointIdentities = allReferenceEndpointIdentities(in: configuration)
+        guard !endpointIdentities.isEmpty else { return configuration }
+
+        let candidates = endpointIdentities.compactMap { discoveredByEndpoint[$0] }
+        guard let first = candidates.first else { return configuration }
+        let bestCandidate = candidates.dropFirst().reduce(first) { currentBest, candidate in
+            shouldPreferDiscoveredConfiguration(candidate, over: currentBest) ? candidate : currentBest
+        }
+        return shouldPreferDiscoveredConfiguration(bestCandidate, over: configuration) ? bestCandidate : configuration
+    }
+
+    private func recoverConfigurationFromEndpoint(
+        _ endpoint: String,
+        resolver: CellResolver,
+        identity: Identity
+    ) async -> CellConfiguration? {
+        ensureRemoteHostRouteRegistered(for: endpoint, resolver: resolver)
+        guard let emit = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity),
+              let cell = emit as? Meddle
+        else {
+            return nil
+        }
+
+        for keypath in ["skeletonConfiguration", "purposeGoal", "configuration"] {
+            guard let value = try? await cell.get(keypath: keypath, requester: identity),
+                  let recoveredConfiguration = extractConfigurationFromRecoveredValue(value)
+            else {
+                continue
+            }
+
+            let origin = catalogOrigin(from: endpoint)
+            let normalized = normalizeConfigurationForResolver(
+                recoveredConfiguration,
+                origin: origin,
+                resolver: resolver
+            )
+            guard let sanitized = sanitizedLoadedConfiguration(normalized, allowReferenceFree: false),
+                  !isEmitterConfiguration(sanitized)
+            else {
+                continue
+            }
+            return sanitized
+        }
+
+        return nil
+    }
+
+    private func extractConfigurationFromRecoveredValue(_ value: ValueType) -> CellConfiguration? {
+        if let direct = decodeCellConfiguration(from: value) {
+            return direct
+        }
+        guard case let .object(object) = value else { return nil }
+        if let configuration = decodeCellConfiguration(from: object["configuration"]) {
+            return configuration
+        }
+        if let configuration = decodeCellConfiguration(from: object["goal"]) {
+            return configuration
+        }
+        if let configuration = decodeCellConfiguration(from: object["skeletonConfiguration"]) {
+            return configuration
+        }
+        return nil
+    }
+
+    private func decodeCellConfiguration(from value: ValueType?) -> CellConfiguration? {
+        guard let value else { return nil }
+        switch value {
+        case .cellConfiguration(let configuration):
+            return configuration
+        case .object(let object):
+            guard let data = try? JSONEncoder().encode(object) else { return nil }
+            return try? JSONDecoder().decode(CellConfiguration.self, from: data)
+        default:
+            return nil
+        }
+    }
+
+    private func allReferenceEndpointIdentities(in configuration: CellConfiguration) -> Set<String> {
+        guard let references = configuration.cellReferences else { return [] }
+        var endpoints: Set<String> = []
+        for reference in references {
+            collectEndpointIdentities(from: reference, into: &endpoints)
+        }
+        return endpoints
+    }
+
+    private func collectEndpointIdentities(from reference: CellReference, into endpoints: inout Set<String>) {
+        let endpoint = reference.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !endpoint.isEmpty {
+            endpoints.insert(endpointIdentity(endpoint))
+        }
+
+        for subscription in reference.subscriptions {
+            collectEndpointIdentities(from: subscription, into: &endpoints)
+        }
+
+        for keyValue in reference.setKeysAndValues {
+            guard let target = keyValue.target else { continue }
+            let endpoint = target.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !endpoint.isEmpty {
+                endpoints.insert(endpointIdentity(endpoint))
+            }
+        }
+    }
+
+    private func shouldPreferDiscoveredConfiguration(_ candidate: CellConfiguration, over existing: CellConfiguration) -> Bool {
+        if containsUnavailableIntelligenceBindings(existing) && !containsUnavailableIntelligenceBindings(candidate) {
+            return true
+        }
+        let candidateScore = configurationRichnessScore(candidate)
+        let existingScore = configurationRichnessScore(existing)
+        if candidateScore == existingScore {
+            let candidateDescriptionCount = candidate.description?.count ?? 0
+            let existingDescriptionCount = existing.description?.count ?? 0
+            return candidateDescriptionCount > existingDescriptionCount
+        }
+        return candidateScore > existingScore
+    }
+
+    private func configurationRichnessScore(_ configuration: CellConfiguration) -> Int {
+        var score = 0
+        if configuration.skeleton != nil {
+            score += 1000
+        }
+        score += allReferenceEndpointIdentities(in: configuration).count * 20
+        if let description = configuration.description, !description.isEmpty {
+            score += 4
+        }
+        if !configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            score += 1
+        }
+        return score
+    }
+
     private func appendUnique(_ incoming: [CellConfiguration], into target: inout [CellConfiguration]) {
         for configuration in incoming where !isEmitterConfiguration(configuration) {
             if let existingIndex = target.firstIndex(where: { $0.name.lowercased() == configuration.name.lowercased() }) {
@@ -971,14 +1337,7 @@ struct ContentView: View {
         return lowered.contains("/appleintelligence")
     }
 
-    private func curatedMenuSeedConfigurations() -> (
-        upperLeft: [CellConfiguration],
-        upperMid: [CellConfiguration],
-        upperRight: [CellConfiguration],
-        lowerLeft: [CellConfiguration],
-        lowerMid: [CellConfiguration],
-        lowerRight: [CellConfiguration]
-    ) {
+    private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
         func stagingEndpoint(_ cellName: String) -> String {
             "cell://\(Self.stagingHost)/\(cellName)"
         }
@@ -1003,6 +1362,13 @@ struct ContentView: View {
             label: "todo",
             title: "Todo",
             subtitle: "Personlig oppgaveliste fra CellScaffold."
+        )
+        let obsidian = referenceMenuConfiguration(
+            name: "Obsidian Vault",
+            endpoint: stagingEndpoint("Vault"),
+            label: "vault",
+            title: "Obsidian",
+            subtitle: "Vault-notater og knowledge graph fra CellScaffold."
         )
         let admin = referenceMenuConfiguration(
             name: "Admin Overview",
@@ -1056,11 +1422,11 @@ struct ContentView: View {
 
         return (
             upperLeft: [chat, conference, appleIntelligence],
-            upperMid: [chat, leadVault, appleIntelligence],
+            upperMid: [chat, obsidian, leadVault, appleIntelligence],
             upperRight: [admin, adminFundingQueue, conference],
-            lowerLeft: [entityScanner, leadVault, consentReceipt],
-            lowerMid: [todo, conference, leadVault],
-            lowerRight: [admin, todo, consentReceipt, perspective]
+            lowerLeft: [entityScanner, obsidian, leadVault, consentReceipt],
+            lowerMid: [todo, conference, obsidian, leadVault],
+            lowerRight: [admin, todo, obsidian, consentReceipt, perspective]
         )
     }
 

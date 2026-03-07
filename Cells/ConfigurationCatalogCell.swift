@@ -724,6 +724,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "matching.publish.note")
         agreementTemplate.addGrant("r---", for: "matching.runPrompt")
         agreementTemplate.addGrant("rw--", for: "matching.runPrompt")
+        agreementTemplate.addGrant("r---", for: "matching.runPromptInput")
+        agreementTemplate.addGrant("rw--", for: "matching.runPromptInput")
         agreementTemplate.addGrant("rw--", for: "matching.select")
         agreementTemplate.addGrant("rw--", for: "matching.selectIndex")
         agreementTemplate.addGrant("rw--", for: "matching.loadSelectedToPorthole")
@@ -998,7 +1000,23 @@ final class ConfigurationCatalogCell: GeneralCell {
         await registerSet(key: "matching.runPrompt", owner: owner) { [weak self] requester, payload in
             guard let self = self else { return .null }
             guard await self.validateAccess("rw--", at: "matching.runPrompt", for: requester) else { return .string("denied") }
-            return self.runMatchingPrompt(payload)
+            return await self.runMatchingPrompt(payload, requester: requester)
+        }
+
+        await registerGet(key: "matching.runPromptInput", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.runPromptInput", for: requester) else { return .string("denied") }
+            return .object([
+                "status": .string("ready"),
+                "promptText": .string(self.stateQueue.sync { self.matchingPromptText }),
+                "state": self.matchingStateValue()
+            ])
+        }
+
+        await registerSet(key: "matching.runPromptInput", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.runPromptInput", for: requester) else { return .string("denied") }
+            return await self.runMatchingPrompt(payload, requester: requester)
         }
 
         await registerSet(key: "matching.select", owner: owner) { [weak self] requester, payload in
@@ -3368,19 +3386,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     private func updateMatchingPromptText(_ payload: ValueType) -> ValueType {
-        let prompt: String?
-        switch payload {
-        case .string(let value):
-            prompt = value
-        case .object(let object):
-            if case let .string(value)? = object["prompt"] {
-                prompt = value
-            } else {
-                prompt = nil
-            }
-        default:
-            prompt = nil
-        }
+        let prompt = extractMatchingPrompt(from: payload)
         guard let prompt else { return .string("error: invalid prompt payload") }
         stateQueue.sync {
             matchingPromptText = prompt
@@ -3388,23 +3394,96 @@ final class ConfigurationCatalogCell: GeneralCell {
         return .string(prompt)
     }
 
-    private func runMatchingPrompt(_ payload: ValueType) -> ValueType {
-        let explicitPrompt: String?
+    private func extractMatchingPrompt(from payload: ValueType) -> String? {
+        let rawPrompt: String?
         switch payload {
         case .string(let prompt):
-            explicitPrompt = prompt
+            rawPrompt = prompt
         case .object(let object):
             if case let .string(prompt)? = object["prompt"] {
-                explicitPrompt = prompt
+                rawPrompt = prompt
+            } else if case let .string(promptText)? = object["promptText"] {
+                rawPrompt = promptText
+            } else if case let .string(value)? = object["value"] {
+                rawPrompt = value
+            } else if case let .string(text)? = object["text"] {
+                rawPrompt = text
             } else {
-                explicitPrompt = nil
+                rawPrompt = nil
             }
         default:
-            explicitPrompt = nil
+            rawPrompt = nil
+        }
+        guard let rawPrompt else { return nil }
+        let trimmed = rawPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func emitMatchingSuggestionsFlow(
+        prompt: String,
+        queryPurpose: String?,
+        queryInterests: [String],
+        suggestions: [MatchingSuggestion],
+        requester: Identity
+    ) {
+        var summaryPayload: Object = [
+            "prompt": .string(prompt),
+            "queryInterests": .list(queryInterests.map { .string($0) }),
+            "count": .integer(suggestions.count)
+        ]
+        summaryPayload["queryPurpose"] = queryPurpose.map { .string($0) } ?? .null
+        var summaryFlow = FlowElement(
+            title: "catalog.matching.suggestions.summary",
+            content: .object(summaryPayload),
+            properties: FlowElement.Properties(type: .event, contentType: .object)
+        )
+        summaryFlow.topic = "catalog.matching.suggestions.meta"
+        summaryFlow.origin = uuid
+        pushFlowElement(summaryFlow, requester: requester)
+
+        if suggestions.isEmpty {
+            var selectedFlow = FlowElement(
+                title: "catalog.matching.selectedSuggestion.empty",
+                content: .object(["count": .integer(0)]),
+                properties: FlowElement.Properties(type: .event, contentType: .object)
+            )
+            selectedFlow.topic = "catalog.matching.selectedSuggestion"
+            selectedFlow.origin = uuid
+            pushFlowElement(selectedFlow, requester: requester)
+            return
         }
 
+        for (index, suggestion) in suggestions.enumerated() {
+            var suggestionPayload = suggestion.asObject()
+            suggestionPayload["rank"] = .integer(index)
+            suggestionPayload["queryInterests"] = .list(queryInterests.map { .string($0) })
+            suggestionPayload["queryPurpose"] = queryPurpose.map { .string($0) } ?? .null
+
+            var suggestionFlow = FlowElement(
+                title: "catalog.matching.suggestion",
+                content: .object(suggestionPayload),
+                properties: FlowElement.Properties(type: .event, contentType: .object)
+            )
+            suggestionFlow.topic = "catalog.matching.suggestions"
+            suggestionFlow.origin = uuid
+            pushFlowElement(suggestionFlow, requester: requester)
+        }
+
+        var selectedFlow = FlowElement(
+            title: "catalog.matching.selectedSuggestion",
+            content: .object(suggestions[0].asObject()),
+            properties: FlowElement.Properties(type: .event, contentType: .object)
+        )
+        selectedFlow.topic = "catalog.matching.selectedSuggestion"
+        selectedFlow.origin = uuid
+        pushFlowElement(selectedFlow, requester: requester)
+    }
+
+    private func runMatchingPrompt(_ payload: ValueType, requester: Identity) async -> ValueType {
+        let explicitPrompt = extractMatchingPrompt(from: payload)
+
         let prompt = stateQueue.sync {
-            let resolved = explicitPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let resolved = explicitPrompt ?? ""
             if !resolved.isEmpty {
                 matchingPromptText = resolved
                 return resolved
@@ -3413,10 +3492,14 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         guard !prompt.isEmpty else {
-            return .object([
-                "status": .string("empty_prompt"),
-                "state": matchingStateValue()
-            ])
+            emitMatchingSuggestionsFlow(
+                prompt: "",
+                queryPurpose: nil,
+                queryInterests: [],
+                suggestions: [],
+                requester: requester
+            )
+            return .integer(0)
         }
 
         let query = deriveMatchingQuery(from: prompt)
@@ -3450,15 +3533,15 @@ final class ConfigurationCatalogCell: GeneralCell {
             matchingSelectedIndex = suggestions.isEmpty ? -1 : 0
         }
 
-        return .object([
-            "status": .string("ok"),
-            "prompt": .string(prompt),
-            "queryPurpose": query.purpose.map { .string($0) } ?? .null,
-            "queryInterests": .list(query.interests.map { .string($0) }),
-            "count": .integer(suggestions.count),
-            "state": matchingStateValue(),
-            "suggestions": matchingSuggestionsValue()
-        ])
+        emitMatchingSuggestionsFlow(
+            prompt: prompt,
+            queryPurpose: query.purpose,
+            queryInterests: query.interests,
+            suggestions: suggestions,
+            requester: requester
+        )
+
+        return .integer(suggestions.count)
     }
 
     private func selectMatchingSuggestion(_ payload: ValueType) -> ValueType {
@@ -4372,7 +4455,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     private static func catalogWorkbenchConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Catalog Workbench")
-        configuration.description = "Driftspanel for ConfigurationCatalog med synk, entries og events."
+        configuration.description = "Driftspanel for sync, query/match og add/edit/update/remove i ConfigurationCatalog."
 
         var catalogRef = CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")
         catalogRef.subscribeFeed = true
@@ -4385,7 +4468,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#0F172A"
         }
 
-        var subtitle = SkeletonText(text: "Synk fra scaffold og følg katalogens tilstand/endringer.")
+        var subtitle = SkeletonText(text: "Workbench for sync, query/facets, match og CRUD-operasjoner mot ConfigurationCatalog.")
         subtitle.modifiers = modifier {
             $0.foregroundColor = "#334155"
         }
@@ -4412,6 +4495,39 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#64748B"
         }
 
+        var matchInterestsButton = SkeletonButton(
+            keypath: "catalog.matchInterests",
+            label: "Match interesser",
+            payload: .object([
+                "interests": .list([.string("chat"), .string("privacy"), .string("conference")])
+            ])
+        )
+        matchInterestsButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#E2E8F0"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#64748B"
+        }
+
+        var matchCombinedButton = SkeletonButton(
+            keypath: "catalog.match",
+            label: "Match kombinert",
+            payload: .object([
+                "purpose": .string("kommunikasjon"),
+                "interests": .list([.string("chat"), .string("ai"), .string("privacy")]),
+                "menuSlot": .string("upperMid"),
+                "limit": .integer(6)
+            ])
+        )
+        matchCombinedButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#E2E8F0"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#64748B"
+        }
+
         var stateButton = SkeletonButton(keypath: "catalog.state", label: "Les State")
         stateButton.modifiers = modifier {
             $0.padding = 10
@@ -4419,6 +4535,165 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 10
             $0.borderWidth = 1
             $0.borderColor = "#D97706"
+        }
+
+        var queryButton = SkeletonButton(
+            keypath: "catalog.query",
+            label: "Kjor query",
+            payload: .object([
+                "queryText": .string("chat privacy conference"),
+                "purposeRefs": .list([.string("purpose://kommunikasjon-og-samarbeid")]),
+                "interestRefs": .list([.string("interest://chat"), .string("interest://privacy")]),
+                "constraints": .object([
+                    "maxResults": .integer(8),
+                    "maxSources": .integer(8),
+                    "latencyBudgetMs": .integer(450),
+                    "resourceBudget": .string("balanced"),
+                    "networkPolicy": .string("preferHealthyThenCached")
+                ]),
+                "context": .object([
+                    "editMode": .bool(false),
+                    "insertionIntent": .string("root")
+                ])
+            ])
+        )
+        queryButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#DBEAFE"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#2563EB"
+        }
+
+        var facetButton = SkeletonButton(
+            keypath: "catalog.facetCounts",
+            label: "Kjor facets",
+            payload: .object([
+                "facetKeys": .list([
+                    .string("categoryPath"),
+                    .string("sourceRef"),
+                    .string("supportedInsertionModes"),
+                    .string("interestRef")
+                ]),
+                "maxBucketsPerFacet": .integer(10),
+                "baseQuery": .object([
+                    "queryText": .string("chat"),
+                    "interestRefs": .list([.string("interest://chat")])
+                ])
+            ])
+        )
+        facetButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#DBEAFE"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#2563EB"
+        }
+
+        let workbenchDemoConfiguration = referenceCardConfiguration(
+            name: "Catalog Workbench Demo",
+            endpoint: "cell:///Perspective",
+            label: "perspective",
+            title: "Catalog Workbench Demo",
+            subtitle: "Lokal demo-entry brukt for add/edit/update/remove i workbench.",
+            chip: "DEMO",
+            borderColor: "#1D4ED8"
+        )
+
+        let demoAddPayload: Object = [
+            "id": .string("workbench-demo-entry"),
+            "sourceCellEndpoint": .string("cell:///Perspective"),
+            "sourceCellName": .string("PerspectiveCell"),
+            "purpose": .string("Workbench demo"),
+            "purposeDescription": .string("Demo purpose for catalog mutation tests."),
+            "interests": .list([.string("catalog"), .string("demo"), .string("workbench")]),
+            "menuSlots": .list([.string("upperMid"), .string("lowerMid")]),
+            "goal": .cellConfiguration(workbenchDemoConfiguration),
+            "configuration": .cellConfiguration(workbenchDemoConfiguration),
+            "displayName": .string("Catalog Workbench Demo Entry"),
+            "summary": .string("Opprettet fra Catalog Workbench."),
+            "categoryPath": .list([.string("workbench"), .string("demo")]),
+            "tags": .list([.string("catalog"), .string("mutation"), .string("demo")]),
+            "purposeRefs": .list([.string("purpose://workbench-demo")]),
+            "interestRefs": .list([.string("interest://catalog"), .string("interest://demo")]),
+            "supportedInsertionModes": .list([.string("root"), .string("component")]),
+            "supportedTargetKinds": .list([.string("menu"), .string("porthole")]),
+            "editable": .bool(true),
+            "flowDriven": .bool(false)
+        ]
+
+        let demoUpdatePayload: Object = [
+            "id": .string("workbench-demo-entry"),
+            "sourceCellEndpoint": .string("cell:///Perspective"),
+            "sourceCellName": .string("PerspectiveCell"),
+            "purpose": .string("Workbench demo"),
+            "purposeDescription": .string("Updated demo purpose from Catalog Workbench."),
+            "interests": .list([.string("catalog"), .string("demo"), .string("updated")]),
+            "menuSlots": .list([.string("upperMid"), .string("lowerRight")]),
+            "goal": .cellConfiguration(workbenchDemoConfiguration),
+            "configuration": .cellConfiguration(workbenchDemoConfiguration),
+            "displayName": .string("Catalog Workbench Demo Entry"),
+            "summary": .string("Oppdatert fra Catalog Workbench."),
+            "categoryPath": .list([.string("workbench"), .string("updated")]),
+            "tags": .list([.string("catalog"), .string("mutation"), .string("updated")]),
+            "purposeRefs": .list([.string("purpose://workbench-demo")]),
+            "interestRefs": .list([.string("interest://catalog"), .string("interest://updated")]),
+            "supportedInsertionModes": .list([.string("root"), .string("component")]),
+            "supportedTargetKinds": .list([.string("menu"), .string("porthole")]),
+            "editable": .bool(true),
+            "flowDriven": .bool(false)
+        ]
+
+        var addDemoButton = SkeletonButton(
+            keypath: "catalog.addConfiguration",
+            label: "Add demo entry",
+            payload: .object(demoAddPayload)
+        )
+        addDemoButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#DCFCE7"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#16A34A"
+        }
+
+        var editDemoButton = SkeletonButton(
+            keypath: "catalog.editConfiguration",
+            label: "Edit demo entry",
+            payload: .object(demoUpdatePayload)
+        )
+        editDemoButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#DCFCE7"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#16A34A"
+        }
+
+        var updateDemoButton = SkeletonButton(
+            keypath: "catalog.updateConfiguration",
+            label: "Update demo entry",
+            payload: .object(demoUpdatePayload)
+        )
+        updateDemoButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#DCFCE7"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#16A34A"
+        }
+
+        var removeDemoButton = SkeletonButton(
+            keypath: "catalog.removeConfiguration",
+            label: "Remove demo entry",
+            payload: .string("workbench-demo-entry")
+        )
+        removeDemoButton.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#FEE2E2"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#DC2626"
         }
 
         var entryPurpose = SkeletonText(keypath: "purpose")
@@ -4458,6 +4733,66 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#CBD5E1"
+        }
+
+        var queryResultName = SkeletonText(keypath: "displayName")
+        queryResultName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var queryResultSummary = SkeletonText(keypath: "summary")
+        queryResultSummary.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+
+        var queryResultScore = SkeletonText(keypath: "score")
+        queryResultScore.modifiers = modifier {
+            $0.foregroundColor = "#1D4ED8"
+            $0.fontSize = 12
+        }
+
+        var queryResultRoute = SkeletonText(keypath: "route")
+        queryResultRoute.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+        }
+
+        var queryResultRow = SkeletonVStack(elements: [
+            .Text(queryResultName),
+            .Text(queryResultSummary),
+            .Text(queryResultScore),
+            .Text(queryResultRoute)
+        ])
+        queryResultRow.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#BFDBFE"
+        }
+
+        var queryResultsList = SkeletonList(topic: nil, keypath: "catalog.query.state.results", flowElementSkeleton: queryResultRow)
+        queryResultsList.modifiers = modifier {
+            $0.padding = 4
+            $0.background = "#EFF6FF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#BFDBFE"
+        }
+
+        var queryResultCount = SkeletonText(keypath: "catalog.query.state.resultCount")
+        queryResultCount.modifiers = modifier {
+            $0.foregroundColor = "#1E40AF"
+            $0.fontWeight = "semibold"
+        }
+
+        var queryTotalMs = SkeletonText(keypath: "catalog.query.state.timing.totalMs")
+        queryTotalMs.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
+            $0.fontSize = 12
         }
 
         var eventOperation = SkeletonText(keypath: "content.operation")
@@ -4535,9 +4870,15 @@ final class ConfigurationCatalogCell: GeneralCell {
         var root = SkeletonVStack(elements: [
             .Text(title),
             .Text(subtitle),
-            .HStack(SkeletonHStack(elements: [.Button(syncButton), .Button(matchButton), .Button(stateButton)])),
+            .HStack(SkeletonHStack(elements: [.Button(syncButton), .Button(stateButton), .Button(queryButton)])),
+            .HStack(SkeletonHStack(elements: [.Button(facetButton), .Button(matchButton), .Button(matchInterestsButton)])),
+            .HStack(SkeletonHStack(elements: [.Button(matchCombinedButton), .Button(addDemoButton), .Button(editDemoButton)])),
+            .HStack(SkeletonHStack(elements: [.Button(updateDemoButton), .Button(removeDemoButton)])),
             .Text(SkeletonText(text: "Entries")),
             .List(entriesList),
+            .Text(SkeletonText(text: "Query state / resultater")),
+            .HStack(SkeletonHStack(elements: [.Text(queryResultCount), .Text(queryTotalMs)])),
+            .List(queryResultsList),
             .Text(SkeletonText(text: "Catalog events")),
             .List(catalogEvents),
             .Text(SkeletonText(text: "Error log")),
@@ -4557,7 +4898,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     private static func agreementTemplateWorkbenchConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Agreement Template Workbench")
-        configuration.description = "Preview/apply av agreementTemplate, signering og non-compliant policy."
+        configuration.description = "Preview/apply av agreementTemplate, access grant/revoke, signering og non-compliant policy."
 
         var catalogRef = CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")
         catalogRef.subscribeFeed = true
@@ -4570,7 +4911,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#0F172A"
         }
 
-        var subtitle = SkeletonText(text: "Capability-basert tilgang, preview/apply og signContract-flyt.")
+        var subtitle = SkeletonText(text: "Capability-basert tilgang med preview/apply, grant/revoke, current agreement og signContract-flyt.")
         subtitle.modifiers = modifier {
             $0.foregroundColor = "#334155"
         }
@@ -4690,6 +5031,176 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#7C3AED"
         }
 
+        var readCurrentAgreement = SkeletonButton(
+            keypath: "catalog.agreements.current",
+            label: "Les current agreement"
+        )
+        readCurrentAgreement.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#DBEAFE"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#2563EB"
+        }
+
+        var grantAccess = SkeletonButton(
+            keypath: "catalog.agreementTemplate.access.grant",
+            label: "Grant read/write",
+            payload: .object([
+                "identityKey": .string("delegate:agreement-workbench"),
+                "displayName": .string("Agreement Workbench Delegate"),
+                "capabilities": .list([
+                    .string("agreementTemplate.read"),
+                    .string("agreementTemplate.write")
+                ])
+            ])
+        )
+        grantAccess.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#DCFCE7"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#16A34A"
+        }
+
+        var revokeAccess = SkeletonButton(
+            keypath: "catalog.agreementTemplate.access.revoke",
+            label: "Revoke delegate",
+            payload: .object([
+                "identityKey": .string("delegate:agreement-workbench")
+            ])
+        )
+        revokeAccess.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#FEE2E2"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#DC2626"
+        }
+
+        var currentAgreementID = SkeletonText(keypath: "catalog.agreements.current.agreementId")
+        currentAgreementID.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var currentAgreementStatus = SkeletonText(keypath: "catalog.agreements.current.status")
+        currentAgreementStatus.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+        }
+
+        var currentAgreementVersion = SkeletonText(keypath: "catalog.agreements.current.version")
+        currentAgreementVersion.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
+            $0.fontSize = 12
+        }
+
+        var currentAgreementMode = SkeletonText(keypath: "catalog.agreements.current.rolloutMode")
+        currentAgreementMode.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 12
+        }
+
+        var currentAgreementRow = SkeletonVStack(elements: [
+            .Text(currentAgreementID),
+            .Text(currentAgreementStatus),
+            .Text(currentAgreementVersion),
+            .Text(currentAgreementMode)
+        ])
+        currentAgreementRow.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#EFF6FF"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#BFDBFE"
+        }
+
+        var delegationName = SkeletonText(keypath: "displayName")
+        delegationName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var delegationIdentity = SkeletonText(keypath: "identityKey")
+        delegationIdentity.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+        }
+
+        var delegationCapabilities = SkeletonText(keypath: "capabilities")
+        delegationCapabilities.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+
+        var delegationRow = SkeletonVStack(elements: [
+            .Text(delegationName),
+            .Text(delegationIdentity),
+            .Text(delegationCapabilities)
+        ])
+        delegationRow.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#E2E8F0"
+        }
+
+        var accessDelegations = SkeletonList(topic: nil, keypath: "catalog.agreementTemplate.state.accessDelegations", flowElementSkeleton: delegationRow)
+        accessDelegations.modifiers = modifier {
+            $0.padding = 4
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+        }
+
+        var reportReason = SkeletonText(keypath: "reason")
+        reportReason.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#7F1D1D"
+        }
+
+        var reportStatus = SkeletonText(keypath: "status")
+        reportStatus.modifiers = modifier {
+            $0.foregroundColor = "#B91C1C"
+        }
+
+        var reportPolicy = SkeletonText(keypath: "policy")
+        reportPolicy.modifiers = modifier {
+            $0.foregroundColor = "#7C2D12"
+            $0.fontSize = 12
+        }
+
+        var reportRow = SkeletonVStack(elements: [
+            .Text(reportReason),
+            .Text(reportStatus),
+            .Text(reportPolicy)
+        ])
+        reportRow.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#FEF2F2"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#FCA5A5"
+        }
+
+        var nonCompliantReports = SkeletonList(topic: nil, keypath: "catalog.agreementTemplate.state.nonCompliantReports", flowElementSkeleton: reportRow)
+        nonCompliantReports.modifiers = modifier {
+            $0.padding = 4
+            $0.background = "#FFF1F2"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#FECACA"
+        }
+
+        var openReportsCount = SkeletonText(keypath: "catalog.agreementTemplate.state.nonCompliantOpenCount")
+        openReportsCount.modifiers = modifier {
+            $0.foregroundColor = "#B91C1C"
+            $0.fontWeight = "semibold"
+        }
+
         var historyId = SkeletonText(keypath: "agreementId")
         historyId.modifiers = modifier {
             $0.fontWeight = "semibold"
@@ -4799,8 +5310,15 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Text(title),
             .Text(subtitle),
             .HStack(SkeletonHStack(elements: [.Button(readState), .Button(previewNew), .Button(applyNew)])),
-            .HStack(SkeletonHStack(elements: [.Button(applyReEvaluate), .Button(signCurrent)])),
-            .HStack(SkeletonHStack(elements: [.Button(reportNonCompliant), .Button(setPolicy)])),
+            .HStack(SkeletonHStack(elements: [.Button(applyReEvaluate), .Button(signCurrent), .Button(readCurrentAgreement)])),
+            .HStack(SkeletonHStack(elements: [.Button(grantAccess), .Button(revokeAccess)])),
+            .HStack(SkeletonHStack(elements: [.Button(reportNonCompliant), .Button(setPolicy), .Text(openReportsCount)])),
+            .Text(SkeletonText(text: "Current agreement")),
+            .VStack(currentAgreementRow),
+            .Text(SkeletonText(text: "Access delegations")),
+            .List(accessDelegations),
+            .Text(SkeletonText(text: "Non-compliant reports")),
+            .List(nonCompliantReports),
             .Text(SkeletonText(text: "Agreement history")),
             .List(agreementHistory),
             .Text(SkeletonText(text: "Audit log")),
@@ -4920,7 +5438,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         let promptField = SkeletonTextField(
             text: nil,
             sourceKeypath: "catalog.matching.promptText",
-            targetKeypath: "catalog.matching.promptText",
+            targetKeypath: "catalog.matching.runPromptInput",
             placeholder: "Skriv brukerprompt...",
             modifiers: inputModifier
         )
@@ -4933,7 +5451,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             modifiers: inputModifier
         )
 
-        var runMatching = SkeletonButton(keypath: "catalog.matching.runPrompt", label: "Kjor matching", payload: .string(""))
+        var runMatching = SkeletonButton(keypath: "catalog.matching.runPromptInput", label: "Kjor matching", payload: .string(""))
         runMatching.modifiers = primaryButton
 
         var clearMatching = SkeletonButton(keypath: "catalog.matching.clear", label: "Nullstill", payload: .bool(true))
@@ -5030,7 +5548,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#D3DEEB"
         }
 
-        var suggestionList = SkeletonList(topic: "catalog.matching.suggestions", keypath: "catalog.matching.suggestions", flowElementSkeleton: suggestionRow)
+        var suggestionList = SkeletonList(topic: "catalog.matching.suggestions", keypath: nil, flowElementSkeleton: suggestionRow)
+        suggestionList.filterTypes = ["event"]
         suggestionList.modifiers = listLarge
 
         var selectedName = SkeletonText(keypath: "name")
@@ -5081,7 +5600,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#C9D8EC"
         }
 
-        var selectedSuggestion = SkeletonList(topic: "catalog.matching.selectedSuggestion", keypath: "catalog.matching.selectedSuggestion", flowElementSkeleton: selectedRow)
+        var selectedSuggestion = SkeletonList(topic: "catalog.matching.selectedSuggestion", keypath: nil, flowElementSkeleton: selectedRow)
+        selectedSuggestion.filterTypes = ["event"]
         selectedSuggestion.modifiers = listMedium
 
         var purposeStatPurpose = SkeletonText(keypath: "purpose")
