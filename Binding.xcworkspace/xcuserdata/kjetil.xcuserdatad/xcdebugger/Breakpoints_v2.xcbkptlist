@@ -631,52 +631,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "BE5674AE-4D98-4CCE-AB07-3F69AB6B7E68"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../../../../Library/Developer/Xcode/DerivedData/Binding-bnzbjkzdqhtnnnfveahehmbivnwn/SourcePackages/checkouts/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/CellListView.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "24"
-            endingLineNumber = "24"
-            landmarkName = "resolvedUserInfoValue(from:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "BE5674AE-4D98-4CCE-AB07-3F69AB6B7E68 - b4af58a950af9fcd"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "CellApple.CellListView.resolvedUserInfoValue(from: CellBase.ValueType) -&gt; CellBase.ValueType"
-                  moduleName = "Binding.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-bnzbjkzdqhtnnnfveahehmbivnwn/SourcePackages/checkouts/CellProtocol/Sources/CellApple/Cells/Porthole/Utility%20Views/CellListView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "25"
-                  endingLineNumber = "25">
-               </Location>
-               <Location
-                  uuid = "BE5674AE-4D98-4CCE-AB07-3F69AB6B7E68 - b4af58a950af9fcd"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "CellApple.CellListView.resolvedUserInfoValue(from: CellBase.ValueType) -&gt; CellBase.ValueType"
-                  moduleName = "Binding.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-bnzbjkzdqhtnnnfveahehmbivnwn/SourcePackages/checkouts/CellProtocol/Sources/CellApple/Cells/Porthole/Utility%20Views/CellListView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "25"
-                  endingLineNumber = "25">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "ABD35DDF-4C93-452B-89B1-602371A82D4D"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -688,6 +642,22 @@
             endingLineNumber = "99"
             landmarkName = "body"
             landmarkType = "24">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "D78C4423-C878-4043-B49A-CABBB1E30FCD"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Cells/ConfigurationCatalogCell.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "3392"
+            endingLineNumber = "3392"
+            landmarkName = "updateMatchingPromptText(_:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
