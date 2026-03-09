@@ -1,5 +1,5 @@
 {
-  "originHash" : "fd3d0e91720cf803da9c2ad8ae78958688ca9fda0e144485268b4b8537e57ac8",
+  "originHash" : "cf9a400c03d04962bcf74660b53032eb5334d1223f59a4d3009b4c07d8b8be2d",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/async-kit.git",
       "state" : {
-        "revision" : "6f3615ccf2ac3c2ae0c8087d527546e9544a43dd",
-        "version" : "1.21.0"
+        "revision" : "6bbb83cbf9d886623a967a965c8fb1b73e6566f9",
+        "version" : "1.22.0"
       }
     },
     {
@@ -26,14 +26,6 @@
       "state" : {
         "revision" : "e07e00fa1fd435143a2dcf8b7eec9a7710b2fdfe",
         "version" : "5.7.0"
-      }
-    },
-    {
-      "identity" : "cellprotocol",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Digipomps/CellProtocol.git",
-      "state" : {
-        "revision" : "4fcf908afebbbc1dd1cb329f20843f5e43ae46e1"
       }
     },
     {
@@ -149,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
-        "revision" : "7b847a3b7008b2dc2f47ca3110d8c782fb2e5c7e",
-        "version" : "1.3.0"
+        "revision" : "8d9834a6189db730f6264db7556a7ffb751e99ee",
+        "version" : "1.4.0"
       }
     },
     {

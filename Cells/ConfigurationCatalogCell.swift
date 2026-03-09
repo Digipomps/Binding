@@ -4540,7 +4540,280 @@ final class ConfigurationCatalogCell: GeneralCell {
         templates.append(contentsOf: staticCatalogTemplates(from: userFacingRemoteCatalogDescriptors()))
         templates.append(contentsOf: staticCatalogTemplates(from: runtimeControlCatalogDescriptors()))
         templates.append(contentsOf: staticCatalogTemplates(from: remoteSupportCatalogDescriptors()))
-        return templates
+        let knownEndpoints = Set(templates.map { $0.sourceCellEndpoint.lowercased() })
+        templates.append(contentsOf: await resolverSnapshotCatalogTemplates(excluding: knownEndpoints))
+
+        var seenTemplateKeys = Set<String>()
+        return templates.filter { template in
+            let key = "\(template.sourceCellEndpoint.lowercased())|\(template.purpose.lowercased())"
+            return seenTemplateKeys.insert(key).inserted
+        }
+    }
+
+    private static func resolverSnapshotCatalogTemplates(excluding endpoints: Set<String>) async -> [ScaffoldPurposeTemplate] {
+        guard let resolver = CellBase.defaultCellResolver,
+              let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
+        else {
+            return []
+        }
+
+        let snapshot = await resolver.resolverRegistrySnapshot(requester: identity)
+        let resolvesByName = Dictionary(uniqueKeysWithValues: snapshot.resolves.map { ($0.name.lowercased(), $0) })
+        var coveredEndpoints = endpoints
+        var descriptors: [StaticCatalogDescriptor] = []
+
+        for resolve in snapshot.resolves {
+            let endpoint = "cell:///\(resolve.name)"
+            let endpointKey = endpoint.lowercased()
+            guard coveredEndpoints.insert(endpointKey).inserted else { continue }
+            descriptors.append(dynamicCatalogDescriptor(for: resolve))
+        }
+
+        let liveInstances = snapshot.sharedNamedInstances + snapshot.identityNamedInstances.filter { $0.identityUUID == identity.uuid }
+        for instance in liveInstances {
+            guard !looksLikeOpaqueRuntimeInstance(instance.name) else { continue }
+            let endpointKey = instance.endpoint.lowercased()
+            guard coveredEndpoints.insert(endpointKey).inserted else { continue }
+            let matchingResolve = resolvesByName[instance.name.lowercased()]
+            descriptors.append(dynamicCatalogDescriptor(for: instance, resolve: matchingResolve))
+        }
+
+        return staticCatalogTemplates(from: descriptors)
+    }
+
+    nonisolated private static func dynamicCatalogDescriptor(for resolve: CellResolverResolveSnapshot) -> StaticCatalogDescriptor {
+        let displayName = humanizedRuntimeName(resolve.name)
+        let semanticTokens = inferredRuntimeTokens(from: [resolve.name, resolve.cellType])
+        let categoryPath = inferredRuntimeCategoryPath(from: semanticTokens)
+        let tags = inferredRuntimeTags(from: semanticTokens, chip: runtimeChip(for: resolve.cellScope))
+        let interestTokens = inferredRuntimeInterests(from: semanticTokens)
+        let flowDriven = inferredRuntimeFlowDriven(from: semanticTokens)
+        let policyHints = [
+            "scope=\(resolve.cellScope.rawValue)",
+            "persistency=\(resolve.persistancy.rawValue)",
+            "identityDomain=\(resolve.identityDomain)"
+        ]
+
+        return StaticCatalogDescriptor(
+            sourceCellEndpoint: "cell:///\(resolve.name)",
+            sourceCellName: resolve.cellType,
+            displayName: displayName,
+            purpose: "Utforsk og bruk \(displayName)",
+            purposeDescription: "Generisk workbench for \(displayName) fra lokal resolver. Viser metadata, status/state og lar brukeren se hvilke kontrollflater som er eksponert.",
+            interests: interestTokens,
+            summary: "Automatisk generert workbench for \(displayName) (\(resolve.cellType)).",
+            categoryPath: categoryPath,
+            tags: tags,
+            chip: runtimeChip(for: resolve.cellScope),
+            borderColor: inferredRuntimeBorderColor(from: semanticTokens),
+            authRequired: resolve.identityDomain.lowercased() != "private",
+            policyHints: policyHints,
+            flowDriven: flowDriven,
+            editable: true,
+            recommendedContexts: inferredRuntimeContexts(from: semanticTokens),
+            ioGetKeys: ["status", "state"],
+            ioSetKeys: inferredRuntimeSetKeys(from: semanticTokens),
+            ioTopics: flowDriven ? inferredRuntimeTopics(from: semanticTokens) : nil,
+            supportedTargetKinds: ["tool", "porthole", "library"],
+            skipResolverLookup: true
+        )
+    }
+
+    nonisolated private static func dynamicCatalogDescriptor(
+        for instance: CellResolverNamedInstanceSnapshot,
+        resolve: CellResolverResolveSnapshot?
+    ) -> StaticCatalogDescriptor {
+        let sourceName = instance.name.hasPrefix("cell:///") ? endpointLabel(for: instance.endpoint) : instance.name
+        let displayName = "\(humanizedRuntimeName(sourceName)) Live"
+        let semanticTokens = inferredRuntimeTokens(from: [instance.name, resolve?.cellType ?? "live instance"])
+        let categoryPath = ["runtime", "instances"]
+        let tags = inferredRuntimeTags(from: semanticTokens, chip: "LIVE") + ["live-instance"]
+        let interestTokens = inferredRuntimeInterests(from: semanticTokens)
+
+        return StaticCatalogDescriptor(
+            sourceCellEndpoint: instance.endpoint,
+            sourceCellName: resolve?.cellType ?? "RuntimeInstance",
+            displayName: displayName,
+            purpose: "Inspeksjon av kjørende celleinstans",
+            purposeDescription: "Direkte workbench for en aktiv celleinstans. Nyttig for debugging, QA og runtime-inspeksjon.",
+            interests: interestTokens,
+            summary: "Automatisk generert live-instanskort for \(displayName).",
+            categoryPath: categoryPath,
+            tags: tags,
+            chip: "LIVE",
+            borderColor: inferredRuntimeBorderColor(from: semanticTokens),
+            authRequired: false,
+            policyHints: ["instance=\(instance.uuid.prefix(8))", "identityBound=\(instance.identityUUID != nil ? "true" : "false")"],
+            flowDriven: inferredRuntimeFlowDriven(from: semanticTokens),
+            editable: false,
+            recommendedContexts: ["runtime", "debugging", "inspection"],
+            ioGetKeys: ["status", "state"],
+            supportedTargetKinds: ["tool", "porthole", "library"],
+            skipResolverLookup: true
+        )
+    }
+
+    nonisolated private static func humanizedRuntimeName(_ raw: String) -> String {
+        let endpointTail: String = {
+            if raw.contains("://") {
+                return endpointLabel(for: raw)
+            }
+            return raw
+        }()
+        let separated = endpointTail.reduce(into: "") { partialResult, character in
+            if !partialResult.isEmpty,
+               character.isUppercase,
+               let previous = partialResult.last,
+               previous.isLowercase {
+                partialResult.append(" ")
+            }
+            if character == "_" || character == "-" || character == "/" {
+                partialResult.append(" ")
+            } else {
+                partialResult.append(character)
+            }
+        }
+        let compact = separated
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .joined(separator: " ")
+        return compact.isEmpty ? "Runtime Cell" : compact
+    }
+
+    nonisolated private static func inferredRuntimeTokens(from inputs: [String]) -> Set<String> {
+        let text = inputs.joined(separator: " ")
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+
+        var tokens = Set(
+            text
+                .split { !$0.isLetter && !$0.isNumber }
+                .map(String.init)
+                .filter { $0.count >= 3 }
+        )
+
+        if text.contains("scanner") || text.contains("radar") || text.contains("peer") || text.contains("nearby") {
+            tokens.formUnion(["scanner", "nearby", "identity"])
+        }
+        if text.contains("vault") || text.contains("note") || text.contains("obsidian") {
+            tokens.formUnion(["vault", "notes", "knowledge"])
+        }
+        if text.contains("trust") || text.contains("issuer") || text.contains("credential") || text.contains("attestation") {
+            tokens.formUnion(["trust", "credentials", "verification"])
+        }
+        if text.contains("chat") || text.contains("message") || text.contains("notification") {
+            tokens.formUnion(["communication", "messaging"])
+        }
+        if text.contains("taxonom") || text.contains("graph") || text.contains("resolver") || text.contains("commons") {
+            tokens.formUnion(["knowledge", "lookup", "infrastructure"])
+        }
+        if text.contains("shop") || text.contains("wallet") || text.contains("pricing") || text.contains("payment") {
+            tokens.formUnion(["commerce", "payments"])
+        }
+        if text.contains("identity") || text.contains("anchor") || text.contains("identities") {
+            tokens.formUnion(["identity", "records"])
+        }
+        if text.contains("event") || text.contains("emitter") || text.contains("watch") || text.contains("signal") {
+            tokens.formUnion(["events", "automation"])
+        }
+        return tokens
+    }
+
+    nonisolated private static func inferredRuntimeInterests(from tokens: Set<String>) -> [String] {
+        let preferred = [
+            "identity", "scanner", "nearby", "communication", "vault", "notes", "knowledge",
+            "trust", "credentials", "verification", "events", "automation", "commerce", "payments",
+            "infrastructure", "records", "lookup"
+        ]
+        let ordered = preferred.filter(tokens.contains)
+        return ordered.isEmpty ? ["runtime", "control"] : Array(ordered.prefix(5))
+    }
+
+    nonisolated private static func inferredRuntimeCategoryPath(from tokens: Set<String>) -> [String] {
+        if tokens.contains("scanner") || tokens.contains("nearby") { return ["identity", "nearby"] }
+        if tokens.contains("vault") || tokens.contains("notes") { return ["knowledge", "vault"] }
+        if tokens.contains("trust") || tokens.contains("credentials") { return ["trust", "credentials"] }
+        if tokens.contains("commerce") || tokens.contains("payments") { return ["commerce", "runtime"] }
+        if tokens.contains("events") || tokens.contains("automation") { return ["automation", "signals"] }
+        if tokens.contains("knowledge") || tokens.contains("lookup") { return ["knowledge", "runtime"] }
+        if tokens.contains("identity") || tokens.contains("records") { return ["identity", "runtime"] }
+        return ["runtime", "cells"]
+    }
+
+    nonisolated private static func inferredRuntimeContexts(from tokens: Set<String>) -> [String] {
+        if tokens.contains("scanner") || tokens.contains("nearby") { return ["conference", "pairing", "identity"] }
+        if tokens.contains("vault") || tokens.contains("notes") { return ["notes", "knowledge-work", "research"] }
+        if tokens.contains("trust") || tokens.contains("credentials") { return ["verification", "trust", "credentials"] }
+        if tokens.contains("events") || tokens.contains("automation") { return ["automation", "testing", "signals"] }
+        return ["runtime", "tool-exploration", "inspection"]
+    }
+
+    nonisolated private static func inferredRuntimeTags(from tokens: Set<String>, chip: String) -> [String] {
+        let ordered = inferredRuntimeInterests(from: tokens)
+        return Array(Set(ordered + ["runtime", chip.lowercased()])).sorted()
+    }
+
+    nonisolated private static func inferredRuntimeBorderColor(from tokens: Set<String>) -> String {
+        if tokens.contains("scanner") || tokens.contains("nearby") { return "#0891B2" }
+        if tokens.contains("vault") || tokens.contains("notes") { return "#9333EA" }
+        if tokens.contains("trust") || tokens.contains("credentials") { return "#B45309" }
+        if tokens.contains("commerce") || tokens.contains("payments") { return "#15803D" }
+        if tokens.contains("identity") || tokens.contains("records") { return "#0F766E" }
+        if tokens.contains("events") || tokens.contains("automation") { return "#475569" }
+        return "#64748B"
+    }
+
+    nonisolated private static func inferredRuntimeFlowDriven(from tokens: Set<String>) -> Bool {
+        tokens.contains("scanner") ||
+        tokens.contains("events") ||
+        tokens.contains("automation") ||
+        tokens.contains("communication") ||
+        tokens.contains("messaging")
+    }
+
+    nonisolated private static func inferredRuntimeSetKeys(from tokens: Set<String>) -> [String]? {
+        if tokens.contains("scanner") {
+            return ["start", "stop", "invite", "requestContact"]
+        }
+        if tokens.contains("events") || tokens.contains("automation") {
+            return ["start", "stop"]
+        }
+        if tokens.contains("trust") || tokens.contains("credentials") {
+            return ["seed", "evaluate", "remove"]
+        }
+        return nil
+    }
+
+    nonisolated private static func inferredRuntimeTopics(from tokens: Set<String>) -> [String]? {
+        if tokens.contains("scanner") {
+            return ["scanner.status", "scanner.found", "scanner.connected"]
+        }
+        if tokens.contains("events") || tokens.contains("automation") {
+            return ["event", "status"]
+        }
+        if tokens.contains("communication") || tokens.contains("messaging") {
+            return ["message", "notification"]
+        }
+        return nil
+    }
+
+    nonisolated private static func runtimeChip(for scope: CellUsageScope) -> String {
+        switch scope {
+        case .template:
+            return "TEMPLATE"
+        case .identityUnique:
+            return "LOCAL"
+        case .scaffoldUnique:
+            return "LOCAL"
+        }
+    }
+
+    nonisolated private static func looksLikeOpaqueRuntimeInstance(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        let candidate = trimmed.replacingOccurrences(of: "cell:///", with: "")
+        let hexish = candidate.replacingOccurrences(of: "-", with: "")
+        return candidate.count >= 32 && hexish.allSatisfy { $0.isHexDigit }
     }
 
     nonisolated private static func userFacingRemoteCatalogDescriptors() -> [StaticCatalogDescriptor] {
@@ -5091,7 +5364,12 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated private static func staticCatalogTemplate(from descriptor: StaticCatalogDescriptor) -> ScaffoldPurposeTemplate {
         let label = endpointLabel(for: descriptor.sourceCellEndpoint)
-        var configuration = referenceCardConfiguration(
+        var configuration = specializedWorkbenchConfiguration(for: descriptor) ?? descriptorWorkbenchConfiguration(
+            for: descriptor,
+            label: label
+        )
+        if configuration.skeleton == nil {
+            configuration = referenceCardConfiguration(
             name: descriptor.displayName,
             endpoint: descriptor.sourceCellEndpoint,
             label: label,
@@ -5100,7 +5378,10 @@ final class ConfigurationCatalogCell: GeneralCell {
             chip: descriptor.chip,
             borderColor: descriptor.borderColor,
             startKey: descriptor.startKey
-        )
+            )
+        }
+        configuration.name = descriptor.displayName
+        configuration.description = descriptor.summary
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: descriptor.sourceCellEndpoint,
             sourceCellName: descriptor.sourceCellName,
@@ -5140,6 +5421,29 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    nonisolated private static func specializedWorkbenchConfiguration(for descriptor: StaticCatalogDescriptor) -> CellConfiguration? {
+        switch descriptor.sourceCellEndpoint.lowercased() {
+        case "cell:///perspective":
+            return perspectiveWorkbenchConfiguration()
+        case "cell:///entityanchor":
+            return entityAnchorWorkbenchConfiguration()
+        case "cell:///vault":
+            return vaultWorkbenchConfiguration()
+        case "cell:///trustedissuers":
+            return trustedIssuersWorkbenchConfiguration()
+        case "cell:///commonsresolver":
+            return commonsResolverWorkbenchConfiguration()
+        case "cell:///commonstaxonomy":
+            return commonsTaxonomyWorkbenchConfiguration()
+        case "cell:///eventemitter":
+            return signalWorkbenchConfiguration()
+        case "cell:///appleintelligence":
+            return appleIntelligenceLandingConfiguration()
+        default:
+            return nil
+        }
+    }
+
     nonisolated private static func endpointLabel(for endpoint: String) -> String {
         let raw: String = {
             guard let url = URL(string: endpoint) else { return "cell" }
@@ -5163,6 +5467,250 @@ final class ConfigurationCatalogCell: GeneralCell {
             .map(String.init)
             .filter { !$0.isEmpty }
             .joined(separator: "-")
+    }
+
+    nonisolated private static func descriptorWorkbenchConfiguration(
+        for descriptor: StaticCatalogDescriptor,
+        label: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: descriptor.displayName)
+        configuration.description = descriptor.summary
+
+        var reference = CellReference(endpoint: descriptor.sourceCellEndpoint, label: label)
+        if let startKey = descriptor.startKey {
+            reference.addKeyAndValue(KeyValue(key: startKey))
+        }
+        configuration.addReference(reference)
+
+        let isRemote = descriptor.sourceCellEndpoint.lowercased().hasPrefix("cell://")
+
+        let shellCard = modifier {
+            $0.padding = 10
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+        }
+        let heroCard = modifier {
+            $0.padding = 14
+            $0.background = isRemote ? "#EFF6FF" : "#F0FDF4"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = descriptor.borderColor
+            $0.shadowRadius = 6
+            $0.shadowY = 2
+            $0.shadowColor = "#0F172A18"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D7E0F0"
+        }
+        let chipModifier = modifier {
+            $0.padding = 6
+            $0.background = "#E2E8F0"
+            $0.cornerRadius = 999
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+            $0.fontSize = 11
+            $0.fontWeight = "semibold"
+        }
+        let primaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#DBEAFE"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#60A5FA"
+        }
+
+        func infoText(_ text: String, color: String = "#334155", size: Double = 12) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.foregroundColor = color
+                $0.fontSize = size
+                $0.lineLimit = 3
+            }
+            return label
+        }
+
+        func sectionTitle(_ text: String) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.foregroundColor = "#0F172A"
+                $0.fontWeight = "semibold"
+                $0.fontSize = 12
+            }
+            return label
+        }
+
+        let tagLine = (descriptor.tags.isEmpty ? ["none"] : descriptor.tags).joined(separator: ", ")
+        let interestLine = (descriptor.interests.isEmpty ? ["none"] : descriptor.interests).joined(separator: ", ")
+        let contextLine = (descriptor.recommendedContexts?.isEmpty == false ? descriptor.recommendedContexts! : ["general"]).joined(separator: ", ")
+        let getLine = (descriptor.ioGetKeys?.isEmpty == false ? descriptor.ioGetKeys! : ["No explicit get keys registered"]).joined(separator: ", ")
+        let setLine = (descriptor.ioSetKeys?.isEmpty == false ? descriptor.ioSetKeys! : ["No explicit set keys registered"]).joined(separator: ", ")
+        let topicLine = (descriptor.ioTopics?.isEmpty == false ? descriptor.ioTopics! : ["No explicit flow topics registered"]).joined(separator: ", ")
+        let policyLine = (descriptor.policyHints?.isEmpty == false ? descriptor.policyHints! : ["Private policy requirements are not declared in catalog metadata"]).joined(separator: " | ")
+        let availabilityLine = isRemote
+            ? "Dette er en remote/staging-konfigurasjon. Den er oppdagbar i katalogen hele tiden, men full runtime-funksjon avhenger av at remote cell er oppe."
+            : "Dette er en lokal runtime-konfigurasjon. Den skal virke uten staging sa lenge Binding registrerer cellen lokalt."
+        let isFlowDriven = descriptor.flowDriven ?? false
+        let requiresAuth = descriptor.authRequired ?? false
+        let behaviorLine = isFlowDriven
+            ? "Flow-driven: denne cellen forventes aa sende events/topics under bruk."
+            : "State/control-driven: denne cellen brukes hovedsakelig via direkte get/set."
+
+        var titleText = SkeletonText(text: descriptor.displayName)
+        titleText.modifiers = modifier {
+            $0.fontStyle = "title3"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var purposeText = SkeletonText(text: descriptor.purpose)
+        purposeText.modifiers = modifier {
+            $0.foregroundColor = "#1D4ED8"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+
+        var descriptionText = SkeletonText(text: descriptor.purposeDescription)
+        descriptionText.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+
+        var endpointText = SkeletonText(text: descriptor.sourceCellEndpoint)
+        endpointText.modifiers = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+
+        var sourceCellText = SkeletonText(text: "Source cell: \(descriptor.sourceCellName)")
+        sourceCellText.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+        }
+
+        var chipText = SkeletonText(text: descriptor.chip)
+        chipText.modifiers = chipModifier
+
+        var runtimeChip = SkeletonText(text: isRemote ? "REMOTE" : "LOCAL")
+        runtimeChip.modifiers = chipModifier
+
+        var flowChip = SkeletonText(text: isFlowDriven ? "FLOW" : "CONTROL")
+        flowChip.modifiers = chipModifier
+
+        var authChip = SkeletonText(text: requiresAuth ? "AUTH" : "OPEN")
+        authChip.modifiers = chipModifier
+
+        var launchButton = SkeletonButton(
+            keypath: descriptor.startKey.map { "\(label).\($0)" } ?? "",
+            label: descriptor.startKey == nil ? "Launch handled by load" : "Run \(descriptor.startKey!)",
+            payload: .bool(true)
+        )
+        launchButton.modifiers = primaryButton
+
+        var hero = SkeletonVStack(elements: [
+            .HStack(SkeletonHStack(elements: [.VStack(SkeletonVStack(elements: [.Text(titleText), .Text(purposeText)])), .Spacer(SkeletonSpacer()), .Text(chipText)])),
+            .Text(descriptionText),
+            .Text(sourceCellText),
+            .Text(endpointText),
+            .HStack(SkeletonHStack(elements: [.Text(runtimeChip), .Text(flowChip), .Text(authChip)]))
+        ])
+        if descriptor.startKey != nil {
+            hero.elements.append(SkeletonElement.HStack(SkeletonHStack(elements: [.Button(launchButton)])))
+        }
+        hero.modifiers = heroCard
+
+        var useCaseSection = SkeletonSection(
+            header: .Text(sectionTitle("Hva dette verktøyet løser")),
+            content: [
+                .Text(infoText(descriptor.summary)),
+                .Text(infoText("Interesser: \(interestLine)")),
+                .Text(infoText("Tags: \(tagLine)")),
+                .Text(infoText("Contexts: \(contextLine)"))
+            ]
+        )
+        useCaseSection.modifiers = sectionCard
+
+        var ioSection = SkeletonSection(
+            header: .Text(sectionTitle("Kontroll-lag / IO-signatur")),
+            content: [
+                .Text(infoText("Get: \(getLine)")),
+                .Text(infoText("Set: \(setLine)")),
+                .Text(infoText("Topics: \(topicLine)")),
+                .Text(infoText(behaviorLine))
+            ]
+        )
+        ioSection.modifiers = sectionCard
+
+        var runtimeStatusTitle = SkeletonText(text: "Status")
+        runtimeStatusTitle.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+        }
+        var runtimeStatus = SkeletonText(url: URL(string: "\(descriptor.sourceCellEndpoint)/status")!)
+        runtimeStatus.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 4
+        }
+
+        var runtimeStateTitle = SkeletonText(text: "State")
+        runtimeStateTitle.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+        }
+        var runtimeState = SkeletonText(url: URL(string: "\(descriptor.sourceCellEndpoint)/state")!)
+        runtimeState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 8
+        }
+
+        var runtimeSection = SkeletonSection(
+            header: .Text(sectionTitle("Direkte runtime-inspeksjon")),
+            content: [
+                .Text(infoText("Denne seksjonen leser direkte fra `status` og `state` hvis cellen eksponerer disse nøklene.", color: "#475569")),
+                .Text(runtimeStatusTitle),
+                .Text(runtimeStatus),
+                .Text(runtimeStateTitle),
+                .Text(runtimeState)
+            ]
+        )
+        runtimeSection.modifiers = sectionCard
+
+        var availabilitySection = SkeletonSection(
+            header: .Text(sectionTitle("Tilgjengelighet og policy")),
+            content: [
+                .Text(infoText(availabilityLine)),
+                .Text(infoText(policyLine, color: "#92400E"))
+            ]
+        )
+        availabilitySection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(useCaseSection),
+            .Section(ioSection),
+            .Section(runtimeSection),
+            .Section(availabilitySection)
+        ])
+        root.modifiers = shellCard
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = isRemote ? "#F8FBFF" : "#F8FAFC"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
     }
 
     private static func entityScannerTemplate(
@@ -5655,12 +6203,12 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         if includePerspectiveSection {
-            var activePurposeList = SkeletonList(keypath: "perspective.perspective.state.activePurposes")
+            var activePurposeList = SkeletonList(keypath: "cell:///Perspective/activePurpose.purposes")
             var activePurposeRow = SkeletonElementList()
             activePurposeRow.append(.Text(SkeletonText(text: "Purpose")))
-            activePurposeRow.append(.Text(SkeletonText(keypath: "name")))
-            activePurposeRow.append(.Text(SkeletonText(keypath: "weight")))
-            activePurposeRow.append(.Text(SkeletonText(keypath: "interests")))
+            activePurposeRow.append(.Text(SkeletonText(keypath: "purposeName")))
+            activePurposeRow.append(.Text(SkeletonText(keypath: "purposeWeight")))
+            activePurposeRow.append(.Text(SkeletonText(keypath: "portablePurposeRef")))
             activePurposeList.flowElementSkeleton = SkeletonVStack(elements: activePurposeRow)
             activePurposeList.modifiers = listCard
 
@@ -5733,7 +6281,1074 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
-    private static func referenceCardConfiguration(
+    nonisolated private static func perspectiveWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Perspective Context")
+        configuration.description = "Kontrollflate for lokale formaal, interesser og kontekst som styrer menyer og semantisk matching."
+        configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#F0FDFA"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#99F6E4"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#CCFBF1"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#14B8A6"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#CFE9E5"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D8E7EA"
+            $0.height = 220
+        }
+        let primaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#CCFBF1"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#14B8A6"
+        }
+        let secondaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#E2E8F0"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#94A3B8"
+        }
+
+        var title = SkeletonText(text: "Perspective Context")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Lokal purpose-state. Denne flaten styrer baade convenience-menyene og hva Apple Intelligence boer anbefale videre.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#134E4A"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var purposeCount = SkeletonText(url: URL(string: "cell:///Perspective/perspective.state.activePurposeCount")!)
+        purposeCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 18
+        }
+        var interestCount = SkeletonText(url: URL(string: "cell:///Perspective/perspective.state.activeInterestCount")!)
+        interestCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#115E59"
+            $0.fontSize = 18
+        }
+
+        var addConnections = SkeletonButton(
+            keypath: "addPurpose",
+            label: "Nye relasjoner",
+            url: "cell:///Perspective",
+            payload: .object([
+                "name": .string("Make new connections"),
+                "description": .string("Finn mennesker med relevante interesser og bygg nye relasjoner.")
+            ])
+        )
+        addConnections.modifiers = primaryButton
+
+        var addLearning = SkeletonButton(
+            keypath: "addPurpose",
+            label: "Laere noe nytt",
+            url: "cell:///Perspective",
+            payload: .object([
+                "name": .string("Learn something useful"),
+                "description": .string("Prioriter laering, faglig utbytte og relevante samtaler.")
+            ])
+        )
+        addLearning.modifiers = primaryButton
+
+        var addTrust = SkeletonButton(
+            keypath: "addPurpose",
+            label: "Bygge tillit",
+            url: "cell:///Perspective",
+            payload: .object([
+                "name": .string("Build trusted credential relationships"),
+                "description": .string("Utforsk identitet, proof chains og trusted issuers.")
+            ])
+        )
+        addTrust.modifiers = secondaryButton
+
+        var addNotes = SkeletonButton(
+            keypath: "addPurpose",
+            label: "Fange innsikt",
+            url: "cell:///Perspective",
+            payload: .object([
+                "name": .string("Capture ideas and notes"),
+                "description": .string("Hold orden paa notater, oppfoelging og kunnskap.")
+            ])
+        )
+        addNotes.modifiers = secondaryButton
+
+        var activePurposeHeader = SkeletonText(text: "Aktive formaal")
+        activePurposeHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var purposeName = SkeletonText(keypath: "purposeName")
+        purposeName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var purposeWeight = SkeletonText(keypath: "purposeWeight")
+        purposeWeight.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 12
+        }
+        var purposeRef = SkeletonText(keypath: "portablePurposeRef")
+        purposeRef.modifiers = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var purposeRow = SkeletonVStack(elements: [
+            .Text(purposeName),
+            .Text(purposeWeight),
+            .Text(purposeRef)
+        ])
+        purposeRow.modifiers = sectionCard
+
+        var activePurposeList = SkeletonList(keypath: "cell:///Perspective/activePurpose.purposes", flowElementSkeleton: purposeRow)
+        activePurposeList.modifiers = listCard
+
+        var stateHeader = SkeletonText(text: "Perspektiv-state (JSON)")
+        stateHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var rawState = SkeletonText(url: URL(string: "cell:///Perspective/perspective.state")!)
+        rawState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 10
+        }
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .HStack(SkeletonHStack(elements: [
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Active purposes")), .Text(purposeCount)])),
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Active interests")), .Text(interestCount)]))
+            ])),
+            .HStack(SkeletonHStack(elements: [.Button(addConnections), .Button(addLearning)])),
+            .HStack(SkeletonHStack(elements: [.Button(addTrust), .Button(addNotes)]))
+        ])
+        hero.modifiers = heroCard
+
+        var summarySection = SkeletonSection(
+            header: .Text(activePurposeHeader),
+            content: [.List(activePurposeList)]
+        )
+        summarySection.modifiers = sectionCard
+
+        var stateSection = SkeletonSection(
+            header: .Text(stateHeader),
+            content: [.Text(rawState)]
+        )
+        stateSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(summarySection),
+            .Section(stateSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#ECFDF5"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func entityAnchorWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Entity Anchor Records")
+        configuration.description = "Inspeksjon av lokal entitet, relasjoner og proofs som andre verktoy lagrer i EntityAnchor."
+        configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#EEF2FF"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#818CF8"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D7E0F0"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D7E0F0"
+            $0.height = 180
+        }
+        let primaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#E0E7FF"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#818CF8"
+        }
+        let warningButton = modifier {
+            $0.padding = 8
+            $0.background = "#FEF3C7"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#F59E0B"
+        }
+
+        var title = SkeletonText(text: "Entity Anchor Records")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Les person, relasjoner og proofs direkte. Entity Scanner og andre identitetsflyter legger sporene sine her.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#3730A3"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+
+        var reloadStorage = SkeletonButton(keypath: "reloadStorage", label: "Reload storage", url: "cell:///EntityAnchor")
+        reloadStorage.modifiers = primaryButton
+        var clearEncounters = SkeletonButton(
+            keypath: "proofs.encounters",
+            label: "Clear encounter proofs",
+            url: "cell:///EntityAnchor",
+            payload: .object([:])
+        )
+        clearEncounters.modifiers = warningButton
+
+        func jsonText(_ label: String, urlString: String) -> SkeletonSection {
+            var header = SkeletonText(text: label)
+            header.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = "#0F172A"
+            }
+            var body = SkeletonText(url: URL(string: urlString)!)
+            body.modifiers = modifier {
+                $0.foregroundColor = "#334155"
+                $0.fontSize = 11
+                $0.lineLimit = 8
+            }
+            var section = SkeletonSection(header: .Text(header), content: [.Text(body)])
+            section.modifiers = sectionCard
+            return section
+        }
+
+        var eventTitle = SkeletonText(keypath: "title")
+        eventTitle.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var eventKeypath = SkeletonText(keypath: "content.keypath")
+        eventKeypath.modifiers = modifier {
+            $0.foregroundColor = "#4F46E5"
+            $0.fontSize = 11
+        }
+        var eventPayload = SkeletonText(keypath: "content.data")
+        eventPayload.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var eventRow = SkeletonVStack(elements: [.Text(eventTitle), .Text(eventKeypath), .Text(eventPayload)])
+        eventRow.modifiers = sectionCard
+        var eventList = SkeletonList(topic: "entity", keypath: nil, flowElementSkeleton: eventRow)
+        eventList.filterTypes = ["content"]
+        eventList.modifiers = listCard
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .HStack(SkeletonHStack(elements: [.Button(reloadStorage), .Button(clearEncounters)]))
+        ])
+        hero.modifiers = heroCard
+
+        var eventsHeader = SkeletonText(text: "Entity updates")
+        eventsHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var eventsSection = SkeletonSection(header: .Text(eventsHeader), content: [.List(eventList)])
+        eventsSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(jsonText("Person", urlString: "cell:///EntityAnchor/person")),
+            .Section(jsonText("Relations.identities", urlString: "cell:///EntityAnchor/relations.identities")),
+            .Section(jsonText("Relations.issuers", urlString: "cell:///EntityAnchor/relations.issuers")),
+            .Section(jsonText("Proofs.encounters", urlString: "cell:///EntityAnchor/proofs.encounters")),
+            .Section(eventsSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#F8FAFC"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func vaultWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Vault Control Surface")
+        configuration.description = "Lokal kontrollflate for notater, linkede notater og state i VaultCell."
+        configuration.addReference(CellReference(endpoint: "cell:///Vault", label: "vault"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#FAF5FF"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#D8B4FE"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#F5D0FE"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#C084FC"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#E9D5FF"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#E9D5FF"
+            $0.height = 180
+        }
+        let primaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#FAE8FF"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#C084FC"
+        }
+
+        let noteSeedA: Object = [
+            "id": .string("conference-capture"),
+            "title": .string("Conference Capture"),
+            "content": .string("Notater fra konferansegulvet, folk aa folge opp og ting aa lese senere."),
+            "tags": .list([.string("conference"), .string("notes")]),
+            "createdAtEpochMs": .integer(0),
+            "updatedAtEpochMs": .integer(0)
+        ]
+        let noteSeedB: Object = [
+            "id": .string("follow-up-map"),
+            "title": .string("Follow-up Map"),
+            "content": .string("Neste steg, avtaler og lenker mellom notater som maa holdes samlet."),
+            "tags": .list([.string("followup"), .string("networking")]),
+            "createdAtEpochMs": .integer(0),
+            "updatedAtEpochMs": .integer(0)
+        ]
+
+        var title = SkeletonText(text: "Vault Control Surface")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Seed lokale notater, koble dem sammen og les vault-state uten aa vaere avhengig av staging.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#6B21A8"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var noteCount = SkeletonText(url: URL(string: "cell:///Vault/vault.state.note_count")!)
+        noteCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#7E22CE"
+            $0.fontSize = 18
+        }
+        var linkCount = SkeletonText(url: URL(string: "cell:///Vault/vault.state.link_count")!)
+        linkCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#A21CAF"
+            $0.fontSize = 18
+        }
+
+        var seedCapture = SkeletonButton(keypath: "vault.note.create", label: "Seed capture note", url: "cell:///Vault", payload: .object(noteSeedA))
+        seedCapture.modifiers = primaryButton
+        var seedFollowup = SkeletonButton(keypath: "vault.note.create", label: "Seed follow-up note", url: "cell:///Vault", payload: .object(noteSeedB))
+        seedFollowup.modifiers = primaryButton
+        var linkNotes = SkeletonButton(
+            keypath: "vault.link.add",
+            label: "Link notes",
+            url: "cell:///Vault",
+            payload: .object([
+                "fromNoteID": .string("conference-capture"),
+                "toNoteID": .string("follow-up-map"),
+                "relationship": .string("followup"),
+                "createdAtEpochMs": .integer(0)
+            ])
+        )
+        linkNotes.modifiers = primaryButton
+
+        var operationText = SkeletonText(keypath: "operation")
+        operationText.modifiers = modifier {
+            $0.foregroundColor = "#581C87"
+            $0.fontSize = 12
+        }
+        var operationsList = SkeletonList(keypath: "cell:///Vault/vault.state.operations", flowElementSkeleton: SkeletonVStack(elements: [.Text(operationText)]))
+        operationsList.modifiers = listCard
+
+        var rawState = SkeletonText(url: URL(string: "cell:///Vault/vault.state")!)
+        rawState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 10
+        }
+
+        var operationsHeader = SkeletonText(text: "Supported operations")
+        operationsHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var stateHeader = SkeletonText(text: "Vault state (JSON)")
+        stateHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .HStack(SkeletonHStack(elements: [
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Notes")), .Text(noteCount)])),
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Links")), .Text(linkCount)]))
+            ])),
+            .HStack(SkeletonHStack(elements: [.Button(seedCapture), .Button(seedFollowup)])),
+            .HStack(SkeletonHStack(elements: [.Button(linkNotes)]))
+        ])
+        hero.modifiers = heroCard
+
+        var operationsSection = SkeletonSection(header: .Text(operationsHeader), content: [.List(operationsList)])
+        operationsSection.modifiers = sectionCard
+        var stateSection = SkeletonSection(header: .Text(stateHeader), content: [.Text(rawState)])
+        stateSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(operationsSection),
+            .Section(stateSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#FAF5FF"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func trustedIssuersWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Trusted Issuers Registry")
+        configuration.description = "Policy-, issuer- og attestation-workbench for trusted issuer-flyten."
+        configuration.addReference(CellReference(endpoint: "cell:///TrustedIssuers", label: "trusted"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#FFFBEB"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#FDE68A"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#FEF3C7"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#F59E0B"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#FDE68A"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#FDE68A"
+            $0.height = 200
+        }
+        let primaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#FEF3C7"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#F59E0B"
+        }
+        let secondaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+        }
+
+        let seededContextId = "conference.access"
+        let seededIssuerId = "did:key:conference-host"
+
+        var title = SkeletonText(text: "Trusted Issuers Registry")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Vedlikehold policy, issuers og attestations for credential-verifikasjon. Denne flaten er lokal og idempotent for seed-data.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#92400E"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var policyCount = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state.policyCount")!)
+        policyCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#B45309"
+            $0.fontSize = 18
+        }
+        var issuerCount = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state.issuerCount")!)
+        issuerCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#92400E"
+            $0.fontSize = 18
+        }
+        var attestationCount = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state.attestationCount")!)
+        attestationCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#78350F"
+            $0.fontSize = 18
+        }
+
+        var seedPolicy = SkeletonButton(
+            keypath: "trustedIssuers.policy.upsert",
+            label: "Seed policy",
+            url: "cell:///TrustedIssuers",
+            payload: .object([
+                "contextId": .string(seededContextId),
+                "displayName": .string("Conference Access"),
+                "threshold": .float(0.55),
+                "requireRevocationCheck": .bool(false),
+                "requireSubjectBinding": .bool(false),
+                "requireIndependentSources": .integer(0),
+                "maxGraphDepth": .integer(2),
+                "acceptedIssuerKinds": .list([.string("institution")]),
+                "acceptedDidMethods": .list([.string("did:key")]),
+                "timeDecayHalfLifeDays": .float(180),
+                "status": .string("active")
+            ])
+        )
+        seedPolicy.modifiers = primaryButton
+
+        var seedIssuer = SkeletonButton(
+            keypath: "trustedIssuers.issuer.upsert",
+            label: "Seed issuer",
+            url: "cell:///TrustedIssuers",
+            payload: .object([
+                "issuerId": .string(seededIssuerId),
+                "displayName": .string("Conference Host"),
+                "issuerKind": .string("institution"),
+                "baseWeight": .float(0.82),
+                "contexts": .list([.string(seededContextId)]),
+                "metadata": .object(["role": .string("organizer")]),
+                "status": .string("active")
+            ])
+        )
+        seedIssuer.modifiers = primaryButton
+
+        var seedAttestation = SkeletonButton(
+            keypath: "trustedIssuers.attestation.publish",
+            label: "Publish attestation",
+            url: "cell:///TrustedIssuers",
+            payload: .object([
+                "attestationId": .string("seed-conference-endorsement"),
+                "subjectIssuerId": .string(seededIssuerId),
+                "contextId": .string(seededContextId),
+                "statement": .string("trusted_for_context"),
+                "weight": .float(0.35),
+                "scope": .string("public"),
+                "issuer": .string("did:key:peer-endorser")
+            ])
+        )
+        seedAttestation.modifiers = primaryButton
+
+        var removeIssuer = SkeletonButton(
+            keypath: "trustedIssuers.issuer.delete",
+            label: "Remove issuer",
+            url: "cell:///TrustedIssuers",
+            payload: .object(["issuerId": .string(seededIssuerId)])
+        )
+        removeIssuer.modifiers = secondaryButton
+
+        var removePolicy = SkeletonButton(
+            keypath: "trustedIssuers.policy.delete",
+            label: "Remove policy",
+            url: "cell:///TrustedIssuers",
+            payload: .object(["contextId": .string(seededContextId)])
+        )
+        removePolicy.modifiers = secondaryButton
+
+        func makeListRow(_ fields: [String]) -> SkeletonVStack {
+            let elements = fields.map { field -> SkeletonElement in
+                var text = SkeletonText(keypath: field)
+                text.modifiers = modifier {
+                    $0.foregroundColor = field == fields.first ? "#0F172A" : "#475569"
+                    $0.fontWeight = field == fields.first ? "semibold" : "regular"
+                    $0.fontSize = field == fields.first ? 13 : 11
+                    $0.lineLimit = 2
+                }
+                return .Text(text)
+            }
+            var row = SkeletonVStack(elements: elements)
+            row.modifiers = sectionCard
+            return row
+        }
+
+        var policiesList = SkeletonList(keypath: "cell:///TrustedIssuers/trustedIssuers.policies", flowElementSkeleton: makeListRow(["displayName", "contextId", "threshold", "status"]))
+        policiesList.modifiers = listCard
+
+        var issuersList = SkeletonList(keypath: "cell:///TrustedIssuers/trustedIssuers.issuers", flowElementSkeleton: makeListRow(["displayName", "issuerId", "issuerKind", "baseWeight", "status"]))
+        issuersList.modifiers = listCard
+
+        var attestationList = SkeletonList(keypath: "cell:///TrustedIssuers/trustedIssuers.attestations", flowElementSkeleton: makeListRow(["subjectIssuerId", "contextId", "issuer", "weight", "status"]))
+        attestationList.modifiers = listCard
+
+        var evaluationList = SkeletonList(keypath: "cell:///TrustedIssuers/trustedIssuers.evaluations.current", flowElementSkeleton: makeListRow(["issuerId", "contextId", "decision", "score", "reasons"]))
+        evaluationList.modifiers = listCard
+
+        var rawStateHeader = SkeletonText(text: "Registry state (JSON)")
+        rawStateHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var rawState = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state")!)
+        rawState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 8
+        }
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .HStack(SkeletonHStack(elements: [
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Policies")), .Text(policyCount)])),
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Issuers")), .Text(issuerCount)])),
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Attestations")), .Text(attestationCount)]))
+            ])),
+            .HStack(SkeletonHStack(elements: [.Button(seedPolicy), .Button(seedIssuer), .Button(seedAttestation)])),
+            .HStack(SkeletonHStack(elements: [.Button(removeIssuer), .Button(removePolicy)]))
+        ])
+        hero.modifiers = heroCard
+
+        func listSection(_ title: String, list: SkeletonList) -> SkeletonSection {
+            var header = SkeletonText(text: title)
+            header.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = "#0F172A"
+            }
+            var section = SkeletonSection(header: .Text(header), content: [.List(list)])
+            section.modifiers = sectionCard
+            return section
+        }
+
+        var rawStateSection = SkeletonSection(header: .Text(rawStateHeader), content: [.Text(rawState)])
+        rawStateSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(listSection("Policies", list: policiesList)),
+            .Section(listSection("Issuers", list: issuersList)),
+            .Section(listSection("Attestations", list: attestationList)),
+            .Section(listSection("Current evaluations", list: evaluationList)),
+            .Section(rawStateSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#FFFBEB"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func commonsResolverWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Commons Resolver Control")
+        configuration.description = "Inspeksjon av commons-resolver, sample keypath requests og registrerte operations."
+        configuration.addReference(CellReference(endpoint: "cell:///CommonsResolver", label: "commons"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#EFF6FF"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#60A5FA"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D7E0F0"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D7E0F0"
+            $0.height = 190
+        }
+
+        var title = SkeletonText(text: "Commons Resolver Control")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Se commons-root, registrerte keypaths og dokumenterte sample-requests. Dette er en lokal inspeksjonsflate for resolver-laget.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#1D4ED8"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var serviceLoaded = SkeletonText(url: URL(string: "cell:///CommonsResolver/commons.status.service_loaded")!)
+        serviceLoaded.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#1D4ED8"
+            $0.fontSize = 18
+        }
+        var keypathCount = SkeletonText(url: URL(string: "cell:///CommonsResolver/commons.status.registered_keypaths_count")!)
+        keypathCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 18
+        }
+        var routeCount = SkeletonText(url: URL(string: "cell:///CommonsResolver/commons.status.registered_routes_count")!)
+        routeCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 18
+        }
+        var rootPath = SkeletonText(url: URL(string: "cell:///CommonsResolver/commons.status.commons_root_path")!)
+        rootPath.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var rawState = SkeletonText(url: URL(string: "cell:///CommonsResolver/commons.status")!)
+        rawState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 8
+        }
+
+        var operationRowText = SkeletonText(keypath: "operation")
+        operationRowText.modifiers = modifier {
+            $0.foregroundColor = "#1E3A8A"
+            $0.fontSize = 12
+        }
+        var operationList = SkeletonList(
+            keypath: "cell:///CommonsResolver/commons.status.operations",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(operationRowText)])
+        )
+        operationList.modifiers = listCard
+
+        var sampleEntity = SkeletonText(keypath: "entity_id")
+        sampleEntity.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+            $0.fontSize = 12
+        }
+        var samplePath = SkeletonText(keypath: "path")
+        samplePath.modifiers = modifier {
+            $0.foregroundColor = "#1D4ED8"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var sampleRole = SkeletonText(keypath: "context.role")
+        sampleRole.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+        }
+        var sampleRow = SkeletonVStack(elements: [.Text(sampleEntity), .Text(samplePath), .Text(sampleRole)])
+        sampleRow.modifiers = sectionCard
+        var sampleList = SkeletonList(
+            keypath: "cell:///CommonsResolver/commons.samples.keypathRequests.items",
+            flowElementSkeleton: sampleRow
+        )
+        sampleList.modifiers = listCard
+
+        var operationsHeader = SkeletonText(text: "Resolver operations")
+        operationsHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var samplesHeader = SkeletonText(text: "Sample keypath requests")
+        samplesHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var stateHeader = SkeletonText(text: "Status (JSON)")
+        stateHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .Text(rootPath),
+            .HStack(SkeletonHStack(elements: [
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Service loaded")), .Text(serviceLoaded)])),
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Keypaths")), .Text(keypathCount)])),
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Routes")), .Text(routeCount)]))
+            ]))
+        ])
+        hero.modifiers = heroCard
+
+        var operationsSection = SkeletonSection(header: .Text(operationsHeader), content: [.List(operationList)])
+        operationsSection.modifiers = sectionCard
+        var samplesSection = SkeletonSection(header: .Text(samplesHeader), content: [.List(sampleList)])
+        samplesSection.modifiers = sectionCard
+        var stateSection = SkeletonSection(header: .Text(stateHeader), content: [.Text(rawState)])
+        stateSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(operationsSection),
+            .Section(samplesSection),
+            .Section(stateSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#F8FAFC"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func commonsTaxonomyWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Commons Taxonomy Browser")
+        configuration.description = "Inspeksjon av taxonomy-resolver, sample term requests og namespace guidance."
+        configuration.addReference(CellReference(endpoint: "cell:///CommonsTaxonomy", label: "taxonomy"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#F5F3FF"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#A78BFA"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#DDD6FE"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#DDD6FE"
+            $0.height = 200
+        }
+
+        var title = SkeletonText(text: "Commons Taxonomy Browser")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Se taxonomy-pakker, sample term requests og guidance/validation payloads for commons-taxonomien.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#6D28D9"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var serviceLoaded = SkeletonText(url: URL(string: "cell:///CommonsTaxonomy/taxonomy.status.service_loaded")!)
+        serviceLoaded.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#6D28D9"
+            $0.fontSize = 18
+        }
+        var packageCount = SkeletonText(url: URL(string: "cell:///CommonsTaxonomy/taxonomy.status.taxonomy_packages")!)
+        packageCount.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#7C3AED"
+            $0.fontSize = 18
+        }
+        var rootPath = SkeletonText(url: URL(string: "cell:///CommonsTaxonomy/taxonomy.status.commons_root_path")!)
+        rootPath.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var rawState = SkeletonText(url: URL(string: "cell:///CommonsTaxonomy/taxonomy.status")!)
+        rawState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 8
+        }
+
+        var operationRowText = SkeletonText(keypath: "operation")
+        operationRowText.modifiers = modifier {
+            $0.foregroundColor = "#6D28D9"
+            $0.fontSize = 12
+        }
+        var operationList = SkeletonList(
+            keypath: "cell:///CommonsTaxonomy/taxonomy.status.operations",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(operationRowText)])
+        )
+        operationList.modifiers = listCard
+
+        var sampleTerm = SkeletonText(keypath: "term_id")
+        sampleTerm.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+            $0.fontSize = 12
+        }
+        var sampleNamespace = SkeletonText(keypath: "namespace")
+        sampleNamespace.modifiers = modifier {
+            $0.foregroundColor = "#6D28D9"
+            $0.fontSize = 11
+        }
+        var sampleMode = SkeletonText(keypath: "mode")
+        sampleMode.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+        }
+        var sampleLang = SkeletonText(keypath: "lang")
+        sampleLang.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+        }
+        var sampleRow = SkeletonVStack(elements: [.Text(sampleTerm), .Text(sampleNamespace), .Text(sampleMode), .Text(sampleLang)])
+        sampleRow.modifiers = sectionCard
+        var sampleList = SkeletonList(
+            keypath: "cell:///CommonsTaxonomy/taxonomy.samples.termRequests.items",
+            flowElementSkeleton: sampleRow
+        )
+        sampleList.modifiers = listCard
+
+        var operationsHeader = SkeletonText(text: "Taxonomy operations")
+        operationsHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var samplesHeader = SkeletonText(text: "Sample term/guidance requests")
+        samplesHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var stateHeader = SkeletonText(text: "Status (JSON)")
+        stateHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .Text(rootPath),
+            .HStack(SkeletonHStack(elements: [
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Service loaded")), .Text(serviceLoaded)])),
+                .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Packages")), .Text(packageCount)]))
+            ]))
+        ])
+        hero.modifiers = heroCard
+
+        var operationsSection = SkeletonSection(header: .Text(operationsHeader), content: [.List(operationList)])
+        operationsSection.modifiers = sectionCard
+        var samplesSection = SkeletonSection(header: .Text(samplesHeader), content: [.List(sampleList)])
+        samplesSection.modifiers = sectionCard
+        var stateSection = SkeletonSection(header: .Text(stateHeader), content: [.Text(rawState)])
+        stateSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(operationsSection),
+            .Section(samplesSection),
+            .Section(stateSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#F5F3FF"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func referenceCardConfiguration(
         name: String,
         endpoint: String,
         label: String,
@@ -5799,7 +7414,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
-    private static func signalWorkbenchConfiguration() -> CellConfiguration {
+    nonisolated private static func signalWorkbenchConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Signal Workbench")
         configuration.description = "Kontroller lokale signaler og se innkommende flow i samme visning."
 
@@ -5888,7 +7503,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
-    private static func catalogWorkbenchConfiguration() -> CellConfiguration {
+    nonisolated private static func catalogWorkbenchConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Catalog Workbench")
         configuration.description = "Driftspanel for sync, query/match og add/edit/update/remove i ConfigurationCatalog."
 
@@ -6331,7 +7946,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
-    private static func agreementTemplateWorkbenchConfiguration() -> CellConfiguration {
+    nonisolated private static func agreementTemplateWorkbenchConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Agreement Template Workbench")
         configuration.description = "Preview/apply av agreementTemplate, access grant/revoke, signering og non-compliant policy."
 
@@ -6773,9 +8388,9 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
-    private static func appleIntelligenceLandingConfiguration() -> CellConfiguration {
+    nonisolated static func appleIntelligenceLandingConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Apple Intelligence Purpose Matcher")
-        configuration.description = "Prompt-til-match med tydelig forklaring, skeleton preview, lasting i Porthole, laering og publisering av formaal."
+        configuration.description = "Semantisk explorer over ConfigurationCatalog med matching, skeleton preview, lasting i Porthole, laering og publisering av formaal."
 
         var catalogReference = CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")
         catalogReference.subscribeFeed = false
@@ -6863,7 +8478,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#0F172A"
         }
 
-        var intro = SkeletonText(text: "Semantisk lag over kontroll-konfigurasjonene. Utforsk alle kjente CellConfigurations, match paa formaal/interesser og last valgt kontrollflate direkte i Porthole.")
+        var intro = SkeletonText(text: "Semantisk lag over kontroll-konfigurasjonene. Utforsk alle kjente CellConfigurations, match paa formaal/interesser og last valgt kontrollflate direkte i Porthole. Denne workbenchen fungerer direkte over ConfigurationCatalog.")
         intro.modifiers = modifier {
             $0.foregroundColor = "#334155"
             $0.fontSize = 12
@@ -6875,6 +8490,27 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#0F766E"
             $0.fontSize = 12
             $0.fontWeight = "semibold"
+        }
+
+        var matchingSuggestionCount = SkeletonText(keypath: "catalog.matching.state.suggestionCount")
+        matchingSuggestionCount.modifiers = modifier {
+            $0.foregroundColor = "#1D4ED8"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+        }
+
+        var matchingBookmarkCount = SkeletonText(keypath: "catalog.matching.state.bookmarkCount")
+        matchingBookmarkCount.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+        }
+
+        var matchingSelectedName = SkeletonText(keypath: "catalog.matching.state.selectedName")
+        matchingSelectedName.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 2
         }
 
         let promptField = SkeletonTextField(
@@ -7226,6 +8862,20 @@ final class ConfigurationCatalogCell: GeneralCell {
         var bookmarkList = SkeletonList(topic: "catalog.matching.bookmarks", keypath: "catalog.matching.bookmarks", flowElementSkeleton: suggestionRow)
         bookmarkList.modifiers = listSmall
 
+        var semanticStateHeader = SkeletonText(text: "Semantisk status (fra katalogen)")
+        semanticStateHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+            $0.fontSize = 12
+        }
+
+        var semanticState = SkeletonText(url: URL(string: "cell:///ConfigurationCatalog/matching.state")!)
+        semanticState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 6
+        }
+
         var loadSelected = SkeletonButton(keypath: "catalog.matching.loadSelectedToPorthole", label: "Load valgt i Porthole", payload: .bool(true))
         loadSelected.modifiers = primaryButton
 
@@ -7305,6 +8955,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontSize = 12
         }
 
+        var sectionAI = SkeletonText(text: "Semantisk kontroll-lag")
+        sectionAI.modifiers = modifier {
+            $0.foregroundColor = "#0F172A"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+        }
+
         var sectionSelected = SkeletonText(text: "Valgt kontrollkonfigurasjon (kan lastes i Porthole)")
         sectionSelected.modifiers = modifier {
             $0.foregroundColor = "#0F172A"
@@ -7351,6 +9008,12 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Text(title),
             .Text(intro),
             .Text(catalogScope),
+            .Text(sectionAI),
+            .Text(matchingSuggestionCount),
+            .Text(matchingBookmarkCount),
+            .Text(matchingSelectedName),
+            .Text(semanticStateHeader),
+            .Text(semanticState),
             .TextField(promptField),
             .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(browseAll)])),
             .HStack(SkeletonHStack(elements: [.Button(syncCandidates), .Button(clearMatching)])),
@@ -7403,7 +9066,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
-    private static func modifier(_ configure: (inout SkeletonModifiers) -> Void) -> SkeletonModifiers {
+    nonisolated private static func modifier(_ configure: (inout SkeletonModifiers) -> Void) -> SkeletonModifiers {
         var modifiers = SkeletonModifiers()
         configure(&modifiers)
         return modifiers

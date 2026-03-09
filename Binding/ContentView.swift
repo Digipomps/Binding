@@ -85,6 +85,8 @@ struct ContentView: View {
     @State private var presentingFullLibrary: Bool = false
     @State private var loadErrorMessage: String?
     @State private var copyStatusMessage: String?
+    @State private var catalogMenuPool: [CellConfiguration] = []
+    @State private var lastPerspectiveMenuSignature: String = ""
 
     private static let defaultRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.defaultRemoteWebSocketPath,
@@ -256,6 +258,9 @@ struct ContentView: View {
             }
             editorState.captureViewerSnapshot(viewModel.currentSkeleton)
         }
+        .task {
+            await monitorPerspectiveDrivenMenus()
+        }
         .environmentObject(legacyPortholeViewModel)
     }
 
@@ -310,7 +315,6 @@ struct ContentView: View {
 
     private func menuItems(from configs: [CellConfiguration]) -> [MenuItem] {
         return configs
-            .filter { !containsUnavailableIntelligenceBindings($0) }
             .map { config in
             // Choose an icon heuristically; you can expand this mapping later
             let icon = config.skeletonIconName
@@ -401,12 +405,41 @@ struct ContentView: View {
         appendUnique(enrichedCurated.lowerMid, into: &mergedLowerMid)
         appendUnique(enrichedCurated.lowerRight, into: &mergedLowerRight)
 
-        viewModel.upperLeftMenu = mergedUpperLeft
-        viewModel.upperMidMenu = mergedUpperMid
-        viewModel.upperRightMenu = mergedUpperRight
-        viewModel.lowerLeftMenu = mergedLowerLeft
-        viewModel.lowerMidMenu = mergedLowerMid
-        viewModel.lowerRightMenu = mergedLowerRight
+        let menuPool = buildConvenienceMenuPool(
+            merged: (
+                upperLeft: mergedUpperLeft,
+                upperMid: mergedUpperMid,
+                upperRight: mergedUpperRight,
+                lowerLeft: mergedLowerLeft,
+                lowerMid: mergedLowerMid,
+                lowerRight: mergedLowerRight
+            ),
+            discoveredByEndpoint: discoveredByEndpoint,
+            curated: enrichedCurated
+        )
+
+        catalogMenuPool = menuPool
+        let profile = await fetchPerspectiveMenuProfile()
+        lastPerspectiveMenuSignature = profile.signature
+        applyPerspectiveDrivenMenus(from: menuPool, fallback: enrichedCurated, profile: profile)
+    }
+
+    @MainActor
+    private func monitorPerspectiveDrivenMenus() async {
+        while !Task.isCancelled {
+            let profile = await fetchPerspectiveMenuProfile()
+            if profile.signature != lastPerspectiveMenuSignature {
+                lastPerspectiveMenuSignature = profile.signature
+                let fallback = curatedMenuSeedConfigurations()
+                applyPerspectiveDrivenMenus(from: catalogMenuPool, fallback: fallback, profile: profile)
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: 12_000_000_000)
+            } catch {
+                return
+            }
+        }
     }
 
     private func configuredCatalogSources() -> [CatalogSource] {
@@ -845,6 +878,386 @@ struct ContentView: View {
         }
     }
 
+    private enum ConvenienceMenuSlot: String, CaseIterable {
+        case upperLeft
+        case upperMid
+        case upperRight
+        case lowerLeft
+        case lowerMid
+        case lowerRight
+    }
+
+    private struct PerspectiveMenuProfile {
+        var activePurposeCount: Int
+        var keywordWeights: [String: Double]
+
+        static let empty = PerspectiveMenuProfile(activePurposeCount: 0, keywordWeights: [:])
+
+        var signature: String {
+            let sortedPairs = keywordWeights
+                .sorted(by: { lhs, rhs in
+                    if lhs.key == rhs.key {
+                        return lhs.value < rhs.value
+                    }
+                    return lhs.key < rhs.key
+                })
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: "|")
+            return "\(activePurposeCount)::\(sortedPairs)"
+        }
+    }
+
+    private func fetchPerspectiveMenuProfile() async -> PerspectiveMenuProfile {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true),
+              let perspective = try? await resolver.cellAtEndpoint(endpoint: "cell:///Perspective", requester: identity) as? Meddle
+        else {
+            return .empty
+        }
+
+        let activePurposeValue = try? await perspective.get(keypath: "activePurpose", requester: identity)
+        let activeInterestValue = try? await perspective.set(
+            keypath: "perspective.query.interestsFromActivePurposes",
+            value: .object([
+                "limit": .integer(24),
+                "referenceMode": .string("both")
+            ]),
+            requester: identity
+        )
+
+        return perspectiveMenuProfile(activePurposes: activePurposeValue, activeInterests: activeInterestValue)
+    }
+
+    private func perspectiveMenuProfile(activePurposes: ValueType?, activeInterests: ValueType?) -> PerspectiveMenuProfile {
+        var keywordWeights: [String: Double] = [:]
+        var activePurposeCount = 0
+
+        if case let .object(object)? = activePurposes {
+            if case let .integer(count)? = object["count"] {
+                activePurposeCount = count
+            }
+            if case let .list(purposes)? = object["purposes"] {
+                for value in purposes {
+                    guard case let .object(purposeObject) = value else { continue }
+                    let weight = numericValue(from: purposeObject["purposeWeight"]) ?? 1.0
+                    addWeightedKeywords(from: stringValue(from: purposeObject["purposeName"]), weight: weight, into: &keywordWeights)
+                    addWeightedKeywords(from: stringValue(from: purposeObject["purposeRef"]), weight: weight * 0.6, into: &keywordWeights)
+                    addWeightedKeywords(from: stringValue(from: purposeObject["portablePurposeRef"]), weight: weight * 0.6, into: &keywordWeights)
+
+                    if case let .list(interests)? = purposeObject["interests"] {
+                        for interest in interests {
+                            guard case let .object(interestObject) = interest else { continue }
+                            let interestWeight = numericValue(from: interestObject["interestWeight"]) ?? 1.0
+                            addWeightedKeywords(
+                                from: stringValue(from: interestObject["interestName"]),
+                                weight: weight * interestWeight,
+                                into: &keywordWeights
+                            )
+                            addWeightedKeywords(
+                                from: stringValue(from: interestObject["portableInterestRef"]),
+                                weight: weight * interestWeight * 0.6,
+                                into: &keywordWeights
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if case let .object(object)? = activeInterests,
+           case let .list(interests)? = object["interests"] {
+            for value in interests {
+                guard case let .object(interestObject) = value else { continue }
+                let weight = numericValue(from: interestObject["interestWeight"]) ?? 1.0
+                addWeightedKeywords(from: stringValue(from: interestObject["interestName"]), weight: weight, into: &keywordWeights)
+                addWeightedKeywords(from: stringValue(from: interestObject["interestRef"]), weight: weight * 0.6, into: &keywordWeights)
+                addWeightedKeywords(from: stringValue(from: interestObject["portableInterestRef"]), weight: weight * 0.6, into: &keywordWeights)
+            }
+        }
+
+        return PerspectiveMenuProfile(activePurposeCount: activePurposeCount, keywordWeights: keywordWeights)
+    }
+
+    private func addWeightedKeywords(from raw: String?, weight: Double, into dictionary: inout [String: Double]) {
+        guard let raw, raw.isEmpty == false, weight > 0 else { return }
+        for token in semanticTokens(from: raw) {
+            dictionary[token, default: 0] += weight
+        }
+    }
+
+    private func semanticTokens(from raw: String) -> [String] {
+        let normalized = raw
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+        let components = normalized.split { !$0.isLetter && !$0.isNumber }
+        var tokens = components.map(String.init).filter { $0.count >= 3 }
+
+        for token in components {
+            let current = String(token)
+            if current.contains("conference") || current.contains("event") {
+                tokens.append("conference")
+                tokens.append("event")
+            }
+            if current.contains("chat") || current.contains("message") || current.contains("kommun") {
+                tokens.append("chat")
+                tokens.append("communication")
+            }
+            if current.contains("scan") || current.contains("nearby") || current.contains("peer") || current.contains("meet") {
+                tokens.append("scanner")
+                tokens.append("nearby")
+            }
+            if current.contains("trust") || current.contains("issuer") || current.contains("credential") || current.contains("verify") {
+                tokens.append("trust")
+                tokens.append("credentials")
+            }
+            if current.contains("vault") || current.contains("note") || current.contains("knowledge") {
+                tokens.append("vault")
+                tokens.append("notes")
+            }
+            if current.contains("todo") || current.contains("task") || current.contains("plan") {
+                tokens.append("todo")
+                tokens.append("tasks")
+            }
+        }
+
+        return Array(Set(tokens))
+    }
+
+    private func stringValue(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case .string(let string):
+            return string
+        case .integer(let integer):
+            return String(integer)
+        case .float(let double):
+            return String(double)
+        case .number(let number):
+            return String(number)
+        case .bool(let bool):
+            return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private func numericValue(from value: ValueType?) -> Double? {
+        guard let value else { return nil }
+        switch value {
+        case .float(let double):
+            return double
+        case .integer(let integer):
+            return Double(integer)
+        case .number(let number):
+            return Double(number)
+        case .string(let string):
+            return Double(string)
+        default:
+            return nil
+        }
+    }
+
+    private func buildConvenienceMenuPool(
+        merged: MenuConfigurationBuckets,
+        discoveredByEndpoint: [String: CellConfiguration],
+        curated: MenuConfigurationBuckets
+    ) -> [CellConfiguration] {
+        let allConfigurations =
+            merged.upperLeft + merged.upperMid + merged.upperRight +
+            merged.lowerLeft + merged.lowerMid + merged.lowerRight +
+            Array(discoveredByEndpoint.values) +
+            curated.upperLeft + curated.upperMid + curated.upperRight +
+            curated.lowerLeft + curated.lowerMid + curated.lowerRight
+
+        var deduplicatedByName: [String: CellConfiguration] = [:]
+        for configuration in allConfigurations where !isEmitterConfiguration(configuration) {
+            let key = configuration.name.lowercased()
+            if let existing = deduplicatedByName[key] {
+                deduplicatedByName[key] = shouldPreferDiscoveredConfiguration(configuration, over: existing) ? configuration : existing
+            } else {
+                deduplicatedByName[key] = configuration
+            }
+        }
+        return Array(deduplicatedByName.values)
+    }
+
+    @MainActor
+    private func applyPerspectiveDrivenMenus(
+        from pool: [CellConfiguration],
+        fallback: MenuConfigurationBuckets,
+        profile: PerspectiveMenuProfile
+    ) {
+        let slots = ConvenienceMenuSlot.allCases
+        var selectedNames = Set<String>()
+        var selections: [ConvenienceMenuSlot: CellConfiguration] = [:]
+
+        for slot in slots {
+            let picked = selectConvenienceConfiguration(
+                for: slot,
+                from: pool,
+                fallback: fallbackConfiguration(for: slot, in: fallback),
+                selectedNames: selectedNames,
+                profile: profile
+            )
+            if let picked {
+                selections[slot] = picked
+                selectedNames.insert(picked.name.lowercased())
+            }
+        }
+
+        viewModel.upperLeftMenu = selections[.upperLeft].map { [$0] } ?? fallback.upperLeft
+        viewModel.upperMidMenu = selections[.upperMid].map { [$0] } ?? fallback.upperMid
+        viewModel.upperRightMenu = selections[.upperRight].map { [$0] } ?? fallback.upperRight
+        viewModel.lowerLeftMenu = selections[.lowerLeft].map { [$0] } ?? fallback.lowerLeft
+        viewModel.lowerMidMenu = selections[.lowerMid].map { [$0] } ?? fallback.lowerMid
+        viewModel.lowerRightMenu = selections[.lowerRight].map { [$0] } ?? fallback.lowerRight
+    }
+
+    private func selectConvenienceConfiguration(
+        for slot: ConvenienceMenuSlot,
+        from pool: [CellConfiguration],
+        fallback: CellConfiguration?,
+        selectedNames: Set<String>,
+        profile: PerspectiveMenuProfile
+    ) -> CellConfiguration? {
+        let candidateNames = convenienceCandidateNames(for: slot)
+        let filtered = pool.filter { configuration in
+            let name = configuration.name.lowercased()
+            guard candidateNames.contains(name) else { return false }
+            return !selectedNames.contains(name)
+        }
+
+        if let best = filtered.max(by: { lhs, rhs in
+            convenienceMenuScore(for: lhs, slot: slot, profile: profile) < convenienceMenuScore(for: rhs, slot: slot, profile: profile)
+        }) {
+            return best
+        }
+
+        guard let fallback else { return nil }
+        return selectedNames.contains(fallback.name.lowercased()) ? nil : fallback
+    }
+
+    private func convenienceMenuScore(
+        for configuration: CellConfiguration,
+        slot: ConvenienceMenuSlot,
+        profile: PerspectiveMenuProfile
+    ) -> Double {
+        let orderedNames = convenienceCandidateNames(for: slot)
+        let loweredName = configuration.name.lowercased()
+        let base = Double(max(0, 180 - ((orderedNames.firstIndex(of: loweredName) ?? orderedNames.count) * 24)))
+        let semanticTokens = configurationSemanticTokens(configuration)
+        let domainTokens = Set(convenienceDomainKeywords(for: slot))
+
+        var score = base
+        score += Double(domainTokens.intersection(semanticTokens).count) * 10.0
+
+        for token in semanticTokens {
+            score += profile.keywordWeights[token, default: 0] * 18.0
+        }
+
+        if slot == .upperMid, loweredName == "apple intelligence purpose matcher" {
+            score += 1_000
+        }
+        if profile.activePurposeCount == 0 {
+            if loweredName == "perspective context" {
+                score += 220
+            }
+            if loweredName == "apple intelligence purpose matcher" {
+                score += 80
+            }
+        }
+        if loweredName == "entity scanner" {
+            score += profile.keywordWeights["conference", default: 0] * 10.0
+            score += profile.keywordWeights["identity", default: 0] * 8.0
+        }
+        if loweredName == "trusted issuers registry" {
+            score += profile.keywordWeights["trust", default: 0] * 18.0
+            score += profile.keywordWeights["credentials", default: 0] * 18.0
+        }
+        if loweredName == "vault control surface" || loweredName == "obsidian vault" {
+            score += profile.keywordWeights["vault", default: 0] * 16.0
+            score += profile.keywordWeights["notes", default: 0] * 16.0
+        }
+
+        return score
+    }
+
+    private func convenienceCandidateNames(for slot: ConvenienceMenuSlot) -> [String] {
+        switch slot {
+        case .upperLeft:
+            return ["scaffold chat", "conference mvp", "notification outbox"]
+        case .upperMid:
+            return ["apple intelligence purpose matcher"]
+        case .upperRight:
+            return ["conference mvp", "lead vault", "consent receipt"]
+        case .lowerLeft:
+            return ["entity scanner", "perspective context", "entity anchor records", "trusted issuers registry"]
+        case .lowerMid:
+            return ["todo mvp", "perspective context", "lead vault", "device registration"]
+        case .lowerRight:
+            return ["obsidian vault", "vault control surface", "trusted issuers registry", "consent receipt"]
+        }
+    }
+
+    private func convenienceDomainKeywords(for slot: ConvenienceMenuSlot) -> [String] {
+        switch slot {
+        case .upperLeft:
+            return ["chat", "communication", "collaboration", "conference"]
+        case .upperMid:
+            return ["assistant", "purpose", "matching", "tools"]
+        case .upperRight:
+            return ["conference", "event", "lead", "consent"]
+        case .lowerLeft:
+            return ["scanner", "identity", "trust", "credentials", "proofs", "nearby"]
+        case .lowerMid:
+            return ["todo", "tasks", "planning", "productivity", "context"]
+        case .lowerRight:
+            return ["vault", "notes", "knowledge", "records", "consent"]
+        }
+    }
+
+    private func configurationSemanticTokens(_ configuration: CellConfiguration) -> Set<String> {
+        var tokens = semanticTokens(from: configuration.name)
+        if let description = configuration.description {
+            tokens.append(contentsOf: semanticTokens(from: description))
+        }
+        if let discovery = configuration.discovery {
+            if let purpose = discovery.purpose {
+                tokens.append(contentsOf: semanticTokens(from: purpose))
+            }
+            if let purposeDescription = discovery.purposeDescription {
+                tokens.append(contentsOf: semanticTokens(from: purposeDescription))
+            }
+            for interest in discovery.interests {
+                tokens.append(contentsOf: semanticTokens(from: interest))
+            }
+            if let endpoint = discovery.sourceCellEndpoint {
+                tokens.append(contentsOf: semanticTokens(from: endpoint))
+            }
+            if let sourceCellName = discovery.sourceCellName {
+                tokens.append(contentsOf: semanticTokens(from: sourceCellName))
+            }
+        }
+        return Set(tokens)
+    }
+
+    private func fallbackConfiguration(for slot: ConvenienceMenuSlot, in fallback: MenuConfigurationBuckets) -> CellConfiguration? {
+        switch slot {
+        case .upperLeft:
+            return fallback.upperLeft.first
+        case .upperMid:
+            return fallback.upperMid.first
+        case .upperRight:
+            return fallback.upperRight.first
+        case .lowerLeft:
+            return fallback.lowerLeft.first
+        case .lowerMid:
+            return fallback.lowerMid.first
+        case .lowerRight:
+            return fallback.lowerRight.first
+        }
+    }
+
     private struct ReferenceProbeResult {
         var failingReferenceEndpoints: Set<String>
         var firstFailureMessage: String?
@@ -1166,9 +1579,6 @@ struct ContentView: View {
     }
 
     private func shouldPreferDiscoveredConfiguration(_ candidate: CellConfiguration, over existing: CellConfiguration) -> Bool {
-        if containsUnavailableIntelligenceBindings(existing) && !containsUnavailableIntelligenceBindings(candidate) {
-            return true
-        }
         let candidateScore = configurationRichnessScore(candidate)
         let existingScore = configurationRichnessScore(existing)
         if candidateScore == existingScore {
@@ -1198,7 +1608,7 @@ struct ContentView: View {
         for configuration in incoming where !isEmitterConfiguration(configuration) {
             if let existingIndex = target.firstIndex(where: { $0.name.lowercased() == configuration.name.lowercased() }) {
                 let existing = target[existingIndex]
-                if containsUnavailableIntelligenceBindings(existing) && !containsUnavailableIntelligenceBindings(configuration) {
+                if shouldPreferDiscoveredConfiguration(configuration, over: existing) {
                     target[existingIndex] = configuration
                 }
                 continue
@@ -1300,43 +1710,6 @@ struct ContentView: View {
         return Self.blockedLoadedReferenceNames.contains(pathName)
     }
 
-    private func containsUnavailableIntelligenceBindings(_ configuration: CellConfiguration) -> Bool {
-        if let references = configuration.cellReferences,
-           references.contains(where: referenceLooksUnavailableAppleIntelligence) {
-            return true
-        }
-        guard let skeleton = configuration.skeleton,
-              let data = try? JSONEncoder().encode(skeleton),
-              let raw = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-        else {
-            return false
-        }
-        return raw.contains("intelligence.ai.")
-    }
-
-    private func referenceLooksUnavailableAppleIntelligence(_ reference: CellReference) -> Bool {
-        if endpointLooksUnavailableAppleIntelligence(reference.endpoint) {
-            return true
-        }
-        if reference.subscriptions.contains(where: referenceLooksUnavailableAppleIntelligence) {
-            return true
-        }
-        return reference.setKeysAndValues.contains { item in
-            if let target = item.target {
-                return endpointLooksUnavailableAppleIntelligence(target)
-            }
-            return false
-        }
-    }
-
-    private func endpointLooksUnavailableAppleIntelligence(_ endpoint: String) -> Bool {
-        let lowered = endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard lowered.hasPrefix("cell://") else { return false }
-        return lowered.contains("/appleintelligence")
-    }
-
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
         func stagingEndpoint(_ cellName: String) -> String {
             "cell://\(Self.stagingHost)/\(cellName)"
@@ -1370,13 +1743,7 @@ struct ContentView: View {
             title: "Obsidian",
             subtitle: "Vault-notater og knowledge graph fra CellScaffold."
         )
-        let appleIntelligence = referenceMenuConfiguration(
-            name: "Apple Intelligence Purpose Matcher",
-            endpoint: stagingEndpoint("AppleIntelligence"),
-            label: "intelligence",
-            title: "Apple Intelligence",
-            subtitle: "Semantisk utforskning av alle tilgjengelige CellConfigurations."
-        )
+        let appleIntelligence = ConfigurationCatalogCell.appleIntelligenceLandingConfiguration()
         let entityScanner = referenceMenuConfiguration(
             name: "Entity Scanner",
             endpoint: stagingEndpoint("EntityScanner"),
