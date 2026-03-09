@@ -252,6 +252,8 @@ struct ContentView: View {
             // Ensure the default private identity exists before list tasks execute.
             _ = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
             await viewModel.connectIfNeeded()
+            let fallbackMenus = curatedMenuSeedConfigurations()
+            applyPerspectiveDrivenMenus(from: [], fallback: fallbackMenus, profile: .empty)
             if !didAttemptCatalogMenuSync {
                 didAttemptCatalogMenuSync = true
                 await refreshMenusFromCatalogIfAvailable()
@@ -357,13 +359,18 @@ struct ContentView: View {
                 _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
             }
 
-            func fetchMenu(_ keypath: String) async -> [CellConfiguration] {
+            func fetchMenu(_ keypath: String, allowReferenceFree: Bool = false) async -> [CellConfiguration] {
                 guard let value = try? await catalog.get(keypath: keypath, requester: identity) else { return [] }
-                let normalized = normalizeCatalogMenu(value.cellConfigurations, origin: origin, resolver: resolver)
+                let normalized = normalizeCatalogMenu(
+                    value.cellConfigurations,
+                    origin: origin,
+                    resolver: resolver,
+                    allowReferenceFree: allowReferenceFree
+                )
                 return normalized.filter { !isEmitterConfiguration($0) }
             }
 
-            let discoveredConfigurations = await fetchMenu("configurations")
+            let discoveredConfigurations = await fetchMenu("configurations", allowReferenceFree: true)
             for discovered in discoveredConfigurations {
                 indexDiscoveredConfiguration(discovered, into: &discoveredByEndpoint)
             }
@@ -523,10 +530,15 @@ struct ContentView: View {
         return components.dropLast().joined(separator: "/")
     }
 
-    private func normalizeCatalogMenu(_ configs: [CellConfiguration], origin: CatalogOrigin?, resolver: CellResolver) -> [CellConfiguration] {
+    private func normalizeCatalogMenu(
+        _ configs: [CellConfiguration],
+        origin: CatalogOrigin?,
+        resolver: CellResolver,
+        allowReferenceFree: Bool = false
+    ) -> [CellConfiguration] {
         configs.compactMap { config in
             let normalized = normalizeConfigurationForResolver(config, origin: origin, resolver: resolver)
-            return sanitizedLoadedConfiguration(normalized, allowReferenceFree: false)
+            return sanitizedLoadedConfiguration(normalized, allowReferenceFree: allowReferenceFree)
         }
     }
 
@@ -1089,52 +1101,92 @@ struct ContentView: View {
     ) {
         let slots = ConvenienceMenuSlot.allCases
         var selectedNames = Set<String>()
-        var selections: [ConvenienceMenuSlot: CellConfiguration] = [:]
+        var selections: [ConvenienceMenuSlot: [CellConfiguration]] = [:]
 
         for slot in slots {
-            let picked = selectConvenienceConfiguration(
+            let picked = selectConvenienceConfigurations(
                 for: slot,
                 from: pool,
-                fallback: fallbackConfiguration(for: slot, in: fallback),
+                fallback: fallbackConfigurations(for: slot, in: fallback),
                 selectedNames: selectedNames,
                 profile: profile
             )
-            if let picked {
+            if !picked.isEmpty {
                 selections[slot] = picked
-                selectedNames.insert(picked.name.lowercased())
+                picked.forEach { selectedNames.insert($0.name.lowercased()) }
             }
         }
 
-        viewModel.upperLeftMenu = selections[.upperLeft].map { [$0] } ?? fallback.upperLeft
-        viewModel.upperMidMenu = selections[.upperMid].map { [$0] } ?? fallback.upperMid
-        viewModel.upperRightMenu = selections[.upperRight].map { [$0] } ?? fallback.upperRight
-        viewModel.lowerLeftMenu = selections[.lowerLeft].map { [$0] } ?? fallback.lowerLeft
-        viewModel.lowerMidMenu = selections[.lowerMid].map { [$0] } ?? fallback.lowerMid
-        viewModel.lowerRightMenu = selections[.lowerRight].map { [$0] } ?? fallback.lowerRight
+        viewModel.upperLeftMenu = selections[.upperLeft] ?? fallback.upperLeft
+        viewModel.upperMidMenu = selections[.upperMid] ?? fallback.upperMid
+        viewModel.upperRightMenu = selections[.upperRight] ?? fallback.upperRight
+        viewModel.lowerLeftMenu = selections[.lowerLeft] ?? fallback.lowerLeft
+        viewModel.lowerMidMenu = selections[.lowerMid] ?? fallback.lowerMid
+        viewModel.lowerRightMenu = selections[.lowerRight] ?? fallback.lowerRight
     }
 
-    private func selectConvenienceConfiguration(
+    private func selectConvenienceConfigurations(
         for slot: ConvenienceMenuSlot,
         from pool: [CellConfiguration],
-        fallback: CellConfiguration?,
+        fallback: [CellConfiguration],
         selectedNames: Set<String>,
         profile: PerspectiveMenuProfile
-    ) -> CellConfiguration? {
-        let candidateNames = convenienceCandidateNames(for: slot)
-        let filtered = pool.filter { configuration in
+    ) -> [CellConfiguration] {
+        let limit = convenienceMenuLimit(for: slot)
+        let candidateNames = Set(convenienceCandidateNames(for: slot))
+        let preferred = pool.filter { configuration in
             let name = configuration.name.lowercased()
             guard candidateNames.contains(name) else { return false }
             return !selectedNames.contains(name)
         }
-
-        if let best = filtered.max(by: { lhs, rhs in
-            convenienceMenuScore(for: lhs, slot: slot, profile: profile) < convenienceMenuScore(for: rhs, slot: slot, profile: profile)
-        }) {
-            return best
+        .sorted { lhs, rhs in
+            convenienceMenuScore(for: lhs, slot: slot, profile: profile) > convenienceMenuScore(for: rhs, slot: slot, profile: profile)
         }
 
-        guard let fallback else { return nil }
-        return selectedNames.contains(fallback.name.lowercased()) ? nil : fallback
+        var selections: [CellConfiguration] = []
+        appendConvenienceSelections(preferred, into: &selections, limit: limit, excluding: selectedNames)
+
+        if selections.count < limit {
+            let semanticFallback = pool
+                .filter { configuration in
+                    let name = configuration.name.lowercased()
+                    return !selectedNames.contains(name) && !selections.contains(where: { $0.name.lowercased() == name })
+                }
+                .sorted { lhs, rhs in
+                    convenienceMenuScore(for: lhs, slot: slot, profile: profile) > convenienceMenuScore(for: rhs, slot: slot, profile: profile)
+                }
+            appendConvenienceSelections(semanticFallback, into: &selections, limit: limit, excluding: selectedNames)
+        }
+
+        if selections.count < limit {
+            appendConvenienceSelections(fallback, into: &selections, limit: limit, excluding: selectedNames)
+        }
+
+        return selections
+    }
+
+    private func appendConvenienceSelections(
+        _ candidates: [CellConfiguration],
+        into selections: inout [CellConfiguration],
+        limit: Int,
+        excluding selectedNames: Set<String>
+    ) {
+        for candidate in candidates {
+            guard selections.count < limit else { return }
+            let loweredName = candidate.name.lowercased()
+            guard !selectedNames.contains(loweredName) else { continue }
+            guard !selections.contains(where: { $0.name.lowercased() == loweredName }) else { continue }
+            selections.append(candidate)
+        }
+    }
+
+    private func convenienceMenuLimit(for slot: ConvenienceMenuSlot) -> Int {
+        switch slot {
+        case .upperMid:
+            return 4
+        default:
+            return 3
+        }
     }
 
     private func convenienceMenuScore(
@@ -1185,17 +1237,17 @@ struct ContentView: View {
     private func convenienceCandidateNames(for slot: ConvenienceMenuSlot) -> [String] {
         switch slot {
         case .upperLeft:
-            return ["scaffold chat", "conference mvp", "notification outbox"]
+            return ["scaffold chat", "conference mvp", "todo mvp", "notification outbox"]
         case .upperMid:
-            return ["apple intelligence purpose matcher"]
+            return ["apple intelligence purpose matcher", "catalog workbench", "perspective context", "porthole control surface"]
         case .upperRight:
-            return ["conference mvp", "lead vault", "consent receipt"]
+            return ["conference mvp", "obsidian vault", "vault control surface", "porthole control surface", "lead vault"]
         case .lowerLeft:
-            return ["entity scanner", "perspective context", "entity anchor records", "trusted issuers registry"]
+            return ["entity scanner", "perspective context", "entity anchor records", "trusted issuers registry", "entity scanner test helper", "entity scanner pairing checklist"]
         case .lowerMid:
-            return ["todo mvp", "perspective context", "lead vault", "device registration"]
+            return ["todo mvp", "catalog workbench", "folder watch automation", "graph index control", "perspective context", "device registration"]
         case .lowerRight:
-            return ["obsidian vault", "vault control surface", "trusted issuers registry", "consent receipt"]
+            return ["obsidian vault", "vault control surface", "graph index control", "porthole control surface", "trusted issuers registry", "consent receipt"]
         }
     }
 
@@ -1241,20 +1293,20 @@ struct ContentView: View {
         return Set(tokens)
     }
 
-    private func fallbackConfiguration(for slot: ConvenienceMenuSlot, in fallback: MenuConfigurationBuckets) -> CellConfiguration? {
+    private func fallbackConfigurations(for slot: ConvenienceMenuSlot, in fallback: MenuConfigurationBuckets) -> [CellConfiguration] {
         switch slot {
         case .upperLeft:
-            return fallback.upperLeft.first
+            return fallback.upperLeft
         case .upperMid:
-            return fallback.upperMid.first
+            return fallback.upperMid
         case .upperRight:
-            return fallback.upperRight.first
+            return fallback.upperRight
         case .lowerLeft:
-            return fallback.lowerLeft.first
+            return fallback.lowerLeft
         case .lowerMid:
-            return fallback.lowerMid.first
+            return fallback.lowerMid
         case .lowerRight:
-            return fallback.lowerRight.first
+            return fallback.lowerRight
         }
     }
 
@@ -1744,22 +1796,25 @@ struct ContentView: View {
             subtitle: "Vault-notater og knowledge graph fra CellScaffold."
         )
         let appleIntelligence = ConfigurationCatalogCell.appleIntelligenceLandingConfiguration()
-        let entityScanner = referenceMenuConfiguration(
-            name: "Entity Scanner",
-            endpoint: stagingEndpoint("EntityScanner"),
-            label: "scanner",
-            title: "Entity Scanner",
-            subtitle: "EntityRadar-skanning og oppdagelse."
-        )
+        let catalogWorkbench = ConfigurationCatalogCell.catalogWorkbenchMenuConfiguration()
+        let perspectiveWorkbench = ConfigurationCatalogCell.perspectiveWorkbenchMenuConfiguration()
+        let entityAnchorWorkbench = ConfigurationCatalogCell.entityAnchorWorkbenchMenuConfiguration()
+        let vaultWorkbench = ConfigurationCatalogCell.vaultWorkbenchMenuConfiguration()
+        let trustedIssuersWorkbench = ConfigurationCatalogCell.trustedIssuersWorkbenchMenuConfiguration()
+        let portholeWorkbench = ConfigurationCatalogCell.portholeWorkbenchMenuConfiguration()
+        let folderWatchWorkbench = ConfigurationCatalogCell.folderWatchWorkbenchMenuConfiguration()
+        let graphIndexWorkbench = ConfigurationCatalogCell.graphIndexWorkbenchMenuConfiguration()
         let localEntityScanner = ConfigurationCatalogCell.entityScannerWorkbenchConfiguration()
+        let localEntityScannerHelper = ConfigurationCatalogCell.entityScannerTestHelperConfiguration()
+        let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
 
         return (
-            upperLeft: [chat],
-            upperMid: [appleIntelligence],
-            upperRight: [conference],
-            lowerLeft: [localEntityScanner, entityScanner],
-            lowerMid: [todo],
-            lowerRight: [obsidian]
+            upperLeft: [chat, conference, todo],
+            upperMid: [appleIntelligence, catalogWorkbench, perspectiveWorkbench, portholeWorkbench],
+            upperRight: [conference, obsidian, portholeWorkbench],
+            lowerLeft: [localEntityScanner, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
+            lowerMid: [todo, catalogWorkbench, folderWatchWorkbench, graphIndexWorkbench],
+            lowerRight: [obsidian, vaultWorkbench, graphIndexWorkbench, trustedIssuersWorkbench]
         )
     }
 
@@ -1934,7 +1989,29 @@ private struct EdgeMenusOverlay: View {
     private func action(_ position: EdgePosition, _ config: CellConfiguration?) {
         if let config { onSelect(config) }
         else if !onPrimaryAction(position) {
+            let items = menuItems(for: position)
+            if items.count == 1, let only = items.first?.configuration {
+                onSelect(only)
+                return
+            }
             toggle(position)
+        }
+    }
+
+    private func menuItems(for position: EdgePosition) -> [MenuItem] {
+        switch position {
+        case .upperLeft:
+            return upperLeft
+        case .upperMid:
+            return upperMid
+        case .upperRight:
+            return upperRight
+        case .lowerLeft:
+            return lowerLeft
+        case .lowerMid:
+            return lowerMid
+        case .lowerRight:
+            return lowerRight
         }
     }
 

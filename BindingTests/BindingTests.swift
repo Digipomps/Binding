@@ -12,6 +12,20 @@ import CellApple
 
 struct BindingTests {
 
+    @Test func configurationCatalogSeedsRichLibrary() async throws {
+        let owner = makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        _ = try await cell.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
+        let configurations = try await cell.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = configurations else {
+            Issue.record("Forventet liste fra configurations")
+            return
+        }
+
+        #expect(items.count >= 12)
+    }
+
     @Test func configurationCatalogQueryReturnsRankedResults() async throws {
         let owner = makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)

@@ -2525,7 +2525,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         guard case let .object(object)? = value else {
             return QueryConstraints(
                 maxResults: 50,
-                maxSources: 6,
+                maxSources: 24,
                 latencyBudgetMs: 350,
                 resourceBudget: .balanced,
                 networkPolicy: .preferHealthyThenCached,
@@ -2534,7 +2534,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         let maxResults = min(200, max(1, extractInt(object["maxResults"], default: 50)))
-        let maxSources = min(12, max(1, extractInt(object["maxSources"], default: 6)))
+        let maxSources = min(64, max(1, extractInt(object["maxSources"], default: 24)))
         let latencyBudgetMs = min(5000, max(100, extractInt(object["latencyBudgetMs"], default: 350)))
         let resourceBudget = QueryResourceBudget(rawValue: extractString(object["resourceBudget"]) ?? "") ?? .balanced
         let networkPolicy = QueryNetworkPolicy(rawValue: extractString(object["networkPolicy"]) ?? "") ?? .preferHealthyThenCached
@@ -5836,6 +5836,38 @@ final class ConfigurationCatalogCell: GeneralCell {
             ],
             includePerspectiveSection: false
         )
+    }
+
+    nonisolated static func catalogWorkbenchMenuConfiguration() -> CellConfiguration {
+        catalogWorkbenchConfiguration()
+    }
+
+    nonisolated static func perspectiveWorkbenchMenuConfiguration() -> CellConfiguration {
+        perspectiveWorkbenchConfiguration()
+    }
+
+    nonisolated static func entityAnchorWorkbenchMenuConfiguration() -> CellConfiguration {
+        entityAnchorWorkbenchConfiguration()
+    }
+
+    nonisolated static func vaultWorkbenchMenuConfiguration() -> CellConfiguration {
+        vaultWorkbenchConfiguration()
+    }
+
+    nonisolated static func trustedIssuersWorkbenchMenuConfiguration() -> CellConfiguration {
+        trustedIssuersWorkbenchConfiguration()
+    }
+
+    nonisolated static func portholeWorkbenchMenuConfiguration() -> CellConfiguration {
+        portholeWorkbenchConfiguration()
+    }
+
+    nonisolated static func folderWatchWorkbenchMenuConfiguration() -> CellConfiguration {
+        folderWatchWorkbenchConfiguration()
+    }
+
+    nonisolated static func graphIndexWorkbenchMenuConfiguration() -> CellConfiguration {
+        graphIndexWorkbenchConfiguration()
     }
 
     nonisolated private static func entityScannerToolConfiguration(

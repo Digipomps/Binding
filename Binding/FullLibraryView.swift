@@ -778,7 +778,7 @@ final class FullLibraryViewModel: ObservableObject {
     @Published var resourceBudget: ResourceBudget = .balanced
     @Published var networkPolicy: NetworkPolicy = .preferHealthyThenCached
     @Published var allowDegradedSources: Bool = true
-    @Published var maxSources: Int = 6
+    @Published var maxSources: Int = 24
 
     let fallbackFavorites: [CellConfiguration]
     let fallbackTemplates: [CellConfiguration]
@@ -863,6 +863,8 @@ final class FullLibraryViewModel: ObservableObject {
 
         do {
             let (catalog, identity, endpoint) = try await resolveCatalog()
+            try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
+            let fallbackCatalogResults = try? await directCatalogResults(from: catalog, requester: identity)
             let queryPayload = buildQueryPayload()
             let startedAt = Date()
             let queryResponse = try await catalog.set(keypath: "query", value: .object(queryPayload), requester: identity) ?? .null
@@ -873,10 +875,19 @@ final class FullLibraryViewModel: ObservableObject {
             parseFacetResponse(facetResponse)
 
             let elapsed = Int(Date().timeIntervalSince(startedAt) * 1000.0)
-            statusLine = "Kilde: \(endpoint) · \(results.count) treff · \(elapsed)ms"
+            if results.isEmpty, let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
+                results = fallbackCatalogResults
+                facetSections = []
+                warnings = ["Query svarte tomt. Viser direkte katalogentries i stedet."]
+                selectedResultID = results.first?.id
+                connectivity = ConnectivitySnapshot(onlineSources: 1, degradedSources: 0, offlineSources: 0)
+                statusLine = "Kilde: \(endpoint) · \(results.count) entries · direkte katalogvisning"
+            } else {
+                statusLine = "Kilde: \(endpoint) · \(results.count) treff · \(elapsed)ms"
+            }
             availability = .available(endpoint: endpoint)
         } catch {
-            availability = .unavailable(reason: "Kunne ikke nå ConfigurationCatalog. Full Library krever online katalogtilgang.")
+            availability = .unavailable(reason: "Kunne ikke nå ConfigurationCatalog.")
             statusLine = "Kun offline-cached favoritter/templates er tilgjengelig."
         }
     }
@@ -978,6 +989,7 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     private func resolveCatalog() async throws -> (Meddle, Identity, String) {
+        await AppInitializer.initialize()
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw LibraryError.resolverUnavailable
         }
@@ -999,6 +1011,122 @@ final class FullLibraryViewModel: ObservableObject {
             return (catalog, identity, endpoint)
         }
         throw LibraryError.catalogUnavailable
+    }
+
+    private func directCatalogResults(from catalog: Meddle, requester: Identity) async throws -> [SearchResult] {
+        let rawEntries = try await catalog.get(keypath: "catalogEntries", requester: requester) ?? .null
+        guard case let .list(items) = rawEntries else { return [] }
+
+        let queryCorpusTokens = directMatchTokens()
+        let queryText = defaultQueryTextForTab().trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasSignal = !queryText.isEmpty || !queryCorpusTokens.isEmpty || !selectedFacets.isEmpty
+
+        let results = items.compactMap { item -> SearchResult? in
+            guard case let .object(object) = item,
+                  let configuration = decodeCellConfiguration(from: object["configuration"]),
+                  !isEmitterConfiguration(configuration)
+            else {
+                return nil
+            }
+
+            let displayName = object["displayName"]?.stringValueOrNil ?? configuration.name
+            let summary = object["summary"]?.stringValueOrNil ?? (configuration.description ?? "")
+            let sourceRef = object["sourceCellEndpoint"]?.stringValueOrNil ?? ""
+            let categoryPath = object["categoryPath"]?.stringListValue ?? []
+            let interests = object["interests"]?.stringListValue ?? []
+            let tags = object["tags"]?.stringListValue ?? []
+            let purpose = object["purpose"]?.stringValueOrNil ?? ""
+            let authRequired = object["authRequired"]?.boolValue
+            let flowDriven = object["flowDriven"]?.boolValue
+            let editable = object["editable"]?.boolValue
+            let insertionModes = object["supportedInsertionModes"]?.stringListValue ?? []
+
+            let corpus = [
+                displayName,
+                summary,
+                sourceRef,
+                purpose,
+                interests.joined(separator: " "),
+                tags.joined(separator: " "),
+                categoryPath.joined(separator: " ")
+            ]
+            .joined(separator: " ")
+            .lowercased()
+
+            let matchedTokens = queryCorpusTokens.filter { corpus.contains($0) }
+            let score = hasSignal
+                ? Double(matchedTokens.count) / Double(max(1, queryCorpusTokens.count))
+                : 0.5
+
+            if hasSignal && score <= 0 {
+                return nil
+            }
+
+            var badges: [String] = []
+            if insertionModes.contains("both") {
+                badges.append("Both")
+            } else if insertionModes.contains("root") {
+                badges.append("Root")
+            } else if insertionModes.contains("component") {
+                badges.append("Component")
+            }
+            if authRequired == true {
+                badges.append("Auth-required")
+            }
+            if flowDriven == true {
+                badges.append("Flow-driven")
+            }
+            if editable == true {
+                badges.append("Editable")
+            }
+
+            let id = object["id"]?.stringValueOrNil ?? UUID().uuidString
+            return SearchResult(
+                id: id,
+                configurationId: id,
+                displayName: displayName,
+                summary: summary,
+                sourceRef: sourceRef,
+                route: "catalogEntry",
+                score: score,
+                scoreBreakdown: ScoreBreakdown(
+                    text: score,
+                    purpose: 0,
+                    interest: 0,
+                    compatibility: 0,
+                    connectivity: 1,
+                    resourceFit: 0,
+                    recency: 0
+                ),
+                badges: badges,
+                configuration: configuration
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
+            return lhs.score > rhs.score
+        }
+
+        return Array(results.prefix(selectedTab == .sources ? 100 : 60))
+    }
+
+    private func directMatchTokens() -> [String] {
+        let freeTextTokens = tokenize(defaultQueryTextForTab())
+        let tokenValues = tokensForRequest().flatMap { tokenize($0.value) }
+        let facetTokens = selectedFacets.values
+            .flatMap { $0 }
+            .flatMap { tokenize($0) }
+        return Array(Set(freeTextTokens + tokenValues + facetTokens))
+    }
+
+    private func tokenize(_ value: String) -> [String] {
+        value
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count > 1 }
     }
 
     private func buildQueryPayload() -> Object {
