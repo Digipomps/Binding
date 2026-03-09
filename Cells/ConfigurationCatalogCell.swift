@@ -612,29 +612,29 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     private let stateQueue = DispatchQueue(label: "Binding.ConfigurationCatalogCell.State")
-    private var entriesByID: [String: CatalogEntry] = [:]
-    private var catalogErrorsByEndpoint: [String: CatalogErrorEntry] = [:]
-    private var syncInProgress: Bool = false
-    private var agreementTemplateVersion: Int = 1
-    private var agreementTemplateDocument: ValueType = ConfigurationCatalogCell.defaultAgreementTemplateDocument()
-    private var agreementAccessDelegationsByIdentity: [String: AgreementAccessDelegation] = [:]
-    private var agreementCurrentRecord: AgreementRecord?
-    private var agreementHistory: [AgreementRecord] = []
-    private var agreementPreviewsByToken: [String: AgreementPreviewSnapshot] = [:]
-    private var agreementNonComplianceReports: [AgreementNonComplianceReport] = []
-    private var agreementNonCompliancePolicyByIdentity: [String: AgreementNonCompliancePolicy] = [:]
-    private var agreementAuditLog: [AgreementAuditEntry] = []
-    private var matchingPromptText: String = ""
-    private var matchingSelectedIndex: Int = -1
-    private var matchingSuggestions: [MatchingSuggestion] = []
-    private var matchingBookmarks: [MatchingSuggestion] = []
-    private var matchingPurposeStatsByPurpose: [String: PurposeUsageStat] = [:]
-    private var matchingPublishedEntityPurposes: [PublishedEntityPurpose] = []
-    private var matchingPublishPersonName: String = ""
-    private var matchingPublishGroupName: String = ""
-    private var matchingPublishGroupType: String = "selskap"
-    private var matchingPublishNote: String = ""
-    private var lastQueryState: ValueType = .object([:])
+    nonisolated(unsafe) private var entriesByID: [String: CatalogEntry] = [:]
+    nonisolated(unsafe) private var catalogErrorsByEndpoint: [String: CatalogErrorEntry] = [:]
+    nonisolated(unsafe) private var syncInProgress: Bool = false
+    nonisolated(unsafe) private var agreementTemplateVersion: Int = 1
+    nonisolated(unsafe) private var agreementTemplateDocument: ValueType = ConfigurationCatalogCell.defaultAgreementTemplateDocument()
+    nonisolated(unsafe) private var agreementAccessDelegationsByIdentity: [String: AgreementAccessDelegation] = [:]
+    nonisolated(unsafe) private var agreementCurrentRecord: AgreementRecord?
+    nonisolated(unsafe) private var agreementHistory: [AgreementRecord] = []
+    nonisolated(unsafe) private var agreementPreviewsByToken: [String: AgreementPreviewSnapshot] = [:]
+    nonisolated(unsafe) private var agreementNonComplianceReports: [AgreementNonComplianceReport] = []
+    nonisolated(unsafe) private var agreementNonCompliancePolicyByIdentity: [String: AgreementNonCompliancePolicy] = [:]
+    nonisolated(unsafe) private var agreementAuditLog: [AgreementAuditEntry] = []
+    nonisolated(unsafe) private var matchingPromptText: String = ""
+    nonisolated(unsafe) private var matchingSelectedIndex: Int = -1
+    nonisolated(unsafe) private var matchingSuggestions: [MatchingSuggestion] = []
+    nonisolated(unsafe) private var matchingBookmarks: [MatchingSuggestion] = []
+    nonisolated(unsafe) private var matchingPurposeStatsByPurpose: [String: PurposeUsageStat] = [:]
+    nonisolated(unsafe) private var matchingPublishedEntityPurposes: [PublishedEntityPurpose] = []
+    nonisolated(unsafe) private var matchingPublishPersonName: String = ""
+    nonisolated(unsafe) private var matchingPublishGroupName: String = ""
+    nonisolated(unsafe) private var matchingPublishGroupType: String = "selskap"
+    nonisolated(unsafe) private var matchingPublishNote: String = ""
+    nonisolated(unsafe) private var lastQueryState: ValueType = .object([:])
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -1245,7 +1245,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
     }
 
-    private static var supportedAgreementCapabilities: [String] {
+    nonisolated private static var supportedAgreementCapabilities: [String] {
         [
             "agreementTemplate.read",
             "agreementTemplate.write",
@@ -1256,7 +1256,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         ]
     }
 
-    private static func defaultAgreementTemplateDocument() -> ValueType {
+    nonisolated private static func defaultAgreementTemplateDocument() -> ValueType {
         .object([
             "description": .string("Capability-based agreement template."),
             "requiresAllPartiesSignature": .bool(true),
@@ -1640,7 +1640,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             requester: requester
         )
 
-        var response: Object = [
+        let response: Object = [
             "agreement": .object(agreement.asObject()),
             "generatedNonCompliantReports": .list(generatedReports.map { .object($0.asObject()) }),
             "state": await agreementTemplateStateValue(requester: requester)
@@ -4576,21 +4576,61 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         let card = modifier {
             $0.padding = 10
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 14
+            $0.background = "#F4F9FC"
+            $0.cornerRadius = 16
             $0.borderWidth = 1
-            $0.borderColor = "#D6E3F1"
-            $0.shadowRadius = 6
-            $0.shadowY = 2
-            $0.shadowColor = "#0F172A1A"
+            $0.borderColor = "#C6D8E5"
+        }
+
+        let heroCard = modifier {
+            $0.padding = 14
+            $0.background = "#ECFEFF"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#22C3DD"
+            $0.shadowRadius = 8
+            $0.shadowY = 3
+            $0.shadowColor = "#0F172A22"
         }
 
         let sectionCard = modifier {
             $0.padding = 8
-            $0.background = "#F8FBFF"
+            $0.background = "#FFFFFF"
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#D6E3F1"
+        }
+
+        let stepsSectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFF7ED"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#FDBA74"
+        }
+
+        let perspectiveSectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#F0FDFA"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#5EEAD4"
+        }
+
+        let liveSectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#EFF6FF"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#93C5FD"
+        }
+
+        let storageSectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
         }
 
         let listCard = modifier {
@@ -4599,7 +4639,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#D6E3F1"
-            $0.height = 180
+            $0.height = 220
+        }
+
+        let badgeModifier = modifier {
+            $0.padding = 6
+            $0.background = "#CFFAFE"
+            $0.cornerRadius = 999
+            $0.borderWidth = 1
+            $0.borderColor = "#67E8F9"
+            $0.fontSize = 11
         }
 
         let primaryButton = modifier {
@@ -4628,7 +4677,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var titleText = SkeletonText(text: title)
         titleText.modifiers = modifier {
-            $0.fontStyle = "title3"
+            $0.fontStyle = "title2"
             $0.fontWeight = "semibold"
             $0.foregroundColor = "#0F172A"
         }
@@ -4639,6 +4688,31 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontSize = 13
             $0.lineLimit = 3
         }
+
+        var privacyNoteText = SkeletonText(text: "Private keys stay on device. UWB is optional; MultipeerConnectivity remains the base transport.")
+        privacyNoteText.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+
+        var heroChip = SkeletonText(text: "PAIR + PROVE")
+        heroChip.modifiers = modifier {
+            $0.padding = 6
+            $0.background = "#0F172A"
+            $0.foregroundColor = "#F8FAFC"
+            $0.cornerRadius = 999
+            $0.fontSize = 11
+        }
+
+        var badgeMPC = SkeletonText(text: "MPC")
+        badgeMPC.modifiers = badgeModifier
+        var badgeSigned = SkeletonText(text: "Signed proofs")
+        badgeSigned.modifiers = badgeModifier
+        var badgeJSON = SkeletonText(text: "JSON export")
+        badgeJSON.modifiers = badgeModifier
+        var badgeUWB = SkeletonText(text: "UWB optional")
+        badgeUWB.modifiers = badgeModifier
 
         var startButton = SkeletonButton(keypath: "scanner.start", label: "Start scanner", payload: .bool(true))
         startButton.modifiers = primaryButton
@@ -4740,6 +4814,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Text(SkeletonText(text: "Saved encounter")),
             .Text(SkeletonText(keypath: "remoteDisplayName")),
             .Text(SkeletonText(keypath: "matchCount")),
+            .Text(SkeletonText(keypath: "acceptedAt")),
             .Text(SkeletonText(keypath: "requestVerification.status")),
             .Text(SkeletonText(keypath: "acceptanceVerification.status"))
         ]
@@ -4747,13 +4822,48 @@ final class ConfigurationCatalogCell: GeneralCell {
         savedStack.modifiers = sectionCard
         savedReference.flowElementSkeleton = savedStack
 
+        var establishedReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.contact.established")
+        let establishedReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Contact established")),
+            .Text(SkeletonText(keypath: "remoteDisplayName")),
+            .Text(SkeletonText(keypath: "precisionMode")),
+            .Text(SkeletonText(keypath: "acceptedAt"))
+        ]
+        var establishedStack = SkeletonVStack(elements: establishedReferenceElements)
+        establishedStack.modifiers = sectionCard
+        establishedReference.flowElementSkeleton = establishedStack
+
+        var exportedProofReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.encounter.exported")
+        let exportedProofReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Encounter proof exported")),
+            .Text(SkeletonText(keypath: "remoteDisplayName")),
+            .Text(SkeletonText(keypath: "encounterId")),
+            .Text(SkeletonText(keypath: "requestVerification.status")),
+            .Text(SkeletonText(keypath: "acceptanceVerification.status"))
+        ]
+        var exportedProofStack = SkeletonVStack(elements: exportedProofReferenceElements)
+        exportedProofStack.modifiers = sectionCard
+        exportedProofReference.flowElementSkeleton = exportedProofStack
+
         var exportedJSONReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.encounter.jsonExported")
+        var exportedJSONName = SkeletonText(text: "Encounter JSON exported")
+        exportedJSONName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var exportedJSONPayload = SkeletonText(keypath: "json")
+        exportedJSONPayload.modifiers = modifier {
+            $0.fontSize = 11
+            $0.foregroundColor = "#334155"
+            $0.lineLimit = 8
+        }
         let exportedJSONReferenceElements: SkeletonElementList = [
-            .Text(SkeletonText(text: "Encounter JSON exported")),
+            .Text(exportedJSONName),
             .Text(SkeletonText(keypath: "remoteDisplayName")),
             .Text(SkeletonText(keypath: "fileName")),
             .Text(SkeletonText(keypath: "copiedToClipboard")),
-            .Text(SkeletonText(keypath: "json"))
+            .Text(SkeletonText(keypath: "characterCount")),
+            .Text(exportedJSONPayload)
         ]
         var exportedJSONStack = SkeletonVStack(elements: exportedJSONReferenceElements)
         exportedJSONStack.modifiers = sectionCard
@@ -4761,10 +4871,16 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var encounterList = SkeletonList(keypath: "scanner.encounters")
         var encounterRow = SkeletonElementList()
-        encounterRow.append(.Text(SkeletonText(text: "Encounter")))
+        var encounterLabel = SkeletonText(text: "Encounter")
+        encounterLabel.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        encounterRow.append(.Text(encounterLabel))
         encounterRow.append(.Text(SkeletonText(keypath: "remoteDisplayName")))
         encounterRow.append(.Text(SkeletonText(keypath: "matchCount")))
         encounterRow.append(.Text(SkeletonText(keypath: "precisionMode")))
+        encounterRow.append(.Text(SkeletonText(keypath: "acceptedAt")))
         encounterRow.append(.Text(SkeletonText(keypath: "requestVerification.status")))
         encounterRow.append(.Text(SkeletonText(keypath: "acceptanceVerification.status")))
         encounterRow.append(.Button(SkeletonButton(keypath: "exportEncounter", label: "export")))
@@ -4773,19 +4889,51 @@ final class ConfigurationCatalogCell: GeneralCell {
         encounterList.modifiers = listCard
 
         var root = SkeletonElementList()
-        root.append(.Text(titleText))
-        root.append(.Text(subtitleText))
-        root.append(.HStack(SkeletonHStack(elements: [.Button(startButton), .Button(stopButton), .Button(clearButton)])))
+        var heroHeader = SkeletonHStack(elements: [
+            .VStack(SkeletonVStack(elements: [.Text(titleText), .Text(subtitleText), .Text(privacyNoteText)])),
+            .Spacer(SkeletonSpacer()),
+            .Text(heroChip)
+        ])
+        heroHeader.modifiers = modifier { $0.padding = 2 }
+
+        var heroBadges = SkeletonHStack(elements: [
+            .Text(badgeMPC),
+            .Text(badgeSigned),
+            .Text(badgeJSON),
+            .Text(badgeUWB)
+        ])
+        heroBadges.modifiers = modifier { $0.padding = 2 }
+
+        var heroStack = SkeletonVStack(elements: [
+            .HStack(heroHeader),
+            .Divider(SkeletonDivider()),
+            .HStack(heroBadges),
+            .HStack(SkeletonHStack(elements: [.Button(startButton), .Button(stopButton), .Button(clearButton)]))
+        ])
+        heroStack.modifiers = heroCard
+        root.append(.VStack(heroStack))
 
         if !checklist.isEmpty {
             var checklistContent = SkeletonElementList()
             for item in checklist {
-                checklistContent.append(.Text(SkeletonText(text: item)))
+                var itemText = SkeletonText(text: item)
+                itemText.modifiers = modifier {
+                    $0.foregroundColor = "#7C2D12"
+                    $0.fontSize = 12
+                }
+                checklistContent.append(.Text(itemText))
             }
-            root.append(.Section(SkeletonSection(
-                header: .Text(SkeletonText(text: "How to use")),
+            var howToHeader = SkeletonText(text: "How to use")
+            howToHeader.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = "#9A3412"
+            }
+            var section = SkeletonSection(
+                header: .Text(howToHeader),
                 content: checklistContent
-            )))
+            )
+            section.modifiers = stepsSectionCard
+            root.append(.Section(section))
         }
 
         if includePerspectiveSection {
@@ -4802,40 +4950,68 @@ final class ConfigurationCatalogCell: GeneralCell {
                 .Text(SkeletonText(text: "Local Perspective snapshot used in request/accept payloads.")),
                 .List(activePurposeList)
             ]
-            root.append(.Section(SkeletonSection(
-                header: .Text(SkeletonText(text: "Perspective")),
+            var perspectiveHeader = SkeletonText(text: "Perspective")
+            perspectiveHeader.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = "#115E59"
+            }
+            var section = SkeletonSection(
+                header: .Text(perspectiveHeader),
                 content: perspectiveContent
-            )))
+            )
+            section.modifiers = perspectiveSectionCard
+            root.append(.Section(section))
         }
 
         let liveSectionContent: SkeletonElementList = [
             .Reference(capabilityReference),
             .Reference(statusReference),
             .Reference(foundReference),
-            .Reference(outgoingReference),
-            .Reference(incomingReference),
             .Reference(connectedReference),
             .Reference(proximityReference),
+            .Reference(outgoingReference),
+            .Reference(incomingReference),
+            .Reference(establishedReference),
             .Reference(savedReference),
+            .Reference(exportedProofReference),
             .Reference(exportedJSONReference)
         ]
-        root.append(.Section(SkeletonSection(
-            header: .Text(SkeletonText(text: "Live scanner flow")),
+        var liveHeader = SkeletonText(text: "Live scanner flow")
+        liveHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#1D4ED8"
+        }
+        var liveSection = SkeletonSection(
+            header: .Text(liveHeader),
             content: liveSectionContent
-        )))
+        )
+        liveSection.modifiers = liveSectionCard
+        root.append(.Section(liveSection))
 
         let storageContent: SkeletonElementList = [
             .Text(SkeletonText(text: "Encounter proofs lagres lokalt i EntityAnchor og kan eksporteres eller nullstilles herfra.")),
             .List(encounterList)
         ]
-        root.append(.Section(SkeletonSection(
-            header: .Text(SkeletonText(text: "Stored encounters")),
+        var storageHeader = SkeletonText(text: "Stored encounters")
+        storageHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#334155"
+        }
+        var storageSection = SkeletonSection(
+            header: .Text(storageHeader),
             content: storageContent
-        )))
+        )
+        storageSection.modifiers = storageSectionCard
+        root.append(.Section(storageSection))
 
         var rootStack = SkeletonVStack(elements: root)
         rootStack.modifiers = card
-        configuration.skeleton = .VStack(rootStack)
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(rootStack)])
+        scroll.modifiers = modifier {
+            $0.padding = 4
+            $0.background = "#F4F9FC"
+        }
+        configuration.skeleton = .ScrollView(scroll)
         return configuration
     }
 
