@@ -175,6 +175,23 @@ final class ConfigurationCatalogCell: GeneralCell {
         var menuSlots: [MenuSlot]
         var goal: CellConfiguration
         var configuration: CellConfiguration
+        var displayName: String? = nil
+        var summary: String? = nil
+        var categoryPath: [String]? = nil
+        var tags: [String]? = nil
+        var purposeRefs: [String]? = nil
+        var interestRefs: [String]? = nil
+        var supportedInsertionModes: [SupportedInsertionMode]? = nil
+        var supportedTargetKinds: [String]? = nil
+        var ioGetKeys: [String]? = nil
+        var ioSetKeys: [String]? = nil
+        var ioTopics: [String]? = nil
+        var ioFilterTypes: [String]? = nil
+        var authRequired: Bool? = nil
+        var policyHints: [String]? = nil
+        var flowDriven: Bool? = nil
+        var editable: Bool? = nil
+        var recommendedContexts: [String]? = nil
         var forceRefreshExisting: Bool = false
     }
 
@@ -4082,7 +4099,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         defer { endSync() }
 
         var importedCount = 0
-        let templates = Self.scaffoldPurposeTemplates()
+        let templates = await Self.scaffoldPurposeTemplates()
 
         for template in templates {
             let existingMatch = sortedEntries().first {
@@ -4098,7 +4115,24 @@ final class ConfigurationCatalogCell: GeneralCell {
                 interests: template.interests,
                 menuSlots: template.menuSlots,
                 goal: template.goal,
-                configuration: template.configuration
+                configuration: template.configuration,
+                displayName: template.displayName,
+                summary: template.summary,
+                categoryPath: template.categoryPath,
+                tags: template.tags,
+                purposeRefs: template.purposeRefs,
+                interestRefs: template.interestRefs,
+                supportedInsertionModes: template.supportedInsertionModes,
+                supportedTargetKinds: template.supportedTargetKinds,
+                ioGetKeys: template.ioGetKeys,
+                ioSetKeys: template.ioSetKeys,
+                ioTopics: template.ioTopics,
+                ioFilterTypes: template.ioFilterTypes,
+                authRequired: template.authRequired,
+                policyHints: template.policyHints,
+                flowDriven: template.flowDriven,
+                editable: template.editable,
+                recommendedContexts: template.recommendedContexts
             )
 
             let shouldRefreshExisting = template.forceRefreshExisting && existingMatch != nil
@@ -4239,7 +4273,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         pushFlowElement(flowElement, requester: requester)
     }
 
-    private static func scaffoldPurposeTemplates() -> [ScaffoldPurposeTemplate] {
+    private static func scaffoldPurposeTemplates() async -> [ScaffoldPurposeTemplate] {
         let chatConfig = referenceCardConfiguration(
             name: "Scaffold Chat",
             endpoint: "cell:///Chat",
@@ -4252,6 +4286,40 @@ final class ConfigurationCatalogCell: GeneralCell {
         let catalogWorkbench = catalogWorkbenchConfiguration()
         let agreementWorkbench = agreementTemplateWorkbenchConfiguration()
         let purposeLanding = appleIntelligenceLandingConfiguration()
+        let entityScannerWorkbench = entityScannerWorkbenchConfiguration()
+        let entityScannerHelper = entityScannerTestHelperConfiguration()
+        let entityScannerChecklist = entityScannerPairingChecklistConfiguration()
+
+        let entityScannerGoal = referenceCardConfiguration(
+            name: "Entity Scanner Launch Card",
+            endpoint: "cell:///EntityScanner",
+            label: "scanner",
+            title: "Entity Scanner",
+            subtitle: "Oppdag andre enheter, be om kontakt, signer møtet og eksporter bevis som JSON.",
+            chip: "LOCAL",
+            borderColor: "#0891B2",
+            startKey: "start"
+        )
+        let entityScannerHelperGoal = referenceCardConfiguration(
+            name: "Entity Scanner Test Helper Card",
+            endpoint: "cell:///EntityScanner",
+            label: "scanner",
+            title: "Scanner Test Helper",
+            subtitle: "Test discovery, capabilities, perspective snapshot og lagrede encounter proofs.",
+            chip: "TEST",
+            borderColor: "#0F766E",
+            startKey: "start"
+        )
+        let entityScannerChecklistGoal = referenceCardConfiguration(
+            name: "Entity Scanner Checklist Card",
+            endpoint: "cell:///EntityScanner",
+            label: "scanner",
+            title: "Pairing Checklist",
+            subtitle: "Stegvis QA for to enheter med og uten UWB.",
+            chip: "QA",
+            borderColor: "#1D4ED8",
+            startKey: "start"
+        )
 
         return [
             ScaffoldPurposeTemplate(
@@ -4262,7 +4330,19 @@ final class ConfigurationCatalogCell: GeneralCell {
                 interests: ["chat", "communication", "collaboration"],
                 menuSlots: [.upperLeft, .upperMid],
                 goal: chatConfig,
-                configuration: chatConfig
+                configuration: chatConfig,
+                displayName: "Scaffold Chat",
+                summary: "En enkel inngang til sanntidschat fra lokal katalog.",
+                categoryPath: ["communication", "chat"],
+                tags: ["chat", "communication", "collaboration"],
+                purposeRefs: ["purpose://communication-and-collaboration"],
+                interestRefs: ["interest://chat", "interest://communication", "interest://collaboration"],
+                supportedInsertionModes: [.root],
+                supportedTargetKinds: ["menu", "porthole"],
+                authRequired: false,
+                flowDriven: true,
+                editable: true,
+                recommendedContexts: ["conference", "team", "coordination"]
             ),
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///ConfigurationCatalog",
@@ -4272,7 +4352,23 @@ final class ConfigurationCatalogCell: GeneralCell {
                 interests: ["catalog", "configurations", "operations"],
                 menuSlots: [.upperMid],
                 goal: catalogWorkbench,
-                configuration: catalogWorkbench
+                configuration: catalogWorkbench,
+                displayName: "Catalog Workbench",
+                summary: "Administrer katalogentries, query, facets og matching i samme verktøy.",
+                categoryPath: ["operations", "catalog"],
+                tags: ["catalog", "operations", "matching", "query"],
+                purposeRefs: ["purpose://catalog-operations"],
+                interestRefs: ["interest://catalog", "interest://configurations"],
+                supportedInsertionModes: [.root],
+                supportedTargetKinds: ["menu", "porthole", "tool"],
+                ioGetKeys: ["state", "catalogEntries", "configurations", "errorLog"],
+                ioSetKeys: ["syncScaffoldPurposeGoals", "query", "facetCounts", "match", "addConfiguration", "editConfiguration", "updateConfiguration", "removeConfiguration"],
+                ioTopics: ["configurationCatalog", "configurationCatalog.error"],
+                ioFilterTypes: ["event", "alert"],
+                authRequired: false,
+                flowDriven: true,
+                editable: true,
+                recommendedContexts: ["operations", "catalog-curation", "library"]
             ),
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///ConfigurationCatalog",
@@ -4282,7 +4378,19 @@ final class ConfigurationCatalogCell: GeneralCell {
                 interests: ["agreement", "contract", "access", "signcontract"],
                 menuSlots: [.lowerRight],
                 goal: agreementWorkbench,
-                configuration: agreementWorkbench
+                configuration: agreementWorkbench,
+                displayName: "Agreement Template Workbench",
+                summary: "Preview, apply, access grants og signering rundt agreementTemplate.",
+                categoryPath: ["security", "agreement"],
+                tags: ["agreement", "contract", "policy", "signing"],
+                purposeRefs: ["purpose://agreement-governance"],
+                interestRefs: ["interest://agreement", "interest://contract", "interest://access"],
+                supportedInsertionModes: [.root],
+                supportedTargetKinds: ["menu", "porthole", "tool"],
+                authRequired: true,
+                flowDriven: true,
+                editable: true,
+                recommendedContexts: ["governance", "security", "policy-review"]
             ),
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///AppleIntelligence",
@@ -4293,9 +4401,442 @@ final class ConfigurationCatalogCell: GeneralCell {
                 menuSlots: [.upperMid, .upperRight],
                 goal: purposeLanding,
                 configuration: purposeLanding,
+                displayName: "Apple Intelligence Purpose Matcher",
+                summary: "Matcher brukerintensjon mot katalogen og lar brukeren laste eller bokmerke kandidater.",
+                categoryPath: ["assistant", "purpose"],
+                tags: ["assistant", "purpose", "matching", "onboarding"],
+                purposeRefs: ["purpose://purpose-landing"],
+                interestRefs: ["interest://assistant", "interest://purpose", "interest://matching"],
+                supportedInsertionModes: [.root],
+                supportedTargetKinds: ["menu", "porthole", "tool"],
+                authRequired: false,
+                flowDriven: true,
+                editable: true,
+                recommendedContexts: ["onboarding", "discovery", "matching"],
                 forceRefreshExisting: true
+            ),
+            entityScannerTemplate(
+                purpose: "Entity discovery og sikker kontaktetablering",
+                purposeDescription: "Oppdag andre i nærheten, send kontaktforespørsel, signer møtet og eksporter encounter som bevis.",
+                interests: ["scanner", "nearby", "identity", "conference", "peer"],
+                menuSlots: [.lowerLeft, .lowerMid],
+                goal: entityScannerGoal,
+                configuration: entityScannerWorkbench,
+                displayName: "Entity Scanner",
+                summary: "Full workbench for nearby peers, invite/contact flow, encounter proofs og JSON-eksport."
+            ),
+            entityScannerTemplate(
+                purpose: "Entity scanner test og verifikasjon",
+                purposeDescription: "Manualtest discovery, signeringsflyt, local perspective snapshot og lagrede encounter-bevis.",
+                interests: ["scanner", "testing", "verification", "identity", "multipeer"],
+                menuSlots: [.upperLeft, .lowerRight],
+                goal: entityScannerHelperGoal,
+                configuration: entityScannerHelper,
+                displayName: "Entity Scanner Test Helper",
+                summary: "Test-helper med perspective snapshot, live events, encounter storage og reset/export."
+            ),
+            entityScannerTemplate(
+                purpose: "Entity scanner pairing QA",
+                purposeDescription: "Stegvis pairing-checkliste for to enheter, inkludert fallback uten UWB.",
+                interests: ["scanner", "qa", "pairing", "uwb", "multipeer"],
+                menuSlots: [.upperRight],
+                goal: entityScannerChecklistGoal,
+                configuration: entityScannerChecklist,
+                displayName: "Entity Scanner Pairing Checklist",
+                summary: "Kort QA-verktøy for to-enhets test, verifisering og eksport av encounter JSON."
             )
         ]
+    }
+
+    private static func entityScannerTemplate(
+        purpose: String,
+        purposeDescription: String,
+        interests: [String],
+        menuSlots: [MenuSlot],
+        goal: CellConfiguration,
+        configuration: CellConfiguration,
+        displayName: String,
+        summary: String
+    ) -> ScaffoldPurposeTemplate {
+        let interestRefs = interests.map { "interest://\($0)" }
+        let purposeSlug = purpose
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "æ", with: "ae")
+            .replacingOccurrences(of: "ø", with: "o")
+            .replacingOccurrences(of: "å", with: "a")
+
+        return ScaffoldPurposeTemplate(
+            sourceCellEndpoint: "cell:///EntityScanner",
+            sourceCellName: "EntityScannerCell",
+            purpose: purpose,
+            purposeDescription: purposeDescription,
+            interests: interests,
+            menuSlots: menuSlots,
+            goal: goal,
+            configuration: configuration,
+            displayName: displayName,
+            summary: summary,
+            categoryPath: ["identity", "nearby", "entity-scanner"],
+            tags: ["entity", "scanner", "multipeer", "uwb", "proofs", "json-export"],
+            purposeRefs: ["purpose://\(purposeSlug)"],
+            interestRefs: interestRefs,
+            supportedInsertionModes: [.root],
+            supportedTargetKinds: ["menu", "porthole", "tool", "test"],
+            ioGetKeys: ["capabilities", "encounters", "verificationMethods"],
+            ioSetKeys: ["start", "stop", "invite", "requestContact", "acceptContact", "exportEncounter", "exportEncounterJSON"],
+            ioTopics: [
+                "scanner.capabilities",
+                "scanner.status",
+                "scanner.found",
+                "scanner.connected",
+                "scanner.proximity",
+                "scanner.contact.outgoing",
+                "scanner.contact.received",
+                "scanner.encounter.saved",
+                "scanner.encounter.exported",
+                "scanner.encounter.jsonExported"
+            ],
+            ioFilterTypes: ["content", "event"],
+            authRequired: false,
+            policyHints: [
+                "Private key stays on device.",
+                "Works without UWB by falling back to MultipeerConnectivity.",
+                "Encounter proofs are stored under EntityAnchor proofs.encounters."
+            ],
+            flowDriven: true,
+            editable: true,
+            recommendedContexts: ["conference", "meetup", "nearby pairing", "identity expansion"]
+        )
+    }
+
+    static func entityScannerWorkbenchConfiguration() -> CellConfiguration {
+        entityScannerToolConfiguration(
+            name: "Entity Scanner",
+            description: "Nearby discovery, signed contact exchange, encounter proofs og JSON-eksport i ett verktøy.",
+            title: "Entity Scanner",
+            subtitle: "Oppdag andre enheter, send kontaktforesporsel, signer begge sider av moetet og eksporter encounter som JSON.",
+            checklist: [
+                "Start scanner pa begge enheter.",
+                "Se scanner.capabilities for precisionMode og transportMode.",
+                "Inviter eller send request contact nar peer er funnet.",
+                "Aksepter pa mottakersiden og eksporter encounter etter lagring."
+            ],
+            includePerspectiveSection: true
+        )
+    }
+
+    static func entityScannerTestHelperConfiguration() -> CellConfiguration {
+        entityScannerToolConfiguration(
+            name: "Entity Scanner Test Helper",
+            description: "Manuell test-hjelper for discovery, signeringsflyt, Perspective-snapshot og encounter storage.",
+            title: "Entity Scanner Test Helper",
+            subtitle: "Viser local Perspective, live scanner-events, encounter proofs og reset/export handling for test av to enheter.",
+            checklist: [
+                "Bruk denne for manuell validering av discovery og signed contact flow.",
+                "Perspective-listen viser lokal kontekst som blir brukt i request/accept.",
+                "Encounter-listen lar deg eksportere proof og copy json uten aa forlate skjermen."
+            ],
+            includePerspectiveSection: true
+        )
+    }
+
+    static func entityScannerPairingChecklistConfiguration() -> CellConfiguration {
+        entityScannerToolConfiguration(
+            name: "Entity Scanner Pairing Checklist",
+            description: "Kort QA-skjerm for to-enhets test med og uten UWB.",
+            title: "Entity Scanner Pairing Checklist",
+            subtitle: "Fokusert pairing-view for konferanse/demo: capabilities, live checkpoints og encounter-verifisering.",
+            checklist: [
+                "1. Start scanner pa begge enheter.",
+                "2. Kontroller at precisionMode er 'uwb' eller 'multipeer-only'.",
+                "3. Bekreft scanner.found og opprett kontakt.",
+                "4. Bekreft scanner.encounter.saved og exporter JSON-bevis."
+            ],
+            includePerspectiveSection: false
+        )
+    }
+
+    private static func entityScannerToolConfiguration(
+        name: String,
+        description: String,
+        title: String,
+        subtitle: String,
+        checklist: [String],
+        includePerspectiveSection: Bool
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: name)
+        configuration.description = description
+
+        var scannerReference = CellReference(endpoint: "cell:///EntityScanner", label: "scanner")
+        scannerReference.addKeyAndValue(KeyValue(key: "start"))
+        configuration.addReference(scannerReference)
+        configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
+        configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#D6E3F1"
+            $0.shadowRadius = 6
+            $0.shadowY = 2
+            $0.shadowColor = "#0F172A1A"
+        }
+
+        let sectionCard = modifier {
+            $0.padding = 8
+            $0.background = "#F8FBFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D6E3F1"
+        }
+
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D6E3F1"
+            $0.height = 180
+        }
+
+        let primaryButton = modifier {
+            $0.padding = 8
+            $0.background = "#DBEAFE"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#60A5FA"
+        }
+
+        let neutralButton = modifier {
+            $0.padding = 8
+            $0.background = "#E2E8F0"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#94A3B8"
+        }
+
+        let warningButton = modifier {
+            $0.padding = 8
+            $0.background = "#FEF3C7"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#F59E0B"
+        }
+
+        var titleText = SkeletonText(text: title)
+        titleText.modifiers = modifier {
+            $0.fontStyle = "title3"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+
+        var subtitleText = SkeletonText(text: subtitle)
+        subtitleText.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 13
+            $0.lineLimit = 3
+        }
+
+        var startButton = SkeletonButton(keypath: "scanner.start", label: "Start scanner", payload: .bool(true))
+        startButton.modifiers = primaryButton
+
+        var stopButton = SkeletonButton(keypath: "scanner.stop", label: "Stop", payload: .bool(true))
+        stopButton.modifiers = neutralButton
+
+        var clearButton = SkeletonButton(
+            keypath: "proofs.encounters",
+            label: "Clear encounter proofs",
+            url: "cell:///EntityAnchor",
+            payload: .object(Object())
+        )
+        clearButton.modifiers = warningButton
+
+        var capabilityReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.capabilities")
+        let capabilityReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Capabilities")),
+            .Text(SkeletonText(keypath: "transportMode")),
+            .Text(SkeletonText(keypath: "precisionMode")),
+            .Text(SkeletonText(keypath: "description"))
+        ]
+        var capabilityStack = SkeletonVStack(elements: capabilityReferenceElements)
+        capabilityStack.modifiers = sectionCard
+        capabilityReference.flowElementSkeleton = capabilityStack
+
+        var statusReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.status")
+        let statusReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Status")),
+            .Text(SkeletonText(keypath: "status")),
+            .Text(SkeletonText(keypath: "remoteUUID")),
+            .Text(SkeletonText(keypath: "timestamp"))
+        ]
+        var statusStack = SkeletonVStack(elements: statusReferenceElements)
+        statusStack.modifiers = sectionCard
+        statusReference.flowElementSkeleton = statusStack
+
+        var foundReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.found")
+        let foundReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Found peer")),
+            .Text(SkeletonText(keypath: "displayName")),
+            .Text(SkeletonText(keypath: "remoteUUID")),
+            .Text(SkeletonText(keypath: "precisionMode")),
+            .Button(SkeletonButton(keypath: "invite", label: "invite")),
+            .Button(SkeletonButton(keypath: "requestContact", label: "request contact"))
+        ]
+        var foundStack = SkeletonVStack(elements: foundReferenceElements)
+        foundStack.modifiers = sectionCard
+        foundReference.flowElementSkeleton = foundStack
+
+        var outgoingReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.contact.outgoing")
+        let outgoingReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Outgoing request")),
+            .Text(SkeletonText(keypath: "requesterDisplayName")),
+            .Text(SkeletonText(keypath: "requestId")),
+            .Text(SkeletonText(keypath: "status"))
+        ]
+        var outgoingStack = SkeletonVStack(elements: outgoingReferenceElements)
+        outgoingStack.modifiers = sectionCard
+        outgoingReference.flowElementSkeleton = outgoingStack
+
+        var incomingReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.contact.received")
+        let incomingReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Incoming request")),
+            .Text(SkeletonText(keypath: "requesterDisplayName")),
+            .Text(SkeletonText(keypath: "requestId")),
+            .Text(SkeletonText(keypath: "verification.status")),
+            .Button(SkeletonButton(keypath: "acceptContact", label: "accept"))
+        ]
+        var incomingStack = SkeletonVStack(elements: incomingReferenceElements)
+        incomingStack.modifiers = sectionCard
+        incomingReference.flowElementSkeleton = incomingStack
+
+        var connectedReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.connected")
+        let connectedReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Connected peers")),
+            .Text(SkeletonText(keypath: "connectedCount")),
+            .Text(SkeletonText(keypath: "connectedDevices"))
+        ]
+        var connectedStack = SkeletonVStack(elements: connectedReferenceElements)
+        connectedStack.modifiers = sectionCard
+        connectedReference.flowElementSkeleton = connectedStack
+
+        var proximityReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.proximity")
+        let proximityReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Proximity")),
+            .Text(SkeletonText(keypath: "remoteUUID")),
+            .Text(SkeletonText(keypath: "distanceMeters")),
+            .Text(SkeletonText(keypath: "direction.x")),
+            .Text(SkeletonText(keypath: "direction.y")),
+            .Text(SkeletonText(keypath: "direction.z"))
+        ]
+        var proximityStack = SkeletonVStack(elements: proximityReferenceElements)
+        proximityStack.modifiers = sectionCard
+        proximityReference.flowElementSkeleton = proximityStack
+
+        var savedReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.encounter.saved")
+        let savedReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Saved encounter")),
+            .Text(SkeletonText(keypath: "remoteDisplayName")),
+            .Text(SkeletonText(keypath: "matchCount")),
+            .Text(SkeletonText(keypath: "requestVerification.status")),
+            .Text(SkeletonText(keypath: "acceptanceVerification.status"))
+        ]
+        var savedStack = SkeletonVStack(elements: savedReferenceElements)
+        savedStack.modifiers = sectionCard
+        savedReference.flowElementSkeleton = savedStack
+
+        var exportedJSONReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.encounter.jsonExported")
+        let exportedJSONReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Encounter JSON exported")),
+            .Text(SkeletonText(keypath: "remoteDisplayName")),
+            .Text(SkeletonText(keypath: "fileName")),
+            .Text(SkeletonText(keypath: "copiedToClipboard")),
+            .Text(SkeletonText(keypath: "json"))
+        ]
+        var exportedJSONStack = SkeletonVStack(elements: exportedJSONReferenceElements)
+        exportedJSONStack.modifiers = sectionCard
+        exportedJSONReference.flowElementSkeleton = exportedJSONStack
+
+        var encounterList = SkeletonList(keypath: "scanner.encounters")
+        var encounterRow = SkeletonElementList()
+        encounterRow.append(.Text(SkeletonText(text: "Encounter")))
+        encounterRow.append(.Text(SkeletonText(keypath: "remoteDisplayName")))
+        encounterRow.append(.Text(SkeletonText(keypath: "matchCount")))
+        encounterRow.append(.Text(SkeletonText(keypath: "precisionMode")))
+        encounterRow.append(.Text(SkeletonText(keypath: "requestVerification.status")))
+        encounterRow.append(.Text(SkeletonText(keypath: "acceptanceVerification.status")))
+        encounterRow.append(.Button(SkeletonButton(keypath: "exportEncounter", label: "export")))
+        encounterRow.append(.Button(SkeletonButton(keypath: "exportEncounterJSON", label: "copy json")))
+        encounterList.flowElementSkeleton = SkeletonVStack(elements: encounterRow)
+        encounterList.modifiers = listCard
+
+        var root = SkeletonElementList()
+        root.append(.Text(titleText))
+        root.append(.Text(subtitleText))
+        root.append(.HStack(SkeletonHStack(elements: [.Button(startButton), .Button(stopButton), .Button(clearButton)])))
+
+        if !checklist.isEmpty {
+            var checklistContent = SkeletonElementList()
+            for item in checklist {
+                checklistContent.append(.Text(SkeletonText(text: item)))
+            }
+            root.append(.Section(SkeletonSection(
+                header: .Text(SkeletonText(text: "How to use")),
+                content: checklistContent
+            )))
+        }
+
+        if includePerspectiveSection {
+            var activePurposeList = SkeletonList(keypath: "perspective.perspective.state.activePurposes")
+            var activePurposeRow = SkeletonElementList()
+            activePurposeRow.append(.Text(SkeletonText(text: "Purpose")))
+            activePurposeRow.append(.Text(SkeletonText(keypath: "name")))
+            activePurposeRow.append(.Text(SkeletonText(keypath: "weight")))
+            activePurposeRow.append(.Text(SkeletonText(keypath: "interests")))
+            activePurposeList.flowElementSkeleton = SkeletonVStack(elements: activePurposeRow)
+            activePurposeList.modifiers = listCard
+
+            let perspectiveContent: SkeletonElementList = [
+                .Text(SkeletonText(text: "Local Perspective snapshot used in request/accept payloads.")),
+                .List(activePurposeList)
+            ]
+            root.append(.Section(SkeletonSection(
+                header: .Text(SkeletonText(text: "Perspective")),
+                content: perspectiveContent
+            )))
+        }
+
+        let liveSectionContent: SkeletonElementList = [
+            .Reference(capabilityReference),
+            .Reference(statusReference),
+            .Reference(foundReference),
+            .Reference(outgoingReference),
+            .Reference(incomingReference),
+            .Reference(connectedReference),
+            .Reference(proximityReference),
+            .Reference(savedReference),
+            .Reference(exportedJSONReference)
+        ]
+        root.append(.Section(SkeletonSection(
+            header: .Text(SkeletonText(text: "Live scanner flow")),
+            content: liveSectionContent
+        )))
+
+        let storageContent: SkeletonElementList = [
+            .Text(SkeletonText(text: "Encounter proofs lagres lokalt i EntityAnchor og kan eksporteres eller nullstilles herfra.")),
+            .List(encounterList)
+        ]
+        root.append(.Section(SkeletonSection(
+            header: .Text(SkeletonText(text: "Stored encounters")),
+            content: storageContent
+        )))
+
+        var rootStack = SkeletonVStack(elements: root)
+        rootStack.modifiers = card
+        configuration.skeleton = .VStack(rootStack)
+        return configuration
     }
 
     private static func referenceCardConfiguration(

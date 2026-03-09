@@ -1412,6 +1412,9 @@ struct ContentView: View {
             title: "Entity Scanner",
             subtitle: "EntityRadar-skanning og oppdagelse."
         )
+        let localEntityScanner = ConfigurationCatalogCell.entityScannerWorkbenchConfiguration()
+        let localEntityScannerHelper = ConfigurationCatalogCell.entityScannerTestHelperConfiguration()
+        let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
         let perspective = referenceMenuConfiguration(
             name: "Perspective",
             endpoint: "cell:///Perspective",
@@ -1421,11 +1424,11 @@ struct ContentView: View {
         )
 
         return (
-            upperLeft: [chat, conference, appleIntelligence],
-            upperMid: [chat, obsidian, leadVault, appleIntelligence],
-            upperRight: [admin, adminFundingQueue, conference],
-            lowerLeft: [entityScanner, obsidian, leadVault, consentReceipt],
-            lowerMid: [todo, conference, obsidian, leadVault],
+            upperLeft: [chat, localEntityScannerHelper, conference, appleIntelligence],
+            upperMid: [chat, obsidian, leadVault, appleIntelligence, localEntityScannerChecklist],
+            upperRight: [admin, adminFundingQueue, conference, localEntityScannerChecklist],
+            lowerLeft: [localEntityScanner, entityScanner, obsidian, leadVault, consentReceipt],
+            lowerMid: [localEntityScannerHelper, todo, conference, obsidian, leadVault],
             lowerRight: [admin, todo, obsidian, consentReceipt, perspective]
         )
     }
