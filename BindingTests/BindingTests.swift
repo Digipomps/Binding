@@ -5,15 +5,17 @@
 //  Created by Kjetil Hustveit on 16/12/2025.
 //
 
+import Foundation
 import Testing
 import CellBase
 import CellApple
 @testable import Binding
 
+@Suite(.serialized)
 struct BindingTests {
 
     @Test func configurationCatalogSeedsRichLibrary() async throws {
-        let owner = makeOwnerIdentity()
+        let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
         _ = try await cell.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
@@ -27,7 +29,7 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogQueryReturnsRankedResults() async throws {
-        let owner = makeOwnerIdentity()
+        let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
         let payload = makeCatalogPayload(
@@ -68,7 +70,7 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogFacetCountsIncludesInsertionModes() async throws {
-        let owner = makeOwnerIdentity()
+        let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
         let payload = makeCatalogPayload(
@@ -111,12 +113,15 @@ struct BindingTests {
     }
 
     @Test func portholeAbsorbsCatalogReference() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
         await AppInitializer.initialize()
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Missing CellResolver")
             return
         }
-        guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
             Issue.record("Missing private identity")
             return
         }
@@ -154,7 +159,7 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogRemovesBlockedReferencesWhenOtherReferencesExist() async throws {
-        let owner = makeOwnerIdentity()
+        let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
         var configuration = CellConfiguration(name: "Mixed References")
@@ -175,8 +180,14 @@ struct BindingTests {
 
         let entriesValue = try await cell.get(keypath: "catalogEntries", requester: owner)
         guard case let .list(entries) = entriesValue,
-              let first = entries.first,
-              case let .object(object) = first,
+              let match = entries.first(where: { value in
+                  guard case let .object(object) = value,
+                        case let .cellConfiguration(configuration)? = object["configuration"] else {
+                      return false
+                  }
+                  return configuration.name == "Mixed References"
+              }),
+              case let .object(object) = match,
               case let .cellConfiguration(storedConfiguration)? = object["configuration"],
               let references = storedConfiguration.cellReferences
         else {
@@ -189,7 +200,7 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogRejectsConfigurationsWithOnlyBlockedReferences() async throws {
-        let owner = makeOwnerIdentity()
+        let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
         var configuration = CellConfiguration(name: "Only Blocked")
@@ -209,8 +220,9 @@ struct BindingTests {
         #expect(response == .string("error: invalid payload for addConfiguration"))
     }
 
-    private func makeOwnerIdentity() -> Identity {
-        Identity()
+    private func makeOwnerIdentity() async -> Identity {
+        CellBase.defaultIdentityVault = Self.testIdentityVault
+        return await Self.testIdentityVault.identity(for: "private", makeNewIfNotFound: true)!
     }
 
     private func makeCatalogPayload(name: String, endpoint: String, insertionMode: String) -> Object {
@@ -237,4 +249,57 @@ struct BindingTests {
         ]
     }
 
+}
+
+private actor BindingTestIdentityVault: IdentityVaultProtocol {
+    private var identitiesByContext: [String: Identity] = [:]
+    private var idCounter = 1
+
+    func initialize() async -> IdentityVaultProtocol {
+        self
+    }
+
+    func addIdentity(identity: inout Identity, for identityContext: String) async {
+        identity.identityVault = self
+        identitiesByContext[identityContext] = identity
+    }
+
+    func identity(for identityContext: String, makeNewIfNotFound: Bool) async -> Identity? {
+        if let existing = identitiesByContext[identityContext] {
+            return existing
+        }
+        guard makeNewIfNotFound else { return nil }
+
+        let suffix = String(format: "%012d", idCounter)
+        idCounter += 1
+        let uuidString = "00000000-0000-0000-0000-\(suffix)"
+        let identity = Identity(uuidString, displayName: identityContext, identityVault: self)
+        identitiesByContext[identityContext] = identity
+        return identity
+    }
+
+    func saveIdentity(_ identity: Identity) async {
+        identitiesByContext[identity.displayName] = identity
+    }
+
+    func signMessageForIdentity(messageData: Data, identity: Identity) async throws -> Data {
+        messageData + identity.uuid.data(using: .utf8, allowLossyConversion: false)!
+    }
+
+    func verifySignature(signature: Data, messageData: Data, for identity: Identity) async throws -> Bool {
+        let expected = messageData + identity.uuid.data(using: .utf8, allowLossyConversion: false)!
+        return signature == expected
+    }
+
+    func randomBytes64() async -> Data? {
+        Data(repeating: 0xAB, count: 64)
+    }
+
+    func aquireKeyForTag(tag: String) async throws -> (key: String, iv: String) {
+        ("binding-test-key-\(tag)", "binding-test-iv-\(tag)")
+    }
+}
+
+private extension BindingTests {
+    static let testIdentityVault = BindingTestIdentityVault()
 }

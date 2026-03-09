@@ -23,9 +23,6 @@
       "options" : {
 
       },
-      "selectedTests" : [
-
-      ],
       "target" : {
         "containerPath" : "container:Binding.xcodeproj",
         "identifier" : "24D800212EF195A200021B5A",
@@ -36,26 +33,10 @@
       "options" : {
 
       },
-      "selectedTests" : [
-
-      ],
       "target" : {
         "containerPath" : "container:Binding.xcodeproj",
         "identifier" : "24D8002B2EF195A200021B5A",
         "name" : "BindingUITests"
-      }
-    },
-    {
-      "options" : {
-
-      },
-      "selectedTests" : [
-
-      ],
-      "target" : {
-        "containerPath" : "container:..\/CellProtocol",
-        "identifier" : "CellBaseTests",
-        "name" : "CellBaseTests"
       }
     }
   ],
