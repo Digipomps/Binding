@@ -283,7 +283,7 @@
 			mainGroup = 24D8000C2EF195A000021B5A;
 			minimizedProjectReferenceProxies = 1;
 				packageReferences = (
-					2468DE022F4203AB000334E1 /* XCLocalSwiftPackageReference "CellProtocol" */,
+					2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */,
 				);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
@@ -720,12 +720,16 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-			2468DE022F4203AB000334E1 /* XCLocalSwiftPackageReference "CellProtocol" */ = {
-				isa = XCLocalSwiftPackageReference;
-				relativePath = ../CellProtocol;
+/* Begin XCRemoteSwiftPackageReference section */
+			2468DE022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
+				isa = XCRemoteSwiftPackageReference;
+				repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
+				requirement = {
+					kind = revision;
+					revision = da9deb7f10d53cf4a7f6a9dda8caaf8e9e3fb010;
+				};
 			};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		2468DE042F421297000334E1 /* CellBase */ = {

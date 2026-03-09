@@ -4912,7 +4912,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                 tags: ["porthole", "orchestration", "workspace", "runtime"],
                 chip: "LOCAL",
                 borderColor: "#1D4ED8",
-                recommendedContexts: ["tool-exploration", "composition"]
+                flowDriven: true,
+                recommendedContexts: ["tool-exploration", "composition"],
+                ioGetKeys: ["outwardMenu", "historyMenu", "connectedCellEmitters", "skeleton"],
+                ioSetKeys: ["setConfiguration", "addConfiguration", "addReference"],
+                ioTopics: ["porthole"]
             ),
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///Perspective",
@@ -5021,7 +5025,10 @@ final class ConfigurationCatalogCell: GeneralCell {
                 tags: ["files", "watch", "automation", "folder"],
                 chip: "LOCAL",
                 borderColor: "#475569",
-                flowDriven: true
+                flowDriven: true,
+                ioGetKeys: ["state"],
+                ioSetKeys: ["configure", "start", "stop"],
+                ioTopics: ["filesystem.watch"]
             ),
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///EventEmitter",
@@ -5061,7 +5068,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                 categoryPath: ["knowledge", "graph"],
                 tags: ["graph", "index", "relations", "search"],
                 chip: "LOCAL",
-                borderColor: "#475569"
+                borderColor: "#475569",
+                ioGetKeys: ["graph.state"],
+                ioSetKeys: ["graph.reindex", "graph.outgoing", "graph.incoming", "graph.neighbors"]
             ),
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///CloudBridge",
@@ -5429,12 +5438,18 @@ final class ConfigurationCatalogCell: GeneralCell {
             return entityAnchorWorkbenchConfiguration()
         case "cell:///vault":
             return vaultWorkbenchConfiguration()
+        case "cell:///porthole":
+            return portholeWorkbenchConfiguration()
         case "cell:///trustedissuers":
             return trustedIssuersWorkbenchConfiguration()
         case "cell:///commonsresolver":
             return commonsResolverWorkbenchConfiguration()
         case "cell:///commonstaxonomy":
             return commonsTaxonomyWorkbenchConfiguration()
+        case "cell:///folderwatch":
+            return folderWatchWorkbenchConfiguration()
+        case "cell:///graphindex":
+            return graphIndexWorkbenchConfiguration()
         case "cell:///eventemitter":
             return signalWorkbenchConfiguration()
         case "cell:///appleintelligence":
@@ -5776,7 +5791,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    static func entityScannerWorkbenchConfiguration() -> CellConfiguration {
+    nonisolated static func entityScannerWorkbenchConfiguration() -> CellConfiguration {
         entityScannerToolConfiguration(
             name: "Entity Scanner",
             description: "Nearby discovery, signed contact exchange, encounter proofs og JSON-eksport i ett verktøy.",
@@ -5792,7 +5807,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    static func entityScannerTestHelperConfiguration() -> CellConfiguration {
+    nonisolated static func entityScannerTestHelperConfiguration() -> CellConfiguration {
         entityScannerToolConfiguration(
             name: "Entity Scanner Test Helper",
             description: "Manuell test-hjelper for discovery, signeringsflyt, Perspective-snapshot og encounter storage.",
@@ -5807,7 +5822,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    static func entityScannerPairingChecklistConfiguration() -> CellConfiguration {
+    nonisolated static func entityScannerPairingChecklistConfiguration() -> CellConfiguration {
         entityScannerToolConfiguration(
             name: "Entity Scanner Pairing Checklist",
             description: "Kort QA-skjerm for to-enhets test med og uten UWB.",
@@ -5823,7 +5838,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    private static func entityScannerToolConfiguration(
+    nonisolated private static func entityScannerToolConfiguration(
         name: String,
         description: String,
         title: String,
@@ -7343,6 +7358,549 @@ final class ConfigurationCatalogCell: GeneralCell {
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier {
             $0.background = "#F5F3FF"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func portholeWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Porthole Control Surface")
+        configuration.description = "Last nyttige kontrollflater inn i Porthole, se tilgjengelige menyer og inspiser historikken for tidligere layouts."
+        configuration.addReference(CellReference(endpoint: "cell:///Porthole", label: "porthole"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#EFF6FF"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#BFDBFE"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#DBEAFE"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#60A5FA"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D6E4F5"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D6E4F5"
+            $0.height = 180
+        }
+        let primaryButton = modifier {
+            $0.padding = 6
+            $0.background = "#DBEAFE"
+            $0.borderWidth = 1
+            $0.borderColor = "#60A5FA"
+            $0.cornerRadius = 8
+        }
+        let neutralButton = modifier {
+            $0.padding = 6
+            $0.background = "#F1F5F9"
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+            $0.cornerRadius = 8
+        }
+
+        let appleConfig = appleIntelligenceLandingConfiguration()
+        let scannerConfig = entityScannerWorkbenchConfiguration()
+        let perspectiveConfig = perspectiveWorkbenchConfiguration()
+        let catalogConfig = catalogWorkbenchConfiguration()
+
+        func header(_ text: String) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = "#0F172A"
+                $0.fontSize = 12
+            }
+            return label
+        }
+
+        var title = SkeletonText(text: "Porthole Control Surface")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Bytt raskt mellom viktige control surfaces og se hva Porthole selv eksponerer som outward menu og historikk.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#1D4ED8"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var connectedEmitters = SkeletonText(url: URL(string: "cell:///Porthole/connectedCellEmitters")!)
+        connectedEmitters.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 6
+        }
+
+        var loadAI = SkeletonButton(keypath: "porthole.setConfiguration", label: "Load Apple Intelligence", payload: .cellConfiguration(appleConfig))
+        loadAI.modifiers = primaryButton
+        var loadScanner = SkeletonButton(keypath: "porthole.setConfiguration", label: "Load Entity Scanner", payload: .cellConfiguration(scannerConfig))
+        loadScanner.modifiers = primaryButton
+        var loadPerspective = SkeletonButton(keypath: "porthole.setConfiguration", label: "Load Perspective", payload: .cellConfiguration(perspectiveConfig))
+        loadPerspective.modifiers = neutralButton
+        var loadCatalog = SkeletonButton(keypath: "porthole.setConfiguration", label: "Load Catalog", payload: .cellConfiguration(catalogConfig))
+        loadCatalog.modifiers = neutralButton
+
+        var configName = SkeletonText(keypath: "name")
+        configName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var configDescription = SkeletonText(keypath: "description")
+        configDescription.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var configRow = SkeletonVStack(elements: [.Text(configName), .Text(configDescription)])
+        configRow.modifiers = sectionCard
+
+        var outwardMenu = SkeletonList(keypath: "cell:///Porthole/outwardMenu", flowElementSkeleton: configRow)
+        outwardMenu.modifiers = listCard
+
+        var historyMenu = SkeletonList(keypath: "cell:///Porthole/historyMenu", flowElementSkeleton: configRow)
+        historyMenu.modifiers = listCard
+
+        var eventTitle = SkeletonText(keypath: "title")
+        eventTitle.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+            $0.fontSize = 12
+        }
+        var eventBody = SkeletonText(keypath: "content")
+        eventBody.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var eventRow = SkeletonVStack(elements: [.Text(eventTitle), .Text(eventBody)])
+        eventRow.modifiers = sectionCard
+        var eventList = SkeletonList(topic: "porthole", keypath: nil, flowElementSkeleton: eventRow)
+        eventList.filterTypes = ["event"]
+        eventList.modifiers = listCard
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .Text(header("Connected emitters (raw)")),
+            .Text(connectedEmitters),
+            .HStack(SkeletonHStack(elements: [.Button(loadAI), .Button(loadScanner)])),
+            .HStack(SkeletonHStack(elements: [.Button(loadPerspective), .Button(loadCatalog)]))
+        ])
+        hero.modifiers = heroCard
+
+        var outwardSection = SkeletonSection(header: .Text(header("Outward menu fra Porthole")), content: [.List(outwardMenu)])
+        outwardSection.modifiers = sectionCard
+        var historySection = SkeletonSection(header: .Text(header("Tidligere layouts")), content: [.List(historyMenu)])
+        historySection.modifiers = sectionCard
+        var eventsSection = SkeletonSection(header: .Text(header("Porthole events")), content: [.List(eventList)])
+        eventsSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(outwardSection),
+            .Section(historySection),
+            .Section(eventsSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#EFF6FF"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func folderWatchWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Folder Watch Automation")
+        configuration.description = "Konfigurer mappeovervaking, start eller stopp watcheren, og se siste filesystem-events direkte i UI."
+        configuration.addReference(CellReference(endpoint: "cell:///FolderWatch", label: "watch"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#F7FEE7"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#D9F99D"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#ECFCCB"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#84CC16"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D9E7B5"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D9E7B5"
+            $0.height = 180
+        }
+        let inputModifier = modifier {
+            $0.padding = 7
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#C8D5A1"
+        }
+        let primaryButton = modifier {
+            $0.padding = 6
+            $0.background = "#DCFCE7"
+            $0.borderWidth = 1
+            $0.borderColor = "#4ADE80"
+            $0.cornerRadius = 8
+        }
+        let neutralButton = modifier {
+            $0.padding = 6
+            $0.background = "#F1F5F9"
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+            $0.cornerRadius = 8
+        }
+
+        let defaultEvents: ValueType = .list([
+            .string("write"),
+            .string("delete"),
+            .string("rename"),
+            .string("attrib")
+        ])
+
+        func header(_ text: String) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = "#0F172A"
+                $0.fontSize = 12
+            }
+            return label
+        }
+
+        var title = SkeletonText(text: "Folder Watch Automation")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Overvaak en lokal mappe og send filesystem-events som flow. Standardtopic holdes paa `filesystem.watch` slik at listen under er nyttig uten ekstra oppsett.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#3F6212"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+
+        let pathField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "watch.state.path",
+            targetKeypath: "watch.configure",
+            placeholder: "Skriv path, f.eks. ~/Documents",
+            modifiers: inputModifier
+        )
+
+        var useDocuments = SkeletonButton(
+            keypath: "watch.configure",
+            label: "Use ~/Documents",
+            payload: .object([
+                "path": .string("~/Documents"),
+                "topic": .string("filesystem.watch"),
+                "events": defaultEvents
+            ])
+        )
+        useDocuments.modifiers = neutralButton
+
+        var useLibrary = SkeletonButton(
+            keypath: "watch.configure",
+            label: "Use ~/Library",
+            payload: .object([
+                "path": .string("~/Library"),
+                "topic": .string("filesystem.watch"),
+                "events": defaultEvents
+            ])
+        )
+        useLibrary.modifiers = neutralButton
+
+        var startWatching = SkeletonButton(keypath: "watch.start", label: "Start watch", payload: .null)
+        startWatching.modifiers = primaryButton
+        var stopWatching = SkeletonButton(keypath: "watch.stop", label: "Stop", payload: .bool(true))
+        stopWatching.modifiers = neutralButton
+
+        var running = SkeletonText(keypath: "watch.state.running")
+        running.modifiers = modifier {
+            $0.foregroundColor = "#166534"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 18
+        }
+        var configuredPath = SkeletonText(keypath: "watch.state.path")
+        configuredPath.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var configuredTopic = SkeletonText(keypath: "watch.state.topic")
+        configuredTopic.modifiers = modifier {
+            $0.foregroundColor = "#3F6212"
+            $0.fontSize = 11
+        }
+        var configuredEvents = SkeletonText(keypath: "watch.state.events")
+        configuredEvents.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var lastEventAt = SkeletonText(keypath: "watch.state.lastEventAt")
+        lastEventAt.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+        }
+        var lastEventRaw = SkeletonText(keypath: "watch.state.lastEvent")
+        lastEventRaw.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 6
+        }
+
+        var eventPath = SkeletonText(keypath: "content.path")
+        eventPath.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+            $0.fontSize = 12
+        }
+        var eventFlags = SkeletonText(keypath: "content.events")
+        eventFlags.modifiers = modifier {
+            $0.foregroundColor = "#3F6212"
+            $0.fontSize = 11
+        }
+        var eventDiff = SkeletonText(keypath: "content.modified")
+        eventDiff.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var eventRow = SkeletonVStack(elements: [.Text(eventPath), .Text(eventFlags), .Text(eventDiff)])
+        eventRow.modifiers = sectionCard
+        var eventList = SkeletonList(topic: "filesystem.watch", keypath: nil, flowElementSkeleton: eventRow)
+        eventList.filterTypes = ["event"]
+        eventList.modifiers = listCard
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .TextField(pathField),
+            .HStack(SkeletonHStack(elements: [.Button(useDocuments), .Button(useLibrary)])),
+            .HStack(SkeletonHStack(elements: [.Button(startWatching), .Button(stopWatching)]))
+        ])
+        hero.modifiers = heroCard
+
+        var stateSection = SkeletonSection(
+            header: .Text(header("Watch state")),
+            content: [
+                .Text(header("Running")),
+                .Text(running),
+                .Text(configuredPath),
+                .Text(configuredTopic),
+                .Text(configuredEvents),
+                .Text(lastEventAt),
+                .Text(lastEventRaw)
+            ]
+        )
+        stateSection.modifiers = sectionCard
+
+        var eventsSection = SkeletonSection(header: .Text(header("Incoming filesystem events")), content: [.List(eventList)])
+        eventsSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(stateSection),
+            .Section(eventsSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#F7FEE7"
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func graphIndexWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Graph Index Control")
+        configuration.description = "Reindex en demo-graf fra notater og bruk graf-operasjonene for outgoing, incoming og neighbors."
+        configuration.addReference(CellReference(endpoint: "cell:///GraphIndex", label: "graph"))
+
+        let card = modifier {
+            $0.padding = 10
+            $0.background = "#F0F9FF"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#BAE6FD"
+        }
+        let heroCard = modifier {
+            $0.padding = 12
+            $0.background = "#E0F2FE"
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = "#38BDF8"
+        }
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D5E6F6"
+        }
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#D5E6F6"
+            $0.height = 140
+        }
+        let primaryButton = modifier {
+            $0.padding = 6
+            $0.background = "#E0F2FE"
+            $0.borderWidth = 1
+            $0.borderColor = "#38BDF8"
+            $0.cornerRadius = 8
+        }
+        let neutralButton = modifier {
+            $0.padding = 6
+            $0.background = "#F1F5F9"
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+            $0.cornerRadius = 8
+        }
+
+        let demoNotes: ValueType = .object([
+            "notes": .list([
+                .object([
+                    "id": .string("Home"),
+                    "content": .string("Links to [[Scanner]] and [[Trust]].")
+                ]),
+                .object([
+                    "id": .string("Scanner"),
+                    "content": .string("Nearby discovery links back to [[Home]] and relates to [[Trust]].")
+                ]),
+                .object([
+                    "id": .string("Trust"),
+                    "content": .string("Verification note linked from [[Home]].")
+                ])
+            ])
+        ])
+
+        func header(_ text: String) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = "#0F172A"
+                $0.fontSize = 12
+            }
+            return label
+        }
+
+        var title = SkeletonText(text: "Graph Index Control")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#0F172A"
+        }
+        var subtitle = SkeletonText(text: "Bygg en liten demo-graf fra tre notater. Etter reindex er `Home`, `Scanner` og `Trust` gyldige noder for query-knappene.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#0369A1"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var nodeCount = SkeletonText(keypath: "graph.graph.state.node_count")
+        nodeCount.modifiers = modifier {
+            $0.foregroundColor = "#0369A1"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 18
+        }
+        var edgeCount = SkeletonText(keypath: "graph.graph.state.edge_count")
+        edgeCount.modifiers = modifier {
+            $0.foregroundColor = "#0284C7"
+            $0.fontWeight = "semibold"
+            $0.fontSize = 18
+        }
+        var rawState = SkeletonText(url: URL(string: "cell:///GraphIndex/graph.state")!)
+        rawState.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 11
+            $0.lineLimit = 8
+        }
+
+        var reindexDemo = SkeletonButton(keypath: "graph.graph.reindex", label: "Reindex demo graph", payload: demoNotes)
+        reindexDemo.modifiers = primaryButton
+        var clearGraph = SkeletonButton(keypath: "graph.graph.reindex", label: "Clear graph", payload: .object(["notes": .list([])]))
+        clearGraph.modifiers = neutralButton
+
+        var queryOutgoing = SkeletonButton(keypath: "graph.graph.outgoing", label: "Outgoing from Home", payload: .string("Home"))
+        queryOutgoing.modifiers = neutralButton
+        var queryIncoming = SkeletonButton(keypath: "graph.graph.incoming", label: "Incoming to Scanner", payload: .string("Scanner"))
+        queryIncoming.modifiers = neutralButton
+        var queryNeighbors = SkeletonButton(keypath: "graph.graph.neighbors", label: "Neighbors of Trust", payload: .string("Trust"))
+        queryNeighbors.modifiers = neutralButton
+
+        var operationText = SkeletonText(keypath: ".")
+        operationText.modifiers = modifier {
+            $0.foregroundColor = "#0369A1"
+            $0.fontSize = 12
+        }
+        var operationsList = SkeletonList(keypath: "graph.graph.state.operations", flowElementSkeleton: SkeletonVStack(elements: [.Text(operationText)]))
+        operationsList.modifiers = listCard
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .HStack(SkeletonHStack(elements: [
+                .VStack(SkeletonVStack(elements: [.Text(header("Nodes")), .Text(nodeCount)])),
+                .VStack(SkeletonVStack(elements: [.Text(header("Edges")), .Text(edgeCount)]))
+            ])),
+            .HStack(SkeletonHStack(elements: [.Button(reindexDemo), .Button(clearGraph)])),
+            .HStack(SkeletonHStack(elements: [.Button(queryOutgoing), .Button(queryIncoming)])),
+            .HStack(SkeletonHStack(elements: [.Button(queryNeighbors)]))
+        ])
+        hero.modifiers = heroCard
+
+        var operationsSection = SkeletonSection(header: .Text(header("Supported graph operations")), content: [.List(operationsList)])
+        operationsSection.modifiers = sectionCard
+        var stateSection = SkeletonSection(header: .Text(header("Graph state (JSON)")), content: [.Text(rawState)])
+        stateSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(operationsSection),
+            .Section(stateSection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = "#F0F9FF"
         }
         configuration.skeleton = .ScrollView(scroll)
         return configuration
