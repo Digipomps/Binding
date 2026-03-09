@@ -1370,40 +1370,12 @@ struct ContentView: View {
             title: "Obsidian",
             subtitle: "Vault-notater og knowledge graph fra CellScaffold."
         )
-        let admin = referenceMenuConfiguration(
-            name: "Admin Overview",
-            endpoint: stagingEndpoint("AdminOverview"),
-            label: "admin",
-            title: "Admin",
-            subtitle: "Drift og sikkerhet via admin-celler i CellScaffold."
-        )
-        let adminFundingQueue = referenceMenuConfiguration(
-            name: "Admin Funding Queue",
-            endpoint: stagingEndpoint("AdminFundingQueue"),
-            label: "adminFundingQueue",
-            title: "Funding Queue",
-            subtitle: "Godkjenning/avslag av funding-requests."
-        )
-        let leadVault = referenceMenuConfiguration(
-            name: "Lead Vault",
-            endpoint: stagingEndpoint("LeadVault"),
-            label: "leadVault",
-            title: "Lead Vault",
-            subtitle: "Conference leads, consent og tilgangsstyring."
-        )
-        let consentReceipt = referenceMenuConfiguration(
-            name: "Consent Receipt",
-            endpoint: stagingEndpoint("ConsentReceipt"),
-            label: "consentReceipt",
-            title: "Consent Receipt",
-            subtitle: "Samtykkelogg fra Conference/LeadVault-løpet."
-        )
         let appleIntelligence = referenceMenuConfiguration(
-            name: "Apple Intelligence",
+            name: "Apple Intelligence Purpose Matcher",
             endpoint: stagingEndpoint("AppleIntelligence"),
             label: "intelligence",
             title: "Apple Intelligence",
-            subtitle: "Formål- og matchingstøtte fra CellProtocol."
+            subtitle: "Semantisk utforskning av alle tilgjengelige CellConfigurations."
         )
         let entityScanner = referenceMenuConfiguration(
             name: "Entity Scanner",
@@ -1413,23 +1385,14 @@ struct ContentView: View {
             subtitle: "EntityRadar-skanning og oppdagelse."
         )
         let localEntityScanner = ConfigurationCatalogCell.entityScannerWorkbenchConfiguration()
-        let localEntityScannerHelper = ConfigurationCatalogCell.entityScannerTestHelperConfiguration()
-        let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
-        let perspective = referenceMenuConfiguration(
-            name: "Perspective",
-            endpoint: "cell:///Perspective",
-            label: "perspective",
-            title: "Perspective",
-            subtitle: "Lokalt perspektiv- og formålslager fra CellProtocol."
-        )
 
         return (
-            upperLeft: [chat, localEntityScannerHelper, conference, appleIntelligence],
-            upperMid: [chat, obsidian, leadVault, appleIntelligence, localEntityScannerChecklist],
-            upperRight: [admin, adminFundingQueue, conference, localEntityScannerChecklist],
-            lowerLeft: [localEntityScanner, entityScanner, obsidian, leadVault, consentReceipt],
-            lowerMid: [localEntityScannerHelper, todo, conference, obsidian, leadVault],
-            lowerRight: [admin, todo, obsidian, consentReceipt, perspective]
+            upperLeft: [chat],
+            upperMid: [appleIntelligence],
+            upperRight: [conference],
+            lowerLeft: [localEntityScanner, entityScanner],
+            lowerMid: [todo],
+            lowerRight: [obsidian]
         )
     }
 

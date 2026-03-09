@@ -193,6 +193,34 @@ final class ConfigurationCatalogCell: GeneralCell {
         var editable: Bool? = nil
         var recommendedContexts: [String]? = nil
         var forceRefreshExisting: Bool = false
+        var skipResolverLookup: Bool = false
+    }
+
+    private struct StaticCatalogDescriptor {
+        var sourceCellEndpoint: String
+        var sourceCellName: String
+        var displayName: String
+        var purpose: String
+        var purposeDescription: String
+        var interests: [String]
+        var summary: String
+        var categoryPath: [String]
+        var tags: [String]
+        var menuSlots: [MenuSlot] = []
+        var chip: String = "CELL"
+        var borderColor: String = "#94A3B8"
+        var startKey: String? = nil
+        var authRequired: Bool? = false
+        var policyHints: [String]? = nil
+        var flowDriven: Bool? = false
+        var editable: Bool? = true
+        var recommendedContexts: [String]? = nil
+        var ioGetKeys: [String]? = nil
+        var ioSetKeys: [String]? = nil
+        var ioTopics: [String]? = nil
+        var ioFilterTypes: [String]? = nil
+        var supportedTargetKinds: [String]? = ["tool", "porthole", "library"]
+        var skipResolverLookup: Bool = true
     }
 
     private struct CatalogErrorEntry: Codable {
@@ -3498,8 +3526,15 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     private func runMatchingPrompt(_ payload: ValueType, requester: Identity) async -> ValueType {
         let explicitPrompt = extractMatchingPrompt(from: payload)
+        let browseAll = matchingBrowseAllRequested(from: payload)
 
         let prompt = stateQueue.sync {
+            if browseAll {
+                let resolved = explicitPrompt ?? "Browse all cell configurations"
+                matchingPromptText = resolved
+                return resolved
+            }
+
             let resolved = explicitPrompt ?? ""
             if !resolved.isEmpty {
                 matchingPromptText = resolved
@@ -3508,23 +3543,17 @@ final class ConfigurationCatalogCell: GeneralCell {
             return matchingPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        guard !prompt.isEmpty else {
-            emitMatchingSuggestionsFlow(
-                prompt: "",
-                queryPurpose: nil,
-                queryInterests: [],
-                suggestions: [],
-                requester: requester
-            )
-            return .integer(0)
-        }
-
-        let query = deriveMatchingQuery(from: prompt)
+        let query: (purpose: String?, interests: [String]) = {
+            if browseAll || prompt.isEmpty {
+                return (nil, [])
+            }
+            return deriveMatchingQuery(from: prompt)
+        }()
         let matchedEntries = matchConfigurationsDetailed(
             purpose: query.purpose,
             interests: query.interests,
             menuSlot: nil,
-            limit: 10
+            limit: query.purpose == nil && query.interests.isEmpty ? 40 : 16
         )
 
         let now = Date().timeIntervalSince1970
@@ -3559,6 +3588,42 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
 
         return .integer(suggestions.count)
+    }
+
+    private func matchingBrowseAllRequested(from payload: ValueType) -> Bool {
+        switch payload {
+        case .object(let object):
+            if case let .bool(value)? = object["browseAll"] {
+                return value
+            }
+            if case let .bool(value)? = object["exploreAll"] {
+                return value
+            }
+            if case let .string(mode)? = object["mode"] {
+                let lowered = mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if lowered == "browseall" || lowered == "browse_all" || lowered == "exploreall" || lowered == "explore_all" {
+                    return true
+                }
+            }
+            if let prompt = extractMatchingPrompt(from: payload) {
+                return isBrowseAllPrompt(prompt)
+            }
+            return false
+        case .string(let prompt):
+            return isBrowseAllPrompt(prompt)
+        default:
+            return false
+        }
+    }
+
+    private func isBrowseAllPrompt(_ prompt: String) -> Bool {
+        let lowered = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !lowered.isEmpty else { return false }
+        let browseTokens = ["all", "alle", "browse", "utforsk", "explore", "vis"]
+        let catalogTokens = ["cell", "cells", "celle", "celler", "configuration", "configurations", "konfigurasjon", "konfigurasjoner", "tools", "verktoy"]
+        let hasBrowseToken = browseTokens.contains { lowered.contains($0) }
+        let hasCatalogToken = catalogTokens.contains { lowered.contains($0) }
+        return hasBrowseToken && hasCatalogToken
     }
 
     private func selectMatchingSuggestion(_ payload: ValueType) -> ValueType {
@@ -4048,6 +4113,23 @@ final class ConfigurationCatalogCell: GeneralCell {
                 if isBroadQuery {
                     score += 0.2
                     reasons.append("Bredt soek - rangerer etter generell egnethet.")
+                    if !entry.menuSlots.isEmpty {
+                        score += 1.2
+                        reasons.append("Kurert som convenience-verktøy i menyene.")
+                    }
+                    if entry.authRequired == true {
+                        score -= 0.25
+                        reasons.append("Krever autorisasjon før bruk.")
+                    }
+                    let loweredTags = Set((entry.tags ?? []).map { $0.lowercased() })
+                    if loweredTags.contains("test") || loweredTags.contains("qa") {
+                        score -= 0.55
+                        reasons.append("Test/QA-verktøy prioriteres lavere i bred utforskning.")
+                    }
+                    if loweredTags.contains("admin") || loweredTags.contains("operations") {
+                        score -= 0.35
+                        reasons.append("Admin/operasjonsverktøy prioriteres lavere i bred utforskning.")
+                    }
                 }
 
                 if !isBroadQuery && score <= 0.0 {
@@ -4149,7 +4231,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         guard includeResolverLookups else { return importedCount }
 
         if let resolver = CellBase.defaultCellResolver {
-            let uniqueEndpoints = Array(Set(templates.map(\.sourceCellEndpoint))).sorted()
+            let uniqueEndpoints = Array(Set(
+                templates
+                    .filter { !$0.skipResolverLookup }
+                    .map(\.sourceCellEndpoint)
+            )).sorted()
             for endpoint in uniqueEndpoints {
                 if shouldSkipResolverLookup(for: endpoint) {
                     continue
@@ -4278,7 +4364,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             name: "Scaffold Chat",
             endpoint: "cell:///Chat",
             label: "chat",
-            title: "Kommunikasjon",
+            title: "Scaffold Chat",
             subtitle: "Direkte meldinger, status og samarbeid i teamet.",
             chip: "LIVE",
             borderColor: "#7C3AED"
@@ -4295,7 +4381,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             endpoint: "cell:///EntityScanner",
             label: "scanner",
             title: "Entity Scanner",
-            subtitle: "Oppdag andre enheter, be om kontakt, signer møtet og eksporter bevis som JSON.",
+            subtitle: "Oppdag andre enheter, be om kontakt, signer motet og eksporter bevis som JSON.",
             chip: "LOCAL",
             borderColor: "#0891B2",
             startKey: "start"
@@ -4321,28 +4407,29 @@ final class ConfigurationCatalogCell: GeneralCell {
             startKey: "start"
         )
 
-        return [
+        var templates: [ScaffoldPurposeTemplate] = [
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///Chat",
                 sourceCellName: "ChatCell",
                 purpose: "Kommunikasjon og samarbeid",
-                purposeDescription: "Få delt meldinger i sanntid mellom deltakere.",
+                purposeDescription: "Faa delt meldinger i sanntid mellom deltakere.",
                 interests: ["chat", "communication", "collaboration"],
-                menuSlots: [.upperLeft, .upperMid],
+                menuSlots: [.upperLeft],
                 goal: chatConfig,
                 configuration: chatConfig,
                 displayName: "Scaffold Chat",
-                summary: "En enkel inngang til sanntidschat fra lokal katalog.",
+                summary: "Direkte inngang til sanntidschat og koordinering.",
                 categoryPath: ["communication", "chat"],
                 tags: ["chat", "communication", "collaboration"],
                 purposeRefs: ["purpose://communication-and-collaboration"],
                 interestRefs: ["interest://chat", "interest://communication", "interest://collaboration"],
                 supportedInsertionModes: [.root],
-                supportedTargetKinds: ["menu", "porthole"],
+                supportedTargetKinds: ["menu", "porthole", "tool"],
                 authRequired: false,
                 flowDriven: true,
                 editable: true,
-                recommendedContexts: ["conference", "team", "coordination"]
+                recommendedContexts: ["conference", "team", "coordination"],
+                skipResolverLookup: true
             ),
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///ConfigurationCatalog",
@@ -4350,13 +4437,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Katalogoperasjoner",
                 purposeDescription: "Synk katalogen, inspiser entries og observer katalog-events.",
                 interests: ["catalog", "configurations", "operations"],
-                menuSlots: [.upperMid],
+                menuSlots: [],
                 goal: catalogWorkbench,
                 configuration: catalogWorkbench,
                 displayName: "Catalog Workbench",
                 summary: "Administrer katalogentries, query, facets og matching i samme verktøy.",
                 categoryPath: ["operations", "catalog"],
-                tags: ["catalog", "operations", "matching", "query"],
+                tags: ["catalog", "operations", "matching", "query", "admin"],
                 purposeRefs: ["purpose://catalog-operations"],
                 interestRefs: ["interest://catalog", "interest://configurations"],
                 supportedInsertionModes: [.root],
@@ -4368,7 +4455,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 authRequired: false,
                 flowDriven: true,
                 editable: true,
-                recommendedContexts: ["operations", "catalog-curation", "library"]
+                recommendedContexts: ["operations", "catalog-curation", "library"],
+                skipResolverLookup: true
             ),
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///ConfigurationCatalog",
@@ -4376,13 +4464,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Agreement template styring",
                 purposeDescription: "Preview og apply av agreementTemplate med non-compliant policy og signering.",
                 interests: ["agreement", "contract", "access", "signcontract"],
-                menuSlots: [.lowerRight],
+                menuSlots: [],
                 goal: agreementWorkbench,
                 configuration: agreementWorkbench,
                 displayName: "Agreement Template Workbench",
                 summary: "Preview, apply, access grants og signering rundt agreementTemplate.",
                 categoryPath: ["security", "agreement"],
-                tags: ["agreement", "contract", "policy", "signing"],
+                tags: ["agreement", "contract", "policy", "signing", "admin"],
                 purposeRefs: ["purpose://agreement-governance"],
                 interestRefs: ["interest://agreement", "interest://contract", "interest://access"],
                 supportedInsertionModes: [.root],
@@ -4390,36 +4478,38 @@ final class ConfigurationCatalogCell: GeneralCell {
                 authRequired: true,
                 flowDriven: true,
                 editable: true,
-                recommendedContexts: ["governance", "security", "policy-review"]
+                recommendedContexts: ["governance", "security", "policy-review"],
+                skipResolverLookup: true
             ),
             ScaffoldPurposeTemplate(
                 sourceCellEndpoint: "cell:///AppleIntelligence",
                 sourceCellName: "AppleIntelligenceCell",
-                purpose: "Formål landing",
-                purposeDescription: "Landingsside som hjelper brukeren å finne retning og fylle appen med mening.",
-                interests: ["purpose", "assistant", "onboarding", "explore"],
-                menuSlots: [.upperMid, .upperRight],
+                purpose: "Semantisk utforskning av kontroll-laget",
+                purposeDescription: "Generell inngang til alle tilgjengelige CellConfigurations og verktøy via semantisk matching.",
+                interests: ["purpose", "assistant", "onboarding", "explore", "configurations", "tools"],
+                menuSlots: [.upperMid],
                 goal: purposeLanding,
                 configuration: purposeLanding,
                 displayName: "Apple Intelligence Purpose Matcher",
-                summary: "Matcher brukerintensjon mot katalogen og lar brukeren laste eller bokmerke kandidater.",
+                summary: "Det semantiske laget over kontroll-konfigurasjonene. Utforsk, match og last verktøy direkte i Porthole.",
                 categoryPath: ["assistant", "purpose"],
-                tags: ["assistant", "purpose", "matching", "onboarding"],
-                purposeRefs: ["purpose://purpose-landing"],
-                interestRefs: ["interest://assistant", "interest://purpose", "interest://matching"],
+                tags: ["assistant", "purpose", "matching", "onboarding", "exploration"],
+                purposeRefs: ["purpose://semantic-tool-exploration"],
+                interestRefs: ["interest://assistant", "interest://purpose", "interest://matching", "interest://tools"],
                 supportedInsertionModes: [.root],
                 supportedTargetKinds: ["menu", "porthole", "tool"],
                 authRequired: false,
                 flowDriven: true,
                 editable: true,
-                recommendedContexts: ["onboarding", "discovery", "matching"],
-                forceRefreshExisting: true
+                recommendedContexts: ["onboarding", "discovery", "matching", "tool-exploration"],
+                forceRefreshExisting: true,
+                skipResolverLookup: true
             ),
             entityScannerTemplate(
                 purpose: "Entity discovery og sikker kontaktetablering",
-                purposeDescription: "Oppdag andre i nærheten, send kontaktforespørsel, signer møtet og eksporter encounter som bevis.",
+                purposeDescription: "Oppdag andre i naerheten, send kontaktforespoersel, signer motet og eksporter encounter som bevis.",
                 interests: ["scanner", "nearby", "identity", "conference", "peer"],
-                menuSlots: [.lowerLeft, .lowerMid],
+                menuSlots: [.lowerLeft],
                 goal: entityScannerGoal,
                 configuration: entityScannerWorkbench,
                 displayName: "Entity Scanner",
@@ -4429,7 +4519,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Entity scanner test og verifikasjon",
                 purposeDescription: "Manualtest discovery, signeringsflyt, local perspective snapshot og lagrede encounter-bevis.",
                 interests: ["scanner", "testing", "verification", "identity", "multipeer"],
-                menuSlots: [.upperLeft, .lowerRight],
+                menuSlots: [],
                 goal: entityScannerHelperGoal,
                 configuration: entityScannerHelper,
                 displayName: "Entity Scanner Test Helper",
@@ -4439,13 +4529,640 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Entity scanner pairing QA",
                 purposeDescription: "Stegvis pairing-checkliste for to enheter, inkludert fallback uten UWB.",
                 interests: ["scanner", "qa", "pairing", "uwb", "multipeer"],
-                menuSlots: [.upperRight],
+                menuSlots: [],
                 goal: entityScannerChecklistGoal,
                 configuration: entityScannerChecklist,
                 displayName: "Entity Scanner Pairing Checklist",
                 summary: "Kort QA-verktøy for to-enhets test, verifisering og eksport av encounter JSON."
             )
         ]
+
+        templates.append(contentsOf: staticCatalogTemplates(from: userFacingRemoteCatalogDescriptors()))
+        templates.append(contentsOf: staticCatalogTemplates(from: runtimeControlCatalogDescriptors()))
+        templates.append(contentsOf: staticCatalogTemplates(from: remoteSupportCatalogDescriptors()))
+        return templates
+    }
+
+    nonisolated private static func userFacingRemoteCatalogDescriptors() -> [StaticCatalogDescriptor] {
+        [
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceUIRouter",
+                sourceCellName: "ConferenceUIRouterCell",
+                displayName: "Conference MVP",
+                purpose: "Konferanseflyt og matchmaking",
+                purposeDescription: "Routing, partnering, scheduling og konferanseflyt for deltakere.",
+                interests: ["conference", "matchmaking", "scheduling", "events"],
+                summary: "Konferanseflyt med routing, matchmaking og scheduling.",
+                categoryPath: ["experiences", "conference"],
+                tags: ["conference", "events", "matchmaking", "scheduling"],
+                menuSlots: [.upperRight],
+                chip: "REMOTE",
+                borderColor: "#2563EB",
+                flowDriven: true,
+                recommendedContexts: ["conference", "partnering", "event-day"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/Todo",
+                sourceCellName: "TodoCell",
+                displayName: "Todo MVP",
+                purpose: "Personlig oppgaveflyt",
+                purposeDescription: "Opprett, prioriter og foelg opp personlige oppgaver.",
+                interests: ["todo", "tasks", "planning", "productivity"],
+                summary: "Personlig oppgaveliste med prioriteter og oppfoelging.",
+                categoryPath: ["productivity", "tasks"],
+                tags: ["todo", "tasks", "planning", "productivity"],
+                menuSlots: [.lowerMid],
+                chip: "REMOTE",
+                borderColor: "#16A34A",
+                flowDriven: true,
+                recommendedContexts: ["personal-productivity", "planning", "daily-use"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/Vault",
+                sourceCellName: "VaultCell",
+                displayName: "Obsidian Vault",
+                purpose: "Notater og kunnskapsgraf",
+                purposeDescription: "Utforsk og organiser notater, lenker og kunnskapsstruktur.",
+                interests: ["vault", "notes", "obsidian", "knowledge-graph", "markdown"],
+                summary: "Vault-notater og knowledge graph i Obsidian-stil.",
+                categoryPath: ["knowledge", "vault"],
+                tags: ["vault", "notes", "obsidian", "knowledge-graph"],
+                menuSlots: [.lowerRight],
+                chip: "REMOTE",
+                borderColor: "#9333EA",
+                flowDriven: true,
+                recommendedContexts: ["research", "notes", "knowledge-work"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/LeadVault",
+                sourceCellName: "LeadVaultCell",
+                displayName: "Lead Vault",
+                purpose: "Lead capture og oppfoelging",
+                purposeDescription: "Haandter leads, consent og tilgangsstyring i konferanse- og salgsflyt.",
+                interests: ["leads", "consent", "conference", "sales-ops", "crm"],
+                summary: "Conference leads, consent og tilgangsstyring.",
+                categoryPath: ["sales", "lead-management"],
+                tags: ["leads", "consent", "conference", "crm"],
+                chip: "REMOTE",
+                borderColor: "#0F766E",
+                flowDriven: true,
+                recommendedContexts: ["conference", "sales", "lead-followup"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConsentReceipt",
+                sourceCellName: "ConsentReceiptCell",
+                displayName: "Consent Receipt",
+                purpose: "Samtykkebevis og logg",
+                purposeDescription: "Vis og etterproev samtykkelogg og mottatte kvitteringer.",
+                interests: ["consent", "receipts", "compliance", "audit"],
+                summary: "Samtykkelogg og kvitteringer fra consent-flyten.",
+                categoryPath: ["compliance", "consent"],
+                tags: ["consent", "compliance", "audit", "receipts"],
+                chip: "REMOTE",
+                borderColor: "#D97706",
+                recommendedContexts: ["compliance", "audit", "conference"]
+            )
+        ]
+    }
+
+    nonisolated private static func runtimeControlCatalogDescriptors() -> [StaticCatalogDescriptor] {
+        [
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///Porthole",
+                sourceCellName: "OrchestratorCell",
+                displayName: "Porthole Control Surface",
+                purpose: "Laste og rendere CellConfigurations",
+                purposeDescription: "Hovedflate for aa laste, rendere og orkestrere kontroll-konfigurasjoner.",
+                interests: ["porthole", "rendering", "workspace", "orchestration"],
+                summary: "Kontrollflate for lasting og rendering av valgte CellConfigurations.",
+                categoryPath: ["runtime", "orchestration"],
+                tags: ["porthole", "orchestration", "workspace", "runtime"],
+                chip: "LOCAL",
+                borderColor: "#1D4ED8",
+                recommendedContexts: ["tool-exploration", "composition"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///Perspective",
+                sourceCellName: "PerspectiveCell",
+                displayName: "Perspective Context",
+                purpose: "Lokal kontekst og preferanser",
+                purposeDescription: "Holder aktiv purpose-state, interesser og kontekst som paavirker anbefalinger.",
+                interests: ["perspective", "purpose", "interests", "context"],
+                summary: "Lokal context-store for purpose, interests og vektede preferanser.",
+                categoryPath: ["identity", "context"],
+                tags: ["perspective", "purpose", "interests", "context"],
+                chip: "LOCAL",
+                borderColor: "#0F766E",
+                recommendedContexts: ["matching", "personalization", "identity"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///EntityAnchor",
+                sourceCellName: "EntityAnchorCell",
+                displayName: "Entity Anchor Records",
+                purpose: "Lokal entity-lagring og proofs",
+                purposeDescription: "Holder lokal entity-data, relasjoner, encounters og proofs.",
+                interests: ["entity", "identity", "proofs", "storage"],
+                summary: "Vedvarende lagring for lokal entitet, relasjoner og proofs.",
+                categoryPath: ["identity", "storage"],
+                tags: ["entity", "identity", "proofs", "storage"],
+                chip: "LOCAL",
+                borderColor: "#0F766E",
+                recommendedContexts: ["identity", "proofs", "records"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///Vault",
+                sourceCellName: "VaultCell",
+                displayName: "Vault Control Surface",
+                purpose: "Lokal vault-lagring",
+                purposeDescription: "Lokal vault for notater, innhold og strukturer.",
+                interests: ["vault", "notes", "storage", "knowledge"],
+                summary: "Lokal vault-kontrollflate for innhold og lenket kunnskap.",
+                categoryPath: ["knowledge", "storage"],
+                tags: ["vault", "notes", "knowledge", "storage"],
+                chip: "LOCAL",
+                borderColor: "#9333EA",
+                recommendedContexts: ["notes", "knowledge-work"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///CommonsResolver",
+                sourceCellName: "CommonsResolverCell",
+                displayName: "Commons Resolver Control",
+                purpose: "Oppslag i felles ressurser",
+                purposeDescription: "Resolver for delte commons-ressurser og semantiske oppslag.",
+                interests: ["resolver", "commons", "lookup", "knowledge"],
+                summary: "Kontrollflate for commons-oppslag og delte ressurser.",
+                categoryPath: ["infrastructure", "resolver"],
+                tags: ["resolver", "commons", "lookup", "infrastructure"],
+                chip: "LOCAL",
+                borderColor: "#475569"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///CommonsTaxonomy",
+                sourceCellName: "CommonsTaxonomyCell",
+                displayName: "Commons Taxonomy Browser",
+                purpose: "Taksonomi og begrepsnavigasjon",
+                purposeDescription: "Utforsk commons-taksonomi og begrepshierarkier.",
+                interests: ["taxonomy", "concepts", "classification", "commons"],
+                summary: "Browser for begreper, kategorier og taksonomier.",
+                categoryPath: ["knowledge", "taxonomy"],
+                tags: ["taxonomy", "concepts", "classification", "commons"],
+                chip: "LOCAL",
+                borderColor: "#475569"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///TrustedIssuers",
+                sourceCellName: "TrustedIssuerCell",
+                displayName: "Trusted Issuers Registry",
+                purpose: "Haandtering av betrodde utstedere",
+                purposeDescription: "Vedlikehold og oppslag av trusted issuers for claims og credentials.",
+                interests: ["issuers", "credentials", "trust", "verification"],
+                summary: "Register over trusted issuers for claims og credentials.",
+                categoryPath: ["trust", "credentials"],
+                tags: ["issuers", "credentials", "trust", "verification"],
+                chip: "LOCAL",
+                borderColor: "#B45309",
+                recommendedContexts: ["credentials", "verification", "trust"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///Identities",
+                sourceCellName: "IdentitiesCell",
+                displayName: "Identities Access Control",
+                purpose: "Identitetsvalg og tilgangsflate",
+                purposeDescription: "Utforsk identiteter uten aa eksponere private nøkler eller vault-innhold direkte.",
+                interests: ["identities", "access", "permissions", "identity"],
+                summary: "Kontrollflate for identiteter og tilgangsrelaterte operasjoner.",
+                categoryPath: ["identity", "access"],
+                tags: ["identities", "access", "permissions", "identity"],
+                chip: "LOCAL",
+                borderColor: "#0F766E"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///FolderWatch",
+                sourceCellName: "FolderWatchCell",
+                displayName: "Folder Watch Automation",
+                purpose: "Observere lokale mapper",
+                purposeDescription: "Overvaak mapper og trigge arbeidsflyt naar filer endrer seg.",
+                interests: ["files", "watch", "automation", "folder"],
+                summary: "Overvaak mapper og trigge flyt ved filendringer.",
+                categoryPath: ["automation", "files"],
+                tags: ["files", "watch", "automation", "folder"],
+                chip: "LOCAL",
+                borderColor: "#475569",
+                flowDriven: true
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///EventEmitter",
+                sourceCellName: "EventEmitterCell",
+                displayName: "Event Emitter Workbench",
+                purpose: "Lokale signaler og test-events",
+                purposeDescription: "Emit og observer lokale signaler i runtime.",
+                interests: ["events", "signals", "testing", "flow"],
+                summary: "Verktoy for aa emitte og observere lokale signaler.",
+                categoryPath: ["testing", "signals"],
+                tags: ["events", "signals", "testing", "flow"],
+                chip: "LOCAL",
+                borderColor: "#475569",
+                flowDriven: true
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///ShoppingHandler",
+                sourceCellName: "ShoppingHandlerCell",
+                displayName: "Shopping Handler Control",
+                purpose: "Handlekurv- og shoppinglogikk",
+                purposeDescription: "Kontrollflate for shopping- og handlekurvrelatert runtime-logikk.",
+                interests: ["shopping", "cart", "commerce", "checkout"],
+                summary: "Kontrollflate for shopping- og checkout-relatert runtime-logikk.",
+                categoryPath: ["commerce", "shopping"],
+                tags: ["shopping", "cart", "commerce", "checkout"],
+                chip: "LOCAL",
+                borderColor: "#16A34A"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///GraphIndex",
+                sourceCellName: "GraphIndexCell",
+                displayName: "Graph Index Control",
+                purpose: "Indeksering av grafer og relasjoner",
+                purposeDescription: "Bygg og les indekser over grafer og relasjoner.",
+                interests: ["graph", "index", "relations", "search"],
+                summary: "Kontrollflate for grafindeks og relasjonell oppslag.",
+                categoryPath: ["knowledge", "graph"],
+                tags: ["graph", "index", "relations", "search"],
+                chip: "LOCAL",
+                borderColor: "#475569"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///CloudBridge",
+                sourceCellName: "BridgeBase",
+                displayName: "Cloud Bridge Transport",
+                purpose: "Bro mellom lokal runtime og ekstern transport",
+                purposeDescription: "Transport- og bridge-lag for tilkobling mot eksterne celler.",
+                interests: ["bridge", "transport", "network", "integration"],
+                summary: "Transport- og bridge-lag for ekstern kommunikasjon.",
+                categoryPath: ["infrastructure", "transport"],
+                tags: ["bridge", "transport", "network", "integration"],
+                chip: "LOCAL",
+                borderColor: "#475569"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///GeneralCell",
+                sourceCellName: "GeneralCell",
+                displayName: "General Cell Runtime",
+                purpose: "Generisk celle-runtime",
+                purposeDescription: "Generisk celle som kan brukes som basis for enkel runtime-logikk.",
+                interests: ["general", "cells", "runtime", "prototype"],
+                summary: "Generisk celle-runtime for enkle kontroller og prototyper.",
+                categoryPath: ["development", "runtime"],
+                tags: ["general", "cells", "runtime", "prototype"],
+                chip: "LOCAL",
+                borderColor: "#475569"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///GeneralCellTemplate",
+                sourceCellName: "GeneralCell",
+                displayName: "General Cell Template",
+                purpose: "Generisk cellemal",
+                purposeDescription: "Utgangspunkt for generiske celler og skreddersydd kontroll-lag.",
+                interests: ["template", "general", "cells", "prototype"],
+                summary: "Generisk cellemal for nye kontrollflater og prototyper.",
+                categoryPath: ["development", "templates"],
+                tags: ["template", "general", "cells", "prototype"],
+                chip: "LOCAL",
+                borderColor: "#475569"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///DiMyWallet",
+                sourceCellName: "DiMyWalletRuntimeCell",
+                displayName: "DiMy Wallet Runtime",
+                purpose: "Lommebok og betalingskontekst",
+                purposeDescription: "Runtime for wallet-relaterte operasjoner i DiMy.",
+                interests: ["wallet", "payments", "identity", "commerce"],
+                summary: "Runtime for wallet- og betalingsrelaterte operasjoner.",
+                categoryPath: ["commerce", "payments"],
+                tags: ["wallet", "payments", "identity", "commerce"],
+                chip: "LOCAL",
+                borderColor: "#15803D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///DiMyAccess",
+                sourceCellName: "DiMyAccessRuntimeCell",
+                displayName: "DiMy Access Runtime",
+                purpose: "Tilgangsstyring for DiMy",
+                purposeDescription: "Runtime for access, entitlements og policy-kontroll.",
+                interests: ["access", "entitlements", "policy", "identity"],
+                summary: "Runtime for tilgang, entitlements og policy-kontroll.",
+                categoryPath: ["identity", "access"],
+                tags: ["access", "entitlements", "policy", "identity"],
+                chip: "LOCAL",
+                borderColor: "#0F766E"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///DiMyPricingPolicy",
+                sourceCellName: "DiMyPricingPolicyCell",
+                displayName: "DiMy Pricing Policy",
+                purpose: "Prisregler og betalingspolicy",
+                purposeDescription: "Runtime for pricing policy og prisrelaterte regler.",
+                interests: ["pricing", "policy", "payments", "commerce"],
+                summary: "Runtime for prisregler og betalingspolicy.",
+                categoryPath: ["commerce", "pricing"],
+                tags: ["pricing", "policy", "payments", "commerce"],
+                chip: "LOCAL",
+                borderColor: "#15803D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///AppleIntelligence",
+                sourceCellName: "AppleIntelligenceCell",
+                displayName: "Apple Intelligence Cell",
+                purpose: "Semantiske assistentoperasjoner",
+                purposeDescription: "Den underliggende AppleIntelligence-cellen som stoetter semantiske arbeidsflyter.",
+                interests: ["assistant", "semantics", "matching", "ai"],
+                summary: "Den underliggende AI-cellen for semantiske arbeidsflyter.",
+                categoryPath: ["assistant", "runtime"],
+                tags: ["assistant", "semantics", "matching", "ai"],
+                chip: "LOCAL",
+                borderColor: "#2563EB",
+                recommendedContexts: ["matching", "tool-exploration"]
+            )
+        ]
+    }
+
+    nonisolated private static func remoteSupportCatalogDescriptors() -> [StaticCatalogDescriptor] {
+        [
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminEntry",
+                sourceCellName: "AdminEntryCell",
+                displayName: "Admin Entry",
+                purpose: "Admin-startpunkt",
+                purposeDescription: "Inngang til admin- og driftsflyt paa staging.",
+                interests: ["admin", "operations", "entry"],
+                summary: "Startpunkt for admin-relaterte verktøy.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "operations"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminOverview",
+                sourceCellName: "AdminOverviewCell",
+                displayName: "Admin Overview",
+                purpose: "Admin drift og sikkerhet",
+                purposeDescription: "Dashboard med admin-celler for resolver, lagring, host og sikkerhet.",
+                interests: ["admin", "operations", "security", "metrics"],
+                summary: "Drift og sikkerhet via admin-celler.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "operations", "security"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminFunding",
+                sourceCellName: "AdminFundingCell",
+                displayName: "Admin Funding",
+                purpose: "Funding-administrasjon",
+                purposeDescription: "Adminverktøy for fundingpolicy og tilknyttede operasjoner.",
+                interests: ["admin", "funding", "operations"],
+                summary: "Administrer funding-policy og tilhørende operasjoner.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "funding", "operations"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminFundingQueue",
+                sourceCellName: "AdminFundingQueueCell",
+                displayName: "Admin Funding Queue",
+                purpose: "Funding-koe og godkjenning",
+                purposeDescription: "Godkjenning og avslag av funding-requests.",
+                interests: ["admin", "funding", "approvals", "queue"],
+                summary: "Funding queue for godkjenning eller avslag.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "funding", "approvals", "queue"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminResolverStats",
+                sourceCellName: "AdminResolverStatsCell",
+                displayName: "Admin Resolver Stats",
+                purpose: "Resolver-metrikk",
+                purposeDescription: "Statistikk og innsikt om resolver-aktivitet.",
+                interests: ["admin", "resolver", "metrics", "operations"],
+                summary: "Resolver-statistikk og runtime-innsikt.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "resolver", "metrics"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminStorageStats",
+                sourceCellName: "AdminStorageStatsCell",
+                displayName: "Admin Storage Stats",
+                purpose: "Lagringsmetrikker",
+                purposeDescription: "Statistikk og innsikt om lagringsbruk.",
+                interests: ["admin", "storage", "metrics", "operations"],
+                summary: "Lagringsstatistikk og kapasitetsinnsikt.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "storage", "metrics"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminHostMetrics",
+                sourceCellName: "AdminHostMetricsCell",
+                displayName: "Admin Host Metrics",
+                purpose: "Host-metrikker",
+                purposeDescription: "Host- og nodemetrikker for driftsovervaaking.",
+                interests: ["admin", "host", "metrics", "operations"],
+                summary: "Host- og nodemetrikker for driftsovervaaking.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "host", "metrics"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminProcesses",
+                sourceCellName: "AdminProcessesCell",
+                displayName: "Admin Processes",
+                purpose: "Prosessovervaaking",
+                purposeDescription: "Overvaak og inspiser prosesser i drift.",
+                interests: ["admin", "processes", "operations", "runtime"],
+                summary: "Innsikt i prosesser og runtime-tilstand.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "processes", "operations"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminRoleEnrollment",
+                sourceCellName: "AdminRoleEnrollmentCell",
+                displayName: "Admin Role Enrollment",
+                purpose: "Rolleopptak og tildeling",
+                purposeDescription: "Haandter rolleopptak og tilgangstildeling.",
+                interests: ["admin", "roles", "access", "identity"],
+                summary: "Rolleopptak og tilgangstildeling.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "roles", "access", "identity"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/AdminSecurityPolicy",
+                sourceCellName: "AdminSecurityPolicyCell",
+                displayName: "Admin Security Policy",
+                purpose: "Sikkerhetspolicy",
+                purposeDescription: "Vis og forvalt sikkerhetspolicyer.",
+                interests: ["admin", "security", "policy", "compliance"],
+                summary: "Forvaltning av sikkerhetspolicyer.",
+                categoryPath: ["operations", "admin"],
+                tags: ["admin", "security", "policy", "compliance"],
+                chip: "ADMIN",
+                borderColor: "#7F1D1D"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ExhibitorAccess",
+                sourceCellName: "ExhibitorAccessCell",
+                displayName: "Exhibitor Access",
+                purpose: "Utstilleradgang",
+                purposeDescription: "Haandter utstiller- og messeadgang.",
+                interests: ["conference", "exhibitor", "access", "events"],
+                summary: "Utstiller- og messeadgang.",
+                categoryPath: ["events", "access"],
+                tags: ["conference", "exhibitor", "access"],
+                chip: "REMOTE",
+                borderColor: "#1D4ED8"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/DeviceRegistration",
+                sourceCellName: "DeviceRegistrationCell",
+                displayName: "Device Registration",
+                purpose: "Enhetsregistrering",
+                purposeDescription: "Registrer enheter og knytt dem til riktige flyter.",
+                interests: ["devices", "registration", "identity", "access"],
+                summary: "Registrer og forvalt enheter.",
+                categoryPath: ["devices", "identity"],
+                tags: ["devices", "registration", "identity"],
+                chip: "REMOTE",
+                borderColor: "#2563EB"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/NotificationOutbox",
+                sourceCellName: "NotificationOutboxCell",
+                displayName: "Notification Outbox",
+                purpose: "Utgaaende varsler",
+                purposeDescription: "Koordiner utgaaende varsler og meldingslevering.",
+                interests: ["notifications", "outbox", "messaging", "delivery"],
+                summary: "Utgaaende varsler og leveringskoe.",
+                categoryPath: ["communication", "notifications"],
+                tags: ["notifications", "outbox", "messaging"],
+                chip: "REMOTE",
+                borderColor: "#2563EB"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/NotificationPolicy",
+                sourceCellName: "NotificationPolicyCell",
+                displayName: "Notification Policy",
+                purpose: "Varslingspolicy",
+                purposeDescription: "Definer regler og policy for varslinger.",
+                interests: ["notifications", "policy", "rules", "messaging"],
+                summary: "Policy og regler for varslinger.",
+                categoryPath: ["communication", "notifications"],
+                tags: ["notifications", "policy", "rules"],
+                chip: "REMOTE",
+                borderColor: "#2563EB"
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/DeviceCallbackBridge",
+                sourceCellName: "DeviceCallbackBridgeCell",
+                displayName: "Device Callback Bridge",
+                purpose: "Device callback-bridge",
+                purposeDescription: "Bro for callback-flyt mellom enheter og tjenester.",
+                interests: ["devices", "callbacks", "bridge", "integration"],
+                summary: "Bridge for callback-flyt mellom enheter og tjenester.",
+                categoryPath: ["devices", "integration"],
+                tags: ["devices", "callbacks", "bridge", "integration"],
+                chip: "REMOTE",
+                borderColor: "#2563EB"
+            )
+        ]
+    }
+
+    nonisolated private static func staticCatalogTemplates(from descriptors: [StaticCatalogDescriptor]) -> [ScaffoldPurposeTemplate] {
+        descriptors.map(staticCatalogTemplate(from:))
+    }
+
+    nonisolated private static func staticCatalogTemplate(from descriptor: StaticCatalogDescriptor) -> ScaffoldPurposeTemplate {
+        let label = endpointLabel(for: descriptor.sourceCellEndpoint)
+        var configuration = referenceCardConfiguration(
+            name: descriptor.displayName,
+            endpoint: descriptor.sourceCellEndpoint,
+            label: label,
+            title: descriptor.displayName,
+            subtitle: descriptor.summary,
+            chip: descriptor.chip,
+            borderColor: descriptor.borderColor,
+            startKey: descriptor.startKey
+        )
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: descriptor.sourceCellEndpoint,
+            sourceCellName: descriptor.sourceCellName,
+            purpose: descriptor.purpose,
+            purposeDescription: descriptor.purposeDescription,
+            interests: descriptor.interests,
+            menuSlots: descriptor.menuSlots.map(\.rawValue)
+        )
+
+        return ScaffoldPurposeTemplate(
+            sourceCellEndpoint: descriptor.sourceCellEndpoint,
+            sourceCellName: descriptor.sourceCellName,
+            purpose: descriptor.purpose,
+            purposeDescription: descriptor.purposeDescription,
+            interests: descriptor.interests,
+            menuSlots: descriptor.menuSlots,
+            goal: configuration,
+            configuration: configuration,
+            displayName: descriptor.displayName,
+            summary: descriptor.summary,
+            categoryPath: descriptor.categoryPath,
+            tags: descriptor.tags,
+            purposeRefs: ["purpose://\(catalogSlug(for: descriptor.purpose))"],
+            interestRefs: descriptor.interests.map { "interest://\(catalogSlug(for: $0))" },
+            supportedInsertionModes: [.root],
+            supportedTargetKinds: descriptor.supportedTargetKinds,
+            ioGetKeys: descriptor.ioGetKeys,
+            ioSetKeys: descriptor.ioSetKeys,
+            ioTopics: descriptor.ioTopics,
+            ioFilterTypes: descriptor.ioFilterTypes,
+            authRequired: descriptor.authRequired,
+            policyHints: descriptor.policyHints,
+            flowDriven: descriptor.flowDriven,
+            editable: descriptor.editable,
+            recommendedContexts: descriptor.recommendedContexts,
+            skipResolverLookup: descriptor.skipResolverLookup
+        )
+    }
+
+    nonisolated private static func endpointLabel(for endpoint: String) -> String {
+        let raw: String = {
+            guard let url = URL(string: endpoint) else { return "cell" }
+            let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            guard let last = path.split(separator: "/").last else { return "cell" }
+            return String(last)
+        }()
+
+        let sanitized = raw.filter { $0.isLetter || $0.isNumber }
+        guard !sanitized.isEmpty else { return "cell" }
+        return sanitized.prefix(1).lowercased() + String(sanitized.dropFirst())
+    }
+
+    nonisolated private static func catalogSlug(for text: String) -> String {
+        text
+            .lowercased()
+            .replacingOccurrences(of: "æ", with: "ae")
+            .replacingOccurrences(of: "ø", with: "o")
+            .replacingOccurrences(of: "å", with: "a")
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
     }
 
     private static func entityScannerTemplate(
@@ -4506,7 +5223,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             ],
             flowDriven: true,
             editable: true,
-            recommendedContexts: ["conference", "meetup", "nearby pairing", "identity expansion"]
+            recommendedContexts: ["conference", "meetup", "nearby pairing", "identity expansion"],
+            skipResolverLookup: true
         )
     }
 
@@ -6138,18 +6856,25 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#D3DEEB"
         }
 
-        var title = SkeletonText(text: "Apple Intelligence: Purpose matcher")
+        var title = SkeletonText(text: "Apple Intelligence: Semantic Explorer")
         title.modifiers = modifier {
             $0.fontStyle = "headline"
             $0.fontWeight = "semibold"
             $0.foregroundColor = "#0F172A"
         }
 
-        var intro = SkeletonText(text: "Tools-match pa purpose/interests. Treff viser hvorfor de passer, om skeleton finnes, og kan lastes direkte i Porthole.")
+        var intro = SkeletonText(text: "Semantisk lag over kontroll-konfigurasjonene. Utforsk alle kjente CellConfigurations, match paa formaal/interesser og last valgt kontrollflate direkte i Porthole.")
         intro.modifiers = modifier {
             $0.foregroundColor = "#334155"
             $0.fontSize = 12
-            $0.lineLimit = 2
+            $0.lineLimit = 3
+        }
+
+        var catalogScope = SkeletonText(keypath: "catalog.state.count")
+        catalogScope.modifiers = modifier {
+            $0.foregroundColor = "#0F766E"
+            $0.fontSize = 12
+            $0.fontWeight = "semibold"
         }
 
         let promptField = SkeletonTextField(
@@ -6180,6 +6905,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             payload: .bool(true)
         )
         syncCandidates.modifiers = neutralButton
+
+        var browseAll = SkeletonButton(
+            keypath: "catalog.matching.runPrompt",
+            label: "Utforsk alle celler",
+            payload: .object(["browseAll": .bool(true)])
+        )
+        browseAll.modifiers = primaryButton
 
         var quickChat = SkeletonButton(
             keypath: "catalog.matching.runPrompt",
@@ -6566,14 +7298,14 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
         publishGroupPurpose.modifiers = neutralButton
 
-        var sectionMatches = SkeletonText(text: "Treff fra Tools/Purpose/Interest matching")
+        var sectionMatches = SkeletonText(text: "Treff fra semantisk matching over katalogen")
         sectionMatches.modifiers = modifier {
             $0.foregroundColor = "#0F172A"
             $0.fontWeight = "semibold"
             $0.fontSize = 12
         }
 
-        var sectionSelected = SkeletonText(text: "Valgt forslag (lastbar CellConfiguration med skeleton)")
+        var sectionSelected = SkeletonText(text: "Valgt kontrollkonfigurasjon (kan lastes i Porthole)")
         sectionSelected.modifiers = modifier {
             $0.foregroundColor = "#0F172A"
             $0.fontWeight = "semibold"
@@ -6618,9 +7350,10 @@ final class ConfigurationCatalogCell: GeneralCell {
         var root = SkeletonVStack(elements: [
             .Text(title),
             .Text(intro),
+            .Text(catalogScope),
             .TextField(promptField),
-            .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(syncCandidates)])),
-            .HStack(SkeletonHStack(elements: [.Button(clearMatching)])),
+            .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(browseAll)])),
+            .HStack(SkeletonHStack(elements: [.Button(syncCandidates), .Button(clearMatching)])),
             .HStack(SkeletonHStack(elements: [.Button(quickChat), .Button(quickConference)])),
             .HStack(SkeletonHStack(elements: [.Button(quickRestaurant), .Button(quickPeople)])),
             .TextField(selectedIndexField),
