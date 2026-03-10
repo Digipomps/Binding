@@ -18,6 +18,7 @@ struct FullLibraryQueryContext {
 
 struct FullLibraryView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var bridgeStatusStore: BridgeConnectionStatusStore
     @StateObject private var model: FullLibraryViewModel
     @FocusState private var focusedField: FocusField?
     @State private var closeAfterInsert = true
@@ -119,6 +120,12 @@ struct FullLibraryView: View {
     private func libraryBody(compact: Bool, includeFooter: Bool) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             headerCard
+            if let bridgeStatus = bridgeStatusStore.primaryStatus {
+                BridgeStatusBanner(
+                    status: bridgeStatus,
+                    additionalCount: max(0, bridgeStatusStore.visibleStatuses.count - 1)
+                )
+            }
             actionBar(compact: compact)
             tabPicker
             searchBar(compact: compact)

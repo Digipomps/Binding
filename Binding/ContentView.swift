@@ -78,6 +78,7 @@ struct ContentView: View {
     @StateObject private var viewModel = PortholeBindingViewModel()
     @StateObject private var legacyPortholeViewModel = PortholeViewModel()
     @StateObject private var editorState = EditorState()
+    @StateObject private var bridgeStatusStore = BridgeConnectionStatusStore()
     @State private var floatingPanelsController = SkeletonEditorFloatingPanelsController()
     @State private var editorMode: EditorMode = .view
     @State private var menusHidden: Bool = false
@@ -127,7 +128,7 @@ struct ContentView: View {
                     return !items.isEmpty
                 }
 
-            if !menusHidden {
+            if !usesCompactConvenienceMenus && !menusHidden {
                 // Edge menus overlay
                 EdgeMenusOverlay(
                     upperLeft: menuItems(from: viewModel.upperLeftMenu),
@@ -173,6 +174,12 @@ struct ContentView: View {
                     .padding(.vertical, 8)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
+                if let bridgeStatus = bridgeStatusStore.primaryStatus {
+                    BridgeStatusBanner(
+                        status: bridgeStatus,
+                        additionalCount: max(0, bridgeStatusStore.visibleStatuses.count - 1)
+                    )
+                }
                 if let copyStatusMessage {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
@@ -187,6 +194,9 @@ struct ContentView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                if usesCompactConvenienceMenus {
+                    compactConvenienceTray
                 }
             }
                 .padding(.horizontal, 12)
@@ -270,6 +280,7 @@ struct ContentView: View {
                     Task { await loadConfigurationForEditing(configuration) }
                 }
             )
+            .environmentObject(bridgeStatusStore)
 #if os(macOS)
             .frame(minWidth: 1020, minHeight: 720)
 #else
@@ -308,6 +319,10 @@ struct ContentView: View {
                 rotationAccumulator = angle
             }
             .onEnded { angle in
+                guard !usesCompactConvenienceMenus else {
+                    rotationAccumulator = .zero
+                    return
+                }
                 let threshold: Angle = .degrees(15) // ~0.26 rad ~ 15 degrees
                 if angle.radians > threshold.radians {
                     withAnimation(.spring()) { menusHidden = true }
@@ -925,6 +940,10 @@ struct ContentView: View {
 #endif
     }
 
+    private var usesCompactConvenienceMenus: Bool {
+        usesCompactEditorChrome
+    }
+
     private var appToolbar: some View {
         Group {
             if usesCompactEditorChrome {
@@ -1050,6 +1069,79 @@ struct ContentView: View {
                 .accessibilityLabel("Editor actions")
             }
         }
+    }
+
+    private var compactConvenienceTray: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label("Snarveier", systemImage: "square.grid.2x2")
+                    .font(.caption.weight(.semibold))
+                Spacer(minLength: 0)
+                Text("\(compactConvenienceConfigurations.count)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(compactConvenienceConfigurations, id: \.name) { configuration in
+                        Button {
+                            Task { await loadConfigurationForEditing(configuration) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Image(systemName: configuration.skeletonIconName)
+                                    .font(.headline)
+                                    .foregroundStyle(Color.accentColor)
+                                Text(configuration.name)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(2)
+                                if let summary = configuration.description, !summary.isEmpty {
+                                    Text(summary)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .frame(width: 132, alignment: .leading)
+                            .padding(10)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var compactConvenienceConfigurations: [CellConfiguration] {
+        let orderedGroups = [
+            viewModel.upperLeftMenu,
+            viewModel.upperMidMenu,
+            viewModel.upperRightMenu,
+            viewModel.lowerLeftMenu,
+            viewModel.lowerMidMenu,
+            viewModel.lowerRightMenu
+        ]
+
+        var result: [CellConfiguration] = []
+        var seen: Set<String> = []
+
+        for group in orderedGroups {
+            for configuration in group {
+                let key = menuIdentityKey(for: configuration)
+                guard seen.insert(key).inserted else { continue }
+                result.append(configuration)
+                if result.count == 12 {
+                    return result
+                }
+            }
+        }
+
+        return result
     }
 
     private var compactEditorDrawer: some View {
@@ -2471,6 +2563,225 @@ private extension CellConfiguration {
             // Fallback for any future or platform-specific cases to keep the switch exhaustive
             return "square.grid.2x2"
         }
+    }
+}
+
+@MainActor
+final class BridgeConnectionStatusStore: ObservableObject {
+    @Published private(set) var visibleStatuses: [LightweightBridgeConnectionStatus] = []
+
+    private var statusesByEndpoint: [String: LightweightBridgeConnectionStatus] = [:]
+    private var statusCancellable: AnyCancellable?
+    private var cleanupTask: Task<Void, Never>?
+
+    init(notificationCenter: NotificationCenter = .default) {
+        statusCancellable = notificationCenter
+            .publisher(for: .lightweightBridgeConnectionStatusDidChange)
+            .compactMap(LightweightBridgeConnectionStatus.init(notification:))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                self?.store(status)
+            }
+
+        cleanupTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                await self?.pruneExpiredStatuses()
+            }
+        }
+    }
+
+    deinit {
+        statusCancellable?.cancel()
+        cleanupTask?.cancel()
+    }
+
+    var primaryStatus: LightweightBridgeConnectionStatus? {
+        visibleStatuses.first
+    }
+
+    private func store(_ status: LightweightBridgeConnectionStatus) {
+        statusesByEndpoint[status.endpoint] = status
+        rebuildVisibleStatuses(referenceDate: Date())
+    }
+
+    private func pruneExpiredStatuses() {
+        rebuildVisibleStatuses(referenceDate: Date())
+    }
+
+    private func rebuildVisibleStatuses(referenceDate now: Date) {
+        statusesByEndpoint = statusesByEndpoint.filter { _, status in
+            !status.isExpired(relativeTo: now)
+        }
+
+        visibleStatuses = statusesByEndpoint.values
+            .filter { $0.shouldDisplay(relativeTo: now) }
+            .sorted { lhs, rhs in
+                if lhs.severityRank == rhs.severityRank {
+                    return lhs.updatedAt > rhs.updatedAt
+                }
+                return lhs.severityRank > rhs.severityRank
+            }
+    }
+}
+
+struct BridgeStatusBanner: View {
+    let status: LightweightBridgeConnectionStatus
+    let additionalCount: Int
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: status.iconName)
+                .foregroundStyle(status.tintColor)
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text(status.titleText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    if additionalCount > 0 {
+                        Text("+\(additionalCount)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.12), in: Capsule())
+                    }
+                }
+
+                Text(status.subtitleText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(status.tintColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(status.tintColor.opacity(0.22), lineWidth: 1)
+        }
+    }
+}
+
+private extension LightweightBridgeConnectionStatus {
+    var severityRank: Int {
+        switch phase {
+        case .failed:
+            return 5
+        case .disconnected:
+            return 4
+        case .reconnecting:
+            return 3
+        case .connecting:
+            return 2
+        case .connected:
+            return 1
+        }
+    }
+
+    func shouldDisplay(relativeTo now: Date) -> Bool {
+        let age = now.timeIntervalSince(updatedAt)
+        switch phase {
+        case .connected:
+            return age <= 10
+        case .connecting:
+            return age <= 20
+        case .reconnecting, .disconnected, .failed:
+            return age <= 90
+        }
+    }
+
+    func isExpired(relativeTo now: Date) -> Bool {
+        let age = now.timeIntervalSince(updatedAt)
+        switch phase {
+        case .connected:
+            return age > 20
+        case .connecting:
+            return age > 40
+        case .reconnecting, .disconnected, .failed:
+            return age > 180
+        }
+    }
+
+    var titleText: String {
+        switch phase {
+        case .connecting:
+            return "Kobler til bridge"
+        case .connected:
+            return "Bridge tilkoblet"
+        case .reconnecting:
+            return "Kobler til igjen"
+        case .disconnected:
+            return "Bridge frakoblet"
+        case .failed:
+            return "Bridge-feil"
+        }
+    }
+
+    var subtitleText: String {
+        var parts: [String] = [endpointSummary]
+        if let attempt {
+            parts.append("forsøk \(attempt)")
+        }
+        if let detail, !detail.isEmpty {
+            parts.append(detail)
+        }
+        return parts.joined(separator: " • ")
+    }
+
+    var tintColor: Color {
+        switch phase {
+        case .connecting:
+            return .blue
+        case .connected:
+            return .green
+        case .reconnecting:
+            return .orange
+        case .disconnected:
+            return .orange
+        case .failed:
+            return .red
+        }
+    }
+
+    var iconName: String {
+        switch phase {
+        case .connecting:
+            return "bolt.horizontal.circle.fill"
+        case .connected:
+            return "checkmark.circle.fill"
+        case .reconnecting:
+            return "arrow.trianglehead.2.clockwise.rotate.90.circle.fill"
+        case .disconnected:
+            return "wifi.slash"
+        case .failed:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var endpointSummary: String {
+        guard let components = URLComponents(string: endpoint) else {
+            return endpoint
+        }
+
+        let host = components.host ?? endpoint
+        let lastPath = components.path
+            .split(separator: "/")
+            .last
+            .map(String.init)
+
+        if let lastPath, !lastPath.isEmpty, lastPath.lowercased() != host.lowercased() {
+            return "\(host)/\(lastPath)"
+        }
+
+        return host
     }
 }
 
