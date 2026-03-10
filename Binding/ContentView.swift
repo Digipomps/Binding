@@ -16,6 +16,7 @@ import AppKit
 #endif
 
 struct ContentView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "publishersws"
     private static let stagingRemoteWebSocketPath = "bridgehead"
@@ -88,6 +89,9 @@ struct ContentView: View {
     @State private var copyStatusMessage: String?
     @State private var catalogMenuPool: [CellConfiguration] = []
     @State private var lastPerspectiveMenuSignature: String = ""
+    @State private var compactEditorDrawerVisible = false
+    @State private var compactElementsExpanded = true
+    @State private var compactInspectorExpanded = true
 
     private static let defaultRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.defaultRemoteWebSocketPath,
@@ -107,6 +111,12 @@ struct ContentView: View {
                 selectedNodePath: editorState.selectedNodePath,
                 onSelectPath: { selectedPath in
                     editorState.selectNode(selectedPath)
+                    if usesCompactEditorChrome, editorMode == .edit {
+                        compactInspectorExpanded = true
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            compactEditorDrawerVisible = true
+                        }
+                    }
                 }
             )
                 .environmentObject(viewModel)
@@ -186,7 +196,7 @@ struct ContentView: View {
 #if os(macOS)
             EmptyView()
 #else
-            if editorMode == .edit {
+            if editorMode == .edit && !usesCompactEditorChrome {
                 SkeletonTreePanel(editorState: editorState)
                     .padding(.leading, 12)
                     .padding(.top, 72)
@@ -197,10 +207,19 @@ struct ContentView: View {
 #if os(macOS)
             EmptyView()
 #else
-            if editorMode == .edit {
+            if editorMode == .edit && !usesCompactEditorChrome {
                 SkeletonModifierInspectorPanel(editorState: editorState)
                     .padding(.trailing, 12)
                     .padding(.top, 72)
+            }
+#endif
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+#if os(macOS)
+            EmptyView()
+#else
+            if editorMode == .edit && usesCompactEditorChrome && compactEditorDrawerVisible {
+                compactEditorDrawer
             }
 #endif
         }
@@ -209,10 +228,22 @@ struct ContentView: View {
             case .view:
                 applyWorkingCopyToViewer()
                 editorState.endEditing()
+                compactEditorDrawerVisible = false
             case .edit:
                 editorState.beginEditing(from: viewModel.currentSkeleton)
+                compactElementsExpanded = true
+                compactInspectorExpanded = editorState.selectedNodePath != nil
             }
             floatingPanelsController.setEditing(mode == .edit, editorState: editorState)
+        }
+        .onChange(of: editorState.selectedNodePath) { _, selectedPath in
+            guard usesCompactEditorChrome, editorMode == .edit else { return }
+            if selectedPath != nil {
+                compactInspectorExpanded = true
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    compactEditorDrawerVisible = true
+                }
+            }
         }
         .onAppear {
             floatingPanelsController.setEditing(editorMode == .edit, editorState: editorState)
@@ -886,7 +917,27 @@ struct ContentView: View {
         return viewModel.currentSkeleton
     }
 
+    private var usesCompactEditorChrome: Bool {
+#if os(iOS)
+        horizontalSizeClass == .compact
+#else
+        false
+#endif
+    }
+
     private var appToolbar: some View {
+        Group {
+            if usesCompactEditorChrome {
+                compactAppToolbar
+            } else {
+                regularAppToolbar
+            }
+        }
+        .padding(10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var regularAppToolbar: some View {
         HStack(spacing: 10) {
             Button {
                 presentingFullLibrary = true
@@ -936,8 +987,138 @@ struct ContentView: View {
                 .font(.caption)
             }
         }
-        .padding(10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var compactAppToolbar: some View {
+        HStack(spacing: 8) {
+            Button {
+                presentingFullLibrary = true
+            } label: {
+                Image(systemName: "books.vertical")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .accessibilityLabel("Library")
+
+            Button {
+                copyLoadedConfigurationJSONToClipboard()
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(activeConfiguration == nil && editorState.workingCopy == nil)
+            .accessibilityLabel("Copy JSON")
+
+            Picker("Mode", selection: $editorMode) {
+                ForEach(EditorMode.allCases) { mode in
+                    Image(systemName: mode.systemImage).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if editorMode == .edit {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        compactEditorDrawerVisible.toggle()
+                    }
+                } label: {
+                    Image(systemName: compactEditorDrawerVisible ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(compactEditorDrawerVisible ? "Skjul editorpaneler" : "Vis editorpaneler")
+
+                Menu {
+                    Button("Undo") { editorState.undo() }
+                        .disabled(!editorState.canUndo)
+                    Button("Redo") { editorState.redo() }
+                        .disabled(!editorState.canRedo)
+                    Divider()
+                    Button("Discard") {
+                        editorState.discardChanges()
+                    }
+                    Button("Apply") {
+                        applyWorkingCopyToViewer()
+                    }
+                    .disabled(editorState.workingCopy == nil)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel("Editor actions")
+            }
+        }
+    }
+
+    private var compactEditorDrawer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Editor")
+                        .font(.headline)
+                    Text(editorState.selectedNodePath == nil ? "Velg et element for å justere detaljer." : "Element og inspector ligger samlet her.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    let shouldCollapse = compactElementsExpanded || compactInspectorExpanded
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        compactElementsExpanded = !shouldCollapse
+                        compactInspectorExpanded = !shouldCollapse
+                    }
+                } label: {
+                    Image(systemName: compactElementsExpanded || compactInspectorExpanded ? "chevron.down" : "chevron.up")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel("Collapse editor sections")
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        compactEditorDrawerVisible = false
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .accessibilityLabel("Lukk editorpaneler")
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    DisclosureGroup("Elements", isExpanded: $compactElementsExpanded) {
+                        SkeletonTreePanel(
+                            editorState: editorState,
+                            preferredWidth: nil,
+                            maximumHeight: nil,
+                            showsBackground: false
+                        )
+                        .padding(.top, 8)
+                    }
+
+                    DisclosureGroup("Inspector", isExpanded: $compactInspectorExpanded) {
+                        SkeletonModifierInspectorPanel(
+                            editorState: editorState,
+                            preferredWidth: nil,
+                            maximumHeight: nil,
+                            modifierListMaximumHeight: nil,
+                            showsBackground: false
+                        )
+                        .padding(.top, 8)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
     }
 
     private func applyWorkingCopyToViewer() {

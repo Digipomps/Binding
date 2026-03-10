@@ -12,4 +12,11 @@ enum EditorMode: String, CaseIterable, Identifiable {
         case .edit: return "Edit"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .view: return "eye"
+        case .edit: return "slider.horizontal.3"
+        }
+    }
 }

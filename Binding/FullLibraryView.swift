@@ -19,11 +19,16 @@ struct FullLibraryQueryContext {
 struct FullLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model: FullLibraryViewModel
-    @FocusState private var queryFocused: Bool
+    @FocusState private var focusedField: FocusField?
     @State private var closeAfterInsert = true
     @State private var showAdvancedFilters = false
 
     private let onAddConfiguration: (CellConfiguration) -> Void
+
+    private enum FocusField: Hashable {
+        case query
+        case token
+    }
 
     init(
         catalogEndpoints: [String],
@@ -66,15 +71,29 @@ struct FullLibraryView: View {
                             .padding(12)
                     }
                 }
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        dismissKeyboard()
+                    }
+                )
             }
             .navigationTitle("Full Library")
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Ferdig") {
+                        dismissKeyboard()
+                    }
+                }
+            }
         }
 #if os(macOS)
         .frame(minWidth: 1020, minHeight: 720)
 #endif
         .task {
             await model.loadInitial()
-            queryFocused = true
+            focusedField = .query
         }
         .onChange(of: model.queryText) { _, _ in
             model.scheduleRefresh()
@@ -100,7 +119,7 @@ struct FullLibraryView: View {
     private func libraryBody(compact: Bool, includeFooter: Bool) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             headerCard
-            actionBar
+            actionBar(compact: compact)
             tabPicker
             searchBar(compact: compact)
             if !model.searchSuggestions.isEmpty {
@@ -162,26 +181,56 @@ struct FullLibraryView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private var actionBar: some View {
-        HStack(spacing: 12) {
-            Toggle("Lukk etter legg til", isOn: $closeAfterInsert)
-                .toggleStyle(.switch)
-                .font(.caption)
+    @ViewBuilder
+    private func actionBar(compact: Bool) -> some View {
+        Group {
+            if compact {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Lukk etter legg til", isOn: $closeAfterInsert)
+                        .toggleStyle(.switch)
+                        .font(.caption)
 
-            Spacer()
+                    HStack(spacing: 8) {
+                        Button {
+                            dismissKeyboard()
+                            Task { await model.refreshNow() }
+                        } label: {
+                            Label("Oppdater", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isLoading)
 
-            Button {
-                Task { await model.refreshNow() }
-            } label: {
-                Label("Oppdater", systemImage: "arrow.clockwise")
+                        Button("Lukk") {
+                            dismissKeyboard()
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            } else {
+                HStack(spacing: 12) {
+                    Toggle("Lukk etter legg til", isOn: $closeAfterInsert)
+                        .toggleStyle(.switch)
+                        .font(.caption)
+
+                    Spacer()
+
+                    Button {
+                        dismissKeyboard()
+                        Task { await model.refreshNow() }
+                    } label: {
+                        Label("Oppdater", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isLoading)
+
+                    Button("Lukk") {
+                        dismissKeyboard()
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
-            .buttonStyle(.bordered)
-            .disabled(model.isLoading)
-
-            Button("Lukk") {
-                dismiss()
-            }
-            .buttonStyle(.borderedProminent)
         }
         .padding(10)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -194,6 +243,7 @@ struct FullLibraryView: View {
                     primarySearchField
                     HStack(spacing: 8) {
                         Button("Søk") {
+                            dismissKeyboard()
                             Task { await model.refreshNow() }
                         }
                         .buttonStyle(.borderedProminent)
@@ -210,6 +260,7 @@ struct FullLibraryView: View {
                 HStack(spacing: 10) {
                     primarySearchField
                     Button("Søk") {
+                        dismissKeyboard()
                         Task { await model.refreshNow() }
                     }
                     .buttonStyle(.borderedProminent)
@@ -228,9 +279,10 @@ struct FullLibraryView: View {
     private var primarySearchField: some View {
         TextField("Søk i konfigurasjoner, tags eller beskrivelser", text: $model.queryText)
             .textFieldStyle(.roundedBorder)
-            .focused($queryFocused)
+            .focused($focusedField, equals: .query)
             .submitLabel(.search)
             .onSubmit {
+                dismissKeyboard()
                 Task { await model.refreshNow() }
             }
     }
@@ -305,15 +357,18 @@ struct FullLibraryView: View {
     private var tokenDraftField: some View {
         TextField("Token: purpose:... / interest:...", text: $model.tokenDraft)
             .textFieldStyle(.roundedBorder)
+            .focused($focusedField, equals: .token)
             .submitLabel(.done)
             .onSubmit {
                 model.consumeTokenDraft()
+                dismissKeyboard()
             }
     }
 
     private var addTokenButton: some View {
         Button {
             model.consumeTokenDraft()
+            dismissKeyboard()
         } label: {
             Label("Legg til token", systemImage: "plus.circle")
         }
@@ -429,6 +484,7 @@ struct FullLibraryView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .scrollDismissesKeyboard(.interactively)
         .padding(10)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
@@ -593,6 +649,7 @@ struct FullLibraryView: View {
                         .buttonStyle(.borderedProminent)
                     }
                 }
+                .scrollDismissesKeyboard(.interactively)
             } else {
                 Text("Velg en konfigurasjon for detaljer.")
                     .font(.caption)
@@ -674,10 +731,15 @@ struct FullLibraryView: View {
     }
 
     private func applySelection(_ configuration: CellConfiguration) {
+        dismissKeyboard()
         onAddConfiguration(configuration)
         if closeAfterInsert {
             dismiss()
         }
+    }
+
+    private func dismissKeyboard() {
+        focusedField = nil
     }
 }
 

@@ -3,7 +3,22 @@ import CellBase
 
 struct SkeletonTreePanel: View {
     @ObservedObject var editorState: EditorState
+    private let preferredWidth: CGFloat?
+    private let maximumHeight: CGFloat?
+    private let showsBackground: Bool
     @State private var addElementKind: SkeletonInsertElementKind = .text
+
+    init(
+        editorState: EditorState,
+        preferredWidth: CGFloat? = 300,
+        maximumHeight: CGFloat? = 420,
+        showsBackground: Bool = true
+    ) {
+        self.editorState = editorState
+        self.preferredWidth = preferredWidth
+        self.maximumHeight = maximumHeight
+        self.showsBackground = showsBackground
+    }
 
     private var nodes: [SkeletonTreeNodeDescriptor] {
         guard let workingCopy = editorState.workingCopy else { return [] }
@@ -11,7 +26,7 @@ struct SkeletonTreePanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let content = VStack(alignment: .leading, spacing: 8) {
             Text("Elements")
                 .font(.headline)
 
@@ -79,9 +94,18 @@ struct SkeletonTreePanel: View {
             }
         }
         .padding(10)
-        .frame(width: 300)
-        .frame(maxHeight: 420, alignment: .topLeading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+        Group {
+            if let preferredWidth {
+                content
+                    .frame(width: preferredWidth)
+            } else {
+                content
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+        .modifier(PanelHeightModifier(maximumHeight: maximumHeight))
+        .modifier(PanelBackgroundModifier(showsBackground: showsBackground))
     }
 
     private func insertionPlan() -> (parentPath: SkeletonNodePath, index: Int?)? {
@@ -130,6 +154,10 @@ struct SkeletonTreePanel: View {
 
 struct SkeletonModifierInspectorPanel: View {
     @ObservedObject var editorState: EditorState
+    private let preferredWidth: CGFloat?
+    private let maximumHeight: CGFloat?
+    private let modifierListMaximumHeight: CGFloat?
+    private let showsBackground: Bool
     @State private var addParameterSelection: SkeletonElementParameterKey?
     @State private var parameterValueDrafts: [SkeletonElementParameterKey: String] = [:]
     @State private var invalidParameterDrafts: Set<SkeletonElementParameterKey> = []
@@ -166,8 +194,22 @@ struct SkeletonModifierInspectorPanel: View {
         SkeletonModifierCatalog.addableKeys(for: selectedElement, modifiers: selectedModifiers)
     }
 
+    init(
+        editorState: EditorState,
+        preferredWidth: CGFloat? = 360,
+        maximumHeight: CGFloat? = 520,
+        modifierListMaximumHeight: CGFloat? = 150,
+        showsBackground: Bool = true
+    ) {
+        self.editorState = editorState
+        self.preferredWidth = preferredWidth
+        self.maximumHeight = maximumHeight
+        self.modifierListMaximumHeight = modifierListMaximumHeight
+        self.showsBackground = showsBackground
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let content = VStack(alignment: .leading, spacing: 10) {
             Text("Inspector")
                 .font(.headline)
 
@@ -218,14 +260,11 @@ struct SkeletonModifierInspectorPanel: View {
                             }
                         }
                     }
-                    .frame(maxHeight: 150)
+                    .modifier(PanelHeightModifier(maximumHeight: modifierListMaximumHeight))
                 }
             }
         }
         .padding(10)
-        .frame(width: 360)
-        .frame(maxHeight: 520, alignment: .topLeading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onAppear {
             refreshFromState()
         }
@@ -235,6 +274,18 @@ struct SkeletonModifierInspectorPanel: View {
         .onChange(of: editorState.revision) { _, _ in
             refreshFromState()
         }
+
+        Group {
+            if let preferredWidth {
+                content
+                    .frame(width: preferredWidth)
+            } else {
+                content
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+        .modifier(PanelHeightModifier(maximumHeight: maximumHeight))
+        .modifier(PanelBackgroundModifier(showsBackground: showsBackground))
     }
 
     @ViewBuilder
@@ -564,6 +615,30 @@ struct SkeletonModifierInspectorPanel: View {
             return value
         }
         return Double(text.replacingOccurrences(of: ",", with: "."))
+    }
+}
+
+private struct PanelHeightModifier: ViewModifier {
+    let maximumHeight: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let maximumHeight {
+            content.frame(maxHeight: maximumHeight, alignment: .topLeading)
+        } else {
+            content
+        }
+    }
+}
+
+private struct PanelBackgroundModifier: ViewModifier {
+    let showsBackground: Bool
+
+    func body(content: Content) -> some View {
+        if showsBackground {
+            content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        } else {
+            content
+        }
     }
 }
 
