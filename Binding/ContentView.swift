@@ -241,6 +241,9 @@ struct ContentView: View {
             )
 #if os(macOS)
             .frame(minWidth: 1020, minHeight: 720)
+#else
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
 #endif
         }
         .task {

@@ -5938,6 +5938,14 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderColor = "#93C5FD"
         }
 
+        let diagnosticsSectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FEFCE8"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#FACC15"
+        }
+
         let storageSectionCard = modifier {
             $0.padding = 10
             $0.background = "#F8FAFC"
@@ -6046,7 +6054,11 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Text(SkeletonText(text: "Capabilities")),
             .Text(SkeletonText(keypath: "transportMode")),
             .Text(SkeletonText(keypath: "precisionMode")),
-            .Text(SkeletonText(keypath: "description"))
+            .Text(SkeletonText(keypath: "supportsNearbyPrecision")),
+            .Text(SkeletonText(keypath: "supportsMultipeerConnectivity")),
+            .Text(SkeletonText(keypath: "sessionUUID")),
+            .Text(SkeletonText(keypath: "description")),
+            .Text(SkeletonText(keypath: "status"))
         ]
         var capabilityStack = SkeletonVStack(elements: capabilityReferenceElements)
         capabilityStack.modifiers = sectionCard
@@ -6057,11 +6069,36 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Text(SkeletonText(text: "Status")),
             .Text(SkeletonText(keypath: "status")),
             .Text(SkeletonText(keypath: "remoteUUID")),
-            .Text(SkeletonText(keypath: "timestamp"))
+            .Text(SkeletonText(keypath: "timestamp")),
+            .Text(SkeletonText(keypath: "transportMode")),
+            .Text(SkeletonText(keypath: "precisionMode")),
+            .Text(SkeletonText(keypath: "description"))
         ]
         var statusStack = SkeletonVStack(elements: statusReferenceElements)
         statusStack.modifiers = sectionCard
         statusReference.flowElementSkeleton = statusStack
+
+        var lostReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.lost")
+        let lostReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Lost peer")),
+            .Text(SkeletonText(keypath: "displayName")),
+            .Text(SkeletonText(keypath: "remoteUUID")),
+            .Text(SkeletonText(keypath: "timestamp"))
+        ]
+        var lostStack = SkeletonVStack(elements: lostReferenceElements)
+        lostStack.modifiers = sectionCard
+        lostReference.flowElementSkeleton = lostStack
+
+        var pendingReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.contact.pending")
+        let pendingReferenceElements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Pending contact")),
+            .Text(SkeletonText(keypath: "remoteUUID")),
+            .Text(SkeletonText(keypath: "status")),
+            .Text(SkeletonText(keypath: "message"))
+        ]
+        var pendingStack = SkeletonVStack(elements: pendingReferenceElements)
+        pendingStack.modifiers = sectionCard
+        pendingReference.flowElementSkeleton = pendingStack
 
         var foundReference = SkeletonCellReference(keypath: "scanner", topic: "scanner.found")
         let foundReferenceElements: SkeletonElementList = [
@@ -6249,6 +6286,35 @@ final class ConfigurationCatalogCell: GeneralCell {
             root.append(.Section(section))
         }
 
+        var diagnosticsHeader = SkeletonText(text: "Troubleshooting")
+        diagnosticsHeader.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#854D0E"
+        }
+        let diagnosticsLines = [
+            "Mac kan brukes som scanner-peer via MultipeerConnectivity, men ikke UWB. Forvent precisionMode = multipeer-only.",
+            "Pa iPhone og macOS ma Local Network/Bonjour godkjennes for discovery. Hvis du tidligere har avslatt, sla det pa igjen i systeminnstillingene.",
+            "Hvis du bare ser 'started' og ingen peers: sjekk at begge enheter kjorer samme build, er pa samme lokale nett og at appen ikke er blokkert av Local Network permission.",
+            "Hvis capabilities ikke viser sessionUUID eller transportMode etter start, kom scanner ikke ordentlig opp.",
+            "Hvis peers blir funnet men kontakt ikke etableres, se etter 'connecting', 'connected', 'pendingConnection' og 'connectedDevices'."
+        ]
+        var diagnosticsContent = SkeletonElementList()
+        for line in diagnosticsLines {
+            var info = SkeletonText(text: line)
+            info.modifiers = modifier {
+                $0.foregroundColor = "#713F12"
+                $0.fontSize = 12
+                $0.lineLimit = 4
+            }
+            diagnosticsContent.append(.Text(info))
+        }
+        var diagnosticsSection = SkeletonSection(
+            header: .Text(diagnosticsHeader),
+            content: diagnosticsContent
+        )
+        diagnosticsSection.modifiers = diagnosticsSectionCard
+        root.append(.Section(diagnosticsSection))
+
         if includePerspectiveSection {
             var activePurposeList = SkeletonList(keypath: "cell:///Perspective/activePurpose.purposes")
             var activePurposeRow = SkeletonElementList()
@@ -6280,8 +6346,10 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Reference(capabilityReference),
             .Reference(statusReference),
             .Reference(foundReference),
+            .Reference(lostReference),
             .Reference(connectedReference),
             .Reference(proximityReference),
+            .Reference(pendingReference),
             .Reference(outgoingReference),
             .Reference(incomingReference),
             .Reference(establishedReference),

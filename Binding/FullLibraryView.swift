@@ -47,42 +47,25 @@ struct FullLibraryView: View {
         NavigationStack {
             GeometryReader { proxy in
                 let compact = proxy.size.width < 980
-                VStack(alignment: .leading, spacing: 14) {
-                    headerCard
-                    actionBar
-                    tabPicker
-                    searchBar(compact: compact)
-                    if !model.searchSuggestions.isEmpty {
-                        suggestionsRow
-                    }
-                    tokenBar
-                    if showAdvancedFilters {
-                        advancedControls(compact: compact)
-                    } else {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                showAdvancedFilters = true
-                            }
-                        } label: {
-                            Label("Vis avanserte filtre", systemImage: "slider.horizontal.3")
+                Group {
+                    if compact {
+                        ScrollView {
+                            libraryBody(compact: true, includeFooter: false)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                                .padding(12)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-
-                    if case .unavailable(let reason) = model.availability, model.results.isEmpty {
-                        unavailableView(reason: reason)
-                    } else {
-                        if compact {
-                            compactLayout
-                        } else {
-                            regularLayout
+                        .scrollDismissesKeyboard(.interactively)
+                        .safeAreaInset(edge: .bottom) {
+                            connectivityFooter
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 8)
+                                .background(.ultraThinMaterial)
                         }
+                    } else {
+                        libraryBody(compact: false, includeFooter: true)
+                            .padding(12)
                     }
-
-                    connectivityFooter
                 }
-                .padding(12)
             }
             .navigationTitle("Full Library")
         }
@@ -110,6 +93,45 @@ struct FullLibraryView: View {
         }
         .onChange(of: model.maxSources) { _, _ in
             model.scheduleRefresh()
+        }
+    }
+
+    @ViewBuilder
+    private func libraryBody(compact: Bool, includeFooter: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            headerCard
+            actionBar
+            tabPicker
+            searchBar(compact: compact)
+            if !model.searchSuggestions.isEmpty {
+                suggestionsRow
+            }
+            tokenBar
+            if showAdvancedFilters {
+                advancedControls(compact: compact)
+            } else {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showAdvancedFilters = true
+                    }
+                } label: {
+                    Label("Vis avanserte filtre", systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            if case .unavailable(let reason) = model.availability, model.results.isEmpty {
+                unavailableView(reason: reason)
+            } else if compact {
+                compactLayout
+            } else {
+                regularLayout
+            }
+
+            if includeFooter {
+                connectivityFooter
+            }
         }
     }
 
@@ -363,11 +385,10 @@ struct FullLibraryView: View {
     private var compactLayout: some View {
         VStack(spacing: 12) {
             facetPanel
-                .frame(maxHeight: 210)
-            resultsPanel
-                .frame(maxHeight: .infinity)
+                .frame(minHeight: 160, maxHeight: 240)
+            compactResultsPanel
             previewPanel
-                .frame(maxHeight: 240)
+                .frame(minHeight: 180, maxHeight: 280)
         }
     }
 
@@ -426,44 +447,7 @@ struct FullLibraryView: View {
 
             List(selection: $model.selectedResultID) {
                 ForEach(model.results) { item in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text(item.displayName)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                            Spacer()
-                            Text(item.scoreLabel)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if !item.summary.isEmpty {
-                            Text(item.summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-
-                        HStack(spacing: 6) {
-                            ForEach(item.badges.prefix(4), id: \.self) { badge in
-                                Text(badge)
-                                    .font(.caption2)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                                    .background(Color.secondary.opacity(0.13), in: Capsule())
-                            }
-                            Spacer()
-                            Button("Legg til") {
-                                applySelection(item.configuration)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
-
-                        Text("Route: \(item.route) · Source: \(item.sourceRef)")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
+                    resultRowContent(item)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         model.selectedResultID = item.id
@@ -480,6 +464,87 @@ struct FullLibraryView: View {
         }
         .padding(10)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var compactResultsPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Resultater (\(model.results.count))")
+                    .font(.headline)
+                Spacer()
+                if model.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            if model.results.isEmpty {
+                Text("Ingen resultater ennå. Juster søk eller filtre.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(model.results) { item in
+                        resultRowContent(item)
+                            .padding(10)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                model.selectedResultID = item.id
+                            }
+                            .contextMenu {
+                                Button("Legg til i Porthole") {
+                                    applySelection(item.configuration)
+                                }
+                            }
+                            .draggable(item.configuration)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func resultRowContent(_ item: FullLibraryViewModel.SearchResult) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(item.displayName)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Spacer()
+                Text(item.scoreLabel)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            if !item.summary.isEmpty {
+                Text(item.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: 6) {
+                ForEach(item.badges.prefix(4), id: \.self) { badge in
+                    Text(badge)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.secondary.opacity(0.13), in: Capsule())
+                }
+                Spacer()
+                Button("Legg til") {
+                    applySelection(item.configuration)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+
+            Text("Route: \(item.route) · Source: \(item.sourceRef)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
     }
 
     private var previewPanel: some View {

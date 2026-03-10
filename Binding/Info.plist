@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_haven-radar._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Binding bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.</string>
+	<key>NSNearbyInteractionUsageDescription</key>
+	<string>Binding bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

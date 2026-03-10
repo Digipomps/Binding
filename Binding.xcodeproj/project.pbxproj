@@ -726,7 +726,7 @@
 				repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
 				requirement = {
 					kind = revision;
-					revision = da9deb7f10d53cf4a7f6a9dda8caaf8e9e3fb010;
+					revision = 362fb4007fec47b5b727b2fed4ca2a540cf78fda;
 				};
 			};
 /* End XCRemoteSwiftPackageReference section */
