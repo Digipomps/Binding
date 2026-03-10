@@ -5670,7 +5670,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontWeight = "semibold"
             $0.fontSize = 11
         }
-        var runtimeStatus = SkeletonText(url: URL(string: "\(descriptor.sourceCellEndpoint)/status")!)
+        var runtimeStatus = SkeletonText(url: URL(string: "cell:///Porthole/\(label).status")!)
         runtimeStatus.modifiers = modifier {
             $0.foregroundColor = "#334155"
             $0.fontSize = 11
@@ -5683,7 +5683,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontWeight = "semibold"
             $0.fontSize = 11
         }
-        var runtimeState = SkeletonText(url: URL(string: "\(descriptor.sourceCellEndpoint)/state")!)
+        var runtimeState = SkeletonText(url: URL(string: "cell:///Porthole/\(label).state")!)
         runtimeState.modifiers = modifier {
             $0.foregroundColor = "#334155"
             $0.fontSize = 11

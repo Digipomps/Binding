@@ -19,6 +19,7 @@ struct ContentView: View {
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "publishersws"
     private static let stagingRemoteWebSocketPath = "bridgehead"
+    private static let portholeEndpoint = "cell:///Porthole"
     private static let blockedLoadedReferenceNames: Set<String> = [
         "eventemitter",
         "entitieswrapper",
@@ -547,7 +548,8 @@ struct ContentView: View {
         if let references = configuration.cellReferences {
             normalized.cellReferences = references.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
         }
-        return ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
+        normalized = ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
+        return canonicalizeSkeletonReferencesIfNeeded(in: normalized)
     }
 
     private func ensureCatalogReferenceBindingIfNeeded(
@@ -573,6 +575,212 @@ struct ContentView: View {
 
         normalized.cellReferences = references
         return normalized
+    }
+
+    private func canonicalizeSkeletonReferencesIfNeeded(in configuration: CellConfiguration) -> CellConfiguration {
+        guard let skeleton = configuration.skeleton,
+              let references = configuration.cellReferences,
+              !references.isEmpty
+        else {
+            return configuration
+        }
+
+        let labelsByEndpoint = referenceLabelsByEndpointIdentity(from: references)
+        guard !labelsByEndpoint.isEmpty,
+              let rewrittenSkeleton = canonicalizedSkeleton(skeleton, labelsByEndpoint: labelsByEndpoint)
+        else {
+            return configuration
+        }
+
+        var rewritten = configuration
+        rewritten.skeleton = rewrittenSkeleton
+        return rewritten
+    }
+
+    private func referenceLabelsByEndpointIdentity(from references: [CellReference]) -> [String: String] {
+        var labelsByEndpoint: [String: String] = [:]
+        for reference in references {
+            collectReferenceLabels(from: reference, into: &labelsByEndpoint)
+        }
+        return labelsByEndpoint
+    }
+
+    private func collectReferenceLabels(from reference: CellReference, into labelsByEndpoint: inout [String: String]) {
+        let trimmedLabel = reference.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedLabel.isEmpty {
+            labelsByEndpoint[endpointIdentity(reference.endpoint)] = trimmedLabel
+        }
+
+        for subscription in reference.subscriptions {
+            collectReferenceLabels(from: subscription, into: &labelsByEndpoint)
+        }
+    }
+
+    private func canonicalizedSkeleton(
+        _ skeleton: SkeletonElement,
+        labelsByEndpoint: [String: String]
+    ) -> SkeletonElement? {
+        guard let data = try? JSONEncoder().encode(skeleton),
+              let jsonObject = try? JSONSerialization.jsonObject(with: data),
+              let rewrittenObject = canonicalizedSkeletonJSONValue(jsonObject, labelsByEndpoint: labelsByEndpoint),
+              JSONSerialization.isValidJSONObject(rewrittenObject),
+              let rewrittenData = try? JSONSerialization.data(withJSONObject: rewrittenObject),
+              let rewrittenSkeleton = try? JSONDecoder().decode(SkeletonElement.self, from: rewrittenData)
+        else {
+            return nil
+        }
+        return rewrittenSkeleton
+    }
+
+    private func canonicalizedSkeletonJSONValue(
+        _ value: Any,
+        labelsByEndpoint: [String: String]
+    ) -> Any? {
+        switch value {
+        case let dictionary as [String: Any]:
+            var rewritten: [String: Any] = [:]
+            rewritten.reserveCapacity(dictionary.count)
+            for (key, childValue) in dictionary {
+                rewritten[key] = canonicalizedSkeletonJSONValue(childValue, labelsByEndpoint: labelsByEndpoint) ?? childValue
+            }
+            return canonicalizedSkeletonDictionary(rewritten, labelsByEndpoint: labelsByEndpoint)
+        case let array as [Any]:
+            return array.map { canonicalizedSkeletonJSONValue($0, labelsByEndpoint: labelsByEndpoint) ?? $0 }
+        default:
+            return value
+        }
+    }
+
+    private func canonicalizedSkeletonDictionary(
+        _ dictionary: [String: Any],
+        labelsByEndpoint: [String: String]
+    ) -> [String: Any] {
+        var rewritten = dictionary
+
+        if let urlValue = rewritten["url"] as? String {
+            let trimmedURL = urlValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let baseKeypath = relativeKeypath(forEndpointLikeValue: trimmedURL, labelsByEndpoint: labelsByEndpoint) {
+                if let currentKeypath = rewritten["keypath"] as? String {
+                    rewritten["keypath"] = mergedRelativeKeypath(baseKeypath, with: canonicalizedRelativeKeypath(currentKeypath, labelsByEndpoint: labelsByEndpoint))
+                    rewritten.removeValue(forKey: "url")
+                } else {
+                    rewritten["url"] = portholeURLString(for: baseKeypath)
+                }
+            } else if isPortholeRootURL(trimmedURL), let currentKeypath = rewritten["keypath"] as? String {
+                rewritten["keypath"] = canonicalizedRelativeKeypath(currentKeypath, labelsByEndpoint: labelsByEndpoint)
+                rewritten.removeValue(forKey: "url")
+            }
+        }
+
+        for key in ["keypath", "sourceKeypath", "targetKeypath"] {
+            guard let currentValue = rewritten[key] as? String else { continue }
+            rewritten[key] = canonicalizedRelativeKeypath(currentValue, labelsByEndpoint: labelsByEndpoint)
+        }
+
+        return rewritten
+    }
+
+    private func canonicalizedRelativeKeypath(
+        _ keypath: String,
+        labelsByEndpoint: [String: String]
+    ) -> String {
+        let trimmedKeypath = keypath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKeypath.isEmpty else { return keypath }
+
+        if let relative = relativeKeypath(forEndpointLikeValue: trimmedKeypath, labelsByEndpoint: labelsByEndpoint) {
+            return relative
+        }
+
+        return trimmedKeypath
+    }
+
+    private func relativeKeypath(
+        forEndpointLikeValue value: String,
+        labelsByEndpoint: [String: String]
+    ) -> String? {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else { return nil }
+
+        if let portholeRelative = relativeKeypathFromPortholeURL(trimmedValue) {
+            return portholeRelative
+        }
+
+        guard let components = URLComponents(string: trimmedValue),
+              components.scheme?.lowercased() == "cell"
+        else {
+            return nil
+        }
+
+        let pathComponents = components.path
+            .split(separator: "/")
+            .map(String.init)
+        guard !pathComponents.isEmpty else { return nil }
+
+        for prefixCount in stride(from: pathComponents.count, through: 1, by: -1) {
+            let endpoint = cellEndpointString(
+                host: components.host,
+                port: components.port,
+                pathComponents: Array(pathComponents.prefix(prefixCount))
+            )
+            guard let label = labelsByEndpoint[endpointIdentity(endpoint)] else { continue }
+            let remainder = Array(pathComponents.dropFirst(prefixCount))
+            return mergedRelativeKeypath(label, with: remainder.joined(separator: "."))
+        }
+
+        return nil
+    }
+
+    private func relativeKeypathFromPortholeURL(_ value: String) -> String? {
+        guard let components = URLComponents(string: value),
+              components.scheme?.lowercased() == "cell"
+        else {
+            return nil
+        }
+
+        let pathComponents = components.path
+            .split(separator: "/")
+            .map(String.init)
+        guard let firstComponent = pathComponents.first?.lowercased(),
+              firstComponent == "porthole"
+        else {
+            return nil
+        }
+
+        let remainder = Array(pathComponents.dropFirst()).joined(separator: ".")
+        guard !remainder.isEmpty else { return nil }
+        return remainder
+    }
+
+    private func mergedRelativeKeypath(_ baseKeypath: String, with suffix: String) -> String {
+        let trimmedBase = baseKeypath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSuffix = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedBase.isEmpty else { return trimmedSuffix }
+        guard !trimmedSuffix.isEmpty else { return trimmedBase }
+        if trimmedSuffix == trimmedBase || trimmedSuffix.hasPrefix("\(trimmedBase).") {
+            return trimmedSuffix
+        }
+        return "\(trimmedBase).\(trimmedSuffix)"
+    }
+
+    private func portholeURLString(for relativeKeypath: String) -> String {
+        "\(Self.portholeEndpoint)/\(relativeKeypath)"
+    }
+
+    private func isPortholeRootURL(_ value: String) -> Bool {
+        endpointIdentity(value) == endpointIdentity(Self.portholeEndpoint)
+    }
+
+    private func cellEndpointString(host: String?, port: Int?, pathComponents: [String]) -> String {
+        let path = pathComponents.joined(separator: "/")
+        guard let host, !host.isEmpty else {
+            return "cell:///\(path)"
+        }
+
+        if let port {
+            return "cell://\(host):\(port)/\(path)"
+        }
+        return "cell://\(host)/\(path)"
     }
 
     private func skeletonUsesCatalogNamespace(_ skeleton: SkeletonElement?) -> Bool {
@@ -838,7 +1046,7 @@ struct ContentView: View {
         if editorMode == .edit, let workingCopy = editorState.workingCopy {
             if var activeConfiguration {
                 activeConfiguration.skeleton = workingCopy
-                return activeConfiguration
+                return canonicalizeSkeletonReferencesIfNeeded(in: activeConfiguration)
             }
             var fallback = CellConfiguration(name: "Porthole Export")
             fallback.skeleton = workingCopy
@@ -849,7 +1057,7 @@ struct ContentView: View {
             if activeConfiguration.skeleton == nil {
                 activeConfiguration.skeleton = viewModel.currentSkeleton
             }
-            return activeConfiguration
+            return canonicalizeSkeletonReferencesIfNeeded(in: activeConfiguration)
         }
 
         return nil
@@ -1335,7 +1543,12 @@ struct ContentView: View {
         var failures = Set<String>()
         var firstMessage: String?
         for reference in references {
-            if let failure = await probeReferenceTree(reference, resolver: resolver, identity: identity) {
+            if let failure = await probeReferenceTree(
+                reference,
+                resolver: resolver,
+                identity: identity,
+                probeDirectEndpoint: false
+            ) {
                 failures.insert(endpointIdentity(reference.endpoint))
                 if firstMessage == nil {
                     firstMessage = failure
@@ -1345,8 +1558,13 @@ struct ContentView: View {
         return ReferenceProbeResult(failingReferenceEndpoints: failures, firstFailureMessage: firstMessage)
     }
 
-    private func probeReferenceTree(_ reference: CellReference, resolver: CellResolver, identity: Identity) async -> String? {
-        if shouldProbeEndpoint(reference.endpoint) {
+    private func probeReferenceTree(
+        _ reference: CellReference,
+        resolver: CellResolver,
+        identity: Identity,
+        probeDirectEndpoint: Bool
+    ) async -> String? {
+        if probeDirectEndpoint, shouldProbeEndpoint(reference.endpoint) {
             ensureRemoteHostRouteRegistered(for: reference.endpoint, resolver: resolver)
             do {
                 _ = try await resolver.cellAtEndpoint(endpoint: reference.endpoint, requester: identity)
@@ -1360,7 +1578,12 @@ struct ContentView: View {
         }
 
         for subscription in reference.subscriptions {
-            if let failure = await probeReferenceTree(subscription, resolver: resolver, identity: identity) {
+            if let failure = await probeReferenceTree(
+                subscription,
+                resolver: resolver,
+                identity: identity,
+                probeDirectEndpoint: true
+            ) {
                 return failure
             }
         }
