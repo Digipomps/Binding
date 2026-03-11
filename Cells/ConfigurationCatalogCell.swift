@@ -4360,14 +4360,11 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     private static func scaffoldPurposeTemplates() async -> [ScaffoldPurposeTemplate] {
-        let chatConfig = referenceCardConfiguration(
-            name: "Scaffold Chat",
-            endpoint: "cell:///Chat",
-            label: "chat",
-            title: "Scaffold Chat",
-            subtitle: "Direkte meldinger, status og samarbeid i teamet.",
-            chip: "LIVE",
-            borderColor: "#7C3AED"
+        let chatEndpoint = "cell://staging.haven.digipomps.org/Chat"
+        let chatConfig = scaffoldChatWorkbenchConfiguration(
+            endpoint: chatEndpoint,
+            displayName: "Scaffold Chat",
+            summary: "Del meldinger i sanntid fra staging, se deltagere og absorber samme chat i andre klienter."
         )
         let catalogWorkbench = catalogWorkbenchConfiguration()
         let agreementWorkbench = agreementTemplateWorkbenchConfiguration()
@@ -4409,7 +4406,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var templates: [ScaffoldPurposeTemplate] = [
             ScaffoldPurposeTemplate(
-                sourceCellEndpoint: "cell:///Chat",
+                sourceCellEndpoint: chatEndpoint,
                 sourceCellName: "ChatCell",
                 purpose: "Kommunikasjon og samarbeid",
                 purposeDescription: "Faa delt meldinger i sanntid mellom deltakere.",
@@ -4425,6 +4422,10 @@ final class ConfigurationCatalogCell: GeneralCell {
                 interestRefs: ["interest://chat", "interest://communication", "interest://collaboration"],
                 supportedInsertionModes: [.root],
                 supportedTargetKinds: ["menu", "porthole", "tool"],
+                ioGetKeys: ["status", "state", "messages", "participants", "members", "compose.body", "compose.contentType", "compose.availableFormats"],
+                ioSetKeys: ["compose.body", "compose.contentType", "sendMessage", "sendComposedMessage", "clearComposer"],
+                ioTopics: ["chat.message", "chat.participant", "chat.status"],
+                ioFilterTypes: ["event"],
                 authRequired: false,
                 flowDriven: true,
                 editable: true,
@@ -5432,6 +5433,12 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated private static func specializedWorkbenchConfiguration(for descriptor: StaticCatalogDescriptor) -> CellConfiguration? {
         switch descriptor.sourceCellEndpoint.lowercased() {
+        case "cell:///chat", "cell://staging.haven.digipomps.org/chat":
+            return scaffoldChatWorkbenchConfiguration(
+                endpoint: descriptor.sourceCellEndpoint,
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
         case "cell:///perspective":
             return perspectiveWorkbenchConfiguration()
         case "cell:///entityanchor":
@@ -5835,6 +5842,14 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "4. Bekreft scanner.encounter.saved og exporter JSON-bevis."
             ],
             includePerspectiveSection: false
+        )
+    }
+
+    nonisolated static func scaffoldChatWorkbenchMenuConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/Chat") -> CellConfiguration {
+        scaffoldChatWorkbenchConfiguration(
+            endpoint: endpoint,
+            displayName: "Scaffold Chat",
+            summary: "Del meldinger i sanntid fra staging, se deltagere og absorber samme chat i andre klienter."
         )
     }
 
@@ -6392,6 +6407,379 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.padding = 4
             $0.background = "#F4F9FC"
         }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func scaffoldChatWorkbenchConfiguration(
+        endpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+
+        var chatReference = CellReference(endpoint: endpoint, label: "chat")
+        chatReference.subscribeFeed = true
+        configuration.addReference(chatReference)
+
+        let pageCard = modifier {
+            $0.padding = 10
+            $0.background = "#F7F7FC"
+            $0.cornerRadius = 18
+            $0.borderWidth = 1
+            $0.borderColor = "#D7D8F5"
+        }
+
+        let heroCard = modifier {
+            $0.padding = 14
+            $0.background = "#F5F3FF"
+            $0.cornerRadius = 18
+            $0.borderWidth = 1
+            $0.borderColor = "#A78BFA"
+            $0.shadowRadius = 8
+            $0.shadowY = 3
+            $0.shadowColor = "#0F172A18"
+        }
+
+        let sectionCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#DDD6FE"
+        }
+
+        let fieldCard = modifier {
+            $0.padding = 10
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#C4B5FD"
+        }
+
+        let messagesListCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#DDD6FE"
+            $0.height = 320
+        }
+
+        let participantsListCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#DDD6FE"
+            $0.height = 180
+        }
+
+        let primaryButton = modifier {
+            $0.padding = 10
+            $0.background = "#7C3AED"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#6D28D9"
+            $0.foregroundColor = "#FFFFFF"
+        }
+
+        let secondaryButton = modifier {
+            $0.padding = 10
+            $0.background = "#EDE9FE"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#C4B5FD"
+        }
+
+        let warningButton = modifier {
+            $0.padding = 10
+            $0.background = "#FEF3C7"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#F59E0B"
+        }
+
+        let chipModifier = modifier {
+            $0.padding = 6
+            $0.background = "#EDE9FE"
+            $0.cornerRadius = 999
+            $0.borderWidth = 1
+            $0.borderColor = "#C4B5FD"
+            $0.fontSize = 11
+            $0.fontWeight = "semibold"
+        }
+
+        func bodyText(_ text: String, color: String = "#475569", size: Double = 12) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.foregroundColor = color
+                $0.fontSize = size
+                $0.lineLimit = 4
+            }
+            return label
+        }
+
+        func sectionTitle(_ text: String, color: String = "#1F2937") -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = color
+                $0.fontSize = 13
+            }
+            return label
+        }
+
+        var title = SkeletonText(text: displayName)
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#1F2937"
+        }
+
+        var subtitle = SkeletonText(text: "Kjores mot staging slik at flere klienter kan absorbere samme chat og se samme historikk.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 12
+            $0.lineLimit = 4
+        }
+
+        var endpointText = SkeletonText(text: endpoint)
+        endpointText.modifiers = modifier {
+            $0.foregroundColor = "#6D28D9"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+
+        var liveChip = SkeletonText(text: "STAGING LIVE")
+        liveChip.modifiers = chipModifier
+        var sharedChip = SkeletonText(text: "Shared conversation")
+        sharedChip.modifiers = chipModifier
+        var feedChip = SkeletonText(text: "State + feed")
+        feedChip.modifiers = chipModifier
+        var markdownChip = SkeletonText(text: "Markdown ready")
+        markdownChip.modifiers = chipModifier
+
+        var statusValue = SkeletonText(url: URL(string: "cell:///Porthole/chat.status")!)
+        statusValue.modifiers = modifier {
+            $0.foregroundColor = "#312E81"
+            $0.fontSize = 12
+            $0.lineLimit = 4
+        }
+
+        var currentFormatValue = SkeletonText(url: URL(string: "cell:///Porthole/chat.compose.contentType")!)
+        currentFormatValue.modifiers = modifier {
+            $0.foregroundColor = "#312E81"
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+
+        var statusReference = SkeletonCellReference(keypath: "chat", topic: "chat.status")
+        var statusReferenceStack = SkeletonVStack(elements: [
+            .Text(sectionTitle("Live chat status", color: "#5B21B6")),
+            .Text(SkeletonText(keypath: "summary")),
+            .Text(SkeletonText(keypath: "participantCount")),
+            .Text(SkeletonText(keypath: "messageCount")),
+            .Text(SkeletonText(keypath: "latestMessagePreview"))
+        ])
+        statusReferenceStack.modifiers = sectionCard
+        statusReference.flowElementSkeleton = statusReferenceStack
+
+        let composerArea = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chat.compose.body",
+            targetKeypath: "chat.compose.body",
+            placeholder: "Skriv melding. Velg markdown hvis du vil bruke formatering som **fet**, punktlister eller lenker.",
+            minLines: 4,
+            maxLines: 8,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+
+        var plainFormatButton = SkeletonButton(
+            keypath: "chat.compose.contentType",
+            label: "Plain text",
+            payload: .string("text/plain")
+        )
+        plainFormatButton.modifiers = secondaryButton
+
+        var markdownFormatButton = SkeletonButton(
+            keypath: "chat.compose.contentType",
+            label: "Markdown",
+            payload: .string("text/markdown")
+        )
+        markdownFormatButton.modifiers = secondaryButton
+
+        var sendButton = SkeletonButton(
+            keypath: "chat.sendComposedMessage",
+            label: "Send message",
+            payload: .bool(true)
+        )
+        sendButton.modifiers = primaryButton
+
+        var clearButton = SkeletonButton(
+            keypath: "chat.clearComposer",
+            label: "Clear draft",
+            payload: .bool(true)
+        )
+        clearButton.modifiers = warningButton
+
+        var messageAuthor = SkeletonText(keypath: "ownerDisplayName")
+        messageAuthor.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#1F2937"
+            $0.fontSize = 13
+        }
+
+        var messageTimestamp = SkeletonText(keypath: "createdAt")
+        messageTimestamp.modifiers = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 11
+        }
+
+        var messageFormat = SkeletonText(keypath: "contentType")
+        messageFormat.modifiers = chipModifier
+
+        var messageBody = SkeletonText(keypath: "content")
+        messageBody.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 13
+            $0.lineLimit = 10
+            $0.multilineTextAlignment = "leading"
+        }
+
+        var messageRow = SkeletonVStack(elements: [
+            .HStack(SkeletonHStack(elements: [
+                .Text(messageAuthor),
+                .Spacer(SkeletonSpacer()),
+                .Text(messageFormat)
+            ])),
+            .Text(messageTimestamp),
+            .Text(messageBody)
+        ])
+        messageRow.modifiers = sectionCard
+
+        var messagesList = SkeletonList(
+            topic: "chat.message",
+            keypath: "chat.messages",
+            flowElementSkeleton: messageRow
+        )
+        messagesList.modifiers = messagesListCard
+
+        var participantName = SkeletonText(keypath: "displayName")
+        participantName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#1F2937"
+            $0.fontSize = 13
+        }
+
+        var participantPresence = SkeletonText(keypath: "presence")
+        participantPresence.modifiers = chipModifier
+
+        var participantMeta = SkeletonText(keypath: "lastSeenAt")
+        participantMeta.modifiers = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+
+        var participantCount = SkeletonText(keypath: "messageCount")
+        participantCount.modifiers = modifier {
+            $0.foregroundColor = "#475569"
+            $0.fontSize = 12
+        }
+
+        var participantRow = SkeletonVStack(elements: [
+            .HStack(SkeletonHStack(elements: [
+                .Text(participantName),
+                .Spacer(SkeletonSpacer()),
+                .Text(participantPresence)
+            ])),
+            .Text(participantMeta),
+            .Text(participantCount)
+        ])
+        participantRow.modifiers = sectionCard
+
+        var participantsList = SkeletonList(
+            topic: "chat.participant",
+            keypath: "chat.participants",
+            flowElementSkeleton: participantRow
+        )
+        participantsList.modifiers = participantsListCard
+
+        var heroSection = SkeletonSection(
+            header: nil,
+            content: [
+                .HStack(SkeletonHStack(elements: [
+                    .VStack(SkeletonVStack(elements: [
+                        .Text(title),
+                        .Text(subtitle),
+                        .Text(endpointText)
+                    ])),
+                    .Spacer(SkeletonSpacer()),
+                    .Text(liveChip)
+                ])),
+                .HStack(SkeletonHStack(elements: [.Text(sharedChip), .Text(feedChip), .Text(markdownChip)])),
+                .Text(sectionTitle("Current status", color: "#5B21B6")),
+                .Text(statusValue),
+                .Text(sectionTitle("Current composer format", color: "#5B21B6")),
+                .Text(currentFormatValue)
+            ]
+        )
+        heroSection.modifiers = heroCard
+
+        var participantsSection = SkeletonSection(
+            header: .Text(sectionTitle("Who is here", color: "#5B21B6")),
+            footer: .Text(bodyText("Participants listen combines current state with live participant events from staging.")),
+            content: [
+                .List(participantsList)
+            ]
+        )
+        participantsSection.modifiers = sectionCard
+
+        var conversationSection = SkeletonSection(
+            header: .Text(sectionTitle("Conversation", color: "#5B21B6")),
+            footer: .Text(bodyText("Historikk hentes fra `chat.messages`, og nye meldinger kommer via `chat.message` i samme liste.")),
+            content: [
+                .List(messagesList),
+                .Reference(statusReference)
+            ]
+        )
+        conversationSection.modifiers = sectionCard
+
+        var composerSection = SkeletonSection(
+            header: .Text(sectionTitle("Compose and send", color: "#5B21B6")),
+            footer: .Text(bodyText("Velg format, skriv meldingen og send. Andre klienter som absorberer staging-chat vil se den samme meldingen.")),
+            content: [
+                .Text(bodyText("Recommended: bruk markdown for lister, fremheving og lenker. Plain text er tryggest hvis mottakerne ikke render markdown.")),
+                .TextArea(composerArea),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(plainFormatButton),
+                    .Button(markdownFormatButton)
+                ])),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(sendButton),
+                    .Button(clearButton)
+                ]))
+            ]
+        )
+        composerSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .Section(heroSection),
+            .Section(participantsSection),
+            .Section(conversationSection),
+            .Section(composerSection)
+        ])
+        root.modifiers = pageCard
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.padding = 4
+            $0.background = "#F5F3FF"
+        }
+
         configuration.skeleton = .ScrollView(scroll)
         return configuration
     }

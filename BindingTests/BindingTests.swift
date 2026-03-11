@@ -220,6 +220,41 @@ struct BindingTests {
         #expect(response == .string("error: invalid payload for addConfiguration"))
     }
 
+    @Test func scaffoldChatConfigurationUsesRichStagingWorkbench() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        _ = try await cell.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
+        let configurations = try await cell.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = configurations else {
+            Issue.record("Forventet liste fra configurations")
+            return
+        }
+
+        let chatConfiguration = items.compactMap { value -> CellConfiguration? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name == "Scaffold Chat" ? configuration : nil
+        }.first
+
+        guard let chatConfiguration else {
+            Issue.record("Fant ikke Scaffold Chat i configurations")
+            return
+        }
+
+        let endpoints = chatConfiguration.cellReferences?.map(\.endpoint) ?? []
+        #expect(endpoints.contains("cell://staging.haven.digipomps.org/Chat"))
+
+        guard let skeleton = chatConfiguration.skeleton else {
+            Issue.record("Scaffold Chat mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsTextArea(targetKeypath: "chat.compose.body", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "chat.sendComposedMessage", in: skeleton))
+        #expect(skeletonContainsList(keypath: "chat.messages", topic: "chat.message", in: skeleton))
+        #expect(skeletonContainsList(keypath: "chat.participants", topic: "chat.participant", in: skeleton))
+    }
+
     private func makeOwnerIdentity() async -> Identity {
         CellBase.defaultIdentityVault = Self.testIdentityVault
         return await Self.testIdentityVault.identity(for: "private", makeNewIfNotFound: true)!
@@ -247,6 +282,94 @@ struct BindingTests {
             "configuration": .cellConfiguration(configuration),
             "goal": .cellConfiguration(configuration)
         ]
+    }
+
+    private func skeletonContainsButton(keypath: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .Button(let button):
+            return button.keypath == keypath
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsButton(keypath: keypath, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsButton(keypath: keypath, in: $0) } ||
+                (section.footer.map { skeletonContainsButton(keypath: keypath, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, in: .VStack($0)) } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, in: .VStack($0)) } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonContainsTextArea(targetKeypath: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .TextArea(let textArea):
+            return textArea.targetKeypath == targetKeypath
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) } ||
+                (section.footer.map { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map { skeletonContainsTextArea(targetKeypath: targetKeypath, in: .VStack($0)) } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map { skeletonContainsTextArea(targetKeypath: targetKeypath, in: .VStack($0)) } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonContainsList(keypath: String, topic: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .List(let list):
+            if list.keypath == keypath && list.topic == topic {
+                return true
+            }
+            return list.flowElementSkeleton.map { skeletonContainsList(keypath: keypath, topic: topic, in: .VStack($0)) } ?? false
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsList(keypath: keypath, topic: topic, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) } ||
+                (section.footer.map { skeletonContainsList(keypath: keypath, topic: topic, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map { skeletonContainsList(keypath: keypath, topic: topic, in: .VStack($0)) } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+        default:
+            return false
+        }
     }
 
 }

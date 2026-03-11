@@ -2266,12 +2266,8 @@ struct ContentView: View {
             "cell://\(Self.stagingHost)/\(cellName)"
         }
 
-        let chat = referenceMenuConfiguration(
-            name: "Scaffold Chat",
-            endpoint: stagingEndpoint("Chat"),
-            label: "chat",
-            title: "Chat",
-            subtitle: "Meldinger og samarbeid fra CellScaffold staging."
+        let chat = ConfigurationCatalogCell.scaffoldChatWorkbenchMenuConfiguration(
+            endpoint: stagingEndpoint("Chat")
         )
         let conference = referenceMenuConfiguration(
             name: "Conference MVP",
