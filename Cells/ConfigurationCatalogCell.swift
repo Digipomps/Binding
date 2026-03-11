@@ -6511,6 +6511,24 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontWeight = "semibold"
         }
 
+        let subtleMetaModifier = modifier {
+            $0.foregroundColor = "#64748B"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+
+        let avatarModifier = modifier {
+            $0.width = 36
+            $0.height = 36
+            $0.background = "#DDD6FE"
+            $0.cornerRadius = 999
+            $0.borderWidth = 1
+            $0.borderColor = "#C4B5FD"
+            $0.foregroundColor = "#5B21B6"
+            $0.fontSize = 12
+            $0.fontWeight = "bold"
+        }
+
         func bodyText(_ text: String, color: String = "#475569", size: Double = 12) -> SkeletonText {
             var label = SkeletonText(text: text)
             label.modifiers = modifier {
@@ -6581,7 +6599,9 @@ final class ConfigurationCatalogCell: GeneralCell {
             .Text(SkeletonText(keypath: "summary")),
             .Text(SkeletonText(keypath: "participantCount")),
             .Text(SkeletonText(keypath: "messageCount")),
-            .Text(SkeletonText(keypath: "latestMessagePreview"))
+            .Text(SkeletonText(keypath: "latestMessagePreview")),
+            .Text(SkeletonText(keypath: "latestMessageRelativeAt")),
+            .Text(SkeletonText(keypath: "latestMessageDisplayAt"))
         ])
         statusReferenceStack.modifiers = sectionCard
         statusReference.flowElementSkeleton = statusReferenceStack
@@ -6625,6 +6645,9 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
         clearButton.modifiers = warningButton
 
+        var messageAvatar = SkeletonText(keypath: "ownerInitials")
+        messageAvatar.modifiers = avatarModifier
+
         var messageAuthor = SkeletonText(keypath: "ownerDisplayName")
         messageAuthor.modifiers = modifier {
             $0.fontWeight = "semibold"
@@ -6632,40 +6655,55 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontSize = 13
         }
 
-        var messageTimestamp = SkeletonText(keypath: "createdAt")
-        messageTimestamp.modifiers = modifier {
-            $0.foregroundColor = "#64748B"
-            $0.fontSize = 11
-        }
+        var messageRelativeTimestamp = SkeletonText(keypath: "relativeTimestamp")
+        messageRelativeTimestamp.modifiers = subtleMetaModifier
 
-        var messageFormat = SkeletonText(keypath: "contentType")
+        var messageTimestamp = SkeletonText(keypath: "displayTimestamp")
+        messageTimestamp.modifiers = subtleMetaModifier
+
+        var messageFormat = SkeletonText(keypath: "formatLabel")
         messageFormat.modifiers = chipModifier
 
-        var messageBody = SkeletonText(keypath: "content")
+        var messageBody = SkeletonText(keypath: "contentRichText")
         messageBody.modifiers = modifier {
             $0.foregroundColor = "#334155"
             $0.fontSize = 13
-            $0.lineLimit = 10
+            $0.lineLimit = 14
             $0.multilineTextAlignment = "leading"
+            $0.styleRole = "markdown"
         }
 
-        var messageRow = SkeletonVStack(elements: [
-            .HStack(SkeletonHStack(elements: [
-                .Text(messageAuthor),
-                .Spacer(SkeletonSpacer()),
-                .Text(messageFormat)
-            ])),
-            .Text(messageTimestamp),
-            .Text(messageBody)
+        var messagePreview = SkeletonText(keypath: "contentPreview")
+        messagePreview.modifiers = subtleMetaModifier
+
+        var messageRow = SkeletonHStack(elements: [
+            .Text(messageAvatar),
+            .VStack(SkeletonVStack(elements: [
+                .HStack(SkeletonHStack(elements: [
+                    .Text(messageAuthor),
+                    .Spacer(SkeletonSpacer()),
+                    .Text(messageRelativeTimestamp)
+                ])),
+                .HStack(SkeletonHStack(elements: [
+                    .Text(messageFormat),
+                    .Spacer(SkeletonSpacer()),
+                    .Text(messageTimestamp)
+                ])),
+                .Text(messageBody),
+                .Text(messagePreview)
+            ]))
         ])
         messageRow.modifiers = sectionCard
 
         var messagesList = SkeletonList(
             topic: "chat.message",
             keypath: "chat.messages",
-            flowElementSkeleton: messageRow
+            flowElementSkeleton: SkeletonVStack(elements: [.HStack(messageRow)])
         )
         messagesList.modifiers = messagesListCard
+
+        var participantAvatar = SkeletonText(keypath: "initials")
+        participantAvatar.modifiers = avatarModifier
 
         var participantName = SkeletonText(keypath: "displayName")
         participantName.modifiers = modifier {
@@ -6674,37 +6712,33 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontSize = 13
         }
 
-        var participantPresence = SkeletonText(keypath: "presence")
+        var participantPresence = SkeletonText(keypath: "presenceLabel")
         participantPresence.modifiers = chipModifier
 
-        var participantMeta = SkeletonText(keypath: "lastSeenAt")
-        participantMeta.modifiers = modifier {
-            $0.foregroundColor = "#64748B"
-            $0.fontSize = 11
-            $0.lineLimit = 2
-        }
+        var participantMeta = SkeletonText(keypath: "activitySummary")
+        participantMeta.modifiers = subtleMetaModifier
 
-        var participantCount = SkeletonText(keypath: "messageCount")
-        participantCount.modifiers = modifier {
-            $0.foregroundColor = "#475569"
-            $0.fontSize = 12
-        }
+        var participantCount = SkeletonText(keypath: "lastSeenDisplay")
+        participantCount.modifiers = subtleMetaModifier
 
-        var participantRow = SkeletonVStack(elements: [
-            .HStack(SkeletonHStack(elements: [
-                .Text(participantName),
-                .Spacer(SkeletonSpacer()),
-                .Text(participantPresence)
-            ])),
-            .Text(participantMeta),
-            .Text(participantCount)
+        var participantRow = SkeletonHStack(elements: [
+            .Text(participantAvatar),
+            .VStack(SkeletonVStack(elements: [
+                .HStack(SkeletonHStack(elements: [
+                    .Text(participantName),
+                    .Spacer(SkeletonSpacer()),
+                    .Text(participantPresence)
+                ])),
+                .Text(participantMeta),
+                .Text(participantCount)
+            ]))
         ])
         participantRow.modifiers = sectionCard
 
         var participantsList = SkeletonList(
             topic: "chat.participant",
             keypath: "chat.participants",
-            flowElementSkeleton: participantRow
+            flowElementSkeleton: SkeletonVStack(elements: [.HStack(participantRow)])
         )
         participantsList.modifiers = participantsListCard
 
@@ -6740,7 +6774,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var conversationSection = SkeletonSection(
             header: .Text(sectionTitle("Conversation", color: "#5B21B6")),
-            footer: .Text(bodyText("Historikk hentes fra `chat.messages`, og nye meldinger kommer via `chat.message` i samme liste.")),
+            footer: .Text(bodyText("Historikk hentes fra `chat.messages`, nye meldinger kommer via `chat.message`, og markdown-meldinger rendres direkte i workbenchen.")),
             content: [
                 .List(messagesList),
                 .Reference(statusReference)
