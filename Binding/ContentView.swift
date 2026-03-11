@@ -299,7 +299,11 @@ struct ContentView: View {
             _ = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
             await viewModel.connectIfNeeded()
             let fallbackMenus = curatedMenuSeedConfigurations()
-            applyPerspectiveDrivenMenus(from: [], fallback: fallbackMenus, profile: .empty)
+            if usesPerspectiveDrivenEdgeMenus {
+                applyPerspectiveDrivenMenus(from: [], fallback: fallbackMenus, profile: .empty)
+            } else {
+                applyFixedMenuPlacement(fallbackMenus)
+            }
             if !didAttemptCatalogMenuSync {
                 didAttemptCatalogMenuSync = true
                 await refreshMenusFromCatalogIfAvailable()
@@ -372,6 +376,24 @@ struct ContentView: View {
             let icon = config.skeletonIconName
             return MenuItem(icon: icon, configuration: config)
         }
+    }
+
+    private var usesPerspectiveDrivenEdgeMenus: Bool {
+#if os(macOS)
+        false
+#else
+        true
+#endif
+    }
+
+    @MainActor
+    private func applyFixedMenuPlacement(_ menus: MenuConfigurationBuckets) {
+        viewModel.upperLeftMenu = menus.upperLeft
+        viewModel.upperMidMenu = menus.upperMid
+        viewModel.upperRightMenu = menus.upperRight
+        viewModel.lowerLeftMenu = menus.lowerLeft
+        viewModel.lowerMidMenu = menus.lowerMid
+        viewModel.lowerRightMenu = menus.lowerRight
     }
 
     @MainActor
@@ -478,11 +500,16 @@ struct ContentView: View {
         catalogMenuPool = menuPool
         let profile = await fetchPerspectiveMenuProfile()
         lastPerspectiveMenuSignature = profile.signature
-        applyPerspectiveDrivenMenus(from: menuPool, fallback: enrichedCurated, profile: profile)
+        if usesPerspectiveDrivenEdgeMenus {
+            applyPerspectiveDrivenMenus(from: menuPool, fallback: enrichedCurated, profile: profile)
+        } else {
+            applyFixedMenuPlacement(enrichedCurated)
+        }
     }
 
     @MainActor
     private func monitorPerspectiveDrivenMenus() async {
+        guard usesPerspectiveDrivenEdgeMenus else { return }
         while !Task.isCancelled {
             let profile = await fetchPerspectiveMenuProfile()
             if profile.signature != lastPerspectiveMenuSignature {
