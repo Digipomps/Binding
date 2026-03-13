@@ -14,6 +14,161 @@ import CellApple
 @Suite(.serialized)
 struct BindingTests {
 
+    @Test func componentMergeReusesExistingReferenceLabelAndRewritesFragmentKeypaths() {
+        let recipe = ComponentPaletteCatalog.embeddedChatCard(endpoint: "cell:///Chat").recipe
+        let existingReferences = [CellReference(endpoint: "cell:///Chat", label: "teamChat")]
+
+        let mergeResult = ReferenceMergeService.merge(
+            recipeReferences: recipe.referenceTemplate,
+            into: existingReferences,
+            fragment: recipe.skeletonTemplate
+        )
+
+        #expect(mergeResult.mergedReferences.count == 1)
+        #expect(mergeResult.mergedReferences.first?.label == "teamChat")
+        #expect(skeletonContainsTextArea(targetKeypath: "teamChat.compose.body", in: mergeResult.rewrittenFragment))
+        #expect(!skeletonContainsTextArea(targetKeypath: "chat.compose.body", in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsList(keypath: "teamChat.messages", topic: nil, in: mergeResult.rewrittenFragment))
+    }
+
+    @Test func componentMergeRewritesListSelectionKeypathsForAssistantComponent() {
+        var suggestionList = SkeletonList(topic: "catalog.matching.suggestions", keypath: nil, flowElementSkeleton: nil)
+        suggestionList.selectionMode = .single
+        suggestionList.selectionPayloadMode = .itemID
+        suggestionList.selectionValueKeypath = "rank"
+        suggestionList.selectionStateKeypath = "catalog.matching.selectedIndex"
+        suggestionList.selectionActionKeypath = "catalog.matching.selectedIndex"
+        suggestionList.activationActionKeypath = "catalog.matching.loadSelectedToPorthole"
+
+        let mergeResult = ReferenceMergeService.merge(
+            recipeReferences: [CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")],
+            into: [CellReference(endpoint: "cell:///ConfigurationCatalog", label: "assistantCatalog")],
+            fragment: .List(suggestionList)
+        )
+
+        guard case let .List(rewrittenList) = mergeResult.rewrittenFragment else {
+            Issue.record("Forventet list-fragment etter merge")
+            return
+        }
+
+        #expect(rewrittenList.topic == "assistantCatalog.matching.suggestions")
+        #expect(rewrittenList.selectionStateKeypath == "assistantCatalog.matching.selectedIndex")
+        #expect(rewrittenList.selectionActionKeypath == "assistantCatalog.matching.selectedIndex")
+        #expect(rewrittenList.activationActionKeypath == "assistantCatalog.matching.loadSelectedToPorthole")
+    }
+
+    @Test func referenceUsageAnalyzerCountsListSelectionKeypathsAsReferenceUsage() {
+        var suggestionList = SkeletonList(topic: nil, keypath: nil, flowElementSkeleton: nil)
+        suggestionList.selectionMode = .single
+        suggestionList.selectionPayloadMode = .itemID
+        suggestionList.selectionValueKeypath = "rank"
+        suggestionList.selectionStateKeypath = "catalog.matching.selectedIndex"
+        suggestionList.selectionActionKeypath = "catalog.matching.selectedIndex"
+        suggestionList.activationActionKeypath = "catalog.matching.loadSelectedToPorthole"
+
+        let report = ReferenceUsageAnalyzer.analyze(
+            skeleton: .List(suggestionList),
+            references: [CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")]
+        )
+
+        #expect(report.referencedLabels == ["catalog"])
+        #expect(report.unusedTopLevelLabels.isEmpty)
+    }
+
+    @Test func componentPaletteOffersChatVaultAndAssistantWidgets() {
+        let ids = Set(ComponentPaletteCatalog.defaultItems().map(\.id))
+        #expect(ids.contains("chat.embedded.card"))
+        #expect(ids.contains("vault.embedded.snapshot"))
+        #expect(ids.contains("catalog.embedded.purposeAssistant"))
+    }
+
+    @Test func libraryEmbeddedComponentFallsBackToEditorContainersWhenCatalogKindsAreExternal() {
+        var configuration = CellConfiguration(name: "Vault Compact")
+        configuration.description = "Embedded vault snapshot"
+        configuration.addReference(CellReference(endpoint: "cell:///Vault", label: "vault"))
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "vault.summary.title"))
+        ]))
+
+        let component = ComponentPaletteCatalog.libraryEmbeddedComponent(
+            configuration: configuration,
+            displayName: "Vault Compact",
+            summary: "Embedded vault snapshot",
+            supportedTargetKinds: ["menu", "porthole", "library"]
+        )
+
+        #expect(component?.sourceKind == .library)
+        #expect(component?.recipe.supportedTargetKinds == ["root", "vstack", "section", "scrollview", "grid"])
+        #expect(component?.recipe.referenceTemplate.first?.endpoint == "cell:///Vault")
+    }
+
+    @Test func libraryEmbeddedComponentReturnsNilWithoutSkeleton() {
+        var configuration = CellConfiguration(name: "Agent Shell")
+        configuration.description = "No skeleton yet"
+        configuration.skeleton = nil
+        configuration.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
+
+        let component = ComponentPaletteCatalog.libraryEmbeddedComponent(
+            configuration: configuration,
+            displayName: "Agent Shell",
+            summary: "No skeleton yet",
+            supportedTargetKinds: ["root"]
+        )
+
+        #expect(component == nil)
+    }
+
+    @MainActor
+    @Test func editorAppliesPreferredChatComponentIntoSelectedContainer() {
+        let recipe = ComponentPaletteCatalog.defaultItems()[0].recipe
+        var configuration = CellConfiguration(name: "Host")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Host"))
+        ]))
+
+        let editorState = EditorState()
+        editorState.beginEditing(configuration: configuration)
+
+        #expect(editorState.applyPreferredComponent(recipe))
+        #expect(editorState.selectedNodePath == .root.appending(1))
+
+        guard let workingSkeleton = editorState.workingCopy else {
+            Issue.record("Forventet working skeleton etter component insert")
+            return
+        }
+
+        let references = editorState.workingConfiguration?.cellReferences ?? []
+        #expect(references.contains(where: { $0.endpoint == "cell://staging.haven.digipomps.org/Chat" && $0.label == "chat" }))
+        #expect(skeletonContainsTextArea(targetKeypath: "chat.compose.body", in: workingSkeleton))
+        #expect(skeletonContainsList(keypath: "chat.messages", topic: nil, in: workingSkeleton))
+    }
+
+    @MainActor
+    @Test func deletingComponentPrunesNewlyUnusedReferences() {
+        var configuration = CellConfiguration(name: "Delete Chat Component")
+        configuration.addReference(CellReference(endpoint: "cell:///Chat", label: "chat"))
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Header")),
+            .VStack(SkeletonVStack(elements: [
+                .Text(SkeletonText(keypath: "chat.status"))
+            ]))
+        ]))
+
+        let editorState = EditorState()
+        editorState.beginEditing(configuration: configuration)
+        editorState.deleteNode(at: .root.appending(1))
+
+        let references = editorState.workingConfiguration?.cellReferences ?? []
+        #expect(references.isEmpty)
+
+        guard let workingSkeleton = editorState.workingCopy else {
+            Issue.record("Forventet skeleton etter delete")
+            return
+        }
+
+        #expect(!skeletonContainsTextKeypath("chat.status", in: workingSkeleton))
+    }
+
     @Test func configurationCatalogSeedsRichLibrary() async throws {
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
@@ -253,9 +408,12 @@ struct BindingTests {
         #expect(skeletonContainsButton(keypath: "chat.sendComposedMessage", in: skeleton))
         #expect(skeletonContainsList(keypath: "chat.messages", topic: "chat.message", in: skeleton))
         #expect(skeletonContainsList(keypath: "chat.participants", topic: "chat.participant", in: skeleton))
+        #expect(skeletonContainsList(keypath: "chat.compose.previewRows", topic: nil, in: skeleton))
         #expect(skeletonContainsTextKeypath("ownerInitials", in: skeleton))
         #expect(skeletonContainsTextKeypath("contentRichText", in: skeleton))
         #expect(skeletonContainsTextKeypath("formatLabel", in: skeleton))
+        #expect(skeletonContainsTextKeypath("formatDescription", in: skeleton))
+        #expect(skeletonContainsTextKeypath("previewRichText", in: skeleton))
         #expect(skeletonContainsTextKeypath("initials", in: skeleton))
         #expect(skeletonContainsTextKeypath("activitySummary", in: skeleton))
     }
@@ -347,7 +505,7 @@ struct BindingTests {
         }
     }
 
-    private func skeletonContainsList(keypath: String, topic: String, in element: SkeletonElement) -> Bool {
+    private func skeletonContainsList(keypath: String, topic: String?, in element: SkeletonElement) -> Bool {
         switch element {
         case .List(let list):
             if list.keypath == keypath && list.topic == topic {

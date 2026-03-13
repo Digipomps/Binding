@@ -81,6 +81,7 @@ Projects importing CellProtocol must include:
 - Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
 - Skeleton elements reference: [Documentation/SkeletonElements_Detailed.md](Documentation/SkeletonElements_Detailed.md)
 - Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
+- Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
 - Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
 - Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)

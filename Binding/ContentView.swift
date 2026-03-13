@@ -91,8 +91,12 @@ struct ContentView: View {
     @State private var catalogMenuPool: [CellConfiguration] = []
     @State private var lastPerspectiveMenuSignature: String = ""
     @State private var compactEditorDrawerVisible = false
+    @State private var compactComponentsExpanded = true
     @State private var compactElementsExpanded = true
     @State private var compactInspectorExpanded = true
+    @State private var componentCanvasDropTargeted = false
+    @State private var activeComponentDragItem: ComponentPaletteItem?
+    @State private var armedComponentItem: ComponentPaletteItem?
 
     private static let defaultRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.defaultRemoteWebSocketPath,
@@ -110,6 +114,9 @@ struct ContentView: View {
                 skeleton: renderedSkeleton,
                 isEditing: editorMode == .edit,
                 selectedNodePath: editorState.selectedNodePath,
+                highlightedDropTargets: activeComponentDropTargets,
+                activeComponent: activeComponentInsertionItem,
+                isPlacementArmed: isComponentPlacementArmed,
                 onSelectPath: { selectedPath in
                     editorState.selectNode(selectedPath)
                     if usesCompactEditorChrome, editorMode == .edit {
@@ -118,6 +125,16 @@ struct ContentView: View {
                             compactEditorDrawerVisible = true
                         }
                     }
+                },
+                onCancelComponentPlacement: {
+                    armedComponentItem = nil
+                },
+                onApplyComponentDrop: { item, placement in
+                    let inserted = applyComponentPaletteItem(item, placement: placement)
+                    if !inserted {
+                        loadErrorMessage = "Kunne ikke sette inn \(item.title.lowercased()) på valgt punkt."
+                    }
+                    return inserted
                 }
             )
                 .environmentObject(viewModel)
@@ -126,6 +143,25 @@ struct ContentView: View {
                     // On drop, load the configuration into the porthole
                     Task { await loadConfigurationForEditing(items.first) }
                     return !items.isEmpty
+                }
+                .dropDestination(for: ComponentPaletteItem.self) { items, _ in
+                    guard editorMode == .edit else { return false }
+                    guard let item = items.first else { return false }
+                    let inserted = applyComponentPaletteItem(item)
+                    if !inserted {
+                        loadErrorMessage = "Ingen gyldig drop-target for \(item.title.lowercased()) i valgt kontekst."
+                    }
+                    return inserted
+                } isTargeted: { isTargeted in
+                    componentCanvasDropTargeted = isTargeted
+                }
+                .overlay {
+                    if editorMode == .edit && componentCanvasDropTargeted {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [10, 8]))
+                            .padding(10)
+                            .allowsHitTesting(false)
+                    }
                 }
 
             if !usesCompactConvenienceMenus && !menusHidden {
@@ -239,10 +275,18 @@ struct ContentView: View {
                 applyWorkingCopyToViewer()
                 editorState.endEditing()
                 compactEditorDrawerVisible = false
+                activeComponentDragItem = nil
+                armedComponentItem = nil
             case .edit:
-                editorState.beginEditing(from: viewModel.currentSkeleton)
+                editorState.beginEditing(
+                    configuration: currentEditorSeedConfiguration(),
+                    fallbackSkeleton: viewModel.currentSkeleton
+                )
+                compactComponentsExpanded = true
                 compactElementsExpanded = true
                 compactInspectorExpanded = editorState.selectedNodePath != nil
+                activeComponentDragItem = nil
+                armedComponentItem = nil
             }
             floatingPanelsController.setEditing(mode == .edit, editorState: editorState)
         }
@@ -263,7 +307,7 @@ struct ContentView: View {
         }
         .onReceive(viewModel.$currentSkeleton) { next in
             if !editorState.isEditing {
-                editorState.captureViewerSnapshot(next)
+                editorState.captureViewerSnapshot(currentEditorSeedConfiguration(), fallbackSkeleton: next)
             }
         }
         .sheet(isPresented: $presentingFullLibrary) {
@@ -278,6 +322,20 @@ struct ContentView: View {
                 templates: viewModel.lowerLeftMenu,
                 onAddConfiguration: { configuration in
                     Task { await loadConfigurationForEditing(configuration) }
+                },
+                onAddComponent: { item in
+                    let inserted = applyComponentPaletteItem(item)
+                    if !inserted {
+                        loadErrorMessage = "Ingen gyldig drop-target for \(item.title.lowercased()) i valgt kontekst."
+                    }
+                    return inserted
+                },
+                armedComponentID: armedComponentItem?.id,
+                onArmComponent: { item in
+                    armComponentPlacement(item)
+                },
+                onComponentDragStateChange: { item in
+                    activeComponentDragItem = item
                 }
             )
             .environmentObject(bridgeStatusStore)
@@ -308,7 +366,7 @@ struct ContentView: View {
                 didAttemptCatalogMenuSync = true
                 await refreshMenusFromCatalogIfAvailable()
             }
-            editorState.captureViewerSnapshot(viewModel.currentSkeleton)
+            editorState.captureViewerSnapshot(currentEditorSeedConfiguration(), fallbackSkeleton: viewModel.currentSkeleton)
         }
         .task {
             await monitorPerspectiveDrivenMenus()
@@ -1171,25 +1229,43 @@ struct ContentView: View {
         return result
     }
 
+    private var componentPaletteItems: [ComponentPaletteItem] {
+        ComponentPaletteCatalog.defaultItems()
+    }
+
+    private var activeComponentInsertionItem: ComponentPaletteItem? {
+        activeComponentDragItem ?? armedComponentItem
+    }
+
+    private var isComponentPlacementArmed: Bool {
+        activeComponentDragItem == nil && armedComponentItem != nil
+    }
+
+    private var activeComponentDropTargets: [DropTargetDescriptor] {
+        guard editorMode == .edit, let activeComponentInsertionItem else { return [] }
+        return editorState.dropTargets(for: activeComponentInsertionItem.recipe)
+    }
+
     private var compactEditorDrawer: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Editor")
                         .font(.headline)
-                    Text(editorState.selectedNodePath == nil ? "Velg et element for å justere detaljer." : "Element og inspector ligger samlet her.")
+                    Text(editorState.selectedNodePath == nil ? "Velg et element for å styre hvor komponenter legges inn." : "Komponenter, elementer og inspector ligger samlet her.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 Button {
-                    let shouldCollapse = compactElementsExpanded || compactInspectorExpanded
+                    let shouldCollapse = compactComponentsExpanded || compactElementsExpanded || compactInspectorExpanded
                     withAnimation(.easeInOut(duration: 0.2)) {
+                        compactComponentsExpanded = !shouldCollapse
                         compactElementsExpanded = !shouldCollapse
                         compactInspectorExpanded = !shouldCollapse
                     }
                 } label: {
-                    Image(systemName: compactElementsExpanded || compactInspectorExpanded ? "chevron.down" : "chevron.up")
+                    Image(systemName: compactComponentsExpanded || compactElementsExpanded || compactInspectorExpanded ? "chevron.down" : "chevron.up")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -1209,6 +1285,24 @@ struct ContentView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    DisclosureGroup("Components", isExpanded: $compactComponentsExpanded) {
+                        ComponentPalettePanel(
+                            editorState: editorState,
+                            items: componentPaletteItems,
+                            armedItemID: armedComponentItem?.id,
+                            onDragStateChange: { item in
+                                activeComponentDragItem = item
+                            },
+                            onArmComponent: { item in
+                                armComponentPlacement(item)
+                            },
+                            onInsertError: { message in
+                                loadErrorMessage = message
+                            }
+                        )
+                        .padding(.top, 8)
+                    }
+
                     DisclosureGroup("Elements", isExpanded: $compactElementsExpanded) {
                         SkeletonTreePanel(
                             editorState: editorState,
@@ -1241,17 +1335,10 @@ struct ContentView: View {
     }
 
     private func applyWorkingCopyToViewer() {
-        guard let committed = editorState.commitChanges() else { return }
-        if var configuration = activeConfiguration {
-            configuration.skeleton = committed
-            activeConfiguration = configuration
-            Task { await viewModel.load(configuration: configuration) }
-        } else {
-            var fallback = CellConfiguration(name: "Edited Skeleton")
-            fallback.skeleton = committed
-            activeConfiguration = fallback
-            Task { await viewModel.load(configuration: fallback) }
-        }
+        guard let committedDocument = editorState.commitDocumentChanges() else { return }
+        let committedConfiguration = canonicalizeSkeletonReferencesIfNeeded(in: committedDocument.configuration)
+        activeConfiguration = committedConfiguration
+        Task { await viewModel.load(configuration: committedConfiguration) }
     }
 
     @MainActor
@@ -1304,8 +1391,8 @@ struct ContentView: View {
         }
 
         await viewModel.load(configuration: loadConfiguration)
-        if editorMode == .edit, let skeleton = loadConfiguration.skeleton {
-            editorState.beginEditing(from: skeleton)
+        if editorMode == .edit {
+            editorState.beginEditing(configuration: loadConfiguration, fallbackSkeleton: loadConfiguration.skeleton ?? viewModel.currentSkeleton)
         }
     }
 
@@ -1346,14 +1433,8 @@ struct ContentView: View {
     }
 
     private func configurationForClipboardExport() -> CellConfiguration? {
-        if editorMode == .edit, let workingCopy = editorState.workingCopy {
-            if var activeConfiguration {
-                activeConfiguration.skeleton = workingCopy
-                return canonicalizeSkeletonReferencesIfNeeded(in: activeConfiguration)
-            }
-            var fallback = CellConfiguration(name: "Porthole Export")
-            fallback.skeleton = workingCopy
-            return fallback
+        if editorMode == .edit, let workingConfiguration = editorState.workingConfiguration {
+            return canonicalizeSkeletonReferencesIfNeeded(in: workingConfiguration)
         }
 
         if var activeConfiguration {
@@ -1364,6 +1445,54 @@ struct ContentView: View {
         }
 
         return nil
+    }
+
+    private func currentEditorSeedConfiguration() -> CellConfiguration {
+        if let workingConfiguration = editorState.workingConfiguration {
+            return workingConfiguration
+        }
+
+        if var activeConfiguration {
+            if activeConfiguration.skeleton == nil {
+                activeConfiguration.skeleton = viewModel.currentSkeleton
+            }
+            return activeConfiguration
+        }
+
+        var fallback = CellConfiguration(name: "Edited Skeleton")
+        fallback.skeleton = viewModel.currentSkeleton
+        return fallback
+    }
+
+    @discardableResult
+    private func applyComponentPaletteItem(_ item: ComponentPaletteItem, placement: DropPlacement? = nil) -> Bool {
+        let inserted: Bool
+        if let placement {
+            inserted = editorState.applyComponentDrop(recipe: item.recipe, placement: placement)
+        } else {
+            inserted = editorState.applyPreferredComponent(item.recipe)
+        }
+        if inserted {
+            loadErrorMessage = nil
+            activeComponentDragItem = nil
+            armedComponentItem = nil
+            compactInspectorExpanded = true
+            withAnimation(.easeInOut(duration: 0.2)) {
+                compactEditorDrawerVisible = true
+            }
+        }
+        return inserted
+    }
+
+    private func armComponentPlacement(_ item: ComponentPaletteItem?) {
+        activeComponentDragItem = nil
+        armedComponentItem = item
+
+        guard item != nil else { return }
+        compactInspectorExpanded = true
+        withAnimation(.easeInOut(duration: 0.2)) {
+            compactEditorDrawerVisible = true
+        }
     }
 
     private func copyTextToClipboard(_ text: String) -> Bool {
@@ -2431,7 +2560,12 @@ private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
     var isEditing: Bool
     var selectedNodePath: SkeletonNodePath?
+    var highlightedDropTargets: [DropTargetDescriptor]
+    var activeComponent: ComponentPaletteItem?
+    var isPlacementArmed: Bool
     var onSelectPath: (SkeletonNodePath) -> Void
+    var onCancelComponentPlacement: () -> Void
+    var onApplyComponentDrop: (ComponentPaletteItem, DropPlacement) -> Bool
     @EnvironmentObject private var viewModel: PortholeBindingViewModel
 
     var body: some View {
@@ -2450,6 +2584,7 @@ private struct PortholeCanvas: View {
                             element: skeleton,
                             path: .root,
                             selectedPath: selectedNodePath,
+                            highlightedDropTargetPaths: Set(highlightedDropTargets.map(\.path)),
                             onSelect: onSelectPath
                         )
                     } else {
@@ -2460,8 +2595,141 @@ private struct PortholeCanvas: View {
                     .padding()
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                
+                    .overlayPreferenceValue(EditorSkeletonNodeBoundsPreferenceKey.self) { anchors in
+                        GeometryReader { overlayProxy in
+                            if let activeComponent {
+                                if isPlacementArmed || highlightedDropTargets.isEmpty {
+                                    HStack(spacing: 10) {
+                                        Text(componentStatusLine(for: activeComponent, hasTargets: !highlightedDropTargets.isEmpty))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        if isPlacementArmed {
+                                            Button("Avbryt") {
+                                                onCancelComponentPlacement()
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .position(x: overlayProxy.size.width / 2, y: 26)
+                                }
+
+                                ForEach(highlightedDropTargets) { target in
+                                    if let anchor = anchors[target.path.description] {
+                                        let rect = overlayProxy[anchor]
+                                        ComponentDropSlotView(
+                                            descriptor: target,
+                                            activeItem: activeComponent,
+                                            activeTitle: activeComponent.title,
+                                            onApplyComponentDrop: onApplyComponentDrop
+                                        )
+                                        .position(
+                                            slotPosition(
+                                                for: target,
+                                                rect: rect,
+                                                canvasSize: overlayProxy.size
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
             }
+        }
+    }
+
+    private func slotPosition(
+        for target: DropTargetDescriptor,
+        rect: CGRect,
+        canvasSize: CGSize
+    ) -> CGPoint {
+        let rawPoint: CGPoint
+        switch target.placement {
+        case .intoContainer:
+            rawPoint = CGPoint(x: rect.maxX - 84, y: rect.minY + 20)
+        case .afterNode:
+            rawPoint = CGPoint(x: rect.midX, y: rect.maxY + 18)
+        case .beforeNode:
+            rawPoint = CGPoint(x: rect.midX, y: rect.minY - 18)
+        case .replaceNode:
+            rawPoint = CGPoint(x: rect.midX, y: rect.midY)
+        case .root:
+            rawPoint = CGPoint(x: rect.midX, y: rect.minY + 20)
+        }
+
+        return CGPoint(
+            x: min(max(rawPoint.x, 90), max(90, canvasSize.width - 90)),
+            y: min(max(rawPoint.y, 26), max(26, canvasSize.height - 26))
+        )
+    }
+
+    private func componentStatusLine(for item: ComponentPaletteItem, hasTargets: Bool) -> String {
+        if hasTargets {
+            return "Plasserer \(item.title.lowercased()). Klikk et innsettingspunkt i lerretet."
+        }
+        return "Ingen gyldige innsettingspunkter for \(item.title.lowercased()). Velg en container eller et annet element."
+    }
+}
+
+private struct ComponentDropSlotView: View {
+    let descriptor: DropTargetDescriptor
+    let activeItem: ComponentPaletteItem?
+    let activeTitle: String
+    let onApplyComponentDrop: (ComponentPaletteItem, DropPlacement) -> Bool
+
+    @State private var isTargeted = false
+
+    var body: some View {
+        Button {
+            guard let activeItem else { return }
+            _ = onApplyComponentDrop(activeItem, descriptor.placement)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: descriptor.targetKind == "root" ? "square.grid.2x2" : "plus.circle.fill")
+                    .font(.caption)
+                Text(slotLabel)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(activeItem == nil)
+        .foregroundStyle(isTargeted ? Color.white : Color.accentColor)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(isTargeted ? Color.accentColor : Color.accentColor.opacity(0.14))
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.accentColor.opacity(isTargeted ? 0 : 0.25), lineWidth: 1)
+        )
+        .dropDestination(for: ComponentPaletteItem.self) { items, _ in
+            guard let item = items.first else { return false }
+            return onApplyComponentDrop(item, descriptor.placement)
+        } isTargeted: { targeted in
+            isTargeted = targeted
+        }
+        .accessibilityLabel("\(slotLabel) for \(activeTitle)")
+    }
+
+    private var slotLabel: String {
+        switch descriptor.placement {
+        case .intoContainer:
+            return "Legg inn"
+        case .afterNode:
+            return "Etter"
+        case .beforeNode:
+            return "Før"
+        case .replaceNode:
+            return "Erstatt"
+        case .root:
+            return "Sett som rot"
         }
     }
 }

@@ -4,15 +4,20 @@ import CellBase
 
 @MainActor
 final class EditorState: ObservableObject {
-    @Published private(set) var viewerSnapshot: SkeletonElement?
-    @Published private(set) var workingCopy: SkeletonElement?
+    @Published private(set) var viewerDocument: EditorDocument?
+    @Published private(set) var workingDocument: EditorDocument?
     @Published var selectedNodePath: SkeletonNodePath?
     @Published private(set) var revision: Int = 0
 
-    private var undoStack: [SkeletonElement] = []
-    private var redoStack: [SkeletonElement] = []
+    private var undoStack: [EditorDocument] = []
+    private var redoStack: [EditorDocument] = []
 
-    var isEditing: Bool { workingCopy != nil }
+    var viewerSnapshot: SkeletonElement? { viewerDocument?.skeleton }
+    var workingCopy: SkeletonElement? { workingDocument?.skeleton }
+    var viewerConfiguration: CellConfiguration? { viewerDocument?.configuration }
+    var workingConfiguration: CellConfiguration? { workingDocument?.configuration }
+
+    var isEditing: Bool { workingDocument != nil }
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
 
@@ -21,20 +26,33 @@ final class EditorState: ObservableObject {
     }
 
     func captureViewerSnapshot(_ skeleton: SkeletonElement) {
-        viewerSnapshot = skeleton
+        var fallback = CellConfiguration(name: "Viewer Snapshot")
+        fallback.skeleton = skeleton
+        captureViewerSnapshot(fallback)
+    }
+
+    func captureViewerSnapshot(_ configuration: CellConfiguration, fallbackSkeleton: SkeletonElement? = nil) {
+        viewerDocument = EditorDocument(configuration: configuration, fallbackSkeleton: fallbackSkeleton)
     }
 
     func beginEditing(from skeleton: SkeletonElement) {
-        viewerSnapshot = skeleton
-        workingCopy = skeleton
-        selectedNodePath = .root
+        var fallback = CellConfiguration(name: "Edited Skeleton")
+        fallback.skeleton = skeleton
+        beginEditing(configuration: fallback, fallbackSkeleton: skeleton)
+    }
+
+    func beginEditing(configuration: CellConfiguration, fallbackSkeleton: SkeletonElement? = nil) {
+        let document = EditorDocument(configuration: configuration, fallbackSkeleton: fallbackSkeleton)
+        viewerDocument = document
+        workingDocument = document
+        selectedNodePath = document.skeleton == nil ? nil : .root
         undoStack.removeAll()
         redoStack.removeAll()
         revision &+= 1
     }
 
     func endEditing() {
-        workingCopy = nil
+        workingDocument = nil
         selectedNodePath = nil
         undoStack.removeAll()
         redoStack.removeAll()
@@ -50,30 +68,40 @@ final class EditorState: ObservableObject {
         selectedNodePath = path
     }
 
-    func replaceWorkingCopy(with newValue: SkeletonElement, recordUndo: Bool = true) {
-        guard let current = workingCopy else {
-            workingCopy = newValue
+    func replaceWorkingDocument(with newValue: EditorDocument, recordUndo: Bool = true) {
+        guard let current = workingDocument else {
+            workingDocument = newValue
+            revision &+= 1
             return
         }
         if recordUndo {
             undoStack.append(current)
             redoStack.removeAll()
         }
-        workingCopy = newValue
+        workingDocument = newValue
         revision &+= 1
     }
 
+    func replaceWorkingCopy(with newValue: SkeletonElement, recordUndo: Bool = true) {
+        let currentDocument = workingDocument ?? viewerDocument ?? EditorDocument(configuration: CellConfiguration(name: "Edited Skeleton"))
+        var updatedDocument = currentDocument
+        updatedDocument.skeleton = newValue
+        replaceWorkingDocument(with: updatedDocument, recordUndo: recordUndo)
+    }
+
     func undo() {
-        guard let previous = undoStack.popLast(), let current = workingCopy else { return }
+        guard let previous = undoStack.popLast(), let current = workingDocument else { return }
         redoStack.append(current)
-        workingCopy = previous
+        workingDocument = previous
+        normalizeSelection()
         revision &+= 1
     }
 
     func redo() {
-        guard let next = redoStack.popLast(), let current = workingCopy else { return }
+        guard let next = redoStack.popLast(), let current = workingDocument else { return }
         undoStack.append(current)
-        workingCopy = next
+        workingDocument = next
+        normalizeSelection()
         revision &+= 1
     }
 
@@ -92,9 +120,21 @@ final class EditorState: ObservableObject {
     }
 
     func deleteNode(at path: SkeletonNodePath) {
-        guard let workingCopy,
+        guard var document = workingDocument,
+              let workingCopy = document.skeleton,
               let updated = SkeletonTreeMutations.delete(in: workingCopy, at: path) else { return }
-        replaceWorkingCopy(with: updated)
+
+        if let references = document.configuration.cellReferences {
+            let prunedReferences = ReferenceUsageAnalyzer.pruneNewlyUnusedReferences(
+                from: references,
+                previousSkeleton: workingCopy,
+                updatedSkeleton: updated
+            )
+            document.configuration.cellReferences = prunedReferences.isEmpty ? nil : prunedReferences
+        }
+
+        document.skeleton = updated
+        replaceWorkingDocument(with: document)
         selectedNodePath = path.parent
     }
 
@@ -106,22 +146,27 @@ final class EditorState: ObservableObject {
     }
 
     func discardChanges() {
-        guard let viewerSnapshot else { return }
-        workingCopy = viewerSnapshot
-        selectedNodePath = .root
+        guard let viewerDocument else { return }
+        workingDocument = viewerDocument
+        selectedNodePath = viewerDocument.skeleton == nil ? nil : .root
         undoStack.removeAll()
         redoStack.removeAll()
         revision &+= 1
     }
 
     @discardableResult
-    func commitChanges() -> SkeletonElement? {
-        guard let workingCopy else { return nil }
-        viewerSnapshot = workingCopy
+    func commitDocumentChanges() -> EditorDocument? {
+        guard let workingDocument else { return nil }
+        viewerDocument = workingDocument
         undoStack.removeAll()
         redoStack.removeAll()
         revision &+= 1
-        return workingCopy
+        return workingDocument
+    }
+
+    @discardableResult
+    func commitChanges() -> SkeletonElement? {
+        commitDocumentChanges()?.skeleton
     }
 
     var selectedElement: SkeletonElement? {
@@ -132,5 +177,69 @@ final class EditorState: ObservableObject {
     var selectedModifiers: SkeletonModifiers? {
         guard let selectedElement else { return nil }
         return SkeletonTreeQueries.modifiers(on: selectedElement)
+    }
+
+    func dropTargets(for recipe: ComponentInsertionRecipe) -> [DropTargetDescriptor] {
+        guard let workingDocument else { return [] }
+        return DropTargetResolver.targets(
+            for: recipe,
+            document: workingDocument,
+            selectedNodePath: selectedNodePath
+        )
+    }
+
+    @discardableResult
+    func applyPreferredComponent(_ recipe: ComponentInsertionRecipe) -> Bool {
+        guard let workingDocument,
+              let target = DropTargetResolver.preferredTarget(
+                for: recipe,
+                document: workingDocument,
+                selectedNodePath: selectedNodePath
+              ) else {
+            return false
+        }
+
+        return applyComponentDrop(recipe: recipe, placement: target.placement)
+    }
+
+    @discardableResult
+    func applyComponentDrop(recipe: ComponentInsertionRecipe, placement: DropPlacement) -> Bool {
+        guard var document = workingDocument else { return false }
+
+        let mergeResult = ReferenceMergeService.merge(
+            recipeReferences: recipe.referenceTemplate,
+            into: document.configuration.cellReferences ?? [],
+            fragment: recipe.skeletonTemplate
+        )
+
+        guard let updatedSkeleton = SkeletonDropApplicator.apply(
+            mergeResult.rewrittenFragment,
+            placement: placement,
+            to: document.skeleton
+        ) else {
+            return false
+        }
+
+        document.configuration.cellReferences = mergeResult.mergedReferences.isEmpty ? nil : mergeResult.mergedReferences
+        document.skeleton = updatedSkeleton
+        replaceWorkingDocument(with: document)
+        selectedNodePath = placement.insertedSelectionPath
+        return true
+    }
+
+    private func normalizeSelection() {
+        guard let workingCopy else {
+            selectedNodePath = nil
+            return
+        }
+
+        guard let selectedNodePath else {
+            self.selectedNodePath = .root
+            return
+        }
+
+        if SkeletonTreeQueries.element(in: workingCopy, at: selectedNodePath) == nil {
+            self.selectedNodePath = .root
+        }
     }
 }

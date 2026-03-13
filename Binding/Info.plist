@@ -46,6 +46,21 @@
 				<string>application/x-cellconfiguration</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Binding Component Palette Item</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.binding.componentpaletteitem</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.mime-type</key>
+				<string>application/x-binding-componentpaletteitem</string>
+			</dict>
+		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>

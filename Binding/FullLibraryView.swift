@@ -25,6 +25,10 @@ struct FullLibraryView: View {
     @State private var showAdvancedFilters = false
 
     private let onAddConfiguration: (CellConfiguration) -> Void
+    private let onAddComponent: ((ComponentPaletteItem) -> Bool)?
+    private let armedComponentID: String?
+    private let onArmComponent: ((ComponentPaletteItem?) -> Void)?
+    private let onComponentDragStateChange: ((ComponentPaletteItem?) -> Void)?
 
     private enum FocusField: Hashable {
         case query
@@ -36,7 +40,11 @@ struct FullLibraryView: View {
         queryContext: FullLibraryQueryContext,
         favorites: [CellConfiguration],
         templates: [CellConfiguration],
-        onAddConfiguration: @escaping (CellConfiguration) -> Void
+        onAddConfiguration: @escaping (CellConfiguration) -> Void,
+        onAddComponent: ((ComponentPaletteItem) -> Bool)? = nil,
+        armedComponentID: String? = nil,
+        onArmComponent: ((ComponentPaletteItem?) -> Void)? = nil,
+        onComponentDragStateChange: ((ComponentPaletteItem?) -> Void)? = nil
     ) {
         _model = StateObject(
             wrappedValue: FullLibraryViewModel(
@@ -47,6 +55,10 @@ struct FullLibraryView: View {
             )
         )
         self.onAddConfiguration = onAddConfiguration
+        self.onAddComponent = onAddComponent
+        self.armedComponentID = armedComponentID
+        self.onArmComponent = onArmComponent
+        self.onComponentDragStateChange = onComponentDragStateChange
     }
 
     var body: some View {
@@ -113,6 +125,9 @@ struct FullLibraryView: View {
         }
         .onChange(of: model.maxSources) { _, _ in
             model.scheduleRefresh()
+        }
+        .onDisappear {
+            onComponentDragStateChange?(nil)
         }
     }
 
@@ -510,17 +525,23 @@ struct FullLibraryView: View {
 
             List(selection: $model.selectedResultID) {
                 ForEach(model.results) { item in
-                    resultRowContent(item)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        model.selectedResultID = item.id
+                    draggableResultCard(for: item) {
+                        resultRowContent(item)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                model.selectedResultID = item.id
+                            }
+                            .contextMenu {
+                                if item.componentItem != nil {
+                                    Button(componentPlacementLabel(for: item)) {
+                                        togglePlacement(for: item)
+                                    }
+                                }
+                                Button(item.componentItem == nil ? "Legg til i Porthole" : "Sett inn i valgt layout") {
+                                    applySelection(item)
+                                }
+                            }
                     }
-                    .contextMenu {
-                        Button("Legg til i Porthole") {
-                            applySelection(item.configuration)
-                        }
-                    }
-                    .draggable(item.configuration)
                 }
             }
             .listStyle(.plain)
@@ -548,19 +569,25 @@ struct FullLibraryView: View {
             } else {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(model.results) { item in
-                        resultRowContent(item)
-                            .padding(10)
-                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                model.selectedResultID = item.id
-                            }
-                            .contextMenu {
-                                Button("Legg til i Porthole") {
-                                    applySelection(item.configuration)
+                        draggableResultCard(for: item) {
+                            resultRowContent(item)
+                                .padding(10)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    model.selectedResultID = item.id
                                 }
-                            }
-                            .draggable(item.configuration)
+                                .contextMenu {
+                                    if item.componentItem != nil {
+                                        Button(componentPlacementLabel(for: item)) {
+                                            togglePlacement(for: item)
+                                        }
+                                    }
+                                    Button(item.componentItem == nil ? "Legg til i Porthole" : "Sett inn i valgt layout") {
+                                        applySelection(item)
+                                    }
+                                }
+                        }
                     }
                 }
             }
@@ -597,8 +624,15 @@ struct FullLibraryView: View {
                         .background(Color.secondary.opacity(0.13), in: Capsule())
                 }
                 Spacer()
-                Button("Legg til") {
-                    applySelection(item.configuration)
+                if item.componentItem != nil {
+                    Button(componentPlacementLabel(for: item)) {
+                        togglePlacement(for: item)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                Button(item.componentItem == nil ? "Legg til" : "Sett inn") {
+                    applySelection(item)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -650,10 +684,31 @@ struct FullLibraryView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Button("Legg til i Porthole") {
-                            applySelection(selected.configuration)
+                        if selected.componentItem != nil {
+                            if let componentItem = selected.componentItem,
+                               armedComponentID == componentItem.id {
+                                Text("Plassering er aktiv. Lukk biblioteket og klikk et innsettingspunkt i lerretet.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            HStack(spacing: 8) {
+                                Button(componentPlacementLabel(for: selected)) {
+                                    togglePlacement(for: selected)
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("Sett inn i valgt layout") {
+                                    applySelection(selected)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        } else {
+                            Button("Legg til i Porthole") {
+                                applySelection(selected)
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
                 }
                 .scrollDismissesKeyboard(.interactively)
@@ -742,6 +797,59 @@ struct FullLibraryView: View {
         onAddConfiguration(configuration)
         if closeAfterInsert {
             dismiss()
+        }
+    }
+
+    private func applySelection(_ item: FullLibraryViewModel.SearchResult) {
+        dismissKeyboard()
+
+        if let componentItem = item.componentItem,
+           let onAddComponent {
+            let inserted = onAddComponent(componentItem)
+            if inserted && closeAfterInsert {
+                dismiss()
+            }
+            return
+        }
+
+        applySelection(item.configuration)
+    }
+
+    private func togglePlacement(for item: FullLibraryViewModel.SearchResult) {
+        guard let componentItem = item.componentItem else { return }
+        dismissKeyboard()
+        onComponentDragStateChange?(nil)
+
+        let shouldArm = armedComponentID != componentItem.id
+        onArmComponent?(shouldArm ? componentItem : nil)
+
+        if shouldArm {
+            dismiss()
+        }
+    }
+
+    private func componentPlacementLabel(for item: FullLibraryViewModel.SearchResult) -> String {
+        guard let componentItem = item.componentItem else { return "Plasser" }
+        return armedComponentID == componentItem.id ? "Avbryt plassering" : "Plasser"
+    }
+
+    @ViewBuilder
+    private func draggableResultCard<Content: View>(
+        for item: FullLibraryViewModel.SearchResult,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if let componentItem = item.componentItem {
+            content()
+                .draggable(componentItem) {
+                    ComponentDragPreviewCard(
+                        item: componentItem,
+                        onActivate: { active in onComponentDragStateChange?(active) },
+                        onDeactivate: { onComponentDragStateChange?(nil) }
+                    )
+                }
+        } else {
+            content()
+                .draggable(item.configuration)
         }
     }
 
@@ -839,6 +947,7 @@ final class FullLibraryViewModel: ObservableObject {
         var scoreBreakdown: ScoreBreakdown
         var badges: [String]
         var configuration: CellConfiguration
+        var componentItem: ComponentPaletteItem?
 
         var scoreLabel: String {
             String(format: "%.2f", score)
@@ -1122,6 +1231,27 @@ final class FullLibraryViewModel: ObservableObject {
         }
     }
 
+    private func makeComponentItem(
+        configuration: CellConfiguration,
+        displayName: String,
+        summary: String,
+        insertionModes: [String],
+        supportedTargetKinds: [String]
+    ) -> ComponentPaletteItem? {
+        guard queryContext.editMode else { return nil }
+        guard queryContext.insertionIntent == .component || queryContext.insertionIntent == .both else { return nil }
+
+        let normalizedModes = Set(insertionModes.map { $0.lowercased() })
+        guard normalizedModes.contains("component") || normalizedModes.contains("both") else { return nil }
+
+        return ComponentPaletteCatalog.libraryEmbeddedComponent(
+            configuration: configuration,
+            displayName: displayName,
+            summary: summary.isEmpty ? configuration.description : summary,
+            supportedTargetKinds: supportedTargetKinds
+        )
+    }
+
     private func resolveCatalog() async throws -> (Meddle, Identity, String) {
         await AppInitializer.initialize()
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
@@ -1174,6 +1304,7 @@ final class FullLibraryViewModel: ObservableObject {
             let flowDriven = object["flowDriven"]?.boolValue
             let editable = object["editable"]?.boolValue
             let insertionModes = object["supportedInsertionModes"]?.stringListValue ?? []
+            let supportedTargetKinds = object["supportedTargetKinds"]?.stringListValue ?? []
 
             let corpus = [
                 displayName,
@@ -1233,7 +1364,14 @@ final class FullLibraryViewModel: ObservableObject {
                     recency: 0
                 ),
                 badges: badges,
-                configuration: configuration
+                configuration: configuration,
+                componentItem: makeComponentItem(
+                    configuration: configuration,
+                    displayName: displayName,
+                    summary: summary,
+                    insertionModes: insertionModes,
+                    supportedTargetKinds: supportedTargetKinds
+                )
             )
         }
         .sorted { lhs, rhs in
@@ -1443,17 +1581,28 @@ final class FullLibraryViewModel: ObservableObject {
                 )
 
                 let id = object["configurationId"]?.stringValueOrNil ?? UUID().uuidString
+                let displayName = object["displayName"]?.stringValueOrNil ?? configuration.name
+                let summary = object["summary"]?.stringValueOrNil ?? ""
+                let insertionModes = object["supportedInsertionModes"]?.stringListValue ?? []
+                let supportedTargetKinds = object["supportedTargetKinds"]?.stringListValue ?? []
                 return SearchResult(
                     id: id,
                     configurationId: id,
-                    displayName: object["displayName"]?.stringValueOrNil ?? configuration.name,
-                    summary: object["summary"]?.stringValueOrNil ?? "",
+                    displayName: displayName,
+                    summary: summary,
                     sourceRef: object["sourceRef"]?.stringValueOrNil ?? "",
                     route: object["route"]?.stringValueOrNil ?? "text",
                     score: object["score"]?.doubleValue ?? 0,
                     scoreBreakdown: breakdown,
                     badges: object["badges"]?.stringListValue ?? [],
-                    configuration: configuration
+                    configuration: configuration,
+                    componentItem: makeComponentItem(
+                        configuration: configuration,
+                        displayName: displayName,
+                        summary: summary,
+                        insertionModes: insertionModes,
+                        supportedTargetKinds: supportedTargetKinds
+                    )
                 )
             }
         }

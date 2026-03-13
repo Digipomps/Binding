@@ -64,6 +64,10 @@ enum SkeletonTreeQueries {
         }
     }
 
+    static func kindIdentifier(for element: SkeletonElement) -> String {
+        displayName(for: element).lowercased()
+    }
+
     static func canContainChildren(_ element: SkeletonElement) -> Bool {
         switch element {
         case .HStack, .VStack, .ScrollView, .Section, .ZStack, .Grid:

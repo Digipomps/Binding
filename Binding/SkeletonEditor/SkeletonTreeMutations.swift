@@ -37,6 +37,42 @@ enum SkeletonTreeMutations {
         )
     }
 
+    static func insertBefore(
+        _ elementToInsert: SkeletonElement,
+        in root: SkeletonElement,
+        siblingPath: SkeletonNodePath
+    ) -> SkeletonElement? {
+        guard let parentPath = siblingPath.parent,
+              let index = siblingPath.indices.last else {
+            return nil
+        }
+
+        return insert(elementToInsert, in: root, parentPath: parentPath, at: index)
+    }
+
+    static func insertAfter(
+        _ elementToInsert: SkeletonElement,
+        in root: SkeletonElement,
+        siblingPath: SkeletonNodePath
+    ) -> SkeletonElement? {
+        guard let parentPath = siblingPath.parent,
+              let index = siblingPath.indices.last else {
+            return nil
+        }
+
+        return insert(elementToInsert, in: root, parentPath: parentPath, at: index + 1)
+    }
+
+    static func replace(
+        _ replacement: SkeletonElement,
+        in root: SkeletonElement,
+        at path: SkeletonNodePath
+    ) -> SkeletonElement? {
+        updateElement(in: root, at: path) { element in
+            element = replacement
+        }
+    }
+
     // MARK: - Recursive operations
 
     private static func updateElement(

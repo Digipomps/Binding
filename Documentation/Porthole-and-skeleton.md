@@ -86,6 +86,17 @@ As of the current `Binding` implementation:
 
 This is now important for both menu-loaded and library-loaded configurations, because both go through the same normalization path in `Binding/ContentView.swift`.
 
+## Requester-scoped draft state
+Not all state belongs on the shared feed.
+
+If a value is requester-scoped, such as an unsent composer draft, it should not be published as a normal shared flow event from the cell. In that case the safe pattern is:
+
+- mutate through `set`
+- read current requester-local state through `get`
+- let the local renderer refresh its `keypath`-backed elements after local mutations
+
+This is the pattern used by `Scaffold Chat` for `compose.*` so one user's unsent draft is not leaked to every other subscriber of the same chat cell.
+
 ## Why some configurations failed to load
 Some generated workbenches used direct skeleton URLs such as:
 

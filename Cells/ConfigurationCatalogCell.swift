@@ -4422,7 +4422,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 interestRefs: ["interest://chat", "interest://communication", "interest://collaboration"],
                 supportedInsertionModes: [.root],
                 supportedTargetKinds: ["menu", "porthole", "tool"],
-                ioGetKeys: ["status", "state", "messages", "participants", "members", "compose.body", "compose.contentType", "compose.availableFormats"],
+                ioGetKeys: ["status", "state", "messages", "participants", "members", "compose.body", "compose.contentType", "compose.availableFormats", "compose.state", "compose.previewRows"],
                 ioSetKeys: ["compose.body", "compose.contentType", "sendMessage", "sendComposedMessage", "clearComposer"],
                 ioTopics: ["chat.message", "chat.participant", "chat.status"],
                 ioFilterTypes: ["event"],
@@ -6476,6 +6476,15 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.height = 180
         }
 
+        let previewListCard = modifier {
+            $0.padding = 6
+            $0.background = "#FFFFFF"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#DDD6FE"
+            $0.height = 220
+        }
+
         let primaryButton = modifier {
             $0.padding = 10
             $0.background = "#7C3AED"
@@ -6586,13 +6595,6 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.lineLimit = 4
         }
 
-        var currentFormatValue = SkeletonText(url: URL(string: "cell:///Porthole/chat.compose.contentType")!)
-        currentFormatValue.modifiers = modifier {
-            $0.foregroundColor = "#312E81"
-            $0.fontSize = 12
-            $0.lineLimit = 2
-        }
-
         var statusReference = SkeletonCellReference(keypath: "chat", topic: "chat.status")
         var statusReferenceStack = SkeletonVStack(elements: [
             .Text(sectionTitle("Live chat status", color: "#5B21B6")),
@@ -6644,6 +6646,65 @@ final class ConfigurationCatalogCell: GeneralCell {
             payload: .bool(true)
         )
         clearButton.modifiers = warningButton
+
+        var composerPreviewFormat = SkeletonText(keypath: "formatLabel")
+        composerPreviewFormat.modifiers = chipModifier
+
+        var composerPreviewCharacterCount = SkeletonText(keypath: "characterCountLabel")
+        composerPreviewCharacterCount.modifiers = subtleMetaModifier
+
+        var composerPreviewLineCount = SkeletonText(keypath: "lineCountLabel")
+        composerPreviewLineCount.modifiers = subtleMetaModifier
+
+        var composerPreviewDescription = SkeletonText(keypath: "formatDescription")
+        composerPreviewDescription.modifiers = modifier {
+            $0.foregroundColor = "#334155"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+
+        var composerPreviewHelper = SkeletonText(keypath: "helperText")
+        composerPreviewHelper.modifiers = subtleMetaModifier
+
+        var composerPreviewBody = SkeletonText(keypath: "previewRichText")
+        composerPreviewBody.modifiers = modifier {
+            $0.foregroundColor = "#1F2937"
+            $0.fontSize = 13
+            $0.lineLimit = 12
+            $0.multilineTextAlignment = "leading"
+            $0.styleRole = "markdown"
+        }
+
+        var composerPreviewSummary = SkeletonText(keypath: "previewSummary")
+        composerPreviewSummary.modifiers = subtleMetaModifier
+
+        var composerPreviewSendHint = SkeletonText(keypath: "sendHint")
+        composerPreviewSendHint.modifiers = modifier {
+            $0.foregroundColor = "#5B21B6"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+
+        var composerPreviewRow = SkeletonVStack(elements: [
+            .HStack(SkeletonHStack(elements: [
+                .Text(composerPreviewFormat),
+                .Spacer(SkeletonSpacer()),
+                .Text(composerPreviewCharacterCount),
+                .Text(composerPreviewLineCount)
+            ])),
+            .Text(composerPreviewDescription),
+            .Text(composerPreviewHelper),
+            .Text(composerPreviewBody),
+            .Text(composerPreviewSummary),
+            .Text(composerPreviewSendHint)
+        ])
+        composerPreviewRow.modifiers = sectionCard
+
+        var composerPreviewList = SkeletonList(
+            keypath: "chat.compose.previewRows",
+            flowElementSkeleton: composerPreviewRow
+        )
+        composerPreviewList.modifiers = previewListCard
 
         var messageAvatar = SkeletonText(keypath: "ownerInitials")
         messageAvatar.modifiers = avatarModifier
@@ -6756,9 +6817,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ])),
                 .HStack(SkeletonHStack(elements: [.Text(sharedChip), .Text(feedChip), .Text(markdownChip)])),
                 .Text(sectionTitle("Current status", color: "#5B21B6")),
-                .Text(statusValue),
-                .Text(sectionTitle("Current composer format", color: "#5B21B6")),
-                .Text(currentFormatValue)
+                .Text(statusValue)
             ]
         )
         heroSection.modifiers = heroCard
@@ -6784,9 +6843,10 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var composerSection = SkeletonSection(
             header: .Text(sectionTitle("Compose and send", color: "#5B21B6")),
-            footer: .Text(bodyText("Velg format, skriv meldingen og send. Andre klienter som absorberer staging-chat vil se den samme meldingen.")),
+            footer: .Text(bodyText("Draften er privat per requester og hentes via get-state, mens sendte meldinger fortsatt går på delt state + feed. Andre klienter som absorberer staging-chat vil se den samme meldingen etter sending.")),
             content: [
                 .Text(bodyText("Recommended: bruk markdown for lister, fremheving og lenker. Plain text er tryggest hvis mottakerne ikke render markdown.")),
+                .List(composerPreviewList),
                 .TextArea(composerArea),
                 .HStack(SkeletonHStack(elements: [
                     .Button(plainFormatButton),

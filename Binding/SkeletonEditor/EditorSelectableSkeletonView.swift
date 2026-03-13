@@ -6,6 +6,7 @@ struct EditorSelectableSkeletonView: View {
     let element: SkeletonElement
     let path: SkeletonNodePath
     let selectedPath: SkeletonNodePath?
+    let highlightedDropTargetPaths: Set<SkeletonNodePath>
     let onSelect: (SkeletonNodePath) -> Void
 
     @EnvironmentObject private var viewModel: PortholeBindingViewModel
@@ -25,6 +26,7 @@ struct EditorSelectableSkeletonView: View {
                                 element: child,
                                 path: path.appending(index),
                                 selectedPath: selectedPath,
+                                highlightedDropTargetPaths: highlightedDropTargetPaths,
                                 onSelect: onSelect
                             )
                         }
@@ -43,6 +45,7 @@ struct EditorSelectableSkeletonView: View {
                                 element: child,
                                 path: path.appending(index),
                                 selectedPath: selectedPath,
+                                highlightedDropTargetPaths: highlightedDropTargetPaths,
                                 onSelect: onSelect
                             )
                         }
@@ -63,6 +66,7 @@ struct EditorSelectableSkeletonView: View {
                                         element: child,
                                         path: path.appending(index),
                                         selectedPath: selectedPath,
+                                        highlightedDropTargetPaths: highlightedDropTargetPaths,
                                         onSelect: onSelect
                                     )
                                 }
@@ -82,6 +86,7 @@ struct EditorSelectableSkeletonView: View {
                                     element: child,
                                     path: path.appending(index),
                                     selectedPath: selectedPath,
+                                    highlightedDropTargetPaths: highlightedDropTargetPaths,
                                     onSelect: onSelect
                                 )
                             }
@@ -104,6 +109,7 @@ struct EditorSelectableSkeletonView: View {
                                 element: child,
                                 path: path.appending(index),
                                 selectedPath: selectedPath,
+                                highlightedDropTargetPaths: highlightedDropTargetPaths,
                                 onSelect: onSelect
                             )
                         }
@@ -125,6 +131,7 @@ struct EditorSelectableSkeletonView: View {
                                 element: child,
                                 path: path.appending(index),
                                 selectedPath: selectedPath,
+                                highlightedDropTargetPaths: highlightedDropTargetPaths,
                                 onSelect: onSelect
                             )
                         }
@@ -143,6 +150,7 @@ struct EditorSelectableSkeletonView: View {
                                 element: child,
                                 path: path.appending(index),
                                 selectedPath: selectedPath,
+                                highlightedDropTargetPaths: highlightedDropTargetPaths,
                                 onSelect: onSelect
                             )
                         }
@@ -164,13 +172,22 @@ struct EditorSelectableSkeletonView: View {
 
     private func decorate(_ content: AnyView, path: SkeletonNodePath) -> AnyView {
         let isSelected = selectedPath == path
+        let isDropTarget = highlightedDropTargetPaths.contains(path)
         return AnyView(
             content
                 .environmentObject(viewModel)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isDropTarget ? Color.accentColor.opacity(0.08) : Color.clear)
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: isSelected ? 2 : 0)
+                        .stroke(
+                            isSelected ? Color.accentColor : (isDropTarget ? Color.accentColor.opacity(0.45) : Color.clear),
+                            lineWidth: isSelected ? 2 : (isDropTarget ? 1.5 : 0)
+                        )
                 )
+                .anchorPreference(key: EditorSkeletonNodeBoundsPreferenceKey.self, value: .bounds) { [path.description: $0] }
                 .contentShape(Rectangle())
                 .onTapGesture {
                     onSelect(path)
@@ -189,6 +206,14 @@ struct EditorSelectableSkeletonView: View {
                 return GridItem(.adaptive(minimum: CGFloat(col.min ?? 0), maximum: CGFloat(col.max ?? .infinity)))
             }
         }
+    }
+}
+
+struct EditorSkeletonNodeBoundsPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: Anchor<CGRect>] = [:]
+
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
     }
 }
 
