@@ -151,6 +151,29 @@ struct BindingTests {
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
     }
 
+    @Test func fullLibraryPrefersRemoteCatalogEndpointsBeforeLocalFallback() {
+        let ordered = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: [
+            "cell:///ConfigurationCatalog",
+            "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+        ])
+
+        #expect(ordered == [
+            "cell://staging.haven.digipomps.org/ConfigurationCatalog",
+            "cell:///ConfigurationCatalog"
+        ])
+    }
+
+    @Test func fullLibraryAppendsLocalCatalogFallbackWhenOnlyRemoteEndpointsAreProvided() {
+        let ordered = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: [
+            "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+        ])
+
+        #expect(ordered == [
+            "cell://staging.haven.digipomps.org/ConfigurationCatalog",
+            "cell:///ConfigurationCatalog"
+        ])
+    }
+
     @Test func entityScannerWorkbenchConfigurationsStayLocalToBinding() {
         let configurations = [
             ConfigurationCatalogCell.entityScannerWorkbenchConfiguration(),

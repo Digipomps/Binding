@@ -728,6 +728,14 @@ struct FullLibraryView: View {
                 Text(model.statusLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if model.catalogMode != .unknown {
+                    Text(model.catalogMode.label)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(model.catalogMode.tint.opacity(0.14), in: Capsule())
+                        .foregroundStyle(model.catalogMode.tint)
+                }
                 Spacer()
                 Text("Online \(model.connectivity.onlineSources) · Degraded \(model.connectivity.degradedSources) · Offline \(model.connectivity.offlineSources)")
                     .font(.caption)
@@ -968,6 +976,28 @@ final class FullLibraryViewModel: ObservableObject {
         case unavailable(reason: String)
     }
 
+    enum CatalogMode: Equatable {
+        case unknown
+        case fullQuery
+        case directEntriesFallback
+
+        var label: String {
+            switch self {
+            case .unknown: return "Ukjent"
+            case .fullQuery: return "Full query"
+            case .directEntriesFallback: return "Direct catalog fallback"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .unknown: return .secondary
+            case .fullQuery: return .green
+            case .directEntriesFallback: return .orange
+            }
+        }
+    }
+
     enum ResourceBudget: String, CaseIterable, Identifiable {
         case low
         case balanced
@@ -1017,6 +1047,7 @@ final class FullLibraryViewModel: ObservableObject {
     @Published var warnings: [String] = []
     @Published var connectivity: ConnectivitySnapshot = .empty
     @Published var availability: Availability = .unknown
+    @Published var catalogMode: CatalogMode = .unknown
 
     @Published var resourceBudget: ResourceBudget = .balanced
     @Published var networkPolicy: NetworkPolicy = .preferHealthyThenCached
@@ -1110,21 +1141,45 @@ final class FullLibraryViewModel: ObservableObject {
             let fallbackCatalogResults = try? await directCatalogResults(from: catalog, requester: identity)
             let queryPayload = buildQueryPayload()
             let startedAt = Date()
-            let queryResponse = try await catalog.set(keypath: "query", value: .object(queryPayload), requester: identity) ?? .null
-            parseQueryResponse(queryResponse)
+            warnings = []
+            catalogMode = .unknown
 
-            let facetPayload = buildFacetPayload(baseQuery: queryPayload)
-            let facetResponse = try await catalog.set(keypath: "facetCounts", value: .object(facetPayload), requester: identity) ?? .null
-            parseFacetResponse(facetResponse)
+            var usedDirectCatalogFallback = false
+            if let queryResponse = try? await catalog.set(keypath: "query", value: .object(queryPayload), requester: identity) {
+                parseQueryResponse(queryResponse)
+                catalogMode = .fullQuery
+            } else if let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
+                results = fallbackCatalogResults
+                facetSections = []
+                warnings = ["Kilden støtter ikke katalog-query. Viser direkte katalogentries i stedet."]
+                selectedResultID = results.first?.id
+                usedDirectCatalogFallback = true
+                catalogMode = .directEntriesFallback
+            } else {
+                throw LibraryError.catalogUnavailable
+            }
+
+            if !usedDirectCatalogFallback {
+                let facetPayload = buildFacetPayload(baseQuery: queryPayload)
+                if let facetResponse = try? await catalog.set(keypath: "facetCounts", value: .object(facetPayload), requester: identity) {
+                    parseFacetResponse(facetResponse)
+                } else {
+                    facetSections = []
+                    warnings.append("Kilden støtter ikke facetCounts. Viser treff uten facetter.")
+                }
+            }
 
             let elapsed = Int(Date().timeIntervalSince(startedAt) * 1000.0)
             if results.isEmpty, let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
                 results = fallbackCatalogResults
                 facetSections = []
-                warnings = ["Query svarte tomt. Viser direkte katalogentries i stedet."]
+                if warnings.isEmpty {
+                    warnings = ["Query svarte tomt. Viser direkte katalogentries i stedet."]
+                }
                 selectedResultID = results.first?.id
                 connectivity = ConnectivitySnapshot(onlineSources: 1, degradedSources: 0, offlineSources: 0)
                 statusLine = "Kilde: \(endpoint) · \(results.count) entries · direkte katalogvisning"
+                catalogMode = .directEntriesFallback
             } else {
                 statusLine = "Kilde: \(endpoint) · \(results.count) treff · \(elapsed)ms"
             }
@@ -1132,6 +1187,7 @@ final class FullLibraryViewModel: ObservableObject {
         } catch {
             availability = .unavailable(reason: "Kunne ikke nå ConfigurationCatalog.")
             statusLine = "Kun offline-cached favoritter/templates er tilgjengelig."
+            catalogMode = .unknown
         }
     }
 
@@ -1261,12 +1317,9 @@ final class FullLibraryViewModel: ObservableObject {
             throw LibraryError.identityUnavailable
         }
 
-        var seen = Set<String>()
-        let candidates = (catalogEndpoints + ["cell:///ConfigurationCatalog"])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .filter { seen.insert($0.lowercased()).inserted }
+        let candidates = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: catalogEndpoints)
         for endpoint in candidates {
+            RemoteCatalogSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
             guard let emit = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity),
                   let catalog = emit as? Meddle
             else {
