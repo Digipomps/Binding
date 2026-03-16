@@ -68,15 +68,16 @@ final class FolderWatchCell: GeneralCell {
         case configuredEvents
     }
 
-    private static let defaultTopic = "filesystem.watch"
-    private static let defaultEvents: Set<WatchEvent> = [.write, .delete, .rename, .attrib]
+    private nonisolated static let defaultTopic = "filesystem.watch"
+    private nonisolated static let defaultEvents: Set<WatchEvent> = [.write, .delete, .rename, .attrib]
 
     private let stateQueue = DispatchQueue(label: "Binding.FolderWatchCell.State")
     private let watchQueue = DispatchQueue(label: "Binding.FolderWatchCell.Watch")
 
-    private var configuredPath: String?
-    private var configuredTopic: String = FolderWatchCell.defaultTopic
-    private var configuredEvents: Set<WatchEvent> = FolderWatchCell.defaultEvents
+    // Codable entrypoints are nonisolated; queue-backed configuration keeps them synchronized.
+    private nonisolated(unsafe) var configuredPath: String?
+    private nonisolated(unsafe) var configuredTopic: String = FolderWatchCell.defaultTopic
+    private nonisolated(unsafe) var configuredEvents: Set<WatchEvent> = FolderWatchCell.defaultEvents
 
     private var source: DispatchSourceFileSystemObject?
     private var watchedFileDescriptor: Int32 = -1
@@ -495,4 +496,3 @@ final class FolderWatchCell: GeneralCell {
         return (expanded as NSString).standardizingPath
     }
 }
-

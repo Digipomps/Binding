@@ -158,6 +158,22 @@ That matters because:
 - rejection/error details from remote-intent ingestion should be inspectable without attaching a debugger
 - local review logic depends on operators being able to see whether the queue is empty because nothing arrived or because ingress failed earlier
 
+## Why the local control bridge is loopback-only and token-gated
+
+The new operator bridge is intentionally narrower than a general local API:
+
+- it only binds to loopback hosts such as `127.0.0.1`
+- it only exposes an allowlisted route set for supervisor, inbox and review cells
+- it can require a per-config access token on websocket and health requests
+
+That matters because the bridge now carries operator review authority. Without a local token boundary, any other process running in the same user session could try to attach to the review cell and approve or reject intents. The bridge is still local by design, but it should not be ambiently open just because it speaks CellProtocol on localhost.
+
+The bridge still stays inside CellProtocol instead of bypassing it:
+
+- Binding performs an explicit `addAgreement` step on the loopback bridge before live `get/set`
+- the agent's permissions still resolve through grants on cells, not through ad hoc HTTP handlers
+- loopback + token controls who may open the bridge, while the CellProtocol agreement controls what that bridge may ask the cells to do
+
 ## Why the local cell host is explicit and temporary
 
 The agent now installs a local `CellBase` host at runtime using:
@@ -170,16 +186,30 @@ This host is installed explicitly when `haven-agentd run` starts and restored on
 
 That matters because `CellBase.defaultIdentityVault`, `CellBase.defaultCellResolver` and `CellBase.documentRootPath` are mutable globals. The host captures the previous values, installs only what it needs, and restores the old values on stop instead of assuming permanent ownership of process-wide state.
 
-## Why the local vault is in-memory for now
+## Why the local vault and persistent agent identity are split
 
-`LocalIdentityVault` currently exists to give the local cell graph a stable owner identity for the life of the process and to provide real signing primitives where the `IdentityVaultProtocol` expects them.
+`LocalIdentityVault` exists to give the local cell graph a stable owner identity for the life of the process and to provide real signing primitives where the `IdentityVaultProtocol` expects them.
 
-It does not yet persist long-lived agent identity material across restarts.
+The runtime now persists long-lived agent identity material separately in `~/Library/Application Support/HAVENAgent/State/agent-identity.json`.
 
-That is intentional at this stage:
+That split is intentional at this stage:
 
-- it narrows secret residency while the remote-intent trust model is still being designed
-- it avoids silently creating a durable machine identity before policy and recovery rules are settled
+- the runtime host still installs only the minimum in-process vault surface it needs
+- the durable device identity is explicit and inspectable instead of being hidden inside a process-global vault
+- Binding can verify an `AgentIdentityCell` attestation against stable public key material without sharing the same vault file as the agent
+- Binding now also verifies the signed starter-auth payload that comes back over CellProtocol before writing it to disk for `sprout`
+
+The current hardening gap is storage class, not identity continuity:
+
+- the persisted agent seed is file-backed today for deterministic local development and pairing flows
+- it should move to Keychain or equivalent secure storage before this is treated as production-grade device identity storage
+
+The pairing/evidence side is now explicit too:
+
+- Binding writes a signed pairing artifact and a mutually signed entity-link contract after verifying the agent attestation
+- the agent reloads and verifies that pairing artifact before treating an operator identity as paired
+- `sprout bootstrap join` receives the verified starter-auth payload and the verified entity-link path as separate typed inputs
+- `bootstrap-probe` verifies those same artifacts again before it attempts a live staging/dev bootstrap, so scaffold admission failures are not confused with stale or locally tampered evidence
 
 ## Why decode restore avoids the global default vault
 
@@ -228,6 +258,7 @@ Recommended controls:
 - add a local approval state machine for high-risk side effects
 - bind runtime audit logs to immutable append-only storage
 - split heartbeat state from side-effect audit trail
+- move persisted agent seed storage from the state file to Keychain-backed material handling
 - move from raw folder watches to richer FSEvents handling where tree coverage matters
 - persist and rotate local agent signing material only after recovery and revocation semantics are defined
 - harden replay-protection retention and pruning rules for the persisted nonce window

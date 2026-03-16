@@ -74,11 +74,6 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		243986812F641A13004C221F /* HavenAgentD */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = HavenAgentD;
-			sourceTree = "<group>";
-		};
 		24D800172EF195A000021B5A /* Binding */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -222,7 +217,6 @@
 		24D8000C2EF195A000021B5A = {
 			isa = PBXGroup;
 			children = (
-				243986812F641A13004C221F /* HavenAgentD */,
 				24D800CB2F0286AB00021B5A /* Cells */,
 				24D800BB2EF9AB1300021B5A /* gfx */,
 				24D8004F2EF2D5AE00021B5A /* Prompts */,
@@ -830,7 +824,7 @@
 			repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
 			requirement = {
 				kind = revision;
-				revision = e8a98a68858986a66ccfef88ffeae56d7ba360e8;
+				revision = 80f01d0979630008d055744469e66dd15c44d1c6;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

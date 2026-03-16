@@ -143,6 +143,28 @@ struct BindingTests {
         #expect(skeletonContainsList(keypath: "chat.messages", topic: nil, in: workingSkeleton))
     }
 
+    @Test func localOnlyCellsAreNotRetargetedToStaging() {
+        let contentView = ContentView()
+
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///EntityScanner") == "cell:///EntityScanner")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
+    }
+
+    @Test func entityScannerWorkbenchConfigurationsStayLocalToBinding() {
+        let configurations = [
+            ConfigurationCatalogCell.entityScannerWorkbenchConfiguration(),
+            ConfigurationCatalogCell.entityScannerTestHelperConfiguration(),
+            ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
+        ]
+
+        for configuration in configurations {
+            let references = configuration.cellReferences ?? []
+            #expect(references.contains(where: { $0.endpoint == "cell:///EntityScanner" }))
+            #expect(!references.contains(where: { $0.endpoint.contains("staging.haven.digipomps.org/EntityScanner") }))
+        }
+    }
+
     @MainActor
     @Test func deletingComponentPrunesNewlyUnusedReferences() {
         var configuration = CellConfiguration(name: "Delete Chat Component")
@@ -181,6 +203,95 @@ struct BindingTests {
         }
 
         #expect(items.count >= 12)
+    }
+
+    @Test func configurationCatalogIncludesAgentSetupWorkbench() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        let configurations = try await cell.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = configurations else {
+            Issue.record("Forventet liste fra configurations")
+            return
+        }
+
+        let agentWorkbench = items.compactMap { value -> CellConfiguration? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration
+        }.first(where: { $0.name == "Agent Setup Workbench" })
+
+        guard let agentWorkbench else {
+            Issue.record("Fant ikke Agent Setup Workbench i katalogen")
+            return
+        }
+
+        #expect(agentWorkbench.cellReferences?.contains(where: { $0.endpoint == "cell:///AgentProvisioning" }) == true)
+        #expect(agentWorkbench.cellReferences?.contains(where: { $0.endpoint == "cell:///AgentEnrollment" }) == true)
+        #expect(agentWorkbench.cellReferences?.contains(where: { $0.endpoint == "cell:///Perspective" }) == true)
+        #expect(agentWorkbench.cellReferences?.contains(where: { $0.endpoint == "cell:///Porthole" }) == true)
+
+        guard let skeleton = agentWorkbench.skeleton else {
+            Issue.record("Agent Setup Workbench mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsButton(keypath: "agent.setup.install", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "agent.setup.start", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "agent.setup.connect", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "enrollment.createPairingArtifact", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "agent.setup.review.approveSelected", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "agent.setup.review.rejectSelected", in: skeleton))
+        #expect(skeletonContainsTextField(targetKeypath: "agent.setup.purpose.name", in: skeleton))
+        #expect(skeletonContainsTextField(targetKeypath: "agent.setup.review.noteDraft", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agent.setup.status.controlBridgeState", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agent.setup.status.controlBridgeEndpoint", in: skeleton))
+        #expect(skeletonContainsTextKeypath("enrollment.status.summary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("enrollment.status.agentIdentityStatus", in: skeleton))
+        #expect(skeletonContainsTextKeypath("enrollment.status.starterAuthStatus", in: skeleton))
+        #expect(skeletonContainsTextKeypath("enrollment.status.entityLinkStatus", in: skeleton))
+        #expect(skeletonContainsList(keypath: "agent.setup.pipeline", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "agent.setup.review.pending", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "agent.setup.review.audit", topic: nil, in: skeleton))
+    }
+
+    @Test func agentProvisioningCellUsesSingleControlPortholeStrategy() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await AgentProvisioningCell(owner: owner)
+
+        let strategy = try await cell.get(keypath: "agent.setup.status.portholeStrategy", requester: owner)
+        guard case let .string(strategyText) = strategy else {
+            Issue.record("Forventet streng for portholeStrategy")
+            return
+        }
+
+        #expect(strategyText.contains("one local control porthole"))
+        #expect(strategyText.contains("without a dedicated porthole per connection"))
+
+        let purposeName = try await cell.get(keypath: "agent.setup.purpose.name", requester: owner)
+        #expect(purposeName == .string("Operate local HAVEN agent"))
+
+        let reviewSummary = try await cell.get(keypath: "agent.setup.review.selectedSummary", requester: owner)
+        #expect(reviewSummary == .string("Select a pending intent to inspect its action, issuer and argument summary."))
+
+        let controlBridgeEndpoint = try await cell.get(keypath: "agent.setup.status.controlBridgeEndpoint", requester: owner)
+        #expect(controlBridgeEndpoint == .string("ws://127.0.0.1:43110/bridgehead"))
+    }
+
+    @Test func agentEnrollmentCellStartsWithPurposeBoundPairingState() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await AgentEnrollmentCell(owner: owner)
+
+        let summary = try await cell.get(keypath: "enrollment.status.summary", requester: owner)
+        guard case let .string(summaryText) = summary else {
+            Issue.record("Forventet streng for enrollment summary")
+            return
+        }
+
+        #expect(summaryText.contains("Waiting for a running agent identity") || summaryText.contains("ready for purpose-bound pairing"))
+        #expect(try await cell.get(keypath: "enrollment.status.scaffoldDomain", requester: owner) == .string("staging.haven.digipomps.org"))
+        #expect(try await cell.get(keypath: "enrollment.status.purposeRef", requester: owner) == .string("purpose://operate-local-haven-agent"))
+        #expect(try await cell.get(keypath: "enrollment.status.starterAuthStatus", requester: owner) == .string("No starter auth materialized yet."))
+        #expect(try await cell.get(keypath: "enrollment.status.entityLinkStatus", requester: owner) == .string("No entity-link evidence materialized yet."))
     }
 
     @Test func configurationCatalogQueryReturnsRankedResults() async throws {
@@ -272,9 +383,12 @@ struct BindingTests {
         _ = await identityVault.initialize()
         CellBase.defaultIdentityVault = identityVault
         await AppInitializer.initialize()
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            Issue.record("Missing CellResolver")
-            return
+        let resolver: CellResolver
+        if let existing = CellBase.defaultCellResolver as? CellResolver {
+            resolver = existing
+        } else {
+            resolver = CellResolver.sharedInstance
+            CellBase.defaultCellResolver = resolver
         }
         guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
             Issue.record("Missing private identity")
@@ -282,6 +396,13 @@ struct BindingTests {
         }
 
         // Binding registers this in BootstrapView, tests need explicit registration.
+        try? await resolver.addCellResolve(
+            name: "Porthole",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: OrchestratorCell.self
+        )
         try? await resolver.addCellResolve(
             name: "ConfigurationCatalog",
             cellScope: .scaffoldUnique,
@@ -500,6 +621,35 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonContainsTextField(targetKeypath: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .TextField(let textField):
+            return textField.targetKeypath == targetKeypath
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) } ||
+                (section.footer.map { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map { skeletonContainsTextField(targetKeypath: targetKeypath, in: .VStack($0)) } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map { skeletonContainsTextField(targetKeypath: targetKeypath, in: .VStack($0)) } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
         default:
             return false
         }

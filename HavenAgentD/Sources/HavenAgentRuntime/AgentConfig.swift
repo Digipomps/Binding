@@ -68,6 +68,9 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
     public var interests: [String]
     public var resolverBaseURL: String?
     public var starterAuthPath: String?
+    public var entityLinkPath: String?
+    public var continuityProofPath: String?
+    public var admissionContractPath: String?
     public var discoveryURL: String?
     public var catalogPath: String?
     public var enableLiveResolver: Bool
@@ -89,6 +92,9 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
         interests: [String] = [],
         resolverBaseURL: String? = nil,
         starterAuthPath: String? = nil,
+        entityLinkPath: String? = nil,
+        continuityProofPath: String? = nil,
+        admissionContractPath: String? = nil,
         discoveryURL: String? = nil,
         catalogPath: String? = nil,
         enableLiveResolver: Bool = false,
@@ -109,6 +115,9 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
         self.interests = interests
         self.resolverBaseURL = resolverBaseURL
         self.starterAuthPath = starterAuthPath
+        self.entityLinkPath = entityLinkPath
+        self.continuityProofPath = continuityProofPath
+        self.admissionContractPath = admissionContractPath
         self.discoveryURL = discoveryURL
         self.catalogPath = catalogPath
         self.enableLiveResolver = enableLiveResolver
@@ -122,10 +131,135 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
     }
 }
 
+public struct LocalControlBridgeRoute: Codable, Equatable, Sendable {
+    public var name: String
+    public var targetCellReference: String
+    public var description: String
+
+    public init(name: String, targetCellReference: String, description: String) {
+        self.name = name
+        self.targetCellReference = targetCellReference
+        self.description = description
+    }
+}
+
+public struct LocalControlBridgeConfig: Codable, Equatable, Sendable {
+    public static let defaultHost = "127.0.0.1"
+    public static let defaultPort = 43110
+    public static let defaultRoutes: [LocalControlBridgeRoute] = [
+        LocalControlBridgeRoute(
+            name: "agent-identity",
+            targetCellReference: "agent/identity",
+            description: "Stable local agent identity and enrollment attestation surface."
+        ),
+        LocalControlBridgeRoute(
+            name: "agent-supervisor",
+            targetCellReference: "agent/supervisor",
+            description: "Read-only runtime and porthole status."
+        ),
+        LocalControlBridgeRoute(
+            name: "intent-inbox",
+            targetCellReference: "agent/intents/inbox",
+            description: "Structured remote-intent queue projection."
+        ),
+        LocalControlBridgeRoute(
+            name: "intent-review",
+            targetCellReference: "agent/intents/review",
+            description: "Operator review boundary for verified intents."
+        )
+    ]
+
+    public var enabled: Bool
+    public var host: String
+    public var port: Int
+    public var accessToken: String?
+    public var routes: [LocalControlBridgeRoute]
+
+    public init(
+        enabled: Bool = true,
+        host: String = LocalControlBridgeConfig.defaultHost,
+        port: Int = LocalControlBridgeConfig.defaultPort,
+        accessToken: String? = nil,
+        routes: [LocalControlBridgeRoute] = LocalControlBridgeConfig.defaultRoutes
+    ) {
+        self.enabled = enabled
+        self.host = host
+        self.port = port
+        self.accessToken = accessToken
+        self.routes = routes
+    }
+
+    public var websocketBaseURL: String {
+        "ws://\(host):\(port)/bridgehead"
+    }
+
+    public var loopbackOnly: Bool {
+        switch host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1":
+            return true
+        default:
+            return false
+        }
+    }
+
+    public func endpoint(for routeName: String) -> String {
+        "\(websocketBaseURL)/\(routeName)"
+    }
+}
+
+public enum LocalControlBridgePhase: String, Codable, Equatable, Sendable {
+    case disabled
+    case starting
+    case running
+    case failed
+    case stopped
+}
+
+public struct LocalControlBridgeStatus: Codable, Equatable, Sendable {
+    public var phase: LocalControlBridgePhase
+    public var host: String
+    public var port: Int
+    public var websocketBaseURL: String
+    public var routes: [LocalControlBridgeRoute]
+    public var lastError: String?
+
+    public init(
+        phase: LocalControlBridgePhase,
+        host: String,
+        port: Int,
+        websocketBaseURL: String,
+        routes: [LocalControlBridgeRoute],
+        lastError: String? = nil
+    ) {
+        self.phase = phase
+        self.host = host
+        self.port = port
+        self.websocketBaseURL = websocketBaseURL
+        self.routes = routes
+        self.lastError = lastError
+    }
+
+    public init(configuration: LocalControlBridgeConfig, phase: LocalControlBridgePhase, lastError: String? = nil) {
+        self.init(
+            phase: phase,
+            host: configuration.host,
+            port: configuration.port,
+            websocketBaseURL: configuration.websocketBaseURL,
+            routes: configuration.routes,
+            lastError: lastError
+        )
+    }
+
+    public func endpoint(for routeName: String) -> String {
+        "\(websocketBaseURL)/\(routeName)"
+    }
+}
+
 public struct AgentConfig: Codable, Equatable, Sendable {
     public var instanceName: String
     public var heartbeatIntervalSeconds: Int
     public var scaffold: ScaffoldConnectionConfig
+    public var localControlBridge: LocalControlBridgeConfig
     public var watchFolders: [WatchFolderConfig]
     public var automationPolicy: AutomationPolicy
     public var remoteIntentPolicy: RemoteIntentPolicy
@@ -134,6 +268,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         instanceName: String,
         heartbeatIntervalSeconds: Int = 30,
         scaffold: ScaffoldConnectionConfig,
+        localControlBridge: LocalControlBridgeConfig = .init(),
         watchFolders: [WatchFolderConfig],
         automationPolicy: AutomationPolicy,
         remoteIntentPolicy: RemoteIntentPolicy = .init()
@@ -141,6 +276,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         self.instanceName = instanceName
         self.heartbeatIntervalSeconds = heartbeatIntervalSeconds
         self.scaffold = scaffold
+        self.localControlBridge = localControlBridge
         self.watchFolders = watchFolders
         self.automationPolicy = automationPolicy
         self.remoteIntentPolicy = remoteIntentPolicy
@@ -170,6 +306,9 @@ public struct AgentConfig: Codable, Equatable, Sendable {
             requestedCapabilities: scaffold.requestedCapabilities,
             resolverBaseURL: scaffold.resolverBaseURL,
             starterAuthPath: scaffold.starterAuthPath,
+            entityLinkPath: scaffold.entityLinkPath,
+            continuityProofPath: scaffold.continuityProofPath,
+            admissionContractPath: scaffold.admissionContractPath,
             renewalLeadTimeSeconds: scaffold.renewalLeadTimeSeconds
         )
     }
@@ -203,6 +342,9 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                 ],
                 resolverBaseURL: "https://staging.haven.example",
                 starterAuthPath: paths.agentDirectory.appendingPathComponent("starter-auth.json").path,
+                entityLinkPath: paths.outputDirectory.appendingPathComponent("agent-operator-entity-link.json").path,
+                continuityProofPath: nil,
+                admissionContractPath: nil,
                 discoveryURL: "https://staging.haven.example/v1/bridges/query",
                 catalogPath: nil,
                 enableLiveResolver: true,
@@ -218,6 +360,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                 portholeRetryBaseDelaySeconds: 5,
                 portholeRetryMaxDelaySeconds: 60
             ),
+            localControlBridge: LocalControlBridgeConfig(accessToken: "replace-with-strong-local-token"),
             watchFolders: [
                 WatchFolderConfig(
                     id: "downloads-watch",

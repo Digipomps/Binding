@@ -1,5 +1,5 @@
 {
-  "originHash" : "1ea582f6019a1f41456d95e7df9e7efc3eefda5b5b0e451be5988a8b3691f2d8",
+  "originHash" : "382b29522cbc7f05f2e91e5dc61c8942700bd4af69cb7bfc5c1c1bae7b192635",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -26,6 +26,14 @@
       "state" : {
         "revision" : "e07e00fa1fd435143a2dcf8b7eec9a7710b2fdfe",
         "version" : "5.7.0"
+      }
+    },
+    {
+      "identity" : "cellprotocol",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Digipomps/CellProtocol.git",
+      "state" : {
+        "revision" : "80f01d0979630008d055744469e66dd15c44d1c6"
       }
     },
     {
@@ -89,6 +97,14 @@
       "state" : {
         "revision" : "1a10ccea61e4248effd23b6e814999ce7bdf0ee0",
         "version" : "4.9.3"
+      }
+    },
+    {
+      "identity" : "sprout",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Digipomps/Sprout.git",
+      "state" : {
+        "revision" : "d53d2d18f5cadd4bd0e73e449101a3b766f65af7"
       }
     },
     {

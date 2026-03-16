@@ -22,6 +22,8 @@ struct BootstrapView<Content: View>: View {
             do {
                 try await resolver.addCellResolve(name: "EventEmitter",         cellScope: .template,       identityDomain: "private", type: EventEmitterCell.self)
                 try await resolver.addCellResolve(name: "FolderWatch",          cellScope: .template,       identityDomain: "private", type: FolderWatchCell.self)
+                try await resolver.addCellResolve(name: "AgentEnrollment",      cellScope: .scaffoldUnique, persistency: .persistant, identityDomain: "private", type: AgentEnrollmentCell.self)
+                try await resolver.addCellResolve(name: "AgentProvisioning",    cellScope: .scaffoldUnique, persistency: .persistant, identityDomain: "private", type: AgentProvisioningCell.self)
                 try await resolver.addCellResolve(name: "ConfigurationCatalog", cellScope: .scaffoldUnique, persistency: .persistant, identityDomain: "private", type: ConfigurationCatalogCell.self)
             } catch {
                 print("Scaffold added cellResolve failed with error: \(error)")

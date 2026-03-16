@@ -41,12 +41,17 @@ public actor AgentRuntimeBridge {
     public static let shared = AgentRuntimeBridge()
 
     private var runtimeState: AgentRuntimeState?
+    private var localControlBridgeStatus: LocalControlBridgeStatus?
+    private var agentIdentityDescriptor: AgentIdentityDescriptor?
     private var queuedIntents: [QueuedRemoteIntent] = []
     private var remoteIntentPolicy: RemoteIntentPolicy?
     private var remoteIntentExecutor: RemoteIntentExecutionBridge?
     private var seenRemoteIntentNonces: Set<String> = []
     private var remoteIntentAuditTrail: [RemoteIntentAuditRecord] = []
     private var remoteIntentStateStore: RemoteIntentStateStore?
+    private var pairingArtifactFileURL: URL?
+    private var pairedOperatorIdentity: PairedOperatorIdentity?
+    private var pairingArtifactLastError: String?
 
     public init() {}
 
@@ -56,6 +61,57 @@ public actor AgentRuntimeBridge {
 
     public func runtimeStateSnapshot() -> AgentRuntimeState? {
         runtimeState
+    }
+
+    public func update(localControlBridgeStatus: LocalControlBridgeStatus?) {
+        self.localControlBridgeStatus = localControlBridgeStatus
+    }
+
+    public func localControlBridgeStatusSnapshot() -> LocalControlBridgeStatus? {
+        localControlBridgeStatus
+    }
+
+    public func update(agentIdentityDescriptor: AgentIdentityDescriptor?) {
+        self.agentIdentityDescriptor = agentIdentityDescriptor
+    }
+
+    public func agentIdentityDescriptorSnapshot() -> AgentIdentityDescriptor? {
+        agentIdentityDescriptor
+    }
+
+    public func configure(pairingArtifactFileURL: URL?) async {
+        self.pairingArtifactFileURL = pairingArtifactFileURL
+        await refreshPairedOperatorIdentity()
+    }
+
+    public func refreshPairedOperatorIdentity() async {
+        guard let pairingArtifactFileURL else {
+            pairedOperatorIdentity = nil
+            pairingArtifactLastError = nil
+            return
+        }
+
+        do {
+            pairedOperatorIdentity = try AgentPairingArtifactLoader.loadPairedOperator(from: pairingArtifactFileURL)
+            pairingArtifactLastError = nil
+        } catch {
+            pairedOperatorIdentity = nil
+            pairingArtifactLastError = error.localizedDescription
+        }
+    }
+
+    public func pairedOperatorSnapshot(refresh: Bool = false) async -> PairedOperatorIdentity? {
+        if refresh {
+            await refreshPairedOperatorIdentity()
+        }
+        return pairedOperatorIdentity
+    }
+
+    public func pairingArtifactStatusSnapshot(refresh: Bool = false) async -> (path: String?, lastError: String?) {
+        if refresh {
+            await refreshPairedOperatorIdentity()
+        }
+        return (pairingArtifactFileURL?.path, pairingArtifactLastError)
     }
 
     public func update(remoteIntentPolicy: RemoteIntentPolicy?) {

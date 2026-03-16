@@ -41,19 +41,25 @@ public final class RemoteIntentReviewCell: GeneralCell {
     private func setupKeys(owner: Identity) async {
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "state", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeStateValue()
         })
 
         await addInterceptForGet(requester: owner, key: "audit", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "audit", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "audit", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeAuditValue()
         })
 
         await addInterceptForSet(requester: owner, key: "approve", setValueIntercept: { [weak self] _, value, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("rw--", at: "approve", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("rw--", at: "approve", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             do {
                 let request = try self.parseReviewRequest(from: value, reviewer: requester.displayName)
                 let intent = try await self.loadPendingIntent(intentID: request.intentID)
@@ -99,7 +105,9 @@ public final class RemoteIntentReviewCell: GeneralCell {
 
         await addInterceptForSet(requester: owner, key: "reject", setValueIntercept: { [weak self] _, value, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("rw--", at: "reject", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("rw--", at: "reject", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             do {
                 let request = try self.parseReviewRequest(from: value, reviewer: requester.displayName)
                 guard let intent = await AgentRuntimeBridge.shared.removeQueuedIntent(id: request.intentID) else {

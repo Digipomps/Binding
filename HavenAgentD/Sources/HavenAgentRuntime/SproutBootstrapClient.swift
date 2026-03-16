@@ -60,6 +60,7 @@ public enum SproutBootstrapClientError: Error, Equatable, Sendable, LocalizedErr
     case missingResolverBaseURL
     case invalidBinaryPath(String)
     case binaryNotExecutable(String)
+    case conflictingEntityEvidence
 
     public var errorDescription: String? {
         switch self {
@@ -71,6 +72,8 @@ public enum SproutBootstrapClientError: Error, Equatable, Sendable, LocalizedErr
             return "Sprout binary path must be absolute and point to a local executable: \(path)"
         case .binaryNotExecutable(let path):
             return "Sprout binary is not executable: \(path)"
+        case .conflictingEntityEvidence:
+            return "Configure either entity-link evidence or admission-contract evidence, not both."
         }
     }
 }
@@ -100,6 +103,13 @@ public final class SproutBootstrapClient: @unchecked Sendable {
         if scaffold.enableLiveResolver && scaffold.resolverBaseURL == nil {
             throw SproutBootstrapClientError.missingResolverBaseURL
         }
+        if scaffold.entityLinkPath != nil &&
+            (scaffold.admissionContractPath != nil || scaffold.continuityProofPath != nil) {
+            throw SproutBootstrapClientError.conflictingEntityEvidence
+        }
+        if scaffold.continuityProofPath != nil && scaffold.admissionContractPath == nil {
+            throw SproutBootstrapClientError.conflictingEntityEvidence
+        }
 
         let executablePath = try expandAndValidateExecutablePath(scaffold.sproutBinaryPath, validateExistence: false)
         let subcommand = scaffold.startupMode == .plan ? "plan" : "join"
@@ -127,6 +137,15 @@ public final class SproutBootstrapClient: @unchecked Sendable {
 
         if let starterAuthPath = scaffold.starterAuthPath {
             arguments.append(contentsOf: ["--starter", expandPath(starterAuthPath)])
+        }
+        if let entityLinkPath = scaffold.entityLinkPath {
+            arguments.append(contentsOf: ["--entity-link", expandPath(entityLinkPath)])
+        }
+        if let admissionContractPath = scaffold.admissionContractPath {
+            arguments.append(contentsOf: ["--admission-contract", expandPath(admissionContractPath)])
+        }
+        if let continuityProofPath = scaffold.continuityProofPath {
+            arguments.append(contentsOf: ["--continuity-proof", expandPath(continuityProofPath)])
         }
         if let discoveryURL = scaffold.discoveryURL {
             arguments.append(contentsOf: ["--discovery-url", discoveryURL])

@@ -7,6 +7,7 @@ public enum AgentCellKind: String, Codable, CaseIterable, Sendable {
     case remoteIntentInbox
     case remoteIntentReview
     case agentSupervisor
+    case agentIdentity
 }
 
 public struct AgentCellBlueprint: Codable, Equatable, Sendable {
@@ -65,6 +66,12 @@ public enum AgentCellCatalog {
             suggestedCellName: "AgentSupervisorCell",
             purpose: "Expose heartbeat, last renewal status, audit markers and last side effect.",
             sideEffectBoundary: "Read-only health projection."
+        ),
+        AgentCellBlueprint(
+            kind: .agentIdentity,
+            suggestedCellName: "AgentIdentityCell",
+            purpose: "Expose the stable local agent identity and issue signed local enrollment attestations.",
+            sideEffectBoundary: "Signs only explicit enrollment payloads over the loopback control bridge."
         )
     ]
 }

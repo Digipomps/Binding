@@ -36,13 +36,6 @@ class EventEmitterCell: GeneralCell {
 private func setupPermissions(owner: Identity) async  {
     self.agreementTemplate.addGrant("rw-", for: "mintVerifiableCredential")
     self.agreementTemplate.addGrant("r---", for: "state")
-    
-    do {
-//        let grantSaveVCCondition = GrantCondition(requestedGrant: "identity.proofs.smi.products.purchased", requestedPermission: "-w-")
-//        try self.agreementTemplate.addCondition(grantSaveVCCondition)
-    } catch {
-        print("SMICell setupPermissions conditions failed with error: \(error)")
-    }
 }
 
 private func setupKeys(owner: Identity) async  {
@@ -71,11 +64,7 @@ private func setupKeys(owner: Identity) async  {
             [weak self] keypath, value, requester  in
             guard let self = self else { return .string("failure")}
             guard await self.validateAccess("rw--", at: "start", for: requester) else { return .string("denied") }
-            do {
-                try await self.startEmitter()
-            } catch {
-                return .string("error: \(error)")
-            }
+            await self.startEmitter()
             return self.stateValue()
         })
 
@@ -83,11 +72,7 @@ private func setupKeys(owner: Identity) async  {
             [weak self] keypath, value, requester  in
             guard let self = self else { return .string("failure")}
             guard await self.validateAccess("rw--", at: "stop", for: requester) else { return .string("denied") }
-            do {
-                try await self.stopEmitter()
-            } catch {
-                return .string("error: \(error)")
-            }
+            await self.stopEmitter()
             return self.stateValue()
         })
     }
@@ -97,7 +82,7 @@ private func setupKeys(owner: Identity) async  {
     }
     
     
-    func startEmitter() async throws {
+    func startEmitter() async {
         if running { return }
         print("Starting emitter")
         running = true
@@ -125,7 +110,7 @@ private func setupKeys(owner: Identity) async  {
     }
     
     
-    func stopEmitter() async throws {
+    func stopEmitter() async {
         self.running = false
     }
 

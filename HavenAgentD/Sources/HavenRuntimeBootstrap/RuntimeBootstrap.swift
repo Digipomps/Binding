@@ -6,6 +6,9 @@ public struct SproutBootstrapPlan: Codable, Equatable, Sendable {
     public var requestedCapabilities: [String]
     public var resolverBaseURL: String?
     public var starterAuthPath: String?
+    public var entityLinkPath: String?
+    public var continuityProofPath: String?
+    public var admissionContractPath: String?
     public var renewalLeadTimeSeconds: Int
 
     public init(
@@ -14,6 +17,9 @@ public struct SproutBootstrapPlan: Codable, Equatable, Sendable {
         requestedCapabilities: [String],
         resolverBaseURL: String?,
         starterAuthPath: String?,
+        entityLinkPath: String?,
+        continuityProofPath: String?,
+        admissionContractPath: String?,
         renewalLeadTimeSeconds: Int
     ) {
         self.scaffoldDomain = scaffoldDomain
@@ -21,6 +27,9 @@ public struct SproutBootstrapPlan: Codable, Equatable, Sendable {
         self.requestedCapabilities = requestedCapabilities
         self.resolverBaseURL = resolverBaseURL
         self.starterAuthPath = starterAuthPath
+        self.entityLinkPath = entityLinkPath
+        self.continuityProofPath = continuityProofPath
+        self.admissionContractPath = admissionContractPath
         self.renewalLeadTimeSeconds = renewalLeadTimeSeconds
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 @preconcurrency import CellBase
 import Testing
+@testable import HavenAgentCellRuntime
 @testable import HavenAgentCells
 @testable import HavenMacAutomation
 @testable import HavenAgentRuntime
@@ -77,9 +78,10 @@ struct AgentCellsTests {
 
         let cells = await AgentCellRegistry.instantiateDefaultCells(owner: owner)
 
-        #expect(cells.count == 3)
-        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .remoteIntentInbox, .remoteIntentReview])
+        #expect(cells.count == 4)
+        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview])
         #expect(cells.contains { $0 is AgentSupervisorCell })
+        #expect(cells.contains { $0 is AgentIdentityCell })
         #expect(cells.contains { $0 is RemoteIntentInboxCell })
         #expect(cells.contains { $0 is RemoteIntentReviewCell })
     }
@@ -92,6 +94,9 @@ struct AgentCellsTests {
             requestedCapabilities: ["cap.native_porthole"],
             resolverBaseURL: "https://example.haven.local",
             starterAuthPath: "/tmp/starter.json",
+            entityLinkPath: "/tmp/entity-link.json",
+            continuityProofPath: nil,
+            admissionContractPath: nil,
             renewalLeadTimeSeconds: 600
         )
         let runtimeState = AgentRuntimeState(
@@ -132,6 +137,236 @@ struct AgentCellsTests {
         }
         #expect(object["status"] == .string("running"))
         #expect(object["instanceName"] == .string("agent"))
+    }
+
+    @Test
+    func agentIdentityCellIssuesVerifiableEnrollmentAttestation() async throws {
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let descriptor = AgentIdentityDescriptor(
+            instanceName: "agent",
+            identityContext: "haven.agent.owner.agent",
+            identityUUID: UUID().uuidString,
+            displayName: "HAVEN Agent (agent)",
+            publicKeyBase64URL: privateKey.publicKey.rawRepresentation.base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: ""),
+            didKey: "did:key:test-agent",
+            createdAt: "2026-03-15T12:00:00Z",
+            storageKind: "state-file"
+        )
+
+        let vault = LocalIdentityVault()
+        let owner = await vault.installIdentity(descriptor: descriptor, privateKey: privateKey)
+        await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: descriptor)
+        let operatorIdentity = try #require(await vault.identity(for: "private", makeNewIfNotFound: true))
+        let operatorDid = (try? operatorIdentity.did()) ?? operatorIdentity.uuid
+        let operatorPublicKey = try #require(operatorIdentity.publicSecureKey?.compressedKey)
+        let operatorPublicKeyBase64URL = Self.base64URLEncode(operatorPublicKey)
+
+        let cell = await AgentIdentityCell(owner: owner)
+        try await Self.authorize(operatorIdentity, for: cell)
+        let response = try await cell.set(
+            keypath: "enrollment.attest",
+            value: .object([
+                "challenge": .string("pair-test"),
+                "purposeRef": .string("purpose://operate-local-haven-agent"),
+                "scaffoldDomain": .string("staging.haven.digipomps.org"),
+                "operatorIdentityUUID": .string(operatorIdentity.uuid),
+                "operatorDid": .string(operatorDid),
+                "operatorPublicKeyBase64URL": .string(operatorPublicKeyBase64URL)
+            ]),
+            requester: operatorIdentity
+        )
+
+        guard case let .object(object) = response else {
+            Issue.record("Expected attestation object from AgentIdentityCell.")
+            return
+        }
+
+        #expect(object["agentIdentityUUID"] == .string(descriptor.identityUUID))
+        #expect(object["agentDid"] == .string(descriptor.didKey))
+        #expect(object["purposeRef"] == .string("purpose://operate-local-haven-agent"))
+
+        guard case let .string(signatureBase64URL)? = object["signatureBase64URL"] else {
+            Issue.record("Expected signatureBase64URL in attestation.")
+            return
+        }
+
+        let payloadData = try JSONEncoder.sortedKeyData([
+            "agentDid": Self.requireString(object["agentDid"]),
+            "agentDisplayName": Self.requireString(object["agentDisplayName"]),
+            "agentIdentityUUID": Self.requireString(object["agentIdentityUUID"]),
+            "agentPublicKeyBase64URL": Self.requireString(object["agentPublicKeyBase64URL"]),
+            "challenge": Self.requireString(object["challenge"]),
+            "instanceName": Self.requireString(object["instanceName"]),
+            "issuedAt": Self.requireString(object["issuedAt"]),
+            "operatorDid": Self.requireString(object["operatorDid"]),
+            "operatorIdentityUUID": Self.requireString(object["operatorIdentityUUID"]),
+            "operatorPublicKeyBase64URL": Self.requireString(object["operatorPublicKeyBase64URL"]),
+            "purposeRef": Self.requireString(object["purposeRef"]),
+            "scaffoldDomain": Self.requireString(object["scaffoldDomain"]),
+            "version": Self.requireString(object["version"])
+        ])
+
+        let signature = try Self.base64URLDecode(signatureBase64URL)
+        #expect(privateKey.publicKey.isValidSignature(signature, for: payloadData))
+    }
+
+    @Test
+    func agentIdentityCellIssuesVerifiableStarterAuthPayload() async throws {
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let descriptor = AgentIdentityDescriptor(
+            instanceName: "agent",
+            identityContext: "haven.agent.owner.agent",
+            identityUUID: UUID().uuidString,
+            displayName: "HAVEN Agent (agent)",
+            publicKeyBase64URL: privateKey.publicKey.rawRepresentation.base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: ""),
+            didKey: "did:key:test-agent",
+            createdAt: "2026-03-15T12:00:00Z",
+            storageKind: "state-file"
+        )
+
+        let vault = LocalIdentityVault()
+        let owner = await vault.installIdentity(descriptor: descriptor, privateKey: privateKey)
+        await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: descriptor)
+
+        let cell = await AgentIdentityCell(owner: owner)
+        let response = try await cell.set(
+            keypath: "starterAuth.issue",
+            value: .object([
+                "domain": .string("staging.haven.digipomps.org"),
+                "purpose": .string("purpose://operate-local-haven-agent"),
+                "interests": .list([
+                    .string("cellprotocol"),
+                    .string("agent"),
+                    .string("automation")
+                ]),
+                "ttlSeconds": .integer(600)
+            ]),
+            requester: owner
+        )
+
+        guard case let .object(object) = response,
+              case let .object(purposeInterest)? = object["purpose_interest"],
+              case let .object(signature)? = object["signature"] else {
+            Issue.record("Expected starter auth object from AgentIdentityCell.")
+            return
+        }
+
+        let payload = AgentStarterAuthPayload(
+            domain: Self.requireString(object["domain"]),
+            identity_public_key: Self.requireString(object["identity_public_key"]),
+            created_at: Self.requireString(object["created_at"]),
+            expires_at: Self.requireString(object["expires_at"]),
+            nonce: Self.requireString(object["nonce"]),
+            purpose_interest: AgentStarterPurposeInterest(
+                purpose: Self.requireString(purposeInterest["purpose"]),
+                interests: Self.requireStringList(purposeInterest["interests"])
+            ),
+            signature: AgentResolverSignatureEnvelope(
+                alg: Self.requireString(signature["alg"]),
+                sig: Self.requireString(signature["sig"])
+            )
+        )
+
+        #expect(payload.domain == "staging.haven.digipomps.org")
+        #expect(payload.purpose_interest.purpose == "purpose://operate-local-haven-agent")
+        #expect(payload.purpose_interest.interests == ["cellprotocol", "agent", "automation"])
+        #expect(try payload.verifySignature())
+    }
+
+    @Test
+    func agentIdentityCellCountersignsEntityLinkForCurrentRequester() async throws {
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let descriptor = AgentIdentityDescriptor(
+            instanceName: "agent",
+            identityContext: "haven.agent.owner.agent",
+            identityUUID: UUID().uuidString,
+            displayName: "HAVEN Agent (agent)",
+            publicKeyBase64URL: privateKey.publicKey.rawRepresentation.base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: ""),
+            didKey: "did:key:test-agent",
+            createdAt: "2026-03-15T12:00:00Z",
+            storageKind: "state-file"
+        )
+
+        let vault = LocalIdentityVault()
+        let owner = await vault.installIdentity(descriptor: descriptor, privateKey: privateKey)
+        await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: descriptor)
+
+        let operatorIdentity = try #require(await vault.identity(for: "private", makeNewIfNotFound: true))
+        let operatorPublicKey = try #require(operatorIdentity.publicSecureKey?.compressedKey)
+        let operatorPublicKeyBase64URL = Self.base64URLEncode(operatorPublicKey)
+        let pairingArtifactDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: pairingArtifactDirectory, withIntermediateDirectories: true)
+        let pairingArtifactFile = pairingArtifactDirectory.appendingPathComponent("agent-enrollment-pairing.json")
+        try await Self.writePairingArtifact(
+            to: pairingArtifactFile,
+            pairingID: "pairing-test",
+            purposeRef: "purpose://operate-local-haven-agent",
+            scaffoldDomain: "staging.haven.digipomps.org",
+            approvedAt: "2026-03-15T12:00:00Z",
+            operatorIdentity: operatorIdentity,
+            operatorPublicKeyBase64URL: operatorPublicKeyBase64URL,
+            agentDescriptor: descriptor,
+            agentPrivateKey: privateKey
+        )
+        await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: pairingArtifactFile)
+
+        let cell = await AgentIdentityCell(owner: owner)
+        try await Self.authorize(operatorIdentity, for: cell)
+        let response = try await cell.set(
+            keypath: "entityLink.countersign",
+            value: .object([
+                "contract_id": .string("elc_test_001"),
+                "domain_a": .string("staging.haven.digipomps.org"),
+                "pubkey_a": .string(operatorPublicKeyBase64URL),
+                "domain_b": .string("staging.haven.digipomps.org"),
+                "pubkey_b": .string(descriptor.publicKeyBase64URL),
+                "scope": .string("purpose-bound:purpose://operate-local-haven-agent"),
+                "created_at": .string("2026-03-15T12:00:00Z"),
+                "revocation": .object([
+                    "mode": .string("mutual")
+                ])
+            ]),
+            requester: operatorIdentity
+        )
+
+        guard case let .object(object) = response else {
+            Issue.record("Expected entity-link signature object from AgentIdentityCell.")
+            return
+        }
+
+        let signature = AgentEntityLinkSignature(
+            by_pubkey: Self.requireString(object["by_pubkey"]),
+            alg: Self.requireString(object["alg"]),
+            sig: Self.requireString(object["sig"])
+        )
+        let contract = AgentEntityLinkContract(
+            contract_id: "elc_test_001",
+            domain_a: "staging.haven.digipomps.org",
+            pubkey_a: operatorPublicKeyBase64URL,
+            domain_b: "staging.haven.digipomps.org",
+            pubkey_b: descriptor.publicKeyBase64URL,
+            scope: "purpose-bound:purpose://operate-local-haven-agent",
+            created_at: "2026-03-15T12:00:00Z",
+            revocation: AgentEntityLinkRevocation(mode: "mutual"),
+            signatures: [
+                AgentEntityLinkSignature(by_pubkey: operatorPublicKeyBase64URL, alg: "Ed25519", sig: ""),
+                signature
+            ]
+        )
+
+        #expect(signature.by_pubkey == descriptor.publicKeyBase64URL)
+        #expect(signature.alg == "Ed25519")
+        let signatureData = try Self.base64URLDecode(signature.sig)
+        #expect(privateKey.publicKey.isValidSignature(signatureData, for: try contract.canonicalPayloadData()))
     }
 
     @Test
@@ -393,5 +628,184 @@ struct AgentCellsTests {
         }
         #expect(auditObject["intentID"] == .string("review-intent-1"))
         #expect(auditObject["outcome"] == .string("approved_dispatched"))
+    }
+}
+
+private extension AgentCellsTests {
+    static func requireString(_ value: ValueType?) -> String {
+        guard case let .string(string)? = value else {
+            Issue.record("Expected string in attestation payload.")
+            return ""
+        }
+        return string
+    }
+
+    static func base64URLDecode(_ value: String) throws -> Data {
+        var base64 = value
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let padding = (4 - (base64.count % 4)) % 4
+        if padding > 0 {
+            base64 += String(repeating: "=", count: padding)
+        }
+        guard let data = Data(base64Encoded: base64) else {
+            throw NSError(domain: "AgentCellsTests", code: 1)
+        }
+        return data
+    }
+
+    static func base64URLEncode(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    static func requireStringList(_ value: ValueType?) -> [String] {
+        guard case let .list(items)? = value else {
+            Issue.record("Expected string list in starter auth payload.")
+            return []
+        }
+        return items.compactMap { item in
+            guard case let .string(string) = item else {
+                Issue.record("Expected string item in starter auth payload.")
+                return nil
+            }
+            return string
+        }
+    }
+
+    static func writePairingArtifact(
+        to fileURL: URL,
+        pairingID: String,
+        purposeRef: String,
+        scaffoldDomain: String,
+        approvedAt: String,
+        operatorIdentity: Identity,
+        operatorPublicKeyBase64URL: String,
+        agentDescriptor: AgentIdentityDescriptor,
+        agentPrivateKey: Curve25519.Signing.PrivateKey
+    ) async throws {
+        struct AttestationPayload: Codable {
+            var version: String
+            var instanceName: String
+            var agentIdentityUUID: String
+            var agentDisplayName: String
+            var agentDid: String
+            var agentPublicKeyBase64URL: String
+            var operatorIdentityUUID: String
+            var operatorDid: String
+            var operatorPublicKeyBase64URL: String
+            var purposeRef: String
+            var scaffoldDomain: String
+            var challenge: String
+            var issuedAt: String
+        }
+        struct Attestation: Codable {
+            var payload: AttestationPayload
+            var signatureAlgorithm: String
+            var signatureBase64URL: String
+        }
+        struct ApprovalPayload: Codable {
+            var version: String
+            var pairingID: String
+            var scaffoldDomain: String
+            var purposeRef: String
+            var challenge: String
+            var attestationSHA256Base64URL: String
+            var operatorIdentityUUID: String
+            var operatorDisplayName: String
+            var operatorDid: String
+            var operatorPublicKeyBase64URL: String
+            var approvedAt: String
+        }
+        struct Approval: Codable {
+            var payload: ApprovalPayload
+            var signatureBase64: String
+            var curveType: String
+        }
+        struct Artifact: Codable {
+            var version: String
+            var pairingID: String
+            var recordedAt: String
+            var verificationStatus: String
+            var agentAttestation: Attestation
+            var operatorApproval: Approval
+        }
+
+        let challenge = "pair-test"
+        let operatorDid = (try? operatorIdentity.did()) ?? operatorIdentity.uuid
+        let attestationPayload = AttestationPayload(
+            version: "1.0",
+            instanceName: agentDescriptor.instanceName,
+            agentIdentityUUID: agentDescriptor.identityUUID,
+            agentDisplayName: agentDescriptor.displayName,
+            agentDid: agentDescriptor.didKey,
+            agentPublicKeyBase64URL: agentDescriptor.publicKeyBase64URL,
+            operatorIdentityUUID: operatorIdentity.uuid,
+            operatorDid: operatorDid,
+            operatorPublicKeyBase64URL: operatorPublicKeyBase64URL,
+            purposeRef: purposeRef,
+            scaffoldDomain: scaffoldDomain,
+            challenge: challenge,
+            issuedAt: approvedAt
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let attestationPayloadData = try encoder.encode(attestationPayload)
+        let attestationSignature = try agentPrivateKey.signature(for: attestationPayloadData)
+        let attestation = Attestation(
+            payload: attestationPayload,
+            signatureAlgorithm: "Ed25519",
+            signatureBase64URL: base64URLEncode(attestationSignature)
+        )
+
+        let approvalPayload = ApprovalPayload(
+            version: "1.0",
+            pairingID: pairingID,
+            scaffoldDomain: scaffoldDomain,
+            purposeRef: purposeRef,
+            challenge: challenge,
+            attestationSHA256Base64URL: base64URLEncode(Data(SHA256.hash(data: attestationPayloadData))),
+            operatorIdentityUUID: operatorIdentity.uuid,
+            operatorDisplayName: operatorIdentity.displayName,
+            operatorDid: operatorDid,
+            operatorPublicKeyBase64URL: operatorPublicKeyBase64URL,
+            approvedAt: approvedAt
+        )
+        let approvalPayloadData = try encoder.encode(approvalPayload)
+        let operatorSignature = try #require(await operatorIdentity.sign(data: approvalPayloadData))
+        let approval = Approval(
+            payload: approvalPayload,
+            signatureBase64: operatorSignature.base64EncodedString(),
+            curveType: operatorIdentity.publicSecureKey?.curveType.rawValue ?? "unknown"
+        )
+
+        let artifact = Artifact(
+            version: "1.0",
+            pairingID: pairingID,
+            recordedAt: approvedAt,
+            verificationStatus: "agent-attestation-verified",
+            agentAttestation: attestation,
+            operatorApproval: approval
+        )
+        let artifactEncoder = JSONEncoder()
+        artifactEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try artifactEncoder.encode(artifact).write(to: fileURL, options: [.atomic])
+    }
+
+    static func authorize(_ identity: Identity, for cell: GeneralCell) async throws {
+        let agreement = cell.agreementTemplate
+        agreement.signatories.append(identity)
+        let state = await cell.addAgreement(agreement, for: identity)
+        #expect(state == .signed)
+    }
+}
+
+private extension JSONEncoder {
+    static func sortedKeyData<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(value)
     }
 }

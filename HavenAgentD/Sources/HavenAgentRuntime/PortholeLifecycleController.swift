@@ -259,7 +259,7 @@ public actor PortholeLifecycleController {
         switch error {
         case let error as SproutBootstrapClientError:
             switch error {
-            case .missingPurposeGoalInterests, .missingResolverBaseURL, .invalidBinaryPath, .binaryNotExecutable:
+            case .missingPurposeGoalInterests, .missingResolverBaseURL, .invalidBinaryPath, .binaryNotExecutable, .conflictingEntityEvidence:
                 return false
             }
         default:

@@ -18,7 +18,9 @@ struct AgentConfigTests {
             configFile: URL(fileURLWithPath: "/Users/tester/Library/Application Support/HAVENAgent/config.json"),
             stateFile: URL(fileURLWithPath: "/Users/tester/Library/Application Support/HAVENAgent/State/agent-state.json"),
             cellRuntimeFile: URL(fileURLWithPath: "/Users/tester/Library/Application Support/HAVENAgent/State/cell-runtime.json"),
-            remoteIntentStateFile: URL(fileURLWithPath: "/Users/tester/Library/Application Support/HAVENAgent/State/remote-intent-state.json")
+            remoteIntentStateFile: URL(fileURLWithPath: "/Users/tester/Library/Application Support/HAVENAgent/State/remote-intent-state.json"),
+            agentIdentityFile: URL(fileURLWithPath: "/Users/tester/Library/Application Support/HAVENAgent/State/agent-identity.json"),
+            pairingArtifactFile: URL(fileURLWithPath: "/Users/tester/Library/Application Support/HAVENAgent/Out/agent-enrollment-pairing.json")
         )
         let config = AgentConfig.example(paths: paths)
         let encoder = JSONEncoder()
@@ -26,6 +28,7 @@ struct AgentConfigTests {
         let decoded = try JSONDecoder().decode(AgentConfig.self, from: data)
 
         #expect(decoded == config)
+        #expect(config.localControlBridge.accessToken == "replace-with-strong-local-token")
     }
 
     @Test
@@ -42,6 +45,9 @@ struct AgentConfigTests {
                 interests: ["haven.core.bootstrap"],
                 resolverBaseURL: "https://example.haven.local",
                 starterAuthPath: "/tmp/starter.json",
+                entityLinkPath: "/tmp/entity-link.json",
+                continuityProofPath: nil,
+                admissionContractPath: nil,
                 discoveryURL: nil,
                 catalogPath: nil,
                 enableLiveResolver: false,
@@ -58,5 +64,6 @@ struct AgentConfigTests {
         #expect(plan.scaffoldDomain == "example.haven.local")
         #expect(plan.requestedPortholeKind == "native")
         #expect(plan.renewalLeadTimeSeconds == 600)
+        #expect(plan.entityLinkPath == "/tmp/entity-link.json")
     }
 }

@@ -16,21 +16,27 @@
 - writes agent heartbeat and latest action state to disk
 - writes a local cell-runtime snapshot to `State/cell-runtime.json`
 - writes remote-intent queue/audit/nonce state to `State/remote-intent-state.json`
+- persists a stable local agent signing identity to `State/agent-identity.json`
 - renders a `launchd` plist for per-user startup
 - supports `--root /path/to/dev-root` so runtime state can be isolated away from the user's real `Application Support`
 - ships a deterministic smoke-test path that exercises retry + renewal without a live scaffold
+- ships a bootstrap probe that verifies pairing, starter-auth and entity-link artifacts before optionally running a real `sprout bootstrap` against staging or dev
 - exposes real CellProtocol `GeneralCell` subclasses for supervisor state and remote-intent inboxing
+- exposes `AgentIdentityCell` so local operator tooling can attest a stable device identity and request a signed starter-auth payload over the loopback CellProtocol bridge
+- verifies the persisted Binding<->agent pairing artifact before treating an operator identity as paired
+- lets `sprout bootstrap join` consume purpose-bound entity-link evidence generated from the Binding<->agent pairing flow
 - installs those cells into a local `CellResolver` graph during `run`
 - verifies signed remote intent envelopes against a local trusted-issuer policy before queueing them
 - allows explicit approve/reject review of verified intents before any remote side effect is dispatched
 - surfaces native porthole ingress status in runtime state and the supervisor cell
+- exposes a loopback-only, token-gated local CellProtocol control bridge for operator tooling
 
 ## What it does not do yet
 
 - it does not yet call `sprout` APIs directly
 - it does not yet bind native porthole ingress to a richer resolver/session lifecycle than the bootstrap artifact alone
 - it does not yet auto-execute queued remote intents without explicit review
-- it does not yet persist trusted signing material across restarts
+- it does not yet store the persisted agent seed in Keychain
 
 Those boundaries are intentional. This package gives a safe executable skeleton first, so that `sprout` and `CellProtocol` can be added behind explicit interfaces instead of collapsing bootstrap, policy and local automation into one process with unclear trust rules.
 
@@ -46,6 +52,7 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - `Sources/HavenMacAutomation`: policy engine, subprocess runner, `shortcuts` and `osascript` bridges
 - `Sources/HavenAgentCells`: concrete supervisor/inbox cells, a default cell registry, plus blueprint catalog for the next cells
 - `Sources/HavenAgentCellRuntime`: local identity vault, `CellBase` host installation, resolver registration, runtime snapshotting
+- `Sources/HavenAgentCellRuntime/AgentControlBridgeServer.swift`: loopback-only websocket bridge that exposes allowlisted operator cells over CellProtocol
 - `Docs/SecurityModel.md`: security constraints and follow-up requirements
 
 ## Security model
@@ -65,6 +72,7 @@ When `haven-agentd run` starts, it now installs a narrow local `CellBase` host b
 ## Current cells
 
 - `AgentSupervisorCell`: exposes runtime state, latest bootstrap result, native porthole ingress status, latest action and a refresh event stream
+- `AgentIdentityCell`: exposes the stable local agent identity, issues explicit enrollment attestations for Binding-side pairing, and signs purpose-bound starter-auth payloads for `sprout`
 - `RemoteIntentInboxCell`: accepts structured local intents or signed remote envelopes, validates payload shape, signature, expiry and nonce, and appends only accepted intents to a local queue
 - `RemoteIntentReviewCell`: approves or rejects verified queued intents and dispatches only locally allowlisted remote actions
 - `AgentCellRegistry`: instantiates the current safe default cell set for a local owner identity
@@ -86,10 +94,30 @@ Validate config:
 swift run haven-agentd validate-config --config ~/Library/Application\\ Support/HAVENAgent/config.json
 ```
 
+Preflight the current Binding-driven enrollment artifacts, or run the actual scaffold bootstrap when you want to test staging/dev:
+
+```bash
+swift run haven-agentd bootstrap-probe --config ~/Library/Application\\ Support/HAVENAgent/config.json
+swift run haven-agentd bootstrap-probe --config ~/Library/Application\\ Support/HAVENAgent/config.json --run-bootstrap
+```
+
 Run once for bootstrap/state validation:
 
 ```bash
 swift run haven-agentd run --config ~/Library/Application\\ Support/HAVENAgent/config.json --once
+```
+
+Inspect persisted review queue/audit state through the same review cell path used by the agent:
+
+```bash
+swift run haven-agentd review-state --config ~/Library/Application\\ Support/HAVENAgent/config.json
+```
+
+Approve or reject a specific pending intent:
+
+```bash
+swift run haven-agentd review-approve --config ~/Library/Application\\ Support/HAVENAgent/config.json --intent-id <intent-id> --reviewer "Binding operator" --note "Approved from local workbench"
+swift run haven-agentd review-reject --config ~/Library/Application\\ Support/HAVENAgent/config.json --intent-id <intent-id> --reviewer "Binding operator" --note "Rejected from local workbench"
 ```
 
 Run against an isolated development root instead of the user's real `Application Support`:
@@ -105,6 +133,9 @@ During `run`, the executable now also creates:
 - `~/Library/Application Support/HAVENAgent/CellDocuments/` for local CellProtocol document-root data
 - `~/Library/Application Support/HAVENAgent/State/cell-runtime.json` for the registered cell snapshot
 - `~/Library/Application Support/HAVENAgent/State/remote-intent-state.json` for queued intents, review audit and nonce replay window
+- `~/Library/Application Support/HAVENAgent/State/agent-identity.json` for the stable local agent signing identity used by `AgentIdentityCell`
+
+When `localControlBridge.accessToken` is configured, the bridge only accepts websocket and health requests that present the matching `token` query item. The example config ships with a placeholder token and Binding writes a generated local token when it provisions the agent, so the operator workbench can use the live CellProtocol path without opening the bridge to arbitrary local processes.
 
 `config.json` now also supports a `remoteIntentPolicy` section with:
 
@@ -122,6 +153,17 @@ The current remote flow is:
 5. `RemoteIntentReviewCell.approve` or `reject` records an audit decision.
 6. Approved intents dispatch through `RemoteIntentExecutionBridge`, which still enforces the local automation allowlist for remote execution.
 
+The current local identity-pairing flow is:
+
+1. `AgentCellRuntimeHost` loads or creates a stable agent identity and registers it into the local runtime vault.
+2. `AgentIdentityCell` exposes that identity on the loopback control bridge, signs an explicit enrollment attestation, and can sign a purpose-bound starter-auth payload for the same identity.
+3. Binding's `AgentEnrollmentCell` verifies the attestation locally, writes a pairing artifact under `~/Library/Application Support/HAVENAgent/Out/agent-enrollment-pairing.json`, requests and verifies a signed starter-auth payload from the agent over CellProtocol, and materializes a mutually signed entity-link contract under `~/Library/Application Support/HAVENAgent/Out/agent-operator-entity-link.json`.
+4. The agent now re-loads and verifies that persisted pairing artifact before treating an operator as paired.
+5. Binding writes the verified starter-auth payload to `~/Library/Application Support/HAVENAgent/starter-auth.json`, which is the same path already referenced from the generated agent config.
+6. `sprout bootstrap join` now receives the paired agent identity through `--starter` and the Binding<->agent relationship through `--entity-link` instead of silently generating a third starter identity.
+
+`review-state`, `review-approve` and `review-reject` now reuse that same review path in a one-shot CLI context, so local operator tooling can inspect or decide on queued intents without inventing a second review mechanism outside CellProtocol. Binding prefers the live loopback control bridge for state + review when it is available, establishes a normal CellProtocol agreement on that bridge before `get/set`, and falls back to the CLI path only when the local bridge is unavailable.
+
 Render a launch agent plist:
 
 ```bash
@@ -135,11 +177,39 @@ cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
 ./Scripts/test_haven_agentd.sh
 ```
 
+Run the package build plus a real bootstrap probe from the `Binding` workspace root after Binding has already paired and provisioned the agent:
+
+```bash
+cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+./Scripts/test_haven_agentd_bootstrap.sh ~/Library/Application\\ Support/HAVENAgent/config.json
+```
+
 The smoke test uses a fake local `sprout` binary, an isolated `--root`, and a scripted ingress controller. It proves:
 
 - initial bootstrap failure is retried
 - native contract renewal happens before expiry
 - verified remote intents still land in the persisted local queue
+
+The bootstrap probe is the staging/dev-facing complement to that smoke test. It proves that:
+
+- the persisted Binding<->agent pairing artifact still verifies on the agent side
+- the agent-signed `starter-auth.json` still matches the configured scaffold domain + purpose
+- the mutually signed entity-link contract still binds the paired operator key to the agent key
+- `sprout bootstrap join` either succeeds with a real native contract artifact or fails at a concrete scaffold admission boundary
+
+If the probe still fails with resolver output like `identity not found in accepted anchor snapshot`, the remaining step is now an explicit admin action rather than a local code gap. `sprout-admin` can update an existing signed entity-anchor snapshot to accept the paired contract ID:
+
+```bash
+cd /Users/kjetil/Build/Digipomps/HAVEN/sprout
+swift run sprout-admin entity-anchor accept-entity-link \
+  --snapshot /path/to/current-entity-anchor-snapshot.json \
+  --entity-link ~/Library/Application\ Support/HAVENAgent/Out/agent-operator-entity-link.json \
+  --identity-context Scaffold \
+  --anchored-public-key <existing-operator-public-key-b64url> \
+  --out /path/to/entity-anchor-snapshot.updated.json
+```
+
+That command re-verifies the existing snapshot signature, re-verifies the entity-link mutual signatures, appends the contract ID to the matching entity record, and re-signs the snapshot with the scaffold admin identity. The remaining operational step after that is deploying the updated snapshot on the scaffold host.
 
 ## Planned integration steps
 

@@ -42,13 +42,17 @@ public final class RemoteIntentInboxCell: GeneralCell {
     private func setupKeys(owner: Identity) async {
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "state", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeStateValue()
         })
 
         await addInterceptForGet(requester: owner, key: "queue", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "queue", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "queue", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeQueueValue()
         })
 
@@ -83,7 +87,9 @@ public final class RemoteIntentInboxCell: GeneralCell {
 
         await addInterceptForSet(requester: owner, key: "clear", setValueIntercept: { [weak self] _, _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("rw--", at: "clear", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("rw--", at: "clear", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             await AgentRuntimeBridge.shared.clearQueuedIntents()
             await self.publishClearEvent(requester: requester)
             return await self.makeStateValue()

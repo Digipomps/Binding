@@ -34,6 +34,7 @@ public final class AgentSupervisorCell: GeneralCell {
         agreementTemplate.addGrant("r---", for: "state")
         agreementTemplate.addGrant("r---", for: "bootstrap")
         agreementTemplate.addGrant("r---", for: "porthole")
+        agreementTemplate.addGrant("r---", for: "identity")
         agreementTemplate.addGrant("r---", for: "lastAction")
         agreementTemplate.addGrant("r---", for: "lastError")
         agreementTemplate.addGrant("rw--", for: "refresh")
@@ -43,37 +44,57 @@ public final class AgentSupervisorCell: GeneralCell {
     private func setupKeys(owner: Identity) async {
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "state", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeStateValue()
         })
 
         await addInterceptForGet(requester: owner, key: "bootstrap", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "bootstrap", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "bootstrap", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeBootstrapValue()
         })
 
         await addInterceptForGet(requester: owner, key: "porthole", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "porthole", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "porthole", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makePortholeValue()
+        })
+
+        await addInterceptForGet(requester: owner, key: "identity", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .string("failure") }
+            let directAccess = await self.validateAccess("r---", at: "identity", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
+            return await self.makeIdentityValue()
         })
 
         await addInterceptForGet(requester: owner, key: "lastAction", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "lastAction", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "lastAction", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeLastActionValue()
         })
 
         await addInterceptForGet(requester: owner, key: "lastError", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("r---", at: "lastError", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("r---", at: "lastError", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             return await self.makeLastErrorValue()
         })
 
         await addInterceptForSet(requester: owner, key: "refresh", setValueIntercept: { [weak self] _, _, requester in
             guard let self else { return .string("failure") }
-            guard await self.validateAccess("rw--", at: "refresh", for: requester) else { return .string("denied") }
+            let directAccess = await self.validateAccess("rw--", at: "refresh", for: requester)
+            let hasAccess = directAccess ? true : await LocalControlCellAccess.isPairedOperator(requester)
+            guard hasAccess else { return .string("denied") }
             await self.publishRefreshEvent(requester: requester)
             return await self.makeStateValue()
         })
@@ -99,7 +120,8 @@ public final class AgentSupervisorCell: GeneralCell {
         guard let snapshot = await AgentRuntimeBridge.shared.runtimeStateSnapshot() else {
             return .object([
                 "status": .string("unavailable"),
-                "activeWatchIDs": .list([])
+                "activeWatchIDs": .list([]),
+                "controlBridge": await makeControlBridgeObject()
             ])
         }
 
@@ -110,6 +132,8 @@ public final class AgentSupervisorCell: GeneralCell {
         ]
         object["bootstrap"] = makeBootstrapObject(from: snapshot.lastSproutBootstrap)
         object["porthole"] = makePortholeObject(from: snapshot.portholeIngress)
+        object["identity"] = await makeIdentityValue()
+        object["controlBridge"] = await makeControlBridgeObject()
         object["lastAction"] = makeExecutedActionObject(from: snapshot.lastExecutedAction)
         object["lastError"] = snapshot.lastError.map(ValueType.string) ?? .null
         object["lastEventSummary"] = snapshot.lastEventSummary.map(ValueType.string) ?? .null
@@ -135,6 +159,65 @@ public final class AgentSupervisorCell: GeneralCell {
     private func makeLastErrorValue() async -> ValueType {
         let snapshot = await AgentRuntimeBridge.shared.runtimeStateSnapshot()
         return snapshot?.lastError.map(ValueType.string) ?? .null
+    }
+
+    private func makeIdentityValue() async -> ValueType {
+        guard let descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot() else {
+            return .null
+        }
+        return .object([
+            "instanceName": .string(descriptor.instanceName),
+            "identityContext": .string(descriptor.identityContext),
+            "identityUUID": .string(descriptor.identityUUID),
+            "displayName": .string(descriptor.displayName),
+            "publicKeyBase64URL": .string(descriptor.publicKeyBase64URL),
+            "didKey": .string(descriptor.didKey),
+            "createdAt": .string(descriptor.createdAt),
+            "storageKind": .string(descriptor.storageKind),
+            "pairedOperator": await makePairedOperatorValue()
+        ])
+    }
+
+    private func makePairedOperatorValue() async -> ValueType {
+        guard let pairedOperator = await AgentRuntimeBridge.shared.pairedOperatorSnapshot(refresh: true) else {
+            let pairingStatus = await AgentRuntimeBridge.shared.pairingArtifactStatusSnapshot()
+            return .object([
+                "status": .string(pairingStatus.lastError == nil ? "unpaired" : "invalid"),
+                "path": pairingStatus.path.map(ValueType.string) ?? .null,
+                "lastError": pairingStatus.lastError.map(ValueType.string) ?? .null
+            ])
+        }
+
+        return .object([
+            "status": .string("paired"),
+            "pairingID": .string(pairedOperator.pairingID),
+            "purposeRef": .string(pairedOperator.purposeRef),
+            "scaffoldDomain": .string(pairedOperator.scaffoldDomain),
+            "operatorIdentityUUID": .string(pairedOperator.operatorIdentityUUID),
+            "operatorDid": .string(pairedOperator.operatorDid),
+            "operatorPublicKeyBase64URL": .string(pairedOperator.operatorPublicKeyBase64URL),
+            "approvedAt": .string(pairedOperator.approvedAt)
+        ])
+    }
+
+    private func makeControlBridgeObject() async -> ValueType {
+        guard let status = await AgentRuntimeBridge.shared.localControlBridgeStatusSnapshot() else {
+            return .null
+        }
+        return .object([
+            "phase": .string(status.phase.rawValue),
+            "host": .string(status.host),
+            "port": .integer(status.port),
+            "websocketBaseURL": .string(status.websocketBaseURL),
+            "lastError": status.lastError.map(ValueType.string) ?? .null,
+            "routes": .list(status.routes.map { route in
+                .object([
+                    "name": .string(route.name),
+                    "targetCellReference": .string(route.targetCellReference),
+                    "description": .string(route.description)
+                ])
+            })
+        ])
     }
 
     private func makeBootstrapObject(from record: SproutBootstrapInvocationRecord?) -> ValueType {

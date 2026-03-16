@@ -286,6 +286,7 @@ private func waitUntil(
     return false
 }
 
+@Suite(.serialized)
 struct PortholeLifecycleControllerTests {
     @Test
     func lifecycleControllerRetriesBootstrapFailureAndRenewsBeforeExpiry() async throws {
@@ -328,7 +329,9 @@ struct PortholeLifecycleControllerTests {
             }
         )
         let didRecover = await waitUntil {
-            await collector.hasConnected(contractID: "pac_test_0003")
+            let hasConnected = await collector.hasConnected(contractID: "pac_test_0003")
+            let attemptCount = await ingress.attemptCount()
+            return hasConnected && attemptCount == 2
         }
         await controller.stop()
         let latestStatus = await collector.latest()
@@ -384,7 +387,9 @@ struct PortholeLifecycleControllerTests {
             }
         )
         let didReconnect = await waitUntil {
-            await collector.hasConnected(contractID: "pac_test_0102")
+            let hasConnected = await collector.hasConnected(contractID: "pac_test_0102")
+            let attemptCount = await ingress.attemptCount()
+            return hasConnected && attemptCount == 2
         }
         await controller.stop()
         let latestStatus = await collector.latest()

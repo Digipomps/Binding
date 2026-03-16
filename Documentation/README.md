@@ -49,6 +49,23 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `xcodebuild ... build` succeeded for Binding.
   - `xcodebuild ... build-for-testing` succeeded for Binding + BindingTests.
 
+## Latest successful changes (March 14, 2026)
+- Added [AgentProvisioningCell](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/AgentProvisioningCell.swift) as a local `GeneralCell` that models install/start/connect/stop for `haven-agentd` through CellProtocol actions rather than direct UI-only orchestration.
+- Added [AgentEnrollmentCell](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/AgentEnrollmentCell.swift) so Binding can verify a stable agent identity attestation over the loopback CellProtocol bridge, establish a normal CellProtocol agreement on that bridge, write a purpose-bound pairing artifact, materialize a verified `starter-auth.json` signed by the agent identity for `sprout`, and emit a mutually signed `agent-operator-entity-link.json` for `sprout bootstrap join`.
+- Added an `Agent Setup Workbench` to [ConfigurationCatalogCell](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/ConfigurationCatalogCell.swift) with a purpose-driven skeleton for draft purpose, install/runtime/bridge stages, Binding<->agent pairing, live review queue + audit visibility, topology guidance, and activity/audit-oriented feedback.
+- Registered both `cell:///AgentProvisioning` and `cell:///AgentEnrollment` in [BootstrapView](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift) and surfaced the workbench in curated menus from [ContentView](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/ContentView.swift).
+- Added a live localhost CellProtocol control bridge in `HavenAgentD` so Binding can read supervisor/inbox/review state and submit review decisions over actual CellProtocol instead of only polling persisted files.
+- The local control bridge is loopback-only and token-gated from the agent config; Binding reuses that token for live operator calls, performs an explicit CellProtocol `addAgreement` before live `get/set`, and keeps the CLI review commands as fallback.
+- The current operator topology is explicit: use one local control porthole when a human needs setup/review UX, but keep remote peers headless over CellProtocol instead of creating a porthole per connection.
+- The current identity topology is also explicit: Binding keeps an operator identity, HavenAgentD keeps a separate stable device identity, and pairing happens over CellProtocol instead of by sharing one vault.
+- The bootstrap identity path is now explicit too: the agent signs `starter-auth` over CellProtocol, Binding verifies it locally, and `sprout` consumes that artifact instead of minting a separate starter identity for the same flow.
+- There is now an explicit staging/dev bootstrap test path too: `haven-agentd bootstrap-probe` verifies the local pairing artifacts and can then run a real `sprout bootstrap`, while `Scripts/test_haven_agentd_bootstrap.sh` gives the Binding workspace a one-command entrypoint for that probe.
+- The remaining secure scaffold-admission step is also explicit: `sprout-admin entity-anchor accept-entity-link` can now re-sign an existing anchor snapshot with the paired contract ID, instead of relying on manual snapshot edits when staging must admit a newly paired agent key.
+- Validation status:
+  - `./Scripts/build_binding.sh` succeeded.
+  - `swift test` in `HavenAgentD` now passes again after the identity/pairing + bridge-agreement work, including the reconnect/renewal, local control bridge and bootstrap-probe suites.
+  - `./Scripts/test_binding.sh -only-testing:BindingTests` succeeded with the pairing workbench included.
+
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.
 - State is accessed exclusively via `Meddle.get/set(keypath:value:requester:)`.
@@ -82,6 +99,9 @@ Projects importing CellProtocol must include:
 - Skeleton elements reference: [Documentation/SkeletonElements_Detailed.md](Documentation/SkeletonElements_Detailed.md)
 - Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
 - Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
+- HavenAgentD integration note: [Documentation/HavenAgentD.md](Documentation/HavenAgentD.md)
+- Agent Setup Workbench UI review: [Documentation/AgentSetupWorkbench_UI_Review.md](Documentation/AgentSetupWorkbench_UI_Review.md)
+- HavenAgentD setup/test runbook: [Documentation/HavenAgentD_Setup_Test_Runbook.md](Documentation/HavenAgentD_Setup_Test_Runbook.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
 - Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
 - Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)

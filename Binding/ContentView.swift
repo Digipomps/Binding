@@ -27,9 +27,9 @@ struct ContentView: View {
         "timeswrapper",
         "locationswrapper"
     ]
+    // Only cells that are actually hosted by CellScaffold should be auto-retargeted
+    // from `cell:///...` to the staging scaffold. Local CellApple-only cells must stay local.
     private static let stagingFallbackCells: Set<String> = [
-        "appleintelligence",
-        "entityscanner",
         "chat",
         "conferenceuirouter",
         "vault",
@@ -2449,6 +2449,7 @@ struct ContentView: View {
         let appleIntelligence = ConfigurationCatalogCell.appleIntelligenceLandingConfiguration()
         let catalogWorkbench = ConfigurationCatalogCell.catalogWorkbenchMenuConfiguration()
         let perspectiveWorkbench = ConfigurationCatalogCell.perspectiveWorkbenchMenuConfiguration()
+        let agentSetupWorkbench = ConfigurationCatalogCell.agentSetupWorkbenchMenuConfiguration()
         let entityAnchorWorkbench = ConfigurationCatalogCell.entityAnchorWorkbenchMenuConfiguration()
         let vaultWorkbench = ConfigurationCatalogCell.vaultWorkbenchMenuConfiguration()
         let trustedIssuersWorkbench = ConfigurationCatalogCell.trustedIssuersWorkbenchMenuConfiguration()
@@ -2461,10 +2462,10 @@ struct ContentView: View {
 
         return (
             upperLeft: [chat, conference, todo],
-            upperMid: [appleIntelligence, catalogWorkbench, perspectiveWorkbench, portholeWorkbench],
+            upperMid: [appleIntelligence, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
             upperRight: [conference, obsidian, portholeWorkbench],
             lowerLeft: [localEntityScanner, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
-            lowerMid: [todo, catalogWorkbench, folderWatchWorkbench, graphIndexWorkbench],
+            lowerMid: [todo, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
             lowerRight: [obsidian, vaultWorkbench, graphIndexWorkbench, trustedIssuersWorkbench]
         )
     }
@@ -2514,7 +2515,7 @@ struct ContentView: View {
         return updated
     }
 
-    private func maybeRetargetLocalEndpointToStaging(_ endpoint: String) -> String {
+    func maybeRetargetLocalEndpointToStaging(_ endpoint: String) -> String {
         guard var components = URLComponents(string: endpoint),
               components.scheme?.lowercased() == "cell"
         else {
@@ -2877,7 +2878,7 @@ final class BridgeConnectionStatusStore: ObservableObject {
         cleanupTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
-                await self?.pruneExpiredStatuses()
+                self?.pruneExpiredStatuses()
             }
         }
     }

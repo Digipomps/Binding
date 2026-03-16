@@ -9,7 +9,11 @@ enum HavenAgentCommand {
     case printExampleConfig(rootPath: String?)
     case printLaunchAgent(rootPath: String?)
     case validateConfig(configPath: String?, rootPath: String?)
+    case bootstrapProbe(configPath: String?, rootPath: String?, runBootstrap: Bool)
     case run(configPath: String?, once: Bool, rootPath: String?)
+    case reviewState(configPath: String?, rootPath: String?)
+    case reviewApprove(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
+    case reviewReject(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
     case listCellBlueprints
     case smokeTest(rootPath: String?)
 }
@@ -46,6 +50,19 @@ struct HavenAgentMain {
                 _ = try await runtime.validate(configURL: configURL)
                 print("Config OK: \(configURL.path)")
 
+            case .bootstrapProbe(let configPath, let rootPath, let runBootstrap):
+                let paths = try resolvePaths(rootPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let report = await BootstrapProbeService(paths: paths).probe(
+                    configURL: configURL,
+                    runBootstrap: runBootstrap
+                )
+                try printJSON(report)
+                let bootstrapFailed = report.bootstrap?.attempted == true && report.bootstrap?.succeeded == false
+                guard report.readyForBootstrap, !bootstrapFailed else {
+                    Darwin.exit(1)
+                }
+
             case .run(let configPath, let once, let rootPath):
                 let paths = try resolvePaths(rootPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
@@ -53,7 +70,10 @@ struct HavenAgentMain {
                 let cellRuntimeHost = AgentCellRuntimeHost(paths: paths)
                 let runtime = AgentRuntime(paths: paths)
                 do {
-                    let snapshot = try await cellRuntimeHost.start(instanceName: config.instanceName)
+                    let snapshot = try await cellRuntimeHost.start(
+                        instanceName: config.instanceName,
+                        controlBridge: once ? nil : config.localControlBridge
+                    )
                     try await runtime.run(config: config, once: once)
                     await cellRuntimeHost.stop()
                     if once {
@@ -64,6 +84,26 @@ struct HavenAgentMain {
                     await cellRuntimeHost.stop()
                     throw error
                 }
+
+            case .reviewState(let configPath, let rootPath):
+                let paths = try resolvePaths(rootPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let summary = try await ReviewCommandService(paths: paths, configURL: configURL).state()
+                try printJSON(summary)
+
+            case .reviewApprove(let configPath, let intentID, let reviewer, let note, let rootPath):
+                let paths = try resolvePaths(rootPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let summary = try await ReviewCommandService(paths: paths, configURL: configURL)
+                    .approve(intentID: intentID, reviewer: reviewer ?? "binding-operator", note: note)
+                try printJSON(summary)
+
+            case .reviewReject(let configPath, let intentID, let reviewer, let note, let rootPath):
+                let paths = try resolvePaths(rootPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let summary = try await ReviewCommandService(paths: paths, configURL: configURL)
+                    .reject(intentID: intentID, reviewer: reviewer ?? "binding-operator", note: note)
+                try printJSON(summary)
 
             case .listCellBlueprints:
                 for blueprint in AgentCellCatalog.defaultBlueprints {
@@ -99,11 +139,48 @@ struct HavenAgentMain {
                 configPath: argumentValue(for: "--config", in: remaining),
                 rootPath: argumentValue(for: "--root", in: remaining)
             )
+        case "bootstrap-probe":
+            let remaining = Array(arguments.dropFirst())
+            return .bootstrapProbe(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining),
+                runBootstrap: remaining.contains("--run-bootstrap")
+            )
         case "run":
             let remaining = Array(arguments.dropFirst())
             return .run(
                 configPath: argumentValue(for: "--config", in: remaining),
                 once: remaining.contains("--once"),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "review-state":
+            let remaining = Array(arguments.dropFirst())
+            return .reviewState(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "review-approve":
+            let remaining = Array(arguments.dropFirst())
+            guard let intentID = argumentValue(for: "--intent-id", in: remaining) else {
+                throw UsageError.invalidArguments(usage())
+            }
+            return .reviewApprove(
+                configPath: argumentValue(for: "--config", in: remaining),
+                intentID: intentID,
+                reviewer: argumentValue(for: "--reviewer", in: remaining),
+                note: argumentValue(for: "--note", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "review-reject":
+            let remaining = Array(arguments.dropFirst())
+            guard let intentID = argumentValue(for: "--intent-id", in: remaining) else {
+                throw UsageError.invalidArguments(usage())
+            }
+            return .reviewReject(
+                configPath: argumentValue(for: "--config", in: remaining),
+                intentID: intentID,
+                reviewer: argumentValue(for: "--reviewer", in: remaining),
+                note: argumentValue(for: "--note", in: remaining),
                 rootPath: argumentValue(for: "--root", in: remaining)
             )
         case "list-cell-blueprints":
@@ -144,10 +221,21 @@ struct HavenAgentMain {
           haven-agentd print-example-config [--root /path/to/dev-root]
           haven-agentd print-launch-agent [--root /path/to/dev-root]
           haven-agentd validate-config [--config /path/to/config.json] [--root /path/to/dev-root]
+          haven-agentd bootstrap-probe [--config /path/to/config.json] [--root /path/to/dev-root] [--run-bootstrap]
           haven-agentd run [--config /path/to/config.json] [--once] [--root /path/to/dev-root]
+          haven-agentd review-state [--config /path/to/config.json] [--root /path/to/dev-root]
+          haven-agentd review-approve --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
+          haven-agentd review-reject --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd list-cell-blueprints
           haven-agentd smoke-test [--root /path/to/dev-root]
         """
+    }
+
+    private static func printJSON<T: Encodable>(_ value: T) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(value)
+        print(String(decoding: data, as: UTF8.self))
     }
 }
 

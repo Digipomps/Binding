@@ -15,8 +15,9 @@ let package = Package(
         .executable(name: "haven-agentd", targets: ["HavenAgentD"])
     ],
     dependencies: [
-        .package(path: "../../CellProtocol"),
-        .package(path: "../../sprout")
+        .package(url: "https://github.com/Digipomps/CellProtocol.git", revision: "80f01d0979630008d055744469e66dd15c44d1c6"),
+        .package(url: "https://github.com/Digipomps/Sprout.git", revision: "d53d2d18f5cadd4bd0e73e449101a3b766f65af7"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.0.1")
     ],
     targets: [
         .target(
@@ -33,7 +34,8 @@ let package = Package(
                 .product(name: "CellBase", package: "CellProtocol"),
                 .product(name: "SproutAppSupport", package: "sprout"),
                 .product(name: "SproutCore", package: "sprout"),
-                .product(name: "SproutCrypto", package: "sprout")
+                .product(name: "SproutCrypto", package: "sprout"),
+                .product(name: "SproutResolverAdapter", package: "sprout")
             ]
         ),
         .target(
@@ -41,15 +43,19 @@ let package = Package(
             dependencies: [
                 "HavenAgentRuntime",
                 "HavenMacAutomation",
-                .product(name: "CellBase", package: "CellProtocol")
+                .product(name: "CellBase", package: "CellProtocol"),
+                .product(name: "SproutCrypto", package: "sprout")
             ]
         ),
         .target(
             name: "HavenAgentCellRuntime",
             dependencies: [
+                "HavenAgentRuntime",
                 "HavenAgentCells",
                 "HavenRuntimeBootstrap",
-                .product(name: "CellBase", package: "CellProtocol")
+                .product(name: "CellBase", package: "CellProtocol"),
+                .product(name: "CellVapor", package: "CellProtocol"),
+                .product(name: "Vapor", package: "vapor")
             ]
         ),
         .executableTarget(
@@ -84,6 +90,7 @@ let package = Package(
         .testTarget(
             name: "HavenAgentCellsTests",
             dependencies: [
+                "HavenAgentCellRuntime",
                 "HavenAgentCells",
                 .product(name: "CellBase", package: "CellProtocol")
             ]

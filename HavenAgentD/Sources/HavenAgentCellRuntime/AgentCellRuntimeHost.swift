@@ -1,6 +1,7 @@
 import Foundation
 @preconcurrency import CellBase
 import HavenAgentCells
+import HavenAgentRuntime
 import HavenRuntimeBootstrap
 
 public struct AgentCellRuntimeSnapshot: Codable, Equatable, Sendable {
@@ -22,8 +23,11 @@ public struct AgentCellRuntimeSnapshot: Codable, Equatable, Sendable {
     public var status: String
     public var ownerUUID: String
     public var ownerDisplayName: String
+    public var ownerPublicKeyBase64URL: String
+    public var ownerDidKey: String
     public var documentRootPath: String
     public var recordedAt: String
+    public var controlBridge: LocalControlBridgeStatus?
     public var cells: [RegisteredCell]
 
     public init(
@@ -31,16 +35,22 @@ public struct AgentCellRuntimeSnapshot: Codable, Equatable, Sendable {
         status: String,
         ownerUUID: String,
         ownerDisplayName: String,
+        ownerPublicKeyBase64URL: String,
+        ownerDidKey: String,
         documentRootPath: String,
         recordedAt: String,
+        controlBridge: LocalControlBridgeStatus?,
         cells: [RegisteredCell]
     ) {
         self.instanceName = instanceName
         self.status = status
         self.ownerUUID = ownerUUID
         self.ownerDisplayName = ownerDisplayName
+        self.ownerPublicKeyBase64URL = ownerPublicKeyBase64URL
+        self.ownerDidKey = ownerDidKey
         self.documentRootPath = documentRootPath
         self.recordedAt = recordedAt
+        self.controlBridge = controlBridge
         self.cells = cells
     }
 }
@@ -94,6 +104,7 @@ public actor AgentCellRuntimeHost {
     private let bootstrap: RuntimeBootstrap
     private let resolver: CellResolver
     private let snapshotStore: AgentCellRuntimeSnapshotStore
+    private let controlBridgeServer: AgentControlBridgeServer
 
     private var installedGlobals: CellBaseGlobals?
     private var currentSnapshot: AgentCellRuntimeSnapshot?
@@ -108,9 +119,13 @@ public actor AgentCellRuntimeHost {
         self.bootstrap = bootstrap
         self.resolver = resolver
         self.snapshotStore = AgentCellRuntimeSnapshotStore(fileURL: paths.cellRuntimeFile)
+        self.controlBridgeServer = AgentControlBridgeServer()
     }
 
-    public func start(instanceName: String) async throws -> AgentCellRuntimeSnapshot {
+    public func start(
+        instanceName: String,
+        controlBridge configuration: LocalControlBridgeConfig? = nil
+    ) async throws -> AgentCellRuntimeSnapshot {
         if currentSnapshot?.instanceName == instanceName, !activeRegistrations.isEmpty {
             return try await writeSnapshot(status: "running", instanceName: instanceName)
         }
@@ -119,12 +134,15 @@ public actor AgentCellRuntimeHost {
         }
 
         _ = try bootstrap.bootstrap(paths: paths)
+        await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: paths.pairingArtifactFile)
 
+        let identityStore = AgentIdentityStore(fileURL: paths.agentIdentityFile)
+        let identityMaterial = try await identityStore.loadOrCreate(instanceName: instanceName)
         let vault = LocalIdentityVault()
-        let ownerContext = "haven.agent.owner.\(instanceName)"
-        guard let owner = await vault.identity(for: ownerContext, makeNewIfNotFound: true) else {
-            throw AgentCellRuntimeHostError.ownerIdentityUnavailable(instanceName)
-        }
+        let owner = await vault.installIdentity(
+            descriptor: identityMaterial.descriptor,
+            privateKey: try identityMaterial.privateKey()
+        )
 
         let previousGlobals = CellBaseGlobals(
             defaultIdentityVault: CellBase.defaultIdentityVault,
@@ -150,18 +168,47 @@ public actor AgentCellRuntimeHost {
         }
 
         activeRegistrations = registrations
-        return try await writeSnapshot(status: "running", instanceName: instanceName, owner: owner)
+        let controlBridgeStatus: LocalControlBridgeStatus?
+        if let configuration {
+            do {
+                controlBridgeStatus = try await controlBridgeServer.start(owner: owner, configuration: configuration)
+            } catch {
+                controlBridgeStatus = LocalControlBridgeStatus(
+                    configuration: configuration,
+                    phase: .failed,
+                    lastError: error.localizedDescription
+                )
+            }
+        } else {
+            controlBridgeStatus = nil
+        }
+
+        await AgentRuntimeBridge.shared.update(localControlBridgeStatus: controlBridgeStatus)
+        await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: identityMaterial.descriptor)
+        return try await writeSnapshot(
+            status: "running",
+            instanceName: instanceName,
+            owner: owner,
+            identityDescriptor: identityMaterial.descriptor,
+            controlBridge: controlBridgeStatus
+        )
     }
 
     public func stop() async {
         let instanceName = currentSnapshot?.instanceName ?? "unknown"
         let ownerUUID = currentSnapshot?.ownerUUID ?? "unknown"
         let ownerDisplayName = currentSnapshot?.ownerDisplayName ?? "unknown"
+        let ownerPublicKeyBase64URL = currentSnapshot?.ownerPublicKeyBase64URL ?? ""
+        let ownerDidKey = currentSnapshot?.ownerDidKey ?? ownerUUID
 
         for registration in activeRegistrations {
             await resolver.unregisterEmitCell(uuid: registration.cell.uuid)
         }
         activeRegistrations.removeAll()
+        await controlBridgeServer.stop()
+        await AgentRuntimeBridge.shared.update(localControlBridgeStatus: await controlBridgeServer.snapshot())
+        await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: nil)
+        await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: nil)
 
         if let installedGlobals {
             CellBase.defaultIdentityVault = installedGlobals.defaultIdentityVault
@@ -175,8 +222,11 @@ public actor AgentCellRuntimeHost {
             status: "stopped",
             ownerUUID: ownerUUID,
             ownerDisplayName: ownerDisplayName,
+            ownerPublicKeyBase64URL: ownerPublicKeyBase64URL,
+            ownerDidKey: ownerDidKey,
             documentRootPath: paths.cellDocumentDirectory.path,
             recordedAt: Self.iso8601String(Date()),
+            controlBridge: await controlBridgeServer.snapshot(),
             cells: []
         )
         currentSnapshot = stoppedSnapshot
@@ -190,17 +240,30 @@ public actor AgentCellRuntimeHost {
     private func writeSnapshot(
         status: String,
         instanceName: String,
-        owner: Identity? = nil
+        owner: Identity? = nil,
+        identityDescriptor: AgentIdentityDescriptor? = nil,
+        controlBridge: LocalControlBridgeStatus? = nil
     ) async throws -> AgentCellRuntimeSnapshot {
         let ownerUUID = owner?.uuid ?? currentSnapshot?.ownerUUID ?? "unknown"
         let ownerDisplayName = owner?.displayName ?? currentSnapshot?.ownerDisplayName ?? "unknown"
+        let descriptor: AgentIdentityDescriptor?
+        if let identityDescriptor {
+            descriptor = identityDescriptor
+        } else {
+            descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot()
+        }
+        let ownerPublicKeyBase64URL = descriptor?.publicKeyBase64URL ?? currentSnapshot?.ownerPublicKeyBase64URL ?? ""
+        let ownerDidKey = descriptor?.didKey ?? currentSnapshot?.ownerDidKey ?? ownerUUID
         let snapshot = AgentCellRuntimeSnapshot(
             instanceName: instanceName,
             status: status,
             ownerUUID: ownerUUID,
             ownerDisplayName: ownerDisplayName,
+            ownerPublicKeyBase64URL: ownerPublicKeyBase64URL,
+            ownerDidKey: ownerDidKey,
             documentRootPath: paths.cellDocumentDirectory.path,
             recordedAt: Self.iso8601String(Date()),
+            controlBridge: controlBridge ?? currentSnapshot?.controlBridge,
             cells: activeRegistrations.map { registration in
                 AgentCellRuntimeSnapshot.RegisteredCell(
                     endpoint: registration.descriptor.endpoint,

@@ -223,6 +223,79 @@ final class ConfigurationCatalogCell: GeneralCell {
         var skipResolverLookup: Bool = true
     }
 
+    private enum ConferenceSurfacePalette {
+        nonisolated static let canvas = "#F6F1E8"
+        nonisolated static let shell = "#FFFCF7"
+        nonisolated static let shellStrong = "#FFFCF6"
+        nonisolated static let shellMuted = "#F7EFE4"
+        nonisolated static let stroke = "#C7A57F"
+        nonisolated static let strokeStrong = "#A77044"
+        nonisolated static let textMain = "#1F1A15"
+        nonisolated static let textMuted = "#5C4E40"
+        nonisolated static let accentWarm = "#D86A3A"
+        nonisolated static let accentWarmSoft = "#F3E0CF"
+        nonisolated static let accentCool = "#2F7D7A"
+        nonisolated static let accentCoolSoft = "#DCEEEB"
+        nonisolated static let accentCoolBorder = "#6C9D9A"
+        nonisolated static let cautionSoft = "#F9ECD7"
+        nonisolated static let shadow = "#38220B29"
+    }
+
+    nonisolated private static func conferenceCardModifier(
+        padding: Double,
+        background: String,
+        borderColor: String,
+        cornerRadius: Double = 18,
+        shadowRadius: Double? = nil,
+        shadowY: Double = 0,
+        shadowColor: String = ConferenceSurfacePalette.shadow
+    ) -> SkeletonModifiers {
+        modifier {
+            $0.padding = padding
+            $0.background = background
+            $0.cornerRadius = cornerRadius
+            $0.borderWidth = 1
+            $0.borderColor = borderColor
+            if let shadowRadius {
+                $0.shadowRadius = shadowRadius
+                $0.shadowY = shadowY
+                $0.shadowColor = shadowColor
+            }
+        }
+    }
+
+    nonisolated private static func conferenceButtonModifier(
+        background: String,
+        borderColor: String,
+        foregroundColor: String? = nil
+    ) -> SkeletonModifiers {
+        modifier {
+            $0.padding = 8
+            $0.background = background
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = borderColor
+            $0.foregroundColor = foregroundColor
+        }
+    }
+
+    nonisolated private static func conferenceChipModifier(
+        background: String,
+        borderColor: String,
+        foregroundColor: String
+    ) -> SkeletonModifiers {
+        modifier {
+            $0.padding = 6
+            $0.background = background
+            $0.cornerRadius = 999
+            $0.borderWidth = 1
+            $0.borderColor = borderColor
+            $0.foregroundColor = foregroundColor
+            $0.fontSize = 11
+            $0.fontWeight = "semibold"
+        }
+    }
+
     private struct CatalogErrorEntry: Codable {
         var id: String
         var endpoint: String
@@ -4934,6 +5007,40 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["matching", "personalization", "identity"]
             ),
             StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///AgentProvisioning",
+                sourceCellName: "AgentProvisioningCell",
+                displayName: "Agent Setup Workbench",
+                purpose: "Installere og koble lokal HAVEN-agent",
+                purposeDescription: "Purpose-drevet kontrollflate for installasjon, oppstart og tilkobling av haven-agentd via CellProtocol.",
+                interests: ["agent", "automation", "cellprotocol", "bridge", "launchagent"],
+                summary: "Mission control for aa installere, starte og koble den lokale HAVEN-agenten med tydelig policy og purpose-binding.",
+                categoryPath: ["runtime", "agent"],
+                tags: ["agent", "automation", "cellprotocol", "launchd", "bridge"],
+                chip: "LOCAL",
+                borderColor: "#C2410C",
+                flowDriven: true,
+                recommendedContexts: ["agent-setup", "local-automation", "bridge-control"],
+                ioGetKeys: [
+                    "agent.setup.status.installStage",
+                    "agent.setup.status.runtimeStage",
+                    "agent.setup.status.connectStage",
+                    "agent.setup.status.controlBridgeState",
+                    "agent.setup.status.portholeStrategy",
+                    "agent.setup.review.pendingCount",
+                    "agent.setup.review.auditCount"
+                ],
+                ioSetKeys: [
+                    "agent.setup.syncFromPerspective",
+                    "agent.setup.install",
+                    "agent.setup.start",
+                    "agent.setup.connect",
+                    "agent.setup.stop",
+                    "agent.setup.review.approveSelected",
+                    "agent.setup.review.rejectSelected"
+                ],
+                ioTopics: ["agent.setup"]
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///EntityAnchor",
                 sourceCellName: "EntityAnchorCell",
                 displayName: "Entity Anchor Records",
@@ -5441,6 +5548,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             )
         case "cell:///perspective":
             return perspectiveWorkbenchConfiguration()
+        case "cell:///agentprovisioning":
+            return agentSetupWorkbenchConfiguration()
         case "cell:///entityanchor":
             return entityAnchorWorkbenchConfiguration()
         case "cell:///vault":
@@ -5861,6 +5970,10 @@ final class ConfigurationCatalogCell: GeneralCell {
         perspectiveWorkbenchConfiguration()
     }
 
+    nonisolated static func agentSetupWorkbenchMenuConfiguration() -> CellConfiguration {
+        agentSetupWorkbenchConfiguration()
+    }
+
     nonisolated static func entityAnchorWorkbenchMenuConfiguration() -> CellConfiguration {
         entityAnchorWorkbenchConfiguration()
     }
@@ -5902,146 +6015,133 @@ final class ConfigurationCatalogCell: GeneralCell {
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
         configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
 
-        let card = modifier {
-            $0.padding = 10
-            $0.background = "#F4F9FC"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#C6D8E5"
-        }
+        let card = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 18
+        )
 
-        let heroCard = modifier {
-            $0.padding = 14
-            $0.background = "#ECFEFF"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#22C3DD"
-            $0.shadowRadius = 8
-            $0.shadowY = 3
-            $0.shadowColor = "#0F172A22"
-        }
+        let heroCard = conferenceCardModifier(
+            padding: 14,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            cornerRadius: 22,
+            shadowRadius: 12,
+            shadowY: 4
+        )
 
-        let sectionCard = modifier {
-            $0.padding = 8
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = "#D6E3F1"
-        }
+        let sectionCard = conferenceCardModifier(
+            padding: 8,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 14
+        )
 
-        let stepsSectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#FFF7ED"
-            $0.cornerRadius = 14
-            $0.borderWidth = 1
-            $0.borderColor = "#FDBA74"
-        }
+        let stepsSectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            cornerRadius: 16
+        )
 
-        let perspectiveSectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#F0FDFA"
-            $0.cornerRadius = 14
-            $0.borderWidth = 1
-            $0.borderColor = "#5EEAD4"
-        }
+        let perspectiveSectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            cornerRadius: 16
+        )
 
-        let liveSectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#EFF6FF"
-            $0.cornerRadius = 14
-            $0.borderWidth = 1
-            $0.borderColor = "#93C5FD"
-        }
+        let liveSectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            cornerRadius: 16
+        )
 
-        let diagnosticsSectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#FEFCE8"
-            $0.cornerRadius = 14
-            $0.borderWidth = 1
-            $0.borderColor = "#FACC15"
-        }
+        let diagnosticsSectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.cautionSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            cornerRadius: 16
+        )
 
-        let storageSectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#F8FAFC"
-            $0.cornerRadius = 14
-            $0.borderWidth = 1
-            $0.borderColor = "#CBD5E1"
-        }
+        let storageSectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 16
+        )
 
         let listCard = modifier {
             $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#D6E3F1"
+            $0.borderColor = ConferenceSurfacePalette.stroke
             $0.height = 220
         }
 
-        let badgeModifier = modifier {
-            $0.padding = 6
-            $0.background = "#CFFAFE"
-            $0.cornerRadius = 999
-            $0.borderWidth = 1
-            $0.borderColor = "#67E8F9"
-            $0.fontSize = 11
-        }
+        let badgeModifier = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
-        let primaryButton = modifier {
-            $0.padding = 8
-            $0.background = "#DBEAFE"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#60A5FA"
-        }
+        let primaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
-        let neutralButton = modifier {
-            $0.padding = 8
-            $0.background = "#E2E8F0"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#94A3B8"
-        }
+        let neutralButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
-        let warningButton = modifier {
-            $0.padding = 8
-            $0.background = "#FEF3C7"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#F59E0B"
-        }
+        let warningButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
         var titleText = SkeletonText(text: title)
         titleText.modifiers = modifier {
             $0.fontStyle = "title2"
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
 
         var subtitleText = SkeletonText(text: subtitle)
         subtitleText.modifiers = modifier {
-            $0.foregroundColor = "#334155"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 13
+            $0.lineLimit = 3
+        }
+
+        var localRuntimeText = SkeletonText(text: "Runs locally in Binding. This surface stays off CellScaffold because EntityScanner depends on Apple device frameworks such as MultipeerConnectivity.")
+        localRuntimeText.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontSize = 12
             $0.lineLimit = 3
         }
 
         var privacyNoteText = SkeletonText(text: "Private keys stay on device. UWB is optional; MultipeerConnectivity remains the base transport.")
         privacyNoteText.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
             $0.fontSize = 12
             $0.lineLimit = 3
         }
 
-        var heroChip = SkeletonText(text: "PAIR + PROVE")
-        heroChip.modifiers = modifier {
-            $0.padding = 6
-            $0.background = "#0F172A"
-            $0.foregroundColor = "#F8FAFC"
-            $0.cornerRadius = 999
-            $0.fontSize = 11
-        }
+        var heroChip = SkeletonText(text: "BINDING LOCAL")
+        heroChip.modifiers = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentWarm,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.shell
+        )
 
-        var badgeMPC = SkeletonText(text: "MPC")
+        var badgeMPC = SkeletonText(text: "MPC base")
         badgeMPC.modifiers = badgeModifier
         var badgeSigned = SkeletonText(text: "Signed proofs")
         badgeSigned.modifiers = badgeModifier
@@ -6214,12 +6314,12 @@ final class ConfigurationCatalogCell: GeneralCell {
         var exportedJSONName = SkeletonText(text: "Encounter JSON exported")
         exportedJSONName.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var exportedJSONPayload = SkeletonText(keypath: "json")
         exportedJSONPayload.modifiers = modifier {
             $0.fontSize = 11
-            $0.foregroundColor = "#334155"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.lineLimit = 8
         }
         let exportedJSONReferenceElements: SkeletonElementList = [
@@ -6239,7 +6339,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var encounterLabel = SkeletonText(text: "Encounter")
         encounterLabel.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         encounterRow.append(.Text(encounterLabel))
         encounterRow.append(.Text(SkeletonText(keypath: "remoteDisplayName")))
@@ -6272,6 +6372,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         var heroStack = SkeletonVStack(elements: [
             .HStack(heroHeader),
             .Divider(SkeletonDivider()),
+            .Text(localRuntimeText),
+            .Text(privacyNoteText),
             .HStack(heroBadges),
             .HStack(SkeletonHStack(elements: [.Button(startButton), .Button(stopButton), .Button(clearButton)]))
         ])
@@ -6283,7 +6385,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             for item in checklist {
                 var itemText = SkeletonText(text: item)
                 itemText.modifiers = modifier {
-                    $0.foregroundColor = "#7C2D12"
+                    $0.foregroundColor = ConferenceSurfacePalette.strokeStrong
                     $0.fontSize = 12
                 }
                 checklistContent.append(.Text(itemText))
@@ -6291,7 +6393,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             var howToHeader = SkeletonText(text: "How to use")
             howToHeader.modifiers = modifier {
                 $0.fontWeight = "semibold"
-                $0.foregroundColor = "#9A3412"
+                $0.foregroundColor = ConferenceSurfacePalette.strokeStrong
             }
             var section = SkeletonSection(
                 header: .Text(howToHeader),
@@ -6317,7 +6419,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         for line in diagnosticsLines {
             var info = SkeletonText(text: line)
             info.modifiers = modifier {
-                $0.foregroundColor = "#713F12"
+                $0.foregroundColor = ConferenceSurfacePalette.textMuted
                 $0.fontSize = 12
                 $0.lineLimit = 4
             }
@@ -6347,7 +6449,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             var perspectiveHeader = SkeletonText(text: "Perspective")
             perspectiveHeader.modifiers = modifier {
                 $0.fontWeight = "semibold"
-                $0.foregroundColor = "#115E59"
+                $0.foregroundColor = ConferenceSurfacePalette.accentCool
             }
             var section = SkeletonSection(
                 header: .Text(perspectiveHeader),
@@ -6375,7 +6477,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var liveHeader = SkeletonText(text: "Live scanner flow")
         liveHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#1D4ED8"
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
         }
         var liveSection = SkeletonSection(
             header: .Text(liveHeader),
@@ -6391,7 +6493,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var storageHeader = SkeletonText(text: "Stored encounters")
         storageHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#334155"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var storageSection = SkeletonSection(
             header: .Text(storageHeader),
@@ -6405,7 +6507,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(rootStack)])
         scroll.modifiers = modifier {
             $0.padding = 4
-            $0.background = "#F4F9FC"
+            $0.background = ConferenceSurfacePalette.canvas
         }
         configuration.skeleton = .ScrollView(scroll)
         return configuration
@@ -6883,72 +6985,76 @@ final class ConfigurationCatalogCell: GeneralCell {
         configuration.description = "Kontrollflate for lokale formaal, interesser og kontekst som styrer menyer og semantisk matching."
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
 
-        let card = modifier {
-            $0.padding = 10
-            $0.background = "#F0FDFA"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#99F6E4"
-        }
-        let heroCard = modifier {
-            $0.padding = 12
-            $0.background = "#CCFBF1"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#14B8A6"
-        }
-        let sectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = "#CFE9E5"
-        }
+        let card = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 18
+        )
+        let heroCard = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            cornerRadius: 20,
+            shadowRadius: 10,
+            shadowY: 3
+        )
+        let sectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 14
+        )
         let listCard = modifier {
             $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#D8E7EA"
+            $0.borderColor = ConferenceSurfacePalette.stroke
             $0.height = 220
         }
-        let primaryButton = modifier {
-            $0.padding = 8
-            $0.background = "#CCFBF1"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#14B8A6"
-        }
-        let secondaryButton = modifier {
-            $0.padding = 8
-            $0.background = "#E2E8F0"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#94A3B8"
-        }
+        let primaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let secondaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let chipModifier = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
         var title = SkeletonText(text: "Perspective Context")
         title.modifiers = modifier {
             $0.fontStyle = "title2"
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var subtitle = SkeletonText(text: "Lokal purpose-state. Denne flaten styrer baade convenience-menyene og hva Apple Intelligence boer anbefale videre.")
         subtitle.modifiers = modifier {
-            $0.foregroundColor = "#134E4A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 12
             $0.lineLimit = 3
         }
+        var localChip = SkeletonText(text: "LOCAL CONTEXT")
+        localChip.modifiers = chipModifier
+        var matchingChip = SkeletonText(text: "MATCH SIGNAL")
+        matchingChip.modifiers = chipModifier
         var purposeCount = SkeletonText(url: URL(string: "cell:///Perspective/perspective.state.activePurposeCount")!)
         purposeCount.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F766E"
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
             $0.fontSize = 18
         }
         var interestCount = SkeletonText(url: URL(string: "cell:///Perspective/perspective.state.activeInterestCount")!)
         interestCount.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#115E59"
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
             $0.fontSize = 18
         }
 
@@ -6999,22 +7105,22 @@ final class ConfigurationCatalogCell: GeneralCell {
         var activePurposeHeader = SkeletonText(text: "Aktive formaal")
         activePurposeHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
 
         var purposeName = SkeletonText(keypath: "purposeName")
         purposeName.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var purposeWeight = SkeletonText(keypath: "purposeWeight")
         purposeWeight.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
             $0.fontSize = 12
         }
         var purposeRef = SkeletonText(keypath: "portablePurposeRef")
         purposeRef.modifiers = modifier {
-            $0.foregroundColor = "#64748B"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 2
         }
@@ -7031,11 +7137,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         var stateHeader = SkeletonText(text: "Perspektiv-state (JSON)")
         stateHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var rawState = SkeletonText(url: URL(string: "cell:///Perspective/perspective.state")!)
         rawState.modifiers = modifier {
-            $0.foregroundColor = "#334155"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 10
         }
@@ -7043,6 +7149,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var hero = SkeletonVStack(elements: [
             .Text(title),
             .Text(subtitle),
+            .HStack(SkeletonHStack(elements: [.Text(localChip), .Text(matchingChip)])),
             .HStack(SkeletonHStack(elements: [
                 .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Active purposes")), .Text(purposeCount)])),
                 .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Active interests")), .Text(interestCount)]))
@@ -7073,7 +7180,845 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier {
-            $0.background = "#ECFDF5"
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func agentSetupWorkbenchConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Agent Setup Workbench")
+        configuration.description = "Purpose-drevet mission control for aa installere, paire og koble haven-agentd uten aa omgaa CellProtocol."
+
+        var agentReference = CellReference(endpoint: "cell:///AgentProvisioning", label: "agent")
+        agentReference.subscribeFeed = true
+        configuration.addReference(agentReference)
+        configuration.addReference(CellReference(endpoint: "cell:///AgentEnrollment", label: "enrollment"))
+        configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
+        configuration.addReference(CellReference(endpoint: "cell:///Porthole", label: "porthole"))
+
+        let card = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 20
+        )
+        let heroCard = conferenceCardModifier(
+            padding: 14,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            cornerRadius: 22,
+            shadowRadius: 12,
+            shadowY: 4
+        )
+        let stageCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 16
+        )
+        let sectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 16
+        )
+        let listCard = modifier {
+            $0.padding = 6
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = ConferenceSurfacePalette.stroke
+            $0.height = 212
+        }
+        let compactListCard = modifier {
+            $0.padding = 6
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = ConferenceSurfacePalette.stroke
+            $0.height = 168
+        }
+        let inputModifier = modifier {
+            $0.padding = 9
+            $0.background = ConferenceSurfacePalette.shellStrong
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = ConferenceSurfacePalette.stroke
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+        }
+        let syncButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let installButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let startButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let connectButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.cautionSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let identityButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let neutralButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+
+        func inkHeader(_ text: String) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = ConferenceSurfacePalette.textMain
+                $0.fontSize = 13
+            }
+            return label
+        }
+
+        func stageValue(_ keypath: String, color: String) -> SkeletonText {
+            var text = SkeletonText(keypath: keypath)
+            text.modifiers = modifier {
+                $0.foregroundColor = color
+                $0.fontWeight = "semibold"
+                $0.fontSize = 13
+                $0.lineLimit = 3
+            }
+            return text
+        }
+
+        var title = SkeletonText(text: "Agent Setup Workbench")
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+        }
+        var subtitle = SkeletonText(text: "Purpose first. CellProtocol always. Installer, starter og kobler haven-agentd uten aa gi hver tilkobling sitt eget porthole.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 12
+            $0.lineLimit = 4
+        }
+        var bindingSummary = SkeletonText(keypath: "agent.setup.status.purposeBinding")
+        bindingSummary.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontWeight = "semibold"
+            $0.lineLimit = 3
+        }
+        var portholeStrategy = SkeletonText(keypath: "agent.setup.status.portholeStrategy")
+        portholeStrategy.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
+            $0.fontSize = 11
+            $0.lineLimit = 4
+        }
+
+        let installStage = stageValue("agent.setup.status.installStage", color: ConferenceSurfacePalette.accentWarm)
+        let runtimeStage = stageValue("agent.setup.status.runtimeStage", color: ConferenceSurfacePalette.accentCool)
+        let connectStage = stageValue("agent.setup.status.connectStage", color: ConferenceSurfacePalette.strokeStrong)
+
+        var installTile = SkeletonVStack(elements: [
+            .Text(inkHeader("Install")),
+            .Text(installStage)
+        ])
+        installTile.modifiers = stageCard
+
+        var runtimeTile = SkeletonVStack(elements: [
+            .Text(inkHeader("Runtime")),
+            .Text(runtimeStage)
+        ])
+        runtimeTile.modifiers = stageCard
+
+        var connectTile = SkeletonVStack(elements: [
+            .Text(inkHeader("Bridge")),
+            .Text(connectStage)
+        ])
+        connectTile.modifiers = stageCard
+
+        let purposeNameField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.purpose.name",
+            targetKeypath: "agent.setup.purpose.name",
+            placeholder: "Purpose name",
+            modifiers: inputModifier
+        )
+        let purposeRefField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.purpose.ref",
+            targetKeypath: "agent.setup.purpose.ref",
+            placeholder: "purpose://portable-ref",
+            modifiers: inputModifier
+        )
+        let goalField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.purpose.goal",
+            targetKeypath: "agent.setup.purpose.goal",
+            placeholder: "Goal / operating intent",
+            modifiers: inputModifier
+        )
+        let interestsField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.purpose.interests",
+            targetKeypath: "agent.setup.purpose.interests",
+            placeholder: "interest-1, interest-2, interest-3",
+            modifiers: inputModifier
+        )
+        let domainField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.status.domain",
+            targetKeypath: "agent.setup.status.domain",
+            placeholder: "staging.haven.digipomps.org",
+            modifiers: inputModifier
+        )
+        let sourceRootField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.environment.sourceRoot",
+            targetKeypath: "agent.setup.environment.sourceRoot",
+            placeholder: "/path/to/Binding",
+            modifiers: inputModifier
+        )
+        let sproutField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.environment.sproutBinaryPath",
+            targetKeypath: "agent.setup.environment.sproutBinaryPath",
+            placeholder: "/absolute/path/to/sprout",
+            modifiers: inputModifier
+        )
+
+        var syncPerspective = SkeletonButton(keypath: "agent.setup.syncFromPerspective", label: "Use active Perspective")
+        syncPerspective.modifiers = syncButton
+        var refreshState = SkeletonButton(keypath: "agent.setup.refresh", label: "Refresh")
+        refreshState.modifiers = neutralButton
+
+        var presetOps = SkeletonButton(
+            keypath: "agent.setup.selectPreset",
+            label: "Mac ops",
+            payload: .object([
+                "purposeName": .string("Operate local HAVEN agent"),
+                "purposeRef": .string("purpose://operate-local-haven-agent"),
+                "goal": .string("Install and operate the local HAVEN agent as a reviewed automation boundary for this Mac."),
+                "interests": .list([.string("cellprotocol"), .string("agent"), .string("automation"), .string("bridge")])
+            ])
+        )
+        presetOps.modifiers = installButton
+
+        var presetFiles = SkeletonButton(
+            keypath: "agent.setup.selectPreset",
+            label: "File intake",
+            payload: .object([
+                "purposeName": .string("Observe file intake"),
+                "purposeRef": .string("purpose://observe-file-intake"),
+                "goal": .string("Join scaffold access for file-driven work and route folder events through reviewed local actions."),
+                "interests": .list([.string("files"), .string("watch"), .string("automation"), .string("review")])
+            ])
+        )
+        presetFiles.modifiers = startButton
+
+        var presetResearch = SkeletonButton(
+            keypath: "agent.setup.selectPreset",
+            label: "Research companion",
+            payload: .object([
+                "purposeName": .string("Research with local context"),
+                "purposeRef": .string("purpose://research-with-local-context"),
+                "goal": .string("Keep a local agent connected for reviewed capture, retrieval and follow-up tasks."),
+                "interests": .list([.string("research"), .string("knowledge"), .string("capture"), .string("context")])
+            ])
+        )
+        presetResearch.modifiers = connectButton
+
+        var installAgent = SkeletonButton(keypath: "agent.setup.install", label: "Install agent")
+        installAgent.modifiers = installButton
+        var startAgent = SkeletonButton(keypath: "agent.setup.start", label: "Start LaunchAgent")
+        startAgent.modifiers = startButton
+        var connectAgent = SkeletonButton(keypath: "agent.setup.connect", label: "Connect purpose")
+        connectAgent.modifiers = connectButton
+        var stopAgent = SkeletonButton(keypath: "agent.setup.stop", label: "Stop")
+        stopAgent.modifiers = neutralButton
+
+        var openPerspective = SkeletonButton(
+            keypath: "porthole.setConfiguration",
+            label: "Open Perspective",
+            payload: .cellConfiguration(perspectiveWorkbenchConfiguration())
+        )
+        openPerspective.modifiers = neutralButton
+
+        var openPorthole = SkeletonButton(
+            keypath: "porthole.setConfiguration",
+            label: "Open Porthole control",
+            payload: .cellConfiguration(portholeWorkbenchConfiguration())
+        )
+        openPorthole.modifiers = neutralButton
+
+        var purposeRowName = SkeletonText(keypath: "purposeName")
+        purposeRowName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+        }
+        var purposeRowRef = SkeletonText(keypath: "portablePurposeRef")
+        purposeRowRef.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var purposeRowWeight = SkeletonText(keypath: "purposeWeight")
+        purposeRowWeight.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+        }
+        var perspectivePurposeRow = SkeletonVStack(elements: [
+            .Text(purposeRowName),
+            .Text(purposeRowRef),
+            .Text(purposeRowWeight)
+        ])
+        perspectivePurposeRow.modifiers = sectionCard
+
+        var activePurposeList = SkeletonList(
+            keypath: "cell:///Perspective/activePurpose.purposes",
+            flowElementSkeleton: perspectivePurposeRow
+        )
+        activePurposeList.modifiers = compactListCard
+
+        var pipelineTitle = SkeletonText(text: "Install pipeline")
+        pipelineTitle.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+        }
+        var pipelineRowTitle = SkeletonText(keypath: "title")
+        pipelineRowTitle.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 12
+        }
+        var pipelineRowStatus = SkeletonText(keypath: "status")
+        pipelineRowStatus.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+        }
+        var pipelineRowDetail = SkeletonText(keypath: "detail")
+        pipelineRowDetail.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var pipelineRow = SkeletonVStack(elements: [
+            .Text(pipelineRowTitle),
+            .Text(pipelineRowStatus),
+            .Text(pipelineRowDetail)
+        ])
+        pipelineRow.modifiers = sectionCard
+
+        var pipelineList = SkeletonList(keypath: "agent.setup.pipeline", flowElementSkeleton: pipelineRow)
+        pipelineList.modifiers = listCard
+
+        var activityRowTitle = SkeletonText(keypath: "title")
+        activityRowTitle.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 12
+        }
+        var activityRowTimestamp = SkeletonText(keypath: "timestamp")
+        activityRowTimestamp.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontSize = 10
+        }
+        var activityRowDetail = SkeletonText(keypath: "detail")
+        activityRowDetail.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var activityRow = SkeletonVStack(elements: [
+            .Text(activityRowTitle),
+            .Text(activityRowTimestamp),
+            .Text(activityRowDetail)
+        ])
+        activityRow.modifiers = sectionCard
+
+        var activityList = SkeletonList(keypath: "agent.setup.activity", flowElementSkeleton: activityRow)
+        activityList.modifiers = listCard
+
+        var binaryState = SkeletonText(keypath: "agent.setup.status.binaryState")
+        binaryState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var configState = SkeletonText(keypath: "agent.setup.status.configState")
+        configState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var launchAgentState = SkeletonText(keypath: "agent.setup.status.launchAgentState")
+        launchAgentState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var sproutState = SkeletonText(keypath: "agent.setup.status.sproutState")
+        sproutState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var controlBridgeState = SkeletonText(keypath: "agent.setup.status.controlBridgeState")
+        controlBridgeState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
+            $0.fontSize = 11
+            $0.fontWeight = "semibold"
+            $0.lineLimit = 3
+        }
+        var controlBridgeEndpoint = SkeletonText(keypath: "agent.setup.status.controlBridgeEndpoint")
+        controlBridgeEndpoint.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 2
+        }
+        var enrollmentSummary = SkeletonText(keypath: "enrollment.status.summary")
+        enrollmentSummary.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+            $0.lineLimit = 4
+        }
+        var enrollmentVerification = SkeletonText(keypath: "enrollment.status.verificationStatus")
+        enrollmentVerification.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var enrollmentAgentIdentity = SkeletonText(keypath: "enrollment.status.agentIdentityStatus")
+        enrollmentAgentIdentity.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var enrollmentAgentDisplay = SkeletonText(keypath: "enrollment.status.agentDisplayName")
+        enrollmentAgentDisplay.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+        var enrollmentAgentDid = SkeletonText(keypath: "enrollment.status.agentDid")
+        enrollmentAgentDid.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var enrollmentOperatorDisplay = SkeletonText(keypath: "enrollment.status.operatorDisplayName")
+        enrollmentOperatorDisplay.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var enrollmentOperatorDid = SkeletonText(keypath: "enrollment.status.operatorDid")
+        enrollmentOperatorDid.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var enrollmentPurposeRef = SkeletonText(keypath: "enrollment.status.purposeRef")
+        enrollmentPurposeRef.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 2
+        }
+        var enrollmentDomain = SkeletonText(keypath: "enrollment.status.scaffoldDomain")
+        enrollmentDomain.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 2
+        }
+        var enrollmentArtifactPath = SkeletonText(keypath: "enrollment.status.lastArtifactPath")
+        enrollmentArtifactPath.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var enrollmentStarterAuthStatus = SkeletonText(keypath: "enrollment.status.starterAuthStatus")
+        enrollmentStarterAuthStatus.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var enrollmentStarterAuthPath = SkeletonText(keypath: "enrollment.status.starterAuthPath")
+        enrollmentStarterAuthPath.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var enrollmentStarterAuthExpiry = SkeletonText(keypath: "enrollment.status.starterAuthExpiresAt")
+        enrollmentStarterAuthExpiry.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 2
+        }
+        var enrollmentEntityLinkStatus = SkeletonText(keypath: "enrollment.status.entityLinkStatus")
+        enrollmentEntityLinkStatus.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var enrollmentEntityLinkPath = SkeletonText(keypath: "enrollment.status.entityLinkPath")
+        enrollmentEntityLinkPath.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var enrollmentEntityLinkContractID = SkeletonText(keypath: "enrollment.status.entityLinkContractID")
+        enrollmentEntityLinkContractID.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontWeight = "semibold"
+            $0.fontSize = 10
+            $0.lineLimit = 2
+        }
+        var enrollmentRecordedAt = SkeletonText(keypath: "enrollment.status.lastRecordedAt")
+        enrollmentRecordedAt.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+        }
+        var enrollmentLastError = SkeletonText(keypath: "enrollment.status.lastError")
+        enrollmentLastError.modifiers = modifier {
+            $0.foregroundColor = "#991B1B"
+            $0.fontSize = 10
+            $0.lineLimit = 3
+        }
+        var identityMessage = SkeletonText(text: "Low-friction pairing: Binding approves a stable device key once per purpose, the agent signs starter-auth and entity-link evidence over CellProtocol, and remote peers stay headless.")
+        identityMessage.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 11
+            $0.lineLimit = 4
+        }
+        var createPairingArtifact = SkeletonButton(keypath: "enrollment.createPairingArtifact", label: "Create pairing artifact")
+        createPairingArtifact.modifiers = identityButton
+        var refreshEnrollment = SkeletonButton(keypath: "enrollment.refresh", label: "Refresh pairing")
+        refreshEnrollment.modifiers = neutralButton
+        var contractState = SkeletonText(keypath: "agent.setup.status.connectedContractID")
+        contractState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+        }
+        var heartbeatState = SkeletonText(keypath: "agent.setup.status.lastHeartbeatAt")
+        heartbeatState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var lastEventSummary = SkeletonText(keypath: "agent.setup.status.lastEventSummary")
+        lastEventSummary.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var lastError = SkeletonText(keypath: "agent.setup.status.lastError")
+        lastError.modifiers = modifier {
+            $0.foregroundColor = "#991B1B"
+            $0.fontSize = 11
+            $0.lineLimit = 4
+        }
+
+        let reviewNoteField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "agent.setup.review.noteDraft",
+            targetKeypath: "agent.setup.review.noteDraft",
+            placeholder: "Optional operator note for approve/reject",
+            modifiers: inputModifier
+        )
+
+        var approveReview = SkeletonButton(keypath: "agent.setup.review.approveSelected", label: "Approve selected")
+        approveReview.modifiers = connectButton
+        var rejectReview = SkeletonButton(keypath: "agent.setup.review.rejectSelected", label: "Reject selected")
+        rejectReview.modifiers = neutralButton
+
+        var reviewQueueState = SkeletonText(keypath: "agent.setup.review.queueState")
+        reviewQueueState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var reviewSelectedSummary = SkeletonText(keypath: "agent.setup.review.selectedSummary")
+        reviewSelectedSummary.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontWeight = "semibold"
+            $0.fontSize = 12
+            $0.lineLimit = 3
+        }
+        var reviewAuditState = SkeletonText(keypath: "agent.setup.review.auditState")
+        reviewAuditState.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var reviewLastOutcome = SkeletonText(keypath: "agent.setup.review.lastOutcome")
+        reviewLastOutcome.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+        }
+        var reviewLastRecordedAt = SkeletonText(keypath: "agent.setup.review.lastRecordedAt")
+        reviewLastRecordedAt.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+        }
+
+        var pendingIntentSummary = SkeletonText(keypath: "summary")
+        pendingIntentSummary.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 12
+            $0.lineLimit = 2
+        }
+        var pendingIntentStatus = SkeletonText(keypath: "verificationStatus")
+        pendingIntentStatus.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontWeight = "semibold"
+            $0.fontSize = 11
+        }
+        var pendingIntentArguments = SkeletonText(keypath: "argumentsSummary")
+        pendingIntentArguments.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var pendingIntentExpiry = SkeletonText(keypath: "expiresAt")
+        pendingIntentExpiry.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+        }
+        var pendingIntentRow = SkeletonVStack(elements: [
+            .Text(pendingIntentSummary),
+            .Text(pendingIntentStatus),
+            .Text(pendingIntentArguments),
+            .Text(pendingIntentExpiry)
+        ])
+        pendingIntentRow.modifiers = sectionCard
+
+        var pendingIntentList = SkeletonList(keypath: "agent.setup.review.pending", flowElementSkeleton: pendingIntentRow)
+        pendingIntentList.selectionMode = .single
+        pendingIntentList.selectionPayloadMode = .itemID
+        pendingIntentList.selectionValueKeypath = "id"
+        pendingIntentList.selectionActionKeypath = "agent.setup.review.selection"
+        pendingIntentList.modifiers = listCard
+
+        var auditOutcome = SkeletonText(keypath: "outcome")
+        auditOutcome.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
+            $0.fontSize = 11
+        }
+        var auditAction = SkeletonText(keypath: "actionID")
+        auditAction.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 12
+        }
+        var auditReviewer = SkeletonText(keypath: "reviewer")
+        auditReviewer.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+        }
+        var auditExecuted = SkeletonText(keypath: "executedActionSummary")
+        auditExecuted.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+        var auditError = SkeletonText(keypath: "errorMessage")
+        auditError.modifiers = modifier {
+            $0.foregroundColor = "#991B1B"
+            $0.fontSize = 10
+            $0.lineLimit = 2
+        }
+        var auditRecordedAt = SkeletonText(keypath: "recordedAt")
+        auditRecordedAt.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 10
+        }
+        var auditRow = SkeletonVStack(elements: [
+            .Text(auditAction),
+            .Text(auditOutcome),
+            .Text(auditReviewer),
+            .Text(auditExecuted),
+            .Text(auditError),
+            .Text(auditRecordedAt)
+        ])
+        auditRow.modifiers = sectionCard
+
+        var auditList = SkeletonList(keypath: "agent.setup.review.audit", flowElementSkeleton: auditRow)
+        auditList.modifiers = listCard
+
+        var topologyLineA = SkeletonText(text: "CellProtocol first: UI, install flow and remote orchestration should always move through cells.")
+        topologyLineA.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var topologyLineB = SkeletonText(text: "One operator porthole: use a local control surface when a human needs UX, not one porthole per remote client.")
+        topologyLineB.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+        var topologyLineC = SkeletonText(text: "Reviewed effects only: macOS automation stays behind allowlisted local cells and purpose-scoped review.")
+        topologyLineC.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+            $0.fontSize = 11
+            $0.lineLimit = 3
+        }
+
+        var hero = SkeletonVStack(elements: [
+            .Text(title),
+            .Text(subtitle),
+            .Text(bindingSummary),
+            .Text(portholeStrategy),
+            .HStack(SkeletonHStack(elements: [
+                .VStack(installTile),
+                .VStack(runtimeTile),
+                .VStack(connectTile)
+            ])),
+            .HStack(SkeletonHStack(elements: [.Button(syncPerspective), .Button(refreshState)])),
+            .HStack(SkeletonHStack(elements: [.Button(presetOps), .Button(presetFiles), .Button(presetResearch)]))
+        ])
+        hero.modifiers = heroCard
+
+        var purposeSection = SkeletonSection(
+            header: .Text(inkHeader("1. Bind to purpose")),
+            content: [
+                .TextField(purposeNameField),
+                .TextField(purposeRefField),
+                .TextField(goalField),
+                .TextField(interestsField),
+                .List(activePurposeList)
+            ]
+        )
+        purposeSection.modifiers = sectionCard
+
+        var environmentSection = SkeletonSection(
+            header: .Text(inkHeader("2. Point to local runtime")),
+            content: [
+                .TextField(domainField),
+                .TextField(sourceRootField),
+                .TextField(sproutField),
+                .Text(binaryState),
+                .Text(configState),
+                .Text(launchAgentState),
+                .Text(sproutState),
+                .Text(controlBridgeState),
+                .Text(controlBridgeEndpoint)
+            ]
+        )
+        environmentSection.modifiers = sectionCard
+
+        var controlsSection = SkeletonSection(
+            header: .Text(inkHeader("3. Install, start, connect")),
+            content: [
+                .HStack(SkeletonHStack(elements: [.Button(installAgent), .Button(startAgent)])),
+                .HStack(SkeletonHStack(elements: [.Button(connectAgent), .Button(stopAgent)])),
+                .HStack(SkeletonHStack(elements: [.Button(openPerspective), .Button(openPorthole)])),
+                .Text(pipelineTitle),
+                .List(pipelineList)
+            ]
+        )
+        controlsSection.modifiers = sectionCard
+
+        var enrollmentSection = SkeletonSection(
+            header: .Text(inkHeader("4. Pair Binding and agent identity")),
+            content: [
+                .Text(identityMessage),
+                .Text(enrollmentSummary),
+                .Text(enrollmentVerification),
+                .HStack(SkeletonHStack(elements: [.Button(createPairingArtifact), .Button(refreshEnrollment)])),
+                .Text(enrollmentAgentIdentity),
+                .Text(enrollmentAgentDisplay),
+                .Text(enrollmentAgentDid),
+                .Text(enrollmentOperatorDisplay),
+                .Text(enrollmentOperatorDid),
+                .Text(enrollmentPurposeRef),
+                .Text(enrollmentDomain),
+                .Text(enrollmentArtifactPath),
+                .Text(enrollmentStarterAuthStatus),
+                .Text(enrollmentStarterAuthPath),
+                .Text(enrollmentStarterAuthExpiry),
+                .Text(enrollmentEntityLinkStatus),
+                .Text(enrollmentEntityLinkContractID),
+                .Text(enrollmentEntityLinkPath),
+                .Text(enrollmentRecordedAt),
+                .Text(enrollmentLastError)
+            ]
+        )
+        enrollmentSection.modifiers = sectionCard
+
+        var runtimeSection = SkeletonSection(
+            header: .Text(inkHeader("5. Runtime and bridge state")),
+            content: [
+                .Text(controlBridgeState),
+                .Text(controlBridgeEndpoint),
+                .Text(contractState),
+                .Text(heartbeatState),
+                .Text(lastEventSummary),
+                .Text(lastError),
+                .List(activityList)
+            ]
+        )
+        runtimeSection.modifiers = sectionCard
+
+        var reviewSection = SkeletonSection(
+            header: .Text(inkHeader("6. Review remote intents")),
+            content: [
+                .Text(reviewQueueState),
+                .Text(reviewSelectedSummary),
+                .TextField(reviewNoteField),
+                .HStack(SkeletonHStack(elements: [.Button(approveReview), .Button(rejectReview)])),
+                .List(pendingIntentList),
+                .Text(reviewAuditState),
+                .Text(reviewLastOutcome),
+                .Text(reviewLastRecordedAt),
+                .List(auditList)
+            ]
+        )
+        reviewSection.modifiers = sectionCard
+
+        var policySection = SkeletonSection(
+            header: .Text(inkHeader("7. Topology and trust model")),
+            content: [
+                .Text(topologyLineA),
+                .Text(topologyLineB),
+                .Text(topologyLineC)
+            ]
+        )
+        policySection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .Section(purposeSection),
+            .Section(environmentSection),
+            .Section(controlsSection),
+            .Section(enrollmentSection),
+            .Section(runtimeSection),
+            .Section(reviewSection),
+            .Section(policySection)
+        ])
+        root.modifiers = card
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
         }
         configuration.skeleton = .ScrollView(scroll)
         return configuration
@@ -7084,62 +8029,64 @@ final class ConfigurationCatalogCell: GeneralCell {
         configuration.description = "Inspeksjon av lokal entitet, relasjoner og proofs som andre verktoy lagrer i EntityAnchor."
         configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
 
-        let card = modifier {
-            $0.padding = 10
-            $0.background = "#F8FAFC"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#CBD5E1"
-        }
-        let heroCard = modifier {
-            $0.padding = 12
-            $0.background = "#EEF2FF"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#818CF8"
-        }
-        let sectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = "#D7E0F0"
-        }
+        let card = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 18
+        )
+        let heroCard = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            cornerRadius: 20,
+            shadowRadius: 10,
+            shadowY: 3
+        )
+        let sectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 14
+        )
         let listCard = modifier {
             $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#D7E0F0"
+            $0.borderColor = ConferenceSurfacePalette.stroke
             $0.height = 180
         }
-        let primaryButton = modifier {
-            $0.padding = 8
-            $0.background = "#E0E7FF"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#818CF8"
-        }
-        let warningButton = modifier {
-            $0.padding = 8
-            $0.background = "#FEF3C7"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#F59E0B"
-        }
+        let primaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let warningButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.cautionSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let chipModifier = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
         var title = SkeletonText(text: "Entity Anchor Records")
         title.modifiers = modifier {
             $0.fontStyle = "title2"
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var subtitle = SkeletonText(text: "Les person, relasjoner og proofs direkte. Entity Scanner og andre identitetsflyter legger sporene sine her.")
         subtitle.modifiers = modifier {
-            $0.foregroundColor = "#3730A3"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 12
             $0.lineLimit = 3
         }
+        var proofsChip = SkeletonText(text: "PROOFS + RELATIONS")
+        proofsChip.modifiers = chipModifier
 
         var reloadStorage = SkeletonButton(keypath: "reloadStorage", label: "Reload storage", url: "cell:///EntityAnchor")
         reloadStorage.modifiers = primaryButton
@@ -7155,11 +8102,11 @@ final class ConfigurationCatalogCell: GeneralCell {
             var header = SkeletonText(text: label)
             header.modifiers = modifier {
                 $0.fontWeight = "semibold"
-                $0.foregroundColor = "#0F172A"
+                $0.foregroundColor = ConferenceSurfacePalette.textMain
             }
             var body = SkeletonText(url: URL(string: urlString)!)
             body.modifiers = modifier {
-                $0.foregroundColor = "#334155"
+                $0.foregroundColor = ConferenceSurfacePalette.textMuted
                 $0.fontSize = 11
                 $0.lineLimit = 8
             }
@@ -7171,16 +8118,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         var eventTitle = SkeletonText(keypath: "title")
         eventTitle.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var eventKeypath = SkeletonText(keypath: "content.keypath")
         eventKeypath.modifiers = modifier {
-            $0.foregroundColor = "#4F46E5"
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
             $0.fontSize = 11
         }
         var eventPayload = SkeletonText(keypath: "content.data")
         eventPayload.modifiers = modifier {
-            $0.foregroundColor = "#475569"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 3
         }
@@ -7193,6 +8140,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var hero = SkeletonVStack(elements: [
             .Text(title),
             .Text(subtitle),
+            .Text(proofsChip),
             .HStack(SkeletonHStack(elements: [.Button(reloadStorage), .Button(clearEncounters)]))
         ])
         hero.modifiers = heroCard
@@ -7200,7 +8148,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var eventsHeader = SkeletonText(text: "Entity updates")
         eventsHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var eventsSection = SkeletonSection(header: .Text(eventsHeader), content: [.List(eventList)])
         eventsSection.modifiers = sectionCard
@@ -7217,7 +8165,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier {
-            $0.background = "#F8FAFC"
+            $0.background = ConferenceSurfacePalette.canvas
         }
         configuration.skeleton = .ScrollView(scroll)
         return configuration
@@ -7228,42 +8176,44 @@ final class ConfigurationCatalogCell: GeneralCell {
         configuration.description = "Lokal kontrollflate for notater, linkede notater og state i VaultCell."
         configuration.addReference(CellReference(endpoint: "cell:///Vault", label: "vault"))
 
-        let card = modifier {
-            $0.padding = 10
-            $0.background = "#FAF5FF"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#D8B4FE"
-        }
-        let heroCard = modifier {
-            $0.padding = 12
-            $0.background = "#F5D0FE"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#C084FC"
-        }
-        let sectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = "#E9D5FF"
-        }
+        let card = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 18
+        )
+        let heroCard = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            cornerRadius: 20,
+            shadowRadius: 10,
+            shadowY: 3
+        )
+        let sectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 14
+        )
         let listCard = modifier {
             $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#E9D5FF"
+            $0.borderColor = ConferenceSurfacePalette.stroke
             $0.height = 180
         }
-        let primaryButton = modifier {
-            $0.padding = 8
-            $0.background = "#FAE8FF"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#C084FC"
-        }
+        let primaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let chipModifier = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
         let noteSeedA: Object = [
             "id": .string("conference-capture"),
@@ -7286,24 +8236,26 @@ final class ConfigurationCatalogCell: GeneralCell {
         title.modifiers = modifier {
             $0.fontStyle = "title2"
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var subtitle = SkeletonText(text: "Seed lokale notater, koble dem sammen og les vault-state uten aa vaere avhengig av staging.")
         subtitle.modifiers = modifier {
-            $0.foregroundColor = "#6B21A8"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 12
             $0.lineLimit = 3
         }
+        var localChip = SkeletonText(text: "LOCAL NOTES")
+        localChip.modifiers = chipModifier
         var noteCount = SkeletonText(url: URL(string: "cell:///Vault/vault.state.note_count")!)
         noteCount.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#7E22CE"
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
             $0.fontSize = 18
         }
         var linkCount = SkeletonText(url: URL(string: "cell:///Vault/vault.state.link_count")!)
         linkCount.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#A21CAF"
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
             $0.fontSize = 18
         }
 
@@ -7326,7 +8278,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var operationText = SkeletonText(keypath: "operation")
         operationText.modifiers = modifier {
-            $0.foregroundColor = "#581C87"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
             $0.fontSize = 12
         }
         var operationsList = SkeletonList(keypath: "cell:///Vault/vault.state.operations", flowElementSkeleton: SkeletonVStack(elements: [.Text(operationText)]))
@@ -7334,7 +8286,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var rawState = SkeletonText(url: URL(string: "cell:///Vault/vault.state")!)
         rawState.modifiers = modifier {
-            $0.foregroundColor = "#334155"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 10
         }
@@ -7342,17 +8294,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         var operationsHeader = SkeletonText(text: "Supported operations")
         operationsHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var stateHeader = SkeletonText(text: "Vault state (JSON)")
         stateHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
 
         var hero = SkeletonVStack(elements: [
             .Text(title),
             .Text(subtitle),
+            .Text(localChip),
             .HStack(SkeletonHStack(elements: [
                 .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Notes")), .Text(noteCount)])),
                 .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Links")), .Text(linkCount)]))
@@ -7376,7 +8329,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier {
-            $0.background = "#FAF5FF"
+            $0.background = ConferenceSurfacePalette.canvas
         }
         configuration.skeleton = .ScrollView(scroll)
         return configuration
@@ -7387,49 +8340,49 @@ final class ConfigurationCatalogCell: GeneralCell {
         configuration.description = "Policy-, issuer- og attestation-workbench for trusted issuer-flyten."
         configuration.addReference(CellReference(endpoint: "cell:///TrustedIssuers", label: "trusted"))
 
-        let card = modifier {
-            $0.padding = 10
-            $0.background = "#FFFBEB"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#FDE68A"
-        }
-        let heroCard = modifier {
-            $0.padding = 12
-            $0.background = "#FEF3C7"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#F59E0B"
-        }
-        let sectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = "#FDE68A"
-        }
+        let card = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 18
+        )
+        let heroCard = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            cornerRadius: 20,
+            shadowRadius: 10,
+            shadowY: 3
+        )
+        let sectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 14
+        )
         let listCard = modifier {
             $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#FDE68A"
+            $0.borderColor = ConferenceSurfacePalette.stroke
             $0.height = 200
         }
-        let primaryButton = modifier {
-            $0.padding = 8
-            $0.background = "#FEF3C7"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#F59E0B"
-        }
-        let secondaryButton = modifier {
-            $0.padding = 8
-            $0.background = "#F8FAFC"
-            $0.cornerRadius = 10
-            $0.borderWidth = 1
-            $0.borderColor = "#CBD5E1"
-        }
+        let primaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let secondaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let chipModifier = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
         let seededContextId = "conference.access"
         let seededIssuerId = "did:key:conference-host"
@@ -7438,30 +8391,32 @@ final class ConfigurationCatalogCell: GeneralCell {
         title.modifiers = modifier {
             $0.fontStyle = "title2"
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var subtitle = SkeletonText(text: "Vedlikehold policy, issuers og attestations for credential-verifikasjon. Denne flaten er lokal og idempotent for seed-data.")
         subtitle.modifiers = modifier {
-            $0.foregroundColor = "#92400E"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 12
             $0.lineLimit = 3
         }
+        var trustChip = SkeletonText(text: "LOCAL TRUST POLICY")
+        trustChip.modifiers = chipModifier
         var policyCount = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state.policyCount")!)
         policyCount.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#B45309"
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
             $0.fontSize = 18
         }
         var issuerCount = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state.issuerCount")!)
         issuerCount.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#92400E"
+            $0.foregroundColor = ConferenceSurfacePalette.accentWarm
             $0.fontSize = 18
         }
         var attestationCount = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state.attestationCount")!)
         attestationCount.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#78350F"
+            $0.foregroundColor = ConferenceSurfacePalette.strokeStrong
             $0.fontSize = 18
         }
 
@@ -7537,7 +8492,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             let elements = fields.map { field -> SkeletonElement in
                 var text = SkeletonText(keypath: field)
                 text.modifiers = modifier {
-                    $0.foregroundColor = field == fields.first ? "#0F172A" : "#475569"
+                    $0.foregroundColor = field == fields.first ? ConferenceSurfacePalette.textMain : ConferenceSurfacePalette.textMuted
                     $0.fontWeight = field == fields.first ? "semibold" : "regular"
                     $0.fontSize = field == fields.first ? 13 : 11
                     $0.lineLimit = 2
@@ -7564,11 +8519,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         var rawStateHeader = SkeletonText(text: "Registry state (JSON)")
         rawStateHeader.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var rawState = SkeletonText(url: URL(string: "cell:///TrustedIssuers/trustedIssuers.state")!)
         rawState.modifiers = modifier {
-            $0.foregroundColor = "#334155"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 8
         }
@@ -7576,6 +8531,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var hero = SkeletonVStack(elements: [
             .Text(title),
             .Text(subtitle),
+            .Text(trustChip),
             .HStack(SkeletonHStack(elements: [
                 .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Policies")), .Text(policyCount)])),
                 .VStack(SkeletonVStack(elements: [.Text(SkeletonText(text: "Issuers")), .Text(issuerCount)])),
@@ -7590,7 +8546,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             var header = SkeletonText(text: title)
             header.modifiers = modifier {
                 $0.fontWeight = "semibold"
-                $0.foregroundColor = "#0F172A"
+                $0.foregroundColor = ConferenceSurfacePalette.textMain
             }
             var section = SkeletonSection(header: .Text(header), content: [.List(list)])
             section.modifiers = sectionCard
@@ -7612,7 +8568,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier {
-            $0.background = "#FFFBEB"
+            $0.background = ConferenceSurfacePalette.canvas
         }
         configuration.skeleton = .ScrollView(scroll)
         return configuration
@@ -7950,49 +8906,49 @@ final class ConfigurationCatalogCell: GeneralCell {
         configuration.description = "Last nyttige kontrollflater inn i Porthole, se tilgjengelige menyer og inspiser historikken for tidligere layouts."
         configuration.addReference(CellReference(endpoint: "cell:///Porthole", label: "porthole"))
 
-        let card = modifier {
-            $0.padding = 10
-            $0.background = "#EFF6FF"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#BFDBFE"
-        }
-        let heroCard = modifier {
-            $0.padding = 12
-            $0.background = "#DBEAFE"
-            $0.cornerRadius = 16
-            $0.borderWidth = 1
-            $0.borderColor = "#60A5FA"
-        }
-        let sectionCard = modifier {
-            $0.padding = 10
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = "#D6E4F5"
-        }
+        let card = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shellMuted,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 18
+        )
+        let heroCard = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            cornerRadius: 20,
+            shadowRadius: 10,
+            shadowY: 3
+        )
+        let sectionCard = conferenceCardModifier(
+            padding: 10,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 14
+        )
         let listCard = modifier {
             $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 12
+            $0.background = ConferenceSurfacePalette.shell
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#D6E4F5"
+            $0.borderColor = ConferenceSurfacePalette.stroke
             $0.height = 180
         }
-        let primaryButton = modifier {
-            $0.padding = 6
-            $0.background = "#DBEAFE"
-            $0.borderWidth = 1
-            $0.borderColor = "#60A5FA"
-            $0.cornerRadius = 8
-        }
-        let neutralButton = modifier {
-            $0.padding = 6
-            $0.background = "#F1F5F9"
-            $0.borderWidth = 1
-            $0.borderColor = "#CBD5E1"
-            $0.cornerRadius = 8
-        }
+        let primaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let neutralButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let chipModifier = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
 
         let appleConfig = appleIntelligenceLandingConfiguration()
         let scannerConfig = entityScannerWorkbenchConfiguration()
@@ -8003,7 +8959,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             var label = SkeletonText(text: text)
             label.modifiers = modifier {
                 $0.fontWeight = "semibold"
-                $0.foregroundColor = "#0F172A"
+                $0.foregroundColor = ConferenceSurfacePalette.textMain
                 $0.fontSize = 12
             }
             return label
@@ -8013,17 +8969,19 @@ final class ConfigurationCatalogCell: GeneralCell {
         title.modifiers = modifier {
             $0.fontStyle = "title2"
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var subtitle = SkeletonText(text: "Bytt raskt mellom viktige control surfaces og se hva Porthole selv eksponerer som outward menu og historikk.")
         subtitle.modifiers = modifier {
-            $0.foregroundColor = "#1D4ED8"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 12
             $0.lineLimit = 3
         }
+        var controlChip = SkeletonText(text: "OPERATOR PORTHOLE")
+        controlChip.modifiers = chipModifier
         var connectedEmitters = SkeletonText(url: URL(string: "cell:///Porthole/connectedCellEmitters")!)
         connectedEmitters.modifiers = modifier {
-            $0.foregroundColor = "#334155"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 6
         }
@@ -8040,11 +8998,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         var configName = SkeletonText(keypath: "name")
         configName.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
         var configDescription = SkeletonText(keypath: "description")
         configDescription.modifiers = modifier {
-            $0.foregroundColor = "#475569"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 2
         }
@@ -8060,12 +9018,12 @@ final class ConfigurationCatalogCell: GeneralCell {
         var eventTitle = SkeletonText(keypath: "title")
         eventTitle.modifiers = modifier {
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
             $0.fontSize = 12
         }
         var eventBody = SkeletonText(keypath: "content")
         eventBody.modifiers = modifier {
-            $0.foregroundColor = "#475569"
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 11
             $0.lineLimit = 2
         }
@@ -8078,6 +9036,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var hero = SkeletonVStack(elements: [
             .Text(title),
             .Text(subtitle),
+            .Text(controlChip),
             .Text(header("Connected emitters (raw)")),
             .Text(connectedEmitters),
             .HStack(SkeletonHStack(elements: [.Button(loadAI), .Button(loadScanner)])),
@@ -8102,7 +9061,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier {
-            $0.background = "#EFF6FF"
+            $0.background = ConferenceSurfacePalette.canvas
         }
         configuration.skeleton = .ScrollView(scroll)
         return configuration

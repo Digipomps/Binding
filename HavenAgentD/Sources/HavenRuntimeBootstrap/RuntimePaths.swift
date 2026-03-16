@@ -13,6 +13,8 @@ public struct RuntimePaths: Equatable, Sendable {
     public var stateFile: URL
     public var cellRuntimeFile: URL
     public var remoteIntentStateFile: URL
+    public var agentIdentityFile: URL
+    public var pairingArtifactFile: URL
 
     public init(
         homeDirectory: URL,
@@ -26,7 +28,9 @@ public struct RuntimePaths: Equatable, Sendable {
         configFile: URL,
         stateFile: URL,
         cellRuntimeFile: URL,
-        remoteIntentStateFile: URL
+        remoteIntentStateFile: URL,
+        agentIdentityFile: URL,
+        pairingArtifactFile: URL
     ) {
         self.homeDirectory = homeDirectory
         self.applicationSupportDirectory = applicationSupportDirectory
@@ -40,6 +44,8 @@ public struct RuntimePaths: Equatable, Sendable {
         self.stateFile = stateFile
         self.cellRuntimeFile = cellRuntimeFile
         self.remoteIntentStateFile = remoteIntentStateFile
+        self.agentIdentityFile = agentIdentityFile
+        self.pairingArtifactFile = pairingArtifactFile
     }
 
     public static func `default`(fileManager: FileManager = .default) throws -> RuntimePaths {
@@ -68,7 +74,9 @@ public struct RuntimePaths: Equatable, Sendable {
             configFile: agentDirectory.appendingPathComponent("config.json"),
             stateFile: stateDirectory.appendingPathComponent("agent-state.json"),
             cellRuntimeFile: stateDirectory.appendingPathComponent("cell-runtime.json"),
-            remoteIntentStateFile: stateDirectory.appendingPathComponent("remote-intent-state.json")
+            remoteIntentStateFile: stateDirectory.appendingPathComponent("remote-intent-state.json"),
+            agentIdentityFile: stateDirectory.appendingPathComponent("agent-identity.json"),
+            pairingArtifactFile: outputDirectory.appendingPathComponent("agent-enrollment-pairing.json")
         )
     }
 
@@ -93,7 +101,9 @@ public struct RuntimePaths: Equatable, Sendable {
             configFile: agentDirectory.appendingPathComponent("config.json"),
             stateFile: stateDirectory.appendingPathComponent("agent-state.json"),
             cellRuntimeFile: stateDirectory.appendingPathComponent("cell-runtime.json"),
-            remoteIntentStateFile: stateDirectory.appendingPathComponent("remote-intent-state.json")
+            remoteIntentStateFile: stateDirectory.appendingPathComponent("remote-intent-state.json"),
+            agentIdentityFile: stateDirectory.appendingPathComponent("agent-identity.json"),
+            pairingArtifactFile: outputDirectory.appendingPathComponent("agent-enrollment-pairing.json")
         )
     }
 }

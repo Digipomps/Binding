@@ -24,6 +24,12 @@ public enum AgentCellRegistry {
             sideEffectBoundary: "Read-only health projection."
         ),
         AgentCellDescriptor(
+            kind: .agentIdentity,
+            endpoint: "cell:///agent/identity",
+            typeName: "AgentIdentityCell",
+            sideEffectBoundary: "Read-only identity projection plus explicit enrollment attestation signing."
+        ),
+        AgentCellDescriptor(
             kind: .remoteIntentInbox,
             endpoint: "cell:///agent/intents/inbox",
             typeName: "RemoteIntentInboxCell",
@@ -41,6 +47,8 @@ public enum AgentCellRegistry {
         switch kind {
         case .agentSupervisor:
             return await AgentSupervisorCell(owner: owner)
+        case .agentIdentity:
+            return await AgentIdentityCell(owner: owner)
         case .remoteIntentInbox:
             return await RemoteIntentInboxCell(owner: owner)
         case .remoteIntentReview:

@@ -1,6 +1,7 @@
 import Foundation
 import Security
 @preconcurrency import CellBase
+import HavenAgentRuntime
 
 #if canImport(CryptoKit)
 import CryptoKit
@@ -49,6 +50,35 @@ public final class LocalIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
             installBackingKeyIfNeeded(for: &identity)
             identitiesByContext[identity.displayName] = identity
             identitiesByContext[identity.uuid] = identity
+        }
+    }
+
+    public func installIdentity(
+        descriptor: AgentIdentityDescriptor,
+        privateKey: Curve25519.Signing.PrivateKey
+    ) async -> Identity {
+        withLock {
+            let identity = Identity(
+                descriptor.identityUUID,
+                displayName: descriptor.displayName,
+                identityVault: self
+            )
+            signingKeysByIdentityUUID[descriptor.identityUUID] = privateKey
+            identity.publicSecureKey = SecureKey(
+                date: Date(),
+                privateKey: false,
+                use: .signature,
+                algorithm: .EdDSA,
+                size: 256,
+                curveType: .Curve25519,
+                x: nil,
+                y: nil,
+                compressedKey: privateKey.publicKey.rawRepresentation
+            )
+            identity.identityVault = self
+            identitiesByContext[descriptor.identityContext] = identity
+            identitiesByContext[descriptor.identityUUID] = identity
+            return identity
         }
     }
 

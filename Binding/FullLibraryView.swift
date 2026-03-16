@@ -1106,7 +1106,7 @@ final class FullLibraryViewModel: ObservableObject {
 
         do {
             let (catalog, identity, endpoint) = try await resolveCatalog()
-            try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
+            _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
             let fallbackCatalogResults = try? await directCatalogResults(from: catalog, requester: identity)
             let queryPayload = buildQueryPayload()
             let startedAt = Date()
@@ -1278,7 +1278,7 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     private func directCatalogResults(from catalog: Meddle, requester: Identity) async throws -> [SearchResult] {
-        let rawEntries = try await catalog.get(keypath: "catalogEntries", requester: requester) ?? .null
+        let rawEntries = try await catalog.get(keypath: "catalogEntries", requester: requester)
         guard case let .list(items) = rawEntries else { return [] }
 
         let queryCorpusTokens = directMatchTokens()
