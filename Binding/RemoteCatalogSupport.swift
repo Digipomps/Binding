@@ -35,6 +35,14 @@ enum RemoteCatalogSupport {
         return remoteCandidates + localCandidates
     }
 
+    static func shouldSyncCatalogBeforeQuery(for endpoint: String) -> Bool {
+        isLocalCatalogEndpoint(endpoint)
+    }
+
+    static func shouldAttemptAdmission(for endpoint: String) -> Bool {
+        !isLocalCatalogEndpoint(endpoint) && catalogOrigin(from: endpoint) != nil
+    }
+
     static func registerRemoteRouteIfNeeded(for endpoint: String, resolver: CellResolver) {
         guard let origin = catalogOrigin(from: endpoint) else { return }
         let host = origin.host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

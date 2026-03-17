@@ -485,8 +485,8 @@ struct ContentView: View {
                 continue
             }
 
-            if source.allowSync {
-                _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
+            if source.allowSync && RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: source.endpoint) {
+                _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .object([:]), requester: identity)
             }
 
             func fetchMenu(_ keypath: String, allowReferenceFree: Bool = false) async -> [CellConfiguration] {
@@ -2751,29 +2751,41 @@ private struct EdgeMenusOverlay: View {
     @State private var expanded: Set<EdgePosition> = []
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                EdgeMenu(position: EdgePosition.upperLeft, items: upperLeft, isExpanded: expanded.contains(EdgePosition.upperLeft)) { action(EdgePosition.upperLeft, $0) }
-                    .position(x: 32, y: 32)
+        ZStack {
+            alignedMenu(.upperLeft, items: upperLeft, alignment: .topLeading)
+            alignedMenu(.upperMid, items: upperMid, alignment: .top)
+            alignedMenu(.upperRight, items: upperRight, alignment: .topTrailing)
+            alignedMenu(.lowerLeft, items: lowerLeft, alignment: .bottomLeading)
+            alignedMenu(.lowerMid, items: lowerMid, alignment: .bottom)
+            alignedMenu(.lowerRight, items: lowerRight, alignment: .bottomTrailing)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onPreferenceChange(EdgeMenuToggleKey.self) { pos in
+            if let pos { toggle(pos) }
+        }
+    }
 
-                EdgeMenu(position: EdgePosition.upperMid, items: upperMid, isExpanded: expanded.contains(EdgePosition.upperMid)) { action(EdgePosition.upperMid, $0) }
-                    .position(x: proxy.size.width / 2, y: 32)
+    @ViewBuilder
+    private func alignedMenu(_ position: EdgePosition, items: [MenuItem], alignment: Alignment) -> some View {
+        EdgeMenu(position: position, items: items, isExpanded: expanded.contains(position)) { action(position, $0) }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+            .padding(edgeInsets(for: position))
+    }
 
-                EdgeMenu(position: EdgePosition.upperRight, items: upperRight, isExpanded: expanded.contains(EdgePosition.upperRight)) { action(EdgePosition.upperRight, $0) }
-                    .position(x: proxy.size.width - 32, y: 32)
-
-                EdgeMenu(position: EdgePosition.lowerLeft, items: lowerLeft, isExpanded: expanded.contains(EdgePosition.lowerLeft)) { action(EdgePosition.lowerLeft, $0) }
-                    .position(x: 32, y: proxy.size.height - 32)
-
-                EdgeMenu(position: EdgePosition.lowerMid, items: lowerMid, isExpanded: expanded.contains(EdgePosition.lowerMid)) { action(EdgePosition.lowerMid, $0) }
-                    .position(x: proxy.size.width / 2, y: proxy.size.height - 32)
-
-                EdgeMenu(position: EdgePosition.lowerRight, items: lowerRight, isExpanded: expanded.contains(EdgePosition.lowerRight)) { action(EdgePosition.lowerRight, $0) }
-                    .position(x: proxy.size.width - 32, y: proxy.size.height - 32)
-            }
-            .onPreferenceChange(EdgeMenuToggleKey.self) { pos in
-                if let pos { toggle(pos) }
-            }
+    private func edgeInsets(for position: EdgePosition) -> EdgeInsets {
+        switch position {
+        case .upperLeft:
+            return EdgeInsets(top: 14, leading: 14, bottom: 0, trailing: 0)
+        case .upperMid:
+            return EdgeInsets(top: 14, leading: 0, bottom: 0, trailing: 0)
+        case .upperRight:
+            return EdgeInsets(top: 14, leading: 0, bottom: 0, trailing: 14)
+        case .lowerLeft:
+            return EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 0)
+        case .lowerMid:
+            return EdgeInsets(top: 0, leading: 0, bottom: 14, trailing: 0)
+        case .lowerRight:
+            return EdgeInsets(top: 0, leading: 0, bottom: 14, trailing: 14)
         }
     }
 
@@ -2808,7 +2820,11 @@ private struct EdgeMenusOverlay: View {
 
     private func toggle(_ position: EdgePosition) {
         withAnimation(.spring()) {
-            if expanded.contains(position) { expanded.remove(position) } else { expanded.insert(position) }
+            if expanded.contains(position) {
+                expanded.remove(position)
+            } else {
+                expanded = [position]
+            }
         }
     }
 }

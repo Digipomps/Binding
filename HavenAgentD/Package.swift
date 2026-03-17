@@ -15,7 +15,7 @@ let package = Package(
         .executable(name: "haven-agentd", targets: ["HavenAgentD"])
     ],
     dependencies: [
-        .package(url: "https://github.com/Digipomps/CellProtocol.git", revision: "80f01d0979630008d055744469e66dd15c44d1c6"),
+        .package(url: "https://github.com/Digipomps/CellProtocol.git", revision: "105e5be37a6c3e6d55113b0aa086aff8faa48d7c"),
         .package(url: "https://github.com/Digipomps/Sprout.git", revision: "d53d2d18f5cadd4bd0e73e449101a3b766f65af7"),
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.1")
     ],

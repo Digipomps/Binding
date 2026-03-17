@@ -32,28 +32,30 @@ struct EdgeMenu: View {
     @State private var sweepDegrees: CGFloat = 140
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                // Expansion fan
-                if isExpanded {
-                    ForEach(Array(items.enumerated()), id: \.1.id) { idx, item in
-                        itemButton(item)
-                            .offset(clampedRadialOffset(for: idx, count: items.count, in: proxy.size))
-                            .transition(.scale.combined(with: .opacity))
-                    }
+        ZStack(alignment: anchorAlignment) {
+            if isExpanded {
+                ForEach(Array(items.enumerated()), id: \.1.id) { idx, item in
+                    itemButton(item)
+                        .offset(radialOffset(for: idx, count: items.count))
+                        .transition(.scale.combined(with: .opacity))
                 }
-
-                // Main menu button
-                Button(action: { onTap(nil) }) {
-                    Image(systemName: mainIcon)
-                        .font(.system(size: 18, weight: .bold))
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+
+            Button(action: { onTap(nil) }) {
+                Image(systemName: mainIcon)
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.28), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.12), radius: 8, y: 4)
+            }
+            .buttonStyle(.plain)
         }
+        .frame(width: footprint.width, height: footprint.height, alignment: anchorAlignment)
+        .contentShape(Rectangle())
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isExpanded)
     }
 
@@ -67,6 +69,32 @@ struct EdgeMenu: View {
         }
         .draggable(item.configuration)
         .buttonStyle(.plain)
+    }
+
+    private var footprint: CGSize {
+        switch position {
+        case .upperMid, .lowerMid:
+            return CGSize(width: 300, height: 220)
+        default:
+            return CGSize(width: 220, height: 220)
+        }
+    }
+
+    private var anchorAlignment: Alignment {
+        switch position {
+        case .upperLeft:
+            return .topLeading
+        case .upperMid:
+            return .top
+        case .upperRight:
+            return .topTrailing
+        case .lowerLeft:
+            return .bottomLeading
+        case .lowerMid:
+            return .bottom
+        case .lowerRight:
+            return .bottomTrailing
+        }
     }
 
     private func degreesToRadians(_ deg: CGFloat) -> CGFloat { deg * .pi / 180 }
@@ -103,51 +131,6 @@ struct EdgeMenu: View {
         return CGSize(width: x, height: y)
     }
 
-    private func clampedRadialOffset(for index: Int, count: Int, in size: CGSize) -> CGSize {
-        let pad: CGFloat = 10
-        let itemDiameter: CGFloat = 36 // approx: 16pt icon + 2*8pt padding, matches itemButton
-
-        // Compute the raw offset from the anchor (main button center)
-        let raw = radialOffset(for: index, count: count)
-
-        // Determine the anchor absolute position for the main button based on EdgePosition
-        // EdgeMenusOverlay positions EdgeMenu at edges using .position(...). Inside here, we are at local center.
-        // We need to map anchor to actual edge location within this local GeometryReader.
-        // We'll approximate anchor points with 32pt margins like documentation suggests.
-        let margin: CGFloat = 32
-        let anchor: CGPoint
-        switch position {
-        case .upperLeft:
-            anchor = CGPoint(x: margin, y: margin)
-        case .upperMid:
-            anchor = CGPoint(x: size.width / 2, y: margin)
-        case .upperRight:
-            anchor = CGPoint(x: size.width - margin, y: margin)
-        case .lowerLeft:
-            anchor = CGPoint(x: margin, y: size.height - margin)
-        case .lowerMid:
-            anchor = CGPoint(x: size.width / 2, y: size.height - margin)
-        case .lowerRight:
-            anchor = CGPoint(x: size.width - margin, y: size.height - margin)
-        }
-
-        // Compute the absolute position of the item (center) before clamping
-        var absX = anchor.x + raw.width
-        var absY = anchor.y + raw.height
-
-        // Clamp within bounds considering padding and item size
-        let minX = pad + itemDiameter / 2
-        let maxX = size.width - pad - itemDiameter / 2
-        let minY = pad + itemDiameter / 2
-        let maxY = size.height - pad - itemDiameter / 2
-
-        absX = min(max(absX, minX), maxX)
-        absY = min(max(absY, minY), maxY)
-
-        // Convert back to offset relative to anchor
-        return CGSize(width: absX - anchor.x, height: absY - anchor.y)
-    }
-
     private var mainIcon: String {
         switch position {
         case .upperLeft: return "line.3.horizontal.circle.fill"
@@ -159,4 +142,3 @@ struct EdgeMenu: View {
         }
     }
 }
-

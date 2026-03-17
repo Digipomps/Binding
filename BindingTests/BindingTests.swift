@@ -174,6 +174,18 @@ struct BindingTests {
         ])
     }
 
+    @Test func remoteCatalogSyncRunsOnlyForLocalCatalogEndpoint() {
+        #expect(RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: "cell:///ConfigurationCatalog"))
+        #expect(!RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: "cell://staging.haven.digipomps.org/ConfigurationCatalog"))
+        #expect(!RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog"))
+    }
+
+    @Test func remoteCatalogAdmissionRunsOnlyForRemoteCatalogEndpoints() {
+        #expect(!RemoteCatalogSupport.shouldAttemptAdmission(for: "cell:///ConfigurationCatalog"))
+        #expect(RemoteCatalogSupport.shouldAttemptAdmission(for: "cell://staging.haven.digipomps.org/ConfigurationCatalog"))
+        #expect(RemoteCatalogSupport.shouldAttemptAdmission(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog"))
+    }
+
     @Test func entityScannerWorkbenchConfigurationsStayLocalToBinding() {
         let configurations = [
             ConfigurationCatalogCell.entityScannerWorkbenchConfiguration(),

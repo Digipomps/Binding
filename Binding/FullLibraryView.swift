@@ -1034,6 +1034,13 @@ final class FullLibraryViewModel: ObservableObject {
         case catalogUnavailable
     }
 
+    private struct ResolvedCatalog {
+        let catalog: Meddle
+        let emitter: Emit?
+        let identity: Identity
+        let endpoint: String
+    }
+
     @Published var selectedTab: LibraryTab = .allConfigs
     @Published var queryText: String = ""
     @Published var tokenDraft: String = ""
@@ -1060,6 +1067,7 @@ final class FullLibraryViewModel: ObservableObject {
     private let catalogEndpoints: [String]
     private let queryContext: FullLibraryQueryContext
     private var refreshTask: Task<Void, Never>?
+    private var admittedCatalogEndpoints: Set<String> = []
 
     init(
         catalogEndpoints: [String],
@@ -1136,13 +1144,23 @@ final class FullLibraryViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let (catalog, identity, endpoint) = try await resolveCatalog()
-            _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: identity)
-            let fallbackCatalogResults = try? await directCatalogResults(from: catalog, requester: identity)
+            let resolved = try await resolveCatalog()
+            let catalog = resolved.catalog
+            let identity = resolved.identity
+            let endpoint = resolved.endpoint
+            if RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: endpoint) {
+                _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .object([:]), requester: identity)
+            }
             let queryPayload = buildQueryPayload()
             let startedAt = Date()
             warnings = []
             catalogMode = .unknown
+
+            if let admissionWarning = await ensureCatalogAccessIfNeeded(resolved) {
+                warnings.append(admissionWarning)
+            }
+
+            let fallbackCatalogResults = try? await directCatalogResults(from: catalog, requester: identity)
 
             var usedDirectCatalogFallback = false
             if let queryResponse = try? await catalog.set(keypath: "query", value: .object(queryPayload), requester: identity) {
@@ -1150,8 +1168,8 @@ final class FullLibraryViewModel: ObservableObject {
                 catalogMode = .fullQuery
             } else if let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
                 results = fallbackCatalogResults
-                facetSections = []
-                warnings = ["Kilden støtter ikke katalog-query. Viser direkte katalogentries i stedet."]
+                facetSections = deriveFacetSections(from: fallbackCatalogResults)
+                warnings.append("Kilden støtter ikke katalog-query. Viser direkte katalogentries i stedet.")
                 selectedResultID = results.first?.id
                 usedDirectCatalogFallback = true
                 catalogMode = .directEntriesFallback
@@ -1164,15 +1182,15 @@ final class FullLibraryViewModel: ObservableObject {
                 if let facetResponse = try? await catalog.set(keypath: "facetCounts", value: .object(facetPayload), requester: identity) {
                     parseFacetResponse(facetResponse)
                 } else {
-                    facetSections = []
-                    warnings.append("Kilden støtter ikke facetCounts. Viser treff uten facetter.")
+                    facetSections = deriveFacetSections(from: results)
+                    warnings.append("Kilden støtter ikke facetCounts. Viser lokale fasetter for treffene.")
                 }
             }
 
             let elapsed = Int(Date().timeIntervalSince(startedAt) * 1000.0)
             if results.isEmpty, let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
                 results = fallbackCatalogResults
-                facetSections = []
+                facetSections = deriveFacetSections(from: fallbackCatalogResults)
                 if warnings.isEmpty {
                     warnings = ["Query svarte tomt. Viser direkte katalogentries i stedet."]
                 }
@@ -1185,9 +1203,17 @@ final class FullLibraryViewModel: ObservableObject {
             }
             availability = .available(endpoint: endpoint)
         } catch {
+            let offlineResults = offlineFallbackResults()
+            results = offlineResults
+            facetSections = deriveFacetSections(from: offlineResults)
+            selectedResultID = results.first?.id
             availability = .unavailable(reason: "Kunne ikke nå ConfigurationCatalog.")
-            statusLine = "Kun offline-cached favoritter/templates er tilgjengelig."
-            catalogMode = .unknown
+            statusLine = offlineResults.isEmpty
+                ? "Kun offline-cached favoritter/templates er tilgjengelig."
+                : "Staging er utilgjengelig. Viser lokal cache med preview og filtre."
+            warnings = offlineResults.isEmpty ? warnings : ["Staging-katalogen svarte ikke. Viser lokal cache i stedet."]
+            catalogMode = offlineResults.isEmpty ? .unknown : .directEntriesFallback
+            connectivity = ConnectivitySnapshot(onlineSources: 0, degradedSources: 0, offlineSources: 1)
         }
     }
 
@@ -1308,7 +1334,7 @@ final class FullLibraryViewModel: ObservableObject {
         )
     }
 
-    private func resolveCatalog() async throws -> (Meddle, Identity, String) {
+    private func resolveCatalog() async throws -> ResolvedCatalog {
         await AppInitializer.initialize()
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw LibraryError.resolverUnavailable
@@ -1325,9 +1351,39 @@ final class FullLibraryViewModel: ObservableObject {
             else {
                 continue
             }
-            return (catalog, identity, endpoint)
+            return ResolvedCatalog(catalog: catalog, emitter: emit as? Emit, identity: identity, endpoint: endpoint)
         }
         throw LibraryError.catalogUnavailable
+    }
+
+    private func ensureCatalogAccessIfNeeded(_ resolved: ResolvedCatalog) async -> String? {
+        guard RemoteCatalogSupport.shouldAttemptAdmission(for: resolved.endpoint) else {
+            return nil
+        }
+        guard !admittedCatalogEndpoints.contains(resolved.endpoint) else {
+            return nil
+        }
+        guard let emitter = resolved.emitter else {
+            return "Remote katalog mangler emit-støtte. Hopper over admission."
+        }
+
+        let connector = await GeneralCell(owner: resolved.identity)
+        connector.doneInitializing()
+
+        do {
+            let connectState = try await connector.attach(
+                emitter: emitter,
+                label: "fullLibrary.catalog",
+                requester: resolved.identity
+            )
+            if connectState == .connected {
+                admittedCatalogEndpoints.insert(resolved.endpoint)
+                return nil
+            }
+            return "Remote katalog krevde kontrakt, men admission endte i \(connectState.rawValue)."
+        } catch {
+            return "Remote katalog-admission feilet. Fortsetter med beste tilgjengelige fallback."
+        }
     }
 
     private func directCatalogResults(from catalog: Meddle, requester: Identity) async throws -> [SearchResult] {
@@ -1424,6 +1480,76 @@ final class FullLibraryViewModel: ObservableObject {
                     summary: summary,
                     insertionModes: insertionModes,
                     supportedTargetKinds: supportedTargetKinds
+                )
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
+            return lhs.score > rhs.score
+        }
+
+        return Array(results.prefix(selectedTab == .sources ? 100 : 60))
+    }
+
+    private func offlineFallbackResults() -> [SearchResult] {
+        let queryTokens = directMatchTokens()
+        let hasSignal = !defaultQueryTextForTab().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !queryTokens.isEmpty
+
+        let candidates: [(CellConfiguration, String, [String])] =
+            fallbackFavorites.map { ($0, "offline.favorite", ["Offline", "Favorite"]) } +
+            fallbackTemplates.map { ($0, "offline.template", ["Offline", "Template"]) }
+
+        let results = candidates.compactMap { configuration, sourceRef, seedBadges -> SearchResult? in
+            let discovery = configuration.discovery
+            let displayName = configuration.name
+            let summary = configuration.description ?? discovery?.purposeDescription ?? ""
+            let corpus = [
+                displayName,
+                summary,
+                discovery?.purpose ?? "",
+                discovery?.interests.joined(separator: " ") ?? "",
+                discovery?.sourceCellEndpoint ?? ""
+            ]
+            .joined(separator: " ")
+            .lowercased()
+
+            let matchedTokens = queryTokens.filter { corpus.contains($0) }
+            let score = hasSignal
+                ? Double(matchedTokens.count) / Double(max(1, queryTokens.count))
+                : 0.42
+
+            if hasSignal && score <= 0 {
+                return nil
+            }
+
+            let sourceEndpoint = discovery?.sourceCellEndpoint ?? sourceRef
+            return SearchResult(
+                id: "offline|\(configuration.uuid)",
+                configurationId: configuration.uuid,
+                displayName: displayName,
+                summary: summary,
+                sourceRef: sourceEndpoint,
+                route: "offlineCache",
+                score: score,
+                scoreBreakdown: ScoreBreakdown(
+                    text: score,
+                    purpose: hasSignal ? min(1, score * 0.8) : 0.2,
+                    interest: hasSignal ? min(1, score * 0.7) : 0.2,
+                    compatibility: 0,
+                    connectivity: 0,
+                    resourceFit: 0,
+                    recency: 0
+                ),
+                badges: seedBadges,
+                configuration: configuration,
+                componentItem: makeComponentItem(
+                    configuration: configuration,
+                    displayName: displayName,
+                    summary: summary,
+                    insertionModes: configuration.skeleton == nil ? [] : ["both"],
+                    supportedTargetKinds: ["root", "vstack", "section", "scrollview", "grid"]
                 )
             )
         }
@@ -1720,6 +1846,70 @@ final class FullLibraryViewModel: ObservableObject {
         }
 
         facetSections = sections
+    }
+
+    private func deriveFacetSections(from results: [SearchResult]) -> [FacetSection] {
+        guard !results.isEmpty else { return [] }
+
+        func sortedBuckets(from counts: [String: Int], key: String) -> [FacetBucket] {
+            counts
+                .map { FacetBucket(facetKey: key, value: $0.key, count: $0.value, exact: true) }
+                .sorted { lhs, rhs in
+                    if lhs.count == rhs.count {
+                        return lhs.value.localizedCaseInsensitiveCompare(rhs.value) == .orderedAscending
+                    }
+                    return lhs.count > rhs.count
+                }
+        }
+
+        var sourceCounts: [String: Int] = [:]
+        var insertionModeCounts: [String: Int] = [:]
+        var authCounts: [String: Int] = [:]
+        var flowCounts: [String: Int] = [:]
+        var editableCounts: [String: Int] = [:]
+
+        for result in results {
+            if !result.sourceRef.isEmpty {
+                sourceCounts[result.sourceRef, default: 0] += 1
+            }
+
+            let loweredBadges = Set(result.badges.map { $0.lowercased() })
+            if loweredBadges.contains("both") {
+                insertionModeCounts["both", default: 0] += 1
+            } else if loweredBadges.contains("root") {
+                insertionModeCounts["root", default: 0] += 1
+            } else if loweredBadges.contains("component") {
+                insertionModeCounts["component", default: 0] += 1
+            }
+
+            if loweredBadges.contains("auth-required") {
+                authCounts["true", default: 0] += 1
+            }
+            if loweredBadges.contains("flow-driven") {
+                flowCounts["true", default: 0] += 1
+            }
+            if loweredBadges.contains("editable") {
+                editableCounts["true", default: 0] += 1
+            }
+        }
+
+        var sections: [FacetSection] = []
+        if !sourceCounts.isEmpty {
+            sections.append(FacetSection(key: "sourceRef", title: "Source", buckets: sortedBuckets(from: sourceCounts, key: "sourceRef")))
+        }
+        if !insertionModeCounts.isEmpty {
+            sections.append(FacetSection(key: "supportedInsertionModes", title: "Insertion", buckets: sortedBuckets(from: insertionModeCounts, key: "supportedInsertionModes")))
+        }
+        if !authCounts.isEmpty {
+            sections.append(FacetSection(key: "authRequired", title: "Auth", buckets: sortedBuckets(from: authCounts, key: "authRequired")))
+        }
+        if !flowCounts.isEmpty {
+            sections.append(FacetSection(key: "flowDriven", title: "Flow", buckets: sortedBuckets(from: flowCounts, key: "flowDriven")))
+        }
+        if !editableCounts.isEmpty {
+            sections.append(FacetSection(key: "editable", title: "Editable", buckets: sortedBuckets(from: editableCounts, key: "editable")))
+        }
+        return sections
     }
 
     private func facetTitle(for key: String) -> String {
