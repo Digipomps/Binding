@@ -117,6 +117,10 @@ enum RemoteEndpointAccessSupport {
         endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    static func canonicalRoute(for endpoint: String) -> RemoteCellHostRoute? {
+        remoteOrigin(from: endpoint)?.route
+    }
+
     private static func isLiveControlBridgeEndpoint(_ endpoint: String) -> Bool {
         guard let components = URLComponents(string: endpoint),
               let scheme = components.scheme?.lowercased(),
@@ -160,6 +164,9 @@ enum RemoteEndpointAccessSupport {
         case "cell":
             return RemoteOrigin(host: host, route: route(forHost: host))
         case "ws", "wss":
+            if host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == stagingHost {
+                return RemoteOrigin(host: host, route: stagingRemoteRoute)
+            }
             let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let routePath: String
             if normalizedPath.isEmpty {

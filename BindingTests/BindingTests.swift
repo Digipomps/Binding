@@ -217,6 +217,18 @@ struct BindingTests {
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog") == .scaffoldAdmission)
     }
 
+    @Test func stagingWebSocketEndpointsCanonicalizeToBridgeheadRoute() {
+        let publishersRoute = RemoteEndpointAccessSupport.canonicalRoute(
+            for: "wss://staging.haven.digipomps.org/publishersws/ConferenceUIRouter"
+        )
+        let bridgeheadRoute = RemoteEndpointAccessSupport.canonicalRoute(
+            for: "wss://staging.haven.digipomps.org/bridgehead/ConferenceUIRouter"
+        )
+
+        #expect(publishersRoute?.websocketEndpoint == "bridgehead")
+        #expect(bridgeheadRoute?.websocketEndpoint == "bridgehead")
+    }
+
     @Test func remoteEndpointAccessTreatsLoopbackBridgeheadAsLiveControlAgreement() {
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://127.0.0.1:43110/bridgehead/agent/identity") == .liveControlAgreement)
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://localhost:43110/bridgehead") == .liveControlAgreement)

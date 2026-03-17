@@ -2175,27 +2175,23 @@ struct ContentView: View {
             return false
         }
 
-        let fallbackCandidates: [RemoteCellHostRoute] = [
-            RemoteCellHostRoute(websocketEndpoint: Self.stagingRemoteWebSocketPath, schemePreference: .wss),
-            RemoteCellHostRoute(websocketEndpoint: Self.defaultRemoteWebSocketPath, schemePreference: .wss)
-        ]
-
-        for route in fallbackCandidates {
-            registerRemoteHostIfNeeded(host, route: route, resolver: resolver)
-            do {
-                let emit = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity)
-                try await RemoteEndpointAccessSupport.authorizeIfNeeded(
-                    endpoint: endpoint,
-                    emit: emit,
-                    requester: identity,
-                    accessLabel: "binding.probe"
-                )
-                return true
-            } catch {
-                continue
-            }
+        let canonicalRoute = RemoteCellHostRoute(
+            websocketEndpoint: Self.stagingRemoteWebSocketPath,
+            schemePreference: .wss
+        )
+        registerRemoteHostIfNeeded(host, route: canonicalRoute, resolver: resolver)
+        do {
+            let emit = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity)
+            try await RemoteEndpointAccessSupport.authorizeIfNeeded(
+                endpoint: endpoint,
+                emit: emit,
+                requester: identity,
+                accessLabel: "binding.probe"
+            )
+            return true
+        } catch {
+            return false
         }
-        return false
     }
 
     private func endpointIdentity(_ endpoint: String) -> String {
@@ -2224,7 +2220,7 @@ struct ContentView: View {
     private func probeFailureMessage(endpoint: String, error: Error) -> String {
         let errorText = String(describing: error)
         if errorText.lowercased().contains("timeout") {
-            return "Timeout ved lasting av \(endpoint). Sjekk staging websocket-route (bridgehead/publishersws)."
+            return "Timeout ved lasting av \(endpoint). Sjekk staging websocket-route (bridgehead)."
         }
         return "Kunne ikke laste \(endpoint): \(errorText)"
     }
