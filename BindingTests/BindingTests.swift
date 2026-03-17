@@ -200,6 +200,37 @@ struct BindingTests {
         }
     }
 
+    @Test func conferenceParticipantPortalDashboardIsWrappedInScrollView() {
+        var configuration = CellConfiguration(name: "Conference Participant Portal Dashboard")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Hero"))
+        ]))
+
+        let adjusted = ConfigurationPresentationSupport.viewportSafeConfiguration(configuration)
+
+        guard case let .ScrollView(scroll)? = adjusted.skeleton else {
+            Issue.record("Forventet ScrollView-wrapper for conference dashboard")
+            return
+        }
+
+        #expect(scroll.axis == "vertical")
+        #expect(scroll.elements.count == 1)
+    }
+
+    @Test func unrelatedConfigurationsKeepOriginalSkeletonShape() {
+        var configuration = CellConfiguration(name: "Agent Setup Workbench")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Agent"))
+        ]))
+
+        let adjusted = ConfigurationPresentationSupport.viewportSafeConfiguration(configuration)
+
+        guard case .VStack = adjusted.skeleton else {
+            Issue.record("Urelatert konfigurasjon skulle ikke blitt scroll-wrappet")
+            return
+        }
+    }
+
     @MainActor
     @Test func deletingComponentPrunesNewlyUnusedReferences() {
         var configuration = CellConfiguration(name: "Delete Chat Component")

@@ -67,7 +67,6 @@ struct EdgeMenu: View {
                 .background(Color.accentColor.opacity(0.9), in: Circle())
                 .foregroundStyle(.white)
         }
-        .draggable(item.configuration)
         .buttonStyle(.plain)
     }
 

@@ -15,6 +15,31 @@ import UIKit
 import AppKit
 #endif
 
+enum ConfigurationPresentationSupport {
+    private static let viewportBoundConfigurationNames: Set<String> = [
+        "conference participant portal dashboard"
+    ]
+
+    static func viewportSafeConfiguration(_ configuration: CellConfiguration) -> CellConfiguration {
+        let normalizedName = configuration.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard viewportBoundConfigurationNames.contains(normalizedName),
+              let skeleton = configuration.skeleton
+        else {
+            return configuration
+        }
+
+        if case .ScrollView = skeleton {
+            return configuration
+        }
+
+        var adjusted = configuration
+        adjusted.skeleton = .ScrollView(SkeletonScrollView(axis: "vertical", elements: [skeleton]))
+        return adjusted
+    }
+}
+
 struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private static let stagingHost = "staging.haven.digipomps.org"
@@ -183,6 +208,7 @@ struct ContentView: View {
                     }
                 )
                 .allowsHitTesting(true)
+                .ignoresSafeArea(.container, edges: [.top, .leading, .trailing, .bottom])
                 .transition(.opacity.combined(with: .move(edge: .leading)))
             }
         }
@@ -683,7 +709,8 @@ struct ContentView: View {
             normalized.cellReferences = references.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
         }
         normalized = ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
-        return canonicalizeSkeletonReferencesIfNeeded(in: normalized)
+        normalized = canonicalizeSkeletonReferencesIfNeeded(in: normalized)
+        return ConfigurationPresentationSupport.viewportSafeConfiguration(normalized)
     }
 
     private func ensureCatalogReferenceBindingIfNeeded(
@@ -1351,6 +1378,13 @@ struct ContentView: View {
         loadErrorMessage = nil
         var normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
         if let resolver = CellBase.defaultCellResolver as? CellResolver {
+            if let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) {
+                normalizedConfiguration = await hydrateSparseConfigurationIfNeeded(
+                    normalizedConfiguration,
+                    resolver: resolver,
+                    identity: identity
+                )
+            }
             normalizedConfiguration = normalizeConfigurationForResolver(
                 normalizedConfiguration,
                 origin: nil,
@@ -1482,6 +1516,46 @@ struct ContentView: View {
             }
         }
         return inserted
+    }
+
+    private func hydrateSparseConfigurationIfNeeded(
+        _ configuration: CellConfiguration,
+        resolver: CellResolver,
+        identity: Identity
+    ) async -> CellConfiguration {
+        let hasSkeleton = configuration.skeleton != nil
+        let hasReferences = !(configuration.cellReferences?.isEmpty ?? true)
+        guard !hasSkeleton, hasReferences else {
+            return configuration
+        }
+
+        guard let references = configuration.cellReferences else {
+            return configuration
+        }
+
+        for reference in references {
+            guard let recovered = await recoverConfigurationFromEndpoint(
+                reference.endpoint,
+                resolver: resolver,
+                identity: identity
+            ) else {
+                continue
+            }
+
+            var merged = recovered
+            if merged.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                merged.name = configuration.name
+            }
+            if merged.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                merged.description = configuration.description
+            }
+            if merged.discovery == nil {
+                merged.discovery = configuration.discovery
+            }
+            return merged
+        }
+
+        return configuration
     }
 
     private func armComponentPlacement(_ item: ComponentPaletteItem?) {
@@ -1979,7 +2053,7 @@ struct ContentView: View {
                 reference,
                 resolver: resolver,
                 identity: identity,
-                probeDirectEndpoint: false
+                probeDirectEndpoint: true
             ) {
                 failures.insert(endpointIdentity(reference.endpoint))
                 if firstMessage == nil {
@@ -2790,15 +2864,25 @@ private struct EdgeMenusOverlay: View {
     }
 
     private func action(_ position: EdgePosition, _ config: CellConfiguration?) {
-        if let config { onSelect(config) }
-        else if !onPrimaryAction(position) {
-            let items = menuItems(for: position)
-            if items.count == 1, let only = items.first?.configuration {
-                onSelect(only)
-                return
-            }
-            toggle(position)
+        if let config {
+            expanded.removeAll()
+            onSelect(config)
+            return
         }
+
+        let items = menuItems(for: position)
+        if items.isEmpty {
+            _ = onPrimaryAction(position)
+            return
+        }
+
+        if items.count == 1, let only = items.first?.configuration {
+            expanded.removeAll()
+            onSelect(only)
+            return
+        }
+
+        toggle(position)
     }
 
     private func menuItems(for position: EdgePosition) -> [MenuItem] {

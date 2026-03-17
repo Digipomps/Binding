@@ -1396,11 +1396,12 @@ final class FullLibraryViewModel: ObservableObject {
 
         let results = items.compactMap { item -> SearchResult? in
             guard case let .object(object) = item,
-                  let configuration = decodeCellConfiguration(from: object["configuration"]),
-                  !isEmitterConfiguration(configuration)
+                  let decodedConfiguration = decodeCellConfiguration(from: object["configuration"])
             else {
                 return nil
             }
+            let configuration = ConfigurationPresentationSupport.viewportSafeConfiguration(decodedConfiguration)
+            guard !isEmitterConfiguration(configuration) else { return nil }
 
             let displayName = object["displayName"]?.stringValueOrNil ?? configuration.name
             let summary = object["summary"]?.stringValueOrNil ?? (configuration.description ?? "")
@@ -1502,6 +1503,7 @@ final class FullLibraryViewModel: ObservableObject {
             fallbackTemplates.map { ($0, "offline.template", ["Offline", "Template"]) }
 
         let results = candidates.compactMap { configuration, sourceRef, seedBadges -> SearchResult? in
+            let configuration = ConfigurationPresentationSupport.viewportSafeConfiguration(configuration)
             let discovery = configuration.discovery
             let displayName = configuration.name
             let summary = configuration.description ?? discovery?.purposeDescription ?? ""
@@ -1745,7 +1747,8 @@ final class FullLibraryViewModel: ObservableObject {
         if case let .list(items)? = root["results"] {
             parsedResults = items.compactMap { item in
                 guard case let .object(object) = item else { return nil }
-                guard let configuration = decodeCellConfiguration(from: object["configuration"]) else { return nil }
+                guard let decodedConfiguration = decodeCellConfiguration(from: object["configuration"]) else { return nil }
+                let configuration = ConfigurationPresentationSupport.viewportSafeConfiguration(decodedConfiguration)
                 guard !isEmitterConfiguration(configuration) else { return nil }
 
                 let scoreBreakdownObject = object["scoreBreakdown"]?.objectValue ?? [:]
