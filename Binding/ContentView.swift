@@ -553,6 +553,7 @@ struct ContentView: View {
         let curated = curatedMenuSeedConfigurations()
         let fallbackEndpoints = curatedFallbackEndpoints(from: curated)
         for endpoint in fallbackEndpoints {
+            guard RemoteCatalogSupport.shouldEagerlyRecoverMenuEndpoint(endpoint) else { continue }
             let endpointKey = endpointIdentity(endpoint)
             guard discoveredByEndpoint[endpointKey] == nil else { continue }
             if let recovered = await recoverConfigurationFromEndpoint(
@@ -1383,6 +1384,11 @@ struct ContentView: View {
         var normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
         if let resolver = CellBase.defaultCellResolver as? CellResolver {
             if let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) {
+                normalizedConfiguration = await recoverRemoteConfigurationOnDemandIfNeeded(
+                    normalizedConfiguration,
+                    resolver: resolver,
+                    identity: identity
+                )
                 normalizedConfiguration = await hydrateSparseConfigurationIfNeeded(
                     normalizedConfiguration,
                     resolver: resolver,
@@ -1538,6 +1544,44 @@ struct ContentView: View {
         }
 
         for reference in references {
+            guard let recovered = await recoverConfigurationFromEndpoint(
+                reference.endpoint,
+                resolver: resolver,
+                identity: identity
+            ) else {
+                continue
+            }
+
+            var merged = recovered
+            if merged.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                merged.name = configuration.name
+            }
+            if merged.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                merged.description = configuration.description
+            }
+            if merged.discovery == nil {
+                merged.discovery = configuration.discovery
+            }
+            return merged
+        }
+
+        return configuration
+    }
+
+    private func recoverRemoteConfigurationOnDemandIfNeeded(
+        _ configuration: CellConfiguration,
+        resolver: CellResolver,
+        identity: Identity
+    ) async -> CellConfiguration {
+        guard RemoteCatalogSupport.shouldRecoverConfigurationOnDemand(configuration) else {
+            return configuration
+        }
+        guard let references = configuration.cellReferences else {
+            return configuration
+        }
+
+        for reference in references {
+            guard RemoteCatalogSupport.isRemoteEndpoint(reference.endpoint) else { continue }
             guard let recovered = await recoverConfigurationFromEndpoint(
                 reference.endpoint,
                 resolver: resolver,

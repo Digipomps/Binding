@@ -297,8 +297,42 @@ enum RemoteCatalogSupport {
         RemoteEndpointAccessSupport.shouldAttemptScaffoldAdmission(for: endpoint)
     }
 
+    static func shouldEagerlyRecoverMenuEndpoint(_ endpoint: String) -> Bool {
+        !isRemoteEndpoint(endpoint)
+    }
+
+    static func shouldRecoverConfigurationOnDemand(_ configuration: CellConfiguration) -> Bool {
+        guard let references = configuration.cellReferences, !references.isEmpty else {
+            return false
+        }
+        guard references.contains(where: { isRemoteEndpoint($0.endpoint) }) else {
+            return false
+        }
+        return !skeletonContainsDynamicBindings(configuration.skeleton)
+    }
+
     static func registerRemoteRouteIfNeeded(for endpoint: String, resolver: CellResolver) {
         RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
+    }
+
+    static func isRemoteEndpoint(_ endpoint: String) -> Bool {
+        guard let components = URLComponents(string: endpoint),
+              let scheme = components.scheme?.lowercased()
+        else {
+            return false
+        }
+
+        switch scheme {
+        case "cell", "ws", "wss":
+            guard let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                  !host.isEmpty
+            else {
+                return false
+            }
+            return host != "localhost" && host != "127.0.0.1"
+        default:
+            return false
+        }
     }
 
     static func isLocalCatalogEndpoint(_ endpoint: String) -> Bool {
@@ -311,5 +345,29 @@ enum RemoteCatalogSupport {
         let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         return host.isEmpty && path == "configurationcatalog"
+    }
+
+    private static func skeletonContainsDynamicBindings(_ skeleton: SkeletonElement?) -> Bool {
+        guard let skeleton,
+              let data = try? JSONEncoder().encode(skeleton),
+              let raw = String(data: data, encoding: .utf8)?.lowercased()
+        else {
+            return false
+        }
+
+        let dynamicMarkers = [
+            "\"url\":",
+            "\"keypath\":",
+            "\"sourcekeypath\":",
+            "\"targetkeypath\":",
+            "\"reference\":",
+            "\"list\":",
+            "\"picker\":",
+            "\"textfield\":",
+            "\"textarea\":",
+            "\"toggle\":"
+        ]
+
+        return dynamicMarkers.contains(where: raw.contains)
     }
 }

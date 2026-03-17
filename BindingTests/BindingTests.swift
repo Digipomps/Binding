@@ -186,6 +186,32 @@ struct BindingTests {
         #expect(RemoteCatalogSupport.shouldAttemptAdmission(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog"))
     }
 
+    @Test func remoteMenuRecoverySkipsStagingEndpointsDuringMenuBuild() {
+        #expect(RemoteCatalogSupport.shouldEagerlyRecoverMenuEndpoint("cell:///Vault"))
+        #expect(!RemoteCatalogSupport.shouldEagerlyRecoverMenuEndpoint("cell://staging.haven.digipomps.org/Vault"))
+        #expect(!RemoteCatalogSupport.shouldEagerlyRecoverMenuEndpoint("wss://staging.haven.digipomps.org/bridgehead/Vault"))
+    }
+
+    @Test func thinRemoteConfigurationsRecoverOnlyWhenUserActuallyOpensThem() {
+        var thinRemoteConfiguration = CellConfiguration(name: "Thin Remote Vault")
+        thinRemoteConfiguration.addReference(CellReference(
+            endpoint: "cell://staging.haven.digipomps.org/Vault",
+            label: "vault"
+        ))
+        thinRemoteConfiguration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Vault"))
+        ]))
+
+        #expect(RemoteCatalogSupport.shouldRecoverConfigurationOnDemand(thinRemoteConfiguration))
+
+        var dynamicRemoteConfiguration = thinRemoteConfiguration
+        dynamicRemoteConfiguration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "vault.summary.title"))
+        ]))
+
+        #expect(!RemoteCatalogSupport.shouldRecoverConfigurationOnDemand(dynamicRemoteConfiguration))
+    }
+
     @Test func remoteEndpointAccessTreatsStagingCellsAsScaffoldAdmissions() {
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "cell://staging.haven.digipomps.org/Chat") == .scaffoldAdmission)
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog") == .scaffoldAdmission)
