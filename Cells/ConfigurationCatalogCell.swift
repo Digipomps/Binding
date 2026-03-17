@@ -4303,7 +4303,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         guard includeResolverLookups else { return importedCount }
 
-        if let resolver = CellBase.defaultCellResolver {
+        if let resolver = CellBase.defaultCellResolver as? CellResolver {
             let uniqueEndpoints = Array(Set(
                 templates
                     .filter { !$0.skipResolverLookup }
@@ -4313,17 +4313,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                 if shouldSkipResolverLookup(for: endpoint) {
                     continue
                 }
-                if let missingHost = missingRemoteHostRoute(for: endpoint, resolver: resolver) {
-                    await reportMissingEndpoint(
+                guard let meddle = try? await RemoteEndpointAccessSupport.resolveMeddle(
                         endpoint: endpoint,
-                        operation: "syncScaffoldPurposeGoals",
-                        message: "Missing remote host route for '\(missingHost)'. Register with resolver.registerRemoteCellHost(host:route:).",
-                        requester: requester
-                    )
-                    continue
-                }
-                guard let emit = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester),
-                      let meddle = emit as? Meddle,
+                        resolver: resolver,
+                        requester: requester,
+                        accessLabel: "configurationCatalog.syncPurposeGoals"
+                      ),
                       let purposeGoalPayload = try? await meddle.get(keypath: "purposeGoal", requester: requester),
                       let parsedPayload = decodeCatalogPayload(purposeGoalPayload, requireID: false)
                 else {
@@ -4352,17 +4347,6 @@ final class ConfigurationCatalogCell: GeneralCell {
         stateQueue.sync {
             syncInProgress = false
         }
-    }
-
-    private func missingRemoteHostRoute(for endpoint: String, resolver: CellResolverProtocol) -> String? {
-        guard let url = URL(string: endpoint) else { return nil }
-        guard url.scheme == "cell" else { return nil }
-        guard let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines), !host.isEmpty else { return nil }
-        if host.lowercased() == "localhost" { return nil }
-
-        let routes = resolver.remoteCellHostRoutesSnapshot()
-        let normalizedHost = host.lowercased()
-        return routes[normalizedHost] == nil ? host : nil
     }
 
     private func shouldSkipResolverLookup(for endpoint: String) -> Bool {

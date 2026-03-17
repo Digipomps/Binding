@@ -1167,13 +1167,15 @@ final class AgentProvisioningCell: GeneralCell {
         requester: Identity
     ) async throws -> Meddle? {
         guard let endpoint = configuration.endpoint(forTargetCellReference: targetCellReference),
-              let resolver = CellBase.defaultCellResolver as? CellResolver,
-              let cell = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle else {
+              let resolver = CellBase.defaultCellResolver as? CellResolver else {
             return nil
         }
-        if let emit = cell as? Emit {
-            try await LiveControlBridgeAuthorization.authorizeIfNeeded(emit, requester: requester)
-        }
+        let cell = try await RemoteEndpointAccessSupport.resolveMeddle(
+            endpoint: endpoint,
+            resolver: resolver,
+            requester: requester,
+            accessLabel: "agentProvisioning.controlBridge"
+        )
         return cell
     }
 

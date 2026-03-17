@@ -1036,9 +1036,9 @@ final class FullLibraryViewModel: ObservableObject {
 
     private struct ResolvedCatalog {
         let catalog: Meddle
-        let emitter: Emit?
         let identity: Identity
         let endpoint: String
+        let resolutionWarnings: [String]
     }
 
     @Published var selectedTab: LibraryTab = .allConfigs
@@ -1067,7 +1067,6 @@ final class FullLibraryViewModel: ObservableObject {
     private let catalogEndpoints: [String]
     private let queryContext: FullLibraryQueryContext
     private var refreshTask: Task<Void, Never>?
-    private var admittedCatalogEndpoints: Set<String> = []
 
     init(
         catalogEndpoints: [String],
@@ -1153,12 +1152,8 @@ final class FullLibraryViewModel: ObservableObject {
             }
             let queryPayload = buildQueryPayload()
             let startedAt = Date()
-            warnings = []
+            warnings = resolved.resolutionWarnings
             catalogMode = .unknown
-
-            if let admissionWarning = await ensureCatalogAccessIfNeeded(resolved) {
-                warnings.append(admissionWarning)
-            }
 
             let fallbackCatalogResults = try? await directCatalogResults(from: catalog, requester: identity)
 
@@ -1344,46 +1339,33 @@ final class FullLibraryViewModel: ObservableObject {
         }
 
         let candidates = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: catalogEndpoints)
+        var resolutionWarnings: [String] = []
         for endpoint in candidates {
-            RemoteCatalogSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
-            guard let emit = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity),
-                  let catalog = emit as? Meddle
-            else {
+            do {
+                let emit = try await RemoteEndpointAccessSupport.resolveEmit(
+                    endpoint: endpoint,
+                    resolver: resolver,
+                    requester: identity,
+                    accessLabel: "fullLibrary.catalog"
+                )
+                guard let catalog = emit as? Meddle else {
+                    resolutionWarnings.append("Kilden \(endpoint) eksponerer ikke Meddle-kontrakt.")
+                    continue
+                }
+                return ResolvedCatalog(
+                    catalog: catalog,
+                    identity: identity,
+                    endpoint: endpoint,
+                    resolutionWarnings: resolutionWarnings
+                )
+            } catch {
+                if !RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
+                    resolutionWarnings.append("Remote tilgang til \(endpoint) feilet. Fortsetter til neste kilde.")
+                }
                 continue
             }
-            return ResolvedCatalog(catalog: catalog, emitter: emit as? Emit, identity: identity, endpoint: endpoint)
         }
         throw LibraryError.catalogUnavailable
-    }
-
-    private func ensureCatalogAccessIfNeeded(_ resolved: ResolvedCatalog) async -> String? {
-        guard RemoteCatalogSupport.shouldAttemptAdmission(for: resolved.endpoint) else {
-            return nil
-        }
-        guard !admittedCatalogEndpoints.contains(resolved.endpoint) else {
-            return nil
-        }
-        guard let emitter = resolved.emitter else {
-            return "Remote katalog mangler emit-støtte. Hopper over admission."
-        }
-
-        let connector = await GeneralCell(owner: resolved.identity)
-        connector.doneInitializing()
-
-        do {
-            let connectState = try await connector.attach(
-                emitter: emitter,
-                label: "fullLibrary.catalog",
-                requester: resolved.identity
-            )
-            if connectState == .connected {
-                admittedCatalogEndpoints.insert(resolved.endpoint)
-                return nil
-            }
-            return "Remote katalog krevde kontrakt, men admission endte i \(connectState.rawValue)."
-        } catch {
-            return "Remote katalog-admission feilet. Fortsetter med beste tilgjengelige fallback."
-        }
     }
 
     private func directCatalogResults(from catalog: Meddle, requester: Identity) async throws -> [SearchResult] {

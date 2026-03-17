@@ -505,8 +505,12 @@ struct ContentView: View {
                 registerRemoteCatalogHostIfNeeded(origin, resolver: resolver)
             }
 
-            guard let catalogEmit = try? await resolver.cellAtEndpoint(endpoint: source.endpoint, requester: identity),
-                  let catalog = catalogEmit as? Meddle
+            guard let catalog = try? await RemoteEndpointAccessSupport.resolveMeddle(
+                endpoint: source.endpoint,
+                resolver: resolver,
+                requester: identity,
+                accessLabel: "binding.catalogMenus"
+            )
             else {
                 continue
             }
@@ -2071,9 +2075,13 @@ struct ContentView: View {
         probeDirectEndpoint: Bool
     ) async -> String? {
         if probeDirectEndpoint, shouldProbeEndpoint(reference.endpoint) {
-            ensureRemoteHostRouteRegistered(for: reference.endpoint, resolver: resolver)
             do {
-                _ = try await resolver.cellAtEndpoint(endpoint: reference.endpoint, requester: identity)
+                _ = try await RemoteEndpointAccessSupport.resolveEmit(
+                    endpoint: reference.endpoint,
+                    resolver: resolver,
+                    requester: identity,
+                    accessLabel: "binding.probe"
+                )
             } catch {
                 if await tryProbeEndpointWithFallbackRoutes(reference.endpoint, resolver: resolver, identity: identity) {
                     // A fallback route worked; keep this reference.
@@ -2096,9 +2104,13 @@ struct ContentView: View {
 
         for keyValue in reference.setKeysAndValues {
             guard let target = keyValue.target, shouldProbeEndpoint(target) else { continue }
-            ensureRemoteHostRouteRegistered(for: target, resolver: resolver)
             do {
-                _ = try await resolver.cellAtEndpoint(endpoint: target, requester: identity)
+                _ = try await RemoteEndpointAccessSupport.resolveEmit(
+                    endpoint: target,
+                    resolver: resolver,
+                    requester: identity,
+                    accessLabel: "binding.probe"
+                )
             } catch {
                 if await tryProbeEndpointWithFallbackRoutes(target, resolver: resolver, identity: identity) {
                     continue
@@ -2127,7 +2139,13 @@ struct ContentView: View {
         for route in fallbackCandidates {
             registerRemoteHostIfNeeded(host, route: route, resolver: resolver)
             do {
-                _ = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity)
+                let emit = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity)
+                try await RemoteEndpointAccessSupport.authorizeIfNeeded(
+                    endpoint: endpoint,
+                    emit: emit,
+                    requester: identity,
+                    accessLabel: "binding.probe"
+                )
                 return true
             } catch {
                 continue
@@ -2157,17 +2175,6 @@ struct ContentView: View {
         default:
             return false
         }
-    }
-
-    private func ensureRemoteHostRouteRegistered(for endpoint: String, resolver: CellResolver) {
-        guard let components = URLComponents(string: endpoint),
-              components.scheme?.lowercased() == "cell",
-              let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !host.isEmpty
-        else {
-            return
-        }
-        registerRemoteHostIfNeeded(host, route: remoteRoute(forHost: host), resolver: resolver)
     }
 
     private func probeFailureMessage(endpoint: String, error: Error) -> String {
@@ -2270,9 +2277,12 @@ struct ContentView: View {
         resolver: CellResolver,
         identity: Identity
     ) async -> CellConfiguration? {
-        ensureRemoteHostRouteRegistered(for: endpoint, resolver: resolver)
-        guard let emit = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: identity),
-              let cell = emit as? Meddle
+        guard let cell = try? await RemoteEndpointAccessSupport.resolveMeddle(
+            endpoint: endpoint,
+            resolver: resolver,
+            requester: identity,
+            accessLabel: "binding.recoverConfiguration"
+        )
         else {
             return nil
         }

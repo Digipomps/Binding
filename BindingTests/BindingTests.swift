@@ -186,6 +186,21 @@ struct BindingTests {
         #expect(RemoteCatalogSupport.shouldAttemptAdmission(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog"))
     }
 
+    @Test func remoteEndpointAccessTreatsStagingCellsAsScaffoldAdmissions() {
+        #expect(RemoteEndpointAccessSupport.authorizationKind(for: "cell://staging.haven.digipomps.org/Chat") == .scaffoldAdmission)
+        #expect(RemoteEndpointAccessSupport.authorizationKind(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog") == .scaffoldAdmission)
+    }
+
+    @Test func remoteEndpointAccessTreatsLoopbackBridgeheadAsLiveControlAgreement() {
+        #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://127.0.0.1:43110/bridgehead/agent/identity") == .liveControlAgreement)
+        #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://localhost:43110/bridgehead") == .liveControlAgreement)
+    }
+
+    @Test func remoteEndpointAccessLeavesLocalCellsUnmanaged() {
+        #expect(RemoteEndpointAccessSupport.authorizationKind(for: "cell:///ConfigurationCatalog") == .none)
+        #expect(RemoteEndpointAccessSupport.authorizationKind(for: "cell:///Perspective") == .none)
+    }
+
     @Test func entityScannerWorkbenchConfigurationsStayLocalToBinding() {
         let configurations = [
             ConfigurationCatalogCell.entityScannerWorkbenchConfiguration(),
