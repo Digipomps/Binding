@@ -656,6 +656,8 @@ enum SkeletonElementParameterCatalog {
             return [.spacing]
         case .Toggle:
             return [.label, .keypath, .isOn]
+        case .Picker:
+            return [.label, .placeholder, .keypath]
         case .Object, .HStack, .VStack, .Divider, .Section, .ZStack:
             return []
         }

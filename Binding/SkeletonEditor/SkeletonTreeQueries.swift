@@ -33,6 +33,7 @@ enum SkeletonTreeQueries {
         case .ZStack(let zStack): return zStack.modifiers
         case .Grid(let grid): return grid.modifiers
         case .Toggle(let toggle): return toggle.modifiers
+        case .Picker(let picker): return picker.modifiers
         }
     }
 
@@ -61,6 +62,7 @@ enum SkeletonTreeQueries {
         case .ZStack: return "ZStack"
         case .Grid: return "Grid"
         case .Toggle: return "Toggle"
+        case .Picker: return "Picker"
         }
     }
 

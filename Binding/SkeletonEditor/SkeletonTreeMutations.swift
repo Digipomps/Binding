@@ -244,6 +244,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             toggle.modifiers = modifiers
             return .Toggle(toggle)
+        case .Picker(var picker):
+            var modifiers = picker.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            picker.modifiers = modifiers
+            return .Picker(picker)
         }
     }
 
