@@ -10604,11 +10604,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             modifiers: inputModifier
         )
 
-        let selectedIndexField = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "catalog.matching.selectedIndex",
-            targetKeypath: "catalog.matching.selectedIndex",
-            placeholder: "Velg forslag med indeks (0..n)",
+        let suggestionPicker = SkeletonPicker(
+            label: "Velg forslag",
+            placeholder: "Velg foreslaatt kontrollflate",
+            keypath: "catalog.matching.suggestions",
+            optionLabelKeypath: "name",
+            selectionValueKeypath: "id",
+            selectionStateKeypath: "catalog.matching.state",
+            selectionActionKeypath: "catalog.matching.select",
+            selectionPayloadMode: .itemID,
+            allowsEmptySelection: false,
             modifiers: inputModifier
         )
 
@@ -11102,7 +11107,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             .HStack(SkeletonHStack(elements: [.Button(syncCandidates), .Button(clearMatching)])),
             .HStack(SkeletonHStack(elements: [.Button(quickChat), .Button(quickConference)])),
             .HStack(SkeletonHStack(elements: [.Button(quickRestaurant), .Button(quickPeople)])),
-            .TextField(selectedIndexField),
+            .Picker(suggestionPicker),
             .Text(sectionMatches),
             .List(suggestionList),
             .Text(sectionSelected),

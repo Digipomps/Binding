@@ -246,6 +246,23 @@ struct BindingTests {
         }
     }
 
+    @Test func appleIntelligencePurposeMatcherUsesPickerForSuggestionSelection() {
+        let configuration = ConfigurationCatalogCell.appleIntelligenceLandingConfiguration()
+
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Forventet skeleton for Apple Intelligence Purpose Matcher")
+            return
+        }
+
+        #expect(skeletonContainsPicker(
+            keypath: "catalog.matching.suggestions",
+            selectionStateKeypath: "catalog.matching.state",
+            selectionActionKeypath: "catalog.matching.select",
+            in: skeleton
+        ))
+        #expect(!skeletonContainsTextField(targetKeypath: "catalog.matching.selectedIndex", in: skeleton))
+    }
+
     @MainActor
     @Test func deletingComponentPrunesNewlyUnusedReferences() {
         var configuration = CellConfiguration(name: "Delete Chat Component")
@@ -731,6 +748,119 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonContainsPicker(
+        keypath: String,
+        selectionStateKeypath: String,
+        selectionActionKeypath: String,
+        in element: SkeletonElement
+    ) -> Bool {
+        switch element {
+        case .Picker(let picker):
+            return picker.keypath == keypath &&
+                picker.selectionStateKeypath == selectionStateKeypath &&
+                picker.selectionActionKeypath == selectionActionKeypath
+        case .VStack(let stack):
+            return stack.elements.contains {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: $0
+                )
+            }
+        case .HStack(let stack):
+            return stack.elements.contains {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: $0
+                )
+            }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: $0
+                )
+            }
+        case .Section(let section):
+            return (section.header.map {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: $0
+                )
+            } ?? false) ||
+                section.content.contains {
+                    skeletonContainsPicker(
+                        keypath: keypath,
+                        selectionStateKeypath: selectionStateKeypath,
+                        selectionActionKeypath: selectionActionKeypath,
+                        in: $0
+                    )
+                } ||
+                (section.footer.map {
+                    skeletonContainsPicker(
+                        keypath: keypath,
+                        selectionStateKeypath: selectionStateKeypath,
+                        selectionActionKeypath: selectionActionKeypath,
+                        in: $0
+                    )
+                } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: .VStack($0)
+                )
+            } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: .VStack($0)
+                )
+            } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: $0
+                )
+            }
+        case .ZStack(let stack):
+            return stack.elements.contains {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: $0
+                )
+            }
+        case .Object(let object):
+            return object.elements.values.contains {
+                skeletonContainsPicker(
+                    keypath: keypath,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    in: $0
+                )
+            }
         default:
             return false
         }

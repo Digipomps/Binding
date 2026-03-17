@@ -181,6 +181,7 @@ final class AgentProvisioningCell: GeneralCell {
     private enum ProvisioningError: LocalizedError {
         case invalidStringPayload
         case invalidObjectPayload
+        case unsupportedPlatform(String)
         case missingSourceRoot(String)
         case missingAgentPackage(String)
         case buildFailed(String)
@@ -197,6 +198,8 @@ final class AgentProvisioningCell: GeneralCell {
                 return "Expected a string payload."
             case .invalidObjectPayload:
                 return "Expected an object payload."
+            case .unsupportedPlatform(let feature):
+                return "\(feature) is only available when Binding runs on macOS."
             case .missingSourceRoot(let path):
                 return "Source root was not found: \(path)"
             case .missingAgentPackage(let path):
@@ -248,6 +251,13 @@ final class AgentProvisioningCell: GeneralCell {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
     }()
+    nonisolated private static var supportsLocalAgentRuntime: Bool {
+#if os(macOS)
+        true
+#else
+        false
+#endif
+    }
 
     nonisolated private let stateQueue = DispatchQueue(label: "Binding.AgentProvisioningCell.State")
     nonisolated(unsafe) private var mutableState: MutableState
@@ -678,6 +688,9 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private func installAgentBinary() throws {
+        guard Self.supportsLocalAgentRuntime else {
+            throw ProvisioningError.unsupportedPlatform("Installing haven-agentd")
+        }
         let paths = try prepareInstallArtifacts()
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: paths.sourceRoot.path) else {
@@ -710,6 +723,9 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private func startLaunchAgent() throws {
+        guard Self.supportsLocalAgentRuntime else {
+            throw ProvisioningError.unsupportedPlatform("Starting the local HAVEN agent")
+        }
         let paths = try prepareInstallArtifacts()
         guard FileManager.default.isExecutableFile(atPath: paths.installedBinary.path) else {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
@@ -736,6 +752,9 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private func stopLaunchAgent() throws {
+        guard Self.supportsLocalAgentRuntime else {
+            throw ProvisioningError.unsupportedPlatform("Stopping the local HAVEN agent")
+        }
         guard Self.isLaunchAgentLoaded(label: Self.launchAgentLabel) else {
             return
         }
@@ -749,6 +768,9 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private func connectUsingCurrentPurpose() throws {
+        guard Self.supportsLocalAgentRuntime else {
+            throw ProvisioningError.unsupportedPlatform("Connecting the local HAVEN agent")
+        }
         let paths = try prepareInstallArtifacts()
         guard FileManager.default.isExecutableFile(atPath: paths.installedBinary.path) else {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
@@ -829,6 +851,9 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private func runReviewCommand(subcommand: String, reviewer: String) throws {
+        guard Self.supportsLocalAgentRuntime else {
+            throw ProvisioningError.unsupportedPlatform("Running local review commands")
+        }
         let paths = try prepareInstallArtifacts()
         guard FileManager.default.isExecutableFile(atPath: paths.installedBinary.path) else {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
@@ -896,7 +921,7 @@ final class AgentProvisioningCell: GeneralCell {
     private func currentPaths() throws -> AgentPaths {
         let snapshot = stateQueue.sync { mutableState }
         let sourceRoot = URL(fileURLWithPath: NSString(string: snapshot.sourceRootPath).expandingTildeInPath)
-        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
+        let homeDirectory = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
         let applicationSupportDirectory = try FileManager.default.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
@@ -904,7 +929,13 @@ final class AgentProvisioningCell: GeneralCell {
             create: true
         )
         let agentDirectory = applicationSupportDirectory.appendingPathComponent("HAVENAgent", isDirectory: true)
-        let launchAgentsDirectory = homeDirectory.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
+        let launchAgentsDirectory: URL = {
+#if os(macOS)
+            homeDirectory.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
+#else
+            agentDirectory.appendingPathComponent("LaunchAgents", isDirectory: true)
+#endif
+        }()
 
         return AgentPaths(
             sourceRoot: sourceRoot,
@@ -990,6 +1021,9 @@ final class AgentProvisioningCell: GeneralCell {
             ?? Self.stringValue(fromAny: controlBridgeJSON?["websocketBaseURL"])
             ?? controlBridge.websocketBaseURL
         let controlBridgeState: String = {
+            if Self.supportsLocalAgentRuntime == false {
+                return "Local HAVEN agent control is disabled on iOS; use Binding as a viewer or connect from macOS."
+            }
             if let liveProjection {
                 return liveProjection.controlBridgeState
             }
@@ -1010,6 +1044,9 @@ final class AgentProvisioningCell: GeneralCell {
             return "Local CellProtocol bridge planned for \(controlBridgeEndpoint)."
         }()
         let connectStage: String = {
+            if Self.supportsLocalAgentRuntime == false {
+                return "Local macOS agent connect is unavailable on iOS"
+            }
             if portholePhase.caseInsensitiveCompare("connected") == .orderedSame {
                 return "Native porthole connected"
             }
@@ -1023,6 +1060,9 @@ final class AgentProvisioningCell: GeneralCell {
         }()
 
         let installStage: String = {
+            if Self.supportsLocalAgentRuntime == false {
+                return "Local HAVEN agent install is only available on macOS"
+            }
             if installedBinaryExists { return "Installed in Application Support" }
             if buildBinaryExists { return "Build output ready to install" }
             if fileManager.fileExists(atPath: paths.packageDirectory.appendingPathComponent("Package.swift").path) {
@@ -1032,6 +1072,9 @@ final class AgentProvisioningCell: GeneralCell {
         }()
 
         let runtimeStage: String = {
+            if Self.supportsLocalAgentRuntime == false {
+                return "LaunchAgent runtime unavailable on iOS"
+            }
             if liveProjection != nil { return "LaunchAgent active with live CellProtocol bridge" }
             if launchAgentLoaded { return "LaunchAgent is active" }
             if launchAgentExists { return "LaunchAgent ready to start" }
@@ -1053,9 +1096,14 @@ final class AgentProvisioningCell: GeneralCell {
             }
             return "Config will be written to \(paths.configFile.path)"
         }()
-        let launchAgentState = launchAgentLoaded
-            ? "Loaded as \(Self.launchctlServiceTarget())"
-            : (launchAgentExists ? "Plist ready in \(paths.launchAgentPlist.path)" : "Launch agent plist will be written to \(paths.launchAgentPlist.path)")
+        let launchAgentState: String = {
+            if Self.supportsLocalAgentRuntime == false {
+                return "LaunchAgent plists are only used on macOS."
+            }
+            return launchAgentLoaded
+                ? "Loaded as \(Self.launchctlServiceTarget())"
+                : (launchAgentExists ? "Plist ready in \(paths.launchAgentPlist.path)" : "Launch agent plist will be written to \(paths.launchAgentPlist.path)")
+        }()
         let sproutState = sproutExists
             ? "Sprout executable present at \(sproutPath)"
             : "Sprout executable missing at \(sproutPath)"
@@ -1744,14 +1792,22 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private static func launchctlServiceTarget() -> String {
+#if os(macOS)
         "gui/\(getuid())/\(launchAgentLabel)"
+#else
+        launchAgentLabel
+#endif
     }
 
     private static func isLaunchAgentLoaded(label: String) -> Bool {
+#if os(macOS)
         guard let result = try? runCommand("/bin/launchctl", arguments: ["print", "gui/\(getuid())/\(label)"]) else {
             return false
         }
         return result.succeeded
+#else
+        false
+#endif
     }
 
     private static func readJSONObject(at fileURL: URL) -> [String: Any] {
@@ -1767,6 +1823,7 @@ final class AgentProvisioningCell: GeneralCell {
         arguments: [String],
         currentDirectory: URL? = nil
     ) throws -> CommandResult {
+#if os(macOS)
         let process = Process()
         let stdout = Pipe()
         let stderr = Pipe()
@@ -1789,6 +1846,9 @@ final class AgentProvisioningCell: GeneralCell {
             standardOutput: standardOutput,
             standardError: standardError
         )
+#else
+        throw ProvisioningError.unsupportedPlatform("Running local process commands")
+#endif
     }
 
     private static func trimmedOutput(from result: CommandResult) -> String {
