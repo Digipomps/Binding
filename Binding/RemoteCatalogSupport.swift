@@ -77,6 +77,9 @@ enum RemoteEndpointAccessSupport {
             requester: requester,
             accessLabel: accessLabel
         )
+        if let bridge = emit as? BridgeBase {
+            try? await bridge.retrieveProxyRepresentation(for: requester)
+        }
         return emit
     }
 
