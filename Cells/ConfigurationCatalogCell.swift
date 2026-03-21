@@ -6533,7 +6533,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                                     "\(referenceLabel).state.workspace.subtitle",
                                     fontSize: 13,
                                     foregroundColor: "#9AB3C3"
-                                )
+                                ),
+                                bindingConferencePortalBadgeKeyText("\(referenceLabel).state.workspace.conferenceBadge"),
+                                bindingConferencePortalBadgeKeyText("\(referenceLabel).state.workspace.privacyBadge")
                             ])
                         ),
                         .Spacer(SkeletonSpacer()),
@@ -6568,6 +6570,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.intro"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.agendaSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.viewSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.program.trackSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.timelineSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.status"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.storageSummary"),
@@ -6594,6 +6597,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                         flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
                     )
                 ),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.program.timelineSessions",
+                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                    )
+                ),
                 .HStack(
                     SkeletonHStack(elements: [
                         bindingConferencePortalActionButton(
@@ -6613,6 +6623,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                             actionKeypath: "agenda.setView",
                             label: "Vis lagret",
                             payload: .object(["view": .string("saved")])
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setTrackFocus",
+                            label: "Fokus governance",
+                            payload: .object(["trackId": .string("track-governance")])
                         )
                     ])
                 )
@@ -6628,12 +6644,20 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(referenceLabel).state.matches.filterSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.matches.status"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.matches.recommendationSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.matches.searchSummary"),
                 .Grid(
                     SkeletonGrid(
                         columns: [.adaptive(min: 220, max: 320)],
                         spacing: 12,
                         keypath: "\(referenceLabel).state.matches.recommendations",
                         itemSkeleton: bindingConferencePortalRecommendationCardSkeleton()
+                    )
+                ),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.matches.searchResults",
+                        flowElementSkeleton: bindingConferencePortalConnectionRowSkeleton()
                     )
                 ),
                 .HStack(
@@ -6653,6 +6677,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                             actionKeypath: "matchmaking.searchPeople",
                             label: "Søk governance",
                             payload: .object(["query": .string("governance")])
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "scheduling.createMeetingRequest",
+                            label: "Be om møte",
+                            payload: .object(["source": .string("participant-shell")])
                         )
                     ])
                 )
@@ -6668,7 +6698,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(referenceLabel).state.meetings.requestSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.meetings.slotSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.meetings.meetingSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.meetings.chatSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.meetings.exportStatus"),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.meetings.requests",
+                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                    )
+                ),
                 .List(
                     SkeletonList(
                         topic: nil,
@@ -6688,6 +6726,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                             referenceLabel,
                             actionKeypath: "scheduling.exportICal",
                             label: "Forbered iCal"
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "scheduling.respondMeetingRequest",
+                            label: "Godta ventende"
                         )
                     ])
                 )
@@ -6701,13 +6744,23 @@ final class ConfigurationCatalogCell: GeneralCell {
             content: [
                 bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.intro"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.accessSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.agreementBoundary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.connectionSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.requestSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.meetingSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.chatSummary"),
                 .List(
                     SkeletonList(
                         topic: nil,
                         keypath: "\(referenceLabel).state.sharedConnections.connections",
                         flowElementSkeleton: bindingConferencePortalConnectionRowSkeleton()
+                    )
+                ),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.sharedConnections.confirmedMeetings",
+                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
                     )
                 ),
                 .List(
