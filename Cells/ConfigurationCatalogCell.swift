@@ -8,6 +8,27 @@
 import Foundation
 import CellBase
 
+enum ConfigurationCatalogPreviewBridge {
+    nonisolated static let notificationName = Notification.Name("ConfigurationCatalogPreviewBridge.requested")
+
+    nonisolated private static let configurationDataKey = "configurationData"
+
+    nonisolated static func post(configuration: CellConfiguration, notificationCenter: NotificationCenter = .default) {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(configuration) else { return }
+        notificationCenter.post(
+            name: notificationName,
+            object: nil,
+            userInfo: [configurationDataKey: data]
+        )
+    }
+
+    nonisolated static func configuration(from notification: Notification) -> CellConfiguration? {
+        guard let data = notification.userInfo?[configurationDataKey] as? Data else { return nil }
+        return try? JSONDecoder().decode(CellConfiguration.self, from: data)
+    }
+}
+
 final class ConfigurationCatalogCell: GeneralCell {
     private static let blockedCatalogReferenceNames: Set<String> = [
         "eventemitter",
@@ -340,6 +361,9 @@ final class ConfigurationCatalogCell: GeneralCell {
             let slotSummary = menuSlots.isEmpty ? "Ingen anbefalt meny-slot." : menuSlots.map(\.rawValue).joined(separator: ", ")
             let scoreLabel = String(format: "%.2f", matchScore)
             let skeletonStatus = hasSkeleton ? "Har skeleton - klar for preview/load i Porthole." : "Ingen skeleton i konfigurasjonen."
+            let description = configuration.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? configuration.description!
+                : "CellConfiguration som kan hjelpe med formaalet \"\(purpose)\"."
             var object: Object = [
                 "id": .string(id),
                 "sourceEntryId": .string(sourceEntryID),
@@ -355,15 +379,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "name": .string(configuration.name),
                 "matchScore": .float(matchScore),
                 "matchScoreLabel": .string(scoreLabel),
+                "match_score": .string(scoreLabel),
                 "matchMeaning": .string(matchMeaning),
+                "reasoning": .string(matchMeaning),
                 "hasSkeleton": .bool(hasSkeleton),
                 "skeletonStatus": .string(skeletonStatus),
                 "scoreAndSkeleton": .string("Score \(scoreLabel) | \(hasSkeleton ? "skeleton klar" : "ingen skeleton")"),
-                "matchedAt": .float(matchedAt)
+                "matchedAt": .float(matchedAt),
+                "description": .string(description)
             ]
-            if let description = configuration.description, !description.isEmpty {
-                object["description"] = .string(description)
-            }
             if let firstReference = configuration.cellReferences?.first {
                 object["primaryEndpoint"] = .string(firstReference.endpoint)
             }
@@ -847,6 +871,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "matching.select")
         agreementTemplate.addGrant("rw--", for: "matching.selectIndex")
         agreementTemplate.addGrant("rw--", for: "matching.loadSelectedToPorthole")
+        agreementTemplate.addGrant("rw--", for: "matching.previewSelected")
         agreementTemplate.addGrant("rw--", for: "matching.saveSelectedToMenu")
         agreementTemplate.addGrant("rw--", for: "matching.bookmarkSelected")
         agreementTemplate.addGrant("rw--", for: "matching.markSelectedUsed")
@@ -1153,6 +1178,12 @@ final class ConfigurationCatalogCell: GeneralCell {
             guard let self = self else { return .null }
             guard await self.validateAccess("rw--", at: "matching.loadSelectedToPorthole", for: requester) else { return .string("denied") }
             return await self.loadSelectedMatchingSuggestionToPorthole(requester: requester)
+        }
+
+        await registerSet(key: "matching.previewSelected", owner: owner) { [weak self] requester, _ in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("rw--", at: "matching.previewSelected", for: requester) else { return .string("denied") }
+            return self.previewSelectedMatchingSuggestion()
         }
 
         await registerSet(key: "matching.saveSelectedToMenu", owner: owner) { [weak self] requester, payload in
@@ -3810,6 +3841,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
     }
 
+    private func previewSelectedMatchingSuggestion() -> ValueType {
+        guard let selected = selectedMatchingSuggestion() else {
+            return .string("error: no selected suggestion")
+        }
+        ConfigurationCatalogPreviewBridge.post(configuration: selected.configuration)
+        return .object([
+            "status": .string("previewed"),
+            "selected": .list([.object(selected.asObject())]),
+            "state": matchingStateValue()
+        ])
+    }
+
     private func saveSelectedMatchingSuggestionToMenu(payload: ValueType, requester: Identity) async -> ValueType {
         guard let selected = selectedMatchingSuggestion() else {
             return .string("error: no selected suggestion")
@@ -5941,45 +5984,822 @@ final class ConfigurationCatalogCell: GeneralCell {
     nonisolated static func scaffoldChatWorkbenchMenuConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/Chat") -> CellConfiguration {
         scaffoldChatWorkbenchConfiguration(
             endpoint: endpoint,
-            displayName: "Scaffold Chat",
-            summary: "Del meldinger i sanntid fra staging, se deltagere og absorber samme chat i andre klienter."
+            displayName: "Chat",
+            summary: "Direktemeldinger fra staging med deltakere, tråder og samme samtale på tvers av klienter."
+        )
+    }
+
+    nonisolated static func conferenceMVPWorkbenchMenuConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceUIRouter") -> CellConfiguration {
+        conferenceMVPWorkbenchConfiguration(
+            endpoint: endpoint,
+            displayName: "Conference",
+            summary: "Agenda, matchmaking og møtescheduling fra conference-routeren på staging."
+        )
+    }
+
+    nonisolated static func conferenceParticipantPortalWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell") -> CellConfiguration {
+        conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: endpoint,
+            displayName: "Conference Participant Portal Dashboard",
+            summary: "Participant-shell med agenda, anbefalinger og meeting timeline over preview-wrapperen på staging."
         )
     }
 
     nonisolated static func catalogWorkbenchMenuConfiguration() -> CellConfiguration {
-        catalogWorkbenchConfiguration()
+        var configuration = catalogWorkbenchConfiguration()
+        configuration.name = "Catalog"
+        configuration.description = "Søk, sync og vedlikehold av konfigurasjoner i ConfigurationCatalog."
+        return configuration
     }
 
     nonisolated static func perspectiveWorkbenchMenuConfiguration() -> CellConfiguration {
-        perspectiveWorkbenchConfiguration()
+        var configuration = perspectiveWorkbenchConfiguration()
+        configuration.name = "Perspective"
+        configuration.description = "Lokal kontekst for formaal, interesser og menyvalg."
+        return configuration
     }
 
     nonisolated static func agentSetupWorkbenchMenuConfiguration() -> CellConfiguration {
-        agentSetupWorkbenchConfiguration()
+        var configuration = agentSetupWorkbenchConfiguration()
+        configuration.name = "Agent Setup"
+        configuration.description = "Installer, pair og koble haven-agentd mot Binding."
+        return configuration
     }
 
     nonisolated static func entityAnchorWorkbenchMenuConfiguration() -> CellConfiguration {
-        entityAnchorWorkbenchConfiguration()
+        var configuration = entityAnchorWorkbenchConfiguration()
+        configuration.name = "Entity Anchor"
+        configuration.description = "Entiteter, relasjoner og proofs lagret lokalt i EntityAnchor."
+        return configuration
     }
 
     nonisolated static func vaultWorkbenchMenuConfiguration() -> CellConfiguration {
-        vaultWorkbenchConfiguration()
+        var configuration = vaultWorkbenchConfiguration()
+        configuration.name = "Vault"
+        configuration.description = "Notater, lenker og state i lokal Vault."
+        return configuration
     }
 
     nonisolated static func trustedIssuersWorkbenchMenuConfiguration() -> CellConfiguration {
-        trustedIssuersWorkbenchConfiguration()
+        var configuration = trustedIssuersWorkbenchConfiguration()
+        configuration.name = "Trusted Issuers"
+        configuration.description = "Policy, issuers og attestation-regler for trusted issuer-flyten."
+        return configuration
     }
 
     nonisolated static func portholeWorkbenchMenuConfiguration() -> CellConfiguration {
-        portholeWorkbenchConfiguration()
+        var configuration = portholeWorkbenchConfiguration()
+        configuration.name = "Porthole"
+        configuration.description = "Last inn flater, se menyer og inspiser tidligere layouts."
+        return configuration
     }
 
     nonisolated static func folderWatchWorkbenchMenuConfiguration() -> CellConfiguration {
-        folderWatchWorkbenchConfiguration()
+        var configuration = folderWatchWorkbenchConfiguration()
+        configuration.name = "Folder Watch"
+        configuration.description = "Overvåk mapper og følg siste filsystem-events direkte i UI."
+        return configuration
     }
 
     nonisolated static func graphIndexWorkbenchMenuConfiguration() -> CellConfiguration {
-        graphIndexWorkbenchConfiguration()
+        var configuration = graphIndexWorkbenchConfiguration()
+        configuration.name = "Graph Index"
+        configuration.description = "Reindekser demo-grafen og inspiser nabolag, inn- og ut-kanter."
+        return configuration
+    }
+
+    nonisolated private static func conferenceMVPWorkbenchConfiguration(
+        endpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: endpoint,
+            sourceCellName: "ConferenceUIRouterCell",
+            purpose: "Conference partnering og flyt",
+            purposeDescription: "Preview-drevet konferanseflate rendret fra skeleton, slik at Binding og web kan bruke samme CellConfiguration.",
+            interests: ["conference", "events", "matchmaking", "scheduling", "agenda"],
+            menuSlots: ["upperLeft", "upperRight"]
+        )
+
+        configuration.addReference(CellReference(endpoint: endpoint, subscribeFeed: false, label: "conferenceUIRouter"))
+
+        let pageCard = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.canvas,
+            borderColor: ConferenceSurfacePalette.canvas,
+            cornerRadius: 26
+        )
+        let heroCard = conferenceCardModifier(
+            padding: 14,
+            background: ConferenceSurfacePalette.shellStrong,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            cornerRadius: 22,
+            shadowRadius: 14,
+            shadowY: 4
+        )
+        let sectionCard = conferenceCardModifier(
+            padding: 12,
+            background: ConferenceSurfacePalette.shell,
+            borderColor: ConferenceSurfacePalette.stroke,
+            cornerRadius: 18
+        )
+        let listCard = modifier {
+            $0.padding = 8
+            $0.background = ConferenceSurfacePalette.shellMuted
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = ConferenceSurfacePalette.stroke
+            $0.height = 210
+        }
+        let heroChip = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let neutralChip = conferenceChipModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let primaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentCoolSoft,
+            borderColor: ConferenceSurfacePalette.accentCoolBorder,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+        let secondaryButton = conferenceButtonModifier(
+            background: ConferenceSurfacePalette.accentWarmSoft,
+            borderColor: ConferenceSurfacePalette.strokeStrong,
+            foregroundColor: ConferenceSurfacePalette.textMain
+        )
+
+        func sectionTitle(_ text: String) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = ConferenceSurfacePalette.textMain
+                $0.fontSize = 13
+            }
+            return label
+        }
+
+        func bodyText(_ text: String, color: String = ConferenceSurfacePalette.textMuted) -> SkeletonText {
+            var label = SkeletonText(text: text)
+            label.modifiers = modifier {
+                $0.foregroundColor = color
+                $0.fontSize = 12
+                $0.lineLimit = 4
+            }
+            return label
+        }
+
+        func keyText(_ keypath: String, color: String = ConferenceSurfacePalette.textMain, size: Double = 13) -> SkeletonText {
+            var label = SkeletonText(keypath: keypath)
+            label.modifiers = modifier {
+                $0.foregroundColor = color
+                $0.fontSize = size
+                $0.lineLimit = 4
+            }
+            return label
+        }
+
+        func actionButton(_ screenID: String, label: String, style: SkeletonModifiers) -> SkeletonElement {
+            var button = SkeletonButton(
+                keypath: "conferenceUIRouter.navigate",
+                label: label,
+                payload: .object(["screenId": .string(screenID)])
+            )
+            button.modifiers = style
+            return .Button(button)
+        }
+
+        func screenCardRow() -> SkeletonVStack {
+            var title = SkeletonText(keypath: "title")
+            title.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = ConferenceSurfacePalette.textMain
+                $0.fontSize = 13
+            }
+            var subtitle = SkeletonText(keypath: "subtitle")
+            subtitle.modifiers = modifier {
+                $0.foregroundColor = ConferenceSurfacePalette.textMuted
+                $0.fontSize = 12
+                $0.lineLimit = 3
+            }
+            var detail = SkeletonText(keypath: "detail")
+            detail.modifiers = modifier {
+                $0.foregroundColor = ConferenceSurfacePalette.accentCool
+                $0.fontSize = 12
+                $0.lineLimit = 2
+            }
+            var note = SkeletonText(keypath: "note")
+            note.modifiers = modifier {
+                $0.foregroundColor = ConferenceSurfacePalette.textMuted
+                $0.fontSize = 11
+                $0.lineLimit = 2
+            }
+
+            var row = SkeletonVStack(elements: [
+                .Text(title),
+                .Text(subtitle),
+                .Text(detail),
+                .Text(note)
+            ])
+            row.modifiers = sectionCard
+            return row
+        }
+
+        func titleDetailRow() -> SkeletonVStack {
+            var title = SkeletonText(keypath: "title")
+            title.modifiers = modifier {
+                $0.fontWeight = "semibold"
+                $0.foregroundColor = ConferenceSurfacePalette.textMain
+                $0.fontSize = 13
+            }
+            var detail = SkeletonText(keypath: "detail")
+            detail.modifiers = modifier {
+                $0.foregroundColor = ConferenceSurfacePalette.textMuted
+                $0.fontSize = 12
+                $0.lineLimit = 3
+            }
+
+            var row = SkeletonVStack(elements: [.Text(title), .Text(detail)])
+            row.modifiers = sectionCard
+            return row
+        }
+
+        var title = SkeletonText(text: displayName)
+        title.modifiers = modifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+        }
+
+        var subtitle = SkeletonText(text: "Rendret som skeleton-preview over `ConferenceUIRouter`, slik at samme referanse og state kan absorberes i Binding, library og web.")
+        subtitle.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.textMuted
+            $0.fontSize = 12
+            $0.lineLimit = 4
+        }
+
+        var endpointText = SkeletonText(text: endpoint)
+        endpointText.modifiers = modifier {
+            $0.foregroundColor = ConferenceSurfacePalette.accentCool
+            $0.fontSize = 11
+            $0.lineLimit = 2
+        }
+
+        var liveChip = SkeletonText(text: "STAGING REMOTE")
+        liveChip.modifiers = heroChip
+        var matchingChip = SkeletonText(text: "Matchmaking")
+        matchingChip.modifiers = neutralChip
+        var scheduleChip = SkeletonText(text: "Scheduling")
+        scheduleChip.modifiers = neutralChip
+        var routingChip = SkeletonText(text: "Router state")
+        routingChip.modifiers = neutralChip
+
+        var heroSection = SkeletonSection(
+            header: nil,
+            footer: .Text(bodyText("Hvis bridge eller preview-shell er treg, skal denne fortsatt vise en tydelig skeleton-basert surface mens runtime-jobben pågår.")),
+            content: [
+                .HStack(SkeletonHStack(elements: [
+                    .VStack(SkeletonVStack(elements: [
+                        .Text(title),
+                        .Text(subtitle),
+                        .Text(endpointText)
+                    ])),
+                    .Spacer(SkeletonSpacer()),
+                    .Text(liveChip)
+                ])),
+                .HStack(SkeletonHStack(elements: [.Text(matchingChip), .Text(scheduleChip), .Text(routingChip)])),
+                .Text(sectionTitle("Current workspace")),
+                .Text(keyText("conferenceUIRouter.state.workspace.title")),
+                .Text(keyText("conferenceUIRouter.state.workspace.subtitle", color: ConferenceSurfacePalette.textMuted, size: 12)),
+                .Text(keyText("conferenceUIRouter.state.workspace.activeScreenTitle", color: ConferenceSurfacePalette.accentCool)),
+                .Text(keyText("conferenceUIRouter.state.workspace.nextActionHint", color: ConferenceSurfacePalette.textMuted, size: 12))
+            ]
+        )
+        heroSection.modifiers = heroCard
+
+        var workflowList = SkeletonList(
+            topic: nil,
+            keypath: "conferenceUIRouter.state.screenCards",
+            flowElementSkeleton: screenCardRow()
+        )
+        workflowList.modifiers = listCard
+
+        var workflowSection = SkeletonSection(
+            header: .Text(sectionTitle("Workflow map")),
+            footer: .Text(bodyText("Screen cards gir et kompakt kart over onboarding, people, meetings og organizer-innsikt uten at Binding trenger en egen conference-view.")),
+            content: [
+                .List(workflowList),
+                .HStack(SkeletonHStack(elements: [
+                    actionButton("onboarding", label: "Onboarding", style: secondaryButton),
+                    actionButton("peopleMatches", label: "People", style: primaryButton),
+                    actionButton("meetings", label: "Meetings", style: primaryButton)
+                ]))
+            ]
+        )
+        workflowSection.modifiers = sectionCard
+
+        var matchesList = SkeletonList(
+            topic: nil,
+            keypath: "conferenceUIRouter.state.peopleMatches.recommendations",
+            flowElementSkeleton: titleDetailRow()
+        )
+        matchesList.modifiers = listCard
+
+        var meetingsList = SkeletonList(
+            topic: nil,
+            keypath: "conferenceUIRouter.state.meetings.confirmedMeetings",
+            flowElementSkeleton: titleDetailRow()
+        )
+        meetingsList.modifiers = listCard
+
+        var operationsSection = SkeletonSection(
+            header: .Text(sectionTitle("People and schedule")),
+            footer: .Text(bodyText("Denne flaten holder fast i `CellConfiguration` + `skeleton`: runtime-data kommer fra `conferenceUIRouter` og ikke fra Binding-spesifikke views.")),
+            content: [
+                .Text(keyText("conferenceUIRouter.state.peopleMatches.status", color: ConferenceSurfacePalette.textMuted, size: 12)),
+                .List(matchesList),
+                .Text(keyText("conferenceUIRouter.state.meetings.meetingSummary", color: ConferenceSurfacePalette.textMuted, size: 12)),
+                .List(meetingsList),
+                .HStack(SkeletonHStack(elements: [
+                    actionButton("peopleMatches", label: "Open matches", style: primaryButton),
+                    actionButton("meetings", label: "Open meetings", style: secondaryButton),
+                    actionButton("insights", label: "Insights", style: secondaryButton)
+                ]))
+            ]
+        )
+        operationsSection.modifiers = sectionCard
+
+        var notesSection = SkeletonSection(
+            header: .Text(sectionTitle("Runtime notes")),
+            content: [
+                .Text(bodyText("Binding skal oversette remote host og bridgehead, men ellers behandle conference-surface likt som scaffolden.")),
+                .Text(bodyText("Hvis en keypath gir `notFound`, er det en runtime-/preview-avvik vi vil se i debug-panelet og ikke skjule med en Binding-only fallback.", color: ConferenceSurfacePalette.accentWarm))
+            ]
+        )
+        notesSection.modifiers = sectionCard
+
+        var root = SkeletonVStack(elements: [
+            .Section(heroSection),
+            .Section(workflowSection),
+            .Section(operationsSection),
+            .Section(notesSection)
+        ])
+        root.modifiers = pageCard
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func conferenceParticipantPortalWorkbenchConfiguration(
+        endpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: endpoint,
+            sourceCellName: "ConferenceParticipantPreviewShellCell",
+            purpose: "Conference participantportal",
+            purposeDescription: "Participant-shell med agenda, anbefalte personer, møter og shared network, levert over preview-wrapper så samme contract kan brukes i Binding og scaffold.",
+            interests: ["conference", "participant", "agenda", "sessions", "matchmaking", "meetings", "network"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var reference = CellReference(endpoint: endpoint, subscribeFeed: false, label: "conferenceParticipantShell")
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(reference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalHeroSection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalAgendaSection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalRecommendationsSection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalTimelineSection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalNetworkSection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalCardSection(
+                "Runtime Notes",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Denne flaten holder seg til CellConfiguration + skeleton. Binding skal bare oversette remote host/bridgehead og ellers laste samme conference-kontrakt som scaffolden.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Hvis preview-wrapper eller bridge er treg, skal brukeren fortsatt se en tydelig loading/failure-surface i stedet for svart porthole.",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2"
+                    )
+                ]
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    private static func bindingConferencePortalCardSection(_ title: String, content: SkeletonElementList) -> SkeletonElement {
+        var header = SkeletonText(text: title)
+        header.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#F5FBFF"
+        }
+
+        var modifiers = SkeletonModifiers()
+        modifiers.padding = 12
+        modifiers.background = "#0F1B24"
+        modifiers.cornerRadius = 12
+        modifiers.borderWidth = 1
+        modifiers.borderColor = "#1F3442"
+
+        var section = SkeletonSection(header: .Text(header), content: content)
+        section.modifiers = modifiers
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalStaticText(
+        _ text: String,
+        fontSize: Double? = nil,
+        fontWeight: String? = nil,
+        foregroundColor: String? = nil
+    ) -> SkeletonElement {
+        var label = SkeletonText(text: text)
+        if fontSize != nil || fontWeight != nil || foregroundColor != nil {
+            label.modifiers = modifier {
+                $0.fontSize = fontSize
+                $0.fontWeight = fontWeight
+                $0.foregroundColor = foregroundColor
+            }
+        }
+        return .Text(label)
+    }
+
+    private static func bindingConferencePortalKeyText(
+        _ keypath: String,
+        fontSize: Double? = nil,
+        fontWeight: String? = nil,
+        foregroundColor: String? = nil
+    ) -> SkeletonElement {
+        var label = SkeletonText(keypath: keypath)
+        if fontSize != nil || fontWeight != nil || foregroundColor != nil {
+            label.modifiers = modifier {
+                $0.fontSize = fontSize
+                $0.fontWeight = fontWeight
+                $0.foregroundColor = foregroundColor
+            }
+        }
+        return .Text(label)
+    }
+
+    private static func bindingConferencePortalBadgeKeyText(_ keypath: String) -> SkeletonElement {
+        var label = SkeletonText(keypath: keypath)
+        label.modifiers = modifier {
+            $0.padding = 6
+            $0.background = "#122734"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.foregroundColor = "#C6F5EE"
+            $0.fontSize = 12
+            $0.fontWeight = "semibold"
+        }
+        return .Text(label)
+    }
+
+    private static func bindingConferencePortalActionButton(
+        _ referenceLabel: String,
+        actionKeypath: String,
+        label: String,
+        payload: ValueType = .bool(true)
+    ) -> SkeletonElement {
+        var button = SkeletonButton(
+            keypath: "\(referenceLabel).dispatchAction",
+            label: label,
+            payload: .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+        )
+        button.modifiers = modifier {
+            $0.padding = 8
+            $0.background = "#173140"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#2D566B"
+            $0.foregroundColor = "#D9FBFF"
+        }
+        return .Button(button)
+    }
+
+    private static func bindingConferencePortalHeroSection(referenceLabel: String) -> SkeletonElement {
+        bindingConferencePortalCardSection(
+            "Portal Header",
+            content: [
+                .HStack(
+                    SkeletonHStack(elements: [
+                        .VStack(
+                            SkeletonVStack(elements: [
+                                bindingConferencePortalStaticText(
+                                    "DELTAGERPORTAL",
+                                    fontSize: 12,
+                                    fontWeight: "bold",
+                                    foregroundColor: "#7FD6D0"
+                                ),
+                                bindingConferencePortalKeyText(
+                                    "\(referenceLabel).state.workspace.title",
+                                    fontSize: 20,
+                                    fontWeight: "bold",
+                                    foregroundColor: "#F5FBFF"
+                                ),
+                                bindingConferencePortalKeyText(
+                                    "\(referenceLabel).state.workspace.subtitle",
+                                    fontSize: 13,
+                                    foregroundColor: "#9AB3C3"
+                                )
+                            ])
+                        ),
+                        .Spacer(SkeletonSpacer()),
+                        .VStack(
+                            SkeletonVStack(elements: [
+                                bindingConferencePortalBadgeKeyText("\(referenceLabel).state.workspace.participantBadge"),
+                                bindingConferencePortalBadgeKeyText("\(referenceLabel).state.workspace.programBadge"),
+                                bindingConferencePortalBadgeKeyText("\(referenceLabel).state.workspace.matchBadge"),
+                                bindingConferencePortalBadgeKeyText("\(referenceLabel).state.workspace.meetingBadge")
+                            ])
+                        )
+                    ])
+                ),
+                bindingConferencePortalKeyText(
+                    "\(referenceLabel).state.workspace.nextStep",
+                    fontSize: 13,
+                    foregroundColor: "#D7E7F2"
+                ),
+                bindingConferencePortalKeyText(
+                    "\(referenceLabel).state.workspace.previewNotice",
+                    fontSize: 12,
+                    foregroundColor: "#88A2B1"
+                )
+            ]
+        )
+    }
+
+    private static func bindingConferencePortalAgendaSection(referenceLabel: String) -> SkeletonElement {
+        bindingConferencePortalCardSection(
+            "Min Agenda",
+            content: [
+                bindingConferencePortalKeyText("\(referenceLabel).state.program.intro"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.program.agendaSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.program.viewSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.program.timelineSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.program.status"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.program.storageSummary"),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 280)],
+                        spacing: 12,
+                        keypath: "\(referenceLabel).state.program.trackOptions",
+                        itemSkeleton: bindingConferencePortalSessionCardSkeleton()
+                    )
+                ),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 320)],
+                        spacing: 12,
+                        keypath: "\(referenceLabel).state.program.recommendedSessions",
+                        itemSkeleton: bindingConferencePortalSessionCardSkeleton()
+                    )
+                ),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.program.savedSessions",
+                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                    )
+                ),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setView",
+                            label: "Vis for deg",
+                            payload: .object(["view": .string("forYou")])
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setView",
+                            label: "Vis timeline",
+                            payload: .object(["view": .string("timeline")])
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setView",
+                            label: "Vis lagret",
+                            payload: .object(["view": .string("saved")])
+                        )
+                    ])
+                )
+            ]
+        )
+    }
+
+    private static func bindingConferencePortalRecommendationsSection(referenceLabel: String) -> SkeletonElement {
+        bindingConferencePortalCardSection(
+            "Dine Personlige Anbefalinger",
+            content: [
+                bindingConferencePortalKeyText("\(referenceLabel).state.matches.intro"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.matches.filterSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.matches.status"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.matches.recommendationSummary"),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 320)],
+                        spacing: 12,
+                        keypath: "\(referenceLabel).state.matches.recommendations",
+                        itemSkeleton: bindingConferencePortalRecommendationCardSkeleton()
+                    )
+                ),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "matchmaking.refreshRecommendations",
+                            label: "Oppdater treff"
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "matchmaking.setFilters",
+                            label: "Bytt filter"
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "matchmaking.searchPeople",
+                            label: "Søk governance",
+                            payload: .object(["query": .string("governance")])
+                        )
+                    ])
+                )
+            ]
+        )
+    }
+
+    private static func bindingConferencePortalTimelineSection(referenceLabel: String) -> SkeletonElement {
+        bindingConferencePortalCardSection(
+            "Min Tidslinje",
+            content: [
+                bindingConferencePortalKeyText("\(referenceLabel).state.meetings.intro"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.meetings.requestSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.meetings.slotSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.meetings.meetingSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.meetings.exportStatus"),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.meetings.confirmedMeetings",
+                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                    )
+                ),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "scheduling.createMeetingRequest",
+                            label: "Be om møte",
+                            payload: .object(["source": .string("binding-participant-portal")])
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "scheduling.exportICal",
+                            label: "Forbered iCal"
+                        )
+                    ])
+                )
+            ]
+        )
+    }
+
+    private static func bindingConferencePortalNetworkSection(referenceLabel: String) -> SkeletonElement {
+        bindingConferencePortalCardSection(
+            "Nettverks-Hub",
+            content: [
+                bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.intro"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.accessSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.connectionSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.chatSummary"),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.sharedConnections.connections",
+                        flowElementSkeleton: bindingConferencePortalConnectionRowSkeleton()
+                    )
+                ),
+                .List(
+                    SkeletonList(
+                        topic: nil,
+                        keypath: "\(referenceLabel).state.sharedConnections.recentMessages",
+                        flowElementSkeleton: bindingConferencePortalMessageRowSkeleton()
+                    )
+                ),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "connections.postSharedMessage",
+                            label: "Send oppfølging",
+                            payload: .object([
+                                "text": .string("Takk for praten. Skal vi fortsette etter neste sesjon?"),
+                                "contentType": .string("text/plain")
+                            ])
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "scheduling.respondMeetingRequest",
+                            label: "Vurder forespørsel"
+                        )
+                    ])
+                )
+            ]
+        )
+    }
+
+    private static func bindingConferencePortalRecommendationCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalBadgeKeyText("note")
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+        }
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalSessionCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+        }
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalTimelineRowSkeleton() -> SkeletonVStack {
+        SkeletonVStack(elements: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#9AB3C3"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1"),
+            .Divider(SkeletonDivider())
+        ])
+    }
+
+    private static func bindingConferencePortalConnectionRowSkeleton() -> SkeletonVStack {
+        SkeletonVStack(elements: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1"),
+            .Divider(SkeletonDivider())
+        ])
+    }
+
+    private static func bindingConferencePortalMessageRowSkeleton() -> SkeletonVStack {
+        SkeletonVStack(elements: [
+            bindingConferencePortalKeyText("title", fontSize: 14, fontWeight: "semibold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1"),
+            .Divider(SkeletonDivider())
+        ])
     }
 
     nonisolated private static func entityScannerToolConfiguration(
@@ -10473,681 +11293,519 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated static func appleIntelligenceLandingConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Apple Intelligence Purpose Matcher")
-        configuration.description = "Semantisk explorer over ConfigurationCatalog med matching, skeleton preview, lasting i Porthole, laering og publisering av formaal."
+        configuration.description = "Prompt-drevet Apple Intelligence-flate for matching av CellConfigurations, skeleton-preview, lasting i Porthole og lagring til senere."
 
         var catalogReference = CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog")
         catalogReference.subscribeFeed = false
         configuration.addReference(catalogReference)
 
-        let sectionCard = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 10
+        let canvas = "#0D1117"
+        let surface = "#161B22"
+        let surfaceRaised = "#0F141B"
+        let stroke = "#30363D"
+        let accent = "#00F2EA"
+        let textPrimary = "#F0F6FC"
+        let textMuted = "#8B949E"
+        let accentTextOnFill = "#0D1117"
+
+        let shellModifier = modifier {
+            $0.padding = 16
+            $0.background = canvas
+            $0.cornerRadius = 18
             $0.borderWidth = 1
-            $0.borderColor = "#CBD5E1"
+            $0.borderColor = stroke
+            $0.maxWidthInfinity = true
         }
 
-        let listLarge = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 10
+        let sectionModifier = modifier {
+            $0.padding = 12
+            $0.background = surface
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#BFD1E4"
-            $0.height = 220
+            $0.borderColor = stroke
+            $0.maxWidthInfinity = true
         }
 
-        let listMedium = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 10
+        let listModifier = modifier {
+            $0.padding = 8
+            $0.background = surfaceRaised
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#C8D5E6"
-            $0.height = 140
+            $0.borderColor = stroke
+            $0.height = 300
+            $0.maxWidthInfinity = true
         }
 
-        let listSmall = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 10
+        let compactListModifier = modifier {
+            $0.padding = 8
+            $0.background = surfaceRaised
+            $0.cornerRadius = 14
             $0.borderWidth = 1
-            $0.borderColor = "#C8D5E6"
-            $0.height = 96
-        }
-
-        let neutralButton = modifier {
-            $0.padding = 6
-            $0.background = "#EDF2F7"
-            $0.borderWidth = 1
-            $0.borderColor = "#B7C5D6"
-            $0.cornerRadius = 8
-        }
-
-        let primaryButton = modifier {
-            $0.padding = 6
-            $0.background = "#DBEAFE"
-            $0.borderWidth = 1
-            $0.borderColor = "#60A5FA"
-            $0.cornerRadius = 8
-        }
-
-        let successButton = modifier {
-            $0.padding = 6
-            $0.background = "#DCFCE7"
-            $0.borderWidth = 1
-            $0.borderColor = "#4ADE80"
-            $0.cornerRadius = 8
-        }
-
-        let warningButton = modifier {
-            $0.padding = 6
-            $0.background = "#FEF3C7"
-            $0.borderWidth = 1
-            $0.borderColor = "#F59E0B"
-            $0.cornerRadius = 8
+            $0.borderColor = stroke
+            $0.height = 190
+            $0.maxWidthInfinity = true
         }
 
         let inputModifier = modifier {
-            $0.padding = 7
-            $0.background = "#F8FAFC"
-            $0.cornerRadius = 8
+            $0.padding = 16
+            $0.background = surface
+            $0.cornerRadius = 12
             $0.borderWidth = 1
-            $0.borderColor = "#D3DEEB"
+            $0.borderColor = stroke
+            $0.foregroundColor = textPrimary
+            $0.maxWidthInfinity = true
         }
 
-        var title = SkeletonText(text: "Apple Intelligence: Semantic Explorer")
-        title.modifiers = modifier {
-            $0.fontStyle = "headline"
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+        let primaryButton = modifier {
+            $0.padding = 10
+            $0.background = accent
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = accent
+            $0.foregroundColor = accentTextOnFill
         }
 
-        var intro = SkeletonText(text: "Semantisk lag over kontroll-konfigurasjonene. Utforsk alle kjente CellConfigurations, match paa formaal/interesser og last valgt kontrollflate direkte i Porthole. Denne workbenchen fungerer direkte over ConfigurationCatalog.")
-        intro.modifiers = modifier {
-            $0.foregroundColor = "#334155"
+        let secondaryButton = modifier {
+            $0.padding = 10
+            $0.background = surfaceRaised
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = stroke
+            $0.foregroundColor = textPrimary
+        }
+
+        let utilityButton = modifier {
+            $0.padding = 10
+            $0.background = "#1B2230"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#40536B"
+            $0.foregroundColor = textPrimary
+        }
+
+        let accentButton = modifier {
+            $0.padding = 10
+            $0.background = "#102E33"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = accent
+            $0.foregroundColor = accent
+        }
+
+        let hintTextModifier = modifier {
+            $0.foregroundColor = textMuted
             $0.fontSize = 12
             $0.lineLimit = 3
         }
 
-        var catalogScope = SkeletonText(keypath: "catalog.state.count")
-        catalogScope.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
-            $0.fontSize = 12
-            $0.fontWeight = "semibold"
+        var titleIcon = SkeletonImage(name: "sparkles")
+        titleIcon.type = "system"
+        titleIcon.modifiers = modifier {
+            $0.foregroundColor = accent
+            $0.fontSize = 20
         }
 
-        var matchingSuggestionCount = SkeletonText(keypath: "catalog.matching.state.suggestionCount")
-        matchingSuggestionCount.modifiers = modifier {
-            $0.foregroundColor = "#1D4ED8"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
+        var titleText = SkeletonText(text: "APPLE INTELLIGENCE")
+        titleText.modifiers = modifier {
+            $0.fontWeight = "bold"
+            $0.fontSize = 14
+            $0.foregroundColor = accent
         }
 
-        var matchingBookmarkCount = SkeletonText(keypath: "catalog.matching.state.bookmarkCount")
-        matchingBookmarkCount.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
+        let header = SkeletonHStack(elements: [
+            .Image(titleIcon),
+            .Text(titleText),
+            .Spacer(SkeletonSpacer())
+        ], spacing: 10)
+
+        var intro = SkeletonText(text: "Beskriv hva du vil oppnaa, saa matcher vi relevante CellConfigurations som kan lastes inn i Porthole.")
+        intro.modifiers = modifier {
+            $0.foregroundColor = textPrimary
+            $0.fontSize = 14
+            $0.lineLimit = 3
         }
 
-        var matchingSelectedName = SkeletonText(keypath: "catalog.matching.state.selectedName")
-        matchingSelectedName.modifiers = modifier {
-            $0.foregroundColor = "#475569"
-            $0.fontSize = 11
-            $0.lineLimit = 2
+        var tips = SkeletonText(text: "Tips: vaer konkret om maal, kontekst, interesser eller sted. Trykk paa et forslag for aa velge det. Aktiver raden for aa laste direkte i Porthole.")
+        tips.modifiers = hintTextModifier
+
+        var suggestionCountLabel = SkeletonText(text: "Forslag")
+        suggestionCountLabel.modifiers = hintTextModifier
+
+        var suggestionCountValue = SkeletonText(keypath: "catalog.matching.state.suggestionCount")
+        suggestionCountValue.modifiers = modifier {
+            $0.foregroundColor = accent
+            $0.fontWeight = "bold"
+            $0.fontSize = 14
+        }
+
+        var bookmarkCountLabel = SkeletonText(text: "Lagret")
+        bookmarkCountLabel.modifiers = hintTextModifier
+
+        var bookmarkCountValue = SkeletonText(keypath: "catalog.matching.state.bookmarkCount")
+        bookmarkCountValue.modifiers = modifier {
+            $0.foregroundColor = accent
+            $0.fontWeight = "bold"
+            $0.fontSize = 14
+        }
+
+        var selectedLabel = SkeletonText(text: "Valgt")
+        selectedLabel.modifiers = hintTextModifier
+
+        var selectedValue = SkeletonText(keypath: "catalog.matching.state.selectedName")
+        selectedValue.modifiers = modifier {
+            $0.foregroundColor = textPrimary
+            $0.fontSize = 13
+            $0.fontWeight = "semibold"
+            $0.lineLimit = 1
+        }
+
+        func statCard(label: SkeletonText, value: SkeletonText) -> SkeletonElement {
+            var stack = SkeletonVStack(elements: [.Text(label), .Text(value)], spacing: 4)
+            stack.modifiers = modifier {
+                $0.padding = 10
+                $0.background = surfaceRaised
+                $0.cornerRadius = 12
+                $0.borderWidth = 1
+                $0.borderColor = stroke
+                $0.maxWidthInfinity = true
+            }
+            return .VStack(stack)
         }
 
         let promptField = SkeletonTextField(
             text: nil,
             sourceKeypath: "catalog.matching.promptText",
-            targetKeypath: "catalog.matching.runPromptInput",
-            placeholder: "Skriv brukerprompt...",
+            targetKeypath: "catalog.matching.promptText",
+            placeholder: "Beskriv hva du vil oppnaa...",
             modifiers: inputModifier
         )
 
-        let suggestionPicker = SkeletonPicker(
-            label: "Velg forslag",
-            placeholder: "Velg foreslaatt kontrollflate",
-            keypath: "catalog.matching.suggestions",
-            optionLabelKeypath: "name",
-            selectionValueKeypath: "id",
-            selectionStateKeypath: "catalog.matching.state",
-            selectionActionKeypath: "catalog.matching.select",
-            selectionPayloadMode: .itemID,
-            allowsEmptySelection: false,
-            modifiers: inputModifier
-        )
-
-        var runMatching = SkeletonButton(keypath: "catalog.matching.runPromptInput", label: "Kjor matching", payload: .string(""))
-        runMatching.modifiers = primaryButton
-
-        var clearMatching = SkeletonButton(keypath: "catalog.matching.clear", label: "Nullstill", payload: .bool(true))
-        clearMatching.modifiers = neutralButton
-
-        var syncCandidates = SkeletonButton(
-            keypath: "catalog.syncScaffoldPurposeGoals",
-            label: "Sync kandidater",
+        var runMatching = SkeletonButton(
+            keypath: "catalog.matching.runPrompt",
+            label: "Finn forslag",
             payload: .bool(true)
         )
-        syncCandidates.modifiers = neutralButton
+        runMatching.modifiers = primaryButton
 
         var browseAll = SkeletonButton(
             keypath: "catalog.matching.runPrompt",
-            label: "Utforsk alle celler",
+            label: "Utforsk alle",
             payload: .object(["browseAll": .bool(true)])
         )
-        browseAll.modifiers = primaryButton
+        browseAll.modifiers = secondaryButton
+
+        var clearMatching = SkeletonButton(
+            keypath: "catalog.matching.clear",
+            label: "Nullstill",
+            payload: .bool(true)
+        )
+        clearMatching.modifiers = utilityButton
 
         var quickChat = SkeletonButton(
             keypath: "catalog.matching.runPrompt",
             label: "Chatte med venn",
             payload: .object(["prompt": .string("jeg skal chatte med en venn")])
         )
-        quickChat.modifiers = neutralButton
+        quickChat.modifiers = secondaryButton
 
         var quickConference = SkeletonButton(
             keypath: "catalog.matching.runPrompt",
-            label: "AI + personvern konferanser",
+            label: "AI og personvern",
             payload: .object(["prompt": .string("jeg vil laere om ai og personvern, hvilke konferanser boer jeg melde meg paa?")])
         )
-        quickConference.modifiers = neutralButton
+        quickConference.modifiers = secondaryButton
 
         var quickRestaurant = SkeletonButton(
             keypath: "catalog.matching.runPrompt",
-            label: "Asiatisk, frisk, spicy",
+            label: "Asiatisk og spicy",
             payload: .object(["prompt": .string("jeg kan tenke meg noe asiatisk, friskt og spicy i dag hvilke restauranter boer jeg se paa?")])
         )
-        quickRestaurant.modifiers = neutralButton
+        quickRestaurant.modifiers = secondaryButton
 
         var quickPeople = SkeletonButton(
             keypath: "catalog.matching.runPrompt",
             label: "Lignende interesser",
             payload: .object(["prompt": .string("jeg har lyst til aa finne andre som har lignende interesser som meg")])
         )
-        quickPeople.modifiers = neutralButton
+        quickPeople.modifiers = secondaryButton
 
-        var suggestionName = SkeletonText(keypath: "name")
-        suggestionName.modifiers = modifier {
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+        var sectionPrompt = SkeletonText(text: "FORMULER INTENSJON")
+        sectionPrompt.modifiers = modifier {
+            $0.fontSize = 10
+            $0.fontWeight = "bold"
+            $0.foregroundColor = textMuted
         }
 
-        var suggestionPurpose = SkeletonText(keypath: "purpose")
-        suggestionPurpose.modifiers = modifier {
-            $0.foregroundColor = "#1E3A8A"
-            $0.fontSize = 12
+        var sectionSuggestions = SkeletonText(text: "FORSLAG BASERT PAA DIN INTENSJON")
+        sectionSuggestions.modifiers = modifier {
+            $0.fontSize = 10
+            $0.fontWeight = "bold"
+            $0.foregroundColor = textMuted
         }
 
-        var suggestionMeaning = SkeletonText(keypath: "matchMeaning")
-        suggestionMeaning.modifiers = modifier {
-            $0.foregroundColor = "#334155"
+        var sectionSelected = SkeletonText(text: "VALGT FORSLAG")
+        sectionSelected.modifiers = modifier {
+            $0.fontSize = 10
+            $0.fontWeight = "bold"
+            $0.foregroundColor = textMuted
+        }
+
+        var sectionSaved = SkeletonText(text: "LAGRET TIL SENERE")
+        sectionSaved.modifiers = modifier {
+            $0.fontSize = 10
+            $0.fontWeight = "bold"
+            $0.foregroundColor = textMuted
+        }
+
+        var rowIcon = SkeletonImage(name: "square.stack.3d.up.fill")
+        rowIcon.type = "system"
+        rowIcon.modifiers = modifier {
+            $0.foregroundColor = accent
+            $0.fontSize = 14
+        }
+
+        var rowName = SkeletonText(keypath: "name")
+        rowName.modifiers = modifier {
+            $0.fontWeight = "bold"
+            $0.foregroundColor = textPrimary
+            $0.fontSize = 14
+            $0.lineLimit = 1
+        }
+
+        var rowScore = SkeletonText(keypath: "match_score")
+        rowScore.modifiers = modifier {
             $0.fontSize = 12
+            $0.foregroundColor = accent
+            $0.fontWeight = "bold"
+        }
+
+        var rowDescription = SkeletonText(keypath: "description")
+        rowDescription.modifiers = modifier {
+            $0.fontSize = 13
+            $0.foregroundColor = textPrimary
             $0.lineLimit = 2
         }
 
-        var suggestionOverlap = SkeletonText(keypath: "overlapSummary")
-        suggestionOverlap.modifiers = modifier {
-            $0.foregroundColor = "#475569"
+        var rowReasoning = SkeletonText(keypath: "reasoning")
+        rowReasoning.modifiers = modifier {
+            $0.fontSize = 12
+            $0.foregroundColor = textMuted
+            $0.lineLimit = 2
+        }
+
+        var rowSkeletonStatus = SkeletonText(keypath: "skeletonStatus")
+        rowSkeletonStatus.modifiers = modifier {
             $0.fontSize = 11
+            $0.foregroundColor = accent
             $0.lineLimit = 1
         }
 
-        var suggestionScore = SkeletonText(keypath: "scoreAndSkeleton")
-        suggestionScore.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
+        var rowEndpoint = SkeletonText(keypath: "primaryEndpoint")
+        rowEndpoint.modifiers = modifier {
             $0.fontSize = 11
+            $0.foregroundColor = textMuted
             $0.lineLimit = 1
         }
 
-        var suggestionEndpoint = SkeletonText(keypath: "primaryEndpoint")
-        suggestionEndpoint.modifiers = modifier {
-            $0.foregroundColor = "#64748B"
-            $0.fontSize = 11
-            $0.lineLimit = 1
-        }
+        let rowTop = SkeletonHStack(elements: [
+            .Image(rowIcon),
+            .Text(rowName),
+            .Spacer(SkeletonSpacer()),
+            .Text(rowScore)
+        ], spacing: 8)
+
+        let rowBottom = SkeletonHStack(elements: [
+            .Text(rowSkeletonStatus),
+            .Spacer(SkeletonSpacer()),
+            .Text(rowEndpoint)
+        ], spacing: 8)
 
         var suggestionRow = SkeletonVStack(elements: [
-            .Text(suggestionName),
-            .Text(suggestionPurpose),
-            .Text(suggestionMeaning),
-            .Text(suggestionOverlap),
-            .Text(suggestionScore),
-            .Text(suggestionEndpoint)
-        ])
+            .HStack(rowTop),
+            .Text(rowDescription),
+            .Text(rowReasoning),
+            .HStack(rowBottom)
+        ], spacing: 8)
         suggestionRow.modifiers = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 8
+            $0.padding = 12
+            $0.background = surface
+            $0.cornerRadius = 12
             $0.borderWidth = 1
-            $0.borderColor = "#D3DEEB"
+            $0.borderColor = stroke
         }
 
-        var suggestionList = SkeletonList(topic: "catalog.matching.suggestions", keypath: nil, flowElementSkeleton: suggestionRow)
+        var suggestionList = SkeletonList(
+            topic: "catalog.matching.suggestions",
+            keypath: "catalog.matching.suggestions",
+            flowElementSkeleton: suggestionRow
+        )
         suggestionList.filterTypes = ["event"]
-        suggestionList.modifiers = listLarge
+        suggestionList.selectionMode = .single
+        suggestionList.selectionValueKeypath = "rank"
+        suggestionList.selectionStateKeypath = "catalog.matching.selectedIndex"
+        suggestionList.selectionActionKeypath = "catalog.matching.selectIndex"
+        suggestionList.selectionPayloadMode = .itemID
+        suggestionList.allowsEmptySelection = false
+        suggestionList.activationActionKeypath = "catalog.matching.loadSelectedToPorthole"
+        suggestionList.modifiers = listModifier
 
         var selectedName = SkeletonText(keypath: "name")
         selectedName.modifiers = modifier {
+            $0.fontWeight = "bold"
+            $0.fontSize = 14
+            $0.foregroundColor = textPrimary
+        }
+
+        var selectedDescription = SkeletonText(keypath: "description")
+        selectedDescription.modifiers = modifier {
+            $0.fontSize = 13
+            $0.foregroundColor = textPrimary
+            $0.lineLimit = 2
+        }
+
+        var selectedReasoning = SkeletonText(keypath: "reasoning")
+        selectedReasoning.modifiers = modifier {
+            $0.fontSize = 12
+            $0.foregroundColor = textMuted
+            $0.lineLimit = 3
+        }
+
+        var selectedPreviewLabel = SkeletonText(text: "Skeleton preview")
+        selectedPreviewLabel.modifiers = modifier {
+            $0.fontSize = 11
             $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
+            $0.foregroundColor = accent
         }
 
-        var selectedPurpose = SkeletonText(keypath: "purpose")
-        selectedPurpose.modifiers = modifier {
-            $0.foregroundColor = "#1E3A8A"
-            $0.fontSize = 12
-        }
-
-        var selectedMeaning = SkeletonText(keypath: "matchMeaning")
-        selectedMeaning.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-            $0.fontSize = 12
-            $0.lineLimit = 2
-        }
-
-        var selectedSkeletonStatus = SkeletonText(keypath: "skeletonStatus")
-        selectedSkeletonStatus.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
+        var selectedPreview = SkeletonText(keypath: "skeletonPreview")
+        selectedPreview.modifiers = modifier {
             $0.fontSize = 11
-            $0.lineLimit = 1
+            $0.foregroundColor = textMuted
+            $0.lineLimit = 4
         }
 
-        var selectedSkeletonPreview = SkeletonText(keypath: "skeletonPreview")
-        selectedSkeletonPreview.modifiers = modifier {
-            $0.foregroundColor = "#64748B"
-            $0.fontSize = 11
-            $0.lineLimit = 2
-        }
-
-        var selectedRow = SkeletonVStack(elements: [
+        var selectedCard = SkeletonVStack(elements: [
             .Text(selectedName),
-            .Text(selectedPurpose),
-            .Text(selectedMeaning),
-            .Text(selectedSkeletonStatus),
-            .Text(selectedSkeletonPreview)
-        ])
-        selectedRow.modifiers = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 8
-            $0.borderWidth = 1
-            $0.borderColor = "#C9D8EC"
-        }
-
-        var selectedSuggestion = SkeletonList(topic: "catalog.matching.selectedSuggestion", keypath: nil, flowElementSkeleton: selectedRow)
-        selectedSuggestion.filterTypes = ["event"]
-        selectedSuggestion.modifiers = listMedium
-
-        var purposeStatPurpose = SkeletonText(keypath: "purpose")
-        purposeStatPurpose.modifiers = modifier {
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
-        }
-
-        var purposeStatUsage = SkeletonText(keypath: "usageSummary")
-        purposeStatUsage.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-            $0.fontSize = 12
-        }
-
-        var purposeStatEffectiveness = SkeletonText(keypath: "effectivenessPercent")
-        purposeStatEffectiveness.modifiers = modifier {
-            $0.foregroundColor = "#15803D"
-            $0.fontSize = 11
-        }
-
-        var purposeStatWeight = SkeletonText(keypath: "weightLabel")
-        purposeStatWeight.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
-            $0.fontSize = 11
-        }
-
-        var purposeStatRow = SkeletonVStack(elements: [
-            .Text(purposeStatPurpose),
-            .Text(purposeStatUsage),
-            .Text(purposeStatEffectiveness),
-            .Text(purposeStatWeight)
-        ])
-        purposeStatRow.modifiers = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 8
-            $0.borderWidth = 1
-            $0.borderColor = "#D9E6C7"
-        }
-
-        var purposeStatsList = SkeletonList(topic: "catalog.matching.purposeStats", keypath: "catalog.matching.purposeStats", flowElementSkeleton: purposeStatRow)
-        purposeStatsList.modifiers = listMedium
-
-        var outcomeEventTitle = SkeletonText(keypath: "title")
-        outcomeEventTitle.modifiers = modifier {
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
-            $0.fontSize = 12
-        }
-
-        var outcomeEventPurpose = SkeletonText(keypath: "content.purpose")
-        outcomeEventPurpose.modifiers = modifier {
-            $0.foregroundColor = "#1E3A8A"
-            $0.fontSize = 12
-        }
-
-        var outcomeEventGoal = SkeletonText(keypath: "content.achievedGoal")
-        outcomeEventGoal.modifiers = modifier {
-            $0.foregroundColor = "#15803D"
-            $0.fontSize = 11
-        }
-
-        var outcomeEventWeight = SkeletonText(keypath: "content.currentWeight")
-        outcomeEventWeight.modifiers = modifier {
-            $0.foregroundColor = "#0F766E"
-            $0.fontSize = 11
-        }
-
-        var outcomeEventRow = SkeletonVStack(elements: [
-            .Text(outcomeEventTitle),
-            .Text(outcomeEventPurpose),
-            .Text(outcomeEventGoal),
-            .Text(outcomeEventWeight)
-        ])
-        outcomeEventRow.modifiers = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 8
-            $0.borderWidth = 1
-            $0.borderColor = "#D9E6C7"
-        }
-
-        var purposeOutcomeEventsList = SkeletonList(topic: "purpose.outcome", keypath: nil, flowElementSkeleton: outcomeEventRow)
-        purposeOutcomeEventsList.filterTypes = ["event"]
-        purposeOutcomeEventsList.modifiers = listSmall
-
-        var publicationEntity = SkeletonText(keypath: "entityName")
-        publicationEntity.modifiers = modifier {
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
-        }
-
-        var publicationType = SkeletonText(keypath: "entityTypeLabel")
-        publicationType.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-            $0.fontSize = 12
-        }
-
-        var publicationPurpose = SkeletonText(keypath: "purpose")
-        publicationPurpose.modifiers = modifier {
-            $0.foregroundColor = "#1E3A8A"
-            $0.fontSize = 12
-        }
-
-        var publicationMeaning = SkeletonText(keypath: "meaning")
-        publicationMeaning.modifiers = modifier {
-            $0.foregroundColor = "#475569"
-            $0.fontSize = 11
-            $0.lineLimit = 1
-        }
-
-        var publicationRow = SkeletonVStack(elements: [
-            .Text(publicationEntity),
-            .Text(publicationType),
-            .Text(publicationPurpose),
-            .Text(publicationMeaning)
-        ])
-        publicationRow.modifiers = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 8
-            $0.borderWidth = 1
-            $0.borderColor = "#E4D8F8"
-        }
-
-        var publicationList = SkeletonList(topic: "catalog.matching.entityPurposePublications", keypath: "catalog.matching.entityPurposePublications", flowElementSkeleton: publicationRow)
-        publicationList.modifiers = listMedium
-
-        var publicationEventTitle = SkeletonText(keypath: "title")
-        publicationEventTitle.modifiers = modifier {
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
-            $0.fontSize = 12
-        }
-
-        var publicationEventEntity = SkeletonText(keypath: "content.entityName")
-        publicationEventEntity.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-            $0.fontSize = 12
-        }
-
-        var publicationEventPurpose = SkeletonText(keypath: "content.purpose")
-        publicationEventPurpose.modifiers = modifier {
-            $0.foregroundColor = "#1E3A8A"
-            $0.fontSize = 12
-        }
-
-        var publicationEventMeaning = SkeletonText(keypath: "content.meaning")
-        publicationEventMeaning.modifiers = modifier {
-            $0.foregroundColor = "#475569"
-            $0.fontSize = 11
-            $0.lineLimit = 1
-        }
-
-        var publicationEventRow = SkeletonVStack(elements: [
-            .Text(publicationEventTitle),
-            .Text(publicationEventEntity),
-            .Text(publicationEventPurpose),
-            .Text(publicationEventMeaning)
-        ])
-        publicationEventRow.modifiers = modifier {
-            $0.padding = 6
-            $0.background = "#FFFFFF"
-            $0.cornerRadius = 8
-            $0.borderWidth = 1
-            $0.borderColor = "#E4D8F8"
-        }
-
-        var purposePublicationEventsList = SkeletonList(topic: "purpose.entity.publications", keypath: nil, flowElementSkeleton: publicationEventRow)
-        purposePublicationEventsList.filterTypes = ["event"]
-        purposePublicationEventsList.modifiers = listSmall
-
-        var bookmarkList = SkeletonList(topic: "catalog.matching.bookmarks", keypath: "catalog.matching.bookmarks", flowElementSkeleton: suggestionRow)
-        bookmarkList.modifiers = listSmall
-
-        var semanticStateHeader = SkeletonText(text: "Semantisk status (fra katalogen)")
-        semanticStateHeader.modifiers = modifier {
-            $0.fontWeight = "semibold"
-            $0.foregroundColor = "#0F172A"
-            $0.fontSize = 12
-        }
-
-        var semanticState = SkeletonText(url: URL(string: "cell:///ConfigurationCatalog/matching.state")!)
-        semanticState.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-            $0.fontSize = 11
-            $0.lineLimit = 6
-        }
-
-        var loadSelected = SkeletonButton(keypath: "catalog.matching.loadSelectedToPorthole", label: "Load valgt i Porthole", payload: .bool(true))
-        loadSelected.modifiers = primaryButton
-
-        var markSelectedUsed = SkeletonButton(keypath: "catalog.matching.markSelectedUsed", label: "Marker brukt", payload: .bool(true))
-        markSelectedUsed.modifiers = neutralButton
-
-        var markGoalAchieved = SkeletonButton(keypath: "catalog.matching.markSelectedGoalAchieved", label: "Maal oppnaadd", payload: .bool(true))
-        markGoalAchieved.modifiers = successButton
-
-        var bookmarkSelected = SkeletonButton(keypath: "catalog.matching.bookmarkSelected", label: "Bokmerk valgt", payload: .bool(true))
-        bookmarkSelected.modifiers = neutralButton
-
-        var saveSelectedUpperMid = SkeletonButton(
-            keypath: "catalog.matching.saveSelectedToMenu",
-            label: "Lagre i upperMid",
-            payload: .object(["menuSlot": .string("upperMid")])
-        )
-        saveSelectedUpperMid.modifiers = warningButton
-
-        var saveSelectedLowerMid = SkeletonButton(
-            keypath: "catalog.matching.saveSelectedToMenu",
-            label: "Lagre i lowerMid",
-            payload: .object(["menuSlot": .string("lowerMid")])
-        )
-        saveSelectedLowerMid.modifiers = warningButton
-
-        let publishPersonName = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "catalog.matching.publish.personName",
-            targetKeypath: "catalog.matching.publish.personName",
-            placeholder: "Personnavn",
-            modifiers: inputModifier
-        )
-
-        let publishGroupName = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "catalog.matching.publish.groupName",
-            targetKeypath: "catalog.matching.publish.groupName",
-            placeholder: "Gruppenavn / selskap / butikk",
-            modifiers: inputModifier
-        )
-
-        let publishGroupType = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "catalog.matching.publish.groupType",
-            targetKeypath: "catalog.matching.publish.groupType",
-            placeholder: "Gruppetype (selskap, butikk, team...)",
-            modifiers: inputModifier
-        )
-
-        let publishNote = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "catalog.matching.publish.note",
-            targetKeypath: "catalog.matching.publish.note",
-            placeholder: "Notat om hvorfor formaalet passer",
-            modifiers: inputModifier
-        )
-
-        var publishPersonPurpose = SkeletonButton(
-            keypath: "catalog.matching.publishEntityPurpose",
-            label: "Publiser formaal for person",
-            payload: .object(["entityType": .string("person")])
-        )
-        publishPersonPurpose.modifiers = neutralButton
-
-        var publishGroupPurpose = SkeletonButton(
-            keypath: "catalog.matching.publishEntityPurpose",
-            label: "Publiser formaal for gruppe",
-            payload: .object(["entityType": .string("group")])
-        )
-        publishGroupPurpose.modifiers = neutralButton
-
-        var sectionMatches = SkeletonText(text: "Treff fra semantisk matching over katalogen")
-        sectionMatches.modifiers = modifier {
-            $0.foregroundColor = "#0F172A"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
-        }
-
-        var sectionAI = SkeletonText(text: "Semantisk kontroll-lag")
-        sectionAI.modifiers = modifier {
-            $0.foregroundColor = "#0F172A"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
-        }
-
-        var sectionSelected = SkeletonText(text: "Valgt kontrollkonfigurasjon (kan lastes i Porthole)")
-        sectionSelected.modifiers = modifier {
-            $0.foregroundColor = "#0F172A"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
-        }
-
-        var sectionLearning = SkeletonText(text: "Formaal-laering (maaloppnaaelse teller mest)")
-        sectionLearning.modifiers = modifier {
-            $0.foregroundColor = "#0F172A"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
-        }
-
-        var sectionOutcomeEvents = SkeletonText(text: "Flow events (topic: purpose.outcome)")
-        sectionOutcomeEvents.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 11
-        }
-
-        var sectionPublish = SkeletonText(text: "Publiser formaal for personer og grupper")
-        sectionPublish.modifiers = modifier {
-            $0.foregroundColor = "#0F172A"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
-        }
-
-        var sectionPublicationEvents = SkeletonText(text: "Flow events (topic: purpose.entity.publications)")
-        sectionPublicationEvents.modifiers = modifier {
-            $0.foregroundColor = "#334155"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 11
-        }
-
-        var sectionBookmarks = SkeletonText(text: "Bokmerker")
-        sectionBookmarks.modifiers = modifier {
-            $0.foregroundColor = "#0F172A"
-            $0.fontWeight = "semibold"
-            $0.fontSize = 12
-        }
-
-        var root = SkeletonVStack(elements: [
-            .Text(title),
-            .Text(intro),
-            .Text(catalogScope),
-            .Text(sectionAI),
-            .Text(matchingSuggestionCount),
-            .Text(matchingBookmarkCount),
-            .Text(matchingSelectedName),
-            .Text(semanticStateHeader),
-            .Text(semanticState),
-            .TextField(promptField),
-            .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(browseAll)])),
-            .HStack(SkeletonHStack(elements: [.Button(syncCandidates), .Button(clearMatching)])),
-            .HStack(SkeletonHStack(elements: [.Button(quickChat), .Button(quickConference)])),
-            .HStack(SkeletonHStack(elements: [.Button(quickRestaurant), .Button(quickPeople)])),
-            .Picker(suggestionPicker),
-            .Text(sectionMatches),
-            .List(suggestionList),
-            .Text(sectionSelected),
-            .List(selectedSuggestion),
-            .HStack(SkeletonHStack(elements: [.Button(loadSelected), .Button(markSelectedUsed)])),
-            .HStack(SkeletonHStack(elements: [.Button(markGoalAchieved), .Button(bookmarkSelected)])),
-            .HStack(SkeletonHStack(elements: [.Button(saveSelectedUpperMid), .Button(saveSelectedLowerMid)])),
-            .Text(sectionLearning),
-            .List(purposeStatsList),
-            .Text(sectionOutcomeEvents),
-            .List(purposeOutcomeEventsList),
-            .Text(sectionPublish),
-            .TextField(publishPersonName),
-            .TextField(publishGroupName),
-            .TextField(publishGroupType),
-            .TextField(publishNote),
-            .HStack(SkeletonHStack(elements: [.Button(publishPersonPurpose), .Button(publishGroupPurpose)])),
-            .Text(sectionPublicationEvents),
-            .List(purposePublicationEventsList),
-            .List(publicationList),
-            .Text(sectionBookmarks),
-            .List(bookmarkList)
-        ])
-        root.modifiers = modifier {
-            $0.padding = 8
-            $0.background = "#EEF5FB"
+            .Text(selectedDescription),
+            .Text(selectedReasoning),
+            .Text(selectedPreviewLabel),
+            .Text(selectedPreview)
+        ], spacing: 8)
+        selectedCard.modifiers = modifier {
+            $0.padding = 12
+            $0.background = surface
             $0.cornerRadius = 12
             $0.borderWidth = 1
-            $0.borderColor = "#C5D5E8"
-            $0.maxWidthInfinity = true
+            $0.borderColor = stroke
         }
 
-        var framedRoot = SkeletonVStack(elements: [.VStack(root)])
-        framedRoot.modifiers = sectionCard
+        var selectedSuggestion = SkeletonList(
+            topic: "catalog.matching.selectedSuggestion",
+            keypath: "catalog.matching.selectedSuggestion",
+            flowElementSkeleton: selectedCard
+        )
+        selectedSuggestion.filterTypes = ["event"]
+        selectedSuggestion.modifiers = compactListModifier
 
-        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(framedRoot)])
+        var openSelected = SkeletonButton(
+            keypath: "catalog.matching.loadSelectedToPorthole",
+            label: "Last i Porthole",
+            payload: .bool(true)
+        )
+        openSelected.modifiers = primaryButton
+
+        var previewSelected = SkeletonButton(
+            keypath: "catalog.matching.previewSelected",
+            label: "Se struktur",
+            payload: .bool(true)
+        )
+        previewSelected.modifiers = secondaryButton
+
+        var bookmarkSelected = SkeletonButton(
+            keypath: "catalog.matching.bookmarkSelected",
+            label: "Lagre til senere",
+            payload: .bool(true)
+        )
+        bookmarkSelected.modifiers = utilityButton
+
+        var addToMenu = SkeletonButton(
+            keypath: "catalog.matching.saveSelectedToMenu",
+            label: "Legg i meny",
+            payload: .object(["menuSlot": .string("upperMid")])
+        )
+        addToMenu.modifiers = utilityButton
+
+        var goalAchieved = SkeletonButton(
+            keypath: "catalog.matching.markSelectedGoalAchieved",
+            label: "Loeste formaalet",
+            payload: .bool(true)
+        )
+        goalAchieved.modifiers = accentButton
+
+        var savedList = SkeletonList(
+            topic: nil,
+            keypath: "catalog.matching.bookmarks",
+            flowElementSkeleton: suggestionRow
+        )
+        savedList.modifiers = compactListModifier
+
+        var savedFootnote = SkeletonText(text: "Stretch: disse forslagene kan senere matches frem igjen eller brukes som byggesteiner i andre skeletons.")
+        savedFootnote.modifiers = hintTextModifier
+
+        var promptSection = SkeletonVStack(elements: [
+            .Text(sectionPrompt),
+            .TextField(promptField),
+            .HStack(SkeletonHStack(elements: [.Button(runMatching), .Button(browseAll), .Button(clearMatching)], spacing: 8)),
+            .HStack(SkeletonHStack(elements: [.Button(quickChat), .Button(quickConference)], spacing: 8)),
+            .HStack(SkeletonHStack(elements: [.Button(quickRestaurant), .Button(quickPeople)], spacing: 8))
+        ], spacing: 10)
+        promptSection.modifiers = sectionModifier
+
+        var suggestionsSection = SkeletonVStack(elements: [
+            .Text(sectionSuggestions),
+            .List(suggestionList)
+        ], spacing: 10)
+        suggestionsSection.modifiers = sectionModifier
+
+        var selectedSection = SkeletonVStack(elements: [
+            .Text(sectionSelected),
+            .List(selectedSuggestion),
+            .HStack(SkeletonHStack(elements: [.Button(openSelected), .Button(previewSelected)], spacing: 8)),
+            .HStack(SkeletonHStack(elements: [.Button(bookmarkSelected), .Button(addToMenu)], spacing: 8)),
+            .HStack(SkeletonHStack(elements: [.Button(goalAchieved)], spacing: 8))
+        ], spacing: 10)
+        selectedSection.modifiers = sectionModifier
+
+        var savedSection = SkeletonVStack(elements: [
+            .Text(sectionSaved),
+            .List(savedList),
+            .Text(savedFootnote)
+        ], spacing: 10)
+        savedSection.modifiers = sectionModifier
+
+        let statsRow = SkeletonHStack(elements: [
+            statCard(label: suggestionCountLabel, value: suggestionCountValue),
+            statCard(label: bookmarkCountLabel, value: bookmarkCountValue),
+            statCard(label: selectedLabel, value: selectedValue)
+        ], spacing: 10)
+
+        var root = SkeletonVStack(elements: [
+            .HStack(header),
+            .Text(intro),
+            .Text(tips),
+            .HStack(statsRow),
+            .VStack(promptSection),
+            .VStack(suggestionsSection),
+            .VStack(selectedSection),
+            .VStack(savedSection)
+        ], spacing: 12)
+        root.modifiers = shellModifier
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier {
             $0.maxWidthInfinity = true
             $0.maxHeightInfinity = true
-            $0.background = "#E7F0F9"
+            $0.background = canvas
         }
 
         configuration.skeleton = .ScrollView(scroll)

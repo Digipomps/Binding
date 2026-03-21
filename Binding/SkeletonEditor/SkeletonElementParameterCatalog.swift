@@ -21,6 +21,14 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
     case placeholder
     case topic
     case filterTypes
+    case selectionMode
+    case selectionValueKeypath
+    case selectionStateKeypath
+    case selectionActionKeypath
+    case activationActionKeypath
+    case selectionPayloadMode
+    case allowsEmptySelection
+    case optionLabelKeypath
     case label
     case axis
     case spacing
@@ -32,7 +40,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
 
     var valueKind: SkeletonElementParameterValueKind {
         switch self {
-        case .resizable, .scaledToFit, .isOn:
+        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
             return .bool
         case .width, .spacing, .padding:
             return .double
@@ -47,6 +55,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             switch element {
             case .Text(let text): return text.text != nil
             case .TextField(let textField): return textField.text != nil
+            case .TextArea(let textArea): return textArea.text != nil
             default: return false
             }
         case .endpoint:
@@ -60,6 +69,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             switch element {
             case .Text(let text): return text.keypath != nil
             case .List(let list): return list.keypath != nil
+            case .Picker(let picker): return picker.keypath != nil
             case .Reference, .Button, .Toggle:
                 return true
             default:
@@ -84,14 +94,24 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             if case .Spacer(let spacer) = element { return spacer.width != nil }
             return false
         case .sourceKeypath:
-            if case .TextField(let textField) = element { return textField.sourceKeypath != nil }
-            return false
+            switch element {
+            case .TextField(let textField): return textField.sourceKeypath != nil
+            case .TextArea(let textArea): return textArea.sourceKeypath != nil
+            default: return false
+            }
         case .targetKeypath:
-            if case .TextField(let textField) = element { return textField.targetKeypath != nil }
-            return false
+            switch element {
+            case .TextField(let textField): return textField.targetKeypath != nil
+            case .TextArea(let textArea): return textArea.targetKeypath != nil
+            default: return false
+            }
         case .placeholder:
-            if case .TextField(let textField) = element { return textField.placeholder != nil }
-            return false
+            switch element {
+            case .TextField(let textField): return textField.placeholder != nil
+            case .TextArea(let textArea): return textArea.placeholder != nil
+            case .Picker(let picker): return picker.placeholder != nil
+            default: return false
+            }
         case .topic:
             switch element {
             case .List(let list): return list.topic != nil
@@ -104,10 +124,51 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Reference(let reference): return !(reference.filterTypes ?? []).isEmpty
             default: return false
             }
+        case .selectionMode:
+            if case .List(let list) = element { return list.selectionMode != nil }
+            return false
+        case .selectionValueKeypath:
+            switch element {
+            case .List(let list): return list.selectionValueKeypath != nil
+            case .Picker(let picker): return picker.selectionValueKeypath != nil
+            default: return false
+            }
+        case .selectionStateKeypath:
+            switch element {
+            case .List(let list): return list.selectionStateKeypath != nil
+            case .Picker(let picker): return picker.selectionStateKeypath != nil
+            default: return false
+            }
+        case .selectionActionKeypath:
+            switch element {
+            case .List(let list): return list.selectionActionKeypath != nil
+            case .Picker(let picker): return picker.selectionActionKeypath != nil
+            default: return false
+            }
+        case .activationActionKeypath:
+            if case .List(let list) = element { return list.activationActionKeypath != nil }
+            return false
+        case .selectionPayloadMode:
+            switch element {
+            case .List(let list): return list.selectionPayloadMode != nil
+            case .Picker(let picker): return picker.selectionPayloadMode != nil
+            default: return false
+            }
+        case .allowsEmptySelection:
+            switch element {
+            case .List(let list): return list.allowsEmptySelection != nil
+            case .Picker(let picker): return picker.allowsEmptySelection != nil
+            default: return false
+            }
+        case .optionLabelKeypath:
+            if case .Picker(let picker) = element { return picker.optionLabelKeypath != nil }
+            return false
         case .label:
             switch element {
             case .Button, .Toggle:
                 return true
+            case .Picker(let picker):
+                return picker.label != nil
             default:
                 return false
             }
@@ -171,6 +232,12 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
         case .isOn:
             if case .Toggle(let toggle) = element { return toggle.isOn }
             return nil
+        case .allowsEmptySelection:
+            switch element {
+            case .List(let list): return list.allowsEmptySelection
+            case .Picker(let picker): return picker.allowsEmptySelection
+            default: return nil
+            }
         default:
             return nil
         }
@@ -182,6 +249,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             switch element {
             case .Text(let text): return text.text
             case .TextField(let textField): return textField.text
+            case .TextArea(let textArea): return textArea.text
             default: return nil
             }
         case .endpoint:
@@ -195,6 +263,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             switch element {
             case .Text(let text): return text.keypath
             case .List(let list): return list.keypath
+            case .Picker(let picker): return picker.keypath
             case .Reference(let reference): return reference.keypath
             case .Button(let button): return button.keypath
             case .Toggle(let toggle): return toggle.keypath
@@ -210,14 +279,24 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             if case .Spacer(let spacer) = element { return spacer.width.map { "\($0)" } }
             return nil
         case .sourceKeypath:
-            if case .TextField(let textField) = element { return textField.sourceKeypath }
-            return nil
+            switch element {
+            case .TextField(let textField): return textField.sourceKeypath
+            case .TextArea(let textArea): return textArea.sourceKeypath
+            default: return nil
+            }
         case .targetKeypath:
-            if case .TextField(let textField) = element { return textField.targetKeypath }
-            return nil
+            switch element {
+            case .TextField(let textField): return textField.targetKeypath
+            case .TextArea(let textArea): return textArea.targetKeypath
+            default: return nil
+            }
         case .placeholder:
-            if case .TextField(let textField) = element { return textField.placeholder }
-            return nil
+            switch element {
+            case .TextField(let textField): return textField.placeholder
+            case .TextArea(let textArea): return textArea.placeholder
+            case .Picker(let picker): return picker.placeholder
+            default: return nil
+            }
         case .topic:
             switch element {
             case .List(let list): return list.topic
@@ -230,10 +309,44 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Reference(let reference): return reference.filterTypes?.joined(separator: ", ")
             default: return nil
             }
+        case .selectionMode:
+            if case .List(let list) = element { return list.selectionMode?.rawValue }
+            return nil
+        case .selectionValueKeypath:
+            switch element {
+            case .List(let list): return list.selectionValueKeypath
+            case .Picker(let picker): return picker.selectionValueKeypath
+            default: return nil
+            }
+        case .selectionStateKeypath:
+            switch element {
+            case .List(let list): return list.selectionStateKeypath
+            case .Picker(let picker): return picker.selectionStateKeypath
+            default: return nil
+            }
+        case .selectionActionKeypath:
+            switch element {
+            case .List(let list): return list.selectionActionKeypath
+            case .Picker(let picker): return picker.selectionActionKeypath
+            default: return nil
+            }
+        case .activationActionKeypath:
+            if case .List(let list) = element { return list.activationActionKeypath }
+            return nil
+        case .selectionPayloadMode:
+            switch element {
+            case .List(let list): return list.selectionPayloadMode?.rawValue
+            case .Picker(let picker): return picker.selectionPayloadMode?.rawValue
+            default: return nil
+            }
+        case .optionLabelKeypath:
+            if case .Picker(let picker) = element { return picker.optionLabelKeypath }
+            return nil
         case .label:
             switch element {
             case .Button(let button): return button.label
             case .Toggle(let toggle): return toggle.label
+            case .Picker(let picker): return picker.label
             default: return nil
             }
         case .axis:
@@ -248,7 +361,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Reference(let reference): return reference.padding.map { "\($0)" }
             default: return nil
             }
-        case .resizable, .scaledToFit, .isOn:
+        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
             return nil
         }
     }
@@ -275,6 +388,20 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             _ = set(string: "default", on: &element)
         case .filterTypes:
             _ = set(string: "content", on: &element)
+        case .selectionMode:
+            _ = set(string: "single", on: &element)
+        case .selectionValueKeypath:
+            _ = set(string: "id", on: &element)
+        case .selectionStateKeypath:
+            _ = set(string: "selection.value", on: &element)
+        case .selectionActionKeypath:
+            _ = set(string: "selection.set", on: &element)
+        case .activationActionKeypath:
+            _ = set(string: "selection.open", on: &element)
+        case .selectionPayloadMode:
+            _ = set(string: "item", on: &element)
+        case .optionLabelKeypath:
+            _ = set(string: "label", on: &element)
         case .label:
             _ = set(string: "Label", on: &element)
         case .axis:
@@ -285,7 +412,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             set(double: 8, on: &element)
         case .padding:
             set(double: 0, on: &element)
-        case .resizable, .scaledToFit, .isOn:
+        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
             set(bool: true, on: &element)
         }
     }
@@ -300,6 +427,9 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .TextField(var textField):
                 textField.text = nil
                 element = .TextField(textField)
+            case .TextArea(var textArea):
+                textArea.text = nil
+                element = .TextArea(textArea)
             default:
                 break
             }
@@ -325,6 +455,9 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .List(var list):
                 list.keypath = nil
                 element = .List(list)
+            case .Picker(var picker):
+                picker.keypath = nil
+                element = .Picker(picker)
             default:
                 break
             }
@@ -348,19 +481,40 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 element = .Spacer(spacer)
             }
         case .sourceKeypath:
-            if case .TextField(var textField) = element {
+            switch element {
+            case .TextField(var textField):
                 textField.sourceKeypath = nil
                 element = .TextField(textField)
+            case .TextArea(var textArea):
+                textArea.sourceKeypath = nil
+                element = .TextArea(textArea)
+            default:
+                break
             }
         case .targetKeypath:
-            if case .TextField(var textField) = element {
+            switch element {
+            case .TextField(var textField):
                 textField.targetKeypath = nil
                 element = .TextField(textField)
+            case .TextArea(var textArea):
+                textArea.targetKeypath = nil
+                element = .TextArea(textArea)
+            default:
+                break
             }
         case .placeholder:
-            if case .TextField(var textField) = element {
+            switch element {
+            case .TextField(var textField):
                 textField.placeholder = nil
                 element = .TextField(textField)
+            case .TextArea(var textArea):
+                textArea.placeholder = nil
+                element = .TextArea(textArea)
+            case .Picker(var picker):
+                picker.placeholder = nil
+                element = .Picker(picker)
+            default:
+                break
             }
         case .topic:
             if case .List(var list) = element {
@@ -377,6 +531,76 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 element = .Reference(reference)
             default:
                 break
+            }
+        case .selectionMode:
+            if case .List(var list) = element {
+                list.selectionMode = nil
+                element = .List(list)
+            }
+        case .selectionValueKeypath:
+            switch element {
+            case .List(var list):
+                list.selectionValueKeypath = nil
+                element = .List(list)
+            case .Picker(var picker):
+                picker.selectionValueKeypath = nil
+                element = .Picker(picker)
+            default:
+                break
+            }
+        case .selectionStateKeypath:
+            switch element {
+            case .List(var list):
+                list.selectionStateKeypath = nil
+                element = .List(list)
+            case .Picker(var picker):
+                picker.selectionStateKeypath = nil
+                element = .Picker(picker)
+            default:
+                break
+            }
+        case .selectionActionKeypath:
+            switch element {
+            case .List(var list):
+                list.selectionActionKeypath = nil
+                element = .List(list)
+            case .Picker(var picker):
+                picker.selectionActionKeypath = nil
+                element = .Picker(picker)
+            default:
+                break
+            }
+        case .activationActionKeypath:
+            if case .List(var list) = element {
+                list.activationActionKeypath = nil
+                element = .List(list)
+            }
+        case .selectionPayloadMode:
+            switch element {
+            case .List(var list):
+                list.selectionPayloadMode = nil
+                element = .List(list)
+            case .Picker(var picker):
+                picker.selectionPayloadMode = nil
+                element = .Picker(picker)
+            default:
+                break
+            }
+        case .allowsEmptySelection:
+            switch element {
+            case .List(var list):
+                list.allowsEmptySelection = nil
+                element = .List(list)
+            case .Picker(var picker):
+                picker.allowsEmptySelection = nil
+                element = .Picker(picker)
+            default:
+                break
+            }
+        case .optionLabelKeypath:
+            if case .Picker(var picker) = element {
+                picker.optionLabelKeypath = nil
+                element = .Picker(picker)
             }
         case .label:
             break
@@ -429,6 +653,17 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 toggle.isOn = value
                 element = .Toggle(toggle)
             }
+        case .allowsEmptySelection:
+            switch element {
+            case .List(var list):
+                list.allowsEmptySelection = value
+                element = .List(list)
+            case .Picker(var picker):
+                picker.allowsEmptySelection = value
+                element = .Picker(picker)
+            default:
+                break
+            }
         default:
             break
         }
@@ -477,6 +712,10 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 textField.text = trimmed.isEmpty ? nil : trimmed
                 element = .TextField(textField)
                 return true
+            case .TextArea(var textArea):
+                textArea.text = trimmed.isEmpty ? nil : trimmed
+                element = .TextArea(textArea)
+                return true
             default:
                 return false
             }
@@ -519,6 +758,10 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 list.keypath = trimmed.isEmpty ? nil : trimmed
                 element = .List(list)
                 return true
+            case .Picker(var picker):
+                picker.keypath = trimmed.isEmpty ? nil : trimmed
+                element = .Picker(picker)
+                return true
             case .Reference(var reference):
                 reference.keypath = trimmed
                 element = .Reference(reference)
@@ -549,26 +792,48 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             }
             return false
         case .sourceKeypath:
-            if case .TextField(var textField) = element {
+            switch element {
+            case .TextField(var textField):
                 textField.sourceKeypath = trimmed.isEmpty ? nil : trimmed
                 element = .TextField(textField)
                 return true
+            case .TextArea(var textArea):
+                textArea.sourceKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .TextArea(textArea)
+                return true
+            default:
+                return false
             }
-            return false
         case .targetKeypath:
-            if case .TextField(var textField) = element {
+            switch element {
+            case .TextField(var textField):
                 textField.targetKeypath = trimmed.isEmpty ? nil : trimmed
                 element = .TextField(textField)
                 return true
+            case .TextArea(var textArea):
+                textArea.targetKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .TextArea(textArea)
+                return true
+            default:
+                return false
             }
-            return false
         case .placeholder:
-            if case .TextField(var textField) = element {
+            switch element {
+            case .TextField(var textField):
                 textField.placeholder = trimmed.isEmpty ? nil : trimmed
                 element = .TextField(textField)
                 return true
+            case .TextArea(var textArea):
+                textArea.placeholder = trimmed.isEmpty ? nil : trimmed
+                element = .TextArea(textArea)
+                return true
+            case .Picker(var picker):
+                picker.placeholder = trimmed.isEmpty ? nil : trimmed
+                element = .Picker(picker)
+                return true
+            default:
+                return false
             }
-            return false
         case .topic:
             switch element {
             case .List(var list):
@@ -596,6 +861,98 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             default:
                 return false
             }
+        case .selectionMode:
+            if case .List(var list) = element {
+                if trimmed.isEmpty {
+                    list.selectionMode = nil
+                } else if let mode = SkeletonListSelectionMode(rawValue: trimmed.lowercased()) {
+                    list.selectionMode = mode
+                } else {
+                    return false
+                }
+                element = .List(list)
+                return true
+            }
+            return false
+        case .selectionValueKeypath:
+            switch element {
+            case .List(var list):
+                list.selectionValueKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .List(list)
+                return true
+            case .Picker(var picker):
+                picker.selectionValueKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .Picker(picker)
+                return true
+            default:
+                return false
+            }
+        case .selectionStateKeypath:
+            switch element {
+            case .List(var list):
+                list.selectionStateKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .List(list)
+                return true
+            case .Picker(var picker):
+                picker.selectionStateKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .Picker(picker)
+                return true
+            default:
+                return false
+            }
+        case .selectionActionKeypath:
+            switch element {
+            case .List(var list):
+                list.selectionActionKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .List(list)
+                return true
+            case .Picker(var picker):
+                picker.selectionActionKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .Picker(picker)
+                return true
+            default:
+                return false
+            }
+        case .activationActionKeypath:
+            if case .List(var list) = element {
+                list.activationActionKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .List(list)
+                return true
+            }
+            return false
+        case .selectionPayloadMode:
+            let normalized = trimmed.lowercased().replacingOccurrences(of: "-", with: "_")
+            switch element {
+            case .List(var list):
+                if trimmed.isEmpty {
+                    list.selectionPayloadMode = nil
+                } else if let mode = SkeletonListSelectionPayloadMode(rawValue: normalized) {
+                    list.selectionPayloadMode = mode
+                } else {
+                    return false
+                }
+                element = .List(list)
+                return true
+            case .Picker(var picker):
+                if trimmed.isEmpty {
+                    picker.selectionPayloadMode = nil
+                } else if let mode = SkeletonListSelectionPayloadMode(rawValue: normalized) {
+                    picker.selectionPayloadMode = mode
+                } else {
+                    return false
+                }
+                element = .Picker(picker)
+                return true
+            default:
+                return false
+            }
+        case .optionLabelKeypath:
+            if case .Picker(var picker) = element {
+                picker.optionLabelKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .Picker(picker)
+                return true
+            }
+            return false
         case .label:
             switch element {
             case .Button(var button):
@@ -605,6 +962,10 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Toggle(var toggle):
                 toggle.label = trimmed
                 element = .Toggle(toggle)
+                return true
+            case .Picker(var picker):
+                picker.label = trimmed.isEmpty ? nil : trimmed
+                element = .Picker(picker)
                 return true
             default:
                 return false
@@ -616,7 +977,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 return true
             }
             return false
-        case .width, .spacing, .padding, .resizable, .scaledToFit, .isOn:
+        case .width, .spacing, .padding, .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
             return false
         }
     }
@@ -645,7 +1006,18 @@ enum SkeletonElementParameterCatalog {
         case .Spacer:
             return [.width]
         case .List:
-            return [.topic, .keypath, .filterTypes]
+            return [
+                .topic,
+                .keypath,
+                .filterTypes,
+                .selectionMode,
+                .selectionValueKeypath,
+                .selectionStateKeypath,
+                .selectionActionKeypath,
+                .activationActionKeypath,
+                .selectionPayloadMode,
+                .allowsEmptySelection
+            ]
         case .Reference:
             return [.keypath, .topic, .filterTypes, .scaledToFit, .padding]
         case .Button:
@@ -657,7 +1029,17 @@ enum SkeletonElementParameterCatalog {
         case .Toggle:
             return [.label, .keypath, .isOn]
         case .Picker:
-            return [.label, .placeholder, .keypath]
+            return [
+                .label,
+                .placeholder,
+                .keypath,
+                .optionLabelKeypath,
+                .selectionValueKeypath,
+                .selectionStateKeypath,
+                .selectionActionKeypath,
+                .selectionPayloadMode,
+                .allowsEmptySelection
+            ]
         case .Object, .HStack, .VStack, .Divider, .Section, .ZStack:
             return []
         }

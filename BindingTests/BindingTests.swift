@@ -8,7 +8,7 @@
 import Foundation
 import Testing
 import CellBase
-import CellApple
+@testable import CellApple
 @testable import Binding
 
 @Suite(.serialized)
@@ -149,6 +149,8 @@ struct BindingTests {
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///EntityScanner") == "cell:///EntityScanner")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantPreviewShell") == "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AIGateway") == "cell://staging.haven.digipomps.org/AIGateway")
     }
 
     @Test func fullLibraryPrefersRemoteCatalogEndpointsBeforeLocalFallback() {
@@ -210,6 +212,63 @@ struct BindingTests {
         ]))
 
         #expect(!RemoteCatalogSupport.shouldRecoverConfigurationOnDemand(dynamicRemoteConfiguration))
+    }
+
+    @Test func conferenceShortcutUsesDesignedScrollSurface() {
+        let configuration = ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceUIRouter"
+        )
+
+        #expect(configuration.cellReferences?.first?.label == "conferenceUIRouter")
+        #expect(configuration.cellReferences?.first?.endpoint == "cell://staging.haven.digipomps.org/ConferenceUIRouter")
+
+        guard case .ScrollView = configuration.skeleton else {
+            Issue.record("Conference MVP should use a designed scroll surface")
+            return
+        }
+    }
+
+    @Test func validationServiceFlagsUnresolvedSkeletonBindings() {
+        var configuration = CellConfiguration(name: "Broken")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "ghost.value")),
+            .Text(SkeletonText(keypath: "ghost.status"))
+        ]))
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        #expect(report.errorCount > 0)
+        #expect(report.issues.contains(where: { $0.title == "Mangler CellReferences" }))
+        #expect(report.issues.contains(where: { $0.title == "Bindings uten matchende reference" }))
+    }
+
+    @Test func skeletonBindingProbeSupportExtractsConferenceParticipantStateRoot() {
+        let configuration = makeConferenceParticipantPortalConfiguration()
+        let probes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
+
+        #expect(probes.contains(where: {
+            $0.label == "conferenceParticipantShell" && $0.rootKeypath == "state"
+        }))
+    }
+
+    @Test func skeletonBindingProbeSupportSkipsButtonActionKeypaths() {
+        var configuration = CellConfiguration(name: "Action Probe")
+        configuration.addReference(CellReference(endpoint: "cell:///Chat", label: "chat"))
+        configuration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Text(SkeletonText(keypath: "chat.status")),
+                .Button(SkeletonButton(keypath: "chat.dispatchAction", label: "Open"))
+            ])
+        )
+
+        let probes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
+
+        #expect(probes.contains(where: {
+            $0.label == "chat" && $0.rootKeypath == "status"
+        }))
+        #expect(!probes.contains(where: {
+            $0.label == "chat" && $0.rootKeypath == "dispatchAction"
+        }))
     }
 
     @Test func remoteEndpointAccessTreatsStagingCellsAsScaffoldAdmissions() {
@@ -570,6 +629,319 @@ struct BindingTests {
         }
     }
 
+    @Test func applePortholeLoadCellConfigurationReplacesPreviousReferences() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await AppInitializer.initialize()
+        let resolver: CellResolver
+        if let existing = CellBase.defaultCellResolver as? CellResolver {
+            resolver = existing
+        } else {
+            resolver = CellResolver.sharedInstance
+            CellBase.defaultCellResolver = resolver
+        }
+
+        let owner = await makeOwnerIdentity()
+
+        try? await resolver.addCellResolve(
+            name: "Porthole",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: OrchestratorCell.self
+        )
+        try? await resolver.addCellResolve(
+            name: "ConfigurationCatalog",
+            cellScope: .scaffoldUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: ConfigurationCatalogCell.self
+        )
+        try? await resolver.addCellResolve(
+            name: "RootOnlyState",
+            cellScope: .scaffoldUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: RootOnlyStateCell.self
+        )
+
+        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
+            Issue.record("Could not resolve Porthole")
+            return
+        }
+
+        try await porthole.setCellConfiguration(cellConfig: CellConfiguration(name: "Empty Porthole"))
+
+        var catalogConfiguration = CellConfiguration(name: "Catalog Workspace")
+        catalogConfiguration.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
+        try await porthole.loadCellConfiguration(catalogConfiguration, requester: owner)
+
+        var rootStateConfiguration = CellConfiguration(name: "Root State Workspace")
+        rootStateConfiguration.addReference(CellReference(endpoint: "cell:///RootOnlyState", label: "rootState"))
+        try await porthole.loadCellConfiguration(rootStateConfiguration, requester: owner)
+
+        #expect(porthole.getCellConfiguration()?.name == "Root State Workspace")
+        #expect(porthole.getCellConfiguration()?.cellReferences?.map(\.label) == ["rootState"])
+
+        let catalogEmitter = await porthole.getEmitterWithLabel("catalog", requester: owner)
+        let rootStateEmitter = await porthole.getEmitterWithLabel("rootState", requester: owner)
+        #expect(catalogEmitter == nil)
+        #expect(rootStateEmitter != nil)
+    }
+
+    @Test func applePortholeLoadCellConfigurationRollsBackOnFailure() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await AppInitializer.initialize()
+        let resolver: CellResolver
+        if let existing = CellBase.defaultCellResolver as? CellResolver {
+            resolver = existing
+        } else {
+            resolver = CellResolver.sharedInstance
+            CellBase.defaultCellResolver = resolver
+        }
+
+        let owner = await makeOwnerIdentity()
+
+        try? await resolver.addCellResolve(
+            name: "Porthole",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: OrchestratorCell.self
+        )
+        try? await resolver.addCellResolve(
+            name: "ConfigurationCatalog",
+            cellScope: .scaffoldUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: ConfigurationCatalogCell.self
+        )
+
+        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
+            Issue.record("Could not resolve Porthole")
+            return
+        }
+
+        try await porthole.setCellConfiguration(cellConfig: CellConfiguration(name: "Empty Porthole"))
+
+        var validConfiguration = CellConfiguration(name: "Catalog Workspace")
+        validConfiguration.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
+        try await porthole.loadCellConfiguration(validConfiguration, requester: owner)
+
+        var invalidConfiguration = CellConfiguration(name: "Broken Workspace")
+        invalidConfiguration.addReference(CellReference(endpoint: "cell:///MissingCell", label: "missing"))
+
+        do {
+            try await porthole.loadCellConfiguration(invalidConfiguration, requester: owner)
+            Issue.record("Expected loadCellConfiguration to fail for missing endpoint")
+        } catch {
+            // Expected: rollback should restore the previous working configuration.
+        }
+
+        #expect(porthole.getCellConfiguration()?.name == "Catalog Workspace")
+        #expect(porthole.getCellConfiguration()?.cellReferences?.map(\.label) == ["catalog"])
+
+        let missingEmitter = await porthole.getEmitterWithLabel("missing", requester: owner)
+        #expect(missingEmitter == nil)
+    }
+
+    @Test func nestedStateLookupFallsBackToRootStateIntercept() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await makeOwnerIdentity()
+        let cell = await RootOnlyStateCell(owner: owner)
+
+        let titleValue = try await cell.get(keypath: "state.workspace.title", requester: owner)
+        #expect(titleValue == .string("Conference Participant Portal"))
+
+        let sessionValue = try await cell.get(keypath: "state.program.savedSessions[1].title", requester: owner)
+        #expect(sessionValue == .string("Shared Relations Roundtable"))
+    }
+
+    @Test func portholeResolvesNestedStateKeypathsForAttachedRootOnlyStateCells() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await AppInitializer.initialize()
+        let resolver: CellResolver
+        if let existing = CellBase.defaultCellResolver as? CellResolver {
+            resolver = existing
+        } else {
+            resolver = CellResolver.sharedInstance
+            CellBase.defaultCellResolver = resolver
+        }
+
+        let owner = await makeOwnerIdentity()
+
+        try? await resolver.addCellResolve(
+            name: "Porthole",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: OrchestratorCell.self
+        )
+        try? await resolver.addCellResolve(
+            name: "RootOnlyState",
+            cellScope: .scaffoldUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: RootOnlyStateCell.self
+        )
+
+        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
+            Issue.record("Could not resolve Porthole")
+            return
+        }
+
+        porthole.detachAll(requester: owner)
+
+        var configuration = CellConfiguration(name: "Root State Portal")
+        configuration.addReference(CellReference(endpoint: "cell:///RootOnlyState", label: "rootState"))
+
+        _ = try await resolver.loadCell(from: configuration, into: porthole, requester: owner)
+
+        let titleValue = try await porthole.get(keypath: "rootState.state.workspace.title", requester: owner)
+        #expect(titleValue == .string("Conference Participant Portal"))
+
+        let sessionValue = try await porthole.get(
+            keypath: "rootState.state.program.savedSessions[0].title",
+            requester: owner
+        )
+        #expect(sessionValue == .string("Opening Keynote"))
+    }
+
+    @Test func conferenceParticipantPortalResolvesPreviewWrapperStateKeypathsThroughPorthole() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await AppInitializer.initialize()
+        let resolver: CellResolver
+        if let existing = CellBase.defaultCellResolver as? CellResolver {
+            resolver = existing
+        } else {
+            resolver = CellResolver.sharedInstance
+            CellBase.defaultCellResolver = resolver
+        }
+
+        let owner = await makeOwnerIdentity()
+
+        try? await resolver.addCellResolve(
+            name: "Porthole",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: OrchestratorCell.self
+        )
+        try? await resolver.addCellResolve(
+            name: "ConferenceParticipantPreviewShell",
+            cellScope: .scaffoldUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: ConferenceParticipantPreviewShellFixtureCell.self
+        )
+
+        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
+            Issue.record("Could not resolve Porthole")
+            return
+        }
+
+        porthole.detachAll(requester: owner)
+
+        let configuration = makeConferenceParticipantPortalConfiguration()
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Conference participant portal mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.workspace.title", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.program.agendaSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.matches.recommendationSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.meetings.meetingSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.sharedConnections.chatSummary", in: skeleton))
+        #expect(skeletonContainsList(keypath: "conferenceParticipantShell.state.program.savedSessions", topic: "conference.agenda.saved", in: skeleton))
+        #expect(skeletonContainsList(keypath: "conferenceParticipantShell.state.matches.recommendations", topic: "conference.match.recommendation", in: skeleton))
+        #expect(skeletonContainsList(keypath: "conferenceParticipantShell.state.meetings.confirmedMeetings", topic: "conference.meeting.confirmed", in: skeleton))
+        #expect(skeletonContainsList(keypath: "conferenceParticipantShell.state.sharedConnections.connections", topic: "conference.shared.connection", in: skeleton))
+
+        try await porthole.loadCellConfiguration(configuration, requester: owner)
+
+        let titleValue = try await porthole.get(keypath: "conferenceParticipantShell.state.workspace.title", requester: owner)
+        #expect(titleValue == .string("Conference Participant Portal Dashboard"))
+
+        let agendaSummaryValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.program.agendaSummary",
+            requester: owner
+        )
+        #expect(agendaSummaryValue == .string("6 sessions saved, 2 focus tracks selected."))
+
+        let recommendationSummaryValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.matches.recommendationSummary",
+            requester: owner
+        )
+        #expect(recommendationSummaryValue == .string("4 high-signal people recommended for your goals."))
+
+        let meetingSummaryValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.meetings.meetingSummary",
+            requester: owner
+        )
+        #expect(meetingSummaryValue == .string("3 confirmed meetings and 2 pending requests."))
+
+        let chatSummaryValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.sharedConnections.chatSummary",
+            requester: owner
+        )
+        #expect(chatSummaryValue == .string("2 active shared threads are ready for follow-up."))
+
+        let savedSessionsValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.program.savedSessions",
+            requester: owner
+        )
+        guard case let .list(savedSessions) = savedSessionsValue else {
+            Issue.record("Expected saved sessions list, got \(savedSessionsValue)")
+            return
+        }
+        #expect(savedSessions.count == 2)
+
+        let recommendationsValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.matches.recommendations",
+            requester: owner
+        )
+        guard case let .list(recommendations) = recommendationsValue else {
+            Issue.record("Expected recommendations list, got \(recommendationsValue)")
+            return
+        }
+        #expect(recommendations.count == 2)
+
+        let confirmedMeetingsValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.meetings.confirmedMeetings",
+            requester: owner
+        )
+        guard case let .list(confirmedMeetings) = confirmedMeetingsValue else {
+            Issue.record("Expected confirmed meetings list, got \(confirmedMeetingsValue)")
+            return
+        }
+        #expect(confirmedMeetings.count == 2)
+
+        let connectionsValue = try await porthole.get(
+            keypath: "conferenceParticipantShell.state.sharedConnections.connections",
+            requester: owner
+        )
+        guard case let .list(connections) = connectionsValue else {
+            Issue.record("Expected shared connections list, got \(connectionsValue)")
+            return
+        }
+        #expect(connections.count == 2)
+    }
+
     @Test func configurationCatalogRemovesBlockedReferencesWhenOtherReferencesExist() async throws {
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
@@ -702,6 +1074,72 @@ struct BindingTests {
             "configuration": .cellConfiguration(configuration),
             "goal": .cellConfiguration(configuration)
         ]
+    }
+
+    private func makeConferenceParticipantPortalConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Conference Participant Portal Dashboard")
+        configuration.description = "Representative portal config using the preview-wrapper state contract."
+
+        var reference = CellReference(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            subscribeFeed: false,
+            label: "conferenceParticipantShell"
+        )
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(reference)
+
+        var savedSessions = SkeletonList(
+            topic: "conference.agenda.saved",
+            keypath: "conferenceParticipantShell.state.program.savedSessions",
+            flowElementSkeleton: nil
+        )
+        savedSessions.flowElementSkeleton = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "title")),
+            .Text(SkeletonText(keypath: "subtitle"))
+        ])
+
+        var recommendations = SkeletonList(
+            topic: "conference.match.recommendation",
+            keypath: "conferenceParticipantShell.state.matches.recommendations",
+            flowElementSkeleton: nil
+        )
+        recommendations.flowElementSkeleton = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "displayName")),
+            .Text(SkeletonText(keypath: "headline"))
+        ])
+
+        var confirmedMeetings = SkeletonList(
+            topic: "conference.meeting.confirmed",
+            keypath: "conferenceParticipantShell.state.meetings.confirmedMeetings",
+            flowElementSkeleton: nil
+        )
+        confirmedMeetings.flowElementSkeleton = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "title")),
+            .Text(SkeletonText(keypath: "time"))
+        ])
+
+        var sharedConnections = SkeletonList(
+            topic: "conference.shared.connection",
+            keypath: "conferenceParticipantShell.state.sharedConnections.connections",
+            flowElementSkeleton: nil
+        )
+        sharedConnections.flowElementSkeleton = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "displayName")),
+            .Text(SkeletonText(keypath: "relation"))
+        ])
+
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "conferenceParticipantShell.state.workspace.title")),
+            .Text(SkeletonText(keypath: "conferenceParticipantShell.state.program.agendaSummary")),
+            .Text(SkeletonText(keypath: "conferenceParticipantShell.state.matches.recommendationSummary")),
+            .Text(SkeletonText(keypath: "conferenceParticipantShell.state.meetings.meetingSummary")),
+            .Text(SkeletonText(keypath: "conferenceParticipantShell.state.sharedConnections.chatSummary")),
+            .List(savedSessions),
+            .List(recommendations),
+            .List(confirmedMeetings),
+            .List(sharedConnections)
+        ]))
+        return configuration
     }
 
     private func skeletonContainsButton(keypath: String, in element: SkeletonElement) -> Bool {
@@ -1016,4 +1454,153 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
 
 private extension BindingTests {
     static let testIdentityVault = BindingTestIdentityVault()
+}
+
+private final class RootOnlyStateCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        agreementTemplate.addGrant("r---", for: "state")
+        await addInterceptForGet(requester: owner, key: "state") { _, _ in
+            .object(Self.stateObject)
+        }
+    }
+
+    required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private static let stateObject: Object = [
+        "workspace": .object([
+            "title": .string("Conference Participant Portal"),
+            "subtitle": .string("Profile, recommended people, and meetings in one low-friction flow.")
+        ]),
+        "program": .object([
+            "savedSessions": .list([
+                .object(["title": .string("Opening Keynote")]),
+                .object(["title": .string("Shared Relations Roundtable")])
+            ])
+        ])
+    ]
+}
+
+private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state") { _, _ in
+            .object(Self.stateObject)
+        }
+        await addInterceptForGet(requester: owner, key: "skeletonConfiguration") { _, _ in
+            .null
+        }
+        await addInterceptForSet(requester: owner, key: "dispatchAction") { _, _, _ in
+            .object([
+                "status": .string("ok"),
+                "state": .object(Self.stateObject)
+            ])
+        }
+    }
+
+    required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private static let stateObject: Object = [
+        "workspace": .object([
+            "title": .string("Conference Participant Portal Dashboard"),
+            "subtitle": .string("Agenda, meetings, and shared relations in one workspace."),
+            "participantBadge": .string("Participant"),
+            "programBadge": .string("Program: ready"),
+            "matchBadge": .string("Matches: active"),
+            "meetingBadge": .string("Meetings: 3 confirmed"),
+            "nextStep": .string("Review your recommended sessions and confirm the next meeting request."),
+            "previewNotice": .string("Preview wrapper is exposing the same state contract as the real participant shell.")
+        ]),
+        "access": .object([
+            "headline": .string("Conference access overview")
+        ]),
+        "program": .object([
+            "intro": .string("Your agenda is tuned for policy, coordination, and follow-up."),
+            "agendaSummary": .string("6 sessions saved, 2 focus tracks selected."),
+            "viewSummary": .string("Currently showing your saved agenda."),
+            "trackSummary": .string("Governance and implementation are both in focus."),
+            "status": .string("Agenda sync is healthy."),
+            "storageSummary": .string("All agenda selections are stored."),
+            "savedSessions": .list([
+                .object([
+                    "title": .string("Opening Keynote"),
+                    "subtitle": .string("Shared language for trusted infrastructure")
+                ]),
+                .object([
+                    "title": .string("Shared Relations Roundtable"),
+                    "subtitle": .string("Operational follow-up between ecosystem teams")
+                ])
+            ])
+        ]),
+        "matches": .object([
+            "intro": .string("These people are aligned with your current goals."),
+            "filterSummary": .string("Filter is set to governance and interoperability."),
+            "status": .string("Recommendations refreshed recently."),
+            "recommendationSummary": .string("4 high-signal people recommended for your goals."),
+            "recommendations": .list([
+                .object([
+                    "displayName": .string("Ane Solberg"),
+                    "headline": .string("Public sector interoperability lead")
+                ]),
+                .object([
+                    "displayName": .string("Mads Hovden"),
+                    "headline": .string("Policy and compliance facilitator")
+                ])
+            ])
+        ]),
+        "meetings": .object([
+            "intro": .string("Meeting planning stays inside the participant shell."),
+            "requestSummary": .string("2 requests are awaiting response."),
+            "slotSummary": .string("5 viable slots overlap with your saved sessions."),
+            "meetingSummary": .string("3 confirmed meetings and 2 pending requests."),
+            "exportStatus": .string("iCal export is ready."),
+            "confirmedMeetings": .list([
+                .object([
+                    "title": .string("Coordination with municipal platform team"),
+                    "time": .string("10:30")
+                ]),
+                .object([
+                    "title": .string("Follow-up on shared trust registry"),
+                    "time": .string("14:15")
+                ])
+            ])
+        ]),
+        "sharedConnections": .object([
+            "intro": .string("Shared relations help you continue the right conversations."),
+            "accessSummary": .string("Shared threads are visible to participating parties."),
+            "connectionSummary": .string("2 active shared relations and 1 dormant connection."),
+            "chatSummary": .string("2 active shared threads are ready for follow-up."),
+            "connections": .list([
+                .object([
+                    "displayName": .string("Digital Governance Forum"),
+                    "relation": .string("Shared contact")
+                ]),
+                .object([
+                    "displayName": .string("Trust Infrastructure Lab"),
+                    "relation": .string("Meeting collaborator")
+                ])
+            ]),
+            "recentMessages": .list([
+                .object([
+                    "text": .string("Let's align on the next governance checkpoint.")
+                ])
+            ])
+        ])
+    ]
 }

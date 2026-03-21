@@ -2,9 +2,8 @@ import SwiftUI
 
 struct ComponentPalettePanel: View {
     @ObservedObject var editorState: EditorState
+    @ObservedObject var placementState: ComponentPlacementState
     let items: [ComponentPaletteItem]
-    let armedItemID: ComponentPaletteItem.ID?
-    let onDragStateChange: (ComponentPaletteItem?) -> Void
     let onArmComponent: (ComponentPaletteItem?) -> Void
     let onInsertError: (String) -> Void
 
@@ -12,14 +11,30 @@ struct ComponentPalettePanel: View {
         items.filter { !editorState.dropTargets(for: $0.recipe).isEmpty }
     }
 
+    private var activeItemTitle: String? {
+        placementState.activeInsertionItem?.title
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Components")
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Components")
+                    .font(.headline)
 
-            Text("Velg node først. Dra til lerretet, bruk Plasser for a velge punkt, eller Sett inn for anbefalt mal.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                if !visibleItems.isEmpty {
+                    PanelBadge(text: "\(visibleItems.count) kompatible", tint: .accentColor)
+                }
+            }
+
+            if let activeItemTitle {
+                Text("\(activeItemTitle) er klar. Dra til lerretet eller bruk en markert drop-slot.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Velg node først. Dra til lerretet, bruk Plasser for å velge punkt, eller Sett inn for anbefalt plassering.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if visibleItems.isEmpty {
                 Text("Ingen kompatible komponenter for valgt plassering.")
@@ -40,36 +55,41 @@ struct ComponentPalettePanel: View {
 
     private func componentCard(_ item: ComponentPaletteItem) -> some View {
         let targetCount = editorState.dropTargets(for: item.recipe).count
-        let isArmed = armedItemID == item.id
+        let isArmed = placementState.armedItem?.id == item.id
+        let isDragging = placementState.activeDragItem?.id == item.id
+        let isHighlighted = isArmed || isDragging
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: item.icon)
-                    .foregroundStyle(isArmed ? Color.white : Color.accentColor)
+                    .foregroundStyle(isHighlighted ? Color.white : Color.accentColor)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(isArmed ? Color.white : .primary)
+                        .foregroundStyle(isHighlighted ? Color.white : .primary)
                         .lineLimit(2)
                     if let subtitle = item.subtitle, !subtitle.isEmpty {
                         Text(subtitle)
                             .font(.caption2)
-                            .foregroundStyle(isArmed ? Color.white.opacity(0.86) : .secondary)
+                            .foregroundStyle(isHighlighted ? Color.white.opacity(0.86) : .secondary)
                             .lineLimit(3)
                     }
                 }
             }
 
-            Text("\(targetCount) gyldige mål")
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(isArmed ? Color.white.opacity(0.82) : .secondary)
+            HStack(spacing: 6) {
+                PanelBadge(text: "\(targetCount) mål", tint: isHighlighted ? .white : .accentColor)
+                if isArmed {
+                    PanelBadge(text: "Klar", tint: .white)
+                }
+            }
 
             HStack(spacing: 8) {
                 Button(isArmed ? "Avbryt" : "Plasser") {
                     onArmComponent(isArmed ? nil : item)
                 }
                 .buttonStyle(.bordered)
-                .tint(isArmed ? .white : .accentColor)
+                .tint(isHighlighted ? .white : .accentColor)
                 .controlSize(.small)
 
                 Button("Sett inn") {
@@ -79,21 +99,26 @@ struct ComponentPalettePanel: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(isArmed ? .white : .accentColor)
+                .tint(isHighlighted ? .white : .accentColor)
                 .controlSize(.small)
             }
         }
         .padding(10)
         .background(
-            isArmed ? Color.accentColor : Color.secondary.opacity(0.08),
+            isHighlighted ? Color.accentColor : Color.secondary.opacity(0.08),
             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isHighlighted ? Color.accentColor : Color.black.opacity(0.06), lineWidth: isHighlighted ? 0 : 1)
+        }
         .draggable(item) {
             ComponentDragPreviewCard(
                 item: item,
-                onActivate: { active in onDragStateChange(active) },
-                onDeactivate: { onDragStateChange(nil) }
+                onActivate: { active in placementState.activeDragItem = active },
+                onDeactivate: { placementState.activeDragItem = nil }
             )
         }
+        .animation(.easeInOut(duration: 0.18), value: placementState.activeInsertionItem?.id)
     }
 }

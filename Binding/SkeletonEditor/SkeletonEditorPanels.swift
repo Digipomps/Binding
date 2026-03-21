@@ -25,10 +25,27 @@ struct SkeletonTreePanel: View {
         return SkeletonTreeQueries.linearizedNodes(in: workingCopy)
     }
 
+    private var references: [CellReference] {
+        editorState.workingConfiguration?.cellReferences ?? []
+    }
+
+    private var referenceUsageReport: ReferenceUsageReport {
+        ReferenceUsageAnalyzer.analyze(
+            skeleton: editorState.workingCopy,
+            references: references
+        )
+    }
+
     var body: some View {
         let content = VStack(alignment: .leading, spacing: 8) {
             Text("Elements")
                 .font(.headline)
+
+            if !nodes.isEmpty || !references.isEmpty {
+                Text("\(nodes.count) noder • \(references.count) refs")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             if nodes.isEmpty {
                 Text("No elements")
@@ -64,6 +81,26 @@ struct SkeletonTreePanel: View {
                         }
                     }
                 }
+            }
+
+            if !references.isEmpty {
+                Divider()
+
+                Text("References")
+                    .font(.subheadline.weight(.semibold))
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(references.enumerated()), id: \.offset) { _, reference in
+                            ReferenceSummaryCard(
+                                reference: reference,
+                                statusBadge: referenceUsageReport.unusedTopLevelLabels.contains(reference.editorTrimmedLabel) ? "Unused" : nil,
+                                statusTint: .orange
+                            )
+                        }
+                    }
+                }
+                .frame(maxHeight: 120)
             }
 
             Divider()
@@ -158,6 +195,7 @@ struct SkeletonModifierInspectorPanel: View {
     private let maximumHeight: CGFloat?
     private let modifierListMaximumHeight: CGFloat?
     private let showsBackground: Bool
+    @State private var rawNodeExpanded = false
     @State private var addParameterSelection: SkeletonElementParameterKey?
     @State private var parameterValueDrafts: [SkeletonElementParameterKey: String] = [:]
     @State private var invalidParameterDrafts: Set<SkeletonElementParameterKey> = []
@@ -178,6 +216,25 @@ struct SkeletonModifierInspectorPanel: View {
         editorState.selectedModifiers
     }
 
+    private var references: [CellReference] {
+        editorState.workingConfiguration?.cellReferences ?? []
+    }
+
+    private var selectedChildCount: Int {
+        guard let selectedElement else { return 0 }
+        return SkeletonTreeQueries.childCount(in: selectedElement)
+    }
+
+    private var rawSelectedElementJSON: String? {
+        guard let selectedElement,
+              let data = try? prettyPrint(selectedElement),
+              let json = String(data: data, encoding: .utf8)
+        else {
+            return nil
+        }
+        return json
+    }
+
     private var activeParameterKeys: [SkeletonElementParameterKey] {
         SkeletonElementParameterCatalog.activeKeys(for: selectedElement)
     }
@@ -192,6 +249,16 @@ struct SkeletonModifierInspectorPanel: View {
 
     private var addableKeys: [SkeletonModifierKey] {
         SkeletonModifierCatalog.addableKeys(for: selectedElement, modifiers: selectedModifiers)
+    }
+
+    private var matchingReferences: [CellReference] {
+        guard let selectedElement else { return [] }
+        let labels = ReferenceUsageAnalyzer.matchingTopLevelLabels(
+            for: selectedElement,
+            references: references
+        )
+        guard !labels.isEmpty else { return [] }
+        return references.filter { labels.contains($0.editorTrimmedLabel) }
     }
 
     init(
@@ -217,6 +284,9 @@ struct SkeletonModifierInspectorPanel: View {
                 Text("\(SkeletonTreeQueries.displayName(for: selectedElement)) @ \(selectedPath.description)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text("Children: \(selectedChildCount)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             } else {
                 Text("Select an element")
                     .font(.caption)
@@ -224,6 +294,7 @@ struct SkeletonModifierInspectorPanel: View {
             }
 
             if selectedPath != nil {
+                bindingContextSection
                 parameterSection
 
                 HStack(spacing: 8) {
@@ -262,6 +333,33 @@ struct SkeletonModifierInspectorPanel: View {
                     }
                     .modifier(PanelHeightModifier(maximumHeight: modifierListMaximumHeight))
                 }
+
+                if let rawSelectedElementJSON {
+                    Divider()
+
+                    DisclosureGroup(isExpanded: $rawNodeExpanded) {
+                        ScrollView {
+                            Text(rawSelectedElementJSON)
+                                .font(.caption2.monospaced())
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 180)
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.black.opacity(0.04))
+                        )
+                        .padding(.top, 6)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("Raw Node")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer(minLength: 0)
+                            PanelBadge(text: rawNodeExpanded ? "Vises" : "Skjult")
+                        }
+                    }
+                }
             }
         }
         .padding(10)
@@ -286,6 +384,31 @@ struct SkeletonModifierInspectorPanel: View {
         }
         .modifier(PanelHeightModifier(maximumHeight: maximumHeight))
         .modifier(PanelBackgroundModifier(showsBackground: showsBackground))
+    }
+
+    @ViewBuilder
+    private var bindingContextSection: some View {
+        if !references.isEmpty {
+            Text("Bindings")
+                .font(.subheadline.weight(.semibold))
+
+            if matchingReferences.isEmpty {
+                Text("Valgt node bruker ingen top-level references.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(matchingReferences.enumerated()), id: \.offset) { _, reference in
+                            ReferenceSummaryCard(reference: reference)
+                        }
+                    }
+                }
+                .frame(maxHeight: 150)
+            }
+
+            Divider()
+        }
     }
 
     @ViewBuilder
@@ -616,6 +739,12 @@ struct SkeletonModifierInspectorPanel: View {
         }
         return Double(text.replacingOccurrences(of: ",", with: "."))
     }
+
+    private func prettyPrint<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(value)
+    }
 }
 
 private struct PanelHeightModifier: ViewModifier {
@@ -642,9 +771,88 @@ private struct PanelBackgroundModifier: ViewModifier {
     }
 }
 
+private struct ReferenceSummaryCard: View {
+    let reference: CellReference
+    var statusBadge: String? = nil
+    var statusTint: Color = .secondary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(reference.editorDisplayLabel)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                if let statusBadge {
+                    PanelBadge(text: statusBadge, tint: statusTint)
+                }
+            }
+
+            Text(reference.endpoint)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(2)
+
+            HStack(spacing: 6) {
+                PanelBadge(
+                    text: reference.subscribeFeed ? "Feed" : "Snapshot",
+                    tint: reference.subscribeFeed ? .accentColor : .secondary
+                )
+
+                if !reference.subscriptions.isEmpty {
+                    PanelBadge(text: "\(reference.subscriptions.count) subs")
+                }
+
+                if !reference.setKeysAndValues.isEmpty {
+                    PanelBadge(text: "\(reference.setKeysAndValues.count) set")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.04))
+        )
+        .opacity(statusBadge == nil ? 1 : 0.82)
+    }
+}
+
+struct PanelBadge: View {
+    let text: String
+    var tint: Color = .secondary
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tint.opacity(0.12))
+            )
+    }
+}
+
+private extension CellReference {
+    var editorTrimmedLabel: String {
+        label.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var editorDisplayLabel: String {
+        let trimmed = editorTrimmedLabel
+        return trimmed.isEmpty ? "(unlabeled)" : trimmed
+    }
+}
+
 enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
     case text
     case textField
+    case textArea
     case image
     case spacer
     case button
@@ -657,6 +865,7 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
     case section
     case grid
     case list
+    case picker
     case object
     case reference
 
@@ -666,6 +875,7 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
         switch self {
         case .text: return "Text"
         case .textField: return "TextField"
+        case .textArea: return "TextArea"
         case .image: return "Image"
         case .spacer: return "Spacer"
         case .button: return "Button"
@@ -678,6 +888,7 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
         case .section: return "Section"
         case .grid: return "Grid"
         case .list: return "List"
+        case .picker: return "Picker"
         case .object: return "Object"
         case .reference: return "Reference"
         }
@@ -694,6 +905,15 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
                     sourceKeypath: "input.value",
                     targetKeypath: "input.value",
                     placeholder: "Input"
+                )
+            )
+        case .textArea:
+            return .TextArea(
+                SkeletonTextArea(
+                    text: nil,
+                    sourceKeypath: "input.body",
+                    targetKeypath: "input.body",
+                    placeholder: "Write here"
                 )
             )
         case .image:
@@ -726,6 +946,8 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
             )
         case .list:
             return .List(SkeletonList(topic: nil, keypath: nil, flowElementSkeleton: nil))
+        case .picker:
+            return .Picker(SkeletonPicker(label: "Select", placeholder: "Choose", elements: []))
         case .object:
             return .Object(.empty())
         case .reference:

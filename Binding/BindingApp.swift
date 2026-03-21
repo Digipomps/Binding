@@ -13,12 +13,16 @@ struct BindingApp: App {
     #if os(iOS)
     @UIApplicationDelegateAdaptor(BindingAppDelegate.self) private var appDelegate
     #endif
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(BindingMacAppDelegate.self) private var appDelegate
+    #endif
 
     var body: some Scene {
         WindowGroup {
-            BootstrapView {
-                RootView()
-            }
+            RootView()
         }
+#if os(macOS)
+        .restorationBehavior(.disabled)
+#endif
     }
 }

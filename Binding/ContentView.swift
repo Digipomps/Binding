@@ -40,6 +40,157 @@ enum ConfigurationPresentationSupport {
     }
 }
 
+enum SkeletonBindingProbeSupport {
+    struct RootProbe: Hashable {
+        let label: String
+        let rootKeypath: String
+
+        var qualifiedKeypath: String {
+            "\(label).\(rootKeypath)"
+        }
+    }
+
+    private static let skeletonElementKinds: Set<String> = [
+        "Text", "TextField", "TextArea", "List", "Object", "Reference",
+        "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
+        "ScrollView", "Section", "ZStack", "Grid", "Divider"
+    ]
+    private static let readableBindingKeys: Set<String> = [
+        "keypath",
+        "sourceKeypath"
+    ]
+
+    static func rootProbes(for configuration: CellConfiguration) -> [RootProbe] {
+        guard let skeleton = configuration.skeleton,
+              let rawObject = rawObject(from: skeleton)
+        else {
+            return []
+        }
+
+        let labels = Set(
+            (configuration.cellReferences ?? [])
+                .map { $0.label.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+        guard !labels.isEmpty else { return [] }
+
+        var collected: [RootProbe] = []
+        collectRootProbes(from: rawObject, currentElementKind: nil, labels: labels, into: &collected)
+        return collected
+    }
+
+    static func failureDetail(from value: ValueType) -> String? {
+        guard case let .string(text) = value else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let normalized = trimmed.lowercased()
+        if normalized.hasPrefix("error:") ||
+            normalized.hasPrefix("denied") ||
+            normalized.hasPrefix("failure") ||
+            normalized.contains("notfound") ||
+            normalized.contains("midlertidig utilgjengelig") ||
+            normalized.contains("bad response from the server") ||
+            normalized.contains("notconnected") {
+            return trimmed
+        }
+        return nil
+    }
+
+    private static func rawObject<T: Encodable>(from value: T) -> Any? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    private static func collectRootProbes(
+        from value: Any,
+        currentElementKind: String?,
+        labels: Set<String>,
+        into collected: inout [RootProbe]
+    ) {
+        switch value {
+        case let dictionary as [String: Any]:
+            if dictionary.count == 1,
+               let onlyKey = dictionary.keys.first,
+               skeletonElementKinds.contains(onlyKey),
+               let child = dictionary[onlyKey] {
+                collectRootProbes(
+                    from: child,
+                    currentElementKind: onlyKey,
+                    labels: labels,
+                    into: &collected
+                )
+                return
+            }
+
+            for (key, child) in dictionary {
+                if readableBindingKeys.contains(key),
+                   currentElementKind != "Button",
+                   let bindingValue = child as? String,
+                   let probe = rootProbe(from: bindingValue, labels: labels),
+                   !collected.contains(probe) {
+                    collected.append(probe)
+                }
+
+                collectRootProbes(
+                    from: child,
+                    currentElementKind: currentElementKind,
+                    labels: labels,
+                    into: &collected
+                )
+            }
+        case let array as [Any]:
+            for child in array {
+                collectRootProbes(
+                    from: child,
+                    currentElementKind: currentElementKind,
+                    labels: labels,
+                    into: &collected
+                )
+            }
+        default:
+            break
+        }
+    }
+
+    private static func rootProbe(from bindingValue: String, labels: Set<String>) -> RootProbe? {
+        let trimmed = bindingValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let normalizedBinding: String
+        if trimmed.hasPrefix("cell:///Porthole/") {
+            normalizedBinding = String(trimmed.dropFirst("cell:///Porthole/".count))
+        } else if trimmed.hasPrefix("cell://") || trimmed.hasPrefix("ws://") || trimmed.hasPrefix("wss://") {
+            return nil
+        } else {
+            normalizedBinding = trimmed
+        }
+
+        guard let separatorIndex = normalizedBinding.firstIndex(of: ".") else {
+            return nil
+        }
+
+        let label = String(normalizedBinding[..<separatorIndex])
+        guard labels.contains(label) else { return nil }
+
+        let remainder = String(normalizedBinding[normalizedBinding.index(after: separatorIndex)...])
+        guard let rootSeparator = remainder.firstIndex(where: { $0 == "." || $0 == "[" }) else {
+            guard !remainder.isEmpty else { return nil }
+            return RootProbe(label: label, rootKeypath: remainder)
+        }
+
+        let rootKeypath = String(remainder[..<rootSeparator])
+        guard !rootKeypath.isEmpty else { return nil }
+        return RootProbe(label: label, rootKeypath: rootKeypath)
+    }
+}
+
+private func contentViewModifier(_ configure: (inout SkeletonModifiers) -> Void) -> SkeletonModifiers {
+    var modifiers = SkeletonModifiers()
+    configure(&modifiers)
+    return modifiers
+}
+
 struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private static let stagingHost = "staging.haven.digipomps.org"
@@ -56,7 +207,13 @@ struct ContentView: View {
     // from `cell:///...` to the staging scaffold. Local CellApple-only cells must stay local.
     private static let stagingFallbackCells: Set<String> = [
         "chat",
+        "aigateway",
         "conferenceuirouter",
+        "conferenceadminshell",
+        "conferenceparticipantshell",
+        "conferenceparticipantpreviewshell",
+        "conferencepublicshell",
+        "conferencesponsorshell",
         "vault",
         "todo",
         "adminentry",
@@ -75,7 +232,9 @@ struct ContentView: View {
         "deviceregistration",
         "notificationoutbox",
         "notificationpolicy",
-        "devicecallbackbridge"
+        "devicecallbackbridge",
+        "markdownrenderer",
+        "mermaidrenderer"
     ]
 
     private struct CatalogSource {
@@ -105,6 +264,12 @@ struct ContentView: View {
     @StateObject private var editorState = EditorState()
     @StateObject private var bridgeStatusStore = BridgeConnectionStatusStore()
     @State private var floatingPanelsController = SkeletonEditorFloatingPanelsController()
+    @AppStorage("edgeMenus.topExpansionStyle")
+    private var edgeMenuTopExpansionStyleRaw = EdgeMenuExpansionStyle.auto.rawValue
+    @AppStorage("edgeMenus.bottomExpansionStyle")
+    private var edgeMenuBottomExpansionStyleRaw = EdgeMenuExpansionStyle.auto.rawValue
+    @AppStorage("edgeMenus.showTitles")
+    private var edgeMenuShowsTitles = true
     @State private var editorMode: EditorMode = .view
     @State private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
@@ -112,6 +277,11 @@ struct ContentView: View {
     @State private var activeConfiguration: CellConfiguration?
     @State private var presentingFullLibrary: Bool = false
     @State private var loadErrorMessage: String?
+    @State private var isLoadingConfiguration = false
+    @State private var loadingStatusMessage: String?
+    @State private var topChromeHeight: CGFloat = 0
+    @State private var topSafeAreaInset: CGFloat = 0
+    @State private var activeLoadingRequestID: UUID?
     @State private var copyStatusMessage: String?
     @State private var catalogMenuPool: [CellConfiguration] = []
     @State private var lastPerspectiveMenuSignature: String = ""
@@ -120,8 +290,10 @@ struct ContentView: View {
     @State private var compactElementsExpanded = true
     @State private var compactInspectorExpanded = true
     @State private var componentCanvasDropTargeted = false
-    @State private var activeComponentDragItem: ComponentPaletteItem?
-    @State private var armedComponentItem: ComponentPaletteItem?
+    @State private var configurationLoadTask: Task<Void, Never>?
+    @State private var initialRuntimeBootstrapTask: Task<Void, Never>?
+    @StateObject private var componentPlacementState = ComponentPlacementState()
+    @StateObject private var diagnosticsStore = BindingRuntimeDiagnostics.shared
 
     private static let defaultRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.defaultRemoteWebSocketPath,
@@ -152,7 +324,7 @@ struct ContentView: View {
                     }
                 },
                 onCancelComponentPlacement: {
-                    armedComponentItem = nil
+                    componentPlacementState.armedItem = nil
                 },
                 onApplyComponentDrop: { item, placement in
                     let inserted = applyComponentPaletteItem(item, placement: placement)
@@ -166,7 +338,7 @@ struct ContentView: View {
                 .ignoresSafeArea(.container, edges: [.leading, .trailing, .bottom])
                 .dropDestination(for: CellConfiguration.self) { items, location in
                     // On drop, load the configuration into the porthole
-                    Task { await loadConfigurationForEditing(items.first) }
+                    queueConfigurationLoad(items.first)
                     return !items.isEmpty
                 }
                 .dropDestination(for: ComponentPaletteItem.self) { items, _ in
@@ -198,13 +370,17 @@ struct ContentView: View {
                     lowerLeft: menuItems(from: viewModel.lowerLeftMenu),
                     lowerMid: menuItems(from: viewModel.lowerMidMenu),
                     lowerRight: menuItems(from: viewModel.lowerRightMenu),
+                    reservedTopInset: topSafeAreaInset + topChromeHeight + 10,
+                    topExpansionStyle: edgeMenuTopExpansionStyle,
+                    bottomExpansionStyle: edgeMenuBottomExpansionStyle,
+                    labelMode: edgeMenuLabelMode,
                     onPrimaryAction: { position in
                         guard position == .upperMid else { return false }
                         presentingFullLibrary = true
                         return true
                     },
                     onSelect: { config in
-                        Task { await loadConfigurationForEditing(config) }
+                        queueConfigurationLoad(config)
                     }
                 )
                 .allowsHitTesting(true)
@@ -213,9 +389,17 @@ struct ContentView: View {
             }
         }
         .gesture(rotationHideShowGesture)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: TopSafeAreaInsetPreferenceKey.self, value: proxy.safeAreaInsets.top)
+            }
+        )
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 6) {
                 appToolbar
+                if isLoadingConfiguration, let loadingStatusMessage {
+                    LoadingStatusBanner(message: loadingStatusMessage)
+                }
                 if let loadErrorMessage {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -263,15 +447,35 @@ struct ContentView: View {
             }
                 .padding(.horizontal, 12)
                 .padding(.top, 6)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: TopChromeHeightPreferenceKey.self, value: proxy.size.height)
+                    }
+                )
         }
         .overlay(alignment: .topLeading) {
 #if os(macOS)
             EmptyView()
 #else
             if editorMode == .edit && !usesCompactEditorChrome {
-                SkeletonTreePanel(editorState: editorState)
-                    .padding(.leading, 12)
-                    .padding(.top, 72)
+                VStack(alignment: .leading, spacing: 12) {
+                    ComponentPalettePanel(
+                        editorState: editorState,
+                        placementState: componentPlacementState,
+                        items: componentPaletteItems,
+                        onArmComponent: { item in
+                            armComponentPlacement(item)
+                        },
+                        onInsertError: { message in
+                            loadErrorMessage = message
+                        }
+                    )
+                    .frame(width: 340)
+
+                    SkeletonTreePanel(editorState: editorState)
+                }
+                .padding(.leading, 12)
+                .padding(.top, topChromeHeight + 12)
             }
 #endif
         }
@@ -282,8 +486,24 @@ struct ContentView: View {
             if editorMode == .edit && !usesCompactEditorChrome {
                 SkeletonModifierInspectorPanel(editorState: editorState)
                     .padding(.trailing, 12)
-                    .padding(.top, 72)
+                    .padding(.top, topChromeHeight + 12)
             }
+#endif
+        }
+        .overlay(alignment: .topTrailing) {
+#if os(macOS)
+            if diagnosticsStore.panelVisible {
+                BindingDiagnosticsPanel(
+                    diagnostics: diagnosticsStore,
+                    bridgeStatus: bridgeStatusStore.primaryStatus,
+                    onRefreshValidation: refreshDiagnosticsValidation
+                )
+                .padding(.trailing, 14)
+                .padding(.top, topChromeHeight + 14)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+#else
+            EmptyView()
 #endif
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -301,8 +521,7 @@ struct ContentView: View {
                 applyWorkingCopyToViewer()
                 editorState.endEditing()
                 compactEditorDrawerVisible = false
-                activeComponentDragItem = nil
-                armedComponentItem = nil
+                componentPlacementState.clear()
             case .edit:
                 editorState.beginEditing(
                     configuration: currentEditorSeedConfiguration(),
@@ -311,10 +530,13 @@ struct ContentView: View {
                 compactComponentsExpanded = true
                 compactElementsExpanded = true
                 compactInspectorExpanded = editorState.selectedNodePath != nil
-                activeComponentDragItem = nil
-                armedComponentItem = nil
+                componentPlacementState.clear()
             }
-            floatingPanelsController.setEditing(mode == .edit, editorState: editorState)
+            floatingPanelsController.setEditing(
+                mode == .edit,
+                editorState: editorState,
+                componentsPanelRootView: componentsFloatingPanelRootView
+            )
         }
         .onChange(of: editorState.selectedNodePath) { _, selectedPath in
             guard usesCompactEditorChrome, editorMode == .edit else { return }
@@ -326,15 +548,43 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            floatingPanelsController.setEditing(editorMode == .edit, editorState: editorState)
+            floatingPanelsController.setEditing(
+                editorMode == .edit,
+                editorState: editorState,
+                componentsPanelRootView: componentsFloatingPanelRootView
+            )
         }
         .onDisappear {
             floatingPanelsController.closePanels()
+            configurationLoadTask?.cancel()
         }
         .onReceive(viewModel.$currentSkeleton) { next in
             if !editorState.isEditing {
                 editorState.captureViewerSnapshot(currentEditorSeedConfiguration(), fallbackSkeleton: next)
             }
+        }
+        .onChange(of: editorState.revision) { _, _ in
+            refreshDiagnosticsValidation()
+        }
+        .onChange(of: activeConfiguration?.uuid) { _, _ in
+            refreshDiagnosticsValidation()
+        }
+        .onChange(of: editorMode) { _, _ in
+            refreshDiagnosticsValidation()
+        }
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: ConfigurationCatalogPreviewBridge.notificationName)
+                .compactMap(ConfigurationCatalogPreviewBridge.configuration)
+        ) { configuration in
+            editorMode = .edit
+            queueConfigurationLoad(configuration)
+        }
+        .onPreferenceChange(TopChromeHeightPreferenceKey.self) { topChromeHeight in
+            self.topChromeHeight = topChromeHeight
+        }
+        .onPreferenceChange(TopSafeAreaInsetPreferenceKey.self) { topSafeAreaInset in
+            self.topSafeAreaInset = topSafeAreaInset
         }
         .sheet(isPresented: $presentingFullLibrary) {
             FullLibraryView(
@@ -347,7 +597,7 @@ struct ContentView: View {
                 favorites: viewModel.upperRightMenu,
                 templates: viewModel.lowerLeftMenu,
                 onAddConfiguration: { configuration in
-                    Task { await loadConfigurationForEditing(configuration) }
+                    queueConfigurationLoad(configuration)
                 },
                 onAddComponent: { item in
                     let inserted = applyComponentPaletteItem(item)
@@ -356,12 +606,12 @@ struct ContentView: View {
                     }
                     return inserted
                 },
-                armedComponentID: armedComponentItem?.id,
+                armedComponentID: componentPlacementState.armedItem?.id,
                 onArmComponent: { item in
                     armComponentPlacement(item)
                 },
                 onComponentDragStateChange: { item in
-                    activeComponentDragItem = item
+                    componentPlacementState.activeDragItem = item
                 }
             )
             .environmentObject(bridgeStatusStore)
@@ -372,32 +622,61 @@ struct ContentView: View {
             .presentationDragIndicator(.visible)
 #endif
         }
-        .task {
-            // Ensure IdentityVault is available for the model
-            if CellBase.defaultIdentityVault == nil {
-                CellBase.defaultIdentityVault = IdentityVault.shared
-                _ = await IdentityVault.shared.initialize()
+        .sheet(isPresented: compactDiagnosticsSheetBinding) {
+#if os(macOS)
+            EmptyView()
+#else
+            NavigationStack {
+                ScrollView {
+                    BindingDiagnosticsPanel(
+                        diagnostics: diagnosticsStore,
+                        bridgeStatus: bridgeStatusStore.primaryStatus,
+                        onRefreshValidation: refreshDiagnosticsValidation
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                }
+                .navigationTitle("Debug")
+                .navigationBarTitleDisplayMode(.inline)
             }
-            // SkeletonList.getElements() uses makeNewIfNotFound=false.
-            // Ensure the default private identity exists before list tasks execute.
-            _ = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
-            await viewModel.connectIfNeeded()
+            .presentationDetents([.medium, .large])
+#endif
+        }
+        .task {
+            diagnosticsStore.configureIfNeeded()
             let fallbackMenus = curatedMenuSeedConfigurations()
             if usesPerspectiveDrivenEdgeMenus {
                 applyPerspectiveDrivenMenus(from: [], fallback: fallbackMenus, profile: .empty)
             } else {
                 applyFixedMenuPlacement(fallbackMenus)
             }
-            if !didAttemptCatalogMenuSync {
-                didAttemptCatalogMenuSync = true
-                await refreshMenusFromCatalogIfAvailable()
-            }
             editorState.captureViewerSnapshot(currentEditorSeedConfiguration(), fallbackSkeleton: viewModel.currentSkeleton)
+            refreshDiagnosticsValidation()
+            startInitialRuntimeBootstrapIfNeeded()
         }
         .task {
             await monitorPerspectiveDrivenMenus()
         }
         .environmentObject(legacyPortholeViewModel)
+    }
+
+    @MainActor
+    private func startInitialRuntimeBootstrapIfNeeded() {
+        guard initialRuntimeBootstrapTask == nil else { return }
+
+        initialRuntimeBootstrapTask = Task { @MainActor in
+            await AppInitializer.initialize()
+            await viewModel.connectIfNeeded()
+            if !didAttemptCatalogMenuSync {
+                didAttemptCatalogMenuSync = true
+                await refreshMenusFromCatalogIfAvailable()
+            }
+            editorState.captureViewerSnapshot(
+                currentEditorSeedConfiguration(),
+                fallbackSkeleton: viewModel.currentSkeleton
+            )
+            refreshDiagnosticsValidation()
+        }
     }
 
     // MARK: - Rotation gesture to hide/show menus
@@ -715,6 +994,7 @@ struct ContentView: View {
         }
         normalized = ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
         normalized = canonicalizeSkeletonReferencesIfNeeded(in: normalized)
+        normalized = stabilizeKnownConferenceConfigurationIfNeeded(normalized)
         return ConfigurationPresentationSupport.viewportSafeConfiguration(normalized)
     }
 
@@ -896,6 +1176,79 @@ struct ContentView: View {
         return nil
     }
 
+    private func stabilizeKnownConferenceConfigurationIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration {
+        guard let skeleton = configuration.skeleton else {
+            return configuration
+        }
+
+        let keypathRewrites = knownConferenceKeypathRewrites(for: configuration)
+        guard !keypathRewrites.isEmpty,
+              let rewrittenSkeleton = rewrittenSkeleton(skeleton, keypathRewrites: keypathRewrites)
+        else {
+            return configuration
+        }
+
+        var stabilized = configuration
+        stabilized.skeleton = rewrittenSkeleton
+        return stabilized
+    }
+
+    private func knownConferenceKeypathRewrites(for configuration: CellConfiguration) -> [String: String] {
+        let normalizedName = configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalizedName {
+        case "conference participant portal dashboard", "conference ai assistant":
+            return [
+                "conferenceParticipantShell.state.program.trackSummary": "conferenceParticipantShell.state.program.timelineSummary"
+            ]
+        default:
+            return [:]
+        }
+    }
+
+    private func rewrittenSkeleton(
+        _ skeleton: SkeletonElement,
+        keypathRewrites: [String: String]
+    ) -> SkeletonElement? {
+        guard let data = try? JSONEncoder().encode(skeleton),
+              let jsonObject = try? JSONSerialization.jsonObject(with: data),
+              let rewrittenObject = rewrittenSkeletonJSONValue(jsonObject, keypathRewrites: keypathRewrites),
+              JSONSerialization.isValidJSONObject(rewrittenObject),
+              let rewrittenData = try? JSONSerialization.data(withJSONObject: rewrittenObject),
+              let rewrittenSkeleton = try? JSONDecoder().decode(SkeletonElement.self, from: rewrittenData)
+        else {
+            return nil
+        }
+
+        return rewrittenSkeleton
+    }
+
+    private func rewrittenSkeletonJSONValue(
+        _ value: Any,
+        keypathRewrites: [String: String]
+    ) -> Any? {
+        switch value {
+        case let dictionary as [String: Any]:
+            var rewritten: [String: Any] = [:]
+            rewritten.reserveCapacity(dictionary.count)
+            for (key, childValue) in dictionary {
+                rewritten[key] = rewrittenSkeletonJSONValue(childValue, keypathRewrites: keypathRewrites) ?? childValue
+            }
+            for key in ["keypath", "sourceKeypath", "targetKeypath"] {
+                guard let current = rewritten[key] as? String,
+                      let replacement = keypathRewrites[current]
+                else {
+                    continue
+                }
+                rewritten[key] = replacement
+            }
+            return rewritten
+        case let array as [Any]:
+            return array.map { rewrittenSkeletonJSONValue($0, keypathRewrites: keypathRewrites) ?? $0 }
+        default:
+            return value
+        }
+    }
+
     private func relativeKeypathFromPortholeURL(_ value: String) -> String? {
         guard let components = URLComponents(string: value),
               components.scheme?.lowercased() == "cell"
@@ -1061,6 +1414,27 @@ struct ContentView: View {
         usesCompactEditorChrome
     }
 
+    private var compactDiagnosticsSheetBinding: Binding<Bool> {
+        Binding(
+            get: { usesCompactEditorChrome && diagnosticsStore.panelVisible },
+            set: { diagnosticsStore.panelVisible = $0 }
+        )
+    }
+
+    private var edgeMenuTopExpansionStyle: EdgeMenuExpansionStyle {
+        get { EdgeMenuExpansionStyle(rawValue: edgeMenuTopExpansionStyleRaw) ?? .auto }
+        nonmutating set { edgeMenuTopExpansionStyleRaw = newValue.rawValue }
+    }
+
+    private var edgeMenuBottomExpansionStyle: EdgeMenuExpansionStyle {
+        get { EdgeMenuExpansionStyle(rawValue: edgeMenuBottomExpansionStyleRaw) ?? .auto }
+        nonmutating set { edgeMenuBottomExpansionStyleRaw = newValue.rawValue }
+    }
+
+    private var edgeMenuLabelMode: EdgeMenuLabelMode {
+        edgeMenuShowsTitles ? .titleOnOpen : .iconOnly
+    }
+
     private var appToolbar: some View {
         Group {
             if usesCompactEditorChrome {
@@ -1100,7 +1474,35 @@ struct ContentView: View {
             .pickerStyle(.segmented)
             .frame(width: 200)
 
+            if isLoadingConfiguration {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(loadingStatusMessage ?? "Laster…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: 220, alignment: .leading)
+            }
+
             Spacer(minLength: 8)
+
+            Menu {
+                convenienceMenuSettingsControls
+            } label: {
+                Label("Menus", systemImage: "menucard")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button {
+                diagnosticsStore.panelVisible.toggle()
+            } label: {
+                Label("Debug", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
 
             if editorMode == .edit {
                 HStack(spacing: 8) {
@@ -1146,12 +1548,35 @@ struct ContentView: View {
             .disabled(activeConfiguration == nil && editorState.workingCopy == nil)
             .accessibilityLabel("Copy JSON")
 
+            if isLoadingConfiguration {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
             Picker("Mode", selection: $editorMode) {
                 ForEach(EditorMode.allCases) { mode in
                     Image(systemName: mode.systemImage).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
+
+            Button {
+                diagnosticsStore.panelVisible.toggle()
+            } label: {
+                Image(systemName: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel("Debug")
+
+            Menu {
+                convenienceMenuSettingsControls
+            } label: {
+                Image(systemName: "menucard")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel("Menu settings")
 
             if editorMode == .edit {
                 Button {
@@ -1188,6 +1613,25 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var convenienceMenuSettingsControls: some View {
+        Picker("Top menus", selection: $edgeMenuTopExpansionStyleRaw) {
+            ForEach(EdgeMenuExpansionStyle.allCases) { style in
+                Text(style.title).tag(style.rawValue)
+            }
+        }
+
+        Picker("Bottom menus", selection: $edgeMenuBottomExpansionStyleRaw) {
+            ForEach(EdgeMenuExpansionStyle.allCases) { style in
+                Text(style.title).tag(style.rawValue)
+            }
+        }
+
+        Divider()
+
+        Toggle("Show names in open menus", isOn: $edgeMenuShowsTitles)
+    }
+
     private var compactConvenienceTray: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -1203,7 +1647,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     ForEach(compactConvenienceConfigurations, id: \.name) { configuration in
                         Button {
-                            Task { await loadConfigurationForEditing(configuration) }
+                            queueConfigurationLoad(configuration)
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
                                 Image(systemName: configuration.skeletonIconName)
@@ -1265,12 +1709,31 @@ struct ContentView: View {
         ComponentPaletteCatalog.defaultItems()
     }
 
+    private var compatibleComponentCount: Int {
+        componentPaletteItems.filter { !editorState.dropTargets(for: $0.recipe).isEmpty }.count
+    }
+
+    private var workingNodeCount: Int {
+        guard let workingCopy = editorState.workingCopy else { return 0 }
+        return SkeletonTreeQueries.linearizedNodes(in: workingCopy).count
+    }
+
+    @MainActor
+    private var selectedElementTitle: String? {
+        guard let selectedElement = editorState.selectedElement else { return nil }
+        return SkeletonTreeQueries.displayName(for: selectedElement)
+    }
+
+    private var compactEditorDrawerMaxHeight: CGFloat {
+        420
+    }
+
     private var activeComponentInsertionItem: ComponentPaletteItem? {
-        activeComponentDragItem ?? armedComponentItem
+        componentPlacementState.activeInsertionItem
     }
 
     private var isComponentPlacementArmed: Bool {
-        activeComponentDragItem == nil && armedComponentItem != nil
+        componentPlacementState.isPlacementArmed
     }
 
     private var activeComponentDropTargets: [DropTargetDescriptor] {
@@ -1278,17 +1741,52 @@ struct ContentView: View {
         return editorState.dropTargets(for: activeComponentInsertionItem.recipe)
     }
 
+    private var componentsFloatingPanelRootView: AnyView? {
+#if os(macOS)
+        AnyView(
+            ComponentPalettePanel(
+                editorState: editorState,
+                placementState: componentPlacementState,
+                items: componentPaletteItems,
+                onArmComponent: { item in
+                    armComponentPlacement(item)
+                },
+                onInsertError: { message in
+                    loadErrorMessage = message
+                }
+            )
+            .padding(10)
+        )
+#else
+        nil
+#endif
+    }
+
     private var compactEditorDrawer: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.28))
+                .frame(width: 38, height: 5)
+                .frame(maxWidth: .infinity)
+
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Editor")
                         .font(.headline)
-                    Text(editorState.selectedNodePath == nil ? "Velg et element for å styre hvor komponenter legges inn." : "Komponenter, elementer og inspector ligger samlet her.")
+                    Text(editorState.selectedNodePath == nil ? "Velg et element for å styre hvor komponenter legges inn." : "Komponenter, elementer og Inspector ligger samlet her.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
+
+                if isComponentPlacementArmed {
+                    Button("Avbryt plassering") {
+                        componentPlacementState.clear()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
                 Button {
                     let shouldCollapse = compactComponentsExpanded || compactElementsExpanded || compactInspectorExpanded
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -1315,16 +1813,29 @@ struct ContentView: View {
                 .accessibilityLabel("Lukk editorpaneler")
             }
 
+            if editorState.selectedNodePath != nil || isComponentPlacementArmed {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        if let selectedElementTitle {
+                            PanelBadge(text: selectedElementTitle, tint: .accentColor)
+                        }
+                        if editorState.selectedNodePath != nil {
+                            PanelBadge(text: editorState.selectionSummary)
+                        }
+                        if isComponentPlacementArmed {
+                            PanelBadge(text: "Plassering aktiv", tint: .accentColor)
+                        }
+                    }
+                }
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    DisclosureGroup("Components", isExpanded: $compactComponentsExpanded) {
+                    DisclosureGroup(isExpanded: $compactComponentsExpanded) {
                         ComponentPalettePanel(
                             editorState: editorState,
+                            placementState: componentPlacementState,
                             items: componentPaletteItems,
-                            armedItemID: armedComponentItem?.id,
-                            onDragStateChange: { item in
-                                activeComponentDragItem = item
-                            },
                             onArmComponent: { item in
                                 armComponentPlacement(item)
                             },
@@ -1333,9 +1844,15 @@ struct ContentView: View {
                             }
                         )
                         .padding(.top, 8)
+                    } label: {
+                        compactDrawerSectionLabel(
+                            title: "Components",
+                            badge: "\(compatibleComponentCount)",
+                            tint: .accentColor
+                        )
                     }
 
-                    DisclosureGroup("Elements", isExpanded: $compactElementsExpanded) {
+                    DisclosureGroup(isExpanded: $compactElementsExpanded) {
                         SkeletonTreePanel(
                             editorState: editorState,
                             preferredWidth: nil,
@@ -1343,9 +1860,14 @@ struct ContentView: View {
                             showsBackground: false
                         )
                         .padding(.top, 8)
+                    } label: {
+                        compactDrawerSectionLabel(
+                            title: "Elements",
+                            badge: "\(workingNodeCount)"
+                        )
                     }
 
-                    DisclosureGroup("Inspector", isExpanded: $compactInspectorExpanded) {
+                    DisclosureGroup(isExpanded: $compactInspectorExpanded) {
                         SkeletonModifierInspectorPanel(
                             editorState: editorState,
                             preferredWidth: nil,
@@ -1354,12 +1876,19 @@ struct ContentView: View {
                             showsBackground: false
                         )
                         .padding(.top, 8)
+                    } label: {
+                        compactDrawerSectionLabel(
+                            title: "Inspector",
+                            badge: selectedElementTitle ?? "Velg",
+                            tint: selectedElementTitle == nil ? .secondary : .accentColor
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        .frame(maxHeight: compactEditorDrawerMaxHeight)
         .padding(12)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 12)
@@ -1370,31 +1899,146 @@ struct ContentView: View {
         guard let committedDocument = editorState.commitDocumentChanges() else { return }
         let committedConfiguration = canonicalizeSkeletonReferencesIfNeeded(in: committedDocument.configuration)
         activeConfiguration = committedConfiguration
-        Task { await viewModel.load(configuration: committedConfiguration) }
+        diagnosticsStore.record(
+            domain: "binding.load",
+            message: "Apply working copy: \(committedConfiguration.name)"
+        )
+        queueConfigurationLoad(committedConfiguration)
+    }
+
+    private func queueConfigurationLoad(_ configuration: CellConfiguration?) {
+        configurationLoadTask?.cancel()
+        configurationLoadTask = Task {
+            await loadConfigurationForEditing(configuration)
+        }
+    }
+
+    private func updateLoadingStatus(_ message: String, requestID: UUID? = nil) {
+        if let requestID, activeLoadingRequestID != requestID {
+            return
+        }
+        loadingStatusMessage = message
+        diagnosticsStore.record(domain: "binding.load", message: message)
+    }
+
+    @MainActor
+    private var runtimeBootstrapIsReady: Bool {
+        CellBase.defaultIdentityVault != nil && CellBase.defaultCellResolver is CellResolver
+    }
+
+    @MainActor
+    private func waitForRuntimeBootstrapIfNeeded(
+        requestID: UUID,
+        configurationName: String
+    ) async -> Bool {
+        if runtimeBootstrapIsReady {
+            return true
+        }
+
+        updateLoadingStatus(
+            "Venter paa autentisering og runtime-bootstrap for \(configurationName)…",
+            requestID: requestID
+        )
+        await AppInitializer.initialize()
+        if runtimeBootstrapIsReady {
+            return true
+        }
+
+        let maxAttempts = 60
+        let retryDelayNanoseconds: UInt64 = 250_000_000
+
+        for attempt in 1...maxAttempts {
+            guard !Task.isCancelled else { return false }
+            if runtimeBootstrapIsReady {
+                return true
+            }
+            if attempt < maxAttempts {
+                updateLoadingStatus(
+                    "Venter paa autentisering og runtime-bootstrap for \(configurationName)… (\(attempt)/\(maxAttempts))",
+                    requestID: requestID
+                )
+                try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
+            }
+        }
+
+        let message = "Runtime ble ikke klar i tide. Bekreft autentisering og proev igjen."
+        loadErrorMessage = message
+        diagnosticsStore.record(
+            severity: .error,
+            domain: "binding.load",
+            message: "\(message) [\(configurationName)]"
+        )
+        return false
+    }
+
+    private func refreshDiagnosticsValidation() {
+        diagnosticsStore.refreshValidation(for: diagnosticConfiguration)
+    }
+
+    private var diagnosticConfiguration: CellConfiguration? {
+        if editorMode == .edit, let workingConfiguration = editorState.workingConfiguration {
+            return canonicalizeSkeletonReferencesIfNeeded(in: workingConfiguration)
+        }
+        if var activeConfiguration {
+            if activeConfiguration.skeleton == nil {
+                activeConfiguration.skeleton = viewModel.currentSkeleton
+            }
+            return canonicalizeSkeletonReferencesIfNeeded(in: activeConfiguration)
+        }
+        return nil
     }
 
     @MainActor
     private func loadConfigurationForEditing(_ configuration: CellConfiguration?) async {
         guard let configuration else { return }
+        let requestID = UUID()
+        activeLoadingRequestID = requestID
+        isLoadingConfiguration = true
+        updateLoadingStatus("Laster \(configuration.name)…", requestID: requestID)
+        defer {
+            if activeLoadingRequestID == requestID {
+                isLoadingConfiguration = false
+                loadingStatusMessage = nil
+                activeLoadingRequestID = nil
+            }
+        }
+
         guard let sanitizedConfiguration = sanitizedLoadedConfiguration(configuration, allowReferenceFree: true) else {
             loadErrorMessage = "Konfigurasjonen ble filtrert bort fordi den mangler gyldige CellReferences."
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.load",
+                message: "Sanitization removed configuration \(configuration.name)"
+            )
             return
         }
         loadErrorMessage = nil
+        diagnosticsStore.refreshValidation(for: sanitizedConfiguration)
+        guard !Task.isCancelled else { return }
+        guard await waitForRuntimeBootstrapIfNeeded(
+            requestID: requestID,
+            configurationName: sanitizedConfiguration.name
+        ) else { return }
+
+        updateLoadingStatus("Normaliserer references for \(sanitizedConfiguration.name)…", requestID: requestID)
         var normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
         if let resolver = CellBase.defaultCellResolver as? CellResolver {
             if let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) {
+                guard !Task.isCancelled else { return }
+                updateLoadingStatus("Henter fjernkonfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
                 normalizedConfiguration = await recoverRemoteConfigurationOnDemandIfNeeded(
                     normalizedConfiguration,
                     resolver: resolver,
                     identity: identity
                 )
+                guard !Task.isCancelled else { return }
                 normalizedConfiguration = await hydrateSparseConfigurationIfNeeded(
                     normalizedConfiguration,
                     resolver: resolver,
                     identity: identity
                 )
             }
+            guard !Task.isCancelled else { return }
             normalizedConfiguration = normalizeConfigurationForResolver(
                 normalizedConfiguration,
                 origin: nil,
@@ -1402,9 +2046,12 @@ struct ContentView: View {
             )
         }
         activeConfiguration = normalizedConfiguration
+        diagnosticsStore.refreshValidation(for: normalizedConfiguration)
+        guard !Task.isCancelled else { return }
 
         var loadConfiguration = normalizedConfiguration
         if let references = normalizedConfiguration.cellReferences, !references.isEmpty {
+            updateLoadingStatus("Sjekker tilgjengelige bridge-references…", requestID: requestID)
             let probeResult = await probeFailingTopLevelReferences(in: normalizedConfiguration)
             if !probeResult.failingReferenceEndpoints.isEmpty {
                 let (retainedReferences, removedReferences) = references.reduce(into: ([CellReference](), [CellReference]())) { acc, reference in
@@ -1422,6 +2069,11 @@ struct ContentView: View {
                     }
                     if skeletonDependsOnRemovedReferenceLabels(loadConfiguration.skeleton, removedLabels: removedLabels) {
                         loadErrorMessage = "Kritisk referanse kunne ikke lastes (\(removedCount)). \(probeResult.firstFailureMessage ?? "")"
+                        diagnosticsStore.record(
+                            severity: .error,
+                            domain: "binding.load",
+                            message: "Critical reference failure for \(normalizedConfiguration.name): \(probeResult.firstFailureMessage ?? "unknown")"
+                        )
                         return
                     }
                     loadConfiguration.cellReferences = retainedReferences
@@ -1430,13 +2082,293 @@ struct ContentView: View {
                     } else {
                         loadErrorMessage = "Noen referanser feilet og ble hoppet over (\(removedCount)). \(probeResult.firstFailureMessage ?? "")"
                     }
+                    diagnosticsStore.record(
+                        severity: retainedReferences.isEmpty ? .error : .warning,
+                        domain: "binding.load",
+                        message: "Dropped \(removedCount) failing references while loading \(normalizedConfiguration.name)"
+                    )
                 }
             }
         }
 
-        await viewModel.load(configuration: loadConfiguration)
+        guard !Task.isCancelled else { return }
+        updateLoadingStatus("Absorberer \(loadConfiguration.name) i porthole…", requestID: requestID)
+        let didLoad = await loadConfigurationIntoPorthole(loadConfiguration, requestID: requestID)
+        guard didLoad else { return }
+        diagnosticsStore.record(
+            domain: "binding.load",
+            message: "Loaded configuration \(loadConfiguration.name) [\(requestID.uuidString.prefix(6))]"
+        )
         if editorMode == .edit {
             editorState.beginEditing(configuration: loadConfiguration, fallbackSkeleton: loadConfiguration.skeleton ?? viewModel.currentSkeleton)
+        }
+        refreshDiagnosticsValidation()
+    }
+
+    private func loadConfigurationIntoPorthole(
+        _ configuration: CellConfiguration,
+        requestID: UUID
+    ) async -> Bool {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true),
+              let porthole = try? await resolver.cellAtEndpoint(endpoint: Self.portholeEndpoint, requester: identity) as? OrchestratorCell
+        else {
+            await viewModel.load(configuration: configuration)
+            return true
+        }
+
+        let intendedSkeleton = configuration.skeleton ?? viewModel.currentSkeleton
+        let rootProbes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
+
+        viewModel.cellReferences = configuration.cellReferences ?? []
+        viewModel.currentSkeleton = loadingPlaceholderSkeleton(for: configuration)
+
+        do {
+            try await loadConfigurationIntoPortholeWithTimeout(
+                configuration,
+                on: porthole,
+                requester: identity
+            )
+        } catch {
+            let message = "Kunne ikke absorbere \(configuration.name) i porthole: \(error)"
+            diagnosticsStore.record(
+                severity: .error,
+                domain: "binding.load",
+                message: message
+            )
+            loadErrorMessage = message
+            viewModel.currentSkeleton = failurePlaceholderSkeleton(for: configuration, detail: String(describing: error))
+            return false
+        }
+
+        guard !Task.isCancelled else { return false }
+        guard !rootProbes.isEmpty else {
+            viewModel.currentSkeleton = intendedSkeleton
+            legacyPortholeViewModel.markLocalMutation()
+            return true
+        }
+
+        let availability = await waitForReadableBindingRoots(
+            rootProbes,
+            on: porthole,
+            requester: identity,
+            configurationName: configuration.name,
+            requestID: requestID
+        )
+
+        switch availability {
+        case .ready(let attempts):
+            loadErrorMessage = nil
+            viewModel.currentSkeleton = intendedSkeleton
+            legacyPortholeViewModel.markLocalMutation()
+            if attempts > 1 {
+                diagnosticsStore.record(
+                    domain: "binding.load",
+                    message: "Readable roots became available for \(configuration.name) after \(attempts) attempts."
+                )
+            }
+            return true
+        case .failed(let failures):
+            let failureSummary = summarizeBindingFailures(failures)
+            let message = "Innholdet til \(configuration.name) ble ikke klart i tide. \(failureSummary)"
+            diagnosticsStore.record(
+                severity: .error,
+                domain: "binding.load",
+                message: message
+            )
+            loadErrorMessage = message
+            viewModel.currentSkeleton = failurePlaceholderSkeleton(for: configuration, detail: failureSummary)
+            return false
+        }
+    }
+
+    private func loadConfigurationIntoPortholeWithTimeout(
+        _ configuration: CellConfiguration,
+        on porthole: OrchestratorCell,
+        requester: Identity
+    ) async throws {
+        let timeoutNanoseconds: UInt64 = 10_000_000_000
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await porthole.loadCellConfiguration(configuration, requester: requester)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw ConfigurationLoadTimeoutError(configurationName: configuration.name)
+            }
+
+            guard let _ = try await group.next() else {
+                throw ConfigurationLoadTimeoutError(configurationName: configuration.name)
+            }
+            group.cancelAll()
+        }
+    }
+
+    private func waitForReadableBindingRoots(
+        _ probes: [SkeletonBindingProbeSupport.RootProbe],
+        on porthole: Meddle,
+        requester: Identity,
+        configurationName: String,
+        requestID: UUID
+    ) async -> RootBindingAvailability {
+        let maxAttempts = 8
+        let retryDelayNanoseconds: UInt64 = 350_000_000
+        let perProbeTimeoutNanoseconds: UInt64 = 1_500_000_000
+        var failures: [SkeletonBindingProbeSupport.RootProbe: String] = [:]
+
+        for attempt in 1...maxAttempts {
+            guard !Task.isCancelled else {
+                return .failed(failures)
+            }
+
+            failures.removeAll(keepingCapacity: true)
+            for probe in probes {
+                do {
+                    let value = try await readBindingProbeValue(
+                        probe,
+                        on: porthole,
+                        requester: requester,
+                        timeoutNanoseconds: perProbeTimeoutNanoseconds
+                    )
+                    if let detail = SkeletonBindingProbeSupport.failureDetail(from: value) {
+                        failures[probe] = detail
+                    }
+                } catch {
+                    failures[probe] = String(describing: error)
+                }
+            }
+
+            if failures.isEmpty {
+                return .ready(attempts: attempt)
+            }
+
+            if attempt < maxAttempts {
+                updateLoadingStatus(
+                    "Venter på preview-state for \(configurationName)… (\(attempt)/\(maxAttempts))",
+                    requestID: requestID
+                )
+                try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
+            }
+        }
+
+        return .failed(failures)
+    }
+
+    private func readBindingProbeValue(
+        _ probe: SkeletonBindingProbeSupport.RootProbe,
+        on porthole: Meddle,
+        requester: Identity,
+        timeoutNanoseconds: UInt64
+    ) async throws -> ValueType {
+        try await withThrowingTaskGroup(of: ValueType.self) { group in
+            group.addTask {
+                try await porthole.get(keypath: probe.qualifiedKeypath, requester: requester)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw BindingProbeTimeoutError(keypath: probe.qualifiedKeypath)
+            }
+
+            guard let firstResult = try await group.next() else {
+                throw BindingProbeTimeoutError(keypath: probe.qualifiedKeypath)
+            }
+            group.cancelAll()
+            return firstResult
+        }
+    }
+
+    private func summarizeBindingFailures(
+        _ failures: [SkeletonBindingProbeSupport.RootProbe: String]
+    ) -> String {
+        failures
+            .sorted { lhs, rhs in
+                lhs.key.qualifiedKeypath < rhs.key.qualifiedKeypath
+            }
+            .prefix(3)
+            .map { probe, detail in
+                "\(probe.qualifiedKeypath): \(detail)"
+            }
+            .joined(separator: " | ")
+    }
+
+    private func loadingPlaceholderSkeleton(for configuration: CellConfiguration) -> SkeletonElement {
+        placeholderSkeleton(
+            title: configuration.name,
+            status: "Laster innhold…",
+            detail: "Binding venter paa at preview-state og bridge-references skal bli lesbare."
+        )
+    }
+
+    private func failurePlaceholderSkeleton(for configuration: CellConfiguration, detail: String) -> SkeletonElement {
+        placeholderSkeleton(
+            title: configuration.name,
+            status: "Kunne ikke hente innhold",
+            detail: detail
+        )
+    }
+
+    private func placeholderSkeleton(title: String, status: String, detail: String) -> SkeletonElement {
+        var titleText = SkeletonText(text: title)
+        titleText.modifiers = contentViewModifier {
+            $0.fontStyle = "title2"
+            $0.fontWeight = "semibold"
+            $0.padding = 4
+        }
+
+        var statusText = SkeletonText(text: status)
+        statusText.modifiers = contentViewModifier {
+            $0.fontWeight = "semibold"
+            $0.padding = 4
+        }
+
+        var detailText = SkeletonText(text: detail)
+        detailText.modifiers = contentViewModifier {
+            $0.foregroundColor = "#475569"
+            $0.padding = 4
+            $0.lineLimit = 6
+        }
+
+        var stack = SkeletonVStack(elements: [
+            .Text(titleText),
+            .Text(statusText),
+            .Text(detailText)
+        ])
+        stack.modifiers = contentViewModifier {
+            $0.padding = 20
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 18
+            $0.borderWidth = 1
+            $0.borderColor = "#CBD5E1"
+            $0.maxWidthInfinity = true
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(stack)])
+        scroll.modifiers = contentViewModifier {
+            $0.background = "#EDF2F7"
+            $0.padding = 16
+        }
+        return .ScrollView(scroll)
+    }
+
+    private enum RootBindingAvailability {
+        case ready(attempts: Int)
+        case failed([SkeletonBindingProbeSupport.RootProbe: String])
+    }
+
+    private struct BindingProbeTimeoutError: LocalizedError {
+        let keypath: String
+
+        var errorDescription: String? {
+            "Timeout while reading \(keypath)"
+        }
+    }
+
+    private struct ConfigurationLoadTimeoutError: LocalizedError {
+        let configurationName: String
+
+        var errorDescription: String? {
+            "Timeout while loading \(configurationName) into Porthole"
         }
     }
 
@@ -1518,8 +2450,8 @@ struct ContentView: View {
         }
         if inserted {
             loadErrorMessage = nil
-            activeComponentDragItem = nil
-            armedComponentItem = nil
+            componentPlacementState.clear()
+            compactComponentsExpanded = false
             compactInspectorExpanded = true
             withAnimation(.easeInOut(duration: 0.2)) {
                 compactEditorDrawerVisible = true
@@ -1607,13 +2539,23 @@ struct ContentView: View {
     }
 
     private func armComponentPlacement(_ item: ComponentPaletteItem?) {
-        activeComponentDragItem = nil
-        armedComponentItem = item
+        componentPlacementState.activeDragItem = nil
+        componentPlacementState.armedItem = item
 
         guard item != nil else { return }
+        compactComponentsExpanded = true
         compactInspectorExpanded = true
         withAnimation(.easeInOut(duration: 0.2)) {
             compactEditorDrawerVisible = true
+        }
+    }
+
+    @ViewBuilder
+    private func compactDrawerSectionLabel(title: String, badge: String, tint: Color = .secondary) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+            Spacer(minLength: 0)
+            PanelBadge(text: badge, tint: tint)
         }
     }
 
@@ -2219,7 +3161,14 @@ struct ContentView: View {
 
     private func probeFailureMessage(endpoint: String, error: Error) -> String {
         let errorText = String(describing: error)
-        if errorText.lowercased().contains("timeout") {
+        let normalized = errorText.lowercased()
+        if normalized.contains("bad response from the server") || normalized.contains("502") {
+            return "Staging svarte med ugyldig websocket-respons for \(endpoint). Sjekk bridgehead/nginx."
+        }
+        if normalized.contains("notconnected") || normalized.contains("transportunavailable") {
+            return "Bridge-forbindelsen til \(endpoint) ble brutt før data kunne leses."
+        }
+        if normalized.contains("timeout") {
             return "Timeout ved lasting av \(endpoint). Sjekk staging websocket-route (bridgehead)."
         }
         return "Kunne ikke laste \(endpoint): \(errorText)"
@@ -2549,12 +3498,8 @@ struct ContentView: View {
         let chat = ConfigurationCatalogCell.scaffoldChatWorkbenchMenuConfiguration(
             endpoint: stagingEndpoint("Chat")
         )
-        let conference = referenceMenuConfiguration(
-            name: "Conference MVP",
-            endpoint: stagingEndpoint("ConferenceUIRouter"),
-            label: "conference",
-            title: "Conference",
-            subtitle: "Konferanseflyt med routing, matchmaking og scheduling."
+        let conference = ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(
+            endpoint: stagingEndpoint("ConferenceUIRouter")
         )
         let todo = referenceMenuConfiguration(
             name: "Todo MVP",
@@ -2859,6 +3804,42 @@ private struct ComponentDropSlotView: View {
     }
 }
 
+private struct TopChromeHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct TopSafeAreaInsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct LoadingStatusBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
 // MARK: - Overlay that places six edge menus
 // Documentation: See Prompts/EdgeMenusOverlay.md for concepts and guidelines
 // Additional project rules: See Prompts/CONTRIBUTING.md and Prompts/Architecture.md
@@ -2869,6 +3850,10 @@ private struct EdgeMenusOverlay: View {
     var lowerLeft: [MenuItem]
     var lowerMid: [MenuItem]
     var lowerRight: [MenuItem]
+    var reservedTopInset: CGFloat
+    var topExpansionStyle: EdgeMenuExpansionStyle
+    var bottomExpansionStyle: EdgeMenuExpansionStyle
+    var labelMode: EdgeMenuLabelMode
     var onPrimaryAction: (EdgePosition) -> Bool
     var onSelect: (CellConfiguration) -> Void
 
@@ -2876,6 +3861,16 @@ private struct EdgeMenusOverlay: View {
 
     var body: some View {
         ZStack {
+            if !expanded.isEmpty {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            expanded.removeAll()
+                        }
+                    }
+            }
+
             alignedMenu(.upperLeft, items: upperLeft, alignment: .topLeading)
             alignedMenu(.upperMid, items: upperMid, alignment: .top)
             alignedMenu(.upperRight, items: upperRight, alignment: .topTrailing)
@@ -2891,7 +3886,16 @@ private struct EdgeMenusOverlay: View {
 
     @ViewBuilder
     private func alignedMenu(_ position: EdgePosition, items: [MenuItem], alignment: Alignment) -> some View {
-        EdgeMenu(position: position, items: items, isExpanded: expanded.contains(position)) { action(position, $0) }
+        EdgeMenu(
+            position: position,
+            items: items,
+            isExpanded: expanded.contains(position),
+            expansionStyle: expansionStyle(for: position),
+            labelMode: labelMode,
+            showsSubtitle: subtitleVisibility(for: position)
+        ) {
+            action(position, $0)
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
             .padding(edgeInsets(for: position))
     }
@@ -2899,11 +3903,11 @@ private struct EdgeMenusOverlay: View {
     private func edgeInsets(for position: EdgePosition) -> EdgeInsets {
         switch position {
         case .upperLeft:
-            return EdgeInsets(top: 14, leading: 14, bottom: 0, trailing: 0)
+            return EdgeInsets(top: reservedTopInset, leading: 14, bottom: 0, trailing: 0)
         case .upperMid:
-            return EdgeInsets(top: 14, leading: 0, bottom: 0, trailing: 0)
+            return EdgeInsets(top: reservedTopInset, leading: 0, bottom: 0, trailing: 0)
         case .upperRight:
-            return EdgeInsets(top: 14, leading: 0, bottom: 0, trailing: 14)
+            return EdgeInsets(top: reservedTopInset, leading: 0, bottom: 0, trailing: 14)
         case .lowerLeft:
             return EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 0)
         case .lowerMid:
@@ -2959,6 +3963,24 @@ private struct EdgeMenusOverlay: View {
             } else {
                 expanded = [position]
             }
+        }
+    }
+
+    private func expansionStyle(for position: EdgePosition) -> EdgeMenuExpansionStyle {
+        switch position {
+        case .upperLeft, .upperMid, .upperRight:
+            return topExpansionStyle
+        case .lowerLeft, .lowerMid, .lowerRight:
+            return bottomExpansionStyle
+        }
+    }
+
+    private func subtitleVisibility(for position: EdgePosition) -> Bool {
+        switch position {
+        case .upperMid, .lowerMid:
+            return true
+        default:
+            return false
         }
     }
 }
@@ -3112,120 +4134,6 @@ struct BridgeStatusBanner: View {
     }
 }
 
-private extension LightweightBridgeConnectionStatus {
-    var severityRank: Int {
-        switch phase {
-        case .failed:
-            return 5
-        case .disconnected:
-            return 4
-        case .reconnecting:
-            return 3
-        case .connecting:
-            return 2
-        case .connected:
-            return 1
-        }
-    }
-
-    func shouldDisplay(relativeTo now: Date) -> Bool {
-        let age = now.timeIntervalSince(updatedAt)
-        switch phase {
-        case .connected:
-            return age <= 10
-        case .connecting:
-            return age <= 20
-        case .reconnecting, .disconnected, .failed:
-            return age <= 90
-        }
-    }
-
-    func isExpired(relativeTo now: Date) -> Bool {
-        let age = now.timeIntervalSince(updatedAt)
-        switch phase {
-        case .connected:
-            return age > 20
-        case .connecting:
-            return age > 40
-        case .reconnecting, .disconnected, .failed:
-            return age > 180
-        }
-    }
-
-    var titleText: String {
-        switch phase {
-        case .connecting:
-            return "Kobler til bridge"
-        case .connected:
-            return "Bridge tilkoblet"
-        case .reconnecting:
-            return "Kobler til igjen"
-        case .disconnected:
-            return "Bridge frakoblet"
-        case .failed:
-            return "Bridge-feil"
-        }
-    }
-
-    var subtitleText: String {
-        var parts: [String] = [endpointSummary]
-        if let attempt {
-            parts.append("forsøk \(attempt)")
-        }
-        if let detail, !detail.isEmpty {
-            parts.append(detail)
-        }
-        return parts.joined(separator: " • ")
-    }
-
-    var tintColor: Color {
-        switch phase {
-        case .connecting:
-            return .blue
-        case .connected:
-            return .green
-        case .reconnecting:
-            return .orange
-        case .disconnected:
-            return .orange
-        case .failed:
-            return .red
-        }
-    }
-
-    var iconName: String {
-        switch phase {
-        case .connecting:
-            return "bolt.horizontal.circle.fill"
-        case .connected:
-            return "checkmark.circle.fill"
-        case .reconnecting:
-            return "arrow.trianglehead.2.clockwise.rotate.90.circle.fill"
-        case .disconnected:
-            return "wifi.slash"
-        case .failed:
-            return "exclamationmark.triangle.fill"
-        }
-    }
-
-    var endpointSummary: String {
-        guard let components = URLComponents(string: endpoint) else {
-            return endpoint
-        }
-
-        let host = components.host ?? endpoint
-        let lastPath = components.path
-            .split(separator: "/")
-            .last
-            .map(String.init)
-
-        if let lastPath, !lastPath.isEmpty, lastPath.lowercased() != host.lowercased() {
-            return "\(host)/\(lastPath)"
-        }
-
-        return host
-    }
-}
 
 // MARK: - Preview
 #Preview {

@@ -39,17 +39,11 @@ enum ReferenceUsageAnalyzer {
         references: [CellReference]
     ) -> ReferenceUsageReport {
         let referenceValues = referencedValues(in: skeleton)
-        let topLevelLabels = Set(
-            references
-                .map { $0.label.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-        )
+        let topLevelLabels = topLevelLabelSet(from: references)
 
         let referencedLabels = Set(topLevelLabels.filter { label in
             referenceValues.contains { value in
-                value == label ||
-                value.hasPrefix(label + ".") ||
-                value.contains("cell:///Porthole/\(label).")
+                matchesReferenceLabel(label, in: value)
             }
         })
 
@@ -59,10 +53,38 @@ enum ReferenceUsageAnalyzer {
         )
     }
 
+    static func matchingTopLevelLabels(
+        for element: SkeletonElement,
+        references: [CellReference]
+    ) -> Set<String> {
+        let topLevelLabels = topLevelLabelSet(from: references)
+        guard !topLevelLabels.isEmpty else { return [] }
+
+        let referenceValues = referencedValues(in: element)
+        return Set(topLevelLabels.filter { label in
+            referenceValues.contains { value in
+                matchesReferenceLabel(label, in: value)
+            }
+        })
+    }
+
+    private static func topLevelLabelSet(from references: [CellReference]) -> Set<String> {
+        Set(
+            references
+                .map { $0.label.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    private static func matchesReferenceLabel(_ label: String, in value: String) -> Bool {
+        value == label ||
+        value.hasPrefix(label + ".") ||
+        value.contains("cell:///Porthole/\(label).")
+    }
+
     private static func referencedValues(in skeleton: SkeletonElement?) -> [String] {
         guard let skeleton,
-              let data = try? JSONEncoder().encode(skeleton),
-              let rawObject = try? JSONSerialization.jsonObject(with: data)
+              let rawObject = rawObject(from: skeleton)
         else {
             return []
         }
@@ -70,6 +92,18 @@ enum ReferenceUsageAnalyzer {
         var collected: [String] = []
         collectValues(from: rawObject, into: &collected)
         return collected
+    }
+
+    private static func referencedValues(in element: SkeletonElement) -> [String] {
+        guard let rawObject = rawObject(from: element) else { return [] }
+        var collected: [String] = []
+        collectValues(from: rawObject, into: &collected)
+        return collected
+    }
+
+    private static func rawObject<T: Encodable>(from value: T) -> Any? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
     }
 
     private static func collectValues(from value: Any, into collected: inout [String]) {

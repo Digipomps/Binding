@@ -16,6 +16,354 @@ struct FullLibraryQueryContext {
     var insertionIntent: FullLibraryInsertionIntent
 }
 
+enum LibraryPreviewSkeletonSupport {
+    struct PreparedPreview {
+        var element: SkeletonElement
+        var usesPlaceholders: Bool
+    }
+
+    static func preparePreview(for configuration: CellConfiguration) -> PreparedPreview? {
+        guard let skeleton = configuration.skeleton else { return nil }
+        return sanitize(skeleton)
+    }
+
+    private static func sanitize(_ element: SkeletonElement) -> PreparedPreview {
+        switch element {
+        case .Text(var text):
+            var usedPlaceholder = false
+            if text.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                text.text = previewLabel(from: text.keypath)
+                    ?? previewLabel(from: text.url?.absoluteString)
+                    ?? "Preview data"
+                usedPlaceholder = true
+            }
+            if text.keypath != nil || text.url != nil {
+                usedPlaceholder = true
+            }
+            text.keypath = nil
+            text.url = nil
+            return PreparedPreview(element: .Text(text), usesPlaceholders: usedPlaceholder)
+
+        case .TextField(let field):
+            let previewText = previewFieldText(
+                text: field.text,
+                placeholder: field.placeholder,
+                preferredBinding: field.sourceKeypath ?? field.targetKeypath
+            )
+            let preview = SkeletonTextField(
+                text: previewText,
+                sourceKeypath: nil,
+                targetKeypath: nil,
+                placeholder: field.placeholder,
+                modifiers: field.modifiers
+            )
+            return PreparedPreview(
+                element: .TextField(preview),
+                usesPlaceholders: field.sourceKeypath != nil || field.targetKeypath != nil
+            )
+
+        case .TextArea(let area):
+            let previewText = previewFieldText(
+                text: area.text,
+                placeholder: area.placeholder,
+                preferredBinding: area.sourceKeypath ?? area.targetKeypath
+            )
+            let preview = SkeletonTextArea(
+                text: previewText,
+                sourceKeypath: nil,
+                targetKeypath: nil,
+                placeholder: area.placeholder,
+                minLines: area.minLines,
+                maxLines: area.maxLines,
+                submitOnEnter: area.submitOnEnter,
+                modifiers: area.modifiers
+            )
+            return PreparedPreview(
+                element: .TextArea(preview),
+                usesPlaceholders: area.sourceKeypath != nil || area.targetKeypath != nil
+            )
+
+        case .HStack(let stack):
+            let sanitizedChildren = sanitize(stack.elements)
+            return PreparedPreview(
+                element: .HStack(
+                    SkeletonHStack(
+                        elements: sanitizedChildren.map(\.element),
+                        spacing: stack.spacing,
+                        modifiers: stack.modifiers
+                    )
+                ),
+                usesPlaceholders: sanitizedChildren.contains(where: \.usesPlaceholders)
+            )
+
+        case .VStack(let stack):
+            let sanitizedChildren = sanitize(stack.elements)
+            return PreparedPreview(
+                element: .VStack(
+                    SkeletonVStack(
+                        elements: sanitizedChildren.map(\.element),
+                        spacing: stack.spacing,
+                        modifiers: stack.modifiers
+                    )
+                ),
+                usesPlaceholders: sanitizedChildren.contains(where: \.usesPlaceholders)
+            )
+
+        case .ScrollView(let scroll):
+            let sanitizedChildren = sanitize(scroll.elements)
+            return PreparedPreview(
+                element: .ScrollView(
+                    SkeletonScrollView(
+                        axis: scroll.axis,
+                        elements: sanitizedChildren.map(\.element)
+                    )
+                ),
+                usesPlaceholders: sanitizedChildren.contains(where: \.usesPlaceholders)
+            )
+
+        case .Section(let section):
+            let header = section.header.map(sanitize)
+            let footer = section.footer.map(sanitize)
+            let content = sanitize(section.content)
+            return PreparedPreview(
+                element: .Section(
+                    SkeletonSection(
+                        header: header?.element,
+                        footer: footer?.element,
+                        content: content.map(\.element)
+                    )
+                ),
+                usesPlaceholders:
+                    (header?.usesPlaceholders ?? false) ||
+                    (footer?.usesPlaceholders ?? false) ||
+                    content.contains(where: \.usesPlaceholders)
+            )
+
+        case .ZStack(let stack):
+            let sanitizedChildren = sanitize(stack.elements)
+            return PreparedPreview(
+                element: .ZStack(
+                    SkeletonZStack(
+                        elements: sanitizedChildren.map(\.element),
+                        modifiers: stack.modifiers
+                    )
+                ),
+                usesPlaceholders: sanitizedChildren.contains(where: \.usesPlaceholders)
+            )
+
+        case .Object(let object):
+            var sanitizedChildren: SkeletonElementObject = [:]
+            var usesPlaceholders = false
+            for (key, child) in object.elements {
+                let sanitizedChild = sanitize(child)
+                sanitizedChildren[key] = sanitizedChild.element
+                usesPlaceholders = usesPlaceholders || sanitizedChild.usesPlaceholders
+            }
+            return PreparedPreview(
+                element: .Object(SkeletonObject(elements: sanitizedChildren, modifiers: object.modifiers)),
+                usesPlaceholders: usesPlaceholders
+            )
+
+        case .List(let list):
+            return placeholderCollection(
+                title: previewLabel(from: list.keypath) ?? "Preview list",
+                detail: "Viser statiske eksempelrader i biblioteket.",
+                modifiers: list.modifiers
+            )
+
+        case .Grid(let grid):
+            if !grid.elements.isEmpty {
+                let sanitizedChildren = sanitize(grid.elements)
+                let previewGrid = SkeletonGrid(
+                    columns: grid.columns,
+                    spacing: grid.spacing,
+                    keypath: nil,
+                    itemSkeleton: nil,
+                    elements: sanitizedChildren.map(\.element),
+                    modifiers: grid.modifiers
+                )
+                return PreparedPreview(
+                    element: .Grid(previewGrid),
+                    usesPlaceholders: sanitizedChildren.contains(where: \.usesPlaceholders)
+                )
+            }
+            return placeholderCollection(
+                title: previewLabel(from: grid.keypath) ?? "Preview grid",
+                detail: "Viser statiske eksempelkort i biblioteket.",
+                modifiers: grid.modifiers
+            )
+
+        case .Reference(let reference):
+            return PreparedPreview(
+                element: .Text(
+                    previewText(
+                        "Preview reference",
+                        subtitle: previewLabel(from: reference.keypath) ?? reference.topic,
+                        modifiers: reference.modifiers
+                    )
+                ),
+                usesPlaceholders: true
+            )
+
+        case .Toggle(let toggle):
+            return PreparedPreview(
+                element: .Text(
+                    previewText(
+                        toggle.label,
+                        subtitle: "Statisk toggle-preview",
+                        modifiers: toggle.modifiers
+                    )
+                ),
+                usesPlaceholders: true
+            )
+
+        case .Picker(let picker):
+            return placeholderCollection(
+                title: picker.label ?? picker.placeholder ?? "Preview picker",
+                detail: previewLabel(from: picker.keypath) ?? "Statisk valgpreview i biblioteket.",
+                modifiers: picker.modifiers
+            )
+
+        case .Image(var image):
+            let hadRemoteImage = image.url != nil
+            if image.url != nil && image.name == nil {
+                image.url = nil
+                image.type = "system"
+                image.name = "photo"
+            } else {
+                image.url = nil
+            }
+            return PreparedPreview(
+                element: .Image(image),
+                usesPlaceholders: hadRemoteImage
+            )
+
+        case .Button(let button):
+            return PreparedPreview(element: .Button(button), usesPlaceholders: false)
+
+        case .Divider(let divider):
+            return PreparedPreview(element: .Divider(divider), usesPlaceholders: false)
+
+        case .Spacer(let spacer):
+            return PreparedPreview(element: .Spacer(spacer), usesPlaceholders: false)
+        }
+    }
+
+    private static func sanitize(_ elements: SkeletonElementList) -> [PreparedPreview] {
+        elements.map(sanitize)
+    }
+
+    private static func placeholderCollection(
+        title: String,
+        detail: String,
+        modifiers: SkeletonModifiers?
+    ) -> PreparedPreview {
+        var containerModifiers = modifiers ?? SkeletonModifiers()
+        if containerModifiers.padding == nil {
+            containerModifiers.padding = 8
+        }
+        if containerModifiers.cornerRadius == nil {
+            containerModifiers.cornerRadius = 12
+        }
+        if containerModifiers.background == nil {
+            containerModifiers.background = "#F8FAFC"
+        }
+        if containerModifiers.borderWidth == nil {
+            containerModifiers.borderWidth = 1
+        }
+        if containerModifiers.borderColor == nil {
+            containerModifiers.borderColor = "#D7E2EE"
+        }
+
+        return PreparedPreview(
+            element: .VStack(
+                SkeletonVStack(
+                    elements: [
+                        .Text(previewText(title, modifiers: previewTitleModifiers())),
+                        .Text(previewText(detail, modifiers: previewDetailModifiers())),
+                        .Text(previewText("Eksempelrad 1", modifiers: previewRowModifiers())),
+                        .Text(previewText("Eksempelrad 2", modifiers: previewRowModifiers())),
+                        .Text(previewText("Eksempelrad 3", modifiers: previewRowModifiers()))
+                    ],
+                    spacing: 6,
+                    modifiers: containerModifiers
+                )
+            ),
+            usesPlaceholders: true
+        )
+    }
+
+    private static func previewFieldText(text: String?, placeholder: String?, preferredBinding: String?) -> String {
+        if let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return text
+        }
+        if let placeholder, !placeholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return placeholder
+        }
+        return previewLabel(from: preferredBinding) ?? "Preview input"
+    }
+
+    private static func previewLabel(from binding: String?) -> String? {
+        guard let binding else { return nil }
+        let trimmed = binding.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let source: String
+        if let url = URL(string: trimmed), !url.path.isEmpty {
+            source = url.lastPathComponent
+        } else {
+            source = trimmed
+                .split(whereSeparator: { $0 == "." || $0 == "/" || $0 == "[" || $0 == "]" })
+                .last
+                .map(String.init) ?? trimmed
+        }
+
+        let spaced = source.unicodeScalars.reduce(into: "") { partial, scalar in
+            if CharacterSet.uppercaseLetters.contains(scalar), !partial.isEmpty {
+                partial.append(" ")
+            }
+            partial.append(Character(scalar))
+        }
+
+        let cleaned = spaced
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+        return cleaned.prefix(1).uppercased() + cleaned.dropFirst()
+    }
+
+    private static func previewText(_ text: String, subtitle: String? = nil, modifiers: SkeletonModifiers? = nil) -> SkeletonText {
+        var preview = SkeletonText(text: subtitle.map { "\(text): \($0)" } ?? text)
+        preview.modifiers = modifiers
+        return preview
+    }
+
+    private static func previewTitleModifiers() -> SkeletonModifiers {
+        var modifiers = SkeletonModifiers()
+        modifiers.fontWeight = "semibold"
+        modifiers.foregroundColor = "#0F172A"
+        return modifiers
+    }
+
+    private static func previewDetailModifiers() -> SkeletonModifiers {
+        var modifiers = SkeletonModifiers()
+        modifiers.fontSize = 12
+        modifiers.foregroundColor = "#64748B"
+        return modifiers
+    }
+
+    private static func previewRowModifiers() -> SkeletonModifiers {
+        var modifiers = SkeletonModifiers()
+        modifiers.padding = 6
+        modifiers.background = "#FFFFFF"
+        modifiers.cornerRadius = 8
+        modifiers.borderWidth = 1
+        modifiers.borderColor = "#E2E8F0"
+        modifiers.foregroundColor = "#334155"
+        return modifiers
+    }
+}
+
 struct FullLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var bridgeStatusStore: BridgeConnectionStatusStore
@@ -671,13 +1019,19 @@ struct FullLibraryView: View {
                         scoreRow("Resource", selected.scoreBreakdown.resourceFit)
                         scoreRow("Recency", selected.scoreBreakdown.recency)
 
-                        if let skeleton = selected.configuration.skeleton {
+                        if let preparedPreview = LibraryPreviewSkeletonSupport.preparePreview(for: selected.configuration) {
                             Text("Skeleton")
                                 .font(.caption.weight(.semibold))
-                            SkeletonView(element: skeleton)
+                            SkeletonView(element: preparedPreview.element)
+                                .allowsHitTesting(false)
                                 .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 220, alignment: .topLeading)
                                 .padding(8)
                                 .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            if preparedPreview.usesPlaceholders {
+                                Text("Previewen viser statiske plassholdere for live data og actions.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         } else {
                             Text("Ingen skeleton-preview tilgjengelig.")
                                 .font(.caption)
@@ -1480,9 +1834,31 @@ final class FullLibraryViewModel: ObservableObject {
         let queryTokens = directMatchTokens()
         let hasSignal = !defaultQueryTextForTab().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !queryTokens.isEmpty
 
-        let candidates: [(CellConfiguration, String, [String])] =
-            fallbackFavorites.map { ($0, "offline.favorite", ["Offline", "Favorite"]) } +
-            fallbackTemplates.map { ($0, "offline.template", ["Offline", "Template"]) }
+        var seenOfflineConfigurationIDs = Set<String>()
+        func appendUnique(
+            _ configurations: [CellConfiguration],
+            sourceRef: String,
+            badges: [String],
+            into output: inout [(CellConfiguration, String, [String])]
+        ) {
+            for configuration in configurations {
+                guard seenOfflineConfigurationIDs.insert(configuration.uuid).inserted else { continue }
+                output.append((configuration, sourceRef, badges))
+            }
+        }
+
+        var candidates: [(CellConfiguration, String, [String])] = []
+        appendUnique(fallbackFavorites, sourceRef: "offline.favorite", badges: ["Offline", "Favorite"], into: &candidates)
+        appendUnique(fallbackTemplates, sourceRef: "offline.template", badges: ["Offline", "Template"], into: &candidates)
+        appendUnique(
+            [
+                ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(),
+                ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration()
+            ],
+            sourceRef: "offline.local",
+            badges: ["Offline", "Local"],
+            into: &candidates
+        )
 
         let results = candidates.compactMap { configuration, sourceRef, seedBadges -> SearchResult? in
             let configuration = ConfigurationPresentationSupport.viewportSafeConfiguration(configuration)
