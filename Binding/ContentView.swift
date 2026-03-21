@@ -2941,15 +2941,15 @@ struct ContentView: View {
     private func convenienceCandidateNames(for slot: ConvenienceMenuSlot) -> [String] {
         switch slot {
         case .upperLeft:
-            return ["scaffold chat", "conference mvp", "todo mvp", "notification outbox"]
+            return ["scaffold chat", "conference public surface", "conference mvp", "todo mvp", "notification outbox"]
         case .upperMid:
-            return ["apple intelligence purpose matcher", "catalog workbench", "perspective context", "porthole control surface"]
+            return ["apple intelligence purpose matcher", "conference ai assistant", "conference participant portal dashboard", "catalog workbench", "perspective context", "porthole control surface"]
         case .upperRight:
-            return ["conference mvp", "obsidian vault", "vault control surface", "porthole control surface", "lead vault"]
+            return ["conference mvp", "conference participant portal dashboard", "conference sponsor follow-up", "conference control tower", "obsidian vault", "vault control surface", "porthole control surface", "lead vault"]
         case .lowerLeft:
             return ["entity scanner", "perspective context", "entity anchor records", "trusted issuers registry", "entity scanner test helper", "entity scanner pairing checklist"]
         case .lowerMid:
-            return ["todo mvp", "catalog workbench", "folder watch automation", "graph index control", "perspective context", "device registration"]
+            return ["todo mvp", "conference participant portal dashboard", "conference ai assistant", "conference sponsor follow-up", "catalog workbench", "folder watch automation", "graph index control", "perspective context", "device registration"]
         case .lowerRight:
             return ["obsidian vault", "vault control surface", "graph index control", "porthole control surface", "trusted issuers registry", "consent receipt"]
         }
@@ -2958,15 +2958,15 @@ struct ContentView: View {
     private func convenienceDomainKeywords(for slot: ConvenienceMenuSlot) -> [String] {
         switch slot {
         case .upperLeft:
-            return ["chat", "communication", "collaboration", "conference"]
+            return ["chat", "communication", "collaboration", "conference", "public"]
         case .upperMid:
-            return ["assistant", "purpose", "matching", "tools"]
+            return ["assistant", "purpose", "matching", "tools", "conference", "copilot"]
         case .upperRight:
-            return ["conference", "event", "lead", "consent"]
+            return ["conference", "event", "lead", "consent", "sponsor", "operations", "admin"]
         case .lowerLeft:
             return ["scanner", "identity", "trust", "credentials", "proofs", "nearby"]
         case .lowerMid:
-            return ["todo", "tasks", "planning", "productivity", "context"]
+            return ["todo", "tasks", "planning", "productivity", "context", "conference", "meetings"]
         case .lowerRight:
             return ["vault", "notes", "knowledge", "records", "consent"]
         }
@@ -3501,6 +3501,22 @@ struct ContentView: View {
         let conference = ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(
             endpoint: stagingEndpoint("ConferenceUIRouter")
         )
+        let conferenceParticipantPortal = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: stagingEndpoint("ConferenceParticipantPreviewShell")
+        )
+        let conferenceAIAssistant = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: stagingEndpoint("ConferenceParticipantPreviewShell"),
+            aiEndpoint: stagingEndpoint("AIGateway")
+        )
+        let conferenceAdmin = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: stagingEndpoint("ConferenceAdminShell")
+        )
+        let conferencePublic = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: stagingEndpoint("ConferencePublicShell")
+        )
+        let conferenceSponsor = ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
+            endpoint: stagingEndpoint("ConferenceSponsorShell")
+        )
         let todo = referenceMenuConfiguration(
             name: "Todo MVP",
             endpoint: stagingEndpoint("Todo"),
@@ -3530,11 +3546,11 @@ struct ContentView: View {
         let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
 
         return (
-            upperLeft: [chat, conference, todo],
-            upperMid: [appleIntelligence, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
-            upperRight: [conference, obsidian, portholeWorkbench],
+            upperLeft: [chat, conference, conferencePublic, todo],
+            upperMid: [appleIntelligence, conferenceAIAssistant, conferenceParticipantPortal, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
+            upperRight: [conference, conferenceParticipantPortal, conferenceSponsor, conferenceAdmin, obsidian, portholeWorkbench],
             lowerLeft: [localEntityScanner, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
-            lowerMid: [todo, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
+            lowerMid: [todo, conferenceParticipantPortal, conferenceAIAssistant, conferenceSponsor, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
             lowerRight: [obsidian, vaultWorkbench, graphIndexWorkbench, trustedIssuersWorkbench]
         )
     }

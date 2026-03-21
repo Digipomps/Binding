@@ -228,6 +228,49 @@ struct BindingTests {
         }
     }
 
+    @Test func conferenceAIAssistantWorkbenchSeedsConferenceAndAIGatewayState() {
+        let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell://staging.haven.digipomps.org/AIGateway"
+        )
+
+        #expect(configuration.name == "Conference AI Assistant")
+        #expect(configuration.cellReferences?.count == 2)
+        #expect(configuration.cellReferences?.first?.label == "conferenceParticipantShell")
+        #expect(configuration.cellReferences?.first?.setKeysAndValues.contains(where: { $0.key == "state" }) == true)
+        #expect(configuration.cellReferences?.last?.label == "aiGateway")
+        #expect(configuration.cellReferences?.last?.endpoint == "cell://staging.haven.digipomps.org/AIGateway")
+
+        guard case .ScrollView = configuration.skeleton else {
+            Issue.record("Conference AI Assistant should use a designed scroll surface")
+            return
+        }
+    }
+
+    @Test func conferenceAdminPublicAndSponsorWorkbenchesSeedStateAndUseScrollSurfaces() {
+        let configurations = [
+            ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+                endpoint: "cell://staging.haven.digipomps.org/ConferenceAdminShell"
+            ),
+            ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+                endpoint: "cell://staging.haven.digipomps.org/ConferencePublicShell"
+            ),
+            ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
+                endpoint: "cell://staging.haven.digipomps.org/ConferenceSponsorShell"
+            )
+        ]
+
+        for configuration in configurations {
+            #expect(configuration.cellReferences?.count == 1)
+            #expect(configuration.cellReferences?.first?.setKeysAndValues.contains(where: { $0.key == "state" }) == true)
+
+            guard case .ScrollView = configuration.skeleton else {
+                Issue.record("\(configuration.name) should use a designed scroll surface")
+                continue
+            }
+        }
+    }
+
     @Test func validationServiceFlagsUnresolvedSkeletonBindings() {
         var configuration = CellConfiguration(name: "Broken")
         configuration.skeleton = .VStack(SkeletonVStack(elements: [

@@ -1853,7 +1853,11 @@ final class FullLibraryViewModel: ObservableObject {
         appendUnique(
             [
                 ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(),
-                ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration()
+                ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(),
+                ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(),
+                ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(),
+                ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(),
+                ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration()
             ],
             sourceRef: "offline.local",
             badges: ["Offline", "Local"],

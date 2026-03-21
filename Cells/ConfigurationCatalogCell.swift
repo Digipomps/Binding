@@ -4936,6 +4936,86 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "partnering", "event-day"]
             ),
             StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+                sourceCellName: "ConferenceParticipantPreviewShellCell",
+                displayName: "Conference Participant Portal Dashboard",
+                purpose: "Conference participantportal",
+                purposeDescription: "Participant-shell med agenda, people, meetings og shared relations over en stabil preview-wrapper.",
+                interests: ["conference", "participant", "dashboard", "agenda", "sessions", "matchmaking", "meetings"],
+                summary: "Participant-shell med agenda, anbefalinger og meeting timeline over preview-wrapperen på staging.",
+                categoryPath: ["experiences", "conference", "participant"],
+                tags: ["conference", "participant", "agenda", "matchmaking", "meetings"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "REMOTE",
+                borderColor: "#0F766E",
+                flowDriven: true,
+                recommendedContexts: ["conference", "event-day", "participant"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+                sourceCellName: "ConferenceParticipantPreviewShellCell",
+                displayName: "Conference AI Assistant",
+                purpose: "Conference copilot",
+                purposeDescription: "Participant preview-state side om side med AIGateway for briefing, prioritering og oppfølging.",
+                interests: ["conference", "ai", "copilot", "prompting", "matchmaking", "meetings"],
+                summary: "Conference copilot som kombinerer participant preview-state med AIGateway i samme arbeidsflate.",
+                categoryPath: ["experiences", "conference", "ai"],
+                tags: ["conference", "ai", "copilot", "prompting"],
+                menuSlots: [.upperMid],
+                chip: "REMOTE",
+                borderColor: "#7C3AED",
+                flowDriven: true,
+                recommendedContexts: ["conference", "briefing", "follow-up"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceAdminShell",
+                sourceCellName: "ConferenceAdminShellCell",
+                displayName: "Conference Control Tower",
+                purpose: "Conference control tower",
+                purposeDescription: "Organizer-fokusert shell for drift, innhold, innsikt og sponsor-oversikt.",
+                interests: ["conference", "admin", "control-tower", "operations", "insights"],
+                summary: "Organizer/admin-shell med drift, innhold og innsikt over staging.",
+                categoryPath: ["experiences", "conference", "operations"],
+                tags: ["conference", "admin", "operations", "insights"],
+                menuSlots: [.upperRight],
+                chip: "REMOTE",
+                borderColor: "#B45309",
+                flowDriven: true,
+                recommendedContexts: ["conference", "operations", "organizer"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferencePublicShell",
+                sourceCellName: "ConferencePublicShellCell",
+                displayName: "Conference Public Surface",
+                purpose: "Conference public website",
+                purposeDescription: "Landing, tracks, sessions, people, articles og facilities i samme public shell.",
+                interests: ["conference", "public", "landing", "tracks", "sessions", "articles"],
+                summary: "Public shell med landing, tracks, sessions, people og facilities fra staging.",
+                categoryPath: ["experiences", "conference", "public"],
+                tags: ["conference", "public", "landing", "program"],
+                menuSlots: [.upperLeft],
+                chip: "REMOTE",
+                borderColor: "#2563EB",
+                flowDriven: true,
+                recommendedContexts: ["conference", "public", "website"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceSponsorShell",
+                sourceCellName: "ConferenceSponsorShellCell",
+                displayName: "Conference Sponsor Follow-up",
+                purpose: "Conference sponsor follow-up",
+                purposeDescription: "Sponsor-owned shell for lead inbox, consent, unlock, export og retention.",
+                interests: ["conference", "sponsor", "lead-vault", "consent", "handoff", "retention"],
+                summary: "Sponsor shell med lead inbox, consent, unlock og retention fra staging.",
+                categoryPath: ["experiences", "conference", "sponsor"],
+                tags: ["conference", "sponsor", "leads", "retention", "consent"],
+                menuSlots: [.upperRight, .lowerMid],
+                chip: "REMOTE",
+                borderColor: "#C2410C",
+                flowDriven: true,
+                recommendedContexts: ["conference", "sponsor", "lead-followup"]
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell://staging.haven.digipomps.org/Todo",
                 sourceCellName: "TodoCell",
                 displayName: "Todo MVP",
@@ -5567,6 +5647,50 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated private static func specializedWorkbenchConfiguration(for descriptor: StaticCatalogDescriptor) -> CellConfiguration? {
         switch descriptor.sourceCellEndpoint.lowercased() {
+        case "cell:///conferenceuirouter", "cell://staging.haven.digipomps.org/conferenceuirouter":
+            return conferenceMVPWorkbenchConfiguration(
+                endpoint: descriptor.sourceCellEndpoint,
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
+        case "cell:///conferenceparticipantpreviewshell", "cell://staging.haven.digipomps.org/conferenceparticipantpreviewshell":
+            if descriptor.displayName == "Conference AI Assistant" {
+                let aiEndpoint: String
+                if descriptor.sourceCellEndpoint.lowercased().contains("staging.haven.digipomps.org") {
+                    aiEndpoint = "cell://staging.haven.digipomps.org/AIGateway"
+                } else {
+                    aiEndpoint = "cell:///AIGateway"
+                }
+                return conferenceAIAssistantWorkbenchConfiguration(
+                    conferenceEndpoint: descriptor.sourceCellEndpoint,
+                    aiEndpoint: aiEndpoint,
+                    displayName: descriptor.displayName,
+                    summary: descriptor.summary
+                )
+            }
+            return conferenceParticipantPortalWorkbenchConfiguration(
+                endpoint: descriptor.sourceCellEndpoint,
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
+        case "cell:///conferenceadminshell", "cell://staging.haven.digipomps.org/conferenceadminshell":
+            return conferenceAdminWorkbenchConfiguration(
+                endpoint: descriptor.sourceCellEndpoint,
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
+        case "cell:///conferencepublicshell", "cell://staging.haven.digipomps.org/conferencepublicshell":
+            return conferencePublicWorkbenchConfiguration(
+                endpoint: descriptor.sourceCellEndpoint,
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
+        case "cell:///conferencesponsorshell", "cell://staging.haven.digipomps.org/conferencesponsorshell":
+            return conferenceSponsorWorkbenchConfiguration(
+                endpoint: descriptor.sourceCellEndpoint,
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
         case "cell:///chat", "cell://staging.haven.digipomps.org/chat":
             return scaffoldChatWorkbenchConfiguration(
                 endpoint: descriptor.sourceCellEndpoint,
@@ -6002,6 +6126,42 @@ final class ConfigurationCatalogCell: GeneralCell {
             endpoint: endpoint,
             displayName: "Conference Participant Portal Dashboard",
             summary: "Participant-shell med agenda, anbefalinger og meeting timeline over preview-wrapperen på staging."
+        )
+    }
+
+    nonisolated static func conferenceAIAssistantWorkbenchConfiguration(
+        conferenceEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+        aiEndpoint: String = "cell://staging.haven.digipomps.org/AIGateway"
+    ) -> CellConfiguration {
+        conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: conferenceEndpoint,
+            aiEndpoint: aiEndpoint,
+            displayName: "Conference AI Assistant",
+            summary: "Conference copilot som kombinerer participant preview-state med AIGateway i samme arbeidsflate."
+        )
+    }
+
+    nonisolated static func conferenceAdminWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceAdminShell") -> CellConfiguration {
+        conferenceAdminWorkbenchConfiguration(
+            endpoint: endpoint,
+            displayName: "Conference Control Tower",
+            summary: "Organizer/admin-shell med drift, innhold og innsikt over staging."
+        )
+    }
+
+    nonisolated static func conferencePublicWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferencePublicShell") -> CellConfiguration {
+        conferencePublicWorkbenchConfiguration(
+            endpoint: endpoint,
+            displayName: "Conference Public Surface",
+            summary: "Public shell med landing, tracks, sessions, people og facilities fra staging."
+        )
+    }
+
+    nonisolated static func conferenceSponsorWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceSponsorShell") -> CellConfiguration {
+        conferenceSponsorWorkbenchConfiguration(
+            endpoint: endpoint,
+            displayName: "Conference Sponsor Follow-up",
+            summary: "Sponsor shell med lead inbox, consent, unlock og retention fra staging."
         )
     }
 
@@ -6484,6 +6644,23 @@ final class ConfigurationCatalogCell: GeneralCell {
         return .Text(label)
     }
 
+    private static func bindingConferencePortalTitleDetailRowSkeleton() -> SkeletonVStack {
+        SkeletonVStack(elements: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            .Divider(SkeletonDivider())
+        ])
+    }
+
+    private static func bindingConferencePortalTitleSubtitleDetailRowSkeleton() -> SkeletonVStack {
+        SkeletonVStack(elements: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            .Divider(SkeletonDivider())
+        ])
+    }
+
     private static func bindingConferencePortalActionButton(
         _ referenceLabel: String,
         actionKeypath: String,
@@ -6507,6 +6684,76 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#D9FBFF"
         }
         return .Button(button)
+    }
+
+    private static func bindingConferenceDirectActionButton(
+        keypath: String,
+        label: String,
+        payload: ValueType = .bool(true)
+    ) -> SkeletonElement {
+        var button = SkeletonButton(
+            keypath: keypath,
+            label: label,
+            payload: payload
+        )
+        button.modifiers = modifier {
+            $0.padding = 8
+            $0.background = "#173140"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#2D566B"
+            $0.foregroundColor = "#D9FBFF"
+        }
+        return .Button(button)
+    }
+
+    private static func bindingConferencePortalTextField(
+        sourceKeypath: String?,
+        targetKeypath: String,
+        placeholder: String
+    ) -> SkeletonElement {
+        .TextField(
+            SkeletonTextField(
+                text: nil,
+                sourceKeypath: sourceKeypath,
+                targetKeypath: targetKeypath,
+                placeholder: placeholder,
+                modifiers: modifier {
+                    $0.padding = 8
+                    $0.background = "#F8FAFC"
+                    $0.cornerRadius = 8
+                    $0.borderWidth = 1
+                    $0.borderColor = "#D3DEEB"
+                }
+            )
+        )
+    }
+
+    private static func bindingConferencePortalTextArea(
+        sourceKeypath: String?,
+        targetKeypath: String,
+        placeholder: String,
+        minLines: Int,
+        maxLines: Int
+    ) -> SkeletonElement {
+        .TextArea(
+            SkeletonTextArea(
+                text: nil,
+                sourceKeypath: sourceKeypath,
+                targetKeypath: targetKeypath,
+                placeholder: placeholder,
+                minLines: minLines,
+                maxLines: maxLines,
+                submitOnEnter: false,
+                modifiers: modifier {
+                    $0.padding = 8
+                    $0.background = "#F8FAFC"
+                    $0.cornerRadius = 8
+                    $0.borderWidth = 1
+                    $0.borderColor = "#D3DEEB"
+                }
+            )
+        )
     }
 
     private static func bindingConferencePortalHeroSection(referenceLabel: String) -> SkeletonElement {
@@ -6853,6 +7100,634 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1"),
             .Divider(SkeletonDivider())
         ])
+    }
+
+    nonisolated private static func conferenceAIAssistantWorkbenchConfiguration(
+        conferenceEndpoint: String,
+        aiEndpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: conferenceEndpoint,
+            sourceCellName: "ConferenceParticipantPreviewShellCell",
+            purpose: "Conference copilot",
+            purposeDescription: "Kombiner participant-shellens levende kontekst med embedded AIGateway for briefing, prioritering, matchmaking og follow-up.",
+            interests: ["conference", "ai", "copilot", "participant", "matchmaking", "meetings", "prompting"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var conferenceReference = CellReference(endpoint: conferenceEndpoint, subscribeFeed: false, label: "conferenceParticipantShell")
+        conferenceReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(conferenceReference)
+
+        var aiReference = CellReference(endpoint: aiEndpoint, label: "aiGateway")
+        aiReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(aiReference)
+
+        let conferenceSystemPrompt = """
+        You are a conference copilot. Use only the participant context visible in this workspace. Stay concrete, concise, and action-oriented. Prioritize the next sessions, the best people to meet, and the shortest path to meaningful follow-up.
+        """
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Conference Snapshot",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Conference AI Assistant",
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        foregroundColor: "#F5FBFF"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Participant preview-state og AIGateway i samme arbeidsflate. Presets setter nyttige draft-prompts uten aa forlate conference-konteksten.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3"
+                    ),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.title"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.subtitle"),
+                    bindingConferencePortalBadgeKeyText("conferenceParticipantShell.state.workspace.participantBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceParticipantShell.state.workspace.programBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceParticipantShell.state.workspace.matchBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceParticipantShell.state.workspace.meetingBadge"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.nextStep"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.previewNotice")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Prompt-Ready Context",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Dette er de viktigste oppsummeringsfeltene fra participant-shellen akkurat naa. De skal vaere synlige side om side med agenten, slik at prompten kan finjusteres uten aa navigere bort.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3"
+                    ),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.program.agendaSummary"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.program.timelineSummary"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.matches.recommendationSummary"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.matches.filterSummary"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.meetings.meetingSummary"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.meetings.requestSummary"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.sharedConnections.connectionSummary"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.sharedConnections.chatSummary")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Copilot Setup",
+                content: [
+                    bindingConferencePortalKeyText("aiGateway.state.setup.statusLabel"),
+                    bindingConferencePortalKeyText("aiGateway.state.setup.nextStep"),
+                    bindingConferencePortalKeyText("aiGateway.state.setup.providerLabel"),
+                    bindingConferencePortalKeyText("aiGateway.state.setup.credentialStatus"),
+                    bindingConferencePortalKeyText("aiGateway.state.setup.storageHint"),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.applyDraftProfile",
+                                label: "Hosted API",
+                                payload: .object([
+                                    "providerID": .string("openai-compatible"),
+                                    "model": .string("gpt-4.1-mini"),
+                                    "requiresAPIKey": .bool(true),
+                                    "cachePolicy": .string("useCache")
+                                ])
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.applyDraftProfile",
+                                label: "No-auth gateway",
+                                payload: .object([
+                                    "providerID": .string("openai-compatible"),
+                                    "model": .string("gpt-4.1-mini"),
+                                    "requiresAPIKey": .bool(false),
+                                    "cachePolicy": .string("useCache")
+                                ])
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftDeterministicMode",
+                                label: "Deterministic on",
+                                payload: .bool(true)
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftDeterministicMode",
+                                label: "Deterministic off",
+                                payload: .bool(false)
+                            )
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Conference Prompt Presets",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Last inn et conference-spisset systemprompt forst, og bruk deretter en task-preset eller skriv videre i promptfeltet.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3"
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftSystemPrompt",
+                                label: "Load copilot system prompt",
+                                payload: .string(conferenceSystemPrompt)
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftPrompt",
+                                label: "Daily brief",
+                                payload: .string("Use the visible conference summaries in this workspace and give me a crisp brief for the rest of today: what matters most, what I should prepare for, and which session or conversation is highest leverage next.")
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftPrompt",
+                                label: "Who should I meet?",
+                                payload: .string("Based on the visible matchmaking, meeting, and shared-connection summaries, identify the three strongest people for me to meet next. Explain why each one matters and suggest a short opener for each conversation.")
+                            )
+                        ])
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftPrompt",
+                                label: "Follow-up plan",
+                                payload: .string("Using the visible meeting and shared-connection summaries, draft a practical follow-up plan with owners, message drafts, and the next concrete step for each item.")
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftPrompt",
+                                label: "Session priorities",
+                                payload: .string("Use the agenda and program summaries in this workspace to rank the next sessions or activities for me. Explain the tradeoffs, what to skip, and what questions I should be ready to ask.")
+                            )
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Prompt Draft",
+                content: [
+                    bindingConferencePortalTextField(
+                        sourceKeypath: "aiGateway.state.draft.providerID",
+                        targetKeypath: "aiGateway.setDraftProviderID",
+                        placeholder: "Provider ID"
+                    ),
+                    bindingConferencePortalTextField(
+                        sourceKeypath: "aiGateway.state.draft.model",
+                        targetKeypath: "aiGateway.setDraftModel",
+                        placeholder: "Model"
+                    ),
+                    bindingConferencePortalTextField(
+                        sourceKeypath: "aiGateway.state.draft.baseURL",
+                        targetKeypath: "aiGateway.setDraftBaseURL",
+                        placeholder: "Optional base URL"
+                    ),
+                    bindingConferencePortalTextField(
+                        sourceKeypath: "aiGateway.state.draft.apiKeyAlias",
+                        targetKeypath: "aiGateway.setDraftAPIKeyAlias",
+                        placeholder: "API key alias"
+                    ),
+                    bindingConferencePortalTextField(
+                        sourceKeypath: nil,
+                        targetKeypath: "aiGateway.setDraftAPIKey",
+                        placeholder: "Paste API key and press Enter"
+                    ),
+                    bindingConferencePortalTextArea(
+                        sourceKeypath: "aiGateway.state.draft.systemPrompt",
+                        targetKeypath: "aiGateway.setDraftSystemPrompt",
+                        placeholder: "Optional system prompt",
+                        minLines: 4,
+                        maxLines: 10
+                    ),
+                    bindingConferencePortalTextArea(
+                        sourceKeypath: "aiGateway.state.draft.prompt",
+                        targetKeypath: "aiGateway.setDraftPrompt",
+                        placeholder: "What should the conference copilot help with right now?",
+                        minLines: 7,
+                        maxLines: 18
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(keypath: "aiGateway.invokeDraft", label: "Invoke conference copilot"),
+                            bindingConferenceDirectActionButton(keypath: "aiGateway.persistDraftAPIKey", label: "Save API key"),
+                            bindingConferenceDirectActionButton(keypath: "aiGateway.clearDraftAPIKey", label: "Clear session key")
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Latest AI Result",
+                content: [
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.outputPreview"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.providerID"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.model"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.cacheHit"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.invokeTimeMs"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.quotaStatus"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.warningsText"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastInvocation.errorsText"),
+                    bindingConferencePortalKeyText("aiGateway.state.lastError")
+                ]
+            )
+        ])
+        root.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func conferenceAdminWorkbenchConfiguration(
+        endpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: endpoint,
+            sourceCellName: "ConferenceAdminShellCell",
+            purpose: "Conference control tower",
+            purposeDescription: "Organizer-focused shell for operations, content publishing, insights and sponsor overview.",
+            interests: ["conference", "admin", "control-tower", "insights", "sponsor", "operations"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var reference = CellReference(endpoint: endpoint, subscribeFeed: false, label: "conferenceAdminShell")
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(reference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Control Tower",
+                content: [
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.workspace.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.workspace.subtitle"),
+                    bindingConferencePortalBadgeKeyText("conferenceAdminShell.state.workspace.conferenceBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceAdminShell.state.workspace.opsBadge"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.workspace.nextAction"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.workspace.previewNotice")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Ownership & Access",
+                content: [
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.access.headline"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.access.ownerScope"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.access.readScope"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.access.writeScope"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.access.deliveryScope"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.access.storageScope"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.access.notes"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.access.keypathMatrix",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Published Content",
+                content: [
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.intro"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.editorScope"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.lifecycleSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.status"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.lastEditSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.draftWarning"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.programSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.trackSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.sessionSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.facilitySummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.peopleSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.articleSummary"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.content.draftTracks",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    ),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.content.draftSessions",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton("conferenceAdminShell", actionKeypath: "contentPublishing.publishDraft", label: "Publish content"),
+                            bindingConferencePortalActionButton("conferenceAdminShell", actionKeypath: "contentPublishing.discardDraft", label: "Discard draft")
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Operations & Insights",
+                content: [
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.operations.intro"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.operations.runOfShow",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    ),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.operations.alerts",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    ),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.insights.dashboardSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.insights.consentSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.insights.aggregateBoundary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.insights.chartDirection"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.insights.status"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.insights.exportStatus"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.insights.kpis",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    ),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.insights.topicTrends",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    ),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.sponsor.dashboardSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.sponsor.engagementSummary"),
+                    bindingConferencePortalKeyText("conferenceAdminShell.state.sponsor.handoffSummary"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceAdminShell.state.sponsor.leadCandidates",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    )
+                ]
+            )
+        ])
+        root.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func conferencePublicWorkbenchConfiguration(
+        endpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: endpoint,
+            sourceCellName: "ConferencePublicShellCell",
+            purpose: "Conference public website",
+            purposeDescription: "Public-facing shell for landing, tracks, program, articles, people and facilities.",
+            interests: ["conference", "public", "landing", "tracks", "sessions", "articles"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var reference = CellReference(endpoint: endpoint, subscribeFeed: false, label: "conferencePublicShell")
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(reference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "AI & Digital Independence",
+                content: [
+                    bindingConferencePortalKeyText("conferencePublicShell.state.workspace.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.workspace.subtitle"),
+                    bindingConferencePortalBadgeKeyText("conferencePublicShell.state.workspace.dateBadge"),
+                    bindingConferencePortalBadgeKeyText("conferencePublicShell.state.workspace.venueBadge"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.workspace.ctaTitle"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.workspace.ctaDetail")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Publication & Access",
+                content: [
+                    bindingConferencePortalKeyText("conferencePublicShell.state.access.headline"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.access.ownerScope"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.access.readScope"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.access.writeScope"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.access.deliveryScope"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.access.storageScope"),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.access.notes"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferencePublicShell.state.access.keypathMatrix",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Tracks & Program Highlights",
+                content: [
+                    bindingConferencePortalKeyText("conferencePublicShell.state.tracksIntro"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferencePublicShell.state.tracks",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    ),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.sessionsIntro"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferencePublicShell.state.sessions",
+                            flowElementSkeleton: bindingConferencePortalTitleSubtitleDetailRowSkeleton()
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "People, Articles & Facilities",
+                content: [
+                    bindingConferencePortalKeyText("conferencePublicShell.state.peopleIntro"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferencePublicShell.state.people",
+                            flowElementSkeleton: bindingConferencePortalTitleSubtitleDetailRowSkeleton()
+                        )
+                    ),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.articlesIntro"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferencePublicShell.state.articles",
+                            flowElementSkeleton: bindingConferencePortalTitleSubtitleDetailRowSkeleton()
+                        )
+                    ),
+                    bindingConferencePortalKeyText("conferencePublicShell.state.facilitiesIntro"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferencePublicShell.state.facilities",
+                            flowElementSkeleton: bindingConferencePortalTitleSubtitleDetailRowSkeleton()
+                        )
+                    )
+                ]
+            )
+        ])
+        root.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func conferenceSponsorWorkbenchConfiguration(
+        endpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: endpoint,
+            sourceCellName: "ConferenceSponsorShellCell",
+            purpose: "Conference sponsor follow-up",
+            purposeDescription: "Sponsor-owned shell for lead inbox, consent, unlock and retention flow.",
+            interests: ["conference", "sponsor", "lead-vault", "consent", "handoff", "retention"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var reference = CellReference(endpoint: endpoint, subscribeFeed: false, label: "conferenceSponsorShell")
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(reference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Sponsor Follow-up",
+                content: [
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.workspace.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.workspace.subtitle"),
+                    bindingConferencePortalBadgeKeyText("conferenceSponsorShell.state.workspace.conferenceBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceSponsorShell.state.workspace.sponsorBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceSponsorShell.state.workspace.pipelineBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceSponsorShell.state.workspace.retentionBadge"),
+                    bindingConferencePortalBadgeKeyText("conferenceSponsorShell.state.workspace.creditBadge"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.workspace.nextStep"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.workspace.previewNotice")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Ownership & Access",
+                content: [
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.access.headline"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.access.ownerScope"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.access.readScope"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.access.writeScope"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.access.deliveryScope"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.access.storageScope"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.access.notes"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceSponsorShell.state.access.keypathMatrix",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Lead Inbox",
+                content: [
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.followUp.intro"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.followUp.pickupSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.followUp.qualificationSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.followUp.status"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceSponsorShell.state.followUp.pickupLeads",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    ),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceSponsorShell.state.followUp.qualifiedLeads",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton("conferenceSponsorShell", actionKeypath: "sponsorInbox.refreshState", label: "Refresh inbox"),
+                            bindingConferencePortalActionButton("conferenceSponsorShell", actionKeypath: "sponsorInbox.exportPack", label: "Prepare export")
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Consent, Unlock & Retention",
+                content: [
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.compliance.intro"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.compliance.consentSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.compliance.agreementSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.compliance.chronicleSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.compliance.status"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceSponsorShell.state.compliance.consentReceipts",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    ),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.retention.creditSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.retention.unlockSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.retention.reclaimSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.retention.reviewSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.retention.policySummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.retention.slaSummary"),
+                    bindingConferencePortalKeyText("conferenceSponsorShell.state.retention.exportStatus"),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceSponsorShell.state.retention.reviewQueue",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    ),
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "conferenceSponsorShell.state.retention.unlockedLeads",
+                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
+                        )
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton("conferenceSponsorShell", actionKeypath: "sponsorInbox.runRetentionSweep", label: "Run retention sweep")
+                        ])
+                    )
+                ]
+            )
+        ])
+        root.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
     }
 
     nonisolated private static func entityScannerToolConfiguration(
