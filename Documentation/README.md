@@ -84,8 +84,17 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `audience.inheritedRecipients`
   - `audience.invitedRecipients`
   - `audience.resolvedRecipients`
+  - `audience.invitations`
   - `audience.inviteIdentities`
+  - `audience.acceptInvites`
+  - `audience.declineInvites`
+  - `audience.revokeInvites`
   - `audience.clearInvites`
+- `ChatCell` now keeps invitation lifecycle state separate from explicit accepted recipients, so pending invites stay visible without silently becoming encryption recipients.
+- `ChatCell` now keeps a requester-scoped prepared-envelope cache through:
+  - `crypto.draftEnvelope`
+  - `crypto.clearDraftEnvelope`
+  - automatic invalidation when compose, audience mode, or invitation state changes
 - Current product default for embedded chat is documented as `hybrid`: inherit context where it is useful, support explicit invitees, and keep invitations as an explicit user-confirmed step.
 - `ValueType` equality now correctly supports `.integer` and `.float`, which removed a false negative in crypto-related tests.
 - Validation status:
