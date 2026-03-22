@@ -1,8 +1,8 @@
 # Chat Crypto Recipient Side
 
 Date: 2026-03-22
-Status: recipient-side envelope opening implemented, ChatCell audience strategy implemented, invitation lifecycle + requester-scoped draft-envelope cache implemented
-Scope: encrypted envelope opening, sender verification, audience resolution, invitation lifecycle, draft-envelope cache, embedded-chat usage guidance
+Status: recipient-side envelope opening implemented, ChatCell audience strategy implemented, invitation lifecycle + requester-scoped draft-envelope cache implemented, and explicit encrypted persistence policy + sent companion archive implemented
+Scope: encrypted envelope opening, sender verification, audience resolution, invitation lifecycle, draft-envelope cache, encrypted persistence policy, sent companion archive, message crypto metadata, embedded-chat usage guidance
 
 ## What Was Implemented
 
@@ -33,6 +33,20 @@ Implemented in `CellProtocol`:
 - `ChatCell` now exposes requester-scoped prepared-envelope cache endpoints:
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
+- `ChatCell` now exposes explicit encrypted persistence endpoints:
+  - `crypto.persistencePolicy`
+  - `crypto.persistenceMode`
+  - `crypto.encryptedMessages`
+  - `crypto.clearEncryptedMessages`
+- `ChatCell` now supports a conservative default plus an explicit opt-in archive mode:
+  - `draftCacheOnly`
+  - `draftAndSentArchive`
+- when `draftAndSentArchive` is enabled, `sendComposedMessage` archives the current prepared envelope as a local encrypted companion for the sent plaintext message
+- `messages` payloads now include crypto rendering metadata:
+  - `cryptoState`
+  - `encryptedCompanionAvailable`
+  - nested `crypto` state with `openStatus`, recipient count, persistence timestamp, and sender verification status
+- `crypto.openEnvelope` can now take `messageID` to write successful/failed open status back to the archived encrypted message metadata
 - `ChatCell` now stores invitation lifecycle records separately from resolved explicit invitees
   - `inviteIdentities` creates or refreshes `pending` invitation records
   - only `accepted` invitations become explicit recipients
@@ -47,6 +61,8 @@ Implemented tests:
 - open-envelope roundtrip in `ChatCellTests`
 - invitation acceptance gates recipient resolution in `ChatCellTests`
 - requester-scoped prepared-envelope cache invalidation in `ChatCellTests`
+- encrypted companion archive is opt-in and policy-driven in `ChatCellTests`
+- `openEnvelope(messageID: ...)` updates message/archive crypto metadata in `ChatCellTests`
 
 ## What Worked
 
@@ -85,11 +101,17 @@ The reliable working pattern in this pass was:
    - parallel `macOS` + `iOS` builds can fight over the same Xcode build database
    - the reliable order was: focused `swift test`, then macOS build, then iOS build
 
+8. Add encrypted persistence as explicit product policy before making it behavior.
+   - default stayed conservative: requester-scoped draft cache only
+   - archiving encrypted companions for sent messages required an explicit mode switch
+   - that made it safe to add rendering metadata without silently changing what gets stored
+
 ## Recommended ChatCell Usage
 
 For a `ChatCell` used as a dragged component over another cell or skeleton:
 
 - Default to `audience.mode = hybrid`
+- Default to `crypto.persistenceMode = draftCacheOnly`
 - Include the chat owner as a recipient by default so the sender can reopen local encrypted drafts/messages
 - Treat context-derived members as inherited recipients
 - Treat selected identities as explicit invitees
@@ -105,6 +127,7 @@ Why `hybrid` is the right default:
 Recommended product rule:
 
 - inserting the component should configure audience resolution
+- inserting the component should keep encrypted persistence conservative unless the user explicitly wants archived encrypted companions
 - inviting identities should create pending invitation records as an explicit action
 - acceptance should remain explicit before invitees become resolved recipients
 - AI may suggest invitees or recommend `contextMembers` vs `hybrid`, but user confirmation should remain the default
@@ -119,7 +142,6 @@ Recommended product rule:
 ## Not Done Yet
 
 - encrypted send/store by default
-- envelope persistence policy
 - membership-change rekey
 - invitation transport and acceptance flow
 - AI-assisted audience suggestions in UI
@@ -127,16 +149,17 @@ Recommended product rule:
 
 ## Recommended Next Pass
 
-1. Decide where encrypted chat envelopes live before normal send starts using them.
-   - draft only
-   - draft + persisted local cache
-   - persisted message history
+1. Decide how far encrypted companion persistence should go beyond the local archive.
+   - keep only local archive
+   - expose archived encrypted messages in richer UI state
+   - upgrade sent-message payload/storage later
 
-2. Add read-path verification metadata to message rendering.
+2. Add richer read-path verification metadata to message rendering.
    - verified sender
    - unsupported suite
    - recipient mismatch
    - decrypt failure class
+   - stale companion vs current plaintext mismatch
 
 3. Add invitation transport and acceptance ceremony on top of the in-cell lifecycle.
    - local pending record
@@ -153,4 +176,4 @@ Recommended product rule:
 
 Use this prompt if the next model should continue exactly from this pass:
 
-> Continue the chat crypto work without changing admission/auth semantics or weakening private-key custody. Assume `ContentCryptoEnvelopeUtility.seal(...)` and `open(...)` exist, `ChatCell` supports `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.openEnvelope`, audience modes `contextMembers`, `invitedIdentities`, and `hybrid`, and invitation lifecycle endpoints `audience.invitations`, `audience.inviteIdentities`, `audience.acceptInvites`, `audience.declineInvites`, and `audience.revokeInvites`. Pending invites do not resolve as recipients; only accepted invites do. The targeted `ChatCellTests` and Binding macOS/iOS builds are green when run serially. Next, decide how encrypted drafts/messages are persisted, add rendering-time verification/decrypt status for messages, and implement invitation transport/acceptance artifacts plus membership-change/rekey behavior. Keep AI advisory: it may suggest recipient mode or invitees, but user confirmation should remain the default before outward invitation effects.
+> Continue the chat crypto work without changing admission/auth semantics or weakening private-key custody. Assume `ContentCryptoEnvelopeUtility.seal(...)` and `open(...)` exist, `ChatCell` supports `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, audience modes `contextMembers`, `invitedIdentities`, and `hybrid`, and invitation lifecycle endpoints `audience.invitations`, `audience.inviteIdentities`, `audience.acceptInvites`, `audience.declineInvites`, and `audience.revokeInvites`. Pending invites do not resolve as recipients; only accepted invites do. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for `sendComposedMessage`. `openEnvelope(messageID: ...)` writes open/verify status back into message crypto metadata. The targeted `ChatCellTests` and Binding macOS/iOS builds are green when run serially. Next, decide how rich the encrypted archive UI/state should become, add finer decrypt failure/rendering states, and implement invitation transport/acceptance artifacts plus membership-change/rekey behavior. Keep AI advisory: it may suggest recipient mode or invitees, but user confirmation should remain the default before outward invitation effects.

@@ -95,6 +95,13 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
   - automatic invalidation when compose, audience mode, or invitation state changes
+- `ChatCell` now exposes explicit encrypted persistence policy and archive endpoints:
+  - `crypto.persistencePolicy`
+  - `crypto.persistenceMode`
+  - `crypto.encryptedMessages`
+  - `crypto.clearEncryptedMessages`
+- Default encrypted persistence remains conservative with `draftCacheOnly`, while opt-in `draftAndSentArchive` stores encrypted companion-envelopes for `sendComposedMessage`.
+- Message payloads now carry crypto rendering metadata, and `crypto.openEnvelope(messageID: ...)` writes open/verify status back into both the encrypted archive and message-facing metadata.
 - Current product default for embedded chat is documented as `hybrid`: inherit context where it is useful, support explicit invitees, and keep invitations as an explicit user-confirmed step.
 - `ValueType` equality now correctly supports `.integer` and `.float`, which removed a false negative in crypto-related tests.
 - Validation status:

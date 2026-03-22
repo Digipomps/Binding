@@ -1,8 +1,8 @@
 # Vault Hardening Progress
 
 Date: 2026-03-22
-Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, and invitation-lifecycle + draft-cache pass implemented
-Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, draft-envelope cache, and ChatCell audience strategy
+Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, invitation-lifecycle + draft-cache pass, and encrypted persistence-policy + sent-companion archive pass implemented
+Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, draft-envelope cache, encrypted persistence policy, sent companion archive, and ChatCell audience strategy
 
 ## What Changed
 
@@ -69,6 +69,20 @@ Implemented:
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
   - automatic invalidation on compose/audience/invitation changes
+- `ChatCell` now exposes explicit encrypted persistence policy and archive surfaces:
+  - `crypto.persistencePolicy`
+  - `crypto.persistenceMode`
+  - `crypto.encryptedMessages`
+  - `crypto.clearEncryptedMessages`
+- `ChatCell` now supports an explicit persistence split:
+  - default `draftCacheOnly`
+  - opt-in `draftAndSentArchive`
+- in `draftAndSentArchive`, `sendComposedMessage` now archives the current prepared envelope as a local encrypted companion tied to the sent plaintext message id
+- `messages` payloads and message flow objects now carry crypto rendering metadata so UI can distinguish:
+  - plaintext-only messages
+  - messages with archived encrypted companions
+  - open/verify status for archived encrypted companions
+- `crypto.openEnvelope` can optionally target a `messageID` and write open/verify result back into both the encrypted archive record and the message rendering metadata
 - Embedded chat now has a documented product default: `hybrid` audience resolution, where context-derived recipients and explicit invitees are both supported but invitations remain explicit user actions
 - `ValueType` equality now correctly handles `.integer` and `.float`, which was required to make the new chat envelope tests trustworthy
 - `VaporIdentityVault` can now derive scoped secrets directly from its master key
@@ -140,6 +154,11 @@ These were the useful working methods in this round:
 7. Treat secret leakage in logs as a code bug, not just a debugging convenience.
    - Removing key/decrypted-data logging is low-risk and high-value.
 
+8. Add persistence policy before broadening persistence behavior.
+   - defaulting to `draftCacheOnly` kept the new slice conservative
+   - the opt-in archive mode made it possible to prove archive/render plumbing without silently changing storage behavior for every chat
+   - this was the right place to add UI-facing crypto metadata
+
 ## What Is Still Not Done
 
 The biggest remaining gaps are now narrower:
@@ -147,7 +166,7 @@ The biggest remaining gaps are now narrower:
 - legacy identities can still temporarily exist with embedded private-key material until they are loaded and successfully migrated
 - `did:key` / DID document support is still lightweight and should be extended further if we want first-class multikey interoperability beyond the currently supported curves
 - encrypted payloads are still not sent/stored by default in `ChatCell`
-- we still need envelope persistence policy and membership-change rekey behavior
+- we now have explicit local persistence policy, but we still need to decide how far encrypted sent-message storage should go beyond the current local companion archive
 - invitation lifecycle now exists inside `ChatCell`, but invitation transport/acceptance artifacts and durable policy are not done yet
 - sender signing keys and recipient key-agreement keys are now modeled separately, but actual content encryption is still a feature slice rather than a completed subsystem
 
@@ -155,10 +174,10 @@ The biggest remaining gaps are now narrower:
 
 Next step should stay focused and not widen the blast radius:
 
-1. Decide where chat envelopes live before send-by-default.
-   - local draft only
-   - persisted draft cache
-   - sent-message payload upgrade
+1. Decide whether the encrypted companion archive stays sidecar-only or becomes part of a first-class encrypted message model.
+   - local sidecar archive only
+   - richer archive UI/query surfaces
+   - sent-message payload upgrade later
 
 2. Add membership-change and rekey hooks.
    - participant join
@@ -183,4 +202,4 @@ Next step should stay focused and not widen the blast radius:
 
 Use this prompt if the next model should continue exactly from this pass:
 
-> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.openEnvelope`, and audience strategy/invitation lifecycle endpoints, and the targeted `ChatCellTests` plus `AppleIdentityVaultKeyStorageTests` are green. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Verify with focused `swift test` and serial `xcodebuild` runs. Next, decide where encrypted drafts/messages are persisted, add message-level verification/decrypt status for rendering, and implement invitation transport/acceptance artifacts plus membership-change/rekey behavior while keeping suite/version negotiation explicit and backward-compatible.
+> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, and audience strategy/invitation lifecycle endpoints, and the targeted `ChatCellTests` plus `AppleIdentityVaultKeyStorageTests` are green. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for composed sends and writes read-status back via `openEnvelope(messageID: ...)`. Verify with focused `swift test` and serial `xcodebuild` runs. Next, decide how rich the encrypted archive should become, add finer decrypt/render status, and implement invitation transport/acceptance artifacts plus membership-change/rekey behavior while keeping suite/version negotiation explicit and backward-compatible.
