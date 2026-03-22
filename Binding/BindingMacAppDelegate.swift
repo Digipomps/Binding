@@ -11,8 +11,20 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
         clearSavedWindowState()
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        scheduleEnsureMainWindowPresent()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag || sender.windows.isEmpty {
+            ensureMainWindowPresent()
+            return true
+        }
+        return false
     }
 
     func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
@@ -55,6 +67,37 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
         for key in legacyKeys {
             defaults.removeObject(forKey: key)
         }
+    }
+
+    private func scheduleEnsureMainWindowPresent() {
+        DispatchQueue.main.async { [weak self] in
+            self?.ensureMainWindowPresent()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.ensureMainWindowPresent()
+        }
+    }
+
+    private func ensureMainWindowPresent() {
+        if let existingWindow = NSApp.windows.first {
+            NSApp.activate(ignoringOtherApps: true)
+            existingWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        guard
+            let fileMenuItem = NSApp.mainMenu?.items.first(where: { $0.title == "File" }),
+            let newWindowItem = fileMenuItem.submenu?.items.first(where: { item in
+                item.title == "New Window" || item.title == "Nytt vindu"
+            }),
+            let action = newWindowItem.action
+        else {
+            return
+        }
+
+        NSApp.sendAction(action, to: newWindowItem.target, from: newWindowItem)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first?.makeKeyAndOrderFront(nil)
     }
 }
 #endif
