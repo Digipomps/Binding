@@ -74,6 +74,19 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `crypto.recipients`
   - `crypto.prepareDraftEnvelope`
 - Envelope preparation is implemented through [ContentCryptoEnvelopeUtility.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Crypto/ContentCryptoEnvelopeUtility.swift) and [CryptoAgilityModels.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Crypto/CryptoAgilityModels.swift), with recipient key wrapping, authenticated ciphertext, and sender signature.
+- Recipient-side opening is now implemented too:
+  - `ContentCryptoEnvelopeUtility.open(...)`
+  - `OpenedContentEnvelope`
+  - `ChatCell.crypto.openEnvelope`
+- `ChatCell` now models recipient resolution explicitly through audience strategy endpoints:
+  - `audience`
+  - `audience.mode`
+  - `audience.inheritedRecipients`
+  - `audience.invitedRecipients`
+  - `audience.resolvedRecipients`
+  - `audience.inviteIdentities`
+  - `audience.clearInvites`
+- Current product default for embedded chat is documented as `hybrid`: inherit context where it is useful, support explicit invitees, and keep invitations as an explicit user-confirmed step.
 - `ValueType` equality now correctly supports `.integer` and `.float`, which removed a false negative in crypto-related tests.
 - Validation status:
   - `swift test --filter ChatCellTests` succeeded
@@ -118,6 +131,7 @@ Projects importing CellProtocol must include:
 - VC profile for identity linking: [Documentation/IdentityLinkVCProfile.md](Documentation/IdentityLinkVCProfile.md)
 - Key handling and content crypto assessment: [Documentation/KeyHandlingAndContentCryptoAssessment.md](Documentation/KeyHandlingAndContentCryptoAssessment.md)
 - Vault hardening progress: [Documentation/VaultHardeningProgress.md](Documentation/VaultHardeningProgress.md)
+- Chat crypto recipient side: [Documentation/ChatCryptoRecipientSide.md](Documentation/ChatCryptoRecipientSide.md)
 - Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
 - HavenAgentD integration note: [Documentation/HavenAgentD.md](Documentation/HavenAgentD.md)
 - Agent Setup Workbench UI review: [Documentation/AgentSetupWorkbench_UI_Review.md](Documentation/AgentSetupWorkbench_UI_Review.md)
