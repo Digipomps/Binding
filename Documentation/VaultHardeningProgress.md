@@ -1,8 +1,8 @@
 # Vault Hardening Progress
 
 Date: 2026-03-22
-Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, invitation-lifecycle + draft-cache pass, encrypted persistence-policy + sent-companion archive pass, invitation proof-artifact pass, and replay-resistant invitation consumption pass implemented
-Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, invitation proof artifacts, replay-resistant invitation consumption, draft-envelope cache, encrypted persistence policy, sent companion archive, and ChatCell audience strategy
+Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, invitation-lifecycle + draft-cache pass, encrypted persistence-policy + sent-companion archive pass, invitation proof-artifact pass, replay-resistant invitation consumption pass, and invitation artifact inspection + active-issued reuse pass implemented
+Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, invitation proof artifacts, replay-resistant invitation consumption, invitation artifact inspection, active-issued reuse, draft-envelope cache, encrypted persistence policy, sent companion archive, and ChatCell audience strategy
 
 ## What Changed
 
@@ -83,6 +83,12 @@ Implemented:
   - same artifact + same acceptance is idempotent
   - same artifact + different acceptance is rejected once consumed
   - superseded artifacts are rejected against the current invitation record before acceptance is applied
+- `ChatCell` now exposes explicit artifact inspection and issue semantics:
+  - `audience.inspectInvitationArtifact`
+  - `audience.invitationArtifacts` returns only currently issued artifacts
+  - `audience.generateInvitationArtifacts` reuses an already-issued active artifact for the same invite
+  - reissue after superseding conditions mints a fresh `invitationID`
+  - declined, revoked, and expired artifacts are rejected before owner-side acceptance mutates invitation state
 - `ChatCell` now keeps requester-scoped prepared-envelope cache state:
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
@@ -194,6 +200,15 @@ These were the useful working methods in this round:
    - this worked well because it avoided changing the underlying signature model
    - it also gave us a clean idempotent retry story for identical acceptance payloads
 
+12. Add an explicit inspection surface before making artifact lifecycle more durable.
+   - `audience.inspectInvitationArtifact` gives callers a stable contract for `issued`, `expired`, `consumed`, `revoked`, `declined`, `superseded`, and missing states
+   - that gives UI, transport code, and future AI tooling a shared way to decide whether to retry, regenerate, or stop
+
+13. Reuse active artifacts instead of rotating them gratuitously.
+   - that lowers friction when an invite is transferred through a UI or another runtime
+   - it also makes debugging and audit trails easier because "generate again" does not silently invalidate the last artifact
+   - when rotation is actually needed, minting a fresh `invitationID` keeps replay and supersede semantics crisp
+
 ## What Is Still Not Done
 
 The biggest remaining gaps are now narrower:
@@ -203,7 +218,7 @@ The biggest remaining gaps are now narrower:
 - encrypted payloads are still not sent/stored by default in `ChatCell`
 - we now have explicit local persistence policy, but we still need to decide how far encrypted sent-message storage should go beyond the current local companion archive
 - invitation lifecycle now exists inside `ChatCell`, but invitation transport/acceptance artifacts and durable policy are not done yet
-- invitation artifacts and acceptance proofs now exist, and in-cell replay/consumption policy exists, but durable transport/persistence of that policy is not done yet
+- invitation artifacts and acceptance proofs now exist, in-cell replay/consumption policy exists, and explicit inspection exists, but durable transport/persistence of that policy is not done yet
 - sender signing keys and recipient key-agreement keys are now modeled separately, but actual content encryption is still a feature slice rather than a completed subsystem
 
 ## Recommended Next Code Pass
@@ -220,10 +235,11 @@ Next step should stay focused and not widen the blast radius:
    - participant leave
    - explicit rekey request
 
-3. Decide how durable the invitation consumption ledger must be.
+3. Decide how durable the invitation issue/consumption ledger must be.
    - current cell-state only
    - persisted alongside the chat cell
    - persisted in a broader invitation/membership record if invites move between runtimes
+   - preserve enough state to answer `inspectInvitationArtifact` consistently after restart/runtime moves
 
 4. Keep crypto agility explicit.
    - suite id
@@ -236,4 +252,4 @@ Next step should stay focused and not widen the blast radius:
 
 Use this prompt if the next model should continue exactly from this pass:
 
-> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, audience strategy/invitation lifecycle endpoints, and proof-backed invite endpoints `audience.invitationArtifacts`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Artifact acceptance now has in-cell replay protection: identical retries are idempotent, but a second distinct acceptance for the same consumed artifact is rejected, and superseded artifacts are rejected against the current record state. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for composed sends and writes read-status back via `openEnvelope(messageID: ...)`. Verify with focused `swift test` and serial `xcodebuild` runs. Next, decide whether the invitation consumption ledger must persist beyond one cell instance/runtime, then add richer expired/superseded/consumed UI state and membership-change/rekey behavior while keeping suite/version negotiation explicit and backward-compatible.
+> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, audience strategy/invitation lifecycle endpoints, and proof-backed invite endpoints `audience.invitationArtifacts`, `audience.inspectInvitationArtifact`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Artifact acceptance now has in-cell replay protection: identical retries are idempotent, a second distinct acceptance for the same consumed artifact is rejected, superseded artifacts are rejected against the current record state, and declined/revoked/expired artifacts are rejected before mutation. `audience.invitationArtifacts` now returns only currently issued artifacts, while `generateInvitationArtifacts` reuses already-issued active artifacts and mints a fresh `invitationID` only on real reissue. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for composed sends and writes read-status back via `openEnvelope(messageID: ...)`. Verify with focused `swift test` and serial `xcodebuild` runs. Next, decide whether the invitation issue/consumption ledger must persist beyond one cell instance/runtime, then add richer durable inspection state and membership-change/rekey behavior while keeping suite/version negotiation explicit and backward-compatible.

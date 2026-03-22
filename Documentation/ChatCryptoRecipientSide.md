@@ -1,8 +1,8 @@
 # Chat Crypto Recipient Side
 
 Date: 2026-03-22
-Status: recipient-side envelope opening implemented, ChatCell audience strategy implemented, invitation lifecycle + requester-scoped draft-envelope cache implemented, explicit encrypted persistence policy + sent companion archive implemented, invitation proof artifacts + acceptance flow implemented, and replay-resistant invitation consumption implemented
-Scope: encrypted envelope opening, sender verification, audience resolution, invitation lifecycle, invitation proof artifacts, replay-resistant acceptance consumption, requester-scoped draft-envelope cache, encrypted persistence policy, sent companion archive, message crypto metadata, embedded-chat usage guidance
+Status: recipient-side envelope opening implemented, ChatCell audience strategy implemented, invitation lifecycle + requester-scoped draft-envelope cache implemented, explicit encrypted persistence policy + sent companion archive implemented, invitation proof artifacts + acceptance flow implemented, replay-resistant invitation consumption implemented, and invitation artifact inspection + active-issued reuse implemented
+Scope: encrypted envelope opening, sender verification, audience resolution, invitation lifecycle, invitation proof artifacts, replay-resistant acceptance consumption, invitation artifact inspection, active-issued artifact reuse, requester-scoped draft-envelope cache, encrypted persistence policy, sent companion archive, message crypto metadata, embedded-chat usage guidance
 
 ## What Was Implemented
 
@@ -58,6 +58,7 @@ Implemented in `CellProtocol`:
 - `ChatInvitationProofUtility` now issues and verifies signed invitation artifacts and invitee acceptance proofs
 - `ChatCell` now exposes invitation proof endpoints:
   - `audience.invitationArtifacts`
+  - `audience.inspectInvitationArtifact`
   - `audience.generateInvitationArtifacts`
   - `audience.generateInvitationAcceptance`
   - `audience.acceptInvitationArtifact`
@@ -69,6 +70,12 @@ Implemented in `CellProtocol`:
   - same artifact + same acceptance can be retried idempotently
   - same artifact + different acceptance is rejected after first successful consumption
   - stale/superseded artifacts are rejected against the current record state
+- invitation artifact issue policy is now more explicit:
+  - `audience.invitationArtifacts` returns only currently issued, transfer-ready artifacts
+  - `audience.generateInvitationArtifacts` reuses an already-issued active artifact for the same invite instead of silently rotating it
+  - if an invite is reissued after superseding conditions, a fresh `invitationID` is minted
+  - `audience.inspectInvitationArtifact` reports whether a transferred artifact is `issued`, `expired`, `consumed`, `revoked`, `declined`, `superseded`, `notIssued`, or `notFound`
+  - declined/revoked/expired artifacts are explicitly rejected at owner-side acceptance time before state mutation happens
 
 Implemented tests:
 
@@ -81,6 +88,10 @@ Implemented tests:
 - wrong-requester acceptance rejection in `ChatCellTests`
 - idempotent retry for the same artifact + same acceptance in `ChatCellTests`
 - replay rejection for a second acceptance against an already-consumed artifact in `ChatCellTests`
+- active artifact reuse without silent rotation in `ChatCellTests`
+- inspection of superseded vs current artifacts after reissue in `ChatCellTests`
+- rejection of acceptance against a declined artifact in `ChatCellTests`
+- filtering of `audience.invitationArtifacts` down to only currently issued artifacts in `ChatCellTests`
 
 ## What Worked
 
@@ -139,6 +150,17 @@ The reliable working pattern in this pass was:
    - a different acceptance for an already-consumed artifact should be rejected, because that is the replay boundary we actually care about
    - this gave us a tighter security posture without adding friction to ordinary client retry behavior
 
+12. Separate "what artifacts exist historically" from "what artifacts are still safe to hand around right now".
+   - `audience.invitations` keeps lifecycle history and UI-facing state
+   - `audience.invitationArtifacts` now means only currently issued artifacts
+   - `audience.inspectInvitationArtifact` lets clients validate a transferred artifact before they try to act on it
+   - this keeps transfer surfaces small and makes client behavior easier to reason about
+
+13. Reuse active artifacts; rotate only when semantics change.
+   - blindly minting a new artifact on every generate call makes transport/debugging noisier and weakens inspectability
+   - reusing an active issued artifact gives us stable links and lower friction
+   - when we truly reissue, we mint a fresh `invitationID` so replay and supersede rules stay crisp
+
 ## Recommended ChatCell Usage
 
 For a `ChatCell` used as a dragged component over another cell or skeleton:
@@ -165,6 +187,7 @@ Recommended product rule:
 - acceptance should remain explicit before invitees become resolved recipients
 - proof-backed acceptance should be the normal route for explicit invites that travel between runtimes or devices
 - proof-backed acceptance should be treated as one-time consumption of the current issued artifact
+- if a transferred artifact is old, clients should inspect it first and regenerate rather than guessing whether it is still valid
 - AI may suggest invitees or recommend `contextMembers` vs `hybrid`, but user confirmation should remain the default
 
 ## Security Notes
@@ -180,6 +203,7 @@ Recommended product rule:
 - membership-change rekey
 - invitation transport and acceptance flow
 - durable replay protection / artifact ledger beyond current in-cell state
+- durable artifact issue/consumption inspection beyond the current cell instance
 - AI-assisted audience suggestions in UI
 - multi-device or cross-vault invite proofs tied to the same entity
 
@@ -197,16 +221,16 @@ Recommended product rule:
    - decrypt failure class
    - stale companion vs current plaintext mismatch
 
-3. Add invitation transport and acceptance ceremony on top of the in-cell lifecycle.
-   - local pending record
-   - outbound invitation artifact
-   - accepted invite bound to actual identity proof
-   - revoked/expired handling
-
-4. Promote the current in-cell consumption rule into durable policy.
+3. Promote the current in-cell inspection/consumption rule into durable policy.
    - persist consumed invitation artifacts beyond one cell instance when needed
-   - add explicit UI states for expired, superseded, consumed, and revoked artifacts
-   - decide whether owner-side regeneration should always mint a fresh `invitationID`
+   - persist enough issue-state to answer `inspectInvitationArtifact` across restarts/runtime moves
+   - decide where the durable source of truth should live when invites travel between runtimes
+
+4. Add membership-change and rekey behavior on top of the current audience model.
+   - participant join
+   - participant leave
+   - explicit rekey request
+   - make sure suite/version negotiation stays backward-compatible while membership changes
 
 5. Add AI suggestion hooks without granting autonomous side effects.
    - suggest mode
@@ -217,4 +241,4 @@ Recommended product rule:
 
 Use this prompt if the next model should continue exactly from this pass:
 
-> Continue the chat crypto work without changing admission/auth semantics or weakening private-key custody. Assume `ContentCryptoEnvelopeUtility.seal(...)` and `open(...)` exist, `ChatCell` supports `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, audience modes `contextMembers`, `invitedIdentities`, and `hybrid`, invitation lifecycle endpoints `audience.invitations`, `audience.inviteIdentities`, `audience.acceptInvites`, `audience.declineInvites`, and `audience.revokeInvites`, and proof-backed invitation artifact endpoints `audience.invitationArtifacts`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Pending invites do not resolve as recipients; only accepted invites do. Invitation artifacts now have in-cell replay protection: the same artifact + same acceptance is idempotent, while the same artifact + different acceptance is rejected after first consumption, and superseded artifacts are rejected against the current record state. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for `sendComposedMessage`. `openEnvelope(messageID: ...)` writes open/verify status back into message crypto metadata. The targeted `ChatCellTests` and Binding macOS/iOS builds are green when run serially. Next, decide whether consumed invitation state must persist beyond one cell instance/runtime boundary, add richer expired/superseded/consumed UI states, and then implement membership-change/rekey behavior. Keep AI advisory: it may suggest recipient mode or invitees, but user confirmation should remain the default before outward invitation effects.
+> Continue the chat crypto work without changing admission/auth semantics or weakening private-key custody. Assume `ContentCryptoEnvelopeUtility.seal(...)` and `open(...)` exist, `ChatCell` supports `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, audience modes `contextMembers`, `invitedIdentities`, and `hybrid`, invitation lifecycle endpoints `audience.invitations`, `audience.inviteIdentities`, `audience.acceptInvites`, `audience.declineInvites`, and `audience.revokeInvites`, and proof-backed invitation artifact endpoints `audience.invitationArtifacts`, `audience.inspectInvitationArtifact`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Pending invites do not resolve as recipients; only accepted invites do. `audience.invitationArtifacts` now returns only currently issued artifacts, `generateInvitationArtifacts` reuses an already-issued active artifact instead of silently rotating it, and reissue after superseding conditions mints a fresh `invitationID`. Invitation artifacts now have in-cell replay protection: the same artifact + same acceptance is idempotent, while the same artifact + different acceptance is rejected after first consumption, superseded artifacts are rejected against the current record state, and declined/revoked/expired artifacts are rejected before mutation. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for `sendComposedMessage`. `openEnvelope(messageID: ...)` writes open/verify status back into message crypto metadata. The targeted `ChatCellTests` and Binding macOS/iOS builds are green when run serially. Next, decide whether invitation issue/consumption state must persist beyond one cell instance/runtime boundary, then implement membership-change/rekey behavior while keeping AI advisory-only: it may suggest recipient mode or invitees, but user confirmation should remain the default before outward invitation effects.
