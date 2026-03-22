@@ -97,6 +97,10 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `audience.generateInvitationAcceptance`
   - `audience.acceptInvitationArtifact`
 - invitation records now retain generated artifacts and accepted invitee proofs, so explicit invites can move between runtimes without bypassing signature verification.
+- `ChatCell` now enforces in-cell replay protection for proof-backed invite acceptance:
+  - identical retries are idempotent
+  - a second distinct acceptance for the same consumed artifact is rejected
+  - superseded artifacts are rejected against the current invitation record
 - `ChatCell` now keeps a requester-scoped prepared-envelope cache through:
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
