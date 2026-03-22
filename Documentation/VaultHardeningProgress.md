@@ -1,8 +1,8 @@
 # Vault Hardening Progress
 
 Date: 2026-03-22
-Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, invitation-lifecycle + draft-cache pass, and encrypted persistence-policy + sent-companion archive pass implemented
-Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, draft-envelope cache, encrypted persistence policy, sent companion archive, and ChatCell audience strategy
+Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, invitation-lifecycle + draft-cache pass, encrypted persistence-policy + sent-companion archive pass, and invitation proof-artifact pass implemented
+Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, invitation proof artifacts, draft-envelope cache, encrypted persistence policy, sent companion archive, and ChatCell audience strategy
 
 ## What Changed
 
@@ -65,6 +65,20 @@ Implemented:
 - `ChatCell` now keeps explicit invitation lifecycle state separate from resolved invite recipients
   - `pending` invitations stay visible but do not resolve as recipients
   - only `accepted` invitations feed the explicit-recipient audience set
+- `ChatInvitationProofUtility` now provides a chat-specific proof layer built on the same canonical-signing pattern as the cross-vault identity-link models
+  - `ChatInvitationArtifact`
+  - `ChatInvitationAcceptance`
+  - artifact verification
+  - invitee acceptance verification
+- `ChatCell` now exposes proof-backed invitation transport hooks:
+  - `audience.invitationArtifacts`
+  - `audience.generateInvitationArtifacts`
+  - `audience.generateInvitationAcceptance`
+  - `audience.acceptInvitationArtifact`
+- `ChatCell` invitation records now retain:
+  - last generated invitation artifact
+  - accepted invitee proof
+  - artifact/acceptance availability metadata for UI and diagnostics
 - `ChatCell` now keeps requester-scoped prepared-envelope cache state:
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
@@ -159,6 +173,18 @@ These were the useful working methods in this round:
    - the opt-in archive mode made it possible to prove archive/render plumbing without silently changing storage behavior for every chat
    - this was the right place to add UI-facing crypto metadata
 
+9. Reuse the same canonical-payload signing discipline for chat invitation proofs.
+   - the successful pattern was:
+     - model artifact and acceptance as ordinary `Codable` structs
+     - exclude `proof` from canonical payload bytes
+     - sign with the inviter/invitee identity already held by the vault
+     - verify using public signing descriptors
+   - this kept the proof flow aligned with the identity-linking work instead of inventing a second signature convention
+
+10. Keep proof transport on ordinary `ValueType.object` payloads.
+   - that let us test the exact same shape that Binding or scaffold clients will call over `CellProtocol`
+   - no extra serializer or side-band transport was needed
+
 ## What Is Still Not Done
 
 The biggest remaining gaps are now narrower:
@@ -168,6 +194,7 @@ The biggest remaining gaps are now narrower:
 - encrypted payloads are still not sent/stored by default in `ChatCell`
 - we now have explicit local persistence policy, but we still need to decide how far encrypted sent-message storage should go beyond the current local companion archive
 - invitation lifecycle now exists inside `ChatCell`, but invitation transport/acceptance artifacts and durable policy are not done yet
+- invitation artifacts and acceptance proofs now exist, but replay/consumption policy and durable transport are not done yet
 - sender signing keys and recipient key-agreement keys are now modeled separately, but actual content encryption is still a feature slice rather than a completed subsystem
 
 ## Recommended Next Code Pass
@@ -184,12 +211,10 @@ Next step should stay focused and not widen the blast radius:
    - participant leave
    - explicit rekey request
 
-3. Add invitation transport and acceptance artifacts on top of the current audience model.
-   - suggested invitee
-   - pending invite
-   - outbound invitation artifact
-   - accepted invite bound to identity proof
-   - revoked/expired invite
+3. Add replay-resistant invitation policy on top of the current proof model.
+   - one-time acceptance consumption
+   - artifact expiry enforcement in UI/state
+   - durable consumed/revoked ledger if invitations move across runtimes
 
 4. Keep crypto agility explicit.
    - suite id
@@ -202,4 +227,4 @@ Next step should stay focused and not widen the blast radius:
 
 Use this prompt if the next model should continue exactly from this pass:
 
-> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, and audience strategy/invitation lifecycle endpoints, and the targeted `ChatCellTests` plus `AppleIdentityVaultKeyStorageTests` are green. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for composed sends and writes read-status back via `openEnvelope(messageID: ...)`. Verify with focused `swift test` and serial `xcodebuild` runs. Next, decide how rich the encrypted archive should become, add finer decrypt/render status, and implement invitation transport/acceptance artifacts plus membership-change/rekey behavior while keeping suite/version negotiation explicit and backward-compatible.
+> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, audience strategy/invitation lifecycle endpoints, and proof-backed invite endpoints `audience.invitationArtifacts`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Artifact acceptance stores inviter/invitee proofs back into invitation state, but durable replay/consumption policy is still missing. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for composed sends and writes read-status back via `openEnvelope(messageID: ...)`. Verify with focused `swift test` and serial `xcodebuild` runs. Next, add replay-resistant invitation consumption, decide how rich the encrypted archive should become, add finer decrypt/render status, and then implement membership-change/rekey behavior while keeping suite/version negotiation explicit and backward-compatible.

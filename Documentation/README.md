@@ -91,6 +91,12 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `audience.revokeInvites`
   - `audience.clearInvites`
 - `ChatCell` now keeps invitation lifecycle state separate from explicit accepted recipients, so pending invites stay visible without silently becoming encryption recipients.
+- `ChatCell` now supports proof-backed explicit invite flow:
+  - `audience.invitationArtifacts`
+  - `audience.generateInvitationArtifacts`
+  - `audience.generateInvitationAcceptance`
+  - `audience.acceptInvitationArtifact`
+- invitation records now retain generated artifacts and accepted invitee proofs, so explicit invites can move between runtimes without bypassing signature verification.
 - `ChatCell` now keeps a requester-scoped prepared-envelope cache through:
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
