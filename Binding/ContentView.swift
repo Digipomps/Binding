@@ -2142,9 +2142,9 @@ struct ContentView: View {
         }
 
         guard !Task.isCancelled else { return false }
+        viewModel.currentSkeleton = intendedSkeleton
+        legacyPortholeViewModel.markLocalMutation()
         guard !rootProbes.isEmpty else {
-            viewModel.currentSkeleton = intendedSkeleton
-            legacyPortholeViewModel.markLocalMutation()
             return true
         }
 
@@ -2159,8 +2159,6 @@ struct ContentView: View {
         switch availability {
         case .ready(let attempts):
             loadErrorMessage = nil
-            viewModel.currentSkeleton = intendedSkeleton
-            legacyPortholeViewModel.markLocalMutation()
             if attempts > 1 {
                 diagnosticsStore.record(
                     domain: "binding.load",
@@ -2170,15 +2168,14 @@ struct ContentView: View {
             return true
         case .failed(let failures):
             let failureSummary = summarizeBindingFailures(failures)
-            let message = "Innholdet til \(configuration.name) ble ikke klart i tide. \(failureSummary)"
+            let message = "Noen data for \(configuration.name) er fortsatt utilgjengelige. Viser UI mens forbindelsen varmes opp. \(failureSummary)"
             diagnosticsStore.record(
-                severity: .error,
+                severity: .warning,
                 domain: "binding.load",
                 message: message
             )
             loadErrorMessage = message
-            viewModel.currentSkeleton = failurePlaceholderSkeleton(for: configuration, detail: failureSummary)
-            return false
+            return true
         }
     }
 
@@ -2212,9 +2209,9 @@ struct ContentView: View {
         configurationName: String,
         requestID: UUID
     ) async -> RootBindingAvailability {
-        let maxAttempts = 8
-        let retryDelayNanoseconds: UInt64 = 350_000_000
-        let perProbeTimeoutNanoseconds: UInt64 = 1_500_000_000
+        let maxAttempts = 5
+        let retryDelayNanoseconds: UInt64 = 300_000_000
+        let perProbeTimeoutNanoseconds: UInt64 = 900_000_000
         var failures: [SkeletonBindingProbeSupport.RootProbe: String] = [:]
 
         for attempt in 1...maxAttempts {

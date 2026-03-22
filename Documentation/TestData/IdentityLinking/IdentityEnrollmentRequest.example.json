@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "requestId": "9E8A0E4D-7F11-4FD4-BE9D-57E9304C26AC",
+  "purpose": "link_identity",
+  "entityAnchorReference": "cell:///EntityAnchor",
+  "newIdentity": {
+    "uuid": "A5F24A67-9F31-4E9F-A9F2-CA8BDF0D8E1B",
+    "displayName": "Kjetil iPhone",
+    "publicKey": "BAbase64urlPublicKeyExample1234567890",
+    "algorithm": "P256-ES256"
+  },
+  "requestedDomains": [
+    "private",
+    "scaffold"
+  ],
+  "requestedIdentityContexts": [
+    "private",
+    "scaffold"
+  ],
+  "requestedScopes": [
+    "entity-auth",
+    "personal-cells"
+  ],
+  "audience": "staging.haven.digipomps.org",
+  "origin": "haven://binding/add-device",
+  "createdAt": "2026-03-22T10:15:00Z",
+  "expiresAt": "2026-03-22T10:20:00Z",
+  "nonce": "vJm80q0Tg0bXvJwKJ8m3u7w8R2V2O7eY8qkP0nQ4E6A",
+  "device": {
+    "platform": "ios",
+    "label": "Kjetil iPhone"
+  },
+  "proof": {
+    "type": "signature",
+    "byIdentityUUID": "A5F24A67-9F31-4E9F-A9F2-CA8BDF0D8E1B",
+    "algorithm": "P256-ES256",
+    "signature": "MEUCIEexampleEnrollmentRequestSignatureBase64url"
+  }
+}

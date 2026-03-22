@@ -1,0 +1,75 @@
+{
+  "@context": [
+    "https://www.w3.org/2018/credentials/v1",
+    "https://haven.digipomps.org/credentials/identity-link/v1"
+  ],
+  "id": "cell:///identity-link-presentations/FB1FE8A8-7D32-44E5-9DAF-4B3A7A2215F1",
+  "type": [
+    "VerifiablePresentation",
+    "SameEntityIdentityLinkPresentation"
+  ],
+  "holder": "did:key:zExampleTargetDid",
+  "verifiableCredential": [
+    {
+      "@context": [
+        "https://www.w3.org/2018/credentials/v1",
+        "https://haven.digipomps.org/credentials/identity-link/v1"
+      ],
+      "id": "cell:///identity-links/7F3D3C8F-4C80-4CB8-B431-6E31D7B8B6AC",
+      "type": [
+        "VerifiableCredential",
+        "SameEntityIdentityLinkCredential"
+      ],
+      "issuer": "did:key:zExampleIssuerDid",
+      "issuanceDate": "2026-03-22T10:16:00Z",
+      "credentialSubject": {
+        "id": "did:key:zExampleTargetDid",
+        "linkType": "same_entity",
+        "entityBinding": {
+          "mode": "pairwise",
+          "bindingId": "haven-entity-binding-2uVf7VJ8n0eKfA"
+        },
+        "linkedIdentity": {
+          "uuid": "A5F24A67-9F31-4E9F-A9F2-CA8BDF0D8E1B",
+          "publicKey": "BAbase64urlPublicKeyExample1234567890",
+          "algorithm": "P256-ES256"
+        },
+        "approvedDomains": [
+          "private",
+          "scaffold"
+        ],
+        "approvedIdentityContexts": [
+          "private",
+          "scaffold"
+        ],
+        "approvedScopes": [
+          "entity-auth",
+          "personal-cells"
+        ],
+        "enrollmentRequestHash": "tM3kYfWvXxk5pXx2C0sA7j4dfWjE3LJ8N2r0SKd2pZo",
+        "assurance": {
+          "source": "fresh_auth_and_possession",
+          "level": "high"
+        },
+        "validUntil": "2026-03-22T10:21:00Z",
+        "revocationRef": "cell:///EntityAnchor/proofs/identityLinks/7F3D3C8F-4C80-4CB8-B431-6E31D7B8B6AC"
+      },
+      "proof": {
+        "type": "Ed25519Signature2020",
+        "created": "2026-03-22T10:16:00Z",
+        "verificationMethod": "did:key:zExampleIssuerDid#zExampleIssuerDid",
+        "proofPurpose": "assertionMethod",
+        "proofValue": "zExampleCredentialProofValue"
+      }
+    }
+  ],
+  "proof": {
+    "type": "Ed25519Signature2020",
+    "created": "2026-03-22T10:16:10Z",
+    "verificationMethod": "did:key:zExampleTargetDid#zExampleTargetDid",
+    "proofPurpose": "authentication",
+    "challenge": "bZgQQaLx9nV7G4uVhI9j1M6W2W5I3TnNo7q8fVt5R1A",
+    "domain": "staging.haven.digipomps.org",
+    "proofValue": "zExamplePresentationProofValue"
+  }
+}

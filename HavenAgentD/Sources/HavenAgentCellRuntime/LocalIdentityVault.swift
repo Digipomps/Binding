@@ -9,10 +9,12 @@ import CryptoKit
 import Crypto
 #endif
 
-public final class LocalIdentityVault: IdentityVaultProtocol, @unchecked Sendable {
+public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProviderProtocol, IdentityKeyRoleProviderProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var identitiesByContext: [String: Identity] = [:]
     private var signingKeysByIdentityUUID: [String: Curve25519.Signing.PrivateKey] = [:]
+    private var keyAgreementKeysByIdentityUUID: [String: Curve25519.KeyAgreement.PrivateKey] = [:]
+    private var scopedSecretsByTag: [String: Data] = [:]
 
     public init() {}
 
@@ -64,6 +66,8 @@ public final class LocalIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
                 identityVault: self
             )
             signingKeysByIdentityUUID[descriptor.identityUUID] = privateKey
+            let keyAgreementKey = Curve25519.KeyAgreement.PrivateKey()
+            keyAgreementKeysByIdentityUUID[descriptor.identityUUID] = keyAgreementKey
             identity.publicSecureKey = SecureKey(
                 date: Date(),
                 privateKey: false,
@@ -74,6 +78,17 @@ public final class LocalIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
                 x: nil,
                 y: nil,
                 compressedKey: privateKey.publicKey.rawRepresentation
+            )
+            identity.publicKeyAgreementSecureKey = SecureKey(
+                date: Date(),
+                privateKey: false,
+                use: .keyAgreement,
+                algorithm: .X25519,
+                size: 256,
+                curveType: .Curve25519,
+                x: nil,
+                y: nil,
+                compressedKey: keyAgreementKey.publicKey.rawRepresentation
             )
             identity.identityVault = self
             identitiesByContext[descriptor.identityContext] = identity
@@ -105,11 +120,46 @@ public final class LocalIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
     }
 
     public func aquireKeyForTag(tag: String) async throws -> (key: String, iv: String) {
-        guard let key = randomData(count: 32)?.base64EncodedString(),
-              let iv = randomData(count: 16)?.base64EncodedString() else {
+        let secret = try await scopedSecretData(tag: tag, minimumLength: 48)
+        let keyData = secret.prefix(32)
+        let ivData = secret.dropFirst(32).prefix(16)
+        guard !keyData.isEmpty, !ivData.isEmpty else {
             throw IdentityVaultError.noKey
         }
-        return (key: key, iv: iv)
+        return (key: Data(keyData).base64EncodedString(), iv: Data(ivData).base64EncodedString())
+    }
+
+    public func scopedSecretData(tag: String, minimumLength: Int) async throws -> Data {
+        try withLock {
+            if let existing = scopedSecretsByTag[tag], existing.count >= minimumLength {
+                return existing
+            }
+            guard let generated = randomData(count: max(minimumLength, 32)) else {
+                throw IdentityVaultError.noKey
+            }
+            scopedSecretsByTag[tag] = generated
+            return generated
+        }
+    }
+
+    public func publicSecureKey(for identity: Identity, role: IdentityKeyRole) async throws -> SecureKey? {
+        switch role {
+        case .signing:
+            return identity.publicSecureKey
+        case .keyAgreement:
+            return identity.publicKeyAgreementSecureKey
+        }
+    }
+
+    public func privateKeyData(for identity: Identity, role: IdentityKeyRole) async throws -> Data? {
+        withLock {
+            switch role {
+            case .signing:
+                return signingKeysByIdentityUUID[identity.uuid]?.rawRepresentation
+            case .keyAgreement:
+                return keyAgreementKeysByIdentityUUID[identity.uuid]?.rawRepresentation
+            }
+        }
     }
 
     private func installBackingKeyIfNeeded(for identity: inout Identity) {
@@ -126,6 +176,34 @@ public final class LocalIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
                 x: nil,
                 y: nil,
                 compressedKey: privateKey.publicKey.rawRepresentation
+            )
+        }
+        if keyAgreementKeysByIdentityUUID[identity.uuid] == nil {
+            let keyAgreementKey = Curve25519.KeyAgreement.PrivateKey()
+            keyAgreementKeysByIdentityUUID[identity.uuid] = keyAgreementKey
+            identity.publicKeyAgreementSecureKey = SecureKey(
+                date: Date(),
+                privateKey: false,
+                use: .keyAgreement,
+                algorithm: .X25519,
+                size: 256,
+                curveType: .Curve25519,
+                x: nil,
+                y: nil,
+                compressedKey: keyAgreementKey.publicKey.rawRepresentation
+            )
+        } else if identity.publicKeyAgreementSecureKey == nil,
+                  let publicKey = keyAgreementKeysByIdentityUUID[identity.uuid]?.publicKey.rawRepresentation {
+            identity.publicKeyAgreementSecureKey = SecureKey(
+                date: Date(),
+                privateKey: false,
+                use: .keyAgreement,
+                algorithm: .X25519,
+                size: 256,
+                curveType: .Curve25519,
+                x: nil,
+                y: nil,
+                compressedKey: publicKey
             )
         }
         identity.identityVault = self

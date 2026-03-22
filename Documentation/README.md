@@ -66,6 +66,21 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `swift test` in `HavenAgentD` now passes again after the identity/pairing + bridge-agreement work, including the reconnect/renewal, local control bridge and bootstrap-probe suites.
   - `./Scripts/test_binding.sh -only-testing:BindingTests` succeeded with the pairing workbench included.
 
+## Latest successful changes (March 22, 2026)
+- `CellProtocol` now models explicit signing vs key-agreement roles through `IdentityKeyRoleProviderProtocol` in [IdentityKeyRoleProviderProtocol.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Crypto/IdentityKeyRoleProviderProtocol.swift).
+- `Identity` now carries `publicKeyAgreementSecureKey`, and Apple/Vapor/local runtime vault paths populate and preserve that metadata through add/save flows.
+- Apple and Vapor vaults were corrected to write updated `VaultIdentity` values back into storage instead of mutating discarded copies.
+- `ChatCell` now exposes first real content-crypto preparation endpoints in [ChatCell.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Cells/Chat/ChatCell.swift):
+  - `crypto.recipients`
+  - `crypto.prepareDraftEnvelope`
+- Envelope preparation is implemented through [ContentCryptoEnvelopeUtility.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Crypto/ContentCryptoEnvelopeUtility.swift) and [CryptoAgilityModels.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Crypto/CryptoAgilityModels.swift), with recipient key wrapping, authenticated ciphertext, and sender signature.
+- `ValueType` equality now correctly supports `.integer` and `.float`, which removed a false negative in crypto-related tests.
+- Validation status:
+  - `swift test --filter ChatCellTests` succeeded
+  - `swift test --filter AppleIdentityVaultKeyStorageTests` succeeded
+  - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
+  - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
+
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.
 - State is accessed exclusively via `Meddle.get/set(keypath:value:requester:)`.
@@ -98,6 +113,11 @@ Projects importing CellProtocol must include:
 - Skeleton modifiers and new elements: [Documentation/SkeletonModifiers.md](Documentation/SkeletonModifiers.md)
 - Skeleton elements reference: [Documentation/SkeletonElements_Detailed.md](Documentation/SkeletonElements_Detailed.md)
 - Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
+- Conference debug playbook: [Documentation/ConferenceDebugPlaybook.md](Documentation/ConferenceDebugPlaybook.md)
+- Cross-vault identity enrollment: [Documentation/CrossVaultIdentityEnrollment.md](Documentation/CrossVaultIdentityEnrollment.md)
+- VC profile for identity linking: [Documentation/IdentityLinkVCProfile.md](Documentation/IdentityLinkVCProfile.md)
+- Key handling and content crypto assessment: [Documentation/KeyHandlingAndContentCryptoAssessment.md](Documentation/KeyHandlingAndContentCryptoAssessment.md)
+- Vault hardening progress: [Documentation/VaultHardeningProgress.md](Documentation/VaultHardeningProgress.md)
 - Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
 - HavenAgentD integration note: [Documentation/HavenAgentD.md](Documentation/HavenAgentD.md)
 - Agent Setup Workbench UI review: [Documentation/AgentSetupWorkbench_UI_Review.md](Documentation/AgentSetupWorkbench_UI_Review.md)
