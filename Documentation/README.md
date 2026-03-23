@@ -128,6 +128,31 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 - Validation status:
   - `swift test --filter ChatCellTests` succeeded
   - `swift test --filter AppleIdentityVaultKeyStorageTests` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
+
+## Latest successful changes (March 23, 2026)
+- `ChatCell` now exposes explicit membership/rekey surfaces in [ChatCell.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Cells/Chat/ChatCell.swift):
+  - `crypto.membership`
+  - `crypto.rekeyStatus`
+  - `crypto.requestRekey`
+- Membership drift is now modeled as durable product state instead of an implicit side effect:
+  - `membershipVersion`
+  - current membership fingerprint derived from resolved recipients + audience mode + preferred suite + persistence mode
+  - last membership-change timestamp/reason
+  - last acknowledged rekey checkpoint
+- Membership-affecting changes now mark `rekeyRequired`, while `crypto.requestRekey` acknowledges the current resolved audience as the new checkpoint without changing admission/auth semantics.
+- Rekey behavior is intentionally explicit/advisory in this pass:
+  - future envelope preparation already targets the current resolved audience
+  - this pass makes the audience transition inspectable before we add any actual forward-only envelope rotation logic
+- Added targeted regression coverage in [ChatCellTests.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Tests/CellBaseTests/ChatCellTests.swift):
+  - membership change marks `rekeyRequired` until checkpoint acknowledgment
+  - rekey checkpoint survives encode/decode roundtrip and flips back after a later membership mutation
+- Documentation updated:
+  - [Documentation/ChatCryptoRecipientSide.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/ChatCryptoRecipientSide.md)
+  - [Documentation/VaultHardeningProgress.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/VaultHardeningProgress.md)
+- Validation status:
+  - `swift test --filter ChatCellTests` succeeded
   - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
   - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
 

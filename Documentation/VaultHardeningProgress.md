@@ -1,8 +1,8 @@
 # Vault Hardening Progress
 
-Date: 2026-03-22
-Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, invitation-lifecycle + draft-cache pass, encrypted persistence-policy + sent-companion archive pass, invitation proof-artifact pass, replay-resistant invitation consumption pass, invitation artifact inspection + active-issued reuse pass, and durable invitation ledger pass implemented
-Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, invitation proof artifacts, replay-resistant invitation consumption, invitation artifact inspection, active-issued reuse, durable invitation ledger, draft-envelope cache, encrypted persistence policy, sent companion archive, and ChatCell audience strategy
+Date: 2026-03-23
+Status: foundation pass, Apple signing-key storage migration pass, metadata-correction pass, chat envelope-preparation pass, recipient-side opening pass, invitation-lifecycle + draft-cache pass, encrypted persistence-policy + sent-companion archive pass, invitation proof-artifact pass, replay-resistant invitation consumption pass, invitation artifact inspection + active-issued reuse pass, durable invitation ledger pass, and explicit membership-change/rekey checkpoint pass implemented
+Scope: scoped secrets, persisted cell master-key derivation, Apple vault envelope hardening, keychain-backed Apple signing keys, accurate Apple key metadata, explicit key roles, chat envelope preparation, recipient-side opening, invitation lifecycle, invitation proof artifacts, replay-resistant invitation consumption, invitation artifact inspection, active-issued reuse, durable invitation ledger, draft-envelope cache, encrypted persistence policy, sent companion archive, ChatCell audience strategy, and explicit membership/rekey checkpointing
 
 ## What Changed
 
@@ -93,6 +93,16 @@ Implemented:
   - `audience.invitationLedger` exposes that durable inspection state
   - encode/decode roundtrip preserves `consumed`, `superseded`, and `revoked` inspection outcomes
   - `clearInvites` no longer destroys inspection history for already-issued artifacts
+- `ChatCell` now exposes explicit membership/rekey surfaces:
+  - `crypto.membership`
+  - `crypto.rekeyStatus`
+  - `crypto.requestRekey`
+- `ChatCell` now persists crypto-relevant membership state:
+  - `membershipVersion`
+  - current membership fingerprint over resolved recipients + audience mode + preferred suite + persistence mode
+  - last membership-change timestamp/reason
+  - last acknowledged rekey checkpoint
+- membership-affecting changes now mark `rekeyRequired`, while `crypto.requestRekey` acknowledges the current resolved audience as the new checkpoint without changing admission/auth semantics
 - `ChatCell` now keeps requester-scoped prepared-envelope cache state:
   - `crypto.draftEnvelope`
   - `crypto.clearDraftEnvelope`
@@ -130,6 +140,7 @@ This pass fixes a real architectural problem without destabilizing auth:
 - Apple signing metadata now matches the actual `SecKey` signing path closely enough to stop poisoning later VC/interoperability work
 - chat cells now declare crypto intent and suite policy explicitly instead of leaving future content encryption implicit
 - chat cells can now prove that recipient selection, envelope shaping and sender signing work before we turn on encrypted send-by-default
+- chat cells now also make membership drift explicit before we attempt automatic rotation, which is a safer way to grow rekey behavior without hiding state transitions
 
 That gives us a cleaner base for:
 
@@ -218,6 +229,16 @@ These were the useful working methods in this round:
    - that means `clearInvites`, supersede, and acceptance can all leave durable evidence behind without keeping old active invites alive
    - it also gave us straightforward encode/decode roundtrip tests
 
+15. Add an explicit rekey checkpoint before implementing actual rotation.
+   - the successful move was to make membership drift visible without silently rewriting history
+   - `crypto.rekeyStatus` gives UI, diagnostics, and future agents a stable signal that recipients changed
+   - `crypto.requestRekey` lets us acknowledge the new audience intentionally before future automatic rotation work
+
+16. Tie the checkpoint to crypto-relevant dimensions, not just invite rows.
+   - the stable fingerprint includes resolved recipient UUIDs, audience mode, preferred suite, and persistence mode
+   - that keeps the next rekey pass aligned with real envelope compatibility rather than only UI lifecycle
+   - it also makes later suite/persistence changes visible to the crypto layer
+
 ## What Is Still Not Done
 
 The biggest remaining gaps are now narrower:
@@ -226,9 +247,9 @@ The biggest remaining gaps are now narrower:
 - `did:key` / DID document support is still lightweight and should be extended further if we want first-class multikey interoperability beyond the currently supported curves
 - encrypted payloads are still not sent/stored by default in `ChatCell`
 - we now have explicit local persistence policy, but we still need to decide how far encrypted sent-message storage should go beyond the current local companion archive
-- invitation lifecycle now exists inside `ChatCell`, but invitation transport/acceptance artifacts and durable policy are not done yet
 - invitation artifacts and acceptance proofs now exist, in-cell replay/consumption policy exists, explicit inspection exists, and chat-local durable persistence now exists, but cross-runtime transport/persistence of that policy is not done yet
 - sender signing keys and recipient key-agreement keys are now modeled separately, but actual content encryption is still a feature slice rather than a completed subsystem
+- membership drift is now visible and checkpointed, but we still do not rotate future envelope versions or model participant-leave/removal semantics beyond status changes
 
 ## Recommended Next Code Pass
 
@@ -239,10 +260,10 @@ Next step should stay focused and not widen the blast radius:
    - richer archive UI/query surfaces
    - sent-message payload upgrade later
 
-2. Add membership-change and rekey hooks.
-   - participant join
-   - participant leave
-   - explicit rekey request
+2. Build on the explicit rekey checkpoint.
+   - participant leave/removal semantics
+   - forward-only envelope rotation for future messages
+   - clear policy for whether old encrypted companions remain readable without rewrite
 
 3. Decide where the durable invitation ledger belongs when invites cross runtimes.
    - current chat-local persistence now survives restarts
@@ -260,4 +281,4 @@ Next step should stay focused and not widen the blast radius:
 
 Use this prompt if the next model should continue exactly from this pass:
 
-> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, audience strategy/invitation lifecycle endpoints, and proof-backed invite endpoints `audience.invitationArtifacts`, `audience.invitationLedger`, `audience.inspectInvitationArtifact`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Artifact acceptance now has in-cell replay protection: identical retries are idempotent, a second distinct acceptance for the same consumed artifact is rejected, superseded artifacts are rejected against the current record state, and declined/revoked/expired artifacts are rejected before mutation. `audience.invitationArtifacts` returns only currently issued artifacts, while `generateInvitationArtifacts` reuses already-issued active artifacts and mints a fresh `invitationID` only on real reissue. Chat-local durable inspection now exists through the persisted invitation ledger: encode/decode roundtrip preserves `consumed`, `superseded`, and `revoked` inspection outcomes, and `clearInvites` preserves artifact history while removing active invite records. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for composed sends and writes read-status back via `openEnvelope(messageID: ...)`. Verify with focused `swift test` and serial `xcodebuild` runs. Next, decide whether the durable invitation ledger should remain chat-local or fold into broader runtime/membership state when invites cross runtimes, then add membership-change/rekey behavior while keeping suite/version negotiation explicit and backward-compatible.
+> Continue the vault-hardening work without changing admission/auth semantics. Assume `ScopedSecretProviderProtocol`, `CellBase.defaultScopedSecretProvider`, the `CellResolver` fallback order, the Apple `ChaChaPoly` vault envelope migration, the `privateKeyApplicationTag` migration path, the Apple metadata correction pass, and explicit `IdentityKeyRoleProviderProtocol` support are already in place. Apple, Vapor and local test/runtime vaults now populate `publicKeyAgreementSecureKey`, `ChatCell` can expose `crypto.recipients`, `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, `crypto.membership`, `crypto.rekeyStatus`, and `crypto.requestRekey`, plus audience strategy/invitation lifecycle endpoints and proof-backed invite endpoints `audience.invitationArtifacts`, `audience.invitationLedger`, `audience.inspectInvitationArtifact`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Accepted invites resolve as recipients; pending/declined/revoked invites remain product state only. Artifact acceptance now has in-cell replay protection: identical retries are idempotent, a second distinct acceptance for the same consumed artifact is rejected, superseded artifacts are rejected against the current record state, and declined/revoked/expired artifacts are rejected before mutation. `audience.invitationArtifacts` returns only currently issued artifacts, while `generateInvitationArtifacts` reuses already-issued active artifacts and mints a fresh `invitationID` only on real reissue. Chat-local durable inspection now exists through the persisted invitation ledger: encode/decode roundtrip preserves `consumed`, `superseded`, and `revoked` inspection outcomes, and `clearInvites` preserves artifact history while removing active invite records. Membership drift is now explicit and checkpointed: `crypto.rekeyStatus` compares the current resolved audience fingerprint against the last acknowledged checkpoint, and `crypto.requestRekey` updates that checkpoint without silently rewriting history. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for composed sends and writes read-status back via `openEnvelope(messageID: ...)`. Verify with focused `swift test` and serial `xcodebuild` runs. Next, decide whether the durable invitation ledger should remain chat-local or fold into broader runtime/membership state when invites cross runtimes, then implement participant-leave/removal semantics and forward-only envelope rotation for future messages while keeping suite/version negotiation explicit and backward-compatible.
