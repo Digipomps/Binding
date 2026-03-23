@@ -142,12 +142,18 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - last membership-change timestamp/reason
   - last acknowledged rekey checkpoint
 - Membership-affecting changes now mark `rekeyRequired`, while `crypto.requestRekey` acknowledges the current resolved audience as the new checkpoint without changing admission/auth semantics.
-- Rekey behavior is intentionally explicit/advisory in this pass:
-  - future envelope preparation already targets the current resolved audience
-  - this pass makes the audience transition inspectable before we add any actual forward-only envelope rotation logic
+- Rekey behavior is now explicit and forward-only:
+  - `EncryptedContentEnvelopeHeader` carries `envelopeGeneration`
+  - `crypto.requestRekey` advances the generation only for future prepared/sent encrypted envelopes
+  - historical archived envelopes keep their original generation and are not rewritten
+- `ChatCell` now exposes `audience.removeContextMembers` so non-owner context members can be removed from inherited recipient resolution without touching explicit invitation history.
+- Prepared, opened, and persisted encrypted envelope payloads now expose `envelopeGeneration`, making rotation/debug state visible in UI and diagnostics.
 - Added targeted regression coverage in [ChatCellTests.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Tests/CellBaseTests/ChatCellTests.swift):
   - membership change marks `rekeyRequired` until checkpoint acknowledgment
   - rekey checkpoint survives encode/decode roundtrip and flips back after a later membership mutation
+  - forward-only envelope generation advances only after explicit `crypto.requestRekey`
+  - removing a context member forces a fresh rekey and excludes that member from future envelopes
+  - archived encrypted companions preserve their historical generation across later rekey events
 - Documentation updated:
   - [Documentation/ChatCryptoRecipientSide.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/ChatCryptoRecipientSide.md)
   - [Documentation/VaultHardeningProgress.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/VaultHardeningProgress.md)

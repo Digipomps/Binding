@@ -1,8 +1,8 @@
 # Chat Crypto Recipient Side
 
 Date: 2026-03-23
-Status: recipient-side envelope opening implemented, ChatCell audience strategy implemented, invitation lifecycle + requester-scoped draft-envelope cache implemented, explicit encrypted persistence policy + sent companion archive implemented, invitation proof artifacts + acceptance flow implemented, replay-resistant invitation consumption implemented, invitation artifact inspection + active-issued reuse implemented, durable invitation artifact ledger inspection implemented, and explicit membership-change/rekey checkpointing implemented
-Scope: encrypted envelope opening, sender verification, audience resolution, invitation lifecycle, invitation proof artifacts, replay-resistant acceptance consumption, invitation artifact inspection, active-issued artifact reuse, durable invitation artifact ledger, requester-scoped draft-envelope cache, encrypted persistence policy, sent companion archive, message crypto metadata, membership-change/rekey checkpointing, embedded-chat usage guidance
+Status: recipient-side envelope opening implemented, ChatCell audience strategy implemented, invitation lifecycle + requester-scoped draft-envelope cache implemented, explicit encrypted persistence policy + sent companion archive implemented, invitation proof artifacts + acceptance flow implemented, replay-resistant invitation consumption implemented, invitation artifact inspection + active-issued reuse implemented, durable invitation artifact ledger inspection implemented, explicit membership-change/rekey checkpointing implemented, and forward-only envelope generation + context-member removal implemented
+Scope: encrypted envelope opening, sender verification, audience resolution, invitation lifecycle, invitation proof artifacts, replay-resistant acceptance consumption, invitation artifact inspection, active-issued artifact reuse, durable invitation artifact ledger, requester-scoped draft-envelope cache, encrypted persistence policy, sent companion archive, message crypto metadata, membership-change/rekey checkpointing, forward-only envelope generation, context-member removal semantics, embedded-chat usage guidance
 
 ## What Was Implemented
 
@@ -96,6 +96,19 @@ Implemented in `CellProtocol`:
   - `crypto.requestRekey` acknowledges the current resolved membership as the next checkpoint
   - normal admission/auth semantics are unchanged
   - future envelope preparation already targets the resolved audience, but the rekey checkpoint makes the membership transition visible and durable
+- `EncryptedContentEnvelopeHeader` now carries explicit `envelopeGeneration`
+- `OpenedContentEnvelope` now returns `envelopeGeneration`
+- `ChatCell` now exposes `audience.removeContextMembers`
+- `ChatCell` now makes forward-only rekey rotation explicit:
+  - `crypto.requestRekey` bumps `currentEnvelopeGeneration` only when membership drift is being acknowledged
+  - existing archived envelopes keep their historical generation
+  - future prepared envelopes/messages use the new generation
+  - prepared-envelope cache is cleared when rekey checkpointing changes the forward generation
+- prepared, opened, and persisted encrypted envelope payloads now expose `envelopeGeneration`
+- removing context members now:
+  - removes them from inherited recipient resolution without touching explicit invite records
+  - marks `rekeyRequired`
+  - leaves history/archive untouched
 
 Implemented tests:
 
@@ -117,6 +130,9 @@ Implemented tests:
 - revoked inspection history surviving `clearInvites` + encode/decode roundtrip in `ChatCellTests`
 - membership change marking `rekeyRequired` until `crypto.requestRekey` acknowledges the new checkpoint in `ChatCellTests`
 - rekey checkpoint surviving encode/decode roundtrip and flipping back to `rekeyRequired` after a later membership mutation in `ChatCellTests`
+- forward-only envelope generation only advancing after `crypto.requestRekey` in `ChatCellTests`
+- context-member removal forcing a fresh rekey and excluding removed recipients from future envelopes in `ChatCellTests`
+- archived encrypted companions keeping their historical envelope generations across later rekey events in `ChatCellTests`
 
 ## What Worked
 
@@ -201,6 +217,16 @@ The reliable working pattern in this pass was:
    - the stable fingerprint also includes audience mode, preferred suite, and persistence mode
    - that gives us a better base for future envelope versioning and rekey policy without overfitting this pass to one UI flow
 
+17. Make envelope rotation forward-only, not retroactive.
+   - the working move here was to add explicit `envelopeGeneration` to the authenticated header
+   - `requestRekey` only advances the generation for future envelopes
+   - old archived envelopes keep their original generation and remain readable
+
+18. Clear cached prepared envelopes when generation semantics change.
+   - reusing a requester draft cache across a rekey checkpoint would be subtle and wrong
+   - clearing cached prepared envelopes when the checkpoint/generation changes keeps preview behavior honest
+   - this is a good example of preferring obvious invalidation over hidden stale crypto state
+
 ## Recommended ChatCell Usage
 
 For a `ChatCell` used as a dragged component over another cell or skeleton:
@@ -243,7 +269,9 @@ Recommended product rule:
 - durable replay protection / artifact ledger beyond current chat-cell-local persistence
 - AI-assisted audience suggestions in UI
 - multi-device or cross-vault invite proofs tied to the same entity
-- actual membership-leave / history-rewrite / envelope-rotation rekey mechanics
+- cross-runtime membership/removal semantics beyond the current chat-local context-member model
+- broader runtime placement for durable invitation/rekey history if membership moves between runtimes
+- encrypted send/store by default instead of sidecar/archive-first behavior
 
 ## Recommended Next Pass
 
@@ -264,13 +292,17 @@ Recommended product rule:
    - if invites move between runtimes, decide whether the ledger should remain local, replicate, or fold into broader membership state
    - keep inspection semantics stable even if storage placement changes later
 
-4. Build on the new explicit rekey checkpoint instead of bypassing it.
-   - participant leave/removal semantics
-   - envelope-version rotation for future messages
-   - optional history policy: keep old envelopes readable, do not rewrite by default
-   - make sure suite/version negotiation stays backward-compatible while membership changes
+4. Decide how chat-local membership state should project across runtimes.
+   - `audience.removeContextMembers` now works locally
+   - next question is whether membership removal should remain chat-local, replicate, or graduate into broader runtime state
+   - preserve enough state to explain why a recipient stopped being part of future generations
 
-5. Add AI suggestion hooks without granting autonomous side effects.
+5. Build on the now-explicit forward generation instead of bypassing it.
+   - keep old envelopes readable, do not rewrite by default
+   - decide whether future send/storage should move from sidecar/archive-first into a first-class encrypted message model
+   - keep suite/version negotiation backward-compatible while membership changes
+
+6. Add AI suggestion hooks without granting autonomous side effects.
    - suggest mode
    - suggest invitees
    - suggest when a rekey checkpoint should be acknowledged
@@ -280,4 +312,4 @@ Recommended product rule:
 
 Use this prompt if the next model should continue exactly from this pass:
 
-> Continue the chat crypto work without changing admission/auth semantics or weakening private-key custody. Assume `ContentCryptoEnvelopeUtility.seal(...)` and `open(...)` exist, `ChatCell` supports `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, `crypto.membership`, `crypto.rekeyStatus`, and `crypto.requestRekey`, audience modes `contextMembers`, `invitedIdentities`, and `hybrid`, invitation lifecycle endpoints `audience.invitations`, `audience.invitationLedger`, `audience.inviteIdentities`, `audience.acceptInvites`, `audience.declineInvites`, and `audience.revokeInvites`, and proof-backed invitation artifact endpoints `audience.invitationArtifacts`, `audience.inspectInvitationArtifact`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Pending invites do not resolve as recipients; only accepted invites do. `audience.invitationArtifacts` returns only currently issued artifacts, `generateInvitationArtifacts` reuses an already-issued active artifact instead of silently rotating it, and reissue after superseding conditions mints a fresh `invitationID`. Invitation inspection is now durable across ordinary cell persistence: consumed, superseded, and revoked artifacts can still be inspected after encode/decode roundtrip, and `clearInvites` preserves inspection history in the durable ledger even though it removes active invite records. Invitation artifacts still have in-cell replay protection: the same artifact + same acceptance is idempotent, while the same artifact + different acceptance is rejected after first consumption, superseded artifacts are rejected against the current record state, and declined/revoked/expired artifacts are rejected before mutation. Membership drift is now explicit: `crypto.rekeyStatus` compares the current resolved audience fingerprint against the last acknowledged checkpoint, and `crypto.requestRekey` updates that checkpoint without silently rewriting history. Default persistence mode is conservative (`draftCacheOnly`), while `draftAndSentArchive` opt-in archives encrypted companions for `sendComposedMessage`. `openEnvelope(messageID: ...)` writes open/verify status back into message crypto metadata. The targeted `swift test --filter ChatCellTests` and Binding macOS/iOS builds are green when run serially. Next, implement the actual next rekey layer on top of this explicit checkpoint: participant-leave/removal semantics, forward-only envelope rotation for future messages, and a clear policy for whether durable invitation ledger state remains chat-local or graduates into broader runtime membership state. Keep AI advisory-only: it may suggest audience mode, invitees, or when to acknowledge a rekey checkpoint, but user confirmation should remain the default before outward invitation effects.
+> Continue the chat crypto work without changing admission/auth semantics or weakening private-key custody. Assume `ContentCryptoEnvelopeUtility.seal(...)` and `open(...)` exist, `EncryptedContentEnvelopeHeader` now carries explicit `envelopeGeneration`, and `ChatCell` supports `crypto.prepareDraftEnvelope`, `crypto.draftEnvelope`, `crypto.clearDraftEnvelope`, `crypto.persistencePolicy`, `crypto.persistenceMode`, `crypto.encryptedMessages`, `crypto.clearEncryptedMessages`, `crypto.openEnvelope`, `crypto.membership`, `crypto.rekeyStatus`, and `crypto.requestRekey`, plus `audience.removeContextMembers`, audience modes `contextMembers`, `invitedIdentities`, and `hybrid`, invitation lifecycle endpoints `audience.invitations`, `audience.invitationLedger`, `audience.inviteIdentities`, `audience.acceptInvites`, `audience.declineInvites`, and `audience.revokeInvites`, and proof-backed invitation artifact endpoints `audience.invitationArtifacts`, `audience.inspectInvitationArtifact`, `audience.generateInvitationArtifacts`, `audience.generateInvitationAcceptance`, and `audience.acceptInvitationArtifact`. Pending invites do not resolve as recipients; only accepted invites do. `audience.invitationArtifacts` returns only currently issued artifacts, `generateInvitationArtifacts` reuses an already-issued active artifact instead of silently rotating it, and reissue after superseding conditions mints a fresh `invitationID`. Invitation inspection is now durable across ordinary cell persistence: consumed, superseded, and revoked artifacts can still be inspected after encode/decode roundtrip, and `clearInvites` preserves inspection history in the durable ledger even though it removes active invite records. Invitation artifacts still have in-cell replay protection: the same artifact + same acceptance is idempotent, while the same artifact + different acceptance is rejected after first consumption, superseded artifacts are rejected against the current record state, and declined/revoked/expired artifacts are rejected before mutation. Membership drift is now explicit: `crypto.rekeyStatus` compares the current resolved audience fingerprint against the last acknowledged checkpoint, and `crypto.requestRekey` updates that checkpoint while advancing `currentEnvelopeGeneration` only for future envelopes/messages. Old archived envelopes keep their historical generation and are not rewritten. Prepared-envelope cache is invalidated when the rekey checkpoint advances generation. The targeted `swift test --filter ChatCellTests` and Binding macOS/iOS builds are green when run serially. Next, decide whether membership-removal and durable invitation/rekey history remain chat-local or should fold into broader runtime membership state when invites cross runtimes, then evaluate whether encrypted send/storage should graduate from sidecar/archive-first behavior into a first-class encrypted message model. Keep AI advisory-only: it may suggest audience mode, invitees, or when to acknowledge a rekey checkpoint, but user confirmation should remain the default before outward invitation effects.
