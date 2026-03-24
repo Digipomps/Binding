@@ -196,6 +196,7 @@ Projects importing CellProtocol must include:
 - Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
 - Conference debug playbook: [Documentation/ConferenceDebugPlaybook.md](Documentation/ConferenceDebugPlaybook.md)
 - CellScaffold parity prompt for conference demo flows: [Documentation/CellScaffoldConferenceParityPrompt.md](Documentation/CellScaffoldConferenceParityPrompt.md)
+- CellScaffold Playwright prompt for conference demo smoke tests: [Documentation/CellScaffoldPlaywrightPrompt.md](Documentation/CellScaffoldPlaywrightPrompt.md)
 - Cross-vault identity enrollment: [Documentation/CrossVaultIdentityEnrollment.md](Documentation/CrossVaultIdentityEnrollment.md)
 - VC profile for identity linking: [Documentation/IdentityLinkVCProfile.md](Documentation/IdentityLinkVCProfile.md)
 - Conference organizer access protocol: [Documentation/ConferenceOrganizerAccessProtocol.md](Documentation/ConferenceOrganizerAccessProtocol.md)

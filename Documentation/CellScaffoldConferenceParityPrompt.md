@@ -29,6 +29,10 @@ Binding now assumes and/or benefits from the following:
    - If data is partial, preview can degrade gracefully.
    - But organizer/participant previews should not silently diverge from the real shell semantics.
 
+5. Browser smoke coverage should exist.
+   - A web E2E layer should prove that participant and organizer demo flows still render and respond in staging.
+   - This layer should sit on top of auth/bridge debugging, not replace it.
+
 ## Concrete Parity Checks For CellScaffold
 
 1. Verify that `ConferenceAdminPreviewShell` and `ConferenceParticipantPreviewShell` expose data that matches the real shell state closely enough for Binding preview/demo use.
@@ -71,6 +75,40 @@ These should be answered explicitly, not implicitly:
    - badges/counts
    - short summaries
    - one visible action per surface
+
+## E2E Test Layer Expectations
+
+Add a small browser smoke layer for staging, preferably with `Playwright`.
+
+The purpose of this layer is:
+- prove that the demo still works from a user point of view
+- capture screenshots/traces when it does not
+- reduce regressions between participant and organizer perspectives
+
+The purpose is **not**:
+- to replace websocket/admission/auth debugging
+- to hide bridge failures behind UI retries
+- to treat a green browser test as proof that auth semantics are correct
+
+Minimum smoke scenarios:
+
+1. Participant portal loads.
+   - Page renders
+   - Core summary text is visible
+   - At least one safe participant action gives visible feedback
+
+2. Organizer control tower loads.
+   - Page renders
+   - Core organizer panels are visible
+   - At least one safe organizer action gives visible feedback
+
+3. Participant and organizer views feel connected.
+   - Headings/counts/concepts are coherent across both perspectives
+
+4. Failure artifacts are captured.
+   - Screenshot
+   - trace
+   - HTML snapshot if practical
 
 ## Prompt For The CellScaffold Thread
 
