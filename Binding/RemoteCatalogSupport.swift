@@ -277,7 +277,15 @@ final class RemoteEndpointAccessAuthorizer {
 enum RemoteCatalogSupport {
     static let stagingHost = RemoteEndpointAccessSupport.stagingHost
 
-    static func orderedCatalogCandidateEndpoints(from endpoints: [String]) -> [String] {
+    enum CandidatePreference {
+        case preferRemote
+        case preferLocal
+    }
+
+    static func orderedCatalogCandidateEndpoints(
+        from endpoints: [String],
+        preference: CandidatePreference = .preferRemote
+    ) -> [String] {
         var seen = Set<String>()
         var remoteCandidates: [String] = []
         var localCandidates: [String] = []
@@ -296,7 +304,12 @@ enum RemoteCatalogSupport {
             localCandidates.append(RemoteEndpointAccessSupport.localCatalogEndpoint)
         }
 
-        return remoteCandidates + localCandidates
+        switch preference {
+        case .preferRemote:
+            return remoteCandidates + localCandidates
+        case .preferLocal:
+            return localCandidates + remoteCandidates
+        }
     }
 
     static func shouldSyncCatalogBeforeQuery(for endpoint: String) -> Bool {

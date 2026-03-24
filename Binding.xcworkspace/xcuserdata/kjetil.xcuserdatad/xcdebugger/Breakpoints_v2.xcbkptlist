@@ -146,6 +146,134 @@
             endingLineNumber = "273"
             landmarkName = "setupKeys(owner:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - a86a29c2acaf4008"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - 39d4c9452c4c860e"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - b71fd6c7ab71c40c"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(5) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - 45af65a2a1705f2"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(7) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - 958597dca9344bf0"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(9) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - 323a60748159c931"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(11) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - 6fa28b7c1dc9ae30"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(12) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - 592b1263ba790f37"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(13) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+               <Location
+                  uuid = "ABB2B2D3-5EE5-419E-951C-BEA8DFB81918 - b2d3bd6b56e8ec36"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(14) suspend resume partial function for closure #17 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "273"
+                  endingLineNumber = "273">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -162,6 +290,36 @@
             endingLineNumber = "94"
             landmarkName = "registerBindings()"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "08F15B91-2CDD-4FB0-BFAD-C75F2FC874B4 - e2ac323b91464cd"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "CellApple.AppleIntelligenceCell.registerBindings() -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "94"
+                  endingLineNumber = "94">
+               </Location>
+               <Location
+                  uuid = "08F15B91-2CDD-4FB0-BFAD-C75F2FC874B4 - b0011163412e2a39"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "function signature specialization &lt;Arg[2] = Stack Promoted from Box&gt; of closure #1 (CellBase.Identity, CellBase.ValueType) -&gt; () in CellApple.AppleIntelligenceCell.registerBindings() -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "94"
+                  endingLineNumber = "94">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -178,54 +336,36 @@
             endingLineNumber = "129"
             landmarkName = "setupKeys(owner:)"
             landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "3A294588-D564-4518-84E5-700A79925C69"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../CellProtocol/Sources/CellBase/Cells/Bridging/BridgeBase.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "166"
-            endingLineNumber = "166"
-            landmarkName = "setTransport(_:connection:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "FDA6619A-780E-43EF-9318-CEEB8F5233C3"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../CellProtocol/Sources/CellBase/Cells/Bridging/BridgeBase.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "167"
-            endingLineNumber = "167"
-            landmarkName = "setTransport(_:connection:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "393DF505-CF35-45BF-A274-59402B962110"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../CellProtocol/Sources/CellApple/Cells/OrchestratorCell.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "67"
-            endingLineNumber = "67"
-            landmarkName = "init(owner:)"
-            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "9C566E59-D0A8-4CE2-BFE6-ED2DC9B78904 - e7ffe773f81a2c3f"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for closure #1 (Swift.String, CellBase.Identity) async -&gt; CellBase.ValueType in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "129"
+                  endingLineNumber = "129">
+               </Location>
+               <Location
+                  uuid = "9C566E59-D0A8-4CE2-BFE6-ED2DC9B78904 - 4a6ec2b5ccb5900d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for closure #1 (Swift.String, CellBase.Identity) async -&gt; CellBase.ValueType in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "129"
+                  endingLineNumber = "129">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -256,7 +396,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "407"
             endingLineNumber = "407"
-            landmarkName = "loadCellConfiguration()"
+            landmarkName = "saveCellConfiguration()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -272,7 +412,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "122"
             endingLineNumber = "122"
-            landmarkName = "toggleBinding(for:)"
+            landmarkName = "renderSkeletonImage(_:)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -306,6 +446,36 @@
             endingLineNumber = "143"
             landmarkName = "setupKeys(owner:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "2A15D3FD-0E0F-4CF3-A0BF-A69E8D948CBE - 215de84683e1514b"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for closure #3 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "143"
+                  endingLineNumber = "143">
+               </Location>
+               <Location
+                  uuid = "2A15D3FD-0E0F-4CF3-A0BF-A69E8D948CBE - 9206e6761664924d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for closure #3 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "143"
+                  endingLineNumber = "143">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -322,6 +492,36 @@
             endingLineNumber = "150"
             landmarkName = "setupKeys(owner:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "FF06A07E-BEFD-4111-A283-BB0863E4ED4C - 215de84683e15264"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for closure #4 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "150"
+                  endingLineNumber = "150">
+               </Location>
+               <Location
+                  uuid = "FF06A07E-BEFD-4111-A283-BB0863E4ED4C - 9206e67616649162"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for closure #4 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "150"
+                  endingLineNumber = "150">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -338,6 +538,36 @@
             endingLineNumber = "157"
             landmarkName = "setupKeys(owner:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "E5E45B20-E491-45F0-A322-4688BF8A567D - 215de84683e1537d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for closure #5 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "157"
+                  endingLineNumber = "157">
+               </Location>
+               <Location
+                  uuid = "E5E45B20-E491-45F0-A322-4688BF8A567D - 9206e6761664907b"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for closure #5 (Swift.String, CellBase.ValueType, CellBase.Identity) async -&gt; Swift.Optional&lt;CellBase.ValueType&gt; in CellApple.AppleIntelligenceCell.setupKeys(owner: CellBase.Identity) async -&gt; ()"
+                  moduleName = "Binding.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "157"
+                  endingLineNumber = "157">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -432,8 +662,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1260"
             endingLineNumber = "1260"
-            landmarkName = "init(from:)"
-            landmarkType = "7">
+            landmarkName = "SkeletonGrid"
+            landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -513,22 +743,6 @@
             startingLineNumber = "397"
             endingLineNumber = "397"
             landmarkName = "discover(requester:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "1B579EE7-7AD3-4B7E-B194-0D231550D974"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../CellProtocol/Sources/CellBase/Skeleton/SkeletonDescription.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "738"
-            endingLineNumber = "738"
-            landmarkName = "encode(to:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

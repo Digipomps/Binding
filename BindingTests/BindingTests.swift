@@ -153,11 +153,11 @@ struct BindingTests {
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AIGateway") == "cell://staging.haven.digipomps.org/AIGateway")
     }
 
-    @Test func fullLibraryPrefersRemoteCatalogEndpointsBeforeLocalFallback() {
+    @Test func fullLibraryCanPreferRemoteCatalogEndpointsBeforeLocalFallback() {
         let ordered = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: [
             "cell:///ConfigurationCatalog",
             "cell://staging.haven.digipomps.org/ConfigurationCatalog"
-        ])
+        ], preference: .preferRemote)
 
         #expect(ordered == [
             "cell://staging.haven.digipomps.org/ConfigurationCatalog",
@@ -165,15 +165,96 @@ struct BindingTests {
         ])
     }
 
+    @Test func fullLibraryPrefersLocalCatalogWhenPolicyAllowsCache() {
+        let ordered = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: [
+            "cell:///ConfigurationCatalog",
+            "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+        ], preference: .preferLocal)
+
+        #expect(ordered == [
+            "cell:///ConfigurationCatalog",
+            "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+        ])
+    }
+
     @Test func fullLibraryAppendsLocalCatalogFallbackWhenOnlyRemoteEndpointsAreProvided() {
         let ordered = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: [
             "cell://staging.haven.digipomps.org/ConfigurationCatalog"
-        ])
+        ], preference: .preferRemote)
 
         #expect(ordered == [
             "cell://staging.haven.digipomps.org/ConfigurationCatalog",
             "cell:///ConfigurationCatalog"
         ])
+    }
+
+    @MainActor
+    @Test func fullLibrarySummarizesSourceLimitWarningsForHumans() {
+        let presentation = FullLibraryViewModel.presentWarnings([
+            "cell://staging.haven.digipomps.org/AdminFunding:maxSourcesLimit",
+            "cell://staging.haven.digipomps.org/AdminOverview:maxSourcesLimit"
+        ])
+
+        #expect(presentation.messages == [
+            "2 eksterne kilder ble hoppet over for å holde biblioteket raskt."
+        ])
+        #expect(presentation.details.count == 2)
+    }
+
+    @MainActor
+    @Test func fullLibrarySummarizesRemoteFallbackWarningsForHumans() {
+        let presentation = FullLibraryViewModel.presentWarnings([
+            "Remote tilgang til cell://staging.haven.digipomps.org/ConfigurationCatalog feilet. Fortsetter til neste kilde.",
+            "Kilden støtter ikke facetCounts. Viser lokale fasetter for treffene."
+        ])
+
+        #expect(presentation.messages == [
+            "En ekstern katalogkilde var treg eller utilgjengelig. Biblioteket fortsatte med lokale data.",
+            "Filtertellinger er beregnet lokalt for denne visningen."
+        ])
+    }
+
+    @MainActor
+    @Test func fullLibraryPrefersQueryBestMatchForPreviewSelection() {
+        let model = FullLibraryViewModel(
+            catalogEndpoints: ["cell:///ConfigurationCatalog"],
+            queryContext: FullLibraryQueryContext(editMode: false, selectedNodeKind: nil, insertionIntent: .unknown),
+            fallbackFavorites: [],
+            fallbackTemplates: []
+        )
+        model.queryText = "control tower"
+
+        let results = [
+            FullLibraryViewModel.SearchResult(
+                id: "participant",
+                configurationId: "participant",
+                displayName: "Conference Participant Portal Dashboard",
+                summary: "Participant-shell over preview-wrapper.",
+                sourceRef: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+                route: "directPurpose",
+                score: 0.64,
+                scoreBreakdown: .init(text: 0.5, purpose: 0.5, interest: 0.5, compatibility: 1.0, connectivity: 1.0, resourceFit: 1.0, recency: 1.0),
+                badges: ["conference", "participant"],
+                configuration: CellConfiguration(name: "Conference Participant Portal Dashboard"),
+                componentItem: nil
+            ),
+            FullLibraryViewModel.SearchResult(
+                id: "control-tower",
+                configurationId: "control-tower",
+                displayName: "Conference Control Tower",
+                summary: "Organizer/admin-shell med drift, innhold og innsikt over staging.",
+                sourceRef: "cell://staging.haven.digipomps.org/ConferenceAdminShell",
+                route: "directPurpose",
+                score: 0.64,
+                scoreBreakdown: .init(text: 0.5, purpose: 0.5, interest: 0.5, compatibility: 1.0, connectivity: 1.0, resourceFit: 1.0, recency: 1.0),
+                badges: ["conference", "admin"],
+                configuration: CellConfiguration(name: "Conference Control Tower"),
+                componentItem: nil
+            )
+        ]
+
+        let preferred = model.preferredSelectionID(in: results, currentSelectionID: "participant")
+        #expect(preferred == "control-tower")
     }
 
     @Test func remoteCatalogSyncRunsOnlyForLocalCatalogEndpoint() {
@@ -269,6 +350,56 @@ struct BindingTests {
                 continue
             }
         }
+    }
+
+    @Test func conferenceRequesterDescriptorsMatchConferenceShellOwnershipModel() {
+        let contentView = ContentView()
+
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferenceAdminShell"
+            ) == .init(identityContext: "conference-organizer", displayName: "Conference Organizer")
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferenceUIRouter"
+            ) == .init(identityContext: "conference-organizer", displayName: "Conference Organizer")
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferencePublicShell"
+            ) == .init(identityContext: "conference-public-publisher", displayName: "Conference Public Publisher")
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferenceSponsorShell"
+            ) == .init(
+                identityContext: "conference-sponsor:sponsor-ai-digital-independence",
+                displayName: "sponsor-ai-digital-independence"
+            )
+        )
+    }
+
+    @Test func conferenceAdminWorkbenchPrefersOrganizerRequesterDescriptor() {
+        let contentView = ContentView()
+        let configuration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceAdminShell"
+        )
+
+        #expect(
+            contentView.preferredRequesterDescriptor(for: configuration)
+            == .init(identityContext: "conference-organizer", displayName: "Conference Organizer")
+        )
+    }
+
+    @Test func mixedConferenceAndAIWorkbenchDoesNotForceSingleSpecialRequester() {
+        let contentView = ContentView()
+        let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell://staging.haven.digipomps.org/AIGateway"
+        )
+
+        #expect(contentView.preferredRequesterDescriptor(for: configuration) == nil)
     }
 
     @Test func validationServiceFlagsUnresolvedSkeletonBindings() {
@@ -573,6 +704,111 @@ struct BindingTests {
         }
     }
 
+    @Test func configurationCatalogBrowseQueryIncludesConferenceParticipantPortalEvenWithLowSourceLimit() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        let queryPayload: Object = [
+            "requestId": .string("query-browse-participant-portal"),
+            "q": .string(""),
+            "constraints": .object([
+                "maxResults": .integer(80),
+                "maxSources": .integer(1),
+                "latencyBudgetMs": .integer(300)
+            ])
+        ]
+
+        let response = try await cell.set(keypath: "query", value: .object(queryPayload), requester: owner)
+        guard case let .object(result)? = response else {
+            Issue.record("Forventet object-respons fra browse query")
+            return
+        }
+
+        guard case let .list(results)? = result["results"] else {
+            Issue.record("Mangler results-list i browse query")
+            return
+        }
+
+        let names = results.compactMap { value -> String? in
+            guard case let .object(object) = value else { return nil }
+            guard case let .string(name)? = object["displayName"] else { return nil }
+            return name
+        }
+
+        #expect(names.contains("Conference Participant Portal Dashboard"))
+
+        if case let .list(warnings)? = result["warnings"] {
+            let warningStrings = warnings.compactMap { value -> String? in
+                guard case let .string(message) = value else { return nil }
+                return message
+            }
+            #expect(!warningStrings.contains(where: { $0.contains("ConferenceParticipantPreviewShell:maxSourcesLimit") }))
+        }
+    }
+
+    @Test func configurationCatalogConferenceControlTowerUsesWorkbenchSkeletonForPreviewShell() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        let queryPayload: Object = [
+            "requestId": .string("query-control-tower"),
+            "q": .string("control tower"),
+            "constraints": .object([
+                "maxResults": .integer(12),
+                "maxSources": .integer(4),
+                "latencyBudgetMs": .integer(300)
+            ])
+        ]
+
+        let response = try await cell.set(keypath: "query", value: .object(queryPayload), requester: owner)
+        guard case let .object(result)? = response else {
+            Issue.record("Forventet object-respons fra control tower query")
+            return
+        }
+
+        guard case let .list(results)? = result["results"] else {
+            Issue.record("Mangler results-list i control tower query")
+            return
+        }
+
+        let matchedConfiguration = results.compactMap { value -> CellConfiguration? in
+            guard case let .object(object) = value else { return nil }
+            guard case let .string(displayName)? = object["displayName"], displayName == "Conference Control Tower" else {
+                return nil
+            }
+            switch object["configuration"] {
+            case .cellConfiguration(let configuration):
+                return configuration
+            case .object(let configurationObject):
+                guard let data = try? JSONEncoder().encode(configurationObject) else { return nil }
+                return try? JSONDecoder().decode(CellConfiguration.self, from: data)
+            default:
+                return nil
+            }
+        }.first
+
+        guard let configuration = matchedConfiguration else {
+            Issue.record("Fant ikke Conference Control Tower i query-resultatene")
+            return
+        }
+
+        let configurationData = try JSONEncoder().encode(configuration)
+        let configurationString = String(decoding: configurationData, as: UTF8.self)
+        #expect(configuration.discovery?.sourceCellEndpoint == "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell")
+        #expect(configurationString.contains("conferenceAdminShell.state.workspace.title"))
+        #expect(configurationString.contains("conferenceAdminShell.state.content.intro"))
+    }
+
+    @Test func conferenceAdminPreviewShellUsesOrganizerRequesterDescriptor() async throws {
+        let subject = ContentView()
+        let descriptor = subject.preferredRequesterDescriptor(
+            for: "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell"
+        )
+
+        #expect(descriptor?.identityContext == "conference-organizer")
+        #expect(descriptor?.displayName == "Conference Organizer")
+    }
+
     @Test func configurationCatalogFacetCountsIncludesInsertionModes() async throws {
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
@@ -669,6 +905,117 @@ struct BindingTests {
         guard case .object = stateValue else {
             Issue.record("Expected object from catalog.state, got \(stateValue)")
             return
+        }
+    }
+
+    @Test func bindingLocalCellRegistrationMakesConfigurationCatalogResolvable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+
+        let emit = try await resolver.cellAtEndpoint(endpoint: "cell:///ConfigurationCatalog", requester: identity)
+        #expect(emit is ConfigurationCatalogCell)
+    }
+
+    @Test func bindingLocalConfigurationCatalogServesEntriesAndQueryResults() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let catalog = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConfigurationCatalog",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConfigurationCatalog did not resolve as Meddle")
+            return
+        }
+
+        let entries = try await catalog.get(keypath: "catalogEntries", requester: identity)
+        guard case let .list(entryList) = entries else {
+            Issue.record("Expected catalogEntries list, got \(String(describing: entries))")
+            return
+        }
+        #expect(!entryList.isEmpty)
+
+        let queryResponse = try await catalog.set(
+            keypath: "query",
+            value: .object([
+                "q": .string("conference"),
+                "constraints": .object([
+                    "maxResults": .integer(12)
+                ])
+            ]),
+            requester: identity
+        )
+        guard case let .object(queryObject) = queryResponse else {
+            Issue.record("Expected object query response, got \(String(describing: queryResponse))")
+            return
+        }
+        guard case let .list(resultList)? = queryObject["results"] else {
+            Issue.record("Expected query response with results list")
+            return
+        }
+        #expect(!resultList.isEmpty)
+    }
+
+    @Test func fullLibraryRefreshCompletesAndYieldsResults() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        let model = await MainActor.run {
+            FullLibraryViewModel(
+                catalogEndpoints: ["cell:///ConfigurationCatalog"],
+                queryContext: FullLibraryQueryContext(
+                    editMode: false,
+                    selectedNodeKind: nil,
+                    insertionIntent: .unknown
+                ),
+                fallbackFavorites: [],
+                fallbackTemplates: []
+            )
+        }
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { @MainActor in
+                await model.refreshNow()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: 4_000_000_000)
+                throw CancellationError()
+            }
+
+            _ = try await group.next()
+            group.cancelAll()
+        }
+
+        await MainActor.run {
+            #expect(!model.isLoading)
+            #expect(model.statusLine != "Laster ConfigurationCatalog...")
+            #expect(!model.results.isEmpty)
         }
     }
 

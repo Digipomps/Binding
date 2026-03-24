@@ -21,7 +21,7 @@ struct RootView: View {
             }
             .task {
                 if !initialized {
-                    await AppInitializer.initialize()
+                    await BindingLocalCellRegistration.shared.ensureRegistered()
 
                     let resolver = CellResolver.sharedInstance
 #if canImport(DiMyCellProtocolCells)

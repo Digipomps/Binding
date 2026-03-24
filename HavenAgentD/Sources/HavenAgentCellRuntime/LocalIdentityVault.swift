@@ -55,6 +55,12 @@ public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProvid
         }
     }
 
+    public func identityExistInVault(_ identity: Identity) async -> Bool {
+        withLock {
+            identitiesByContext.values.contains { $0.uuid == identity.uuid }
+        }
+    }
+
     public func installIdentity(
         descriptor: AgentIdentityDescriptor,
         privateKey: Curve25519.Signing.PrivateKey

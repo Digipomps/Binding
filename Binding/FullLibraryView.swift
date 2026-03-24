@@ -373,6 +373,7 @@ struct FullLibraryView: View {
     @State private var showAdvancedFilters = false
 
     private let onAddConfiguration: (CellConfiguration) -> Void
+    private let onSetDemoStartConfiguration: ((CellConfiguration) -> Void)?
     private let onAddComponent: ((ComponentPaletteItem) -> Bool)?
     private let armedComponentID: String?
     private let onArmComponent: ((ComponentPaletteItem?) -> Void)?
@@ -389,6 +390,7 @@ struct FullLibraryView: View {
         favorites: [CellConfiguration],
         templates: [CellConfiguration],
         onAddConfiguration: @escaping (CellConfiguration) -> Void,
+        onSetDemoStartConfiguration: ((CellConfiguration) -> Void)? = nil,
         onAddComponent: ((ComponentPaletteItem) -> Bool)? = nil,
         armedComponentID: String? = nil,
         onArmComponent: ((ComponentPaletteItem?) -> Void)? = nil,
@@ -403,6 +405,7 @@ struct FullLibraryView: View {
             )
         )
         self.onAddConfiguration = onAddConfiguration
+        self.onSetDemoStartConfiguration = onSetDemoStartConfiguration
         self.onAddComponent = onAddComponent
         self.armedComponentID = armedComponentID
         self.onArmComponent = onArmComponent
@@ -452,9 +455,11 @@ struct FullLibraryView: View {
 #if os(macOS)
         .frame(minWidth: 1020, minHeight: 720)
 #endif
-        .task {
-            await model.loadInitial()
+        .onAppear {
             focusedField = .query
+            Task {
+                await model.refreshNow()
+            }
         }
         .onChange(of: model.queryText) { _, _ in
             model.scheduleRefresh()
@@ -618,6 +623,8 @@ struct FullLibraryView: View {
                         }
                         .buttonStyle(.borderedProminent)
 
+                        demoStartButton
+
                         Button {
                             showAdvancedFilters.toggle()
                         } label: {
@@ -635,6 +642,8 @@ struct FullLibraryView: View {
                     }
                     .buttonStyle(.borderedProminent)
 
+                    demoStartButton
+
                     Button {
                         showAdvancedFilters.toggle()
                     } label: {
@@ -644,6 +653,18 @@ struct FullLibraryView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var demoStartButton: some View {
+        Button("Start demo her") {
+            guard let selected = model.selectedResult,
+                  selected.componentItem == nil else { return }
+            dismissKeyboard()
+            onSetDemoStartConfiguration?(selected.configuration)
+        }
+        .buttonStyle(.bordered)
+        .disabled(model.selectedResult == nil || model.selectedResult?.componentItem != nil || onSetDemoStartConfiguration == nil)
     }
 
     private var primarySearchField: some View {
@@ -925,6 +946,9 @@ struct FullLibraryView: View {
                                 .onTapGesture {
                                     model.selectedResultID = item.id
                                 }
+                                .onTapGesture(count: 2) {
+                                    applySelection(item)
+                                }
                                 .contextMenu {
                                     if item.componentItem != nil {
                                         Button(componentPlacementLabel(for: item)) {
@@ -1008,6 +1032,28 @@ struct FullLibraryView: View {
                                 .foregroundStyle(.secondary)
                         }
 
+                        if selected.componentItem != nil {
+                            HStack(spacing: 8) {
+                                Button(componentPlacementLabel(for: selected)) {
+                                    togglePlacement(for: selected)
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("Sett inn i valgt layout") {
+                                    applySelection(selected)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .keyboardShortcut(.return, modifiers: [.command])
+                            }
+                        } else {
+                            Button("Legg til i Porthole") {
+                                applySelection(selected)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .keyboardShortcut(.defaultAction)
+                            .keyboardShortcut(.return, modifiers: [.command])
+                        }
+
                         Text("Score breakdown")
                             .font(.caption.weight(.semibold))
 
@@ -1056,12 +1102,15 @@ struct FullLibraryView: View {
                                     applySelection(selected)
                                 }
                                 .buttonStyle(.borderedProminent)
+                                .keyboardShortcut(.return, modifiers: [.command])
                             }
                         } else {
                             Button("Legg til i Porthole") {
                                 applySelection(selected)
                             }
                             .buttonStyle(.borderedProminent)
+                            .keyboardShortcut(.defaultAction)
+                            .keyboardShortcut(.return, modifiers: [.command])
                         }
                     }
                 }
@@ -1095,11 +1144,16 @@ struct FullLibraryView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if !model.warnings.isEmpty {
-                Text(model.warnings.joined(separator: " | "))
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .lineLimit(2)
+            if let warningSummaryText = model.warningSummaryText {
+                Label {
+                    Text(warningSummaryText)
+                        .lineLimit(2)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .help(model.warningDetails.joined(separator: "\n"))
             }
         }
     }
@@ -1222,6 +1276,11 @@ struct FullLibraryView: View {
 
 @MainActor
 final class FullLibraryViewModel: ObservableObject {
+    struct WarningPresentation {
+        var messages: [String]
+        var details: [String]
+    }
+
     enum LibraryTab: String, CaseIterable, Identifiable {
         case allConfigs
         case forMyPurposes
@@ -1386,6 +1445,8 @@ final class FullLibraryViewModel: ObservableObject {
         case resolverUnavailable
         case identityUnavailable
         case catalogUnavailable
+        case catalogCandidateTimedOut(String)
+        case catalogOperationTimedOut(String, String)
     }
 
     private struct ResolvedCatalog {
@@ -1406,6 +1467,7 @@ final class FullLibraryViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var statusLine: String = "Klar"
     @Published var warnings: [String] = []
+    @Published var warningDetails: [String] = []
     @Published var connectivity: ConnectivitySnapshot = .empty
     @Published var availability: Availability = .unknown
     @Published var catalogMode: CatalogMode = .unknown
@@ -1421,6 +1483,8 @@ final class FullLibraryViewModel: ObservableObject {
     private let catalogEndpoints: [String]
     private let queryContext: FullLibraryQueryContext
     private var refreshTask: Task<Void, Never>?
+    private var bootstrapWatchTask: Task<Void, Never>?
+    private var rawWarnings: [String] = []
 
     init(
         catalogEndpoints: [String],
@@ -1436,6 +1500,7 @@ final class FullLibraryViewModel: ObservableObject {
 
     deinit {
         refreshTask?.cancel()
+        bootstrapWatchTask?.cancel()
     }
 
     var selectedResult: SearchResult? {
@@ -1444,6 +1509,26 @@ final class FullLibraryViewModel: ObservableObject {
             return selected
         }
         return results.first
+    }
+
+    func preferredSelectionID(
+        in results: [SearchResult],
+        currentSelectionID: String?
+    ) -> String? {
+        guard !results.isEmpty else { return nil }
+
+        let trimmedQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedQuery.isEmpty,
+           let bestQueryMatch = bestSelectionMatch(in: results, query: trimmedQuery) {
+            return bestQueryMatch.id
+        }
+
+        if let currentSelectionID,
+           results.contains(where: { $0.id == currentSelectionID }) {
+            return currentSelectionID
+        }
+
+        return results.first?.id
     }
 
     var searchSuggestions: [SearchSuggestion] {
@@ -1493,33 +1578,74 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     func refreshNow() async {
+        guard await ensureRuntimeBootstrapForLibrary() else {
+            presentAuthPendingState()
+            return
+        }
+
+        statusLine = "Laster ConfigurationCatalog..."
         isLoading = true
         defer { isLoading = false }
 
         do {
-            let resolved = try await resolveCatalog()
+            let resolved = try await runRefreshPhase(
+                name: "resolveCatalog",
+                timeoutNanoseconds: 2_500_000_000
+            ) {
+                try await self.resolveCatalog()
+            }
             let catalog = resolved.catalog
             let identity = resolved.identity
             let endpoint = resolved.endpoint
+            replaceWarnings(with: resolved.resolutionWarnings)
+            catalogMode = .unknown
             if RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: endpoint) {
-                _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .object([:]), requester: identity)
+                statusLine = "Oppdaterer lokal katalog..."
+                do {
+                    _ = try await runCatalogOperation(
+                        name: "sync",
+                        endpoint: endpoint
+                    ) {
+                        try await catalog.set(
+                            keypath: "syncScaffoldPurposeGoals",
+                            value: .object([:]),
+                            requester: identity
+                        )
+                    }
+                } catch {
+                    appendWarning(syncWarning(for: endpoint, error: error))
+                }
             }
             let queryPayload = buildQueryPayload()
             let startedAt = Date()
-            warnings = resolved.resolutionWarnings
-            catalogMode = .unknown
 
-            let fallbackCatalogResults = try? await directCatalogResults(from: catalog, requester: identity)
+            statusLine = "Henter katalogtreff..."
+            let fallbackCatalogResults = try? await runCatalogOperation(
+                name: "catalogEntries",
+                endpoint: endpoint
+            ) {
+                try await self.directCatalogResults(from: catalog, requester: identity)
+            }
 
             var usedDirectCatalogFallback = false
-            if let queryResponse = try? await catalog.set(keypath: "query", value: .object(queryPayload), requester: identity) {
+            let queryResponse = try? await runCatalogOperation(
+                name: "query",
+                endpoint: endpoint
+            ) {
+                try await catalog.set(
+                    keypath: "query",
+                    value: .object(queryPayload),
+                    requester: identity
+                )
+            }
+            if let queryResponse {
                 parseQueryResponse(queryResponse)
                 catalogMode = .fullQuery
             } else if let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
                 results = fallbackCatalogResults
                 facetSections = deriveFacetSections(from: fallbackCatalogResults)
-                warnings.append("Kilden støtter ikke katalog-query. Viser direkte katalogentries i stedet.")
-                selectedResultID = results.first?.id
+                appendWarning("Kilden støtter ikke katalog-query. Viser direkte katalogentries i stedet.")
+                selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
                 usedDirectCatalogFallback = true
                 catalogMode = .directEntriesFallback
             } else {
@@ -1528,11 +1654,21 @@ final class FullLibraryViewModel: ObservableObject {
 
             if !usedDirectCatalogFallback {
                 let facetPayload = buildFacetPayload(baseQuery: queryPayload)
-                if let facetResponse = try? await catalog.set(keypath: "facetCounts", value: .object(facetPayload), requester: identity) {
+                let facetResponse = try? await runCatalogOperation(
+                    name: "facetCounts",
+                    endpoint: endpoint
+                ) {
+                    try await catalog.set(
+                        keypath: "facetCounts",
+                        value: .object(facetPayload),
+                        requester: identity
+                    )
+                }
+                if let facetResponse {
                     parseFacetResponse(facetResponse)
                 } else {
                     facetSections = deriveFacetSections(from: results)
-                    warnings.append("Kilden støtter ikke facetCounts. Viser lokale fasetter for treffene.")
+                    appendWarning("Kilden støtter ikke facetCounts. Viser lokale fasetter for treffene.")
                 }
             }
 
@@ -1541,12 +1677,28 @@ final class FullLibraryViewModel: ObservableObject {
                 results = fallbackCatalogResults
                 facetSections = deriveFacetSections(from: fallbackCatalogResults)
                 if warnings.isEmpty {
-                    warnings = ["Query svarte tomt. Viser direkte katalogentries i stedet."]
+                    replaceWarnings(with: ["Query svarte tomt. Viser direkte katalogentries i stedet."])
                 }
-                selectedResultID = results.first?.id
+                selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
                 connectivity = ConnectivitySnapshot(onlineSources: 1, degradedSources: 0, offlineSources: 0)
                 statusLine = "Kilde: \(endpoint) · \(results.count) entries · direkte katalogvisning"
                 catalogMode = .directEntriesFallback
+            } else if results.isEmpty {
+                let offlineResults = offlineFallbackResults()
+                if !offlineResults.isEmpty {
+                    results = offlineResults
+                    facetSections = deriveFacetSections(from: offlineResults)
+                    selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
+                    let fallbackWarning = "Katalogen svarte uten visbare treff. Viser lokal fallback i stedet."
+                    if !rawWarnings.contains(fallbackWarning) {
+                        appendWarning(fallbackWarning)
+                    }
+                    connectivity = ConnectivitySnapshot(onlineSources: 0, degradedSources: 1, offlineSources: 1)
+                    statusLine = "Kilde: \(endpoint) · lokal fallback · \(offlineResults.count) entries"
+                    catalogMode = .directEntriesFallback
+                } else {
+                    statusLine = "Kilde: \(endpoint) · 0 treff · \(elapsed)ms"
+                }
             } else {
                 statusLine = "Kilde: \(endpoint) · \(results.count) treff · \(elapsed)ms"
             }
@@ -1555,15 +1707,128 @@ final class FullLibraryViewModel: ObservableObject {
             let offlineResults = offlineFallbackResults()
             results = offlineResults
             facetSections = deriveFacetSections(from: offlineResults)
-            selectedResultID = results.first?.id
+            selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
             availability = .unavailable(reason: "Kunne ikke nå ConfigurationCatalog.")
             statusLine = offlineResults.isEmpty
                 ? "Kun offline-cached favoritter/templates er tilgjengelig."
                 : "Staging er utilgjengelig. Viser lokal cache med preview og filtre."
-            warnings = offlineResults.isEmpty ? warnings : ["Staging-katalogen svarte ikke. Viser lokal cache i stedet."]
+            if !offlineResults.isEmpty {
+                replaceWarnings(with: ["Staging-katalogen svarte ikke. Viser lokal cache i stedet."])
+            }
             catalogMode = offlineResults.isEmpty ? .unknown : .directEntriesFallback
             connectivity = ConnectivitySnapshot(onlineSources: 0, degradedSources: 0, offlineSources: 1)
         }
+    }
+
+    private var runtimeBootstrapIsReady: Bool {
+        CellBase.defaultIdentityVault != nil && CellBase.defaultCellResolver is CellResolver
+    }
+
+    private func ensureRuntimeBootstrapForLibrary() async -> Bool {
+        if runtimeBootstrapIsReady {
+            bootstrapWatchTask?.cancel()
+            bootstrapWatchTask = nil
+            await BindingLocalCellRegistration.shared.ensureRegistered()
+            return true
+        }
+
+        if bootstrapWatchTask == nil {
+            bootstrapWatchTask = Task { [weak self] in
+                await AppInitializer.initialize()
+                await BindingLocalCellRegistration.shared.ensureRegistered()
+                await MainActor.run {
+                    guard let self else { return }
+                    self.bootstrapWatchTask = nil
+                    guard self.runtimeBootstrapIsReady else { return }
+                    Task { @MainActor [weak self] in
+                        await self?.refreshNow()
+                    }
+                }
+            }
+        }
+
+        return false
+    }
+
+    private func presentAuthPendingState() {
+        let offlineResults = offlineFallbackResults()
+        results = offlineResults
+        facetSections = deriveFacetSections(from: offlineResults)
+        selectedResultID = preferredSelectionID(in: offlineResults, currentSelectionID: selectedResultID)
+        availability = .unavailable(
+            reason: "Bekreft Touch ID, Face ID eller passkode for å laste Full Library. Lokale favoritter og konferanseoppsett vises mens vi venter."
+        )
+        statusLine = "Venter paa autentisering for ConfigurationCatalog…"
+        replaceWarnings(with: [])
+        connectivity = ConnectivitySnapshot(
+            onlineSources: 0,
+            degradedSources: 0,
+            offlineSources: offlineResults.isEmpty ? 0 : 1
+        )
+        catalogMode = offlineResults.isEmpty ? .unknown : .directEntriesFallback
+        isLoading = false
+    }
+
+    private func runCatalogOperation<T: Sendable>(
+        name: String,
+        endpoint: String,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        let timeoutNanoseconds: UInt64 = RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint)
+            ? 1_200_000_000
+            : 2_500_000_000
+
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw LibraryError.catalogOperationTimedOut(endpoint, name)
+            }
+
+            guard let value = try await group.next() else {
+                throw LibraryError.catalogOperationTimedOut(endpoint, name)
+            }
+            group.cancelAll()
+            return value
+        }
+    }
+
+    private func runRefreshPhase<T: Sendable>(
+        name: String,
+        timeoutNanoseconds: UInt64,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw LibraryError.catalogOperationTimedOut("refresh", name)
+            }
+
+            guard let value = try await group.next() else {
+                throw LibraryError.catalogOperationTimedOut("refresh", name)
+            }
+            group.cancelAll()
+            return value
+        }
+    }
+
+    private func syncWarning(for endpoint: String, error: Error) -> String {
+        if case let LibraryError.catalogOperationTimedOut(_, operation) = error,
+           operation == "sync" {
+            if RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
+                return "Lokal katalogoppdatering tok for lang tid. Viser lagrede katalogdata i stedet."
+            }
+            return "Katalogoppdatering mot \(endpoint) tok for lang tid. Viser eksisterende data."
+        }
+        if RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
+            return "Lokal katalogoppdatering feilet. Viser lagrede katalogdata i stedet."
+        }
+        return "Katalogoppdatering mot \(endpoint) feilet. Viser eksisterende data."
     }
 
     func consumeTokenDraft() {
@@ -1685,6 +1950,7 @@ final class FullLibraryViewModel: ObservableObject {
 
     private func resolveCatalog() async throws -> ResolvedCatalog {
         await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw LibraryError.resolverUnavailable
         }
@@ -1692,15 +1958,24 @@ final class FullLibraryViewModel: ObservableObject {
             throw LibraryError.identityUnavailable
         }
 
-        let candidates = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: catalogEndpoints)
+        let preference: RemoteCatalogSupport.CandidatePreference = switch networkPolicy {
+        case .healthyOnly:
+            .preferRemote
+        case .preferHealthyThenCached, .cacheOnly:
+            .preferLocal
+        }
+
+        let candidates = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(
+            from: catalogEndpoints,
+            preference: preference
+        )
         var resolutionWarnings: [String] = []
         for endpoint in candidates {
             do {
-                let emit = try await RemoteEndpointAccessSupport.resolveEmit(
+                let emit = try await resolveCatalogCandidate(
                     endpoint: endpoint,
                     resolver: resolver,
-                    requester: identity,
-                    accessLabel: "fullLibrary.catalog"
+                    requester: identity
                 )
                 guard let catalog = emit as? Meddle else {
                     resolutionWarnings.append("Kilden \(endpoint) eksponerer ikke Meddle-kontrakt.")
@@ -1713,13 +1988,177 @@ final class FullLibraryViewModel: ObservableObject {
                     resolutionWarnings: resolutionWarnings
                 )
             } catch {
-                if !RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
-                    resolutionWarnings.append("Remote tilgang til \(endpoint) feilet. Fortsetter til neste kilde.")
-                }
+                resolutionWarnings.append(resolutionWarning(for: endpoint, error: error))
                 continue
             }
         }
         throw LibraryError.catalogUnavailable
+    }
+
+    private func resolveCatalogCandidate(
+        endpoint: String,
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws -> Emit {
+        let timeoutNanoseconds: UInt64 = RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint)
+            ? 800_000_000
+            : 2_000_000_000
+
+        return try await withThrowingTaskGroup(of: Emit.self) { group in
+            group.addTask {
+                try await RemoteEndpointAccessSupport.resolveEmit(
+                    endpoint: endpoint,
+                    resolver: resolver,
+                    requester: requester,
+                    accessLabel: "fullLibrary.catalog"
+                )
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw LibraryError.catalogCandidateTimedOut(endpoint)
+            }
+
+            guard let emit = try await group.next() else {
+                throw LibraryError.catalogUnavailable
+            }
+            group.cancelAll()
+            return emit
+        }
+    }
+
+    private func resolutionWarning(for endpoint: String, error: Error) -> String {
+        if case LibraryError.catalogCandidateTimedOut = error {
+            return "Kilden \(endpoint) svarte ikke raskt nok. Fortsetter til neste kilde."
+        }
+        if RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
+            return "Lokal ConfigurationCatalog kunne ikke lastes. Prøver neste kilde."
+        }
+        return "Remote tilgang til \(endpoint) feilet. Fortsetter til neste kilde."
+    }
+
+    var warningSummaryText: String? {
+        guard let first = warnings.first else { return nil }
+        guard warnings.count > 1 else { return first }
+        return "\(first) (+\(warnings.count - 1) til)"
+    }
+
+    private func replaceWarnings(with rawMessages: [String]) {
+        rawWarnings = rawMessages
+        let presentation = Self.presentWarnings(rawMessages)
+        warnings = presentation.messages
+        warningDetails = presentation.details
+    }
+
+    private func appendWarning(_ rawMessage: String) {
+        replaceWarnings(with: rawWarnings + [rawMessage])
+    }
+
+    static func presentWarnings(_ rawMessages: [String]) -> WarningPresentation {
+        let trimmed = rawMessages
+            .flatMap(splitWarningComponents)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !trimmed.isEmpty else {
+            return WarningPresentation(messages: [], details: [])
+        }
+
+        var messages: [String] = []
+        var details: [String] = []
+
+        let sourceLimitWarnings = trimmed.filter { normalizedWarningText($0).contains("maxsourceslimit") }
+        if !sourceLimitWarnings.isEmpty {
+            let count = sourceLimitWarnings.count
+            messages.append(
+                count == 1
+                    ? "Én ekstern kilde ble hoppet over for å holde biblioteket raskt."
+                    : "\(count) eksterne kilder ble hoppet over for å holde biblioteket raskt."
+            )
+            details.append(contentsOf: sourceLimitWarnings)
+        }
+
+        let remoteFallbackWarnings = trimmed.filter {
+            let normalized = normalizedWarningText($0)
+            return normalized.contains("svarte ikke raskt nok") ||
+                normalized.contains("remote tilgang til") ||
+                normalized.contains("staging-katalogen svarte ikke")
+        }
+        if !remoteFallbackWarnings.isEmpty {
+            messages.append("En ekstern katalogkilde var treg eller utilgjengelig. Biblioteket fortsatte med lokale data.")
+            details.append(contentsOf: remoteFallbackWarnings)
+        }
+
+        let incompatibleWarnings = trimmed.filter { normalizedWarningText($0).contains("eksponerer ikke meddle") }
+        if !incompatibleWarnings.isEmpty {
+            messages.append("En katalogkilde svarte i feil format og ble hoppet over.")
+            details.append(contentsOf: incompatibleWarnings)
+        }
+
+        let directFallbackWarnings = trimmed.filter {
+            let normalized = normalizedWarningText($0)
+            return normalized.contains("støtter ikke katalog-query") ||
+                normalized.contains("query svarte tomt")
+        }
+        if !directFallbackWarnings.isEmpty {
+            messages.append("Biblioteket viser en enklere katalogvisning fordi avansert søk ikke var tilgjengelig.")
+            details.append(contentsOf: directFallbackWarnings)
+        }
+
+        let localFacetWarnings = trimmed.filter { normalizedWarningText($0).contains("støtter ikke facetcounts") }
+        if !localFacetWarnings.isEmpty {
+            messages.append("Filtertellinger er beregnet lokalt for denne visningen.")
+            details.append(contentsOf: localFacetWarnings)
+        }
+
+        let localFallbackWarnings = trimmed.filter {
+            let normalized = normalizedWarningText($0)
+            return normalized.contains("uten visbare treff") ||
+                normalized.contains("viser lokal fallback")
+        }
+        if !localFallbackWarnings.isEmpty {
+            messages.append("Den valgte katalogkilden ga ikke visbare treff, så biblioteket viste lokal fallback.")
+            details.append(contentsOf: localFallbackWarnings)
+        }
+
+        let invalidQueryWarnings = trimmed.filter { normalizedWarningText($0).contains("ugyldig query-respons") }
+        if !invalidQueryWarnings.isEmpty {
+            messages.append("Katalogen svarte med et uventet format.")
+            details.append(contentsOf: invalidQueryWarnings)
+        }
+
+        let coveredWarnings = Set(details)
+        let uncategorizedWarnings = trimmed.filter { !coveredWarnings.contains($0) }
+        for warning in uncategorizedWarnings {
+            messages.append(simplifyWarningText(warning))
+            details.append(warning)
+        }
+
+        var seenMessages = Set<String>()
+        let deduplicatedMessages = messages.filter { seenMessages.insert($0).inserted }
+        return WarningPresentation(messages: deduplicatedMessages.prefix(3).map { $0 }, details: details)
+    }
+
+    private static func simplifyWarningText(_ warning: String) -> String {
+        let normalized = normalizedWarningText(warning)
+        if normalized.contains("maxsourceslimit") {
+            return "Eksterne kilder ble hoppet over for å holde biblioteket raskt."
+        }
+        if warning.contains("cell://") || warning.contains("wss://") {
+            return "En katalogkilde rapporterte et teknisk avvik og ble håndtert automatisk."
+        }
+        return warning
+    }
+
+    private static func splitWarningComponents(_ warning: String) -> [String] {
+        warning
+            .split(whereSeparator: { $0 == "|" || $0 == "\n" })
+            .map(String.init)
+    }
+
+    private static func normalizedWarningText(_ warning: String) -> String {
+        warning
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     private func directCatalogResults(from catalog: Meddle, requester: Identity) async throws -> [SearchResult] {
@@ -2101,7 +2540,7 @@ final class FullLibraryViewModel: ObservableObject {
     private func parseQueryResponse(_ response: ValueType) {
         guard case let .object(root) = response else {
             results = []
-            warnings = ["Ugyldig query-respons"]
+            replaceWarnings(with: ["Ugyldig query-respons"])
             return
         }
 
@@ -2161,11 +2600,60 @@ final class FullLibraryViewModel: ObservableObject {
             connectivity = .empty
         }
 
-        warnings = root["warnings"]?.stringListValue ?? []
+        replaceWarnings(with: root["warnings"]?.stringListValue ?? [])
         results = parsedResults
-        if selectedResultID == nil || !results.contains(where: { $0.id == selectedResultID }) {
-            selectedResultID = results.first?.id
+        selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
+    }
+
+    private func bestSelectionMatch(in results: [SearchResult], query: String) -> SearchResult? {
+        let normalizedQuery = normalizedSearchText(query)
+        guard !normalizedQuery.isEmpty else { return nil }
+        let queryTokens = normalizedQuery.split(separator: " ").map(String.init)
+
+        return results.max { lhs, rhs in
+            selectionAffinity(for: lhs, normalizedQuery: normalizedQuery, queryTokens: queryTokens) <
+                selectionAffinity(for: rhs, normalizedQuery: normalizedQuery, queryTokens: queryTokens)
         }
+    }
+
+    private func selectionAffinity(
+        for result: SearchResult,
+        normalizedQuery: String,
+        queryTokens: [String]
+    ) -> Int {
+        let displayName = normalizedSearchText(result.displayName)
+        let summary = normalizedSearchText(result.summary)
+        let sourceRef = normalizedSearchText(result.sourceRef)
+        let badges = normalizedSearchText(result.badges.joined(separator: " "))
+
+        var score = 0
+        if displayName == normalizedQuery { score += 800 }
+        if displayName.contains(normalizedQuery) { score += 400 }
+        if summary.contains(normalizedQuery) { score += 180 }
+        if sourceRef.contains(normalizedQuery) { score += 120 }
+        if badges.contains(normalizedQuery) { score += 80 }
+
+        for token in queryTokens where !token.isEmpty {
+            if displayName.contains(token) { score += 90 }
+            if summary.contains(token) { score += 30 }
+            if sourceRef.contains(token) { score += 20 }
+            if badges.contains(token) { score += 12 }
+        }
+
+        score += Int(result.score * 100.0)
+        return score
+    }
+
+    private func normalizedSearchText(_ text: String) -> String {
+        text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .replacingOccurrences(of: "/", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: "_", with: " ")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func parseFacetResponse(_ response: ValueType) {

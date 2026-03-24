@@ -2864,7 +2864,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         purposeRefs: Set<String>,
         interestRefs: Set<String>,
         queryTokens: [String],
-        constraints: QueryConstraints
+        constraints: QueryConstraints,
+        applySourceLimit: Bool = true
     ) -> (selected: [SourceCandidate], skipped: [SourceCandidate]) {
         let grouped = Dictionary(grouping: entries, by: \.sourceCellEndpoint)
         let errors = stateQueue.sync { catalogErrorsByEndpoint }
@@ -2908,6 +2909,10 @@ final class ConfigurationCatalogCell: GeneralCell {
                 return lhs.endpoint.localizedCaseInsensitiveCompare(rhs.endpoint) == .orderedAscending
             }
             return lhs.score > rhs.score
+        }
+
+        guard applySourceLimit else {
+            return (selectedPool, skipped)
         }
 
         let selected = Array(selectedPool.prefix(constraints.maxSources))
@@ -2976,6 +2981,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         ))
         let constraints = parseQueryConstraints(from: object["constraints"])
         let context = parseQueryContext(from: object["context"])
+        let hasDiscoverySignal = !queryTokens.isEmpty || !purposeRefs.isEmpty || !interestRefs.isEmpty
 
         let allEntries = sortedEntries().map { enrichCatalogEntryMetadata($0) }
         let sourceSelection = selectSources(
@@ -2983,7 +2989,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             purposeRefs: purposeRefs,
             interestRefs: interestRefs,
             queryTokens: queryTokens,
-            constraints: constraints
+            constraints: constraints,
+            applySourceLimit: hasDiscoverySignal
         )
         let selectedSet = Set(sourceSelection.selected.map { $0.endpoint.lowercased() })
         let filteredEntries = allEntries.filter { entry in
@@ -4968,13 +4975,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "briefing", "follow-up"]
             ),
             StaticCatalogDescriptor(
-                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceAdminShell",
-                sourceCellName: "ConferenceAdminShellCell",
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell",
+                sourceCellName: "ConferenceAdminPreviewShellCell",
                 displayName: "Conference Control Tower",
                 purpose: "Conference control tower",
-                purposeDescription: "Organizer-fokusert shell for drift, innhold, innsikt og sponsor-oversikt.",
+                purposeDescription: "Organizer-fokusert preview-wrapper for drift, innhold, innsikt og sponsor-oversikt.",
                 interests: ["conference", "admin", "control-tower", "operations", "insights"],
-                summary: "Organizer/admin-shell med drift, innhold og innsikt over staging.",
+                summary: "Organizer control tower via preview-wrapper over staging-admin-shellen.",
                 categoryPath: ["experiences", "conference", "operations"],
                 tags: ["conference", "admin", "operations", "insights"],
                 menuSlots: [.upperRight],
@@ -5673,7 +5680,10 @@ final class ConfigurationCatalogCell: GeneralCell {
                 displayName: descriptor.displayName,
                 summary: descriptor.summary
             )
-        case "cell:///conferenceadminshell", "cell://staging.haven.digipomps.org/conferenceadminshell":
+        case "cell:///conferenceadminshell",
+             "cell://staging.haven.digipomps.org/conferenceadminshell",
+             "cell:///conferenceadminpreviewshell",
+             "cell://staging.haven.digipomps.org/conferenceadminpreviewshell":
             return conferenceAdminWorkbenchConfiguration(
                 endpoint: descriptor.sourceCellEndpoint,
                 displayName: descriptor.displayName,
@@ -6141,11 +6151,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    nonisolated static func conferenceAdminWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceAdminShell") -> CellConfiguration {
+    nonisolated static func conferenceAdminWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell") -> CellConfiguration {
         conferenceAdminWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Control Tower",
-            summary: "Organizer/admin-shell med drift, innhold og innsikt over staging."
+            summary: "Organizer control tower via preview-wrapper over staging-admin-shellen."
         )
     }
 
@@ -7347,10 +7357,10 @@ final class ConfigurationCatalogCell: GeneralCell {
         configuration.description = summary
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: endpoint,
-            sourceCellName: "ConferenceAdminShellCell",
+            sourceCellName: "ConferenceAdminPreviewShellCell",
             purpose: "Conference control tower",
-            purposeDescription: "Organizer-focused shell for operations, content publishing, insights and sponsor overview.",
-            interests: ["conference", "admin", "control-tower", "insights", "sponsor", "operations"],
+            purposeDescription: "Organizer-focused preview wrapper for operations, content publishing, insights and sponsor overview.",
+            interests: ["conference", "admin", "control-tower", "insights", "sponsor", "operations", "preview"],
             menuSlots: ["upperMid", "lowerMid"]
         )
 
