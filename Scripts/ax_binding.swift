@@ -129,8 +129,44 @@ func applicationElement(named appName: String) throws -> AXUIElement {
     return AXUIElementCreateApplication(app.processIdentifier)
 }
 
-func children(of element: AXUIElement) -> [AXUIElement] {
-    copyAttribute(element, kAXChildrenAttribute as String) ?? []
+func relatedElements(for element: AXUIElement) -> [AXUIElement] {
+    let scalarAttributes = [
+        "AXToolbar",
+        kAXTitleUIElementAttribute as String,
+        kAXCloseButtonAttribute as String,
+        kAXMinimizeButtonAttribute as String,
+        kAXZoomButtonAttribute as String,
+        kAXFullScreenButtonAttribute as String
+    ]
+    let arrayAttributes = [
+        kAXChildrenAttribute as String,
+        kAXVisibleChildrenAttribute as String,
+        "AXSheets"
+    ]
+
+    var ordered: [AXUIElement] = []
+    var seen = Set<CFHashCode>()
+
+    func append(_ candidate: AXUIElement) {
+        let key = CFHash(candidate)
+        guard seen.insert(key).inserted else { return }
+        ordered.append(candidate)
+    }
+
+    for attribute in scalarAttributes {
+        if let child: AXUIElement = copyAttribute(element, attribute) {
+            append(child)
+        }
+    }
+
+    for attribute in arrayAttributes {
+        let children: [AXUIElement] = copyAttribute(element, attribute) ?? []
+        for child in children {
+            append(child)
+        }
+    }
+
+    return ordered
 }
 
 func node(for element: AXUIElement) -> AXNode {
@@ -182,7 +218,7 @@ func dumpTree(from element: AXUIElement, depth: Int, maxDepth: Int, lines: inout
     lines.append("\(indent)\(summary)\(frameSummary)")
 
     guard depth < maxDepth else { return }
-    for child in children(of: element) {
+    for child in relatedElements(for: element) {
         dumpTree(from: child, depth: depth + 1, maxDepth: maxDepth, lines: &lines)
     }
 }
@@ -190,7 +226,7 @@ func dumpTree(from element: AXUIElement, depth: Int, maxDepth: Int, lines: inout
 func allNodes(from element: AXUIElement, maxDepth: Int, depth: Int = 0) -> [AXNode] {
     let current = node(for: element)
     guard depth < maxDepth else { return [current] }
-    return [current] + children(of: element).flatMap { allNodes(from: $0, maxDepth: maxDepth, depth: depth + 1) }
+    return [current] + relatedElements(for: element).flatMap { allNodes(from: $0, maxDepth: maxDepth, depth: depth + 1) }
 }
 
 func performPress(on element: AXUIElement) -> AXError {
