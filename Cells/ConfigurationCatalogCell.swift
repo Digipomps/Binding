@@ -6609,7 +6609,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         _ text: String,
         fontSize: Double? = nil,
         fontWeight: String? = nil,
-        foregroundColor: String? = nil
+        foregroundColor: String? = "#D7E7F2"
     ) -> SkeletonElement {
         var label = SkeletonText(text: text)
         if fontSize != nil || fontWeight != nil || foregroundColor != nil {
@@ -6626,7 +6626,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         _ keypath: String,
         fontSize: Double? = nil,
         fontWeight: String? = nil,
-        foregroundColor: String? = nil
+        foregroundColor: String? = "#D7E7F2"
     ) -> SkeletonElement {
         var label = SkeletonText(keypath: keypath)
         if fontSize != nil || fontWeight != nil || foregroundColor != nil {
@@ -6637,6 +6637,32 @@ final class ConfigurationCatalogCell: GeneralCell {
             }
         }
         return .Text(label)
+    }
+
+    private static func bindingConferencePortalInlineCardModifier() -> SkeletonModifiers {
+        modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+        }
+    }
+
+    private static func bindingConferencePortalCollectionGrid(
+        keypath: String,
+        min: Double = 220,
+        max: Double = 320,
+        itemSkeleton: SkeletonElement
+    ) -> SkeletonElement {
+        .Grid(
+            SkeletonGrid(
+                columns: [.adaptive(min: min, max: max)],
+                spacing: 12,
+                keypath: keypath,
+                itemSkeleton: itemSkeleton
+            )
+        )
     }
 
     private static func bindingConferencePortalBadgeKeyText(_ keypath: String) -> SkeletonElement {
@@ -6847,19 +6873,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                         itemSkeleton: bindingConferencePortalSessionCardSkeleton()
                     )
                 ),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.program.savedSessions",
-                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.program.savedSessions",
+                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                 ),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.program.timelineSessions",
-                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.program.timelineSessions",
+                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                 ),
                 .HStack(
                     SkeletonHStack(elements: [
@@ -6910,12 +6930,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                         itemSkeleton: bindingConferencePortalRecommendationCardSkeleton()
                     )
                 ),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.matches.searchResults",
-                        flowElementSkeleton: bindingConferencePortalConnectionRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.matches.searchResults",
+                    itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
                 ),
                 .HStack(
                     SkeletonHStack(elements: [
@@ -6957,19 +6974,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(referenceLabel).state.meetings.meetingSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.meetings.chatSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.meetings.exportStatus"),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.meetings.requests",
-                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.meetings.requests",
+                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                 ),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.meetings.confirmedMeetings",
-                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.meetings.confirmedMeetings",
+                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                 ),
                 .HStack(
                     SkeletonHStack(elements: [
@@ -7006,26 +7017,17 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.requestSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.meetingSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.sharedConnections.chatSummary"),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.sharedConnections.connections",
-                        flowElementSkeleton: bindingConferencePortalConnectionRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.sharedConnections.connections",
+                    itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
                 ),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.sharedConnections.confirmedMeetings",
-                        flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.sharedConnections.confirmedMeetings",
+                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                 ),
-                .List(
-                    SkeletonList(
-                        topic: nil,
-                        keypath: "\(referenceLabel).state.sharedConnections.recentMessages",
-                        flowElementSkeleton: bindingConferencePortalMessageRowSkeleton()
-                    )
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.sharedConnections.recentMessages",
+                    itemSkeleton: bindingConferencePortalMessageCardSkeleton()
                 ),
                 .HStack(
                     SkeletonHStack(elements: [
@@ -7073,13 +7075,48 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
         ])
-        section.modifiers = modifier {
-            $0.padding = 12
-            $0.background = "#122734"
-            $0.cornerRadius = 12
-            $0.borderWidth = 1
-            $0.borderColor = "#244457"
-        }
+        section.modifiers = bindingConferencePortalInlineCardModifier()
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalTitleDetailCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED")
+        ])
+        section.modifiers = bindingConferencePortalInlineCardModifier()
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalTimelineCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#9AB3C3"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
+        ])
+        section.modifiers = bindingConferencePortalInlineCardModifier()
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalConnectionCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
+        ])
+        section.modifiers = bindingConferencePortalInlineCardModifier()
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalMessageCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 14, fontWeight: "semibold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
+        ])
+        section.modifiers = bindingConferencePortalInlineCardModifier()
         return .Section(section)
     }
 
@@ -7390,12 +7427,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("conferenceAdminShell.state.access.deliveryScope"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.access.storageScope"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.access.notes"),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.access.keypathMatrix",
-                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.access.keypathMatrix",
+                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                     )
                 ]
             ),
@@ -7414,19 +7448,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.facilitySummary"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.peopleSummary"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.content.preview.articleSummary"),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.content.draftTracks",
-                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.content.draftTracks",
+                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                     ),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.content.draftSessions",
-                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.content.draftSessions",
+                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                     ),
                     .HStack(
                         SkeletonHStack(elements: [
@@ -7440,19 +7468,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Operations & Insights",
                 content: [
                     bindingConferencePortalKeyText("conferenceAdminShell.state.operations.intro"),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.operations.runOfShow",
-                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.operations.runOfShow",
+                        itemSkeleton: bindingConferencePortalTitleDetailCardSkeleton()
                     ),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.operations.alerts",
-                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.operations.alerts",
+                        itemSkeleton: bindingConferencePortalTitleDetailCardSkeleton()
                     ),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.insights.dashboardSummary"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.insights.consentSummary"),
@@ -7460,29 +7482,20 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("conferenceAdminShell.state.insights.chartDirection"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.insights.status"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.insights.exportStatus"),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.insights.kpis",
-                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.insights.kpis",
+                        itemSkeleton: bindingConferencePortalTitleDetailCardSkeleton()
                     ),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.insights.topicTrends",
-                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.insights.topicTrends",
+                        itemSkeleton: bindingConferencePortalTitleDetailCardSkeleton()
                     ),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.sponsor.dashboardSummary"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.sponsor.engagementSummary"),
                     bindingConferencePortalKeyText("conferenceAdminShell.state.sponsor.handoffSummary"),
-                    .List(
-                        SkeletonList(
-                            topic: nil,
-                            keypath: "conferenceAdminShell.state.sponsor.leadCandidates",
-                            flowElementSkeleton: bindingConferencePortalTimelineRowSkeleton()
-                        )
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "conferenceAdminShell.state.sponsor.leadCandidates",
+                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
                     )
                 ]
             )
