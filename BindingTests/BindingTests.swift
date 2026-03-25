@@ -416,6 +416,38 @@ struct BindingTests {
         #expect(report.issues.contains(where: { $0.title == "Bindings uten matchende reference" }))
     }
 
+    @Test func validationServiceIgnoresDispatchActionPayloadKeypaths() {
+        var configuration = CellConfiguration(name: "Dispatch Action")
+        configuration.addReference(
+            CellReference(
+                endpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+                label: "conferenceParticipantShell"
+            )
+        )
+
+        let actionButton = SkeletonButton(
+            keypath: "conferenceParticipantShell.dispatchAction",
+            label: "Vis for deg",
+            payload: .object([
+                "keypath": .string("agenda.setView"),
+                "payload": .object(["view": .string("forYou")])
+            ])
+        )
+
+        configuration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Text(SkeletonText(keypath: "conferenceParticipantShell.state.workspace.title")),
+                .Button(actionButton)
+            ])
+        )
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        #expect(!report.issues.contains(where: {
+            $0.title == "Bindings uten matchende reference"
+        }))
+    }
+
     @Test func skeletonBindingProbeSupportExtractsConferenceParticipantStateRoot() {
         let configuration = makeConferenceParticipantPortalConfiguration()
         let probes = SkeletonBindingProbeSupport.rootProbes(for: configuration)

@@ -6609,14 +6609,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         _ text: String,
         fontSize: Double? = nil,
         fontWeight: String? = nil,
-        foregroundColor: String? = "#D7E7F2"
+        foregroundColor: String? = "#D7E7F2",
+        lineLimit: Int? = nil
     ) -> SkeletonElement {
         var label = SkeletonText(text: text)
-        if fontSize != nil || fontWeight != nil || foregroundColor != nil {
+        if fontSize != nil || fontWeight != nil || foregroundColor != nil || lineLimit != nil {
             label.modifiers = modifier {
                 $0.fontSize = fontSize
                 $0.fontWeight = fontWeight
                 $0.foregroundColor = foregroundColor
+                $0.lineLimit = lineLimit
             }
         }
         return .Text(label)
@@ -6626,14 +6628,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         _ keypath: String,
         fontSize: Double? = nil,
         fontWeight: String? = nil,
-        foregroundColor: String? = "#D7E7F2"
+        foregroundColor: String? = "#D7E7F2",
+        lineLimit: Int? = nil
     ) -> SkeletonElement {
         var label = SkeletonText(keypath: keypath)
-        if fontSize != nil || fontWeight != nil || foregroundColor != nil {
+        if fontSize != nil || fontWeight != nil || foregroundColor != nil || lineLimit != nil {
             label.modifiers = modifier {
                 $0.fontSize = fontSize
                 $0.fontWeight = fontWeight
                 $0.foregroundColor = foregroundColor
+                $0.lineLimit = lineLimit
             }
         }
         return .Text(label)
@@ -7053,10 +7057,10 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     private static func bindingConferencePortalRecommendationCardSkeleton() -> SkeletonElement {
         var section = SkeletonSection(content: [
-            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
-            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
-            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
-            bindingConferencePortalBadgeKeyText("note")
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 1)
         ])
         section.modifiers = modifier {
             $0.padding = 12
@@ -7064,38 +7068,60 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#244457"
+            $0.height = 144
         }
         return .Section(section)
     }
 
     private static func bindingConferencePortalSessionCardSkeleton() -> SkeletonElement {
         var section = SkeletonSection(content: [
-            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
-            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
-            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
-            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 1)
         ])
-        section.modifiers = bindingConferencePortalInlineCardModifier()
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 148
+        }
         return .Section(section)
     }
 
     private static func bindingConferencePortalTitleDetailCardSkeleton() -> SkeletonElement {
         var section = SkeletonSection(content: [
-            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
-            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED")
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3)
         ])
-        section.modifiers = bindingConferencePortalInlineCardModifier()
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 128
+        }
         return .Section(section)
     }
 
     private static func bindingConferencePortalTimelineCardSkeleton() -> SkeletonElement {
         var section = SkeletonSection(content: [
-            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
-            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#9AB3C3"),
-            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
-            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 1),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 1)
         ])
-        section.modifiers = bindingConferencePortalInlineCardModifier()
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 148
+        }
         return .Section(section)
     }
 

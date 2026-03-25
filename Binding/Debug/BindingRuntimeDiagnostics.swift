@@ -32,10 +32,11 @@ enum BindingDiagnosticSeverity: String, Hashable {
 
 struct BindingDiagnosticEntry: Identifiable, Hashable {
     let id = UUID()
-    let timestamp: Date
+    var timestamp: Date
     let severity: BindingDiagnosticSeverity
     let domain: String
     let message: String
+    var occurrenceCount: Int = 1
 }
 
 struct CellConfigurationValidationIssue: Identifiable, Hashable {
@@ -257,20 +258,39 @@ enum CellConfigurationValidationService {
         return try? JSONSerialization.jsonObject(with: data)
     }
 
-    private static func collectValues(from value: Any, into collected: inout [String]) {
+    private static func collectValues(
+        from value: Any,
+        into collected: inout [String],
+        insideDispatchActionPayload: Bool = false
+    ) {
         switch value {
         case let dictionary as [String: Any]:
+            let isDispatchActionContainer = (dictionary["keypath"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .hasSuffix(".dispatchAction") == true
             for (key, child) in dictionary {
+                let childInsideDispatchActionPayload = insideDispatchActionPayload || (isDispatchActionContainer && key == "payload")
                 if let stringValue = child as? String,
                    referenceSensitiveKeys.contains(key) {
+                    if insideDispatchActionPayload && key == "keypath" {
+                        continue
+                    }
                     collected.append(stringValue)
                 } else {
-                    collectValues(from: child, into: &collected)
+                    collectValues(
+                        from: child,
+                        into: &collected,
+                        insideDispatchActionPayload: childInsideDispatchActionPayload
+                    )
                 }
             }
         case let array as [Any]:
             for child in array {
-                collectValues(from: child, into: &collected)
+                collectValues(
+                    from: child,
+                    into: &collected,
+                    insideDispatchActionPayload: insideDispatchActionPayload
+                )
             }
         default:
             break
@@ -301,7 +321,16 @@ final class BindingRuntimeDiagnostics: ObservableObject {
         CellBase.diagnosticLogHandler = { [weak self] domain, message in
             self?.previousHandler?(domain, message)
             Task { @MainActor [weak self] in
-                self?.append(
+                guard let self else {
+                    return
+                }
+                guard self.panelVisible else {
+                    return
+                }
+                guard !Self.shouldSuppress(domain: domain, message: message) else {
+                    return
+                }
+                self.append(
                     severity: Self.severity(for: domain, message: message),
                     domain: domain.rawValue,
                     message: message
@@ -331,8 +360,21 @@ final class BindingRuntimeDiagnostics: ObservableObject {
         domain: String,
         message: String
     ) {
+        let now = Date()
+        if let existingIndex = entries.firstIndex(where: {
+            $0.severity == severity &&
+                $0.domain == domain &&
+                $0.message == message
+        }) {
+            var existing = entries.remove(at: existingIndex)
+            existing.timestamp = now
+            existing.occurrenceCount += 1
+            entries.insert(existing, at: 0)
+            return
+        }
+
         let entry = BindingDiagnosticEntry(
-            timestamp: Date(),
+            timestamp: now,
             severity: severity,
             domain: domain,
             message: message
@@ -366,6 +408,19 @@ final class BindingRuntimeDiagnostics: ObservableObject {
         default:
             return .info
         }
+    }
+
+    private static func shouldSuppress(
+        domain: CellBase.DiagnosticLogDomain,
+        message: String
+    ) -> Bool {
+        guard domain == .skeleton else {
+            return false
+        }
+
+        return message.hasPrefix("SkeletonText loading cellName=") ||
+            message.hasPrefix("SkeletonText loading keypath=") ||
+            message.hasPrefix("SkeletonText fetched content for keypath=")
     }
 }
 
@@ -474,6 +529,9 @@ struct BindingDiagnosticsPanel: View {
                                         Text(entry.domain.uppercased())
                                             .font(.caption2.weight(.semibold))
                                             .foregroundStyle(entry.severity.tint)
+                                        if entry.occurrenceCount > 1 {
+                                            countBadge("x\(entry.occurrenceCount)", tint: entry.severity.tint)
+                                        }
                                         Spacer(minLength: 0)
                                     }
                                     Text(entry.message)

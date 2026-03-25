@@ -8,6 +8,8 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Binding bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Binding bruker Face ID for aa laase opp identiteter og signere handlinger med noekler som brukeren kontrollerer.</string>
 	<key>NSNearbyInteractionUsageDescription</key>
 	<string>Binding bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.</string>
 	<key>CFBundleDocumentTypes</key>
