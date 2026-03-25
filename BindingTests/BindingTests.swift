@@ -380,6 +380,86 @@ struct BindingTests {
         )
     }
 
+    @Test func bindingLocalCellRegistrationMakesConferencePreviewFallbacksReadable() async throws {
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+
+        let owner = await makeOwnerIdentity()
+
+        guard let participant = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Could not resolve local conference participant preview fallback")
+            return
+        }
+
+        let participantTitle = try await participant.get(
+            keypath: "state.workspace.title",
+            requester: owner
+        )
+        #expect(participantTitle == .string("Conference Participant Portal Dashboard"))
+
+        guard let admin = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceAdminPreviewShell",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Could not resolve local conference admin preview fallback")
+            return
+        }
+
+        let adminTitle = try await admin.get(
+            keypath: "state.workspace.title",
+            requester: owner
+        )
+        #expect(adminTitle == .string("Conference Control Tower"))
+    }
+
+    @Test func conferenceWorkbenchFallsBackToLocalPreviewWhenStagingPreviewIsDenied() {
+        let contentView = ContentView()
+
+        let participantConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell"
+        )
+        let participantFallback = contentView.localConferencePreviewFallbackConfiguration(
+            for: participantConfiguration,
+            failureDetails: ["denied: preview owner required"]
+        )
+
+        #expect(participantFallback?.cellReferences?.first?.endpoint == "cell:///ConferenceParticipantPreviewShell")
+        #expect(participantFallback?.discovery?.sourceCellEndpoint == "cell:///ConferenceParticipantPreviewShell")
+
+        let adminConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell"
+        )
+        let adminFallback = contentView.localConferencePreviewFallbackConfiguration(
+            for: adminConfiguration,
+            failureDetails: ["denied: organizer VC required"]
+        )
+
+        #expect(adminFallback?.cellReferences?.first?.endpoint == "cell:///ConferenceAdminPreviewShell")
+        #expect(adminFallback?.discovery?.sourceCellEndpoint == "cell:///ConferenceAdminPreviewShell")
+
+        let aiAssistantConfiguration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell://staging.haven.digipomps.org/AIGateway"
+        )
+        #expect(
+            contentView.localConferencePreviewFallbackConfiguration(
+                for: aiAssistantConfiguration,
+                failureDetails: ["denied: preview owner required"]
+            ) == nil
+        )
+
+        #expect(
+            contentView.localConferencePreviewFallbackConfiguration(
+                for: participantConfiguration,
+                failureDetails: ["Timeout ved lasting av conference preview"]
+            ) == nil
+        )
+    }
+
     @Test func conferenceAdminWorkbenchPrefersOrganizerRequesterDescriptor() {
         let contentView = ContentView()
         let configuration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(

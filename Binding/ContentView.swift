@@ -380,7 +380,7 @@ struct ContentView: View {
                     lowerLeft: menuItems(from: viewModel.lowerLeftMenu),
                     lowerMid: menuItems(from: viewModel.lowerMidMenu),
                     lowerRight: menuItems(from: viewModel.lowerRightMenu),
-                    reservedTopInset: topSafeAreaInset + topChromeHeight + 10,
+                    reservedTopInset: max(0, topSafeAreaInset + topChromeHeight + 2),
                     topExpansionStyle: edgeMenuTopExpansionStyle,
                     bottomExpansionStyle: edgeMenuBottomExpansionStyle,
                     labelMode: edgeMenuLabelMode,
@@ -2128,7 +2128,23 @@ struct ContentView: View {
         if let references = normalizedConfiguration.cellReferences, !references.isEmpty {
             updateLoadingStatus("Sjekker tilgjengelige bridge-references…", requestID: requestID)
             let probeResult = await probeFailingTopLevelReferences(in: normalizedConfiguration)
-            if !probeResult.failingReferenceEndpoints.isEmpty {
+            if let fallbackConfiguration = localConferencePreviewFallbackConfiguration(
+                for: loadConfiguration,
+                failureDetails: [probeResult.firstFailureMessage].compactMap { $0 }
+            ) {
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.load",
+                    message: "Staging preview denied access for \(loadConfiguration.name). Falling back to local conference preview."
+                )
+                updateLoadingStatus(
+                    "Staging preview svarte denied. Bytter til lokal conference-preview…",
+                    requestID: requestID
+                )
+                loadConfiguration = fallbackConfiguration
+                activeConfiguration = fallbackConfiguration
+                diagnosticsStore.refreshValidation(for: fallbackConfiguration)
+            } else if !probeResult.failingReferenceEndpoints.isEmpty {
                 let (retainedReferences, removedReferences) = references.reduce(into: ([CellReference](), [CellReference]())) { acc, reference in
                     if probeResult.failingReferenceEndpoints.contains(endpointIdentity(reference.endpoint)) {
                         acc.1.append(reference)
@@ -2182,7 +2198,8 @@ struct ContentView: View {
 
     private func loadConfigurationIntoPorthole(
         _ configuration: CellConfiguration,
-        requestID: UUID
+        requestID: UUID,
+        allowConferencePreviewFallback: Bool = true
     ) async -> Bool {
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let portholeIdentity = await privateRequesterIdentity(),
@@ -2209,6 +2226,28 @@ struct ContentView: View {
                 requester: loadRequester
             )
         } catch {
+            if allowConferencePreviewFallback,
+               let fallbackConfiguration = localConferencePreviewFallbackConfiguration(
+                for: configuration,
+                failureDetails: [String(describing: error)]
+               ) {
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.load",
+                    message: "Absorb of \(configuration.name) failed against staging preview. Retrying with local conference preview."
+                )
+                activeConfiguration = fallbackConfiguration
+                diagnosticsStore.refreshValidation(for: fallbackConfiguration)
+                updateLoadingStatus(
+                    "Staging preview svarte denied. Prøver lokal conference-preview…",
+                    requestID: requestID
+                )
+                return await loadConfigurationIntoPorthole(
+                    fallbackConfiguration,
+                    requestID: requestID,
+                    allowConferencePreviewFallback: false
+                )
+            }
             let message = "Kunne ikke absorbere \(configuration.name) i porthole: \(error)"
             diagnosticsStore.record(
                 severity: .error,
@@ -2246,6 +2285,29 @@ struct ContentView: View {
             }
             return true
         case .failed(let failures):
+            if allowConferencePreviewFallback,
+               let fallbackConfiguration = localConferencePreviewFallbackConfiguration(
+                for: configuration,
+                failureDetails: Array(failures.values)
+               ) {
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.load",
+                    message: "Readable roots for \(configuration.name) were denied. Falling back to local conference preview."
+                )
+                activeConfiguration = fallbackConfiguration
+                diagnosticsStore.refreshValidation(for: fallbackConfiguration)
+                loadErrorMessage = nil
+                updateLoadingStatus(
+                    "Staging preview svarte denied. Laster lokal conference-preview…",
+                    requestID: requestID
+                )
+                return await loadConfigurationIntoPorthole(
+                    fallbackConfiguration,
+                    requestID: requestID,
+                    allowConferencePreviewFallback: false
+                )
+            }
             let failureSummary = summarizeBindingFailures(failures)
             let message = "Noen data for \(configuration.name) er fortsatt utilgjengelige. Viser UI mens forbindelsen varmes opp. \(failureSummary)"
             diagnosticsStore.record(
@@ -2366,6 +2428,42 @@ struct ContentView: View {
                 "\(probe.qualifiedKeypath): \(detail)"
             }
             .joined(separator: " | ")
+    }
+
+    func localConferencePreviewFallbackConfiguration(
+        for configuration: CellConfiguration,
+        failureDetails: [String]
+    ) -> CellConfiguration? {
+        guard failureDetails.contains(where: isDeniedConferencePreviewFailure) else {
+            return nil
+        }
+        guard let references = configuration.cellReferences,
+              references.count == 1,
+              let onlyReference = references.first,
+              RemoteCatalogSupport.isRemoteEndpoint(onlyReference.endpoint)
+        else {
+            return nil
+        }
+
+        switch remoteCellName(from: onlyReference.endpoint) {
+        case "conferenceparticipantpreviewshell":
+            return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceParticipantPreviewShell"
+            )
+        case "conferenceadminpreviewshell":
+            return ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceAdminPreviewShell"
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func isDeniedConferencePreviewFailure(_ detail: String) -> Bool {
+        let normalized = detail
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return normalized.contains("denied")
     }
 
     private func loadingPlaceholderSkeleton(for configuration: CellConfiguration) -> SkeletonElement {
@@ -4119,18 +4217,22 @@ private struct EdgeMenusOverlay: View {
 
     @ViewBuilder
     private func alignedMenu(_ position: EdgePosition, items: [MenuItem], alignment: Alignment) -> some View {
-        EdgeMenu(
-            position: position,
-            items: items,
-            isExpanded: expanded.contains(position),
-            expansionStyle: expansionStyle(for: position),
-            labelMode: labelMode,
-            showsSubtitle: subtitleVisibility(for: position)
-        ) {
-            action(position, $0)
-        }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-            .padding(edgeInsets(for: position))
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
+            .overlay(alignment: alignment) {
+                EdgeMenu(
+                    position: position,
+                    items: items,
+                    isExpanded: expanded.contains(position),
+                    expansionStyle: expansionStyle(for: position),
+                    labelMode: labelMode,
+                    showsSubtitle: subtitleVisibility(for: position)
+                ) {
+                    action(position, $0)
+                }
+                .padding(edgeInsets(for: position))
+            }
     }
 
     private func edgeInsets(for position: EdgePosition) -> EdgeInsets {

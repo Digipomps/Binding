@@ -193,6 +193,10 @@ struct EdgeMenu: View {
     }
 
     private var footprint: CGSize {
+        guard isExpanded else {
+            return CGSize(width: 56, height: 56)
+        }
+
         switch resolvedExpansionStyle {
         case .auto:
             let width = labelMode == .titleOnOpen ? stackFrameWidth : 80
