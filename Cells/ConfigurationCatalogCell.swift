@@ -6734,11 +6734,13 @@ final class ConfigurationCatalogCell: GeneralCell {
     private static func bindingConferenceDirectActionButton(
         keypath: String,
         label: String,
-        payload: ValueType = .bool(true)
+        payload: ValueType = .bool(true),
+        url: String? = nil
     ) -> SkeletonElement {
         var button = SkeletonButton(
             keypath: keypath,
             label: label,
+            url: url,
             payload: payload
         )
         button.modifiers = modifier {
@@ -7099,8 +7101,16 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
                 .HStack(
                     SkeletonHStack(elements: [
-                        bindingConferenceDirectActionButton(keypath: "\(scannerReferenceLabel).start", label: "Start scanner"),
-                        bindingConferenceDirectActionButton(keypath: "\(scannerReferenceLabel).stop", label: "Stop scanner"),
+                        bindingConferenceDirectActionButton(
+                            keypath: "start",
+                            label: "Start scanner",
+                            url: "cell:///ConferenceNearbyRadar"
+                        ),
+                        bindingConferenceDirectActionButton(
+                            keypath: "stop",
+                            label: "Stop scanner",
+                            url: "cell:///ConferenceNearbyRadar"
+                        ),
                         bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.transportBadge"),
                         bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.precisionBadge")
                     ])

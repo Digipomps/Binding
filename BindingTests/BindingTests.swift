@@ -614,8 +614,8 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.nextAction", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "nearbyRadar.start", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "nearbyRadar.stop", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "start", url: "cell:///ConferenceNearbyRadar", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "stop", url: "cell:///ConferenceNearbyRadar", in: skeleton))
         #expect(skeletonContainsButton(keypath: "requestContact", in: skeleton))
         #expect(skeletonContainsTextKeypath("purposeSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("purposeDetail", in: skeleton))
@@ -1830,30 +1830,30 @@ struct BindingTests {
         return configuration
     }
 
-    private func skeletonContainsButton(keypath: String, in element: SkeletonElement) -> Bool {
+    private func skeletonContainsButton(keypath: String, url: String? = nil, in element: SkeletonElement) -> Bool {
         switch element {
         case .Button(let button):
-            return button.keypath == keypath
+            return button.keypath == keypath && button.url == url
         case .VStack(let stack):
-            return stack.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
         case .HStack(let stack):
-            return stack.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
         case .ScrollView(let scroll):
-            return scroll.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+            return scroll.elements.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
         case .Section(let section):
-            return (section.header.map { skeletonContainsButton(keypath: keypath, in: $0) } ?? false) ||
-                section.content.contains { skeletonContainsButton(keypath: keypath, in: $0) } ||
-                (section.footer.map { skeletonContainsButton(keypath: keypath, in: $0) } ?? false)
+            return (section.header.map { skeletonContainsButton(keypath: keypath, url: url, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) } ||
+                (section.footer.map { skeletonContainsButton(keypath: keypath, url: url, in: $0) } ?? false)
         case .Reference(let reference):
-            return reference.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, in: .VStack($0)) } ?? false
+            return reference.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, url: url, in: .VStack($0)) } ?? false
         case .List(let list):
-            return list.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, in: .VStack($0)) } ?? false
+            return list.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, url: url, in: .VStack($0)) } ?? false
         case .Grid(let grid):
-            return grid.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+            return grid.elements.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
         case .ZStack(let stack):
-            return stack.elements.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
         case .Object(let object):
-            return object.elements.values.contains { skeletonContainsButton(keypath: keypath, in: $0) }
+            return object.elements.values.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
         default:
             return false
         }
