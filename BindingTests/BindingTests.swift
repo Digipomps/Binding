@@ -598,6 +598,67 @@ struct BindingTests {
         }
     }
 
+    @Test func conferenceParticipantPortalWorkbenchIncludesDiscoveryAndLocalScannerEnrichment() {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration()
+        let references = configuration.cellReferences ?? []
+
+        #expect(references.contains(where: { $0.label == "conferenceParticipantShell" }))
+        #expect(references.contains(where: { $0.label == "nearbyRadar" && $0.endpoint == "cell:///ConferenceNearbyRadar" }))
+
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Conference participant portal mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.status", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.nextAction", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "nearbyRadar.start", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "nearbyRadar.stop", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "requestContact", in: skeleton))
+        #expect(skeletonContainsTextKeypath("purposeSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("purposeDetail", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "conferenceParticipantShell.state.discovery.candidates", in: skeleton))
+        #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+    }
+
+    @Test func bindingLocalCellRegistrationMakesConferenceNearbyRadarReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let radar = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceNearbyRadar",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceNearbyRadar did not resolve as Meddle")
+            return
+        }
+
+        let stateValue = try await radar.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue else {
+            Issue.record("Expected object from ConferenceNearbyRadar.state, got \(stateValue)")
+            return
+        }
+
+        #expect(object["summary"] != nil)
+        #expect(object["precisionSummary"] != nil)
+        #expect(object["actionSummary"] != nil)
+        #expect(object["sectors"] != nil)
+        #expect(object["nearby"] != nil)
+    }
+
     @Test func conferenceParticipantPortalDashboardIsWrappedInScrollView() {
         var configuration = CellConfiguration(name: "Conference Participant Portal Dashboard")
         configuration.skeleton = .VStack(SkeletonVStack(elements: [
@@ -1898,6 +1959,68 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsTextKeypath(keypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsTextKeypath(keypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonContainsGrid(keypath: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .Grid(let grid):
+            if grid.keypath == keypath {
+                return true
+            }
+            if let itemSkeleton = grid.itemSkeleton, skeletonContainsGrid(keypath: keypath, in: itemSkeleton) {
+                return true
+            }
+            return grid.elements.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsGrid(keypath: keypath, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsGrid(keypath: keypath, in: $0) } ||
+                (section.footer.map { skeletonContainsGrid(keypath: keypath, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map { skeletonContainsGrid(keypath: keypath, in: .VStack($0)) } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map { skeletonContainsGrid(keypath: keypath, in: .VStack($0)) } ?? false
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonContainsReference(keypath: String, topic: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .Reference(let reference):
+            return reference.keypath == keypath && reference.topic == topic
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
+        case .Section(let section):
+            if let header = section.header, skeletonContainsReference(keypath: keypath, topic: topic, in: header) {
+                return true
+            }
+            if let footer = section.footer, skeletonContainsReference(keypath: keypath, topic: topic, in: footer) {
+                return true
+            }
+            return section.content.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
+        case .Grid(let grid):
+            return skeletonContainsReference(keypath: keypath, topic: topic, in: grid.itemSkeleton)
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
         default:
             return false
         }

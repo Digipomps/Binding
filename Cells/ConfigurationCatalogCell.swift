@@ -6542,8 +6542,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             sourceCellEndpoint: endpoint,
             sourceCellName: "ConferenceParticipantPreviewShellCell",
             purpose: "Conference participantportal",
-            purposeDescription: "Participant-shell med agenda, anbefalte personer, møter og shared network, levert over preview-wrapper så samme contract kan brukes i Binding og scaffold.",
-            interests: ["conference", "participant", "agenda", "sessions", "matchmaking", "meetings", "network"],
+            purposeDescription: "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over preview-wrapper så samme contract kan brukes i Binding og scaffold. Binding legger i tillegg paa lokal scanner-enrichment.",
+            interests: ["conference", "participant", "agenda", "sessions", "matchmaking", "meetings", "network", "discovery", "nearby", "scanner"],
             menuSlots: ["upperMid", "lowerMid"]
         )
 
@@ -6551,10 +6551,15 @@ final class ConfigurationCatalogCell: GeneralCell {
         reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
         configuration.addReference(reference)
 
+        let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
+        configuration.addReference(nearbyRadarReference)
+
         var root = SkeletonVStack(elements: [
             bindingConferencePortalHeroSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalAgendaSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalRecommendationsSection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalDiscoverySection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: "nearbyRadar"),
             bindingConferencePortalTimelineSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalNetworkSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalCardSection(
@@ -7010,6 +7015,101 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    private static func bindingConferencePortalDiscoverySection(referenceLabel: String) -> SkeletonElement {
+        bindingConferencePortalCardSection(
+            "Entity Discovery",
+            content: [
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.intro"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.status"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.alignmentSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.proofSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.sourceSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.publicProfileSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.chatSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.nextAction"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.refreshSummary"),
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.discovery.candidates",
+                    itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
+                ),
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.discovery.proofCandidates",
+                    itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
+                ),
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.discovery.groupSuggestions",
+                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
+                ),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "discovery.refresh",
+                            label: "Oppdater discovery"
+                        )
+                    ])
+                )
+            ]
+        )
+    }
+
+    private static func bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: String) -> SkeletonElement {
+        var snapshotReference = SkeletonCellReference(keypath: scannerReferenceLabel, topic: "nearbyRadar.snapshot")
+        var snapshotStack = SkeletonVStack(elements: [
+            bindingConferencePortalKeyText("headline", fontSize: 14, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
+            bindingConferencePortalKeyText("precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+            bindingConferencePortalKeyText("actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+            .HStack(
+                SkeletonHStack(elements: [
+                    bindingConferencePortalBadgeKeyText("transportBadge"),
+                    bindingConferencePortalBadgeKeyText("precisionBadge"),
+                    bindingConferencePortalBadgeKeyText("statusBadge")
+                ])
+            ),
+            bindingConferencePortalCollectionGrid(
+                keypath: "sectors",
+                min: 150,
+                max: 210,
+                itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
+            ),
+            bindingConferencePortalCollectionGrid(
+                keypath: "nearby",
+                min: 220,
+                max: 300,
+                itemSkeleton: bindingConferencePortalNearbyCardSkeleton()
+            ),
+            bindingConferencePortalKeyText("description", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+            bindingConferencePortalKeyText("localityNote", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3)
+        ])
+        snapshotStack.modifiers = bindingConferencePortalInlineCardModifier()
+        snapshotReference.flowElementSkeleton = snapshotStack
+
+        return bindingConferencePortalCardSection(
+            "Nearby Scanner Enrichment",
+            content: [
+                bindingConferencePortalStaticText(
+                    "Binding enriches conference discovery with a local nearby-radar snapshot over EntityScanner. This stays Apple-local and does not replace the portable discovery contract from web/staging.",
+                    fontSize: 12,
+                    foregroundColor: "#9AB3C3",
+                    lineLimit: 4
+                ),
+                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
+                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferenceDirectActionButton(keypath: "\(scannerReferenceLabel).start", label: "Start scanner"),
+                        bindingConferenceDirectActionButton(keypath: "\(scannerReferenceLabel).stop", label: "Stop scanner"),
+                        bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.transportBadge"),
+                        bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.precisionBadge")
+                    ])
+                ),
+                .Reference(snapshotReference)
+            ]
+        )
+    }
+
     private static func bindingConferencePortalNetworkSection(referenceLabel: String) -> SkeletonElement {
         bindingConferencePortalCardSection(
             "Nettverks-Hub",
@@ -7133,6 +7233,27 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
         ])
         section.modifiers = bindingConferencePortalInlineCardModifier()
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalNearbyCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+            bindingConferencePortalKeyText("purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
+            bindingConferencePortalKeyText("purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            .Button(SkeletonButton(keypath: "requestContact", label: "Request contact"))
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 212
+        }
         return .Section(section)
     }
 
