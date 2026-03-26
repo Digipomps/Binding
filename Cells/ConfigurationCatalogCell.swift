@@ -7101,16 +7101,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
                 .HStack(
                     SkeletonHStack(elements: [
-                        bindingConferenceDirectActionButton(
-                            keypath: "start",
-                            label: "Start scanner",
-                            url: "cell:///ConferenceNearbyRadar"
-                        ),
-                        bindingConferenceDirectActionButton(
-                            keypath: "stop",
-                            label: "Stop scanner",
-                            url: "cell:///ConferenceNearbyRadar"
-                        ),
+                        bindingConferencePortalActionButton(scannerReferenceLabel, actionKeypath: "start", label: "Start scanner"),
+                        bindingConferencePortalActionButton(scannerReferenceLabel, actionKeypath: "stop", label: "Stop scanner"),
                         bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.transportBadge"),
                         bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.precisionBadge")
                     ])
@@ -7254,7 +7246,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
             bindingConferencePortalKeyText("purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
-            .Button(SkeletonButton(keypath: "requestContact", label: "Request contact"))
+            .Button(SkeletonButton(keypath: "dispatchAction", label: "Request contact"))
         ])
         section.modifiers = modifier {
             $0.padding = 12

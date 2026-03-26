@@ -614,9 +614,8 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.nextAction", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "start", url: "cell:///ConferenceNearbyRadar", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "stop", url: "cell:///ConferenceNearbyRadar", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "requestContact", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", in: skeleton))
         #expect(skeletonContainsTextKeypath("purposeSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("purposeDetail", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "conferenceParticipantShell.state.discovery.candidates", in: skeleton))
@@ -690,6 +689,46 @@ struct BindingTests {
 
         #expect(object["summary"] != nil)
         #expect(object["precisionSummary"] != nil)
+        #expect(object["actionSummary"] != nil)
+    }
+
+    @Test func conferenceNearbyRadarDispatchActionReturnsSnapshotObject() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await BindingLaunchWarmup.preloadLocalRuntime()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after launch warmup")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let radar = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceNearbyRadar",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceNearbyRadar did not resolve as Meddle")
+            return
+        }
+
+        let response = try await radar.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("start"),
+                "payload": .bool(true)
+            ]),
+            requester: identity
+        )
+
+        guard case let .object(object) = response else {
+            Issue.record("Expected snapshot object from ConferenceNearbyRadar.dispatchAction, got \(response)")
+            return
+        }
+
+        #expect(object["summary"] != nil)
         #expect(object["actionSummary"] != nil)
     }
 

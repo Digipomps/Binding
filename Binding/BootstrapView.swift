@@ -371,6 +371,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "invite")
         agreementTemplate.addGrant("rw--", for: "requestContact")
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
 
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
@@ -407,6 +408,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "openFollowUpChat", for: requester) else { return .string("denied") }
             return await self.openFollowUpChat(value: value, requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "dispatchAction", for: requester) else { return .string("denied") }
+            return await self.forwardDispatchAction(value: value, requester: requester)
         })
 
         Task { [weak self] in
@@ -510,6 +517,30 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         emitSnapshot(requester: requester)
         return .object(snapshotObject())
+    }
+
+    private func forwardDispatchAction(value: ValueType, requester: Identity) async -> ValueType {
+        guard case let .object(actionObject) = value,
+              let actionKeypath = string(from: actionObject["keypath"]),
+              actionKeypath.isEmpty == false else {
+            lastError = "Nearby action payload mangler keypath."
+            lastActionSummary = "Nearby action payload mangler keypath."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
+        let actionPayload = actionObject["payload"] ?? .bool(true)
+        switch actionKeypath {
+        case "start", "stop", "invite", "requestContact":
+            return await forwardMutation(keypath: actionKeypath, value: actionPayload, requester: requester)
+        case "openFollowUpChat":
+            return await openFollowUpChat(value: actionPayload, requester: requester)
+        default:
+            lastError = "Nearby action \(actionKeypath) er ikke stoettet."
+            lastActionSummary = "Nearby action \(actionKeypath) er ikke stoettet."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
     }
 
     private func refreshCapabilitySnapshot(requester: Identity) async {
@@ -994,10 +1025,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
                 "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
                 "note": .string(hasLaunchedChat ? "Discovery chat is ready. \(note)" : note),
-                "url": .string("cell:///ConferenceNearbyRadar"),
-                "keypath": .string("openFollowUpChat"),
+                "keypath": .string("dispatchAction"),
                 "label": .string(hasLaunchedChat ? "Open chat" : "Start chat"),
-                "payload": .object(["remoteUUID": .string(entity.remoteUUID)])
+                "payload": .object([
+                    "keypath": .string("openFollowUpChat"),
+                    "payload": .object(["remoteUUID": .string(entity.remoteUUID)])
+                ])
             ]
         }
 
@@ -1008,10 +1041,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
             "note": .string(note),
-            "url": .string("cell:///ConferenceNearbyRadar"),
-            "keypath": .string("requestContact"),
+            "keypath": .string("dispatchAction"),
             "label": .string(contactSignal?.actionLabel ?? "Request contact"),
-            "payload": .string(entity.remoteUUID)
+            "payload": .object([
+                "keypath": .string("requestContact"),
+                "payload": .string(entity.remoteUUID)
+            ])
         ]
     }
 
