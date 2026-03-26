@@ -622,6 +622,28 @@ struct BindingTests {
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
     }
 
+    @Test func conferenceParticipantPortalRepairRestoresNearbyRadarDispatchWiring() {
+        var staleConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        staleConfiguration.cellReferences?.removeAll { $0.label == "nearbyRadar" }
+
+        let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(staleConfiguration)
+
+        #expect(repaired != nil)
+        #expect(repaired?.cellReferences?.contains(where: {
+            $0.label == "nearbyRadar" && $0.endpoint == "cell:///ConferenceNearbyRadar"
+        }) == true)
+
+        guard let skeleton = repaired?.skeleton else {
+            Issue.record("Expected repaired conference participant portal skeleton")
+            return
+        }
+
+        #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
+        #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+    }
+
     @Test func bindingLocalCellRegistrationMakesConferenceNearbyRadarReadable() async throws {
         let identityVault = IdentityVault.shared
         _ = await identityVault.initialize()
@@ -730,6 +752,73 @@ struct BindingTests {
 
         #expect(object["summary"] != nil)
         #expect(object["actionSummary"] != nil)
+    }
+
+    @Test func portholeRoutesNearbyRadarDispatchActionForConferenceParticipantPortal() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await BindingLaunchWarmup.preloadLocalRuntime()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after launch warmup")
+            return
+        }
+        guard let owner = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let porthole = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///Porthole",
+            requester: owner
+        ) as? OrchestratorCell else {
+            Issue.record("Could not resolve Porthole")
+            return
+        }
+
+        porthole.detachAll(requester: owner)
+
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        try await porthole.loadCellConfiguration(configuration, requester: owner)
+
+        let beforeSummary = try await porthole.get(
+            keypath: "nearbyRadar.state.actionSummary",
+            requester: owner
+        )
+        #expect(beforeSummary == .string("Nearby radar is ready. Request contact to unlock verified purpose and interest matching."))
+
+        let response = try await porthole.set(
+            keypath: "nearbyRadar.dispatchAction",
+            value: .object([
+                "keypath": .string("start"),
+                "payload": .bool(true)
+            ]),
+            requester: owner
+        )
+
+        guard case let .object(snapshot) = response else {
+            Issue.record("Expected snapshot object from Porthole nearbyRadar.dispatchAction, got \(response)")
+            return
+        }
+
+        #expect(snapshot["summary"] != nil)
+        #expect(snapshot["actionSummary"] != nil)
+
+        let afterSummary = try await porthole.get(
+            keypath: "nearbyRadar.state.actionSummary",
+            requester: owner
+        )
+        guard case let .string(afterSummaryText) = afterSummary else {
+            Issue.record("Expected string action summary after dispatch through Porthole")
+            return
+        }
+        #expect(afterSummaryText.contains("Starting scanner") || afterSummaryText.contains("Scanner started"))
     }
 
     @Test func conferenceNearbyFollowUpSupportBuildsDiscoveryPayloadFromVerifiedEncounter() {

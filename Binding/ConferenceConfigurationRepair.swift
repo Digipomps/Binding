@@ -1,0 +1,75 @@
+import Foundation
+import CellBase
+
+enum BindingConferenceConfigurationRepair {
+    private static let participantPortalName = "conference participant portal dashboard"
+
+    static func updatedConfigurationIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration? {
+        switch normalizedName(for: configuration) {
+        case participantPortalName:
+            return updatedParticipantPortalConfigurationIfNeeded(configuration)
+        default:
+            return nil
+        }
+    }
+
+    static func reconcile(_ configuration: CellConfiguration) -> CellConfiguration {
+        updatedConfigurationIfNeeded(configuration) ?? configuration
+    }
+
+    private static func updatedParticipantPortalConfigurationIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration? {
+        guard participantPortalNeedsRepair(configuration) else {
+            return nil
+        }
+
+        let endpoint = participantPortalEndpoint(from: configuration)
+        return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(endpoint: endpoint)
+    }
+
+    private static func participantPortalNeedsRepair(_ configuration: CellConfiguration) -> Bool {
+        let references = configuration.cellReferences ?? []
+        let hasNearbyRadarReference = references.contains(where: {
+            $0.label == "nearbyRadar" && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceNearbyRadar")
+        })
+        let skeletonJSON = serializedSkeleton(configuration.skeleton)
+        let hasNearbyDispatchAction = skeletonJSON.contains("\"nearbyRadar.dispatchAction\"")
+        let hasNearbySnapshotReference = skeletonJSON.contains("\"nearbyRadar.snapshot\"")
+
+        return !(hasNearbyRadarReference && hasNearbyDispatchAction && hasNearbySnapshotReference)
+    }
+
+    private static func participantPortalEndpoint(from configuration: CellConfiguration) -> String {
+        let references = configuration.cellReferences ?? []
+        if let labeledReference = references.first(where: { $0.label == "conferenceParticipantShell" }) {
+            return labeledReference.endpoint
+        }
+        if let previewReference = references.first(where: {
+            endpointIdentity($0.endpoint).hasSuffix("/conferenceparticipantpreviewshell")
+        }) {
+            return previewReference.endpoint
+        }
+        return "cell:///ConferenceParticipantPreviewShell"
+    }
+
+    private static func normalizedName(for configuration: CellConfiguration) -> String {
+        configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func serializedSkeleton(_ skeleton: SkeletonElement?) -> String {
+        guard let skeleton,
+              let data = try? JSONEncoder().encode(skeleton) else {
+            return ""
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func endpointIdentity(_ endpoint: String) -> String {
+        if let components = URLComponents(string: endpoint) {
+            let scheme = components.scheme?.lowercased() ?? ""
+            let host = (components.host ?? "").lowercased()
+            let path = components.path.lowercased()
+            return "\(scheme)|\(host)|\(path)"
+        }
+        return endpoint.lowercased()
+    }
+}

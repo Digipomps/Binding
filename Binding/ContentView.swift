@@ -1007,8 +1007,8 @@ struct ContentView: View {
     }
 
     private func normalizeConfigurationForResolver(_ configuration: CellConfiguration, origin: CatalogOrigin?, resolver: CellResolver) -> CellConfiguration {
-        var normalized = configuration
-        if let references = configuration.cellReferences {
+        var normalized = BindingConferenceConfigurationRepair.reconcile(configuration)
+        if let references = normalized.cellReferences {
             normalized.cellReferences = references.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
         }
         normalized = ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
@@ -1950,7 +1950,18 @@ struct ContentView: View {
         }
 
         do {
-            return try JSONDecoder().decode(CellConfiguration.self, from: data)
+            var decoded = try JSONDecoder().decode(CellConfiguration.self, from: data)
+            if let updated = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(decoded) {
+                decoded = updated
+                if let updatedData = try? JSONEncoder().encode(updated) {
+                    demoStartConfigurationJSON = String(decoding: updatedData, as: UTF8.self)
+                }
+                diagnosticsStore.record(
+                    domain: "binding.demo",
+                    message: "Oppgraderte lagret demo-start til nyeste conference-konfigurasjon."
+                )
+            }
+            return decoded
         } catch {
             diagnosticsStore.record(
                 domain: "binding.demo",
