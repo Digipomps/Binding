@@ -131,6 +131,170 @@ actor BindingLocalCellRegistration {
     }
 }
 
+struct ConferenceNearbyFollowUpTarget: Equatable {
+    var remoteUUID: String
+    var participantId: String
+    var identityUUID: String?
+    var displayName: String
+    var company: String?
+    var role: String?
+
+    func discoveryTargetObject() -> Object {
+        var object: Object = [
+            "participantId": .string(participantId),
+            "displayName": .string(displayName),
+            "company": .string(company ?? ""),
+            "role": .string(role ?? "")
+        ]
+        if let identityUUID {
+            object["identityUUID"] = .string(identityUUID)
+        }
+        return object
+    }
+}
+
+enum ConferenceNearbyFollowUpSupport {
+    static func target(
+        from encounter: Object,
+        fallbackRemoteUUID: String,
+        fallbackDisplayName: String
+    ) -> ConferenceNearbyFollowUpTarget {
+        let remotePerspective = object(from: encounter["remotePerspective"])
+        let identityUUID = normalizedString(from: encounter["remoteIdentityUUID"])
+        let participantId = prioritizedString(
+            in: remotePerspective,
+            keypaths: [
+                ["participantId"],
+                ["profile", "participantId"],
+                ["participant", "participantId"],
+                ["identityProfile", "state", "participantId"],
+                ["publicProfile", "profile", "participantId"],
+                ["publicProfile", "state", "profile", "participantId"],
+                ["editorState", "participantId"]
+            ]
+        ) ?? synthesizedParticipantId(remoteUUID: fallbackRemoteUUID, identityUUID: identityUUID)
+        let displayName = normalizedString(from: encounter["remoteDisplayName"])
+            ?? prioritizedString(
+                in: remotePerspective,
+                keypaths: [
+                    ["displayName"],
+                    ["name"],
+                    ["profile", "displayName"],
+                    ["profile", "name"],
+                    ["participant", "name"],
+                    ["identityProfile", "state", "name"],
+                    ["publicProfile", "profile", "displayName"],
+                    ["publicProfile", "profile", "name"],
+                    ["publicProfile", "state", "profile", "displayName"],
+                    ["publicProfile", "state", "profile", "name"]
+                ]
+            )
+            ?? fallbackDisplayName
+        let company = prioritizedString(
+            in: remotePerspective,
+            keypaths: [
+                ["company"],
+                ["profile", "company"],
+                ["participant", "company"],
+                ["identityProfile", "state", "company"],
+                ["publicProfile", "profile", "company"],
+                ["publicProfile", "state", "profile", "company"]
+            ]
+        )
+        let role = prioritizedString(
+            in: remotePerspective,
+            keypaths: [
+                ["role"],
+                ["profile", "role"],
+                ["participant", "role"],
+                ["identityProfile", "state", "role"],
+                ["publicProfile", "profile", "role"],
+                ["publicProfile", "state", "profile", "role"]
+            ]
+        )
+
+        return ConferenceNearbyFollowUpTarget(
+            remoteUUID: fallbackRemoteUUID,
+            participantId: participantId,
+            identityUUID: identityUUID,
+            displayName: displayName,
+            company: company,
+            role: role
+        )
+    }
+
+    static func discoveryPayload(for target: ConferenceNearbyFollowUpTarget, source: String) -> Object {
+        var payload: Object = [
+            "source": .string(source),
+            "participantIds": .list([.string(target.participantId)]),
+            "displayName": .string(target.displayName),
+            "company": .string(target.company ?? ""),
+            "role": .string(target.role ?? ""),
+            "targets": .list([.object(target.discoveryTargetObject())])
+        ]
+        if let identityUUID = target.identityUUID {
+            payload["identityUUIDs"] = .list([.string(identityUUID)])
+        }
+        return payload
+    }
+
+    static func synthesizedParticipantId(remoteUUID: String, identityUUID: String?) -> String {
+        let seed = identityUUID ?? remoteUUID
+        let sanitized = seed
+            .lowercased()
+            .map { character -> Character in
+                if character.isLetter || character.isNumber {
+                    return character
+                }
+                return "-"
+            }
+            .reduce(into: "") { partial, character in
+                if character == "-", partial.last == "-" {
+                    return
+                }
+                partial.append(character)
+            }
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        if sanitized.isEmpty {
+            return "nearby-participant"
+        }
+        return "nearby-\(sanitized)"
+    }
+
+    private static func prioritizedString(in object: Object?, keypaths: [[String]]) -> String? {
+        for keypath in keypaths {
+            if let string = string(at: keypath, in: object) {
+                return string
+            }
+        }
+        return nil
+    }
+
+    private static func string(at keypath: [String], in object: Object?) -> String? {
+        guard let object else { return nil }
+        var current: ValueType = .object(object)
+        for key in keypath {
+            guard case let .object(dictionary) = current,
+                  let nextValue = dictionary[key] else {
+                return nil
+            }
+            current = nextValue
+        }
+        return normalizedString(from: current)
+    }
+
+    private static func normalizedString(from value: ValueType?) -> String? {
+        guard case let .string(raw)? = value else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func object(from value: ValueType?) -> Object? {
+        guard case let .object(object)? = value else { return nil }
+        return object
+    }
+}
+
 @MainActor
 private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private enum CompassSector: String, CaseIterable {
@@ -177,6 +341,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private var supportsNearbyPrecision = false
     private var contactSignalsById: [String: ContactSignal] = [:]
     private var purposeSignalsById: [String: PurposeSignal] = [:]
+    private var followUpTargetsById: [String: ConferenceNearbyFollowUpTarget] = [:]
+    private var launchedChatRemoteUUIDs: Set<String> = []
     private var lastError: String?
     private var lastActionSummary = "Nearby radar is ready. Request contact to unlock verified purpose and interest matching."
 
@@ -204,6 +370,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "stop")
         agreementTemplate.addGrant("rw--", for: "invite")
         agreementTemplate.addGrant("rw--", for: "requestContact")
+        agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
 
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
@@ -234,6 +401,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "requestContact", for: requester) else { return .string("denied") }
             return await self.forwardMutation(keypath: "requestContact", value: value, requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "openFollowUpChat", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "openFollowUpChat", for: requester) else { return .string("denied") }
+            return await self.openFollowUpChat(value: value, requester: requester)
         })
 
         Task { [weak self] in
@@ -363,6 +536,65 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         } catch {
             lastError = "Could not refresh nearby encounter summaries: \(error)"
         }
+    }
+
+    private func openFollowUpChat(value: ValueType, requester: Identity) async -> ValueType {
+        guard let remoteUUID = normalizedRemoteUUID(string(from: object(from: value)?["remoteUUID"]) ?? string(from: value)),
+              let target = followUpTargetsById[remoteUUID] else {
+            lastError = "Nearby follow-up is not ready yet. Complete signed contact proof first."
+            lastActionSummary = "Nearby follow-up is not ready yet. Complete signed contact proof first."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+        guard let resolver = CellBase.defaultCellResolver else {
+            lastError = "Cell resolver missing"
+            lastActionSummary = "Could not open discovery chat because the local resolver is missing."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
+        do {
+            guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: requester) as? Meddle else {
+                lastError = "Porthole unavailable"
+                lastActionSummary = "Could not open discovery chat because Porthole is unavailable."
+                emitSnapshot(requester: requester)
+                return .object(snapshotObject())
+            }
+
+            let dispatchPayload: Object = [
+                "keypath": .string("discovery.startChat"),
+                "payload": .object(
+                    ConferenceNearbyFollowUpSupport.discoveryPayload(
+                        for: target,
+                        source: "nearby-verified-contact"
+                    )
+                )
+            ]
+            let result = try await porthole.set(
+                keypath: "conferenceParticipantShell.dispatchAction",
+                value: .object(dispatchPayload),
+                requester: requester
+            )
+            if let errorDescription = mutationErrorDescription(from: result) {
+                lastError = errorDescription
+                lastActionSummary = errorDescription
+            } else {
+                lastError = nil
+                launchedChatRemoteUUIDs.insert(remoteUUID)
+                lastActionSummary = "Started a conference follow-up chat with \(target.displayName)."
+                if var contactSignal = contactSignalsById[remoteUUID] {
+                    contactSignal.summary = "Verified contact saved. Discovery chat is ready for follow-up."
+                    contactSignal.actionLabel = "Open chat"
+                    contactSignalsById[remoteUUID] = contactSignal
+                }
+            }
+        } catch {
+            lastError = "Nearby follow-up chat failed: \(error)"
+            lastActionSummary = "Nearby follow-up chat failed: \(error)"
+        }
+
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
     }
 
     private func consume(flowElement: FlowElement) async {
@@ -561,6 +793,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         var refreshedPurposeSignals: [String: PurposeSignal] = [:]
+        var refreshedFollowUpTargets: [String: ConferenceNearbyFollowUpTarget] = [:]
         for encounterValue in encounters {
             guard let encounter = object(from: encounterValue),
                   let remoteUUID = normalizedRemoteUUID(string(from: encounter["remoteUUID"])) else {
@@ -569,6 +802,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
             let purposeSignal = makePurposeSignal(from: encounter)
             refreshedPurposeSignals[remoteUUID] = purposeSignal
+            refreshedFollowUpTargets[remoteUUID] = ConferenceNearbyFollowUpSupport.target(
+                from: encounter,
+                fallbackRemoteUUID: remoteUUID,
+                fallbackDisplayName: string(from: encounter["remoteDisplayName"])
+                    ?? entitiesById[remoteUUID]?.displayName
+                    ?? remoteUUID
+            )
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "verified",
                 summary: purposeSignal.count > 0
@@ -579,6 +819,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         purposeSignalsById = refreshedPurposeSignals
+        followUpTargetsById = refreshedFollowUpTargets
+        launchedChatRemoteUUIDs.formIntersection(Set(refreshedFollowUpTargets.keys))
     }
 
     private func makePurposeSignal(from encounter: Object) -> PurposeSignal {
@@ -655,9 +897,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let nearbyCards = entities.prefix(8).map(makeNearbyCard(for:))
         let connectedCount = entities.filter(\.connected).count
         let verifiedMatchCount = purposeSignalsById.values.filter { $0.count > 0 }.count
+        let followUpCount = followUpTargetsById.count
         let summary = entities.isEmpty
             ? "Ingen nearby peers enda. Start scanner for å bygge et lokalt spatialt bilde."
-            : "\(entities.count) nearby peer(s) · \(connectedCount) connected · \(verifiedMatchCount) verified purpose fit(s)."
+            : "\(entities.count) nearby peer(s) · \(connectedCount) connected · \(verifiedMatchCount) verified purpose fit(s) · \(followUpCount) follow-up chat(s) ready."
 
         let precisionSummary: String
         if precisionMode.lowercased().contains("uwb") || supportsNearbyPrecision {
@@ -741,6 +984,23 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let contactSignal = contactSignalsById[entity.remoteUUID]
         let note = contactSignal?.summary ?? "\(entity.status) · \(precisionText)"
 
+        if followUpTargetsById[entity.remoteUUID] != nil,
+           contactSignal?.status == "verified" {
+            let hasLaunchedChat = launchedChatRemoteUUIDs.contains(entity.remoteUUID)
+            return [
+                "title": .string(entity.displayName),
+                "subtitle": .string("\(sector.title) sector"),
+                "detail": .string(detail),
+                "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
+                "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
+                "note": .string(hasLaunchedChat ? "Discovery chat is ready. \(note)" : note),
+                "url": .string("cell:///ConferenceNearbyRadar"),
+                "keypath": .string("openFollowUpChat"),
+                "label": .string(hasLaunchedChat ? "Open chat" : "Start chat"),
+                "payload": .object(["remoteUUID": .string(entity.remoteUUID)])
+            ]
+        }
+
         return [
             "title": .string(entity.displayName),
             "subtitle": .string("\(sector.title) sector"),
@@ -753,6 +1013,28 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "label": .string(contactSignal?.actionLabel ?? "Request contact"),
             "payload": .string(entity.remoteUUID)
         ]
+    }
+
+    private func mutationErrorDescription(from value: ValueType?) -> String? {
+        guard let value else { return "Unknown nearby follow-up failure." }
+        switch value {
+        case let .string(string):
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { return nil }
+            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
+                return trimmed
+            }
+            return nil
+        case let .object(object):
+            if case let .string(status)? = object["status"],
+               status == "error",
+               let message = string(from: object["message"]) {
+                return message
+            }
+            return nil
+        default:
+            return nil
+        }
     }
 
     private func compassSector(for entity: NearbyEntity) -> CompassSector {
@@ -871,6 +1153,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
         "Takk for praten. Skal vi fortsette etter neste sesjon?",
         "Jeg kan dele oppsummeringen fra governance-panelet etter lunsj."
     ]
+    private var launchedDiscoveryChatNames: [String] = []
     private var recentActionSummary = "Participant-preview kjører lokalt i Binding fordi staging-preview svarte denied."
 
     required init(owner: Identity) async {
@@ -956,6 +1239,28 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 recentMessageTexts = Array(recentMessageTexts.prefix(4))
                 recentActionSummary = "La til en ny oppfølgingsmelding i shared network."
             }
+        case "discovery.startChat":
+            let targetNames = discoveryTargetNames(from: payload)
+            if let firstTarget = targetNames.first {
+                launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
+                launchedDiscoveryChatNames.insert(firstTarget, at: 0)
+                launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
+                recentMessageTexts.insert("Nearby follow-up med \(firstTarget) er klar i discovery chat.", at: 0)
+                recentMessageTexts = Array(recentMessageTexts.prefix(4))
+                recentActionSummary = "Startet oppfølgingschat med \(firstTarget) i lokal preview."
+            } else {
+                recentActionSummary = "Startet en discovery-chat i lokal preview."
+            }
+        case "discovery.startGroupChat":
+            let targetNames = discoveryTargetNames(from: payload)
+            if targetNames.isEmpty == false {
+                let summary = targetNames.joined(separator: ", ")
+                recentMessageTexts.insert("Nearby group follow-up er klar med \(summary).", at: 0)
+                recentMessageTexts = Array(recentMessageTexts.prefix(4))
+                recentActionSummary = "Startet gruppechat med \(summary) i lokal preview."
+            } else {
+                recentActionSummary = "Startet en discovery-gruppechat i lokal preview."
+            }
         default:
             recentActionSummary = "Utførte \(actionKeypath) i lokal conference-preview."
         }
@@ -973,12 +1278,21 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
         let timelineSummary = timelineSummaryText(for: agendaView)
         let viewSummary = "Visning: \(viewLabel(agendaView))."
         let exportStatus = exportPrepared ? "iCal-eksporten er klar til deling." : "Ingen iCal-eksport er forberedt ennå."
+        let activeChatCount = max(2, recentMessageTexts.count)
         let recentMessages = recentMessageTexts.map { text in
             ValueType.object([
                 "title": .string("Shared thread"),
                 "detail": .string(text),
                 "note": .string("Nylig oppfølging")
             ])
+        }
+        let dynamicNearbyConnections = launchedDiscoveryChatNames.map { name in
+            connectionCard(
+                title: name,
+                subtitle: "Nearby verified contact",
+                detail: "Verified nearby encounter opened a discovery follow-up chat.",
+                note: "Scanner enriched"
+            )
         }
 
         return [
@@ -1059,17 +1373,46 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 "connectionSummary": .string("2 aktive relasjoner og 1 sovende forbindelse."),
                 "requestSummary": .string(requestSummary),
                 "meetingSummary": .string(meetingSummary),
-                "chatSummary": .string("\(recentMessageTexts.count) aktive oppfølgingstråder er klare."),
-                "connections": .list([
+                "chatSummary": .string("\(activeChatCount) aktive oppfølgingstråder er klare."),
+                "connections": .list(([
                     connectionCard(title: "Digital Governance Forum", subtitle: "Shared contact", detail: "Felles oppfølging på offentlig samordning.", note: "Warm"),
                     connectionCard(title: "Trust Infrastructure Lab", subtitle: "Meeting collaborator", detail: "Tidligere møte koblet til ny oppfølging.", note: "Active")
-                ]),
+                ] + dynamicNearbyConnections).map { $0 }),
                 "confirmedMeetings": .list([
                     timelineCard(title: "Morning follow-up", subtitle: "11:45", detail: "Møt teamet bak delte relasjoner og drift.", note: "Shared connection")
                 ]),
                 "recentMessages": .list(recentMessages)
             ])
         ]
+    }
+
+    private func discoveryTargetNames(from payload: ValueType) -> [String] {
+        guard case let .object(payloadObject) = payload else { return [] }
+        if case let .list(targets)? = payloadObject["targets"] {
+            let names = targets.compactMap { target -> String? in
+                guard case let .object(targetObject) = target else { return nil }
+                if case let .string(displayName)? = targetObject["displayName"],
+                   displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    return displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                if case let .string(participantId)? = targetObject["participantId"],
+                   participantId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    return participantId.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                return nil
+            }
+            if names.isEmpty == false {
+                return names
+            }
+        }
+        if case let .list(participantIds)? = payloadObject["participantIds"] {
+            return participantIds.compactMap { value in
+                guard case let .string(raw) = value else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+        }
+        return []
     }
 
     private func viewLabel(_ view: String) -> String {

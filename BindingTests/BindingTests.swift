@@ -303,7 +303,7 @@ struct BindingTests {
         #expect(configuration.cellReferences?.first?.label == "conferenceUIRouter")
         #expect(configuration.cellReferences?.first?.endpoint == "cell://staging.haven.digipomps.org/ConferenceUIRouter")
 
-        guard case .ScrollView = configuration.skeleton else {
+        guard case .ScrollView? = configuration.skeleton else {
             Issue.record("Conference MVP should use a designed scroll surface")
             return
         }
@@ -322,7 +322,7 @@ struct BindingTests {
         #expect(configuration.cellReferences?.last?.label == "aiGateway")
         #expect(configuration.cellReferences?.last?.endpoint == "cell://staging.haven.digipomps.org/AIGateway")
 
-        guard case .ScrollView = configuration.skeleton else {
+        guard case .ScrollView? = configuration.skeleton else {
             Issue.record("Conference AI Assistant should use a designed scroll surface")
             return
         }
@@ -345,7 +345,7 @@ struct BindingTests {
             #expect(configuration.cellReferences?.count == 1)
             #expect(configuration.cellReferences?.first?.setKeysAndValues.contains(where: { $0.key == "state" }) == true)
 
-            guard case .ScrollView = configuration.skeleton else {
+            guard case .ScrollView? = configuration.skeleton else {
                 Issue.record("\(configuration.name) should use a designed scroll surface")
                 continue
             }
@@ -659,6 +659,131 @@ struct BindingTests {
         #expect(object["nearby"] != nil)
     }
 
+    @Test func conferenceNearbyFollowUpSupportBuildsDiscoveryPayloadFromVerifiedEncounter() {
+        let encounter: Object = [
+            "remoteIdentityUUID": .string("identity-remote-123"),
+            "remoteDisplayName": .string("Nora Berg"),
+            "remotePerspective": .object([
+                "identityProfile": .object([
+                    "state": .object([
+                        "participantId": .string("participant-102"),
+                        "name": .string("Nora Berg"),
+                        "company": .string("Polar Systems"),
+                        "role": .string("speaker")
+                    ])
+                ])
+            ])
+        ]
+
+        let target = ConferenceNearbyFollowUpSupport.target(
+            from: encounter,
+            fallbackRemoteUUID: "remote-session-abc",
+            fallbackDisplayName: "Fallback Name"
+        )
+
+        #expect(target.remoteUUID == "remote-session-abc")
+        #expect(target.participantId == "participant-102")
+        #expect(target.identityUUID == "identity-remote-123")
+        #expect(target.displayName == "Nora Berg")
+        #expect(target.company == "Polar Systems")
+        #expect(target.role == "speaker")
+
+        let payload = ConferenceNearbyFollowUpSupport.discoveryPayload(for: target, source: "nearby-verified-contact")
+
+        #expect(payload["source"] == .string("nearby-verified-contact"))
+        #expect(payload["displayName"] == .string("Nora Berg"))
+        #expect(payload["company"] == .string("Polar Systems"))
+        #expect(payload["role"] == .string("speaker"))
+
+        guard case let .list(participantIds)? = payload["participantIds"] else {
+            Issue.record("Expected participantIds in discovery payload")
+            return
+        }
+        #expect(participantIds == [.string("participant-102")])
+
+        guard case let .list(identityUUIDs)? = payload["identityUUIDs"] else {
+            Issue.record("Expected identityUUIDs in discovery payload")
+            return
+        }
+        #expect(identityUUIDs == [.string("identity-remote-123")])
+
+        guard case let .list(targets)? = payload["targets"],
+              case let .object(firstTarget)? = targets.first else {
+            Issue.record("Expected targets in discovery payload")
+            return
+        }
+        #expect(firstTarget["participantId"] == .string("participant-102"))
+        #expect(firstTarget["displayName"] == .string("Nora Berg"))
+        #expect(firstTarget["company"] == .string("Polar Systems"))
+        #expect(firstTarget["role"] == .string("speaker"))
+        #expect(firstTarget["identityUUID"] == .string("identity-remote-123"))
+    }
+
+    @Test func conferenceParticipantPreviewFallbackSupportsNearbyDiscoveryChat() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let preview = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantPreviewShell did not resolve as Meddle")
+            return
+        }
+
+        let dispatchPayload: Object = [
+            "keypath": .string("discovery.startChat"),
+            "payload": .object([
+                "source": .string("nearby-verified-contact"),
+                "participantIds": .list([.string("participant-102")]),
+                "targets": .list([
+                    .object([
+                        "participantId": .string("participant-102"),
+                        "displayName": .string("Nora Berg"),
+                        "company": .string("Polar Systems"),
+                        "role": .string("speaker")
+                    ])
+                ])
+            ])
+        ]
+
+        _ = try await preview.set(keypath: "dispatchAction", value: .object(dispatchPayload), requester: identity)
+        let stateValue = try await preview.get(keypath: "state", requester: identity)
+        guard case let .object(stateObject) = stateValue,
+              case let .object(workspace)? = stateObject["workspace"],
+              case let .object(sharedConnections)? = stateObject["sharedConnections"] else {
+            Issue.record("Expected state object from conference participant preview fallback")
+            return
+        }
+
+        #expect(workspace["nextStep"] == .string("Startet oppfølgingschat med Nora Berg i lokal preview."))
+        #expect(sharedConnections["chatSummary"] == .string("3 aktive oppfølgingstråder er klare."))
+
+        guard case let .list(connections)? = sharedConnections["connections"] else {
+            Issue.record("Expected shared connections list")
+            return
+        }
+        #expect(connections.count == 3)
+
+        guard case let .list(recentMessages)? = sharedConnections["recentMessages"],
+              case let .object(firstMessage)? = recentMessages.first else {
+            Issue.record("Expected recent messages list")
+            return
+        }
+        #expect(firstMessage["detail"] == .string("Nearby follow-up med Nora Berg er klar i discovery chat."))
+    }
+
     @Test func conferenceParticipantPortalDashboardIsWrappedInScrollView() {
         var configuration = CellConfiguration(name: "Conference Participant Portal Dashboard")
         configuration.skeleton = .VStack(SkeletonVStack(elements: [
@@ -684,7 +809,7 @@ struct BindingTests {
 
         let adjusted = ConfigurationPresentationSupport.viewportSafeConfiguration(configuration)
 
-        guard case .VStack = adjusted.skeleton else {
+        guard case .VStack? = adjusted.skeleton else {
             Issue.record("Urelatert konfigurasjon skulle ikke blitt scroll-wrappet")
             return
         }
@@ -2016,7 +2141,11 @@ struct BindingTests {
             }
             return section.content.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
         case .Grid(let grid):
-            return skeletonContainsReference(keypath: keypath, topic: topic, in: grid.itemSkeleton)
+            if let itemSkeleton = grid.itemSkeleton,
+               skeletonContainsReference(keypath: keypath, topic: topic, in: itemSkeleton) {
+                return true
+            }
+            return grid.elements.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
         case .ZStack(let stack):
             return stack.elements.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
         case .Object(let object):
