@@ -12,6 +12,9 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Task(priority: .userInitiated) {
+            await BindingLaunchWarmup.preloadLocalRuntime()
+        }
         scheduleEnsureMainWindowPresent()
     }
 

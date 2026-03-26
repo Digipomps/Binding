@@ -1,5 +1,11 @@
 import Foundation
 
+enum BindingLaunchWarmup {
+    static func preloadLocalRuntime() async {
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+    }
+}
+
 #if os(iOS)
 import UIKit
 import UserNotifications
@@ -8,6 +14,9 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        Task(priority: .userInitiated) {
+            await BindingLaunchWarmup.preloadLocalRuntime()
+        }
         Task { @MainActor in
             NotificationEnrollmentManager.shared.bootstrapIfNeeded()
         }

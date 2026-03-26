@@ -659,6 +659,40 @@ struct BindingTests {
         #expect(object["nearby"] != nil)
     }
 
+    @Test func bindingLaunchWarmupMakesConferenceNearbyRadarReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+
+        await BindingLaunchWarmup.preloadLocalRuntime()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after launch warmup")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let radar = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceNearbyRadar",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceNearbyRadar did not resolve as Meddle after launch warmup")
+            return
+        }
+
+        let stateValue = try await radar.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue else {
+            Issue.record("Expected object from ConferenceNearbyRadar.state after launch warmup, got \(stateValue)")
+            return
+        }
+
+        #expect(object["summary"] != nil)
+        #expect(object["precisionSummary"] != nil)
+        #expect(object["actionSummary"] != nil)
+    }
+
     @Test func conferenceNearbyFollowUpSupportBuildsDiscoveryPayloadFromVerifiedEncounter() {
         let encounter: Object = [
             "remoteIdentityUUID": .string("identity-remote-123"),
