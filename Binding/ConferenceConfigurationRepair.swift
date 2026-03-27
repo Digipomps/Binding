@@ -32,10 +32,11 @@ enum BindingConferenceConfigurationRepair {
             $0.label == "nearbyRadar" && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceNearbyRadar")
         })
         let skeletonJSON = serializedSkeleton(configuration.skeleton)
-        let hasNearbyDispatchAction = skeletonJSON.contains("\"nearbyRadar.dispatchAction\"")
+        let hasNearbyDirectDispatchAction = skeletonJSON.contains("\"url\":\"cell:///ConferenceNearbyRadar\"")
+            && skeletonJSON.contains("\"keypath\":\"dispatchAction\"")
         let hasNearbySnapshotReference = skeletonJSON.contains("\"nearbyRadar.snapshot\"")
 
-        return !(hasNearbyRadarReference && hasNearbyDispatchAction && hasNearbySnapshotReference)
+        return !(hasNearbyRadarReference && hasNearbyDirectDispatchAction && hasNearbySnapshotReference)
     }
 
     private static func participantPortalEndpoint(from configuration: CellConfiguration) -> String {

@@ -74,23 +74,30 @@ actor BindingLocalCellRegistration {
         )
         await register(
             name: "ConferenceParticipantPreviewShell",
-            cellScope: .scaffoldUnique,
+            cellScope: .identityUnique,
             identityDomain: "private",
             type: ConferenceParticipantPreviewShellLocalFallbackCell.self,
             resolver: resolver
         )
         await register(
             name: "ConferenceAdminPreviewShell",
-            cellScope: .scaffoldUnique,
+            cellScope: .identityUnique,
             identityDomain: "private",
             type: ConferenceAdminPreviewShellLocalFallbackCell.self,
             resolver: resolver
         )
         await register(
             name: "ConferenceNearbyRadar",
-            cellScope: .scaffoldUnique,
+            cellScope: .identityUnique,
             identityDomain: "private",
             type: ConferenceNearbyRadarLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "Lobby",
+            cellScope: .scaffoldUnique,
+            identityDomain: "private",
+            type: GeneralCell.self,
             resolver: resolver
         )
     }
@@ -503,12 +510,21 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         do {
+            if keypath == "start" {
+                lastActionSummary = "Starting scanner and subscribing to nearby signals."
+            } else if keypath == "stop" {
+                lastActionSummary = "Stopping scanner and clearing live nearby updates."
+            }
             let result = try await scannerMeddle.set(keypath: keypath, value: value, requester: requester)
             lastError = nil
             applyMutationResult(keypath: keypath, result: result, payload: value)
             await refreshCapabilitySnapshot(requester: requester)
             if keypath == "requestContact" {
                 await refreshEncounterSnapshot(requester: requester)
+            } else if keypath == "start" {
+                lastActionSummary = "Scanner started. Waiting for nearby participants."
+            } else if keypath == "stop" {
+                lastActionSummary = "Scanner stopped."
             }
         } catch {
             lastError = "Nearby scanner action \(keypath) failed: \(error)"
@@ -1019,6 +1035,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
            contactSignal?.status == "verified" {
             let hasLaunchedChat = launchedChatRemoteUUIDs.contains(entity.remoteUUID)
             return [
+                "url": .string("cell:///ConferenceNearbyRadar"),
                 "title": .string(entity.displayName),
                 "subtitle": .string("\(sector.title) sector"),
                 "detail": .string(detail),
@@ -1035,6 +1052,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         return [
+            "url": .string("cell:///ConferenceNearbyRadar"),
             "title": .string(entity.displayName),
             "subtitle": .string("\(sector.title) sector"),
             "detail": .string(detail),
@@ -1178,18 +1196,15 @@ struct BootstrapView<Content: View>: View {
 
 private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
     private var agendaView = "forYou"
-    private var activeTrackID = "track-governance"
-    private var currentFilter = "Governance og interoperabilitet"
-    private var pendingRequestCount = 2
-    private var confirmedMeetingCount = 3
+    private var activeTrackID = "all"
+    private var currentFilter = "All recommended people"
+    private var pendingRequestCount = 0
+    private var confirmedMeetingCount = 0
     private var exportPrepared = false
-    private var searchQuery = "governance"
-    private var recentMessageTexts = [
-        "Takk for praten. Skal vi fortsette etter neste sesjon?",
-        "Jeg kan dele oppsummeringen fra governance-panelet etter lunsj."
-    ]
+    private var searchQuery = "people"
+    private var recentMessageTexts: [String] = []
     private var launchedDiscoveryChatNames: [String] = []
-    private var recentActionSummary = "Participant-preview kjører lokalt i Binding fordi staging-preview svarte denied."
+    private var recentActionSummary = "Participant preview is running locally in Binding because the staging preview was denied."
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -1234,45 +1249,47 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             if case let .object(viewObject) = payload,
                case let .string(view)? = viewObject["view"] {
                 agendaView = view
-                recentActionSummary = "Byttet agenda-visning til \(viewLabel(view))."
+                recentActionSummary = "Switched agenda view to \(viewLabel(view))."
             }
         case "agenda.setTrackFocus":
             if case let .object(trackObject) = payload,
                case let .string(trackID)? = trackObject["trackId"] {
                 activeTrackID = trackID
-                recentActionSummary = "Fokus er satt til \(trackLabel(trackID))."
+                recentActionSummary = "Track focus set to \(trackLabel(trackID))."
             }
         case "matchmaking.refreshRecommendations":
-            recentActionSummary = "Anbefalingene ble oppdatert lokalt i preview."
+            recentActionSummary = "Recommendations refreshed locally in preview."
         case "matchmaking.setFilters":
-            currentFilter = currentFilter == "Governance og interoperabilitet" ? "Identity, trust og claims" : "Governance og interoperabilitet"
-            recentActionSummary = "Matchmaking-filteret ble byttet til \(currentFilter.lowercased())."
+            currentFilter = currentFilter == "All recommended people" ? "Identity and trust" : "All recommended people"
+            recentActionSummary = "Matchmaking filter switched to \(currentFilter.lowercased())."
         case "matchmaking.searchPeople":
             if case let .object(searchObject) = payload,
                case let .string(query)? = searchObject["query"],
                !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 searchQuery = query
-                recentActionSummary = "Søket ble oppdatert til '\(query)'."
+                recentActionSummary = "Search updated to '\(query)'."
             }
+        case "discovery.refresh":
+            recentActionSummary = "Discovery refreshed locally in preview."
         case "scheduling.createMeetingRequest":
             pendingRequestCount += 1
-            recentActionSummary = "La til en ny møteforespørsel i preview-køen."
+            recentActionSummary = "Added a new meeting request to the local preview queue."
         case "scheduling.exportICal":
             exportPrepared = true
-            recentActionSummary = "iCal-forberedelsen er klar i lokal preview."
+            recentActionSummary = "iCal export is prepared in local preview."
         case "scheduling.respondMeetingRequest":
             if pendingRequestCount > 0 {
                 pendingRequestCount -= 1
                 confirmedMeetingCount += 1
             }
-            recentActionSummary = "Oppdaterte møteforespørsler og bekreftelser."
+            recentActionSummary = "Updated meeting requests and confirmations."
         case "connections.postSharedMessage":
             if case let .object(messageObject) = payload,
                case let .string(text)? = messageObject["text"],
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 recentMessageTexts.insert(text, at: 0)
                 recentMessageTexts = Array(recentMessageTexts.prefix(4))
-                recentActionSummary = "La til en ny oppfølgingsmelding i shared network."
+                recentActionSummary = "Added a shared follow-up message in local preview."
             }
         case "discovery.startChat":
             let targetNames = discoveryTargetNames(from: payload)
@@ -1280,21 +1297,21 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
                 launchedDiscoveryChatNames.insert(firstTarget, at: 0)
                 launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
-                recentMessageTexts.insert("Nearby follow-up med \(firstTarget) er klar i discovery chat.", at: 0)
+                recentMessageTexts.insert("Nearby follow-up with \(firstTarget) is ready in discovery chat.", at: 0)
                 recentMessageTexts = Array(recentMessageTexts.prefix(4))
-                recentActionSummary = "Startet oppfølgingschat med \(firstTarget) i lokal preview."
+                recentActionSummary = "Started follow-up chat with \(firstTarget) in local preview."
             } else {
-                recentActionSummary = "Startet en discovery-chat i lokal preview."
+                recentActionSummary = "Started a discovery chat in local preview."
             }
         case "discovery.startGroupChat":
             let targetNames = discoveryTargetNames(from: payload)
             if targetNames.isEmpty == false {
                 let summary = targetNames.joined(separator: ", ")
-                recentMessageTexts.insert("Nearby group follow-up er klar med \(summary).", at: 0)
+                recentMessageTexts.insert("Nearby group follow-up is ready with \(summary).", at: 0)
                 recentMessageTexts = Array(recentMessageTexts.prefix(4))
-                recentActionSummary = "Startet gruppechat med \(summary) i lokal preview."
+                recentActionSummary = "Started a group chat with \(summary) in local preview."
             } else {
-                recentActionSummary = "Startet en discovery-gruppechat i lokal preview."
+                recentActionSummary = "Started a discovery group chat in local preview."
             }
         default:
             recentActionSummary = "Utførte \(actionKeypath) i lokal conference-preview."
@@ -1307,18 +1324,18 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
     }
 
     private func makeStateObject() -> Object {
-        let meetingSummary = "\(confirmedMeetingCount) bekreftede møter og \(pendingRequestCount) ventende forespørsler."
-        let requestSummary = "\(pendingRequestCount) møteforespørsler venter på svar."
-        let trackSummary = "\(trackLabel(activeTrackID)) er i fokus akkurat nå."
+        let meetingSummary = "\(confirmedMeetingCount) shared meeting(s) visible."
+        let requestSummary = "\(pendingRequestCount) shared request(s) visible."
+        let trackSummary = activeTrackID == "all" ? "Track focus: all tracks visible." : "Track focus: \(trackLabel(activeTrackID))."
         let timelineSummary = timelineSummaryText(for: agendaView)
-        let viewSummary = "Visning: \(viewLabel(agendaView))."
-        let exportStatus = exportPrepared ? "iCal-eksporten er klar til deling." : "Ingen iCal-eksport er forberedt ennå."
-        let activeChatCount = max(2, recentMessageTexts.count)
+        let viewSummary = "Current view: \(viewLabel(agendaView))."
+        let exportStatus = exportPrepared ? "iCal export is ready to share." : "No iCal export prepared yet."
+        let activeChatCount = recentMessageTexts.count
         let recentMessages = recentMessageTexts.map { text in
             ValueType.object([
                 "title": .string("Shared thread"),
                 "detail": .string(text),
-                "note": .string("Nylig oppfølging")
+                "note": .string("Recent follow-up")
             ])
         }
         let dynamicNearbyConnections = launchedDiscoveryChatNames.map { name in
@@ -1332,23 +1349,25 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
 
         return [
             "workspace": .object([
-                "title": .string("Conference Participant Portal Dashboard"),
-                "subtitle": .string("Agenda, møter og matchende personer i én mørk conference-flate."),
-                "participantBadge": .string("Participant"),
-                "programBadge": .string("Program ready"),
-                "matchBadge": .string("Matches active"),
-                "meetingBadge": .string("\(confirmedMeetingCount) møter bekreftet"),
+                "title": .string("Conference Participant Portal"),
+                "subtitle": .string("Profile, recommended people, and meetings in one low-friction flow."),
+                "conferenceBadge": .string("AI & Digital Independence 2026"),
+                "privacyBadge": .string("Private by default"),
+                "participantBadge": .string("Conference Participant · Attendee · Independent attendee"),
+                "programBadge": .string("2 saved sessions · 6 recommended sessions"),
+                "matchBadge": .string("3 recommended people ready for review"),
+                "meetingBadge": .string("\(pendingRequestCount) pending requests · \(confirmedMeetingCount) confirmed meetings · \(launchedDiscoveryChatNames.count) shared thread(s)"),
                 "nextStep": .string(recentActionSummary),
-                "previewNotice": .string("Lokal preview brukes fordi staging-preview svarte denied. Kontrakten holdes lik, så demoen kan fortsette.")
+                "previewNotice": .string("This shell is participant-only. Organizer insights and sponsor views live in separate conference shells.")
             ]),
             "program": .object([
-                "intro": .string("Agendaen er klar for governance, interoperabilitet og praktisk oppfølging."),
-                "agendaSummary": .string("6 lagrede sesjoner og 2 valgte fokusspor."),
+                "intro": .string("Participant agenda stays local while the shell projects the most relevant conference sessions."),
+                "agendaSummary": .string("2 saved session(s) · 6 recommended session(s)."),
                 "viewSummary": .string(viewSummary),
                 "trackSummary": .string(trackSummary),
                 "timelineSummary": .string(timelineSummary),
-                "status": .string("Agenda-preview er lesbar og responsiv lokalt."),
-                "storageSummary": .string("Valg og preferanser holdes stabile i preview-state."),
+                "status": .string("Agenda selections are ready for review."),
+                "storageSummary": .string("Agenda selections stay local to the participant shell."),
                 "trackOptions": .list([
                     sessionCard(title: "Applied AI", subtitle: "4 session(s)", detail: "Practical AI systems and tooling.", note: "Available for focus"),
                     sessionCard(title: "Identity", subtitle: "4 session(s)", detail: "Trust, verification and claims.", note: "Available for focus"),
@@ -1370,52 +1389,65 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 ])
             ]),
             "matches": .object([
-                "intro": .string("Disse personene matcher formålene og interessene dine akkurat nå."),
+                "intro": .string("These people match your current goals and conference interests."),
                 "filterSummary": .string("Filter: \(currentFilter)."),
-                "status": .string("Anbefalinger er oppdatert og klare for review."),
-                "recommendationSummary": .string("4 høy-signal personer matcher målene dine."),
-                "searchSummary": .string("Siste søk: \(searchQuery)."),
+                "status": .string("Recommendations are derived from onboarding interests, purpose signals, and optional track focus."),
+                "recommendationSummary": .string("3 recommended people with explainability."),
+                "searchSummary": .string("Search broadening: \(searchQuery)."),
                 "recommendations": .list([
-                    recommendationCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Sterk match på governance og gjennomføring.", note: "92% match"),
-                    recommendationCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Jobber med claims, trust og organisering.", note: "88% match"),
-                    recommendationCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Kan koble programmet til konkrete produktvalg.", note: "84% match")
+                    recommendationCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Strong match on governance and delivery.", note: "92% match"),
+                    recommendationCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Works with claims, trust, and organization.", note: "88% match"),
+                    recommendationCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Can connect the program to concrete product choices.", note: "84% match")
                 ]),
                 "searchResults": .list([
-                    connectionCard(title: "Governance Forum", subtitle: "Nearby people", detail: "Fant deltakere som nevner \(searchQuery.lowercased()).", note: "Lokal preview"),
-                    connectionCard(title: "Trust Infrastructure Lab", subtitle: "Shared interests", detail: "Samme fokus på tillit, claims og drift.", note: "Suggested follow-up")
+                    connectionCard(title: "Governance Forum", subtitle: "Nearby people", detail: "Found people mentioning \(searchQuery.lowercased()).", note: "Local preview"),
+                    connectionCard(title: "Trust Infrastructure Lab", subtitle: "Shared interests", detail: "Shared focus on trust, claims, and operations.", note: "Suggested follow-up")
+                ])
+            ]),
+            "discovery": .object([
+                "intro": .string("Conference discovery combines portable participant discovery with local nearby enrichment."),
+                "status": .string("Discovery is ready for follow-up."),
+                "alignmentSummary": .string("Nearby and conference signals are aligned around \(currentFilter.lowercased())."),
+                "proofSummary": .string("Verified follow-up can unlock richer purpose and interest matching."),
+                "sourceSummary": .string("Portable conference candidates are merged with local nearby signals when available."),
+                "publicProfileSummary": .string("Only minimal profile data is shown until you explicitly request more."),
+                "chatSummary": .string("\(launchedDiscoveryChatNames.count) discovery chat(s) ready."),
+                "nextAction": .string("Refresh discovery, review promising people, and start a follow-up chat when it feels right."),
+                "refreshSummary": .string("Search focus is currently tuned for \(searchQuery.lowercased())."),
+                "candidates": .list([
+                    connectionCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Strong alignment on governance, delivery, and shared trust patterns.", note: "Recommended"),
+                    connectionCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Good match for claims, compliance, and organizer follow-up.", note: "Nearby-capable"),
+                    connectionCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Connects participant needs to service and product design decisions.", note: "Suggested follow-up")
+                ]),
+                "proofCandidates": .list([
+                    connectionCard(title: "Shared Relations Forum", subtitle: "Proof-backed discovery", detail: "Participants who can expose stronger matching once contact is verified.", note: "Proof ready"),
+                    connectionCard(title: "Trust Infrastructure Lab", subtitle: "Policy and operations", detail: "Good candidate set for deeper follow-up if you want more precision.", note: "Consent gated")
+                ]),
+                "groupSuggestions": .list([
+                    timelineCard(title: "Identity and Governance Circle", subtitle: "3 people", detail: "A small group with overlapping agenda and meeting goals.", note: "Suggested group chat"),
+                    timelineCard(title: "Applied AI Follow-up", subtitle: "2 people", detail: "Focused on practical AI systems, trust, and delivery.", note: "Suggested nearby cluster")
                 ])
             ]),
             "meetings": .object([
-                "intro": .string("Møteplanlegging holdes i participant-shellen for lav friksjon."),
+                "intro": .string("Keep availability local while requests, confirmed meetings, and follow-up chat live in shared relation records."),
                 "requestSummary": .string(requestSummary),
-                "slotSummary": .string("5 overlappende slotter passer med agendaen din."),
+                "slotSummary": .string("3 available slot(s) across Harbor Lounge, Hall B, Studio 2, Cafe, Garden, Library, AI Lab, Forum, Bridge."),
                 "meetingSummary": .string(meetingSummary),
-                "chatSummary": .string("2 chats er klare for møterelevant oppfølging."),
+                "chatSummary": .string("\(activeChatCount) shared message(s) visible."),
                 "exportStatus": .string(exportStatus),
-                "requests": .list([
-                    timelineCard(title: "Governance follow-up", subtitle: "Pending", detail: "Venter på svar fra kommunal plattformgruppe.", note: "Participant shell"),
-                    timelineCard(title: "Interop sync", subtitle: "Pending", detail: "Forslått kort sync etter lunsj.", note: "Participant shell")
-                ]),
-                "confirmedMeetings": .list([
-                    timelineCard(title: "Coordination with municipal platform team", subtitle: "10:30", detail: "Kort sync om felles styringsmodell.", note: "Confirmed"),
-                    timelineCard(title: "Shared trust registry", subtitle: "14:15", detail: "Oppfølging på trust registry og claims.", note: "Confirmed")
-                ])
+                "requests": .list([]),
+                "confirmedMeetings": .list([])
             ]),
             "sharedConnections": .object([
-                "intro": .string("Shared relations gjør det enkelt å fortsette riktige samtaler."),
-                "accessSummary": .string("Shared threads er synlige for partene som deltar i relasjonen."),
-                "agreementBoundary": .string("Bare policy-godkjent oppfølging deles videre."),
-                "connectionSummary": .string("2 aktive relasjoner og 1 sovende forbindelse."),
+                "intro": .string("Shared relation state is empty until a live thread or meeting is created."),
+                "accessSummary": .string("No shared meeting/chat projection loaded."),
+                "agreementBoundary": .string("No agreement boundary loaded."),
+                "connectionSummary": .string("\(launchedDiscoveryChatNames.count) shared relation(s) visible."),
                 "requestSummary": .string(requestSummary),
                 "meetingSummary": .string(meetingSummary),
-                "chatSummary": .string("\(activeChatCount) aktive oppfølgingstråder er klare."),
-                "connections": .list(([
-                    connectionCard(title: "Digital Governance Forum", subtitle: "Shared contact", detail: "Felles oppfølging på offentlig samordning.", note: "Warm"),
-                    connectionCard(title: "Trust Infrastructure Lab", subtitle: "Meeting collaborator", detail: "Tidligere møte koblet til ny oppfølging.", note: "Active")
-                ] + dynamicNearbyConnections).map { $0 }),
-                "confirmedMeetings": .list([
-                    timelineCard(title: "Morning follow-up", subtitle: "11:45", detail: "Møt teamet bak delte relasjoner og drift.", note: "Shared connection")
-                ]),
+                "chatSummary": .string("\(activeChatCount) shared message(s) visible."),
+                "connections": .list(dynamicNearbyConnections.map { $0 }),
+                "confirmedMeetings": .list([]),
                 "recentMessages": .list(recentMessages)
             ])
         ]
@@ -1461,19 +1493,20 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
     private func timelineSummaryText(for view: String) -> String {
         switch view {
         case "timeline":
-            return "Timeline-visningen viser programmet kronologisk med fokus på neste trekk."
+            return "8 session(s) visible in timeline view."
         case "saved":
-            return "Lagret-visningen viser bare sesjoner du allerede har valgt."
+            return "2 saved session(s) visible in saved view."
         default:
-            return "For deg-visningen prioriterer det som passer formålene dine best."
+            return "8 session(s) visible in for you view."
         }
     }
 
     private func trackLabel(_ trackID: String) -> String {
         switch trackID {
+        case "all": return "all tracks visible"
         case "track-governance": return "Governance"
         case "track-identity": return "Identity"
-        default: return "Konferansesporet"
+        default: return "conference track"
         }
     }
 

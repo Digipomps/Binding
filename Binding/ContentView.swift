@@ -284,6 +284,7 @@ struct ContentView: View {
     @State private var rotationAccumulator: Angle = .zero
     @State private var didAttemptCatalogMenuSync: Bool = false
     @State private var didApplyStoredDemoStart = false
+    @State private var didRepairPersistedConferencePortal = false
     @State private var activeConfiguration: CellConfiguration?
     @State private var presentingFullLibrary: Bool = false
     @State private var loadErrorMessage: String?
@@ -694,6 +695,7 @@ struct ContentView: View {
             )
             refreshDiagnosticsValidation()
             applyStoredDemoStartConfigurationIfNeeded()
+            await repairPersistedConferencePortalIfNeeded()
         }
     }
 
@@ -1985,6 +1987,62 @@ struct ContentView: View {
         queueConfigurationLoad(storedConfiguration)
     }
 
+    @MainActor
+    private func repairPersistedConferencePortalIfNeeded() async {
+        guard !didRepairPersistedConferencePortal else { return }
+        didRepairPersistedConferencePortal = true
+
+        guard activeConfiguration == nil,
+              editorState.workingConfiguration == nil,
+              demoStartConfigurationJSON.isEmpty,
+              let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let identity = await privateRequesterIdentity(),
+              let porthole = try? await resolver.cellAtEndpoint(
+                endpoint: Self.portholeEndpoint,
+                requester: identity
+              ) as? OrchestratorCell
+        else {
+            return
+        }
+
+        let titleValue = try? await porthole.get(
+            keypath: "conferenceParticipantShell.state.workspace.title",
+            requester: identity
+        )
+        guard titleValue == .string("Conference Participant Portal Dashboard") else {
+            return
+        }
+
+        let nearbySummary = try? await porthole.get(
+            keypath: "nearbyRadar.state.summary",
+            requester: identity
+        )
+        if let nearbySummary,
+           SkeletonBindingProbeSupport.failureDetail(from: nearbySummary) == nil {
+            return
+        }
+
+        diagnosticsStore.record(
+            severity: .warning,
+            domain: "binding.demo",
+            message: "Fant gammel persisted participant-portal i Porthole. Reparerer til ny conference-konfigurasjon med lokal nearby-radar."
+        )
+
+        let repairedConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration()
+        do {
+            try await porthole.loadCellConfiguration(repairedConfiguration, requester: identity)
+            activeConfiguration = repairedConfiguration
+            diagnosticsStore.refreshValidation(for: repairedConfiguration)
+        } catch {
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.demo",
+                message: "Direkte reparasjon av persisted participant-portal feilet. Prøver vanlig last: \(error)"
+            )
+            queueConfigurationLoad(repairedConfiguration)
+        }
+    }
+
     private func queueConfigurationLoad(_ configuration: CellConfiguration?) {
         configurationLoadTask?.cancel()
         configurationLoadTask = Task {
@@ -2016,7 +2074,7 @@ struct ContentView: View {
         }
 
         updateLoadingStatus(
-            "Venter paa autentisering og runtime-bootstrap for \(configurationName)…",
+            "Venter på autentisering og runtime-bootstrap for \(configurationName)…",
             requestID: requestID
         )
         await AppInitializer.initialize()
@@ -2035,14 +2093,14 @@ struct ContentView: View {
             }
             if attempt < maxAttempts {
                 updateLoadingStatus(
-                    "Venter paa autentisering og runtime-bootstrap for \(configurationName)… (\(attempt)/\(maxAttempts))",
+                    "Venter på autentisering og runtime-bootstrap for \(configurationName)… (\(attempt)/\(maxAttempts))",
                     requestID: requestID
                 )
                 try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
             }
         }
 
-        let message = "Runtime ble ikke klar i tide. Bekreft autentisering og proev igjen."
+        let message = "Runtime ble ikke klar i tide. Bekreft autentisering og prøv igjen."
         loadErrorMessage = message
         diagnosticsStore.record(
             severity: .error,
@@ -2448,15 +2506,21 @@ struct ContentView: View {
         guard failureDetails.contains(where: isDeniedConferencePreviewFailure) else {
             return nil
         }
-        guard let references = configuration.cellReferences,
-              references.count == 1,
-              let onlyReference = references.first,
-              RemoteCatalogSupport.isRemoteEndpoint(onlyReference.endpoint)
+        guard let references = configuration.cellReferences else {
+            return nil
+        }
+
+        let remoteReferences = references.filter { reference in
+            RemoteCatalogSupport.isRemoteEndpoint(reference.endpoint)
+        }
+        guard remoteReferences.count == 1,
+              let primaryReference = remoteReferences.first,
+              RemoteCatalogSupport.isRemoteEndpoint(primaryReference.endpoint)
         else {
             return nil
         }
 
-        switch remoteCellName(from: onlyReference.endpoint) {
+        switch remoteCellName(from: primaryReference.endpoint) {
         case "conferenceparticipantpreviewshell":
             return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
                 endpoint: "cell:///ConferenceParticipantPreviewShell"
@@ -2481,7 +2545,7 @@ struct ContentView: View {
         placeholderSkeleton(
             title: configuration.name,
             status: "Laster innhold…",
-            detail: "Binding venter paa at preview-state og bridge-references skal bli lesbare."
+            detail: "Binding venter på at preview-state og bridge-references skal bli lesbare."
         )
     }
 

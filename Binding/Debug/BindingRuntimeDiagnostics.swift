@@ -265,9 +265,10 @@ enum CellConfigurationValidationService {
     ) {
         switch value {
         case let dictionary as [String: Any]:
-            let isDispatchActionContainer = (dictionary["keypath"] as? String)?
+            let keypathValue = (dictionary["keypath"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                .hasSuffix(".dispatchAction") == true
+            let isDispatchActionContainer = keypathValue == "dispatchAction" ||
+                keypathValue?.hasSuffix(".dispatchAction") == true
             for (key, child) in dictionary {
                 let childInsideDispatchActionPayload = insideDispatchActionPayload || (isDispatchActionContainer && key == "payload")
                 if let stringValue = child as? String,

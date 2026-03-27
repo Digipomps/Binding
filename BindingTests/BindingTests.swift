@@ -2889,15 +2889,16 @@ enum CellConfigurationVerifier {
                 .environmentObject(viewModel)
         )
         hostingView.frame = NSRect(x: 0, y: 0, width: 1280, height: 2600)
-
-        let window = NSWindow(
-            contentRect: hostingView.frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = hostingView
-        window.orderOut(nil)
+        let containerView = NSView(frame: hostingView.frame)
+        containerView.addSubview(hostingView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        ])
+        containerView.layoutSubtreeIfNeeded()
 
         let clock = ContinuousClock()
         let renderStart = clock.now
@@ -2906,11 +2907,13 @@ enum CellConfigurationVerifier {
         var buttonTitles = Set<String>()
         var snapshotByteCount = 0
 
-        for iteration in 0..<24 {
+        for iteration in 0..<16 {
+            containerView.layoutSubtreeIfNeeded()
             hostingView.layoutSubtreeIfNeeded()
-            visibleStrings = collectVisibleStrings(from: hostingView)
-            buttonTitles = collectButtonTitles(from: hostingView)
-            snapshotByteCount = max(snapshotByteCount, snapshotPNGByteCount(for: hostingView))
+            hostingView.displayIfNeeded()
+            visibleStrings = collectVisibleStrings(from: containerView)
+            buttonTitles = collectButtonTitles(from: containerView)
+            snapshotByteCount = max(snapshotByteCount, snapshotPNGByteCount(for: containerView))
 
             let combinedStrings = visibleStrings.union(buttonTitles)
             if firstMeaningfulContentMilliseconds == 0,
@@ -2919,18 +2922,17 @@ enum CellConfigurationVerifier {
                 break
             }
 
-            if iteration < 23 {
-                try? await Task.sleep(nanoseconds: 80_000_000)
+            if iteration < 15 {
+                try? await Task.sleep(nanoseconds: 50_000_000)
             }
         }
 
+        containerView.layoutSubtreeIfNeeded()
         hostingView.layoutSubtreeIfNeeded()
-        visibleStrings = collectVisibleStrings(from: hostingView)
-        buttonTitles = collectButtonTitles(from: hostingView)
-        snapshotByteCount = max(snapshotByteCount, snapshotPNGByteCount(for: hostingView))
-
-        window.contentView = nil
-        window.close()
+        hostingView.displayIfNeeded()
+        visibleStrings = collectVisibleStrings(from: containerView)
+        buttonTitles = collectButtonTitles(from: containerView)
+        snapshotByteCount = max(snapshotByteCount, snapshotPNGByteCount(for: containerView))
 
         if firstMeaningfulContentMilliseconds == 0 {
             firstMeaningfulContentMilliseconds = milliseconds(since: renderStart, clock: clock)
@@ -2940,7 +2942,7 @@ enum CellConfigurationVerifier {
             visibleStrings: visibleStrings,
             buttonTitles: buttonTitles,
             snapshotByteCount: snapshotByteCount,
-            subviewCount: countSubviews(in: hostingView),
+            subviewCount: countSubviews(in: containerView),
             firstMeaningfulContentMilliseconds: firstMeaningfulContentMilliseconds,
             totalRenderMilliseconds: milliseconds(since: renderStart, clock: clock)
         )
@@ -2953,6 +2955,15 @@ enum CellConfigurationVerifier {
         let resolver: CellResolver
         let owner: Identity
         let porthole: OrchestratorCell
+    }
+
+    private struct VerifierTimeoutError: Error, CustomStringConvertible {
+        let operation: String
+        let seconds: Double
+
+        var description: String {
+            "timeout(\(operation), \(seconds)s)"
+        }
     }
 
     private static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
@@ -2987,6 +2998,27 @@ enum CellConfigurationVerifier {
         )
     }
 
+    private static func withTimeout<T: Sendable>(
+        seconds: Double,
+        operation: String,
+        _ work: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await work()
+            }
+            group.addTask {
+                let duration = max(seconds, 0)
+                try await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+                throw VerifierTimeoutError(operation: operation, seconds: seconds)
+            }
+
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+
     private static func resolveReferences(
         _ references: [CellReference],
         resolver: CellResolver,
@@ -2998,7 +3030,12 @@ enum CellConfigurationVerifier {
         for reference in references {
             let start = clock.now
             do {
-                _ = try await resolver.cellAtEndpoint(endpoint: reference.endpoint, requester: requester)
+                _ = try await withTimeout(
+                    seconds: 5,
+                    operation: "resolveReference:\(reference.endpoint)"
+                ) {
+                    try await resolver.cellAtEndpoint(endpoint: reference.endpoint, requester: requester)
+                }
                 results.append(
                     ReferenceResolution(
                         label: reference.label,
@@ -3033,7 +3070,12 @@ enum CellConfigurationVerifier {
         for probe in probes {
             let start = clock.now
             do {
-                let value = try await porthole.get(keypath: probe.qualifiedKeypath, requester: requester)
+                let value = try await withTimeout(
+                    seconds: 5,
+                    operation: "readRootProbe:\(probe.qualifiedKeypath)"
+                ) {
+                    try await porthole.get(keypath: probe.qualifiedKeypath, requester: requester)
+                }
                 let outcome = SkeletonBindingProbeSupport.failureDetail(from: value) ?? "ok"
                 results.append(
                     RootProbeResolution(
@@ -3071,7 +3113,26 @@ enum CellConfigurationVerifier {
 
         for button in buttons {
             let start = clock.now
-            let response = await button.execute()
+            let response: ValueType?
+            do {
+                response = try await withTimeout(
+                    seconds: 5,
+                    operation: "executeButton:\(button.label)"
+                ) {
+                    await button.execute()
+                }
+            } catch {
+                results.append(
+                    ActionExecution(
+                        label: button.label,
+                        keypath: button.keypath,
+                        url: button.url,
+                        durationMilliseconds: milliseconds(since: start, clock: clock),
+                        outcome: String(describing: error)
+                    )
+                )
+                continue
+            }
             let outcome: String
             if let response {
                 outcome = SkeletonBindingProbeSupport.failureDetail(from: response) ?? "ok"
