@@ -37,6 +37,7 @@ This is not a replacement for live staging auth/bridge debugging. It is a local 
 Current conference surfaces:
 
 - `Conference Participant Portal`
+- `Conference Participant Nearby Follow-Up`
 - `Conference Control Tower`
 
 Current contract assertions:
@@ -53,6 +54,14 @@ Current participant actions exercised:
 - `Oppdater discovery`
 - `Start scanner`
 - `Stop scanner`
+
+Current nearby follow-up assertions:
+
+- inject a deterministic verified nearby contact into the local conference radar
+- open the follow-up chat handoff through the same Porthole wiring the UI uses
+- verify that the nearby card upgrades to `Open chat`
+- verify that purpose/interest text reflects verified overlap
+- verify that participant preview state advances (`nextStep`, shared chat summary, recent message)
 
 Current organizer actions exercised:
 
@@ -97,22 +106,22 @@ Run organizer only:
 Latest verified on March 27, 2026:
 
 - `./Scripts/run_conference_configuration_verifier.sh all contract`
-  - 2 tests
+  - 3 tests
   - 0 failures
-  - total suite time about `15.95s`
+  - participant portal contract, nearby follow-up contract, and control tower contract all passed
 - `./Scripts/run_conference_configuration_verifier.sh all render`
   - 2 tests
   - 0 failures
-  - total suite time about `25.96s`
+  - participant portal render and control tower render both passed
 
-Per-test timings from that run:
+Observed isolated timings from the latest green checks:
 
-- `Conference Control Tower` contract: about `13.21s`
-- `Conference Participant Portal` contract: about `2.74s`
-- `Conference Control Tower` render: about `21.24s`
-- `Conference Participant Portal` render: about `4.72s`
+- `Conference Participant Portal` contract: about `0.90s`
+- `Conference Participant Nearby Follow-Up` contract: about `0.13s`
+- `Conference Control Tower` contract: about `0.29s`
+- `Conference Control Tower` render: about `2.51s`
 
-These numbers are useful as a baseline, not as hard performance budgets yet.
+These timings are useful as a moving baseline, not as hard budgets yet.
 
 ## What the verifier already caught
 
@@ -121,12 +130,16 @@ The verifier forced us to fix several real issues:
 - direct `dispatchAction` buttons with explicit `url` were not fully understood by the diagnostics validator
 - organizer `Publish content` / `Discard draft` were routed through a weaker nested path and could produce `notFound`
 - participant conference actions needed direct endpoint routing for deterministic verification
+- nearby follow-up chat needed deterministic local injection and post-action state reads, otherwise we could falsely pass or fail depending on shared runtime state
+- coarse root probes like `conferenceParticipantShell.state` could report `notFound` even when the surface itself was readable through real descendant bindings
+- running multiple verifier targets in one `xcodebuild` process allowed shared Porthole/runtime state to leak between tests
 - render verification was too brittle when hosted through a temporary `NSWindow`
 - long waits used to hang; now the verifier times out specific operations and reports them explicitly
 
 ## Known caveats
 
 - The render verifier is currently macOS/AppKit-only.
+- The contract runner is intentionally process-isolated now: the script launches one fresh `xcodebuild` per verifier test so singleton/Porthole state does not leak across cases.
 - The test environment may still log local keychain noise like `-34018` and `missingMasterKey`; those logs do not currently fail the verifier when the surface itself resolves and renders correctly.
 - A green verifier does not prove that staging is healthy. It proves that the local conference configuration, local fallbacks, local routing, and renderer contract are currently coherent.
 

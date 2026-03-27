@@ -25,6 +25,7 @@ add_test() {
 case "$surface" in
   participant)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract"
+    [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"
     [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer"
     ;;
   admin|organizer|control-tower)
@@ -34,6 +35,7 @@ case "$surface" in
   all)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && {
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract"
+      add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract"
     }
     [[ "$layer" == "render" || "$layer" == "all" ]] && {
@@ -55,9 +57,8 @@ fi
 echo "Running conference configuration verifier:"
 printf '  %s\n' "${tests[@]}"
 
-cmd=(xcodebuild "${COMMON_ARGS[@]}")
 for test_name in "${tests[@]}"; do
-  cmd+=(-only-testing:"$test_name")
+  echo
+  echo "==> $test_name"
+  xcodebuild "${COMMON_ARGS[@]}" -only-testing:"$test_name"
 done
-
-"${cmd[@]}"

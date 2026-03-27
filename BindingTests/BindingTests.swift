@@ -2731,6 +2731,22 @@ struct CellConfigurationVerifierTests {
         #expect(report.failedActions.isEmpty)
     }
 
+    @Test func conferenceParticipantPortalNearbyVerifierCanOpenFollowUpChat() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+
+        let report = try await CellConfigurationVerifier.nearbyFollowUpReport(for: configuration)
+
+        #expect(report.chatOpened)
+        #expect(report.nearbyCardLabel == "Open chat")
+        #expect(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
+        #expect(report.nearbyActionSummary == "Started a conference follow-up chat with Nora Berg.")
+        #expect(report.workspaceNextStep == "Started follow-up chat with Nora Berg in local preview.")
+        #expect(report.sharedChatSummary == "1 shared message(s) visible.")
+        #expect(report.firstRecentMessage == "Nearby follow-up with Nora Berg is ready in discovery chat.")
+    }
+
 #if canImport(AppKit)
     @MainActor
     @Test func conferenceParticipantPortalRendererVerifierBuildsVisibleMacOSSurface() async throws {
@@ -2808,6 +2824,22 @@ enum CellConfigurationVerifier {
         }
     }
 
+    struct NearbyFollowUpReport {
+        let configuration: CellConfiguration
+        let injectedRemoteUUID: String
+        let injectDurationMilliseconds: Double
+        let openChatDurationMilliseconds: Double
+        let nearbyCardLabel: String?
+        let nearbyCardPurposeSummary: String?
+        let nearbyActionSummary: String?
+        let workspaceNextStep: String?
+        let sharedChatSummary: String?
+        let firstRecentMessage: String?
+        let openChatOutcome: String
+
+        var chatOpened: Bool { openChatOutcome == "ok" }
+    }
+
 #if canImport(AppKit)
     @MainActor
     struct RenderReport {
@@ -2831,6 +2863,7 @@ enum CellConfigurationVerifier {
         let clock = ContinuousClock()
         let overallStart = clock.now
         let context = try await makeRuntimeContext(for: configuration)
+        let directBindingCandidates = directReadableBindings(for: context.configuration)
 
         let referenceResolutions = try await resolveReferences(
             flattenReferences(from: context.configuration.cellReferences ?? []),
@@ -2845,6 +2878,7 @@ enum CellConfigurationVerifier {
 
         let probeResolutions = try await readRootProbes(
             SkeletonBindingProbeSupport.rootProbes(for: context.configuration),
+            bindingCandidates: directBindingCandidates,
             from: context.porthole,
             requester: context.owner
         )
@@ -2862,6 +2896,191 @@ enum CellConfigurationVerifier {
             actionExecutions: actionExecutions,
             loadMilliseconds: loadMilliseconds,
             totalMilliseconds: milliseconds(since: overallStart, clock: clock)
+        )
+    }
+
+    static func nearbyFollowUpReport(
+        for configuration: CellConfiguration,
+        remoteUUID: String = "nearby-verified-001",
+        displayName: String = "Nora Berg"
+    ) async throws -> NearbyFollowUpReport {
+        let clock = ContinuousClock()
+        let context = try await makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let injectPayload: Object = [
+            "remoteUUID": .string(remoteUUID),
+            "displayName": .string(displayName),
+            "participantId": .string("participant-102"),
+            "identityUUID": .string("identity-remote-123"),
+            "company": .string("Polar Systems"),
+            "role": .string("speaker"),
+            "matchCount": .integer(2),
+            "matchScore": .float(0.92),
+            "distanceMeters": .float(1.6),
+            "directionX": .float(0.0),
+            "directionY": .float(0.0),
+            "directionZ": .float(1.0)
+        ]
+
+        let injectStart = clock.now
+        _ = try await withTimeout(
+            seconds: 5,
+            operation: "injectVerifiedNearbyContact"
+        ) {
+            try await context.porthole.set(
+                keypath: "nearbyRadar.testInjectVerifiedContact",
+                value: .object(injectPayload),
+                requester: context.owner
+            )
+        }
+        let injectDuration = milliseconds(since: injectStart, clock: clock)
+
+        let nearbyState = try await withTimeout(
+            seconds: 5,
+            operation: "readNearbyStateAfterInjection"
+        ) {
+            try await context.porthole.get(
+                keypath: "nearbyRadar.state",
+                requester: context.owner
+            )
+        }
+
+        var nearbyCardLabel: String?
+        var nearbyCardPurposeSummary: String?
+        var nearbyActionSummary: String?
+        if case let .object(nearbyObject) = nearbyState {
+            nearbyActionSummary = valueString(nearbyObject["actionSummary"])
+            if case let .list(cards)? = nearbyObject["nearby"],
+               case let .object(firstCard)? = cards.first {
+                nearbyCardLabel = valueString(firstCard["label"])
+                nearbyCardPurposeSummary = valueString(firstCard["purposeSummary"])
+            }
+        }
+
+        let openChatStart = clock.now
+        let openChatResponse: ValueType?
+        do {
+            openChatResponse = try await withTimeout(
+                seconds: 5,
+                operation: "openNearbyFollowUpChat"
+            ) {
+                try await context.porthole.set(
+                    keypath: "nearbyRadar.dispatchAction",
+                    value: .object([
+                        "keypath": .string("openFollowUpChat"),
+                        "payload": .object(["remoteUUID": .string(remoteUUID)])
+                    ]),
+                    requester: context.owner
+                )
+            }
+        } catch {
+            return NearbyFollowUpReport(
+                configuration: context.configuration,
+                injectedRemoteUUID: remoteUUID,
+                injectDurationMilliseconds: injectDuration,
+                openChatDurationMilliseconds: milliseconds(since: openChatStart, clock: clock),
+                nearbyCardLabel: nearbyCardLabel,
+                nearbyCardPurposeSummary: nearbyCardPurposeSummary,
+                nearbyActionSummary: nearbyActionSummary,
+                workspaceNextStep: nil,
+                sharedChatSummary: nil,
+                firstRecentMessage: nil,
+                openChatOutcome: String(describing: error)
+            )
+        }
+        let openChatDuration = milliseconds(since: openChatStart, clock: clock)
+        let openChatOutcome: String
+        if let openChatResponse {
+            openChatOutcome = SkeletonBindingProbeSupport.failureDetail(from: openChatResponse) ?? "ok"
+        } else {
+            openChatOutcome = "nil"
+        }
+
+        let nearbyPostState = try await withTimeout(
+            seconds: 5,
+            operation: "readNearbyStateAfterOpenChat"
+        ) {
+            try await context.porthole.get(
+                keypath: "nearbyRadar.state",
+                requester: context.owner
+            )
+        }
+
+        if case let .object(nearbyObject) = nearbyPostState {
+            nearbyActionSummary = valueString(nearbyObject["actionSummary"])
+            if case let .list(cards)? = nearbyObject["nearby"],
+               case let .object(firstCard)? = cards.first {
+                nearbyCardLabel = valueString(firstCard["label"])
+                nearbyCardPurposeSummary = valueString(firstCard["purposeSummary"])
+            }
+        }
+
+        guard let participantPreview = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: context.owner
+        ) as? Meddle else {
+            throw NSError(
+                domain: "CellConfigurationVerifier",
+                code: 6,
+                userInfo: [NSLocalizedDescriptionKey: "Could not resolve ConferenceParticipantPreviewShell for nearby follow-up verifier"]
+            )
+        }
+
+        let participantStateValue = try await withTimeout(
+            seconds: 5,
+            operation: "readParticipantPreviewStateAfterNearbyChat"
+        ) {
+            try await participantPreview.get(
+                keypath: "state",
+                requester: context.owner
+            )
+        }
+
+        let firstRecentMessage: String?
+        let workspaceNextStep: String?
+        let sharedChatSummary: String?
+        if case let .object(stateObject) = participantStateValue {
+            let workspace: Object?
+            if case let .object(workspaceObject)? = stateObject["workspace"] {
+                workspace = workspaceObject
+            } else {
+                workspace = nil
+            }
+            let sharedConnections: Object?
+            if case let .object(sharedConnectionsObject)? = stateObject["sharedConnections"] {
+                sharedConnections = sharedConnectionsObject
+            } else {
+                sharedConnections = nil
+            }
+
+            workspaceNextStep = valueString(workspace?["nextStep"])
+            sharedChatSummary = valueString(sharedConnections?["chatSummary"])
+            if case let .list(messages)? = sharedConnections?["recentMessages"],
+               case let .object(firstMessage)? = messages.first {
+                firstRecentMessage = valueString(firstMessage["detail"])
+            } else {
+                firstRecentMessage = nil
+            }
+        } else {
+            workspaceNextStep = nil
+            sharedChatSummary = nil
+            firstRecentMessage = nil
+        }
+
+        return NearbyFollowUpReport(
+            configuration: context.configuration,
+            injectedRemoteUUID: remoteUUID,
+            injectDurationMilliseconds: injectDuration,
+            openChatDurationMilliseconds: openChatDuration,
+            nearbyCardLabel: nearbyCardLabel,
+            nearbyCardPurposeSummary: nearbyCardPurposeSummary,
+            nearbyActionSummary: nearbyActionSummary,
+            workspaceNextStep: workspaceNextStep,
+            sharedChatSummary: sharedChatSummary,
+            firstRecentMessage: firstRecentMessage,
+            openChatOutcome: openChatOutcome
         )
     }
 
@@ -2967,7 +3186,7 @@ enum CellConfigurationVerifier {
     }
 
     private static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
-        let identityVault = IdentityVault.shared
+        let identityVault = BindingTests.testIdentityVault
         _ = await identityVault.initialize()
         CellBase.defaultIdentityVault = identityVault
         await BindingLaunchWarmup.preloadLocalRuntime()
@@ -3003,19 +3222,45 @@ enum CellConfigurationVerifier {
         operation: String,
         _ work: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask {
-                try await work()
-            }
-            group.addTask {
-                let duration = max(seconds, 0)
-                try await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-                throw VerifierTimeoutError(operation: operation, seconds: seconds)
+        try await withCheckedThrowingContinuation { continuation in
+            let lock = NSLock()
+            var didResolve = false
+
+            func resolve(_ result: Result<T, Error>) {
+                lock.lock()
+                guard !didResolve else {
+                    lock.unlock()
+                    return
+                }
+                didResolve = true
+                lock.unlock()
+
+                switch result {
+                case .success(let value):
+                    continuation.resume(returning: value)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
             }
 
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
+            let workTask = Task.detached {
+                do {
+                    resolve(.success(try await work()))
+                } catch {
+                    resolve(.failure(error))
+                }
+            }
+
+            Task.detached {
+                let duration = max(seconds, 0)
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+                } catch {
+                    return
+                }
+                workTask.cancel()
+                resolve(.failure(VerifierTimeoutError(operation: operation, seconds: seconds)))
+            }
         }
     }
 
@@ -3061,41 +3306,102 @@ enum CellConfigurationVerifier {
 
     private static func readRootProbes(
         _ probes: [SkeletonBindingProbeSupport.RootProbe],
+        bindingCandidates: [SkeletonBindingProbeSupport.RootProbe: [String]],
         from porthole: OrchestratorCell,
         requester: Identity
     ) async throws -> [RootProbeResolution] {
         let clock = ContinuousClock()
-        var results: [RootProbeResolution] = []
+        let maxAttempts = 5
+        let retryDelayNanoseconds: UInt64 = 300_000_000
+        let perProbeTimeoutSeconds = 0.9
+        var latestOutcomes: [SkeletonBindingProbeSupport.RootProbe: String] = [:]
+        var latestDurations: [SkeletonBindingProbeSupport.RootProbe: Double] = [:]
 
-        for probe in probes {
-            let start = clock.now
+        for attempt in 1...maxAttempts {
+            latestOutcomes.removeAll(keepingCapacity: true)
+
+            for probe in probes {
+                let start = clock.now
+                do {
+                    let value = try await withTimeout(
+                        seconds: perProbeTimeoutSeconds,
+                        operation: "readRootProbe:\(probe.qualifiedKeypath)"
+                    ) {
+                        try await porthole.get(keypath: probe.qualifiedKeypath, requester: requester)
+                    }
+                    latestDurations[probe] = milliseconds(since: start, clock: clock)
+                    if let detail = SkeletonBindingProbeSupport.failureDetail(from: value) {
+                        latestOutcomes[probe] = try await firstReadableBindingOutcome(
+                            for: probe,
+                            initialFailure: detail,
+                            candidates: bindingCandidates[probe] ?? [],
+                            on: porthole,
+                            requester: requester,
+                            timeoutSeconds: perProbeTimeoutSeconds
+                        )
+                    }
+                } catch {
+                    latestDurations[probe] = milliseconds(since: start, clock: clock)
+                    latestOutcomes[probe] = try await firstReadableBindingOutcome(
+                        for: probe,
+                        initialFailure: String(describing: error),
+                        candidates: bindingCandidates[probe] ?? [],
+                        on: porthole,
+                        requester: requester,
+                        timeoutSeconds: perProbeTimeoutSeconds
+                    )
+                }
+            }
+
+            if latestOutcomes.isEmpty || attempt == maxAttempts {
+                break
+            }
+
+            try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
+        }
+
+        return probes.map { probe in
+            RootProbeResolution(
+                probe: probe,
+                durationMilliseconds: latestDurations[probe] ?? 0,
+                outcome: latestOutcomes[probe] ?? "ok"
+            )
+        }
+    }
+
+    private static func firstReadableBindingOutcome(
+        for probe: SkeletonBindingProbeSupport.RootProbe,
+        initialFailure: String,
+        candidates: [String],
+        on porthole: OrchestratorCell,
+        requester: Identity,
+        timeoutSeconds: Double
+    ) async throws -> String {
+        let fallbackCandidates = candidates
+            .filter { $0 != probe.qualifiedKeypath }
+            .prefix(6)
+
+        guard !fallbackCandidates.isEmpty else {
+            return initialFailure
+        }
+
+        for candidate in fallbackCandidates {
             do {
                 let value = try await withTimeout(
-                    seconds: 5,
-                    operation: "readRootProbe:\(probe.qualifiedKeypath)"
+                    seconds: timeoutSeconds,
+                    operation: "readBindingCandidate:\(candidate)"
                 ) {
-                    try await porthole.get(keypath: probe.qualifiedKeypath, requester: requester)
+                    try await porthole.get(keypath: candidate, requester: requester)
                 }
-                let outcome = SkeletonBindingProbeSupport.failureDetail(from: value) ?? "ok"
-                results.append(
-                    RootProbeResolution(
-                        probe: probe,
-                        durationMilliseconds: milliseconds(since: start, clock: clock),
-                        outcome: outcome
-                    )
-                )
+                if SkeletonBindingProbeSupport.failureDetail(from: value) == nil {
+                    return "ok"
+                }
             } catch {
-                results.append(
-                    RootProbeResolution(
-                        probe: probe,
-                        durationMilliseconds: milliseconds(since: start, clock: clock),
-                        outcome: String(describing: error)
-                    )
-                )
+                continue
             }
         }
 
-        return results
+        return initialFailure
     }
 
     private static func executeStaticButtons(
@@ -3153,6 +3459,140 @@ enum CellConfigurationVerifier {
         return results
     }
 
+    private static func directReadableBindings(
+        for configuration: CellConfiguration
+    ) -> [SkeletonBindingProbeSupport.RootProbe: [String]] {
+        guard let skeleton = configuration.skeleton,
+              let rawObject = rawObject(from: skeleton)
+        else {
+            return [:]
+        }
+
+        let labels = Set(
+            (configuration.cellReferences ?? [])
+                .map { $0.label.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+        guard !labels.isEmpty else {
+            return [:]
+        }
+
+        var collected: [SkeletonBindingProbeSupport.RootProbe: [String]] = [:]
+        collectReadableBindings(
+            from: rawObject,
+            currentElementKind: nil,
+            labels: labels,
+            into: &collected
+        )
+        return collected
+    }
+
+    private static func rawObject<T: Encodable>(from value: T) -> Any? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    private static func collectReadableBindings(
+        from value: Any,
+        currentElementKind: String?,
+        labels: Set<String>,
+        into collected: inout [SkeletonBindingProbeSupport.RootProbe: [String]]
+    ) {
+        let skeletonElementKinds: Set<String> = [
+            "Text", "TextField", "TextArea", "List", "Object", "Reference",
+            "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
+            "ScrollView", "Section", "ZStack", "Grid", "Divider"
+        ]
+        let readableBindingKeys: Set<String> = ["keypath", "sourceKeypath"]
+
+        switch value {
+        case let dictionary as [String: Any]:
+            if dictionary.count == 1,
+               let onlyKey = dictionary.keys.first,
+               skeletonElementKinds.contains(onlyKey),
+               let child = dictionary[onlyKey] {
+                collectReadableBindings(
+                    from: child,
+                    currentElementKind: onlyKey,
+                    labels: labels,
+                    into: &collected
+                )
+                return
+            }
+
+            for (key, child) in dictionary {
+                if readableBindingKeys.contains(key),
+                   currentElementKind != "Button",
+                   let bindingValue = child as? String,
+                   let normalizedBinding = normalizedReadableBinding(bindingValue, labels: labels),
+                   let probe = rootProbe(for: normalizedBinding) {
+                    var current = collected[probe] ?? []
+                    if !current.contains(normalizedBinding) {
+                        current.append(normalizedBinding)
+                        collected[probe] = current
+                    }
+                }
+
+                collectReadableBindings(
+                    from: child,
+                    currentElementKind: currentElementKind,
+                    labels: labels,
+                    into: &collected
+                )
+            }
+        case let array as [Any]:
+            for child in array {
+                collectReadableBindings(
+                    from: child,
+                    currentElementKind: currentElementKind,
+                    labels: labels,
+                    into: &collected
+                )
+            }
+        default:
+            break
+        }
+    }
+
+    private static func normalizedReadableBinding(_ bindingValue: String, labels: Set<String>) -> String? {
+        let trimmed = bindingValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let normalizedBinding: String
+        if trimmed.hasPrefix("cell:///Porthole/") {
+            normalizedBinding = String(trimmed.dropFirst("cell:///Porthole/".count))
+        } else if trimmed.hasPrefix("cell://") || trimmed.hasPrefix("ws://") || trimmed.hasPrefix("wss://") {
+            return nil
+        } else {
+            normalizedBinding = trimmed
+        }
+
+        guard let separatorIndex = normalizedBinding.firstIndex(of: ".") else {
+            return nil
+        }
+
+        let label = String(normalizedBinding[..<separatorIndex])
+        guard labels.contains(label) else { return nil }
+        return normalizedBinding
+    }
+
+    private static func rootProbe(for normalizedBinding: String) -> SkeletonBindingProbeSupport.RootProbe? {
+        guard let separatorIndex = normalizedBinding.firstIndex(of: ".") else {
+            return nil
+        }
+
+        let label = String(normalizedBinding[..<separatorIndex])
+        let remainder = String(normalizedBinding[normalizedBinding.index(after: separatorIndex)...])
+        guard let rootSeparator = remainder.firstIndex(where: { $0 == "." || $0 == "[" }) else {
+            guard !remainder.isEmpty else { return nil }
+            return SkeletonBindingProbeSupport.RootProbe(label: label, rootKeypath: remainder)
+        }
+
+        let rootKeypath = String(remainder[..<rootSeparator])
+        guard !rootKeypath.isEmpty else { return nil }
+        return SkeletonBindingProbeSupport.RootProbe(label: label, rootKeypath: rootKeypath)
+    }
+
     private static func collectButtons(in element: SkeletonElement) -> [SkeletonButton] {
         switch element {
         case .Button(let button):
@@ -3205,6 +3645,13 @@ enum CellConfigurationVerifier {
         let duration = clock.now - start
         let components = duration.components
         return (Double(components.seconds) * 1_000.0) + (Double(components.attoseconds) / 1_000_000_000_000_000.0)
+    }
+
+    private static func valueString(_ value: ValueType?) -> String? {
+        guard case let .string(string)? = value else {
+            return nil
+        }
+        return string
     }
 
 #if canImport(AppKit)

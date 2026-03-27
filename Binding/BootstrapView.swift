@@ -146,14 +146,14 @@ struct ConferenceNearbyFollowUpTarget: Equatable {
     var company: String?
     var role: String?
 
-    func discoveryTargetObject() -> Object {
+    func discoveryTargetObject(includeIdentityUUID: Bool = false) -> Object {
         var object: Object = [
             "participantId": .string(participantId),
             "displayName": .string(displayName),
             "company": .string(company ?? ""),
             "role": .string(role ?? "")
         ]
-        if let identityUUID {
+        if includeIdentityUUID, let identityUUID {
             object["identityUUID"] = .string(identityUUID)
         }
         return object
@@ -231,18 +231,11 @@ enum ConferenceNearbyFollowUpSupport {
     }
 
     static func discoveryPayload(for target: ConferenceNearbyFollowUpTarget, source: String) -> Object {
-        var payload: Object = [
+        [
             "source": .string(source),
             "participantIds": .list([.string(target.participantId)]),
-            "displayName": .string(target.displayName),
-            "company": .string(target.company ?? ""),
-            "role": .string(target.role ?? ""),
             "targets": .list([.object(target.discoveryTargetObject())])
         ]
-        if let identityUUID = target.identityUUID {
-            payload["identityUUIDs"] = .list([.string(identityUUID)])
-        }
-        return payload
     }
 
     static func synthesizedParticipantId(remoteUUID: String, identityUUID: String?) -> String {
@@ -379,6 +372,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "requestContact")
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
+#if DEBUG
+        agreementTemplate.addGrant("rw--", for: "testInjectVerifiedContact")
+#endif
 
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
@@ -422,6 +418,14 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard await self.validateAccess("rw--", at: "dispatchAction", for: requester) else { return .string("denied") }
             return await self.forwardDispatchAction(value: value, requester: requester)
         })
+
+#if DEBUG
+        await addInterceptForSet(requester: owner, key: "testInjectVerifiedContact", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "testInjectVerifiedContact", for: requester) else { return .string("denied") }
+            return await self.injectVerifiedContact(value: value, requester: requester)
+        })
+#endif
 
         Task { [weak self] in
             guard let self else { return }
@@ -600,6 +604,34 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return .object(snapshotObject())
         }
 
+        let dispatchPayload: Object = [
+            "keypath": .string("discovery.startChat"),
+            "payload": .object(
+                ConferenceNearbyFollowUpSupport.discoveryPayload(
+                    for: target,
+                    source: "nearby-verified-contact"
+                )
+            )
+        ]
+
+        if await dispatchLocalParticipantFallback(
+            payload: dispatchPayload,
+            requester: requester,
+            resolver: resolver,
+            targetName: target.displayName
+        ) {
+            lastError = nil
+            launchedChatRemoteUUIDs.insert(remoteUUID)
+            lastActionSummary = "Started a conference follow-up chat with \(target.displayName)."
+            if var contactSignal = contactSignalsById[remoteUUID] {
+                contactSignal.summary = "Verified contact saved. Discovery chat is ready for follow-up."
+                contactSignal.actionLabel = "Open chat"
+                contactSignalsById[remoteUUID] = contactSignal
+            }
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
         do {
             guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: requester) as? Meddle else {
                 lastError = "Porthole unavailable"
@@ -608,24 +640,43 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 return .object(snapshotObject())
             }
 
-            let dispatchPayload: Object = [
-                "keypath": .string("discovery.startChat"),
-                "payload": .object(
-                    ConferenceNearbyFollowUpSupport.discoveryPayload(
-                        for: target,
-                        source: "nearby-verified-contact"
-                    )
-                )
-            ]
+            let preDispatchState = await participantFollowUpState(via: porthole, requester: requester)
             let result = try await porthole.set(
                 keypath: "conferenceParticipantShell.dispatchAction",
                 value: .object(dispatchPayload),
                 requester: requester
             )
-            if let errorDescription = mutationErrorDescription(from: result) {
+            let postDispatchState = await participantFollowUpState(via: porthole, requester: requester)
+
+            let localFallbackSucceededOnError: Bool
+            if mutationErrorDescription(from: result) != nil {
+                localFallbackSucceededOnError = await dispatchLocalParticipantFallback(
+                    payload: dispatchPayload,
+                    requester: requester,
+                    resolver: resolver,
+                    targetName: target.displayName
+                )
+            } else {
+                localFallbackSucceededOnError = false
+            }
+
+            let localFallbackSucceededAfterNoop = await dispatchLocalParticipantFallback(
+                payload: dispatchPayload,
+                requester: requester,
+                resolver: resolver,
+                expectedBeforeState: postDispatchState,
+                targetName: target.displayName
+            )
+
+            if let errorDescription = mutationErrorDescription(from: result),
+               localFallbackSucceededOnError == false {
                 lastError = errorDescription
                 lastActionSummary = errorDescription
-            } else {
+            } else if participantFollowUpStateDidAdvance(
+                from: preDispatchState,
+                to: postDispatchState,
+                targetName: target.displayName
+            ) || localFallbackSucceededAfterNoop {
                 lastError = nil
                 launchedChatRemoteUUIDs.insert(remoteUUID)
                 lastActionSummary = "Started a conference follow-up chat with \(target.displayName)."
@@ -634,15 +685,205 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                     contactSignal.actionLabel = "Open chat"
                     contactSignalsById[remoteUUID] = contactSignal
                 }
+            } else {
+                lastError = "Nearby follow-up did not update participant preview state."
+                lastActionSummary = "Nearby follow-up did not update participant preview state."
             }
         } catch {
-            lastError = "Nearby follow-up chat failed: \(error)"
-            lastActionSummary = "Nearby follow-up chat failed: \(error)"
+            if await dispatchLocalParticipantFallback(
+                payload: [
+                    "keypath": .string("discovery.startChat"),
+                    "payload": .object(
+                        ConferenceNearbyFollowUpSupport.discoveryPayload(
+                            for: target,
+                            source: "nearby-verified-contact"
+                        )
+                    )
+                ],
+                requester: requester,
+                resolver: resolver,
+                targetName: target.displayName
+            ) {
+                lastError = nil
+                launchedChatRemoteUUIDs.insert(remoteUUID)
+                lastActionSummary = "Started a conference follow-up chat with \(target.displayName)."
+                if var contactSignal = contactSignalsById[remoteUUID] {
+                    contactSignal.summary = "Verified contact saved. Discovery chat is ready for follow-up."
+                    contactSignal.actionLabel = "Open chat"
+                    contactSignalsById[remoteUUID] = contactSignal
+                }
+            } else {
+                lastError = "Nearby follow-up chat failed: \(error)"
+                lastActionSummary = "Nearby follow-up chat failed: \(error)"
+            }
         }
 
         emitSnapshot(requester: requester)
         return .object(snapshotObject())
     }
+
+    private func participantFollowUpState(via porthole: Meddle, requester: Identity) async -> (nextStep: String?, chatSummary: String?, firstRecentMessage: String?) {
+        let stateValue = try? await porthole.get(
+            keypath: "conferenceParticipantShell.state",
+            requester: requester
+        )
+        return participantFollowUpState(from: stateValue)
+    }
+
+    private func participantFollowUpStateDidAdvance(
+        from before: (nextStep: String?, chatSummary: String?, firstRecentMessage: String?),
+        to after: (nextStep: String?, chatSummary: String?, firstRecentMessage: String?),
+        targetName: String
+    ) -> Bool {
+        let normalizedTarget = targetName.lowercased()
+        if after.nextStep?.lowercased().contains(normalizedTarget) == true {
+            return true
+        }
+        if after.firstRecentMessage?.lowercased().contains(normalizedTarget) == true {
+            return true
+        }
+        return before != after
+    }
+
+    private func dispatchLocalParticipantFallback(
+        payload: Object,
+        requester: Identity,
+        resolver: any CellResolverProtocol,
+        expectedBeforeState: (nextStep: String?, chatSummary: String?, firstRecentMessage: String?)? = nil,
+        targetName: String? = nil
+    ) async -> Bool {
+        guard let localPreview = try? await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: requester
+        ) as? Meddle else {
+            return false
+        }
+
+        let beforeState: (nextStep: String?, chatSummary: String?, firstRecentMessage: String?)
+        if let expectedBeforeState {
+            beforeState = expectedBeforeState
+        } else {
+            beforeState = await participantPreviewFallbackState(from: localPreview, requester: requester)
+        }
+
+        let result = try? await localPreview.set(
+            keypath: "dispatchAction",
+            value: .object(payload),
+            requester: requester
+        )
+        if let errorDescription = mutationErrorDescription(from: result) {
+            lastError = errorDescription
+            return false
+        }
+
+        let afterState: (nextStep: String?, chatSummary: String?, firstRecentMessage: String?)
+        if let mutationState = participantFollowUpState(fromMutationResult: result) {
+            afterState = mutationState
+        } else {
+            afterState = await participantPreviewFallbackState(from: localPreview, requester: requester)
+        }
+        return participantFollowUpStateDidAdvance(
+            from: beforeState,
+            to: afterState,
+            targetName: targetName ?? ""
+        )
+    }
+
+    private func participantPreviewFallbackState(
+        from participantPreview: Meddle,
+        requester: Identity
+    ) async -> (nextStep: String?, chatSummary: String?, firstRecentMessage: String?) {
+        let stateValue = try? await participantPreview.get(keypath: "state", requester: requester)
+        return participantFollowUpState(from: stateValue)
+    }
+
+    private func participantFollowUpState(from stateValue: ValueType?) -> (nextStep: String?, chatSummary: String?, firstRecentMessage: String?) {
+        guard case let .object(stateObject)? = stateValue else {
+            return (nil, nil, nil)
+        }
+        let workspace = object(from: stateObject["workspace"])
+        let sharedConnections = object(from: stateObject["sharedConnections"])
+        let firstRecentMessage: String?
+        if case let .list(messages)? = sharedConnections?["recentMessages"],
+           case let .object(firstMessage)? = messages.first {
+            firstRecentMessage = string(from: firstMessage["detail"])
+        } else {
+            firstRecentMessage = nil
+        }
+
+        return (
+            nextStep: string(from: workspace?["nextStep"]),
+            chatSummary: string(from: sharedConnections?["chatSummary"]),
+            firstRecentMessage: firstRecentMessage
+        )
+    }
+
+    private func participantFollowUpState(fromMutationResult value: ValueType?) -> (nextStep: String?, chatSummary: String?, firstRecentMessage: String?)? {
+        guard case let .object(resultObject)? = value,
+              case let .object(stateObject)? = resultObject["state"] else {
+            return nil
+        }
+        return participantFollowUpState(from: .object(stateObject))
+    }
+
+#if DEBUG
+    private func injectVerifiedContact(value: ValueType, requester: Identity) async -> ValueType {
+        let input = object(from: value)
+        let remoteUUID = normalizedRemoteUUID(string(from: input?["remoteUUID"])) ?? "nearby-test-contact"
+        let displayName = string(from: input?["displayName"]) ?? "Nora Berg"
+        let identityUUID = normalizedRemoteUUID(string(from: input?["identityUUID"]))
+        let participantId = string(from: input?["participantId"])
+            ?? ConferenceNearbyFollowUpSupport.synthesizedParticipantId(
+                remoteUUID: remoteUUID,
+                identityUUID: identityUUID
+            )
+        let company = string(from: input?["company"]) ?? "Polar Systems"
+        let role = string(from: input?["role"]) ?? "speaker"
+        let matchCount = int(from: input?["matchCount"]) ?? 2
+        let matchScore = double(from: input?["matchScore"]) ?? 0.92
+        let distanceMeters = double(from: input?["distanceMeters"]) ?? 1.6
+        let direction = RadarDirection3D(
+            x: double(from: input?["directionX"]) ?? 0.0,
+            y: double(from: input?["directionY"]) ?? 0.0,
+            z: double(from: input?["directionZ"]) ?? 1.0
+        )
+
+        let update = RadarEntityUpdate(
+            remoteUUID: remoteUUID,
+            displayName: displayName,
+            status: "nearby",
+            connected: true,
+            distanceMeters: distanceMeters,
+            direction: direction,
+            matchScore: matchScore
+        )
+        entitiesById[remoteUUID] = NearbyEntity(update: update, defaultStatus: "nearby")
+        purposeSignalsById[remoteUUID] = PurposeSignal(
+            count: matchCount,
+            score: matchScore,
+            summary: "\(matchCount) verified overlap(s) via governance",
+            detail: "Top verified match score \(String(format: "%.2f", matchScore))"
+        )
+        followUpTargetsById[remoteUUID] = ConferenceNearbyFollowUpTarget(
+            remoteUUID: remoteUUID,
+            participantId: participantId,
+            identityUUID: identityUUID,
+            displayName: displayName,
+            company: company,
+            role: role
+        )
+        contactSignalsById[remoteUUID] = ContactSignal(
+            status: "verified",
+            summary: "Verified contact saved with \(matchCount) purpose/interest overlap(s).",
+            actionLabel: "Verified contact"
+        )
+        scannerStatus = "started"
+        lastError = nil
+        lastActionSummary = "Injected verified nearby contact for \(displayName)."
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
+    }
+#endif
 
     private func consume(flowElement: FlowElement) async {
         if case let .object(object) = flowElement.content {

@@ -168,12 +168,16 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `render`: renders the actual SwiftUI/AppKit surface and records render timing
 - The verifier currently covers both:
   - `Conference Participant Portal`
+  - `Conference Participant Nearby Follow-Up`
   - `Conference Control Tower`
 - Added a dedicated XCTest wrapper in [BindingTests/CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift) so the checks run more reliably than the current Swift Testing filter path.
 - Added a runnable helper in [Scripts/run_conference_configuration_verifier.sh](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Scripts/run_conference_configuration_verifier.sh).
 - Direct conference action routing was tightened so the verifier now catches and prevents regressions around:
   - participant actions like `Vis timeline`, `Oppdater treff`, `Oppdater discovery`, `Start scanner`, `Stop scanner`
+  - nearby verified-contact follow-up and chat handoff
   - organizer actions like `Publish content` and `Discard draft`
+- The verifier now runs each conference test in a fresh `xcodebuild` process, which makes it deterministic even when local Porthole/runtime singletons would otherwise leak state between tests.
+- Nearby follow-up verification is now strong enough to inject a deterministic verified contact, route the same Porthole action the UI uses, and assert that participant preview state actually advances.
 - The verifier now times out individual operations explicitly instead of hanging indefinitely on broken resolution or action paths.
 - The diagnostics validator now understands direct `dispatchAction` buttons with explicit `url`, which removed a class of false negatives in conference workbenches.
 - The macOS render verifier was stabilized by rendering inside a constrained container view instead of relying on a temporary `NSWindow`.

@@ -10,11 +10,13 @@ Current green baseline:
 Covered surfaces:
 
 - `Conference Participant Portal`
+- `Conference Participant Nearby Follow-Up`
 - `Conference Control Tower`
 
 Covered layers:
 
 - contract verification for references, root probes, and selected actions
+- contract verification for nearby follow-up state transition and chat handoff
 - renderer verification for expected visible strings and timing
 
 Important working assumptions:
@@ -25,16 +27,16 @@ Important working assumptions:
 
 Next recommended engineering steps:
 
-1. Extend the contract verifier to assert nearby follow-up transitions more deeply:
-   - `Start scanner`
-   - `Stop scanner`
-   - `requestContact`
-   - follow-up chat handoff where feasible in local fallback mode
-2. Add simple timing thresholds or summary output so regressions in render/load time are easier to spot automatically.
-3. Add one more conference configuration when it becomes stable enough to matter for the demo story.
+1. Extend the nearby verifier one step deeper:
+   - assert `requestContact` before verified contact injection
+   - assert scanner status transitions (`started`, `stopped`)
+   - keep the verified follow-up chat handoff green
+2. Add simple timing summaries or thresholds so slowdowns are easier to spot automatically.
+3. Add one more stable conference configuration when it is ready for the demo story.
 4. Consider a separate iOS-oriented layer later:
    - contract verification can still be local
    - render verification may need screenshot-driven validation instead of AppKit hosting
+5. If a verifier case becomes flaky again, first check whether shared runtime state has crept back in before blaming staging.
 
 If you need to debug a fresh conference regression, start with:
 

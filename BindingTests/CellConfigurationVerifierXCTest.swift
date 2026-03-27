@@ -33,7 +33,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
         XCTAssertTrue(
             report.unreadableRootProbes.isEmpty,
-            "Unreadable root probe count: \(report.unreadableRootProbes.count)"
+            "Unreadable root probes: \(report.unreadableRootProbes)"
         )
         XCTAssertTrue(
             report.failedActions.isEmpty,
@@ -65,12 +65,28 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
         XCTAssertTrue(
             report.unreadableRootProbes.isEmpty,
-            "Unreadable root probe count: \(report.unreadableRootProbes.count)"
+            "Unreadable root probes: \(report.unreadableRootProbes)"
         )
         XCTAssertTrue(
             report.failedActions.isEmpty,
             "Failed actions: \(report.failedActions)"
         )
+    }
+
+    func testConferenceParticipantNearbyFollowUpContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+
+        let report = try await CellConfigurationVerifier.nearbyFollowUpReport(for: configuration)
+
+        XCTAssertEqual(report.openChatOutcome, "ok")
+        XCTAssertEqual(report.nearbyCardLabel, "Open chat")
+        XCTAssertTrue(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
+        XCTAssertEqual(report.nearbyActionSummary, "Started a conference follow-up chat with Nora Berg.")
+        XCTAssertEqual(report.workspaceNextStep, "Started follow-up chat with Nora Berg in local preview.")
+        XCTAssertEqual(report.sharedChatSummary, "1 shared message(s) visible.")
+        XCTAssertEqual(report.firstRecentMessage, "Nearby follow-up with Nora Berg is ready in discovery chat.")
     }
 
 #if canImport(AppKit)
