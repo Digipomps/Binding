@@ -159,8 +159,27 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - [Documentation/VaultHardeningProgress.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/VaultHardeningProgress.md)
 - Validation status:
   - `swift test --filter ChatCellTests` succeeded
-  - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
-  - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
+
+## Latest successful changes (March 27, 2026)
+- Binding now has a deterministic conference configuration verifier with two layers:
+  - `contract`: validates references, root probes, selected actions, and timing
+  - `render`: renders the actual SwiftUI/AppKit surface and records render timing
+- The verifier currently covers both:
+  - `Conference Participant Portal`
+  - `Conference Control Tower`
+- Added a dedicated XCTest wrapper in [BindingTests/CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift) so the checks run more reliably than the current Swift Testing filter path.
+- Added a runnable helper in [Scripts/run_conference_configuration_verifier.sh](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Scripts/run_conference_configuration_verifier.sh).
+- Direct conference action routing was tightened so the verifier now catches and prevents regressions around:
+  - participant actions like `Vis timeline`, `Oppdater treff`, `Oppdater discovery`, `Start scanner`, `Stop scanner`
+  - organizer actions like `Publish content` and `Discard draft`
+- The verifier now times out individual operations explicitly instead of hanging indefinitely on broken resolution or action paths.
+- The diagnostics validator now understands direct `dispatchAction` buttons with explicit `url`, which removed a class of false negatives in conference workbenches.
+- The macOS render verifier was stabilized by rendering inside a constrained container view instead of relying on a temporary `NSWindow`.
+- Validation status:
+  - `./Scripts/run_conference_configuration_verifier.sh all contract` succeeded
+  - `./Scripts/run_conference_configuration_verifier.sh all render` succeeded
 
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.
@@ -195,6 +214,7 @@ Projects importing CellProtocol must include:
 - Skeleton elements reference: [Documentation/SkeletonElements_Detailed.md](Documentation/SkeletonElements_Detailed.md)
 - Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
 - Conference debug playbook: [Documentation/ConferenceDebugPlaybook.md](Documentation/ConferenceDebugPlaybook.md)
+- Conference configuration verifier: [Documentation/ConferenceConfigurationVerifier.md](Documentation/ConferenceConfigurationVerifier.md)
 - CellScaffold parity prompt for conference demo flows: [Documentation/CellScaffoldConferenceParityPrompt.md](Documentation/CellScaffoldConferenceParityPrompt.md)
 - CellScaffold Playwright prompt for conference demo smoke tests: [Documentation/CellScaffoldPlaywrightPrompt.md](Documentation/CellScaffoldPlaywrightPrompt.md)
 - Cross-vault identity enrollment: [Documentation/CrossVaultIdentityEnrollment.md](Documentation/CrossVaultIdentityEnrollment.md)
@@ -203,6 +223,7 @@ Projects importing CellProtocol must include:
 - Key handling and content crypto assessment: [Documentation/KeyHandlingAndContentCryptoAssessment.md](Documentation/KeyHandlingAndContentCryptoAssessment.md)
 - Vault hardening progress: [Documentation/VaultHardeningProgress.md](Documentation/VaultHardeningProgress.md)
 - Chat crypto recipient side: [Documentation/ChatCryptoRecipientSide.md](Documentation/ChatCryptoRecipientSide.md)
+- Next step prompt: [Documentation/NextStepPrompt.md](Documentation/NextStepPrompt.md)
 - Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
 - HavenAgentD integration note: [Documentation/HavenAgentD.md](Documentation/HavenAgentD.md)
 - Agent Setup Workbench UI review: [Documentation/AgentSetupWorkbench_UI_Review.md](Documentation/AgentSetupWorkbench_UI_Review.md)
