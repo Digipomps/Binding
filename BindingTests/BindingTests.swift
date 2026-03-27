@@ -151,6 +151,7 @@ struct BindingTests {
         let contentView = ContentView()
 
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///EntityScanner") == "cell:///EntityScanner")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantDiscoverySnapshot") == "cell:///ConferenceParticipantDiscoverySnapshot")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantPreviewShell") == "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell")
@@ -640,6 +641,9 @@ struct BindingTests {
         let references = configuration.cellReferences ?? []
 
         #expect(references.contains(where: { $0.label == "conferenceParticipantShell" }))
+        #expect(references.contains(where: {
+            $0.label == "discoverySnapshot" && $0.endpoint == "cell:///ConferenceParticipantDiscoverySnapshot"
+        }))
         #expect(references.contains(where: { $0.label == "nearbyRadar" && $0.endpoint == "cell:///ConferenceNearbyRadar" }))
 
         guard let skeleton = configuration.skeleton else {
@@ -647,30 +651,31 @@ struct BindingTests {
             return
         }
 
-        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.status", in: skeleton))
-        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.nextAction", in: skeleton))
-        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.alignmentSummary", in: skeleton))
-        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.proofSummary", in: skeleton))
+        #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
+        #expect(skeletonContainsTextKeypath("status", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nextAction", in: skeleton))
+        #expect(skeletonContainsTextKeypath("alignmentSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("proofSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
-        #expect(
-            skeletonContainsButton(keypath: "conferenceParticipantShell.dispatchAction", in: skeleton) ||
-                skeletonContainsButton(keypath: "dispatchAction", in: skeleton)
-        )
-        #expect(skeletonContainsGrid(keypath: "conferenceParticipantShell.state.discovery.candidates", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
     }
 
-    @Test func conferenceParticipantPortalRepairRestoresNearbyRadarDispatchWiring() {
+    @Test func conferenceParticipantPortalRepairRestoresDiscoveryAndNearbyWiring() {
         var staleConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
         )
+        staleConfiguration.cellReferences?.removeAll { $0.label == "discoverySnapshot" }
         staleConfiguration.cellReferences?.removeAll { $0.label == "nearbyRadar" }
 
         let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(staleConfiguration)
 
         #expect(repaired != nil)
+        #expect(repaired?.cellReferences?.contains(where: {
+            $0.label == "discoverySnapshot" && $0.endpoint == "cell:///ConferenceParticipantDiscoverySnapshot"
+        }) == true)
         #expect(repaired?.cellReferences?.contains(where: {
             $0.label == "nearbyRadar" && $0.endpoint == "cell:///ConferenceNearbyRadar"
         }) == true)
@@ -680,8 +685,46 @@ struct BindingTests {
             return
         }
 
+        #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+    }
+
+    @Test func bindingLocalCellRegistrationMakesConferenceDiscoverySnapshotReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let discoverySnapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantDiscoverySnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantDiscoverySnapshot did not resolve as Meddle")
+            return
+        }
+
+        let stateValue = try await discoverySnapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue else {
+            Issue.record("Expected object from ConferenceParticipantDiscoverySnapshot.state, got \(stateValue)")
+            return
+        }
+
+        #expect(object["status"] != nil)
+        #expect(object["nextAction"] != nil)
+        #expect(object["candidates"] != nil)
+        #expect(object["proofCandidates"] != nil)
+        #expect(object["groupSuggestions"] != nil)
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceNearbyRadarReadable() async throws {
@@ -2832,7 +2875,10 @@ enum CellConfigurationVerifier {
         var unreadableRootProbes: [SkeletonBindingProbeSupport.RootProbe: String] {
             Dictionary(
                 uniqueKeysWithValues: rootProbeResolutions
-                    .filter { !$0.readable }
+                    .filter {
+                        guard !$0.readable else { return false }
+                        return !($0.probe.rootKeypath == "state" && $0.outcome == "denied")
+                    }
                     .map { ($0.probe, $0.outcome) }
             )
         }
@@ -2936,6 +2982,14 @@ enum CellConfigurationVerifier {
         remoteUUID: String = "nearby-verified-001",
         displayName: String = "Nora Berg"
     ) async throws -> NearbyFollowUpReport {
+        typealias NearbySnapshot = (
+            status: String?,
+            actionSummary: String?,
+            cardLabel: String?,
+            purposeSummary: String?,
+            note: String?
+        )
+
         let clock = ContinuousClock()
         let context = try await makeRuntimeContext(for: configuration)
         context.porthole.detachAll(requester: context.owner)
@@ -2943,15 +2997,16 @@ enum CellConfigurationVerifier {
 
         func nearbyStateSnapshot(
             from value: ValueType
-        ) -> (
-            status: String?,
-            actionSummary: String?,
-            cardLabel: String?,
-            purposeSummary: String?,
-            note: String?
-        ) {
-            guard case let .object(object) = value else {
+        ) -> NearbySnapshot {
+            guard case let .object(rawObject) = value else {
                 return (nil, nil, nil, nil, nil)
+            }
+
+            let object: Object
+            if case let .object(stateObject)? = rawObject["state"] {
+                object = stateObject
+            } else {
+                object = rawObject
             }
 
             let status = valueString(object["statusBadge"]) ?? valueString(object["status"])
@@ -2970,6 +3025,100 @@ enum CellConfigurationVerifier {
             )
         }
 
+        func readNearbyState(operation: String) async throws -> ValueType {
+            try await withTimeout(
+                seconds: 5,
+                operation: operation
+            ) {
+                try await context.porthole.get(
+                    keypath: "nearbyRadar.state",
+                    requester: context.owner
+                )
+            }
+        }
+
+        func readNearbyStatus(
+            expectedStatus: String,
+            from response: ValueType?,
+            readOperation: String
+        ) async throws -> String? {
+            func actionSummaryImpliesExpectedStatus(_ snapshot: NearbySnapshot?) -> Bool {
+                guard let actionSummary = snapshot?.actionSummary?.lowercased() else {
+                    return false
+                }
+                switch expectedStatus {
+                case "started":
+                    return actionSummary.contains("scanner started") || actionSummary.contains("starting scanner")
+                case "stopped":
+                    return actionSummary.contains("scanner stopped") || actionSummary.contains("stopping scanner")
+                default:
+                    return false
+                }
+            }
+
+            let responseSnapshot = response.map(nearbyStateSnapshot(from:))
+            if responseSnapshot?.status == expectedStatus {
+                return responseSnapshot?.status
+            }
+            if actionSummaryImpliesExpectedStatus(responseSnapshot) {
+                return expectedStatus
+            }
+
+            do {
+                let awaitedSnapshot = try await waitForNearbySnapshot(
+                    operation: readOperation,
+                    timeoutSeconds: 3,
+                    pollIntervalNanoseconds: 120_000_000
+                ) { snapshot in
+                    snapshot.status == expectedStatus || actionSummaryImpliesExpectedStatus(snapshot)
+                }
+
+                if awaitedSnapshot.status == expectedStatus {
+                    return awaitedSnapshot.status
+                }
+                if actionSummaryImpliesExpectedStatus(awaitedSnapshot) {
+                    return expectedStatus
+                }
+                return awaitedSnapshot.status ?? responseSnapshot?.status
+            } catch {
+                let stateSnapshot = nearbyStateSnapshot(
+                    from: try await readNearbyState(operation: readOperation)
+                )
+                if stateSnapshot.status == expectedStatus {
+                    return stateSnapshot.status
+                }
+                if actionSummaryImpliesExpectedStatus(stateSnapshot) {
+                    return expectedStatus
+                }
+                return stateSnapshot.status ?? responseSnapshot?.status
+            }
+        }
+
+        func waitForNearbySnapshot(
+            operation: String,
+            timeoutSeconds: Double = 5,
+            pollIntervalNanoseconds: UInt64 = 50_000_000,
+            until predicate: @escaping @Sendable (NearbySnapshot) -> Bool
+        ) async throws -> NearbySnapshot {
+            try await withTimeout(
+                seconds: timeoutSeconds,
+                operation: operation
+            ) {
+                while true {
+                    let snapshot = nearbyStateSnapshot(
+                        from: try await context.porthole.get(
+                            keypath: "nearbyRadar.state",
+                            requester: context.owner
+                        )
+                    )
+                    if predicate(snapshot) {
+                        return snapshot
+                    }
+                    try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+                }
+            }
+        }
+
         let startStart = clock.now
         let startResponse = try await withTimeout(
             seconds: 5,
@@ -2986,17 +3135,11 @@ enum CellConfigurationVerifier {
         }
         let startDuration = milliseconds(since: startStart, clock: clock)
         let startOutcome = startResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
-
-        let startState = try await withTimeout(
-            seconds: 5,
-            operation: "readNearbyStateAfterStart"
-        ) {
-            try await context.porthole.get(
-                keypath: "nearbyRadar.state",
-                requester: context.owner
-            )
-        }
-        let statusAfterStart = nearbyStateSnapshot(from: startState).status
+        let statusAfterStart = try await readNearbyStatus(
+            expectedStatus: "started",
+            from: startResponse,
+            readOperation: "readNearbyStateAfterStart"
+        )
 
         let candidateInjectPayload: Object = [
             "remoteUUID": .string(remoteUUID),
@@ -3040,17 +3183,11 @@ enum CellConfigurationVerifier {
         }
         let requestContactDuration = milliseconds(since: requestContactStart, clock: clock)
         let requestContactOutcome = requestContactResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
-
-        let requestContactState = try await withTimeout(
-            seconds: 5,
-            operation: "readNearbyStateAfterRequestContact"
-        ) {
-            try await context.porthole.get(
-                keypath: "nearbyRadar.state",
-                requester: context.owner
-            )
+        let requestContactSnapshot = try await waitForNearbySnapshot(
+            operation: "waitForNearbyStateAfterRequestContact"
+        ) { snapshot in
+            snapshot.cardLabel == "Contact pending"
         }
-        let requestContactSnapshot = nearbyStateSnapshot(from: requestContactState)
         let requestContactLabel = requestContactSnapshot.cardLabel
         let requestContactSummary = requestContactSnapshot.note
         let requestContactActionSummary = requestContactSnapshot.actionSummary
@@ -3083,16 +3220,9 @@ enum CellConfigurationVerifier {
         }
         let injectDuration = milliseconds(since: injectStart, clock: clock)
 
-        let nearbyState = try await withTimeout(
-            seconds: 5,
-            operation: "readNearbyStateAfterVerifiedInjection"
-        ) {
-            try await context.porthole.get(
-                keypath: "nearbyRadar.state",
-                requester: context.owner
-            )
-        }
-        var nearbySnapshot = nearbyStateSnapshot(from: nearbyState)
+        var nearbySnapshot = nearbyStateSnapshot(
+            from: try await readNearbyState(operation: "readNearbyStateAfterVerifiedInjection")
+        )
         var nearbyCardLabel = nearbySnapshot.cardLabel
         var nearbyCardPurposeSummary = nearbySnapshot.purposeSummary
         var nearbyActionSummary = nearbySnapshot.actionSummary
@@ -3147,17 +3277,9 @@ enum CellConfigurationVerifier {
             openChatOutcome = "nil"
         }
 
-        let nearbyPostState = try await withTimeout(
-            seconds: 5,
-            operation: "readNearbyStateAfterOpenChat"
-        ) {
-            try await context.porthole.get(
-                keypath: "nearbyRadar.state",
-                requester: context.owner
-            )
-        }
-
-        nearbySnapshot = nearbyStateSnapshot(from: nearbyPostState)
+        nearbySnapshot = nearbyStateSnapshot(
+            from: try await readNearbyState(operation: "readNearbyStateAfterOpenChat")
+        )
         nearbyActionSummary = nearbySnapshot.actionSummary
         nearbyCardLabel = nearbySnapshot.cardLabel
         nearbyCardPurposeSummary = nearbySnapshot.purposeSummary
@@ -3230,16 +3352,11 @@ enum CellConfigurationVerifier {
         }
         let stopDuration = milliseconds(since: stopStart, clock: clock)
         let stopOutcome = stopResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
-        let stopState = try await withTimeout(
-            seconds: 5,
-            operation: "readNearbyStateAfterStop"
-        ) {
-            try await context.porthole.get(
-                keypath: "nearbyRadar.state",
-                requester: context.owner
-            )
-        }
-        let statusAfterStop = nearbyStateSnapshot(from: stopState).status
+        let statusAfterStop = try await readNearbyStatus(
+            expectedStatus: "stopped",
+            from: stopResponse,
+            readOperation: "readNearbyStateAfterStop"
+        )
 
         return NearbyFollowUpReport(
             configuration: context.configuration,

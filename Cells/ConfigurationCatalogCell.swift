@@ -6551,6 +6551,13 @@ final class ConfigurationCatalogCell: GeneralCell {
         reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
         configuration.addReference(reference)
 
+        let discoverySnapshotReference = CellReference(
+            endpoint: "cell:///ConferenceParticipantDiscoverySnapshot",
+            subscribeFeed: false,
+            label: "discoverySnapshot"
+        )
+        configuration.addReference(discoverySnapshotReference)
+
         let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
         configuration.addReference(nearbyRadarReference)
 
@@ -6558,7 +6565,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalHeroSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalAgendaSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
             bindingConferencePortalRecommendationsSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
-            bindingConferencePortalDiscoverySection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
+            bindingConferencePortalDiscoverySection(referenceLabel: "discoverySnapshot"),
             bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: "nearbyRadar"),
             bindingConferencePortalTimelineSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
             bindingConferencePortalNetworkSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
@@ -7030,43 +7037,53 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    private static func bindingConferencePortalDiscoverySection(referenceLabel: String, actionEndpoint: String) -> SkeletonElement {
-        bindingConferencePortalCardSection(
-            "Entity Discovery",
-            content: [
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.intro"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.status"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.alignmentSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.proofSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.sourceSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.publicProfileSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.chatSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.nextAction"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.discovery.refreshSummary"),
-                bindingConferencePortalCollectionGrid(
-                    keypath: "\(referenceLabel).state.discovery.candidates",
-                    itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
-                ),
-                bindingConferencePortalCollectionGrid(
-                    keypath: "\(referenceLabel).state.discovery.proofCandidates",
-                    itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
-                ),
-                bindingConferencePortalCollectionGrid(
-                    keypath: "\(referenceLabel).state.discovery.groupSuggestions",
-                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
-                ),
-                .HStack(
-                    SkeletonHStack(elements: [
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "discovery.refresh",
-                            label: "Oppdater discovery",
-                            url: actionEndpoint
-                        )
-                    ])
-                )
-            ]
+    private static func bindingConferencePortalDiscoverySection(referenceLabel: String) -> SkeletonElement {
+        var snapshotReference = SkeletonCellReference(
+            keypath: referenceLabel,
+            topic: "discoverySnapshot.snapshot"
         )
+        snapshotReference.flowElementSkeleton = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Entity Discovery",
+                content: [
+                    bindingConferencePortalKeyText("intro"),
+                    bindingConferencePortalKeyText("status"),
+                    bindingConferencePortalKeyText("alignmentSummary"),
+                    bindingConferencePortalKeyText("proofSummary"),
+                    bindingConferencePortalKeyText("sourceSummary"),
+                    bindingConferencePortalKeyText("publicProfileSummary"),
+                    bindingConferencePortalKeyText("chatSummary"),
+                    bindingConferencePortalKeyText("nextAction"),
+                    bindingConferencePortalKeyText("refreshSummary"),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "candidates",
+                        itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
+                    ),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "proofCandidates",
+                        itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
+                    ),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "groupSuggestions",
+                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(
+                                keypath: "dispatchAction",
+                                label: "Oppdater discovery",
+                                payload: .object([
+                                    "keypath": .string("refresh"),
+                                    "payload": .bool(true)
+                                ]),
+                                url: "cell:///ConferenceParticipantDiscoverySnapshot"
+                            )
+                        ])
+                    )
+                ]
+            )
+        ])
+        return .Reference(snapshotReference)
     }
 
     private static func bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: String) -> SkeletonElement {

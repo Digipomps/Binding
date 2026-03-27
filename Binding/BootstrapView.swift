@@ -94,6 +94,13 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "ConferenceParticipantDiscoverySnapshot",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceParticipantDiscoverySnapshotLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "Lobby",
             cellScope: .scaffoldUnique,
             identityDomain: "private",
@@ -342,6 +349,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
     private var entitiesById: [String: NearbyEntity] = [:]
     private var scannerStatus = "idle"
+    private var scannerLifecycleStatus = "idle"
+    private var requestedScannerStatus: String?
     private var transportMode = "multipeerconnectivity"
     private var precisionMode = "unknown"
     private var capabilityDescription = "Start the scanner to evaluate nearby transport and precision."
@@ -556,12 +565,17 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 await refreshEncounterSnapshot(requester: requester)
             } else if keypath == "start" {
                 scannerStatus = "started"
+                scannerLifecycleStatus = "started"
+                requestedScannerStatus = "started"
                 lastActionSummary = "Scanner started. Waiting for nearby participants."
             } else if keypath == "stop" {
                 scannerStatus = "stopped"
+                scannerLifecycleStatus = "stopped"
+                requestedScannerStatus = "stopped"
                 lastActionSummary = "Scanner stopped."
             }
         } catch {
+            requestedScannerStatus = nil
             lastError = "Nearby scanner action \(keypath) failed: \(error)"
             lastActionSummary = "Nearby action failed: \(error)"
         }
@@ -924,6 +938,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             lastActionSummary = "Injected nearby candidate for \(displayName)."
         }
         scannerStatus = "started"
+        scannerLifecycleStatus = "started"
+        requestedScannerStatus = "started"
         lastError = nil
         emitSnapshot(requester: requester)
         return .object(snapshotObject())
@@ -960,6 +976,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         case let .status(update):
             if let status = update.status, !status.isEmpty {
                 scannerStatus = status
+                if status == "started" || status == "stopped" {
+                    scannerLifecycleStatus = status
+                }
+                if requestedScannerStatus == status,
+                   (status == "started" || status == "stopped") {
+                    requestedScannerStatus = nil
+                }
             }
             upsert(update, fallbackStatus: scannerStatus)
         }
@@ -984,9 +1007,25 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
         if let status = string(from: object["status"]), !status.isEmpty {
             scannerStatus = status
+            if status == "started" || status == "stopped" || status == "idle" || status == "scannerNotStarted" {
+                scannerLifecycleStatus = lifecycleBadgeStatus(from: status)
+            }
         }
         if let supportsNearby = bool(from: object["supportsNearbyPrecision"]) {
             supportsNearbyPrecision = supportsNearby
+        }
+    }
+
+    private func lifecycleBadgeStatus(from rawStatus: String) -> String {
+        switch rawStatus {
+        case "started":
+            return "started"
+        case "stopped":
+            return "stopped"
+        case "scannerNotStarted", "idle":
+            return "idle"
+        default:
+            return scannerLifecycleStatus
         }
     }
 
@@ -1221,6 +1260,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
     private func snapshotObject() -> Object {
         pruneStaleEntities()
+        let effectiveScannerStatus = requestedScannerStatus ?? scannerLifecycleStatus
 
         let entities = sortedEntities()
         let sectors = CompassSector.allCases.map { sector in
@@ -1251,7 +1291,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "actionSummary": .string(lastActionSummary),
             "transportBadge": .string(transportMode.uppercased()),
             "precisionBadge": .string(precisionMode.uppercased()),
-            "statusBadge": .string(scannerStatus),
+            "statusBadge": .string(effectiveScannerStatus),
             "localityNote": .string(localityNote),
             "description": .string(capabilityDescription),
             "sectors": .list(sectors.map(ValueType.object)),
@@ -1815,6 +1855,304 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
 
     private func connectionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
         sessionCard(title: title, subtitle: subtitle, detail: detail, note: note)
+    }
+}
+
+private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell {
+    private let bootstrapRequester: Identity
+    private var activeRequester: Identity?
+    private var cachedDiscoveryState: Object = ConferenceParticipantDiscoverySnapshotLocalCell.defaultDiscoveryState()
+    private var lastRefreshAt: Date?
+    private var refreshTask: Task<Void, Never>?
+
+    required init(owner: Identity) async {
+        self.bootstrapRequester = owner
+        await super.init(owner: owner)
+        await configure(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        fatalError("ConferenceParticipantDiscoverySnapshotLocalCell does not support decoding")
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private func configure(owner: Identity) async {
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("rw--", for: "refresh")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            await self.refreshSnapshotIfNeeded(force: false, forwardParticipantRefresh: false, requester: requester)
+            return .object(self.cachedDiscoveryState)
+        })
+
+        await addInterceptForSet(requester: owner, key: "refresh", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "refresh", for: requester) else { return .string("denied") }
+            await self.refreshSnapshotIfNeeded(force: true, forwardParticipantRefresh: true, requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(self.cachedDiscoveryState)
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "dispatchAction", for: requester) else { return .string("denied") }
+            return await self.handleDispatchAction(value, requester: requester)
+        })
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.refreshSnapshotIfNeeded(force: true, forwardParticipantRefresh: false, requester: owner)
+        }
+    }
+
+    private func handleDispatchAction(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard case let .object(object) = value,
+              let actionKeypath = string(from: object["keypath"]),
+              actionKeypath.isEmpty == false else {
+            cachedDiscoveryState = Self.discoveryStateWithStatus(
+                basedOn: cachedDiscoveryState,
+                status: "Discovery-handlingen mangler keypath.",
+                refreshSummary: "Kunne ikke oppdatere discovery fordi action-payloaden var ugyldig."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedDiscoveryState)
+            ])
+        }
+
+        switch actionKeypath {
+        case "refresh", "discovery.refresh":
+            await refreshSnapshotIfNeeded(force: true, forwardParticipantRefresh: true, requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(cachedDiscoveryState)
+            ])
+        default:
+            cachedDiscoveryState = Self.discoveryStateWithStatus(
+                basedOn: cachedDiscoveryState,
+                status: "Discovery-handlingen \(actionKeypath) er ikke støttet lokalt.",
+                refreshSummary: "Bruk participant-shellen for denne handlingen."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedDiscoveryState)
+            ])
+        }
+    }
+
+    private func refreshSnapshotIfNeeded(
+        force: Bool,
+        forwardParticipantRefresh: Bool,
+        requester: Identity
+    ) async {
+        activeRequester = requester
+
+        if !force,
+           let lastRefreshAt,
+           Date().timeIntervalSince(lastRefreshAt) < 1 {
+            return
+        }
+
+        if let refreshTask {
+            await refreshTask.value
+            return
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performRefresh(
+                forwardParticipantRefresh: forwardParticipantRefresh,
+                requester: requester
+            )
+        }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    @MainActor
+    private func performRefresh(
+        forwardParticipantRefresh: Bool,
+        requester: Identity
+    ) async {
+        await AppInitializer.initialize()
+
+        guard let resolver = CellBase.defaultCellResolver else {
+            cachedDiscoveryState = Self.discoveryStateWithStatus(
+                basedOn: cachedDiscoveryState,
+                status: "Discovery bruker siste lokale snapshot fordi resolver mangler.",
+                refreshSummary: "Kunne ikke oppdatere discovery akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
+
+        guard let porthole = try? await resolver.cellAtEndpoint(
+            endpoint: "cell:///Porthole",
+            requester: requester
+        ) as? Meddle else {
+            cachedDiscoveryState = Self.discoveryStateWithStatus(
+                basedOn: cachedDiscoveryState,
+                status: "Discovery bruker siste lokale snapshot fordi Porthole ikke er tilgjengelig.",
+                refreshSummary: "Kunne ikke oppdatere discovery akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
+
+        if forwardParticipantRefresh {
+            let refreshPayload: Object = [
+                "keypath": .string("discovery.refresh"),
+                "payload": .bool(true)
+            ]
+            let mutationResult = try? await porthole.set(
+                keypath: "conferenceParticipantShell.dispatchAction",
+                value: .object(refreshPayload),
+                requester: requester
+            )
+            if let errorDescription = mutationErrorDescription(from: mutationResult) {
+                cachedDiscoveryState = Self.discoveryStateWithStatus(
+                    basedOn: cachedDiscoveryState,
+                    status: "Discovery beholdt siste stabile snapshot fordi oppdateringen feilet.",
+                    refreshSummary: errorDescription
+                )
+            }
+        }
+
+        do {
+            let discoveryValue = try await porthole.get(
+                keypath: "conferenceParticipantShell.state.discovery",
+                requester: requester
+            )
+            guard case let .object(discoveryObject) = discoveryValue else {
+                cachedDiscoveryState = Self.discoveryStateWithStatus(
+                    basedOn: cachedDiscoveryState,
+                    status: "Discovery returnerte ikke et lesbart snapshot.",
+                    refreshSummary: "Bruker siste stabile data."
+                )
+                lastRefreshAt = Date()
+                return
+            }
+
+            cachedDiscoveryState = Self.mergedDiscoveryState(from: discoveryObject)
+            lastRefreshAt = Date()
+        } catch {
+            cachedDiscoveryState = Self.discoveryStateWithStatus(
+                basedOn: cachedDiscoveryState,
+                status: "Discovery bruker siste stabile snapshot.",
+                refreshSummary: "Kunne ikke hente oppdatert discovery akkurat nå: \(error)"
+            )
+            lastRefreshAt = Date()
+        }
+    }
+
+    private func mutationErrorDescription(from value: ValueType?) -> String? {
+        guard let value else { return "Ukjent discovery-feil." }
+        switch value {
+        case let .string(string):
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { return nil }
+            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
+                return trimmed
+            }
+            return nil
+        case let .object(object):
+            if case let .string(status)? = object["status"],
+               status == "error",
+               let message = string(from: object["message"]) {
+                return message
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private func string(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case let .string(string):
+            return string
+        case let .integer(integer):
+            return String(integer)
+        case let .number(number):
+            return String(number)
+        case let .float(float):
+            return String(float)
+        case let .bool(bool):
+            return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private static func cachedString(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case let .string(string):
+            return string
+        case let .integer(integer):
+            return String(integer)
+        case let .number(number):
+            return String(number)
+        case let .float(float):
+            return String(float)
+        case let .bool(bool):
+            return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private static func mergedDiscoveryState(from object: Object) -> Object {
+        var merged = defaultDiscoveryState()
+        for (key, value) in object {
+            merged[key] = value
+        }
+
+        if cachedString(from: merged["status"])?.isEmpty != false {
+            merged["status"] = .string("Discovery is ready for follow-up.")
+        }
+        if cachedString(from: merged["refreshSummary"])?.isEmpty != false {
+            merged["refreshSummary"] = .string("Discovery snapshot refreshed locally.")
+        }
+        return merged
+    }
+
+    private static func discoveryStateWithStatus(
+        basedOn base: Object,
+        status: String,
+        refreshSummary: String
+    ) -> Object {
+        var updated = base
+        updated["status"] = .string(status)
+        updated["refreshSummary"] = .string(refreshSummary)
+        return updated
+    }
+
+    private static func defaultDiscoveryState() -> Object {
+        [
+            "intro": .string("Conference discovery combines portable participant discovery with local nearby enrichment."),
+            "status": .string("Discovery snapshot is warming up locally."),
+            "alignmentSummary": .string("Portable and local discovery signals are kept together in one stable snapshot."),
+            "proofSummary": .string("Verified contact can unlock richer purpose and interest matching."),
+            "sourceSummary": .string("Using a local cached snapshot so the discovery section stays stable while live data refreshes."),
+            "publicProfileSummary": .string("Only minimal profile data is shown until you explicitly request more."),
+            "chatSummary": .string("0 discovery chat(s) ready."),
+            "nextAction": .string("Refresh discovery, review promising people, and start a follow-up chat when it feels right."),
+            "refreshSummary": .string("Preparing the first discovery snapshot."),
+            "candidates": .list([]),
+            "proofCandidates": .list([]),
+            "groupSuggestions": .list([])
+        ]
     }
 }
 

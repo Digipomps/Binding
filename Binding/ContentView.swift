@@ -1992,10 +1992,7 @@ struct ContentView: View {
         guard !didRepairPersistedConferencePortal else { return }
         didRepairPersistedConferencePortal = true
 
-        guard activeConfiguration == nil,
-              editorState.workingConfiguration == nil,
-              demoStartConfigurationJSON.isEmpty,
-              let resolver = CellBase.defaultCellResolver as? CellResolver,
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let identity = await privateRequesterIdentity(),
               let porthole = try? await resolver.cellAtEndpoint(
                 endpoint: Self.portholeEndpoint,
@@ -2017,15 +2014,21 @@ struct ContentView: View {
             keypath: "nearbyRadar.state.summary",
             requester: identity
         )
+        let discoveryStatus = try? await porthole.get(
+            keypath: "discoverySnapshot.state.status",
+            requester: identity
+        )
         if let nearbySummary,
-           SkeletonBindingProbeSupport.failureDetail(from: nearbySummary) == nil {
+           SkeletonBindingProbeSupport.failureDetail(from: nearbySummary) == nil,
+           let discoveryStatus,
+           SkeletonBindingProbeSupport.failureDetail(from: discoveryStatus) == nil {
             return
         }
 
         diagnosticsStore.record(
             severity: .warning,
             domain: "binding.demo",
-            message: "Fant gammel persisted participant-portal i Porthole. Reparerer til ny conference-konfigurasjon med lokal nearby-radar."
+            message: "Fant gammel eller ustabil persisted participant-portal i Porthole. Reparerer til ny conference-konfigurasjon med lokale discovery- og nearby-snapshots."
         )
 
         let repairedConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration()
