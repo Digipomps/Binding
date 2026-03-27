@@ -2506,7 +2506,7 @@ struct ContentView: View {
         for configuration: CellConfiguration,
         failureDetails: [String]
     ) -> CellConfiguration? {
-        guard failureDetails.contains(where: isDeniedConferencePreviewFailure) else {
+        guard failureDetails.contains(where: isConferencePreviewFallbackFailure) else {
             return nil
         }
         guard let references = configuration.cellReferences else {
@@ -2537,11 +2537,17 @@ struct ContentView: View {
         }
     }
 
-    private func isDeniedConferencePreviewFailure(_ detail: String) -> Bool {
+    private func isConferencePreviewFallbackFailure(_ detail: String) -> Bool {
         let normalized = detail
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         return normalized.contains("denied")
+            || normalized.contains("timeout")
+            || normalized.contains("notconnected")
+            || normalized.contains("finishedwithoutvalue")
+            || normalized.contains("websocket must be connected")
+            || normalized.contains("bad response from the server")
+            || normalized.contains("midlertidig utilgjengelig")
     }
 
     private func loadingPlaceholderSkeleton(for configuration: CellConfiguration) -> SkeletonElement {
