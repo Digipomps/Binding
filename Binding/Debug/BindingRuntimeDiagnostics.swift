@@ -437,6 +437,8 @@ struct BindingDiagnosticsPanel: View {
     }()
 
     var body: some View {
+        let panelShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Label("Debug", systemImage: "ladybug.fill")
@@ -520,7 +522,7 @@ struct BindingDiagnosticsPanel: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 8) {
+                        LazyVStack(alignment: .leading, spacing: 8) {
                             ForEach(diagnostics.entries.prefix(24)) { entry in
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 8) {
@@ -547,6 +549,7 @@ struct BindingDiagnosticsPanel: View {
                         }
                     }
                     .frame(maxHeight: 280)
+                    .clipped()
                 }
             }
         }
@@ -556,11 +559,13 @@ struct BindingDiagnosticsPanel: View {
 #else
         .frame(maxWidth: .infinity, alignment: .leading)
 #endif
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(.ultraThinMaterial, in: panelShape)
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            panelShape
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         }
+        .compositingGroup()
+        .clipShape(panelShape)
         .shadow(color: .black.opacity(0.16), radius: 14, y: 6)
     }
 

@@ -80,6 +80,12 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
         let report = try await CellConfigurationVerifier.nearbyFollowUpReport(for: configuration)
 
+        XCTAssertEqual(report.startOutcome, "ok")
+        XCTAssertEqual(report.statusAfterStart, "started")
+        XCTAssertEqual(report.requestContactOutcome, "ok")
+        XCTAssertEqual(report.requestContactLabel, "Contact pending")
+        XCTAssertEqual(report.requestContactSummary, "Signed contact request sent. Waiting for acceptance.")
+        XCTAssertEqual(report.requestContactActionSummary, "Signed contact request sent. Waiting for acceptance.")
         XCTAssertEqual(report.openChatOutcome, "ok")
         XCTAssertEqual(report.nearbyCardLabel, "Open chat")
         XCTAssertTrue(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
@@ -87,6 +93,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(report.workspaceNextStep, "Started follow-up chat with Nora Berg in local preview.")
         XCTAssertEqual(report.sharedChatSummary, "1 shared message(s) visible.")
         XCTAssertEqual(report.firstRecentMessage, "Nearby follow-up with Nora Berg is ready in discovery chat.")
+        XCTAssertEqual(report.stopOutcome, "ok")
+        XCTAssertEqual(report.statusAfterStop, "stopped")
     }
 
 #if canImport(AppKit)

@@ -57,11 +57,18 @@ Current participant actions exercised:
 
 Current nearby follow-up assertions:
 
+- start the local nearby scanner through the same `dispatchAction` route the UI uses
+- verify scanner status transitions to `started`
+- inject a deterministic nearby candidate into the local conference radar
+- execute `requestContact` before verified contact exists
+- verify that the nearby card upgrades to `Contact pending`
 - inject a deterministic verified nearby contact into the local conference radar
 - open the follow-up chat handoff through the same Porthole wiring the UI uses
 - verify that the nearby card upgrades to `Open chat`
 - verify that purpose/interest text reflects verified overlap
 - verify that participant preview state advances (`nextStep`, shared chat summary, recent message)
+- stop the local nearby scanner through `dispatchAction`
+- verify scanner status transitions to `stopped`
 
 Current organizer actions exercised:
 
@@ -105,21 +112,21 @@ Run organizer only:
 
 Latest verified on March 27, 2026:
 
-- `./Scripts/run_conference_configuration_verifier.sh all contract`
-  - 3 tests
-  - 0 failures
-  - participant portal contract, nearby follow-up contract, and control tower contract all passed
-- `./Scripts/run_conference_configuration_verifier.sh all render`
-  - 2 tests
-  - 0 failures
-  - participant portal render and control tower render both passed
+Targeted green checks:
+
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerRenderer`
 
 Observed isolated timings from the latest green checks:
 
-- `Conference Participant Portal` contract: about `0.90s`
-- `Conference Participant Nearby Follow-Up` contract: about `0.13s`
-- `Conference Control Tower` contract: about `0.29s`
-- `Conference Control Tower` render: about `2.51s`
+- `Conference Participant Portal` contract: about `1.55s`
+- `Conference Participant Nearby Follow-Up` contract: about `1.90s`
+- `Conference Control Tower` contract: about `1.37s`
+- `Conference Participant Portal` render: about `4.15s`
+- `Conference Control Tower` render: about `3.54s`
 
 These timings are useful as a moving baseline, not as hard budgets yet.
 

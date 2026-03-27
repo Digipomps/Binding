@@ -231,11 +231,18 @@ enum ConferenceNearbyFollowUpSupport {
     }
 
     static func discoveryPayload(for target: ConferenceNearbyFollowUpTarget, source: String) -> Object {
-        [
+        var payload: Object = [
             "source": .string(source),
             "participantIds": .list([.string(target.participantId)]),
-            "targets": .list([.object(target.discoveryTargetObject())])
+            "displayName": .string(target.displayName),
+            "company": .string(target.company ?? ""),
+            "role": .string(target.role ?? ""),
+            "targets": .list([.object(target.discoveryTargetObject(includeIdentityUUID: true))])
         ]
+        if let identityUUID = target.identityUUID {
+            payload["identityUUIDs"] = .list([.string(identityUUID)])
+        }
+        return payload
     }
 
     static func synthesizedParticipantId(remoteUUID: String, identityUUID: String?) -> String {
@@ -343,6 +350,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private var purposeSignalsById: [String: PurposeSignal] = [:]
     private var followUpTargetsById: [String: ConferenceNearbyFollowUpTarget] = [:]
     private var launchedChatRemoteUUIDs: Set<String> = []
+    private var testInjectedRemoteUUIDs: Set<String> = []
     private var lastError: String?
     private var lastActionSummary = "Nearby radar is ready. Request contact to unlock verified purpose and interest matching."
 
@@ -373,6 +381,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 #if DEBUG
+        agreementTemplate.addGrant("rw--", for: "testInjectNearbyCandidate")
         agreementTemplate.addGrant("rw--", for: "testInjectVerifiedContact")
 #endif
 
@@ -420,10 +429,16 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         })
 
 #if DEBUG
+        await addInterceptForSet(requester: owner, key: "testInjectNearbyCandidate", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "testInjectNearbyCandidate", for: requester) else { return .string("denied") }
+            return await self.injectNearbyCandidate(value: value, requester: requester, verifiedByDefault: false)
+        })
+
         await addInterceptForSet(requester: owner, key: "testInjectVerifiedContact", setValueIntercept: { [weak self] _, value, requester in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "testInjectVerifiedContact", for: requester) else { return .string("denied") }
-            return await self.injectVerifiedContact(value: value, requester: requester)
+            return await self.injectNearbyCandidate(value: value, requester: requester, verifiedByDefault: true)
         })
 #endif
 
@@ -506,6 +521,20 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     }
 
     private func forwardMutation(keypath: String, value: ValueType, requester: Identity) async -> ValueType {
+        if keypath == "requestContact",
+           let remoteUUID = normalizedRemoteUUID(string(from: value)),
+           testInjectedRemoteUUIDs.contains(remoteUUID) {
+            contactSignalsById[remoteUUID] = ContactSignal(
+                status: "sent",
+                summary: "Signed contact request sent. Waiting for acceptance.",
+                actionLabel: "Contact pending"
+            )
+            lastError = nil
+            lastActionSummary = "Signed contact request sent. Waiting for acceptance."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
         await connectScannerIfNeeded(requester: requester)
         guard let scannerMeddle else {
             lastError = "EntityScanner unavailable"
@@ -526,8 +555,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             if keypath == "requestContact" {
                 await refreshEncounterSnapshot(requester: requester)
             } else if keypath == "start" {
+                scannerStatus = "started"
                 lastActionSummary = "Scanner started. Waiting for nearby participants."
             } else if keypath == "stop" {
+                scannerStatus = "stopped"
                 lastActionSummary = "Scanner stopped."
             }
         } catch {
@@ -827,8 +858,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     }
 
 #if DEBUG
-    private func injectVerifiedContact(value: ValueType, requester: Identity) async -> ValueType {
+    private func injectNearbyCandidate(
+        value: ValueType,
+        requester: Identity,
+        verifiedByDefault: Bool
+    ) async -> ValueType {
         let input = object(from: value)
+        let verified = bool(from: input?["verified"]) ?? verifiedByDefault
         let remoteUUID = normalizedRemoteUUID(string(from: input?["remoteUUID"])) ?? "nearby-test-contact"
         let displayName = string(from: input?["displayName"]) ?? "Nora Berg"
         let identityUUID = normalizedRemoteUUID(string(from: input?["identityUUID"]))
@@ -858,28 +894,37 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             matchScore: matchScore
         )
         entitiesById[remoteUUID] = NearbyEntity(update: update, defaultStatus: "nearby")
-        purposeSignalsById[remoteUUID] = PurposeSignal(
-            count: matchCount,
-            score: matchScore,
-            summary: "\(matchCount) verified overlap(s) via governance",
-            detail: "Top verified match score \(String(format: "%.2f", matchScore))"
-        )
-        followUpTargetsById[remoteUUID] = ConferenceNearbyFollowUpTarget(
-            remoteUUID: remoteUUID,
-            participantId: participantId,
-            identityUUID: identityUUID,
-            displayName: displayName,
-            company: company,
-            role: role
-        )
-        contactSignalsById[remoteUUID] = ContactSignal(
-            status: "verified",
-            summary: "Verified contact saved with \(matchCount) purpose/interest overlap(s).",
-            actionLabel: "Verified contact"
-        )
+        testInjectedRemoteUUIDs.insert(remoteUUID)
+        if verified {
+            purposeSignalsById[remoteUUID] = PurposeSignal(
+                count: matchCount,
+                score: matchScore,
+                summary: "\(matchCount) verified overlap(s) via governance",
+                detail: "Top verified match score \(String(format: "%.2f", matchScore))"
+            )
+            followUpTargetsById[remoteUUID] = ConferenceNearbyFollowUpTarget(
+                remoteUUID: remoteUUID,
+                participantId: participantId,
+                identityUUID: identityUUID,
+                displayName: displayName,
+                company: company,
+                role: role
+            )
+            contactSignalsById[remoteUUID] = ContactSignal(
+                status: "verified",
+                summary: "Verified contact saved with \(matchCount) purpose/interest overlap(s).",
+                actionLabel: "Verified contact"
+            )
+            lastActionSummary = "Injected verified nearby contact for \(displayName)."
+        } else {
+            purposeSignalsById.removeValue(forKey: remoteUUID)
+            followUpTargetsById.removeValue(forKey: remoteUUID)
+            contactSignalsById.removeValue(forKey: remoteUUID)
+            launchedChatRemoteUUIDs.remove(remoteUUID)
+            lastActionSummary = "Injected nearby candidate for \(displayName)."
+        }
         scannerStatus = "started"
         lastError = nil
-        lastActionSummary = "Injected verified nearby contact for \(displayName)."
         emitSnapshot(requester: requester)
         return .object(snapshotObject())
     }

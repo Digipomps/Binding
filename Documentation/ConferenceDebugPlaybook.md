@@ -96,6 +96,10 @@ This helped separate:
 - configuration/schema issues
 - shell UX issues
 
+Current note from the March 27, 2026 pass:
+- the runtime log stack in the debug panel is now explicitly clipped to the rounded panel shape in `Binding/Debug/BindingRuntimeDiagnostics.swift`
+- if log cards appear to bleed outside the panel again, inspect that file before assuming the conference surface is at fault
+
 ### 5. Always relaunch Binding from a clean process before a new GUI check
 Stale debug sessions have caused false negatives before.
 

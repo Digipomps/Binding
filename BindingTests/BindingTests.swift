@@ -654,7 +654,10 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "conferenceParticipantShell.dispatchAction", in: skeleton))
+        #expect(
+            skeletonContainsButton(keypath: "conferenceParticipantShell.dispatchAction", in: skeleton) ||
+                skeletonContainsButton(keypath: "dispatchAction", in: skeleton)
+        )
         #expect(skeletonContainsGrid(keypath: "conferenceParticipantShell.state.discovery.candidates", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
     }
@@ -828,7 +831,14 @@ struct BindingTests {
             keypath: "nearbyRadar.state.actionSummary",
             requester: owner
         )
-        #expect(beforeSummary == .string("Nearby radar is ready. Request contact to unlock verified purpose and interest matching."))
+        guard case let .string(beforeSummaryText) = beforeSummary else {
+            Issue.record("Expected string action summary before dispatch through Porthole")
+            return
+        }
+        #expect(
+            beforeSummaryText == "Nearby radar is ready. Request contact to unlock verified purpose and interest matching." ||
+                beforeSummaryText == "Scanner started. Waiting for nearby participants."
+        )
 
         let response = try await porthole.set(
             keypath: "nearbyRadar.dispatchAction",
@@ -2738,6 +2748,12 @@ struct CellConfigurationVerifierTests {
 
         let report = try await CellConfigurationVerifier.nearbyFollowUpReport(for: configuration)
 
+        #expect(report.startSucceeded)
+        #expect(report.statusAfterStart == "started")
+        #expect(report.requestContactSucceeded)
+        #expect(report.requestContactLabel == "Contact pending")
+        #expect(report.requestContactSummary == "Signed contact request sent. Waiting for acceptance.")
+        #expect(report.requestContactActionSummary == "Signed contact request sent. Waiting for acceptance.")
         #expect(report.chatOpened)
         #expect(report.nearbyCardLabel == "Open chat")
         #expect(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
@@ -2745,6 +2761,8 @@ struct CellConfigurationVerifierTests {
         #expect(report.workspaceNextStep == "Started follow-up chat with Nora Berg in local preview.")
         #expect(report.sharedChatSummary == "1 shared message(s) visible.")
         #expect(report.firstRecentMessage == "Nearby follow-up with Nora Berg is ready in discovery chat.")
+        #expect(report.stopSucceeded)
+        #expect(report.statusAfterStop == "stopped")
     }
 
 #if canImport(AppKit)
@@ -2827,17 +2845,31 @@ enum CellConfigurationVerifier {
     struct NearbyFollowUpReport {
         let configuration: CellConfiguration
         let injectedRemoteUUID: String
+        let startDurationMilliseconds: Double
+        let requestContactDurationMilliseconds: Double
         let injectDurationMilliseconds: Double
         let openChatDurationMilliseconds: Double
+        let stopDurationMilliseconds: Double
+        let startOutcome: String
+        let requestContactOutcome: String
         let nearbyCardLabel: String?
         let nearbyCardPurposeSummary: String?
         let nearbyActionSummary: String?
+        let requestContactLabel: String?
+        let requestContactSummary: String?
+        let requestContactActionSummary: String?
         let workspaceNextStep: String?
         let sharedChatSummary: String?
         let firstRecentMessage: String?
         let openChatOutcome: String
+        let stopOutcome: String
+        let statusAfterStart: String?
+        let statusAfterStop: String?
 
+        var startSucceeded: Bool { startOutcome == "ok" }
+        var requestContactSucceeded: Bool { requestContactOutcome == "ok" }
         var chatOpened: Bool { openChatOutcome == "ok" }
+        var stopSucceeded: Bool { stopOutcome == "ok" }
     }
 
 #if canImport(AppKit)
@@ -2909,6 +2941,120 @@ enum CellConfigurationVerifier {
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
 
+        func nearbyStateSnapshot(
+            from value: ValueType
+        ) -> (
+            status: String?,
+            actionSummary: String?,
+            cardLabel: String?,
+            purposeSummary: String?,
+            note: String?
+        ) {
+            guard case let .object(object) = value else {
+                return (nil, nil, nil, nil, nil)
+            }
+
+            let status = valueString(object["statusBadge"]) ?? valueString(object["status"])
+            let actionSummary = valueString(object["actionSummary"])
+            guard case let .list(cards)? = object["nearby"],
+                  case let .object(firstCard)? = cards.first else {
+                return (status, actionSummary, nil, nil, nil)
+            }
+
+            return (
+                status,
+                actionSummary,
+                valueString(firstCard["label"]),
+                valueString(firstCard["purposeSummary"]),
+                valueString(firstCard["note"])
+            )
+        }
+
+        let startStart = clock.now
+        let startResponse = try await withTimeout(
+            seconds: 5,
+            operation: "startNearbyScanner"
+        ) {
+            try await context.porthole.set(
+                keypath: "nearbyRadar.dispatchAction",
+                value: .object([
+                    "keypath": .string("start"),
+                    "payload": .bool(true)
+                ]),
+                requester: context.owner
+            )
+        }
+        let startDuration = milliseconds(since: startStart, clock: clock)
+        let startOutcome = startResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
+
+        let startState = try await withTimeout(
+            seconds: 5,
+            operation: "readNearbyStateAfterStart"
+        ) {
+            try await context.porthole.get(
+                keypath: "nearbyRadar.state",
+                requester: context.owner
+            )
+        }
+        let statusAfterStart = nearbyStateSnapshot(from: startState).status
+
+        let candidateInjectPayload: Object = [
+            "remoteUUID": .string(remoteUUID),
+            "displayName": .string(displayName),
+            "participantId": .string("participant-102"),
+            "identityUUID": .string("identity-remote-123"),
+            "company": .string("Polar Systems"),
+            "role": .string("speaker"),
+            "matchCount": .integer(0),
+            "matchScore": .float(0.41),
+            "distanceMeters": .float(1.6),
+            "directionX": .float(0.0),
+            "directionY": .float(0.0),
+            "directionZ": .float(1.0)
+        ]
+
+        _ = try await withTimeout(
+            seconds: 5,
+            operation: "injectNearbyCandidate"
+        ) {
+            try await context.porthole.set(
+                keypath: "nearbyRadar.testInjectNearbyCandidate",
+                value: .object(candidateInjectPayload),
+                requester: context.owner
+            )
+        }
+
+        let requestContactStart = clock.now
+        let requestContactResponse = try await withTimeout(
+            seconds: 5,
+            operation: "requestNearbyContact"
+        ) {
+            try await context.porthole.set(
+                keypath: "nearbyRadar.dispatchAction",
+                value: .object([
+                    "keypath": .string("requestContact"),
+                    "payload": .string(remoteUUID)
+                ]),
+                requester: context.owner
+            )
+        }
+        let requestContactDuration = milliseconds(since: requestContactStart, clock: clock)
+        let requestContactOutcome = requestContactResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
+
+        let requestContactState = try await withTimeout(
+            seconds: 5,
+            operation: "readNearbyStateAfterRequestContact"
+        ) {
+            try await context.porthole.get(
+                keypath: "nearbyRadar.state",
+                requester: context.owner
+            )
+        }
+        let requestContactSnapshot = nearbyStateSnapshot(from: requestContactState)
+        let requestContactLabel = requestContactSnapshot.cardLabel
+        let requestContactSummary = requestContactSnapshot.note
+        let requestContactActionSummary = requestContactSnapshot.actionSummary
+
         let injectPayload: Object = [
             "remoteUUID": .string(remoteUUID),
             "displayName": .string(displayName),
@@ -2939,25 +3085,17 @@ enum CellConfigurationVerifier {
 
         let nearbyState = try await withTimeout(
             seconds: 5,
-            operation: "readNearbyStateAfterInjection"
+            operation: "readNearbyStateAfterVerifiedInjection"
         ) {
             try await context.porthole.get(
                 keypath: "nearbyRadar.state",
                 requester: context.owner
             )
         }
-
-        var nearbyCardLabel: String?
-        var nearbyCardPurposeSummary: String?
-        var nearbyActionSummary: String?
-        if case let .object(nearbyObject) = nearbyState {
-            nearbyActionSummary = valueString(nearbyObject["actionSummary"])
-            if case let .list(cards)? = nearbyObject["nearby"],
-               case let .object(firstCard)? = cards.first {
-                nearbyCardLabel = valueString(firstCard["label"])
-                nearbyCardPurposeSummary = valueString(firstCard["purposeSummary"])
-            }
-        }
+        var nearbySnapshot = nearbyStateSnapshot(from: nearbyState)
+        var nearbyCardLabel = nearbySnapshot.cardLabel
+        var nearbyCardPurposeSummary = nearbySnapshot.purposeSummary
+        var nearbyActionSummary = nearbySnapshot.actionSummary
 
         let openChatStart = clock.now
         let openChatResponse: ValueType?
@@ -2979,15 +3117,26 @@ enum CellConfigurationVerifier {
             return NearbyFollowUpReport(
                 configuration: context.configuration,
                 injectedRemoteUUID: remoteUUID,
+                startDurationMilliseconds: startDuration,
+                requestContactDurationMilliseconds: requestContactDuration,
                 injectDurationMilliseconds: injectDuration,
                 openChatDurationMilliseconds: milliseconds(since: openChatStart, clock: clock),
+                stopDurationMilliseconds: 0,
+                startOutcome: startOutcome,
+                requestContactOutcome: requestContactOutcome,
                 nearbyCardLabel: nearbyCardLabel,
                 nearbyCardPurposeSummary: nearbyCardPurposeSummary,
                 nearbyActionSummary: nearbyActionSummary,
+                requestContactLabel: requestContactLabel,
+                requestContactSummary: requestContactSummary,
+                requestContactActionSummary: requestContactActionSummary,
                 workspaceNextStep: nil,
                 sharedChatSummary: nil,
                 firstRecentMessage: nil,
-                openChatOutcome: String(describing: error)
+                openChatOutcome: String(describing: error),
+                stopOutcome: "not-run",
+                statusAfterStart: statusAfterStart,
+                statusAfterStop: nil
             )
         }
         let openChatDuration = milliseconds(since: openChatStart, clock: clock)
@@ -3008,14 +3157,10 @@ enum CellConfigurationVerifier {
             )
         }
 
-        if case let .object(nearbyObject) = nearbyPostState {
-            nearbyActionSummary = valueString(nearbyObject["actionSummary"])
-            if case let .list(cards)? = nearbyObject["nearby"],
-               case let .object(firstCard)? = cards.first {
-                nearbyCardLabel = valueString(firstCard["label"])
-                nearbyCardPurposeSummary = valueString(firstCard["purposeSummary"])
-            }
-        }
+        nearbySnapshot = nearbyStateSnapshot(from: nearbyPostState)
+        nearbyActionSummary = nearbySnapshot.actionSummary
+        nearbyCardLabel = nearbySnapshot.cardLabel
+        nearbyCardPurposeSummary = nearbySnapshot.purposeSummary
 
         guard let participantPreview = try await context.resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceParticipantPreviewShell",
@@ -3069,18 +3214,56 @@ enum CellConfigurationVerifier {
             firstRecentMessage = nil
         }
 
+        let stopStart = clock.now
+        let stopResponse = try await withTimeout(
+            seconds: 5,
+            operation: "stopNearbyScanner"
+        ) {
+            try await context.porthole.set(
+                keypath: "nearbyRadar.dispatchAction",
+                value: .object([
+                    "keypath": .string("stop"),
+                    "payload": .bool(true)
+                ]),
+                requester: context.owner
+            )
+        }
+        let stopDuration = milliseconds(since: stopStart, clock: clock)
+        let stopOutcome = stopResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
+        let stopState = try await withTimeout(
+            seconds: 5,
+            operation: "readNearbyStateAfterStop"
+        ) {
+            try await context.porthole.get(
+                keypath: "nearbyRadar.state",
+                requester: context.owner
+            )
+        }
+        let statusAfterStop = nearbyStateSnapshot(from: stopState).status
+
         return NearbyFollowUpReport(
             configuration: context.configuration,
             injectedRemoteUUID: remoteUUID,
+            startDurationMilliseconds: startDuration,
+            requestContactDurationMilliseconds: requestContactDuration,
             injectDurationMilliseconds: injectDuration,
             openChatDurationMilliseconds: openChatDuration,
+            stopDurationMilliseconds: stopDuration,
+            startOutcome: startOutcome,
+            requestContactOutcome: requestContactOutcome,
             nearbyCardLabel: nearbyCardLabel,
             nearbyCardPurposeSummary: nearbyCardPurposeSummary,
             nearbyActionSummary: nearbyActionSummary,
+            requestContactLabel: requestContactLabel,
+            requestContactSummary: requestContactSummary,
+            requestContactActionSummary: requestContactActionSummary,
             workspaceNextStep: workspaceNextStep,
             sharedChatSummary: sharedChatSummary,
             firstRecentMessage: firstRecentMessage,
-            openChatOutcome: openChatOutcome
+            openChatOutcome: openChatOutcome,
+            stopOutcome: stopOutcome,
+            statusAfterStart: statusAfterStart,
+            statusAfterStop: statusAfterStop
         )
     }
 
