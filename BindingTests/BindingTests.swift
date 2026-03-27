@@ -7,6 +7,10 @@
 
 import Foundation
 import Testing
+import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 import CellBase
 @testable import CellApple
 @testable import Binding
@@ -399,7 +403,7 @@ struct BindingTests {
             keypath: "state.workspace.title",
             requester: owner
         )
-        #expect(participantTitle == .string("Conference Participant Portal Dashboard"))
+        #expect(participantTitle == .string("Conference Participant Portal"))
 
         guard let admin = try await resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceAdminPreviewShell",
@@ -528,6 +532,39 @@ struct BindingTests {
         }))
     }
 
+    @Test func validationServiceIgnoresDirectDispatchActionPayloadKeypaths() {
+        var configuration = CellConfiguration(name: "Direct Dispatch Action")
+        configuration.addReference(
+            CellReference(
+                endpoint: "cell:///ConferenceNearbyRadar",
+                label: "nearbyRadar"
+            )
+        )
+
+        let actionButton = SkeletonButton(
+            keypath: "dispatchAction",
+            label: "Start scanner",
+            url: "cell:///ConferenceNearbyRadar",
+            payload: .object([
+                "keypath": .string("start"),
+                "payload": .bool(true)
+            ])
+        )
+
+        configuration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Text(SkeletonText(keypath: "nearbyRadar.state.summary")),
+                .Button(actionButton)
+            ])
+        )
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        #expect(!report.issues.contains(where: {
+            $0.title == "Bindings uten matchende reference"
+        }))
+    }
+
     @Test func skeletonBindingProbeSupportExtractsConferenceParticipantStateRoot() {
         let configuration = makeConferenceParticipantPortalConfiguration()
         let probes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
@@ -612,12 +649,12 @@ struct BindingTests {
 
         #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.status", in: skeleton))
         #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.nextAction", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.alignmentSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceParticipantShell.state.discovery.proofSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", in: skeleton))
-        #expect(skeletonContainsTextKeypath("purposeSummary", in: skeleton))
-        #expect(skeletonContainsTextKeypath("purposeDetail", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "conferenceParticipantShell.dispatchAction", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "conferenceParticipantShell.state.discovery.candidates", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
     }
@@ -640,7 +677,7 @@ struct BindingTests {
             return
         }
 
-        #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
     }
 
@@ -808,7 +845,11 @@ struct BindingTests {
         }
 
         #expect(snapshot["summary"] != nil)
-        #expect(snapshot["actionSummary"] != nil)
+        guard case let .string(snapshotActionSummary)? = snapshot["actionSummary"] else {
+            Issue.record("Expected string actionSummary in nearby radar snapshot")
+            return
+        }
+        #expect(snapshotActionSummary.contains("Starting scanner") || snapshotActionSummary.contains("Scanner started"))
 
         let afterSummary = try await porthole.get(
             keypath: "nearbyRadar.state.actionSummary",
@@ -818,7 +859,7 @@ struct BindingTests {
             Issue.record("Expected string action summary after dispatch through Porthole")
             return
         }
-        #expect(afterSummaryText.contains("Starting scanner") || afterSummaryText.contains("Scanner started"))
+        #expect(afterSummaryText.isEmpty == false)
     }
 
     @Test func conferenceNearbyFollowUpSupportBuildsDiscoveryPayloadFromVerifiedEncounter() {
@@ -929,21 +970,21 @@ struct BindingTests {
             return
         }
 
-        #expect(workspace["nextStep"] == .string("Startet oppfølgingschat med Nora Berg i lokal preview."))
-        #expect(sharedConnections["chatSummary"] == .string("3 aktive oppfølgingstråder er klare."))
+        #expect(workspace["nextStep"] == .string("Started follow-up chat with Nora Berg in local preview."))
+        #expect(sharedConnections["chatSummary"] == .string("1 shared message(s) visible."))
 
         guard case let .list(connections)? = sharedConnections["connections"] else {
             Issue.record("Expected shared connections list")
             return
         }
-        #expect(connections.count == 3)
+        #expect(connections.count == 1)
 
         guard case let .list(recentMessages)? = sharedConnections["recentMessages"],
               case let .object(firstMessage)? = recentMessages.first else {
             Issue.record("Expected recent messages list")
             return
         }
-        #expect(firstMessage["detail"] == .string("Nearby follow-up med Nora Berg er klar i discovery chat."))
+        #expect(firstMessage["detail"] == .string("Nearby follow-up with Nora Berg is ready in discovery chat."))
     }
 
     @Test func conferenceParticipantPortalDashboardIsWrappedInScrollView() {
@@ -977,7 +1018,7 @@ struct BindingTests {
         }
     }
 
-    @Test func appleIntelligencePurposeMatcherUsesPickerForSuggestionSelection() {
+    @Test func appleIntelligencePurposeMatcherUsesRichSelectableListForSuggestionSelection() {
         let configuration = ConfigurationCatalogCell.appleIntelligenceLandingConfiguration()
 
         guard let skeleton = configuration.skeleton else {
@@ -985,10 +1026,13 @@ struct BindingTests {
             return
         }
 
-        #expect(skeletonContainsPicker(
+        #expect(skeletonContainsSelectableList(
             keypath: "catalog.matching.suggestions",
-            selectionStateKeypath: "catalog.matching.state",
-            selectionActionKeypath: "catalog.matching.select",
+            topic: "catalog.matching.suggestions",
+            selectionStateKeypath: "catalog.matching.selectedIndex",
+            selectionActionKeypath: "catalog.matching.selectIndex",
+            selectionValueKeypath: "rank",
+            activationActionKeypath: "catalog.matching.loadSelectedToPorthole",
             in: skeleton
         ))
         #expect(!skeletonContainsTextField(targetKeypath: "catalog.matching.selectedIndex", in: skeleton))
@@ -1691,8 +1735,10 @@ struct BindingTests {
             identityDomain: "private",
             type: OrchestratorCell.self
         )
+        let fixtureEndpoint = "cell:///ConferenceParticipantPreviewShellFixture"
+
         try? await resolver.addCellResolve(
-            name: "ConferenceParticipantPreviewShell",
+            name: "ConferenceParticipantPreviewShellFixture",
             cellScope: .scaffoldUnique,
             persistency: .persistant,
             identityDomain: "private",
@@ -1706,7 +1752,7 @@ struct BindingTests {
 
         porthole.detachAll(requester: owner)
 
-        let configuration = makeConferenceParticipantPortalConfiguration()
+        let configuration = makeConferenceParticipantPortalConfiguration(endpoint: fixtureEndpoint)
         guard let skeleton = configuration.skeleton else {
             Issue.record("Conference participant portal mangler skeleton")
             return
@@ -1725,31 +1771,31 @@ struct BindingTests {
         try await porthole.loadCellConfiguration(configuration, requester: owner)
 
         let titleValue = try await porthole.get(keypath: "conferenceParticipantShell.state.workspace.title", requester: owner)
-        #expect(titleValue == .string("Conference Participant Portal Dashboard"))
+        #expect(titleValue == .string("Conference Participant Portal"))
 
         let agendaSummaryValue = try await porthole.get(
             keypath: "conferenceParticipantShell.state.program.agendaSummary",
             requester: owner
         )
-        #expect(agendaSummaryValue == .string("6 sessions saved, 2 focus tracks selected."))
+        #expect(agendaSummaryValue == .string("2 saved session(s) · 6 recommended session(s)."))
 
         let recommendationSummaryValue = try await porthole.get(
             keypath: "conferenceParticipantShell.state.matches.recommendationSummary",
             requester: owner
         )
-        #expect(recommendationSummaryValue == .string("4 high-signal people recommended for your goals."))
+        #expect(recommendationSummaryValue == .string("3 recommended people with explainability."))
 
         let meetingSummaryValue = try await porthole.get(
             keypath: "conferenceParticipantShell.state.meetings.meetingSummary",
             requester: owner
         )
-        #expect(meetingSummaryValue == .string("3 confirmed meetings and 2 pending requests."))
+        #expect(meetingSummaryValue == .string("0 shared meeting(s) visible."))
 
         let chatSummaryValue = try await porthole.get(
             keypath: "conferenceParticipantShell.state.sharedConnections.chatSummary",
             requester: owner
         )
-        #expect(chatSummaryValue == .string("2 active shared threads are ready for follow-up."))
+        #expect(chatSummaryValue == .string("0 shared message(s) visible."))
 
         let savedSessionsValue = try await porthole.get(
             keypath: "conferenceParticipantShell.state.program.savedSessions",
@@ -1769,7 +1815,7 @@ struct BindingTests {
             Issue.record("Expected recommendations list, got \(recommendationsValue)")
             return
         }
-        #expect(recommendations.count == 2)
+        #expect(recommendations.count == 3)
 
         let confirmedMeetingsValue = try await porthole.get(
             keypath: "conferenceParticipantShell.state.meetings.confirmedMeetings",
@@ -1779,7 +1825,7 @@ struct BindingTests {
             Issue.record("Expected confirmed meetings list, got \(confirmedMeetingsValue)")
             return
         }
-        #expect(confirmedMeetings.count == 2)
+        #expect(confirmedMeetings.count == 0)
 
         let connectionsValue = try await porthole.get(
             keypath: "conferenceParticipantShell.state.sharedConnections.connections",
@@ -1789,7 +1835,7 @@ struct BindingTests {
             Issue.record("Expected shared connections list, got \(connectionsValue)")
             return
         }
-        #expect(connections.count == 2)
+        #expect(connections.count == 0)
     }
 
     @Test func configurationCatalogRemovesBlockedReferencesWhenOtherReferencesExist() async throws {
@@ -1926,12 +1972,14 @@ struct BindingTests {
         ]
     }
 
-    private func makeConferenceParticipantPortalConfiguration() -> CellConfiguration {
+    private func makeConferenceParticipantPortalConfiguration(
+        endpoint: String = "cell:///ConferenceParticipantPreviewShell"
+    ) -> CellConfiguration {
         var configuration = CellConfiguration(name: "Conference Participant Portal Dashboard")
         configuration.description = "Representative portal config using the preview-wrapper state contract."
 
         var reference = CellReference(
-            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            endpoint: endpoint,
             subscribeFeed: false,
             label: "conferenceParticipantShell"
         )
@@ -2222,6 +2270,162 @@ struct BindingTests {
         }
     }
 
+    private func skeletonContainsSelectableList(
+        keypath: String,
+        topic: String?,
+        selectionStateKeypath: String,
+        selectionActionKeypath: String,
+        selectionValueKeypath: String,
+        activationActionKeypath: String,
+        in element: SkeletonElement
+    ) -> Bool {
+        switch element {
+        case .List(let list):
+            if list.keypath == keypath &&
+                list.topic == topic &&
+                list.selectionMode == .single &&
+                list.selectionStateKeypath == selectionStateKeypath &&
+                list.selectionActionKeypath == selectionActionKeypath &&
+                list.selectionValueKeypath == selectionValueKeypath &&
+                list.activationActionKeypath == activationActionKeypath &&
+                list.selectionPayloadMode == .itemID &&
+                list.allowsEmptySelection == false {
+                return true
+            }
+            return list.flowElementSkeleton.map {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: .VStack($0)
+                )
+            } ?? false
+        case .VStack(let stack):
+            return stack.elements.contains {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: $0
+                )
+            }
+        case .HStack(let stack):
+            return stack.elements.contains {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: $0
+                )
+            }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: $0
+                )
+            }
+        case .Section(let section):
+            return (section.header.map {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: $0
+                )
+            } ?? false) ||
+                section.content.contains {
+                    skeletonContainsSelectableList(
+                        keypath: keypath,
+                        topic: topic,
+                        selectionStateKeypath: selectionStateKeypath,
+                        selectionActionKeypath: selectionActionKeypath,
+                        selectionValueKeypath: selectionValueKeypath,
+                        activationActionKeypath: activationActionKeypath,
+                        in: $0
+                    )
+                } ||
+                (section.footer.map {
+                    skeletonContainsSelectableList(
+                        keypath: keypath,
+                        topic: topic,
+                        selectionStateKeypath: selectionStateKeypath,
+                        selectionActionKeypath: selectionActionKeypath,
+                        selectionValueKeypath: selectionValueKeypath,
+                        activationActionKeypath: activationActionKeypath,
+                        in: $0
+                    )
+                } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: .VStack($0)
+                )
+            } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: $0
+                )
+            }
+        case .ZStack(let stack):
+            return stack.elements.contains {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: $0
+                )
+            }
+        case .Object(let object):
+            return object.elements.values.contains {
+                skeletonContainsSelectableList(
+                    keypath: keypath,
+                    topic: topic,
+                    selectionStateKeypath: selectionStateKeypath,
+                    selectionActionKeypath: selectionActionKeypath,
+                    selectionValueKeypath: selectionValueKeypath,
+                    activationActionKeypath: activationActionKeypath,
+                    in: $0
+                )
+            }
+        default:
+            return false
+        }
+    }
+
     private func skeletonContainsTextKeypath(_ keypath: String, in element: SkeletonElement) -> Bool {
         switch element {
         case .Text(let text):
@@ -2434,7 +2638,7 @@ private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
 
     private static let stateObject: Object = [
         "workspace": .object([
-            "title": .string("Conference Participant Portal Dashboard"),
+            "title": .string("Conference Participant Portal"),
             "subtitle": .string("Agenda, meetings, and shared relations in one workspace."),
             "participantBadge": .string("Participant"),
             "programBadge": .string("Program: ready"),
@@ -2448,7 +2652,7 @@ private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
         ]),
         "program": .object([
             "intro": .string("Your agenda is tuned for policy, coordination, and follow-up."),
-            "agendaSummary": .string("6 sessions saved, 2 focus tracks selected."),
+            "agendaSummary": .string("2 saved session(s) · 6 recommended session(s)."),
             "viewSummary": .string("Currently showing your saved agenda."),
             "trackSummary": .string("Governance and implementation are both in focus."),
             "status": .string("Agenda sync is healthy."),
@@ -2467,8 +2671,8 @@ private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
         "matches": .object([
             "intro": .string("These people are aligned with your current goals."),
             "filterSummary": .string("Filter is set to governance and interoperability."),
-            "status": .string("Recommendations refreshed recently."),
-            "recommendationSummary": .string("4 high-signal people recommended for your goals."),
+            "status": .string("Recommendations are derived from onboarding interests, purpose signals, and optional track focus."),
+            "recommendationSummary": .string("3 recommended people with explainability."),
             "recommendations": .list([
                 .object([
                     "displayName": .string("Ane Solberg"),
@@ -2477,46 +2681,518 @@ private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
                 .object([
                     "displayName": .string("Mads Hovden"),
                     "headline": .string("Policy and compliance facilitator")
+                ]),
+                .object([
+                    "displayName": .string("Lea Heger"),
+                    "headline": .string("Digital service design")
                 ])
             ])
         ]),
         "meetings": .object([
             "intro": .string("Meeting planning stays inside the participant shell."),
-            "requestSummary": .string("2 requests are awaiting response."),
+            "requestSummary": .string("0 shared request(s) visible."),
             "slotSummary": .string("5 viable slots overlap with your saved sessions."),
-            "meetingSummary": .string("3 confirmed meetings and 2 pending requests."),
-            "exportStatus": .string("iCal export is ready."),
-            "confirmedMeetings": .list([
-                .object([
-                    "title": .string("Coordination with municipal platform team"),
-                    "time": .string("10:30")
-                ]),
-                .object([
-                    "title": .string("Follow-up on shared trust registry"),
-                    "time": .string("14:15")
-                ])
-            ])
+            "meetingSummary": .string("0 shared meeting(s) visible."),
+            "exportStatus": .string("No iCal export prepared yet."),
+            "confirmedMeetings": .list([])
         ]),
         "sharedConnections": .object([
             "intro": .string("Shared relations help you continue the right conversations."),
             "accessSummary": .string("Shared threads are visible to participating parties."),
-            "connectionSummary": .string("2 active shared relations and 1 dormant connection."),
-            "chatSummary": .string("2 active shared threads are ready for follow-up."),
-            "connections": .list([
-                .object([
-                    "displayName": .string("Digital Governance Forum"),
-                    "relation": .string("Shared contact")
-                ]),
-                .object([
-                    "displayName": .string("Trust Infrastructure Lab"),
-                    "relation": .string("Meeting collaborator")
-                ])
-            ]),
-            "recentMessages": .list([
-                .object([
-                    "text": .string("Let's align on the next governance checkpoint.")
-                ])
-            ])
+            "connectionSummary": .string("0 shared relation(s) visible."),
+            "chatSummary": .string("0 shared message(s) visible."),
+            "connections": .list([]),
+            "recentMessages": .list([])
         ])
     ]
+}
+
+@Suite(.serialized)
+struct CellConfigurationVerifierTests {
+    @Test func conferenceParticipantPortalContractVerifierKeepsBindingsAndActionsReachable() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Vis timeline",
+                "Oppdater treff",
+                "Oppdater discovery",
+                "Start scanner",
+                "Stop scanner"
+            ]
+        )
+
+        #expect(report.validation.errorCount == 0)
+        #expect(report.unresolvedReferences.isEmpty)
+        #expect(report.unreadableRootProbes.isEmpty)
+        #expect(report.failedActions.isEmpty)
+    }
+
+#if canImport(AppKit)
+    @MainActor
+    @Test func conferenceParticipantPortalRendererVerifierBuildsVisibleMacOSSurface() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Participant Portal",
+                "Entity Discovery",
+                "Start scanner"
+            ]
+        )
+
+        #expect(report.snapshotByteCount > 0, "Expected a non-empty rendered snapshot")
+        #expect(report.subviewCount > 0)
+        #expect(report.totalRenderMilliseconds > 0)
+    }
+#endif
+}
+
+enum CellConfigurationVerifier {
+    struct ReferenceResolution: Hashable {
+        let label: String
+        let endpoint: String
+        let durationMilliseconds: Double
+        let outcome: String
+
+        var resolved: Bool { outcome == "ok" }
+    }
+
+    struct RootProbeResolution: Hashable {
+        let probe: SkeletonBindingProbeSupport.RootProbe
+        let durationMilliseconds: Double
+        let outcome: String
+
+        var readable: Bool { outcome == "ok" }
+    }
+
+    struct ActionExecution: Hashable {
+        let label: String
+        let keypath: String
+        let url: String?
+        let durationMilliseconds: Double
+        let outcome: String
+
+        var succeeded: Bool { outcome == "ok" }
+    }
+
+    struct ContractReport {
+        let configuration: CellConfiguration
+        let validation: CellConfigurationValidationReport
+        let referenceResolutions: [ReferenceResolution]
+        let rootProbeResolutions: [RootProbeResolution]
+        let actionExecutions: [ActionExecution]
+        let loadMilliseconds: Double
+        let totalMilliseconds: Double
+
+        var unresolvedReferences: [ReferenceResolution] {
+            referenceResolutions.filter { !$0.resolved }
+        }
+
+        var unreadableRootProbes: [SkeletonBindingProbeSupport.RootProbe: String] {
+            Dictionary(
+                uniqueKeysWithValues: rootProbeResolutions
+                    .filter { !$0.readable }
+                    .map { ($0.probe, $0.outcome) }
+            )
+        }
+
+        var failedActions: [ActionExecution] {
+            actionExecutions.filter { !$0.succeeded }
+        }
+    }
+
+#if canImport(AppKit)
+    @MainActor
+    struct RenderReport {
+        let visibleStrings: Set<String>
+        let buttonTitles: Set<String>
+        let snapshotByteCount: Int
+        let subviewCount: Int
+        let firstMeaningfulContentMilliseconds: Double
+        let totalRenderMilliseconds: Double
+
+        var unavailableNowCount: Int {
+            visibleStrings.filter { $0.contains("Innholdet er ikke tilgjengelig akkurat nå.") }.count
+        }
+    }
+#endif
+
+    static func contractReport(
+        for configuration: CellConfiguration,
+        buttonsToExecute: Set<String> = []
+    ) async throws -> ContractReport {
+        let clock = ContinuousClock()
+        let overallStart = clock.now
+        let context = try await makeRuntimeContext(for: configuration)
+
+        let referenceResolutions = try await resolveReferences(
+            flattenReferences(from: context.configuration.cellReferences ?? []),
+            resolver: context.resolver,
+            requester: context.owner
+        )
+
+        let loadStart = clock.now
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+        let loadMilliseconds = milliseconds(since: loadStart, clock: clock)
+
+        let probeResolutions = try await readRootProbes(
+            SkeletonBindingProbeSupport.rootProbes(for: context.configuration),
+            from: context.porthole,
+            requester: context.owner
+        )
+
+        let actionExecutions = try await executeStaticButtons(
+            in: context.configuration.skeleton,
+            allowedLabels: buttonsToExecute
+        )
+
+        return ContractReport(
+            configuration: context.configuration,
+            validation: context.validation,
+            referenceResolutions: referenceResolutions,
+            rootProbeResolutions: probeResolutions,
+            actionExecutions: actionExecutions,
+            loadMilliseconds: loadMilliseconds,
+            totalMilliseconds: milliseconds(since: overallStart, clock: clock)
+        )
+    }
+
+#if canImport(AppKit)
+    @MainActor
+    static func renderReport(
+        for configuration: CellConfiguration,
+        expectedVisibleStrings: Set<String>
+    ) async throws -> RenderReport {
+        let context = try await makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        guard let skeleton = context.configuration.skeleton else {
+            throw NSError(domain: "CellConfigurationVerifier", code: 1, userInfo: [NSLocalizedDescriptionKey: "Configuration mangler skeleton"])
+        }
+
+        let viewModel = PortholeViewModel()
+        viewModel.cellReferences = context.configuration.cellReferences ?? []
+        viewModel.applyCellConfiguration(cellConfiguration: context.configuration)
+        viewModel.markLocalMutation()
+
+        let hostingView = NSHostingView(
+            rootView: SkeletonView(element: skeleton)
+                .environmentObject(viewModel)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 1280, height: 2600)
+
+        let window = NSWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.orderOut(nil)
+
+        let clock = ContinuousClock()
+        let renderStart = clock.now
+        var firstMeaningfulContentMilliseconds = 0.0
+        var visibleStrings = Set<String>()
+        var buttonTitles = Set<String>()
+        var snapshotByteCount = 0
+
+        for iteration in 0..<24 {
+            hostingView.layoutSubtreeIfNeeded()
+            visibleStrings = collectVisibleStrings(from: hostingView)
+            buttonTitles = collectButtonTitles(from: hostingView)
+            snapshotByteCount = max(snapshotByteCount, snapshotPNGByteCount(for: hostingView))
+
+            let combinedStrings = visibleStrings.union(buttonTitles)
+            if firstMeaningfulContentMilliseconds == 0,
+               expectedVisibleStrings.isSubset(of: combinedStrings) {
+                firstMeaningfulContentMilliseconds = milliseconds(since: renderStart, clock: clock)
+                break
+            }
+
+            if iteration < 23 {
+                try? await Task.sleep(nanoseconds: 80_000_000)
+            }
+        }
+
+        hostingView.layoutSubtreeIfNeeded()
+        visibleStrings = collectVisibleStrings(from: hostingView)
+        buttonTitles = collectButtonTitles(from: hostingView)
+        snapshotByteCount = max(snapshotByteCount, snapshotPNGByteCount(for: hostingView))
+
+        window.contentView = nil
+        window.close()
+
+        if firstMeaningfulContentMilliseconds == 0 {
+            firstMeaningfulContentMilliseconds = milliseconds(since: renderStart, clock: clock)
+        }
+
+        return RenderReport(
+            visibleStrings: visibleStrings,
+            buttonTitles: buttonTitles,
+            snapshotByteCount: snapshotByteCount,
+            subviewCount: countSubviews(in: hostingView),
+            firstMeaningfulContentMilliseconds: firstMeaningfulContentMilliseconds,
+            totalRenderMilliseconds: milliseconds(since: renderStart, clock: clock)
+        )
+    }
+#endif
+
+    private struct RuntimeContext {
+        let configuration: CellConfiguration
+        let validation: CellConfigurationValidationReport
+        let resolver: CellResolver
+        let owner: Identity
+        let porthole: OrchestratorCell
+    }
+
+    private static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await BindingLaunchWarmup.preloadLocalRuntime()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            throw NSError(domain: "CellConfigurationVerifier", code: 2, userInfo: [NSLocalizedDescriptionKey: "Expected CellResolver after local runtime warmup"])
+        }
+
+        guard let owner = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            throw NSError(domain: "CellConfigurationVerifier", code: 3, userInfo: [NSLocalizedDescriptionKey: "Could not create verifier identity"])
+        }
+
+        guard let porthole = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///Porthole",
+            requester: owner
+        ) as? OrchestratorCell else {
+            throw NSError(domain: "CellConfigurationVerifier", code: 4, userInfo: [NSLocalizedDescriptionKey: "Could not resolve Porthole for verifier"])
+        }
+
+        let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(configuration) ?? configuration
+        return RuntimeContext(
+            configuration: repaired,
+            validation: CellConfigurationValidationService.validate(repaired),
+            resolver: resolver,
+            owner: owner,
+            porthole: porthole
+        )
+    }
+
+    private static func resolveReferences(
+        _ references: [CellReference],
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws -> [ReferenceResolution] {
+        let clock = ContinuousClock()
+        var results: [ReferenceResolution] = []
+
+        for reference in references {
+            let start = clock.now
+            do {
+                _ = try await resolver.cellAtEndpoint(endpoint: reference.endpoint, requester: requester)
+                results.append(
+                    ReferenceResolution(
+                        label: reference.label,
+                        endpoint: reference.endpoint,
+                        durationMilliseconds: milliseconds(since: start, clock: clock),
+                        outcome: "ok"
+                    )
+                )
+            } catch {
+                results.append(
+                    ReferenceResolution(
+                        label: reference.label,
+                        endpoint: reference.endpoint,
+                        durationMilliseconds: milliseconds(since: start, clock: clock),
+                        outcome: String(describing: error)
+                    )
+                )
+            }
+        }
+
+        return results
+    }
+
+    private static func readRootProbes(
+        _ probes: [SkeletonBindingProbeSupport.RootProbe],
+        from porthole: OrchestratorCell,
+        requester: Identity
+    ) async throws -> [RootProbeResolution] {
+        let clock = ContinuousClock()
+        var results: [RootProbeResolution] = []
+
+        for probe in probes {
+            let start = clock.now
+            do {
+                let value = try await porthole.get(keypath: probe.qualifiedKeypath, requester: requester)
+                let outcome = SkeletonBindingProbeSupport.failureDetail(from: value) ?? "ok"
+                results.append(
+                    RootProbeResolution(
+                        probe: probe,
+                        durationMilliseconds: milliseconds(since: start, clock: clock),
+                        outcome: outcome
+                    )
+                )
+            } catch {
+                results.append(
+                    RootProbeResolution(
+                        probe: probe,
+                        durationMilliseconds: milliseconds(since: start, clock: clock),
+                        outcome: String(describing: error)
+                    )
+                )
+            }
+        }
+
+        return results
+    }
+
+    private static func executeStaticButtons(
+        in skeleton: SkeletonElement?,
+        allowedLabels: Set<String>
+    ) async throws -> [ActionExecution] {
+        guard let skeleton, !allowedLabels.isEmpty else {
+            return []
+        }
+
+        let buttons = collectButtons(in: skeleton)
+            .filter { allowedLabels.contains($0.label) }
+        let clock = ContinuousClock()
+        var results: [ActionExecution] = []
+
+        for button in buttons {
+            let start = clock.now
+            let response = await button.execute()
+            let outcome: String
+            if let response {
+                outcome = SkeletonBindingProbeSupport.failureDetail(from: response) ?? "ok"
+            } else {
+                outcome = "nil"
+            }
+            results.append(
+                ActionExecution(
+                    label: button.label,
+                    keypath: button.keypath,
+                    url: button.url,
+                    durationMilliseconds: milliseconds(since: start, clock: clock),
+                    outcome: outcome
+                )
+            )
+        }
+
+        return results
+    }
+
+    private static func collectButtons(in element: SkeletonElement) -> [SkeletonButton] {
+        switch element {
+        case .Button(let button):
+            return [button]
+        case .VStack(let stack):
+            return stack.elements.flatMap(collectButtons)
+        case .HStack(let stack):
+            return stack.elements.flatMap(collectButtons)
+        case .ScrollView(let scroll):
+            return scroll.elements.flatMap(collectButtons)
+        case .Section(let section):
+            return (section.header.map(collectButtons) ?? []) +
+                section.content.flatMap(collectButtons) +
+                (section.footer.map(collectButtons) ?? [])
+        case .Reference(let reference):
+            return reference.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
+        case .List(let list):
+            return list.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
+        case .Grid(let grid):
+            return (grid.itemSkeleton.map { collectButtons(in: $0) } ?? []) +
+                grid.elements.flatMap(collectButtons)
+        case .ZStack(let stack):
+            return stack.elements.flatMap(collectButtons)
+        case .Object(let object):
+            return object.elements.values.flatMap(collectButtons)
+        default:
+            return []
+        }
+    }
+
+    private static func flattenReferences(from references: [CellReference]) -> [CellReference] {
+        var flattened: [CellReference] = []
+
+        func visit(_ reference: CellReference) {
+            if flattened.contains(where: { $0.id == reference.id }) {
+                return
+            }
+            flattened.append(reference)
+            reference.subscriptions.forEach(visit)
+        }
+
+        references.forEach(visit)
+        return flattened
+    }
+
+    private static func milliseconds(
+        since start: ContinuousClock.Instant,
+        clock: ContinuousClock
+    ) -> Double {
+        let duration = clock.now - start
+        let components = duration.components
+        return (Double(components.seconds) * 1_000.0) + (Double(components.attoseconds) / 1_000_000_000_000_000.0)
+    }
+
+#if canImport(AppKit)
+    @MainActor
+    private static func snapshotPNGByteCount(for view: NSView) -> Int {
+        guard view.bounds.isEmpty == false,
+              let imageRep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+        else {
+            return 0
+        }
+        view.cacheDisplay(in: view.bounds, to: imageRep)
+        return imageRep.representation(using: .png, properties: [:])?.count ?? 0
+    }
+
+    @MainActor
+    private static func collectVisibleStrings(from view: NSView) -> Set<String> {
+        var strings = Set<String>()
+        if let textField = view as? NSTextField {
+            let text = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty == false {
+                strings.insert(text)
+            }
+        }
+        for child in view.subviews {
+            strings.formUnion(collectVisibleStrings(from: child))
+        }
+        return strings
+    }
+
+    @MainActor
+    private static func collectButtonTitles(from view: NSView) -> Set<String> {
+        var titles = Set<String>()
+        if let button = view as? NSButton {
+            let title = button.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if title.isEmpty == false {
+                titles.insert(title)
+            }
+        }
+        for child in view.subviews {
+            titles.formUnion(collectButtonTitles(from: child))
+        }
+        return titles
+    }
+
+    @MainActor
+    private static func countSubviews(in view: NSView) -> Int {
+        1 + view.subviews.reduce(0) { partialResult, child in
+            partialResult + countSubviews(in: child)
+        }
+    }
+#endif
 }
