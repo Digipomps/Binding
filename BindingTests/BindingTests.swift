@@ -657,6 +657,7 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("alignmentSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("proofSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectionSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
@@ -759,6 +760,10 @@ struct BindingTests {
         #expect(object["summary"] != nil)
         #expect(object["precisionSummary"] != nil)
         #expect(object["actionSummary"] != nil)
+        #expect(object["selectionSummary"] != nil)
+        #expect(object["spatialTruthSummary"] != nil)
+        #expect(object["selectedEntity"] != nil)
+        #expect(object["selectedEntityActions"] != nil)
         #expect(object["sectors"] != nil)
         #expect(object["nearby"] != nil)
     }
@@ -795,6 +800,7 @@ struct BindingTests {
         #expect(object["summary"] != nil)
         #expect(object["precisionSummary"] != nil)
         #expect(object["actionSummary"] != nil)
+        #expect(object["selectionSummary"] != nil)
     }
 
     @Test func conferenceNearbyRadarDispatchActionReturnsSnapshotObject() async throws {
@@ -835,6 +841,104 @@ struct BindingTests {
 
         #expect(object["summary"] != nil)
         #expect(object["actionSummary"] != nil)
+    }
+
+    @Test func conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await BindingLaunchWarmup.preloadLocalRuntime()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after launch warmup")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let radar = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceNearbyRadar",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceNearbyRadar did not resolve as Meddle")
+            return
+        }
+
+        _ = try await radar.set(
+            keypath: "testInjectNearbyCandidate",
+            value: .object([
+                "remoteUUID": .string("nearby-approx-001"),
+                "displayName": .string("Approx Nearby"),
+                "matchScore": .float(0.34),
+                "distanceMeters": .float(2.4),
+                "hasDirection": .bool(false)
+            ]),
+            requester: identity
+        )
+
+        _ = try await radar.set(
+            keypath: "testInjectVerifiedContact",
+            value: .object([
+                "remoteUUID": .string("nearby-verified-001"),
+                "displayName": .string("Nora Berg"),
+                "participantId": .string("participant-102"),
+                "identityUUID": .string("identity-remote-123"),
+                "company": .string("Polar Systems"),
+                "role": .string("speaker"),
+                "matchCount": .integer(2),
+                "matchScore": .float(0.92),
+                "distanceMeters": .float(1.6),
+                "directionX": .float(0.0),
+                "directionY": .float(0.0),
+                "directionZ": .float(1.0)
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await radar.get(keypath: "state", requester: identity)
+        guard case let .object(stateObject) = stateValue else {
+            Issue.record("Expected object from ConferenceNearbyRadar.state after injecting nearby candidates, got \(stateValue)")
+            return
+        }
+
+        guard case let .string(selectionSummary)? = stateObject["selectionSummary"] else {
+            Issue.record("Expected selectionSummary in nearby radar state")
+            return
+        }
+        #expect(selectionSummary.contains("Nora Berg"))
+
+        guard case let .string(spatialTruthSummary)? = stateObject["spatialTruthSummary"] else {
+            Issue.record("Expected spatialTruthSummary in nearby radar state")
+            return
+        }
+        #expect(spatialTruthSummary.contains("retning usikker"))
+
+        guard case let .object(selectedEntity)? = stateObject["selectedEntity"] else {
+            Issue.record("Expected selectedEntity in nearby radar state")
+            return
+        }
+        #expect(selectedEntity["title"] == .string("Nora Berg"))
+
+        guard case let .list(selectedEntityActions)? = stateObject["selectedEntityActions"],
+              case let .object(primaryAction)? = selectedEntityActions.first else {
+            Issue.record("Expected selectedEntityActions in nearby radar state")
+            return
+        }
+        #expect(primaryAction["label"] == .string("Start chat"))
+
+        guard case let .list(sectors)? = stateObject["sectors"],
+              case let .object(uncertainSector)? = sectors.first(where: { value in
+                  guard case let .object(object) = value,
+                        case let .string(title)? = object["title"] else {
+                      return false
+                  }
+                  return title == "Retning usikker"
+              }) else {
+            Issue.record("Expected a Retning usikker sector in nearby radar state")
+            return
+        }
+        #expect(uncertainSector["subtitle"] == .string("1 peer(s)"))
     }
 
     @Test func portholeRoutesNearbyRadarDispatchActionForConferenceParticipantPortal() async throws {
@@ -2857,7 +2961,8 @@ struct CellConfigurationVerifierTests {
             expectedVisibleStrings: [
                 "Conference Nearby Radar",
                 "Start scanner",
-                "Tilbake til deltagerportal"
+                "Tilbake til deltagerportal",
+                "Valgt deltager"
             ]
         )
 
@@ -3048,17 +3153,32 @@ enum CellConfigurationVerifier {
 
             let status = valueString(object["statusBadge"]) ?? valueString(object["status"])
             let actionSummary = valueString(object["actionSummary"])
-            guard case let .list(cards)? = object["nearby"],
-                  case let .object(firstCard)? = cards.first else {
-                return (status, actionSummary, nil, nil, nil)
+            let selectedEntity: Object?
+            if case let .object(value)? = object["selectedEntity"] {
+                selectedEntity = value
+            } else {
+                selectedEntity = nil
+            }
+            let selectedActions: [ValueType]
+            if case let .list(value)? = object["selectedEntityActions"] {
+                selectedActions = value
+            } else {
+                selectedActions = []
+            }
+            let selectedPrimaryAction: Object?
+            if let firstAction = selectedActions.first,
+               case let .object(value) = firstAction {
+                selectedPrimaryAction = value
+            } else {
+                selectedPrimaryAction = nil
             }
 
             return (
                 status,
                 actionSummary,
-                valueString(firstCard["label"]),
-                valueString(firstCard["purposeSummary"]),
-                valueString(firstCard["note"])
+                valueString(selectedPrimaryAction?["label"]),
+                valueString(selectedEntity?["purposeSummary"]),
+                valueString(selectedEntity?["note"])
             )
         }
 

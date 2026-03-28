@@ -62,6 +62,15 @@ Current nearby radar assertions:
 - the dedicated nearby-radar workbench resolves both `ConferenceNearbyRadar` and the participant preview shell
 - `Start scanner` and `Stop scanner` stay reachable through the same local direct-action route the GUI uses
 - `Tilbake til deltagerportal` returns through the same local action route the GUI uses
+- a focused participant panel is rendered as part of the nearby-radar workbench (`Valgt deltager`)
+- approximate MPC-only peers are kept separate from hard directional claims through a dedicated `Retning usikker` bucket
+
+Current nearby radar state assertions:
+
+- `selectionSummary` points at the currently focused participant
+- `selectedEntity` exposes the currently focused participant card payload
+- `selectedEntityActions` expose the next concrete follow-up actions from that focused participant
+- `spatialTruthSummary` explicitly says when one or more peers are nearby but direction is uncertain
 
 Current nearby follow-up assertions:
 
@@ -88,7 +97,7 @@ Current render assertions:
 - `Conference Participant Portal`
   - expected strings include `Conference Participant Portal`, `Entity Discovery`, `Start scanner`
 - `Conference Nearby Radar`
-  - expected strings include `Conference Nearby Radar`, `Start scanner`, `Tilbake til deltagerportal`
+  - expected strings include `Conference Nearby Radar`, `Start scanner`, `Tilbake til deltagerportal`, `Valgt deltager`
 - `Conference Control Tower`
   - expected strings include `Conference Control Tower`, `Publish content`, `Operations & Insights`
 
@@ -137,6 +146,7 @@ Targeted green checks:
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerRenderer`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions`
 
 Observed isolated timings from the latest green checks:
 
@@ -147,6 +157,7 @@ Observed isolated timings from the latest green checks:
 - `Conference Participant Portal` render: about `4.15s`
 - `Conference Nearby Radar` render: about `6.84s`
 - `Conference Control Tower` render: about `3.54s`
+- focused nearby-radar state truth test: about `2.07s`
 
 These timings are useful as a moving baseline, not as hard budgets yet.
 
@@ -159,6 +170,7 @@ The verifier forced us to fix several real issues:
 - participant conference actions needed direct endpoint routing for deterministic verification
 - the dedicated nearby-radar workbench needed its own verifier path so local radar actions and return-to-portal routing do not silently drift
 - nearby follow-up chat needed deterministic local injection and post-action state reads, otherwise we could falsely pass or fail depending on shared runtime state
+- the nearby radar used to blur together “nearby” and “direction known”; the focused-state test now catches that by requiring `Retning usikker` and a selected participant action surface
 - coarse root probes like `conferenceParticipantShell.state` could report `notFound` even when the surface itself was readable through real descendant bindings
 - running multiple verifier targets in one `xcodebuild` process allowed shared Porthole/runtime state to leak between tests
 - render verification was too brittle when hosted through a temporary `NSWindow`

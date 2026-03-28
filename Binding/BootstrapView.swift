@@ -316,13 +316,15 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         case ahead
         case right
         case behind
+        case uncertain
 
         var title: String {
             switch self {
-            case .left: return "Left"
-            case .ahead: return "Ahead"
-            case .right: return "Right"
-            case .behind: return "Behind"
+            case .left: return "Venstre"
+            case .ahead: return "Foran"
+            case .right: return "Høyre"
+            case .behind: return "Bak"
+            case .uncertain: return "Retning usikker"
             }
         }
     }
@@ -358,6 +360,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private var contactSignalsById: [String: ContactSignal] = [:]
     private var purposeSignalsById: [String: PurposeSignal] = [:]
     private var followUpTargetsById: [String: ConferenceNearbyFollowUpTarget] = [:]
+    private var selectedRemoteUUID: String?
+    private var followUpMarkedRemoteUUIDs: Set<String> = []
     private var launchedChatRemoteUUIDs: Set<String> = []
     private var testInjectedRemoteUUIDs: Set<String> = []
     private var lastError: String?
@@ -390,6 +394,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
         agreementTemplate.addGrant("rw--", for: "openExpandedRadarWorkbench")
         agreementTemplate.addGrant("rw--", for: "openParticipantPortalWorkbench")
+        agreementTemplate.addGrant("rw--", for: "selectEntity")
+        agreementTemplate.addGrant("rw--", for: "toggleFollowUp")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 #if DEBUG
         agreementTemplate.addGrant("rw--", for: "testInjectNearbyCandidate")
@@ -443,6 +449,18 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "openParticipantPortalWorkbench", for: requester) else { return .string("denied") }
             return await self.openParticipantPortalWorkbench(requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "selectEntity", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "selectEntity", for: requester) else { return .string("denied") }
+            return await self.selectEntity(value: value, requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "toggleFollowUp", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "toggleFollowUp", for: requester) else { return .string("denied") }
+            return await self.toggleFollowUp(value: value, requester: requester)
         })
 
         await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
@@ -547,6 +565,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         if keypath == "requestContact",
            let remoteUUID = normalizedRemoteUUID(string(from: value)),
            testInjectedRemoteUUIDs.contains(remoteUUID) {
+            selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
                 summary: "Signed contact request sent. Waiting for acceptance.",
@@ -614,13 +633,17 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return await forwardMutation(keypath: actionKeypath, value: actionPayload, requester: requester)
         case "openFollowUpChat":
             return await openFollowUpChat(value: actionPayload, requester: requester)
+        case "selectEntity":
+            return await selectEntity(value: actionPayload, requester: requester)
+        case "toggleFollowUp":
+            return await toggleFollowUp(value: actionPayload, requester: requester)
         case "openExpandedRadarWorkbench":
             return await openExpandedRadarWorkbench(requester: requester)
         case "openParticipantPortalWorkbench":
             return await openParticipantPortalWorkbench(requester: requester)
         default:
-            lastError = "Nearby action \(actionKeypath) er ikke stoettet."
-            lastActionSummary = "Nearby action \(actionKeypath) er ikke stoettet."
+            lastError = "Nearby action \(actionKeypath) er ikke støttet."
+            lastActionSummary = "Nearby action \(actionKeypath) er ikke støttet."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
@@ -666,6 +689,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
+        selectedRemoteUUID = remoteUUID
 
         let dispatchPayload: Object = [
             "keypath": .string("discovery.startChat"),
@@ -781,6 +805,50 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             }
         }
 
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
+    }
+
+    private func selectEntity(value: ValueType, requester: Identity) async -> ValueType {
+        let requestedRemoteUUID = normalizedRemoteUUID(string(from: object(from: value)?["remoteUUID"]) ?? string(from: value))
+            ?? selectedRemoteUUID
+
+        guard let requestedRemoteUUID,
+              let entity = entitiesById[requestedRemoteUUID] else {
+            lastError = "Could not focus nearby participant because the selection was missing."
+            lastActionSummary = "Could not focus nearby participant because the selection was missing."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
+        selectedRemoteUUID = requestedRemoteUUID
+        lastError = nil
+        lastActionSummary = "Focused nearby view on \(entity.displayName)."
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
+    }
+
+    private func toggleFollowUp(value: ValueType, requester: Identity) async -> ValueType {
+        let requestedRemoteUUID = normalizedRemoteUUID(string(from: object(from: value)?["remoteUUID"]) ?? string(from: value))
+            ?? selectedRemoteUUID
+
+        guard let requestedRemoteUUID,
+              let entity = entitiesById[requestedRemoteUUID] else {
+            lastError = "Could not update follow-up mark because no nearby participant was selected."
+            lastActionSummary = "Could not update follow-up mark because no nearby participant was selected."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
+        selectedRemoteUUID = requestedRemoteUUID
+        if followUpMarkedRemoteUUIDs.contains(requestedRemoteUUID) {
+            followUpMarkedRemoteUUIDs.remove(requestedRemoteUUID)
+            lastActionSummary = "Removed \(entity.displayName) from follow-up."
+        } else {
+            followUpMarkedRemoteUUIDs.insert(requestedRemoteUUID)
+            lastActionSummary = "Marked \(entity.displayName) for follow-up."
+        }
+        lastError = nil
         emitSnapshot(requester: requester)
         return .object(snapshotObject())
     }
@@ -963,11 +1031,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let matchCount = int(from: input?["matchCount"]) ?? 2
         let matchScore = double(from: input?["matchScore"]) ?? 0.92
         let distanceMeters = double(from: input?["distanceMeters"]) ?? 1.6
-        let direction = RadarDirection3D(
+        let hasDirection = bool(from: input?["hasDirection"]) ?? true
+        let direction = hasDirection ? RadarDirection3D(
             x: double(from: input?["directionX"]) ?? 0.0,
             y: double(from: input?["directionY"]) ?? 0.0,
             z: double(from: input?["directionZ"]) ?? 1.0
-        )
+        ) : nil
 
         let update = RadarEntityUpdate(
             remoteUUID: remoteUUID,
@@ -979,6 +1048,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             matchScore: matchScore
         )
         entitiesById[remoteUUID] = NearbyEntity(update: update, defaultStatus: "nearby")
+        selectedRemoteUUID = remoteUUID
         testInjectedRemoteUUIDs.insert(remoteUUID)
         if verified {
             purposeSignalsById[remoteUUID] = PurposeSignal(
@@ -1155,6 +1225,11 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         keysToRemove.forEach { entitiesById.removeValue(forKey: $0) }
+        let remainingRemoteUUIDs = Set(entitiesById.keys)
+        followUpMarkedRemoteUUIDs.formIntersection(remainingRemoteUUIDs)
+        if let selectedRemoteUUID, remainingRemoteUUIDs.contains(selectedRemoteUUID) == false {
+            self.selectedRemoteUUID = nil
+        }
     }
 
     private func applyMutationResult(keypath: String, result: ValueType?, payload: ValueType) {
@@ -1166,6 +1241,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         switch string(from: resultObject["status"]) ?? "" {
         case "pendingConnection":
+            selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "pendingConnection",
                 summary: "Invite sent. Signed contact proof starts when the device link is ready.",
@@ -1173,6 +1249,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             )
             lastActionSummary = "Invite sent. Signed contact proof starts when the device link is ready."
         case "sent":
+            selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
                 summary: "Signed contact request sent. Waiting for the other side to accept.",
@@ -1202,6 +1279,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         switch topic {
         case "scanner.contact.pending":
+            selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "pendingConnection",
                 summary: string(from: object["message"]) ?? "Invite sent. Waiting for a direct device link.",
@@ -1209,6 +1287,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             )
             lastActionSummary = "Invite sent. Waiting for a direct device link before signed contact proof."
         case "scanner.contact.outgoing":
+            selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
                 summary: "Signed contact request sent. Waiting for acceptance.",
@@ -1216,6 +1295,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             )
             lastActionSummary = "Signed contact request sent."
         case "scanner.contact.established", "scanner.encounter.saved":
+            selectedRemoteUUID = remoteUUID
             let matchCount = purposeSignalsById[remoteUUID]?.count ?? int(from: object["matchCount"]) ?? 0
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "verified",
@@ -1334,6 +1414,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let effectiveScannerStatus = requestedScannerStatus ?? scannerLifecycleStatus
 
         let entities = sortedEntities()
+        let focusedRemoteUUID = ensureSelectedRemoteUUID(in: entities)
         let sectors = CompassSector.allCases.map { sector in
             makeSectorCard(for: sector, entities: entities.filter { compassSector(for: $0) == sector })
         }
@@ -1342,6 +1423,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let connectedCount = entities.filter(\.connected).count
         let verifiedMatchCount = purposeSignalsById.values.filter { $0.count > 0 }.count
         let followUpCount = followUpTargetsById.count
+        let directionalCount = entities.filter { hasDirectionalPosition($0) }.count
+        let uncertainCount = entities.count - directionalCount
         let summary = entities.isEmpty
             ? "Ingen nearby peers enda. Start scanner for å bygge et lokalt spatialt bilde."
             : "\(entities.count) nearby peer(s) · \(connectedCount) connected · \(verifiedMatchCount) verified purpose fit(s) · \(followUpCount) follow-up chat(s) ready."
@@ -1354,17 +1437,49 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         let localityNote = "Binding-local spatial enrichment over EntityScanner. This augments conference discovery without replacing the portable scaffold contract."
+        let spatialTruthSummary: String
+        if entities.isEmpty {
+            spatialTruthSummary = "Når nearby-signaler dukker opp, viser vi presis retning bare når sensoren faktisk gir retning."
+        } else if directionalCount > 0, uncertainCount > 0 {
+            spatialTruthSummary = "Presis retning vises for \(directionalCount) deltager(e). \(uncertainCount) treff mangler retning og samles under retning usikker."
+        } else if directionalCount > 0 {
+            spatialTruthSummary = "Alle synlige treff har en faktisk retningsmåling akkurat nå."
+        } else {
+            spatialTruthSummary = "Ingen treff har presis retning akkurat nå. Nearby-signaler vises derfor som retning usikker."
+        }
+        let selectionSummary: String
+        if let focusedRemoteUUID,
+           let focusedEntity = entitiesById[focusedRemoteUUID] {
+            selectionSummary = "Fokuserer på \(focusedEntity.displayName). Neste steg ligger i valgt deltager-panelet."
+        } else {
+            selectionSummary = "Velg en nearby deltager for å se profiloppsummering og neste handling."
+        }
+        let selectedEntity = focusedRemoteUUID.flatMap { selectedEntityObject(for: $0) }
+            ?? [
+                "selectionBadge": .string("VALGT DELTAGER"),
+                "title": .string("Ingen deltager valgt ennå"),
+                "subtitle": .string("Velg en nearby deltager fra listen under."),
+                "detail": .string("Når en deltager er valgt, viser vi avstand, retning og neste steg her."),
+                "purposeSummary": .string("Ingen valgt deltager ennå"),
+                "purposeDetail": .string("Verifisert purpose/interest-match vises først etter signert kontakt."),
+                "note": .string("Bruk kortene under til å fokusere på en deltager.")
+            ]
+        let selectedEntityActions = focusedRemoteUUID.map { selectedEntityActionCards(for: $0) } ?? []
 
         return [
             "headline": .string("Nearby Participants"),
             "summary": .string(summary),
             "precisionSummary": .string(precisionSummary),
             "actionSummary": .string(lastActionSummary),
+            "selectionSummary": .string(selectionSummary),
+            "spatialTruthSummary": .string(spatialTruthSummary),
             "transportBadge": .string(transportMode.uppercased()),
             "precisionBadge": .string(precisionMode.uppercased()),
             "statusBadge": .string(effectiveScannerStatus),
             "localityNote": .string(localityNote),
             "description": .string(capabilityDescription),
+            "selectedEntity": .object(selectedEntity),
+            "selectedEntityActions": .list(selectedEntityActions.map(ValueType.object)),
             "sectors": .list(sectors.map(ValueType.object)),
             "nearby": .list(nearbyCards.map(ValueType.object)),
             "emptyState": .string(entities.isEmpty ? "No nearby participants visible yet." : ""),
@@ -1387,8 +1502,23 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         entitiesById.values.sorted { lhs, rhs in
             let lhsDistance = lhs.distanceMeters ?? .greatestFiniteMagnitude
             let rhsDistance = rhs.distanceMeters ?? .greatestFiniteMagnitude
+            let lhsSelected = lhs.remoteUUID == selectedRemoteUUID
+            let rhsSelected = rhs.remoteUUID == selectedRemoteUUID
+            if lhsSelected != rhsSelected {
+                return lhsSelected
+            }
+            let lhsMarked = followUpMarkedRemoteUUIDs.contains(lhs.remoteUUID)
+            let rhsMarked = followUpMarkedRemoteUUIDs.contains(rhs.remoteUUID)
+            if lhsMarked != rhsMarked {
+                return lhsMarked
+            }
             if lhs.connected != rhs.connected {
                 return lhs.connected && !rhs.connected
+            }
+            let lhsVerified = followUpTargetsById[lhs.remoteUUID] != nil
+            let rhsVerified = followUpTargetsById[rhs.remoteUUID] != nil
+            if lhsVerified != rhsVerified {
+                return lhsVerified
             }
             if lhsDistance != rhsDistance {
                 return lhsDistance < rhsDistance
@@ -1412,55 +1542,40 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         return [
             "title": .string(sector.title),
             "subtitle": .string("\(entities.count) peer(s)"),
-            "detail": .string(entities.isEmpty ? "No active signals" : "Closest: \(closest)"),
-            "note": .string(previewNames.isEmpty ? "Waiting for signals" : previewNames)
+            "detail": .string(sector == .uncertain
+                ? (entities.isEmpty ? "Ingen usikre nearby-signaler" : "MPC-only eller ventende retning · nærmest \(closest)")
+                : (entities.isEmpty ? "No active signals" : "Closest: \(closest)")),
+            "note": .string(previewNames.isEmpty
+                ? (sector == .uncertain ? "Waiting for approximate signals" : "Waiting for directional signals")
+                : previewNames)
         ]
     }
 
     private func makeNearbyCard(for entity: NearbyEntity) -> Object {
-        let sector = compassSector(for: entity)
-        let distanceText = entity.distanceMeters.map { String(format: "%.1f m", $0) } ?? "Distance pending"
-        let precisionText = precisionMode.lowercased().contains("uwb") || supportsNearbyPrecision
-            ? "UWB-ready when available"
-            : "MPC approximate"
-        let detail = "\(sector.title) · \(distanceText) · \(entity.connected ? "connected" : "visible")"
+        let directionIsPrecise = hasDirectionalPosition(entity)
         let purposeSignal = purposeSignalsById[entity.remoteUUID]
         let contactSignal = contactSignalsById[entity.remoteUUID]
-        let note = contactSignal?.summary ?? "\(entity.status) · \(precisionText)"
-
-        if followUpTargetsById[entity.remoteUUID] != nil,
-           contactSignal?.status == "verified" {
-            let hasLaunchedChat = launchedChatRemoteUUIDs.contains(entity.remoteUUID)
-            return [
-                "url": .string("cell:///ConferenceNearbyRadar"),
-                "title": .string(entity.displayName),
-                "subtitle": .string("\(sector.title) sector"),
-                "detail": .string(detail),
-                "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
-                "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
-                "note": .string(hasLaunchedChat ? "Discovery chat is ready. \(note)" : note),
-                "keypath": .string("dispatchAction"),
-                "label": .string(hasLaunchedChat ? "Open chat" : "Start chat"),
-                "payload": .object([
-                    "keypath": .string("openFollowUpChat"),
-                    "payload": .object(["remoteUUID": .string(entity.remoteUUID)])
-                ])
-            ]
-        }
+        let followUpMarked = followUpMarkedRemoteUUIDs.contains(entity.remoteUUID)
+        let selected = entity.remoteUUID == selectedRemoteUUID
+        let noteParts = [
+            selected ? "Valgt i fokus." : nil,
+            followUpMarked ? "Markert for oppfølging." : nil,
+            contactSignal?.summary ?? positionTrustSummary(for: entity, directionIsPrecise: directionIsPrecise)
+        ].compactMap { $0 }
 
         return [
             "url": .string("cell:///ConferenceNearbyRadar"),
             "title": .string(entity.displayName),
-            "subtitle": .string("\(sector.title) sector"),
-            "detail": .string(detail),
+            "subtitle": .string(directionSubtitle(for: entity, directionIsPrecise: directionIsPrecise)),
+            "detail": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
-            "note": .string(note),
+            "note": .string(noteParts.joined(separator: " ")),
             "keypath": .string("dispatchAction"),
-            "label": .string(contactSignal?.actionLabel ?? "Request contact"),
+            "label": .string(selected ? "Valgt" : "Velg"),
             "payload": .object([
-                "keypath": .string("requestContact"),
-                "payload": .string(entity.remoteUUID)
+                "keypath": .string("selectEntity"),
+                "payload": .object(["remoteUUID": .string(entity.remoteUUID)])
             ])
         ]
     }
@@ -1488,7 +1603,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     }
 
     private func compassSector(for entity: NearbyEntity) -> CompassSector {
-        let angle = entity.radarAngleRadians
+        guard let direction = entity.direction else {
+            return .uncertain
+        }
+        let angle = direction.azimuthRadians
         if angle >= -.pi / 4, angle < .pi / 4 {
             return .ahead
         }
@@ -1499,6 +1617,158 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return .left
         }
         return .behind
+    }
+
+    private func hasDirectionalPosition(_ entity: NearbyEntity) -> Bool {
+        entity.direction != nil
+    }
+
+    private func ensureSelectedRemoteUUID(in entities: [NearbyEntity]) -> String? {
+        let validRemoteUUIDs = Set(entities.map(\.remoteUUID))
+        if let selectedRemoteUUID, validRemoteUUIDs.contains(selectedRemoteUUID) {
+            return selectedRemoteUUID
+        }
+
+        let preferredRemoteUUID = entities.sorted { lhs, rhs in
+            let lhsMarked = followUpMarkedRemoteUUIDs.contains(lhs.remoteUUID)
+            let rhsMarked = followUpMarkedRemoteUUIDs.contains(rhs.remoteUUID)
+            if lhsMarked != rhsMarked {
+                return lhsMarked
+            }
+            let lhsVerified = followUpTargetsById[lhs.remoteUUID] != nil
+            let rhsVerified = followUpTargetsById[rhs.remoteUUID] != nil
+            if lhsVerified != rhsVerified {
+                return lhsVerified
+            }
+            let lhsDirectional = hasDirectionalPosition(lhs)
+            let rhsDirectional = hasDirectionalPosition(rhs)
+            if lhsDirectional != rhsDirectional {
+                return lhsDirectional
+            }
+            let lhsDistance = lhs.distanceMeters ?? .greatestFiniteMagnitude
+            let rhsDistance = rhs.distanceMeters ?? .greatestFiniteMagnitude
+            if lhsDistance != rhsDistance {
+                return lhsDistance < rhsDistance
+            }
+            return lhs.lastSeenAt > rhs.lastSeenAt
+        }.first?.remoteUUID
+
+        selectedRemoteUUID = preferredRemoteUUID
+        return preferredRemoteUUID
+    }
+
+    private func selectedEntityObject(for remoteUUID: String) -> Object? {
+        guard let entity = entitiesById[remoteUUID] else {
+            return nil
+        }
+        let purposeSignal = purposeSignalsById[remoteUUID]
+        let contactSignal = contactSignalsById[remoteUUID]
+        let target = followUpTargetsById[remoteUUID]
+        let markedForFollowUp = followUpMarkedRemoteUUIDs.contains(remoteUUID)
+        let selectionBadge = markedForFollowUp ? "VALGT · MARKERT FOR OPPFØLGING" : "VALGT DELTAGER"
+        let subtitleParts = [target?.company, target?.role].compactMap { value -> String? in
+            guard let value, value.isEmpty == false else { return nil }
+            return value
+        }
+        let noteParts = [
+            contactSignal?.summary,
+            markedForFollowUp ? "Denne deltakeren er markert for oppfølging." : nil
+        ].compactMap { $0 }
+
+        return [
+            "selectionBadge": .string(selectionBadge),
+            "title": .string(entity.displayName),
+            "subtitle": .string(subtitleParts.isEmpty ? directionSubtitle(for: entity, directionIsPrecise: hasDirectionalPosition(entity)) : subtitleParts.joined(separator: " · ")),
+            "detail": .string(positionDetail(for: entity, directionIsPrecise: hasDirectionalPosition(entity))),
+            "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: remoteUUID, liveScore: entity.matchScore)),
+            "purposeDetail": .string(purposeSignal?.detail ?? "Verifisert purpose/interest-fit kommer først etter signert kontakt."),
+            "note": .string(noteParts.isEmpty ? positionTrustSummary(for: entity, directionIsPrecise: hasDirectionalPosition(entity)) : noteParts.joined(separator: " "))
+        ]
+    }
+
+    private func selectedEntityActionCards(for remoteUUID: String) -> [Object] {
+        guard let entity = entitiesById[remoteUUID] else {
+            return []
+        }
+
+        let primaryAction: Object
+        if followUpTargetsById[remoteUUID] != nil,
+           contactSignalsById[remoteUUID]?.status == "verified" {
+            let hasLaunchedChat = launchedChatRemoteUUIDs.contains(remoteUUID)
+            primaryAction = [
+                "title": .string("Chat"),
+                "subtitle": .string(hasLaunchedChat ? "Fortsett oppfølging" : "Start oppfølging"),
+                "detail": .string(hasLaunchedChat
+                    ? "Discovery-chatten er klar. Åpne den for å fortsette samtalen med \(entity.displayName)."
+                    : "Opprett en conference-chat med \(entity.displayName) fra denne nearby-matchen."),
+                "note": .string("Dette er tilgjengelig fordi kontakten allerede er verifisert."),
+                "keypath": .string("dispatchAction"),
+                "label": .string(hasLaunchedChat ? "Open chat" : "Start chat"),
+                "payload": .object([
+                    "keypath": .string("openFollowUpChat"),
+                    "payload": .object(["remoteUUID": .string(remoteUUID)])
+                ])
+            ]
+        } else {
+            primaryAction = [
+                "title": .string("Kontakt"),
+                "subtitle": .string("Be om signert kontakt"),
+                "detail": .string("Etabler kontakt først. Når den er verifisert, kan du starte chat med høyere presisjon i match-signalet."),
+                "note": .string(contactSignalsById[remoteUUID]?.summary ?? "Kontaktbeviset er første steg før verifisert purpose/interest-match."),
+                "keypath": .string("dispatchAction"),
+                "label": .string(contactSignalsById[remoteUUID]?.actionLabel ?? "Request contact"),
+                "payload": .object([
+                    "keypath": .string("requestContact"),
+                    "payload": .string(remoteUUID)
+                ])
+            ]
+        }
+
+        let markedForFollowUp = followUpMarkedRemoteUUIDs.contains(remoteUUID)
+        let followUpAction: Object = [
+            "title": .string("Oppfølging"),
+            "subtitle": .string(markedForFollowUp ? "Fjern markering" : "Marker for oppfølging"),
+            "detail": .string(markedForFollowUp
+                ? "\(entity.displayName) er allerede markert for senere oppfølging."
+                : "Legg denne deltakeren i oppfølgingsbunken uten å starte chat med en gang."),
+            "note": .string(markedForFollowUp
+                ? "Bruk dette hvis du vil rydde fokuslisten igjen."
+                : "Passer når du vil komme tilbake etter sesjonen eller senere i dagen."),
+            "keypath": .string("dispatchAction"),
+            "label": .string(markedForFollowUp ? "Fjern markering" : "Marker for oppfølging"),
+            "payload": .object([
+                "keypath": .string("toggleFollowUp"),
+                "payload": .object(["remoteUUID": .string(remoteUUID)])
+            ])
+        ]
+
+        return [primaryAction, followUpAction]
+    }
+
+    private func directionSubtitle(for entity: NearbyEntity, directionIsPrecise: Bool) -> String {
+        if directionIsPrecise {
+            return "\(compassSector(for: entity).title) · presis retning"
+        }
+        return "Retning usikker · nearby via MPC"
+    }
+
+    private func positionDetail(for entity: NearbyEntity, directionIsPrecise: Bool) -> String {
+        let distanceText = entity.distanceMeters.map { String(format: "%.1f m", $0) } ?? "Avstand avventer"
+        let visibilityText = entity.connected ? "tilkoblet" : "synlig"
+        if directionIsPrecise {
+            return "\(compassSector(for: entity).title) · \(distanceText) · \(visibilityText)"
+        }
+        return "Retning usikker · \(distanceText) · \(visibilityText)"
+    }
+
+    private func positionTrustSummary(for entity: NearbyEntity, directionIsPrecise: Bool) -> String {
+        if directionIsPrecise {
+            return "Retning og avstand er basert på levende nearby-signaler."
+        }
+        if entity.matchScore != nil {
+            return "Dette treffet er synlig nearby, men retningen er foreløpig usikker."
+        }
+        return "Nearby-signal oppdaget. Retning og presis match må bekreftes videre."
     }
 
     private func normalizedRemoteUUID(_ remoteUUID: String?) -> String? {

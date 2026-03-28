@@ -19,6 +19,7 @@ Covered layers:
 - contract verification for references, root probes, and selected actions
 - contract verification for the dedicated nearby-radar workbench, including start/stop and return-to-portal routing
 - contract verification for nearby scanner start/requestContact/verified follow-up/stop
+- nearby-radar state verification for focused participant state and honest `Retning usikker` handling
 - renderer verification for expected visible strings and timing
 
 Important working assumptions:
@@ -29,21 +30,25 @@ Important working assumptions:
 
 Next recommended engineering steps:
 
-1. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
-2. Use the nearby-radar workbench as the next home for a real spatial conference view:
+1. Use the nearby-radar workbench as the next home for a real spatial conference view:
    - honest MPC-only uncertainty
    - clearer UWB-ready direction/distance presentation
    - visible selected-entity follow-up state
-3. Extend verifier coverage to one more conference configuration that matters for the demo story.
-4. Consider a separate iOS-oriented layer later:
+2. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
+3. Make the participant-portal buttons more self-explanatory in GUI state:
+   - selected agenda mode
+   - selected track focus
+   - short action feedback after clicks
+4. Extend verifier coverage to one more conference configuration that matters for the demo story.
+5. Consider a separate iOS-oriented layer later:
    - contract verification can still be local
    - render verification may need screenshot-driven validation instead of AppKit hosting
-5. If live UI still claims the debug panel is drawing outside its frame, inspect:
+6. If live UI still claims the debug panel is drawing outside its frame, inspect:
    - `Binding/Debug/BindingRuntimeDiagnostics.swift`
    - rounded shape clipping
    - scroll container clipping
    - lazy log stack behavior
-6. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
+7. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
 
 If you need to debug a fresh conference regression, start with:
 

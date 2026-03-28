@@ -166,7 +166,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             expectedVisibleStrings: [
                 "Conference Nearby Radar",
                 "Start scanner",
-                "Tilbake til deltagerportal"
+                "Tilbake til deltagerportal",
+                "Valgt deltager"
             ]
         )
 

@@ -6650,6 +6650,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.title"),
                     bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.nextStep", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                     bindingConferencePortalKeyText("nearbyRadar.state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                     bindingConferencePortalKeyText("nearbyRadar.state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
                     bindingConferencePortalKeyText("nearbyRadar.state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
                     .HStack(
@@ -6693,14 +6694,39 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ]
             ),
             bindingConferencePortalCardSection(
-                "Spatial Overview",
+                "Valgt deltager",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Treff grupperes som sektorer og konkrete nearby-kort. Med MPC er retning grov. Med UWB kan vi etter hvert vise mer presis retning og avstand.",
+                        "Velg en nearby deltager først. Her ser du hvem som er valgt, hvor sikre signalene er, og hva neste naturlige handling er.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3",
                         lineLimit: 4
                     ),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0"),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "nearbyRadar.state.selectedEntityActions",
+                        min: 240,
+                        max: 320,
+                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Spatial Overview",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Treff grupperes som sektorer og nearby-kort. Vi viser bare harde retninger når sensoren faktisk har retning. Resten samles under retning usikker.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalKeyText("nearbyRadar.state.spatialTruthSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
                     bindingConferencePortalCollectionGrid(
                         keypath: "nearbyRadar.state.sectors",
                         min: 180,
@@ -6719,7 +6745,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "What To Do Next",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Bruk Request contact for å etablere signert kontakt først. Når kontakten er verifisert, bytter kortet til Start chat eller Open chat. Det er den korteste, tryggeste conference-flyten akkurat nå.",
+                        "Bruk Velg for å fokusere på en deltager. Deretter kan du be om kontakt, markere for oppfølging eller starte chat når kontakten er verifisert. Det er den korteste, tryggeste conference-flyten akkurat nå.",
                         fontSize: 12,
                         foregroundColor: "#D7E7F2",
                         lineLimit: 5
@@ -7254,8 +7280,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         var snapshotStack = SkeletonVStack(elements: [
             bindingConferencePortalKeyText("headline", fontSize: 14, fontWeight: "bold", foregroundColor: "#F5FBFF"),
             bindingConferencePortalKeyText("summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
+            bindingConferencePortalKeyText("selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
             bindingConferencePortalKeyText("precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+            bindingConferencePortalKeyText("spatialTruthSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
             bindingConferencePortalKeyText("actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+            bindingConferencePortalKeyText("selectedEntity.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+            bindingConferencePortalKeyText("selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
             .HStack(
                 SkeletonHStack(elements: [
                     bindingConferencePortalBadgeKeyText("transportBadge"),
@@ -7284,23 +7318,24 @@ final class ConfigurationCatalogCell: GeneralCell {
         return bindingConferencePortalCardSection(
             "Nearby Scanner Enrichment",
             content: [
-                bindingConferencePortalStaticText(
-                    "Binding enriches conference discovery with a local nearby-radar snapshot over EntityScanner. This stays Apple-local and does not replace the portable discovery contract from web/staging.",
-                    fontSize: 12,
-                    foregroundColor: "#9AB3C3",
-                    lineLimit: 4
-                ),
-                bindingConferencePortalStaticText(
-                    "Nearby people appear below as retningsektorer og handlingskort. Med bare MPC er retning og avstand grove signaler; med UWB blir de mer presise.",
-                    fontSize: 12,
-                    foregroundColor: "#D7E7F2",
-                    lineLimit: 4
-                ),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
-                .HStack(
-                    SkeletonHStack(elements: [
+            bindingConferencePortalStaticText(
+                "Binding enriches conference discovery with a local nearby-radar snapshot over EntityScanner. This stays Apple-local and does not replace the portable discovery contract from web/staging.",
+                fontSize: 12,
+                foregroundColor: "#9AB3C3",
+                lineLimit: 4
+            ),
+            bindingConferencePortalStaticText(
+                "Nearby people appear below as sektorer og utvalgte handlingskort. Bruk Velg for å fokusere på en person. Med bare MPC er retning og avstand grove signaler; med UWB blir de mer presise.",
+                fontSize: 12,
+                foregroundColor: "#D7E7F2",
+                lineLimit: 4
+            ),
+            bindingConferencePortalKeyText("\(scannerReferenceLabel).state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
+            bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+            bindingConferencePortalKeyText("\(scannerReferenceLabel).state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+            bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+            .HStack(
+                SkeletonHStack(elements: [
                         bindingConferenceDirectActionButton(
                             keypath: "dispatchAction",
                             label: "Start scanner",
@@ -7331,6 +7366,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                         bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.transportBadge"),
                         bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.precisionBadge")
                     ])
+                ),
+                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(scannerReferenceLabel).state.selectedEntityActions",
+                    min: 220,
+                    max: 280,
+                    itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                 ),
                 .Reference(snapshotReference)
             ]
