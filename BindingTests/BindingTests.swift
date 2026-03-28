@@ -2770,11 +2770,12 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
-                "Vis timeline",
+                "Hele timeline",
                 "Oppdater treff",
                 "Oppdater discovery",
                 "Start scanner",
-                "Stop scanner"
+                "Stop scanner",
+                "Åpne full radar"
             ]
         )
 
@@ -2808,6 +2809,24 @@ struct CellConfigurationVerifierTests {
         #expect(report.statusAfterStop == "stopped")
     }
 
+    @Test func conferenceNearbyRadarContractVerifierKeepsBindingsAndActionsReachable() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Start scanner",
+                "Stop scanner",
+                "Tilbake til deltagerportal"
+            ]
+        )
+
+        #expect(report.validation.errorCount == 0)
+        #expect(report.unresolvedReferences.isEmpty)
+        #expect(report.unreadableRootProbes.isEmpty)
+        #expect(report.failedActions.isEmpty)
+    }
+
 #if canImport(AppKit)
     @MainActor
     @Test func conferenceParticipantPortalRendererVerifierBuildsVisibleMacOSSurface() async throws {
@@ -2821,6 +2840,24 @@ struct CellConfigurationVerifierTests {
                 "Conference Participant Portal",
                 "Entity Discovery",
                 "Start scanner"
+            ]
+        )
+
+        #expect(report.snapshotByteCount > 0, "Expected a non-empty rendered snapshot")
+        #expect(report.subviewCount > 0)
+        #expect(report.totalRenderMilliseconds > 0)
+    }
+
+    @MainActor
+    @Test func conferenceNearbyRadarRendererVerifierBuildsVisibleMacOSSurface() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Nearby Radar",
+                "Start scanner",
+                "Tilbake til deltagerportal"
             ]
         )
 

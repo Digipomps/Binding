@@ -14,11 +14,12 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
-                "Vis timeline",
+                "Hele timeline",
                 "Oppdater treff",
                 "Oppdater discovery",
                 "Start scanner",
-                "Stop scanner"
+                "Stop scanner",
+                "Åpne full radar"
             ]
         )
 
@@ -71,6 +72,24 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             report.failedActions.isEmpty,
             "Failed actions: \(report.failedActions)"
         )
+    }
+
+    func testConferenceNearbyRadarContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Start scanner",
+                "Stop scanner",
+                "Tilbake til deltagerportal"
+            ]
+        )
+
+        XCTAssertEqual(report.validation.errorCount, 0, "Validation issues: \(report.validation.issues)")
+        XCTAssertTrue(report.unresolvedReferences.isEmpty, "Unresolved references: \(report.unresolvedReferences)")
+        XCTAssertTrue(report.unreadableRootProbes.isEmpty, "Unreadable root probes: \(report.unreadableRootProbes)")
+        XCTAssertTrue(report.failedActions.isEmpty, "Failed actions: \(report.failedActions)")
     }
 
     func testConferenceParticipantNearbyFollowUpContract() async throws {
@@ -130,6 +149,24 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Conference Control Tower",
                 "Publish content",
                 "Operations & Insights"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+    }
+
+    @MainActor
+    func testConferenceNearbyRadarRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Nearby Radar",
+                "Start scanner",
+                "Tilbake til deltagerportal"
             ]
         )
 

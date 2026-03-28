@@ -388,6 +388,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "invite")
         agreementTemplate.addGrant("rw--", for: "requestContact")
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
+        agreementTemplate.addGrant("rw--", for: "openExpandedRadarWorkbench")
+        agreementTemplate.addGrant("rw--", for: "openParticipantPortalWorkbench")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 #if DEBUG
         agreementTemplate.addGrant("rw--", for: "testInjectNearbyCandidate")
@@ -429,6 +431,18 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "openFollowUpChat", for: requester) else { return .string("denied") }
             return await self.openFollowUpChat(value: value, requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "openExpandedRadarWorkbench", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "openExpandedRadarWorkbench", for: requester) else { return .string("denied") }
+            return await self.openExpandedRadarWorkbench(requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "openParticipantPortalWorkbench", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "openParticipantPortalWorkbench", for: requester) else { return .string("denied") }
+            return await self.openParticipantPortalWorkbench(requester: requester)
         })
 
         await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
@@ -600,6 +614,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return await forwardMutation(keypath: actionKeypath, value: actionPayload, requester: requester)
         case "openFollowUpChat":
             return await openFollowUpChat(value: actionPayload, requester: requester)
+        case "openExpandedRadarWorkbench":
+            return await openExpandedRadarWorkbench(requester: requester)
+        case "openParticipantPortalWorkbench":
+            return await openParticipantPortalWorkbench(requester: requester)
         default:
             lastError = "Nearby action \(actionKeypath) er ikke stoettet."
             lastActionSummary = "Nearby action \(actionKeypath) er ikke stoettet."
@@ -761,6 +779,59 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 lastError = "Nearby follow-up chat failed: \(error)"
                 lastActionSummary = "Nearby follow-up chat failed: \(error)"
             }
+        }
+
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
+    }
+
+    private func openExpandedRadarWorkbench(requester: Identity) async -> ValueType {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration(
+            participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        return await loadWorkbenchConfiguration(
+            configuration,
+            requester: requester,
+            successSummary: "Opened the conference nearby radar."
+        )
+    }
+
+    private func openParticipantPortalWorkbench(requester: Identity) async -> ValueType {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        return await loadWorkbenchConfiguration(
+            configuration,
+            requester: requester,
+            successSummary: "Returned to the conference participant portal."
+        )
+    }
+
+    private func loadWorkbenchConfiguration(
+        _ configuration: CellConfiguration,
+        requester: Identity,
+        successSummary: String
+    ) async -> ValueType {
+        guard let resolver = CellBase.defaultCellResolver else {
+            lastError = "Cell resolver missing"
+            lastActionSummary = "Could not open the requested workspace because the local resolver is missing."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
+        do {
+            guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: requester) as? OrchestratorCell else {
+                lastError = "Porthole unavailable"
+                lastActionSummary = "Could not open the requested workspace because Porthole is unavailable."
+                emitSnapshot(requester: requester)
+                return .object(snapshotObject())
+            }
+            try await porthole.loadCellConfiguration(configuration, requester: requester)
+            lastError = nil
+            lastActionSummary = successSummary
+        } catch {
+            lastError = "Could not open the requested workspace: \(error)"
+            lastActionSummary = "Could not open the requested workspace: \(error)"
         }
 
         emitSnapshot(requester: requester)

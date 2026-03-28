@@ -37,6 +37,7 @@ This is not a replacement for live staging auth/bridge debugging. It is a local 
 Current conference surfaces:
 
 - `Conference Participant Portal`
+- `Conference Nearby Radar`
 - `Conference Participant Nearby Follow-Up`
 - `Conference Control Tower`
 
@@ -49,11 +50,18 @@ Current contract assertions:
 
 Current participant actions exercised:
 
-- `Vis timeline`
+- `Hele timeline`
 - `Oppdater treff`
 - `Oppdater discovery`
 - `Start scanner`
 - `Stop scanner`
+- `Åpne full radar`
+
+Current nearby radar assertions:
+
+- the dedicated nearby-radar workbench resolves both `ConferenceNearbyRadar` and the participant preview shell
+- `Start scanner` and `Stop scanner` stay reachable through the same local direct-action route the GUI uses
+- `Tilbake til deltagerportal` returns through the same local action route the GUI uses
 
 Current nearby follow-up assertions:
 
@@ -79,6 +87,8 @@ Current render assertions:
 
 - `Conference Participant Portal`
   - expected strings include `Conference Participant Portal`, `Entity Discovery`, `Start scanner`
+- `Conference Nearby Radar`
+  - expected strings include `Conference Nearby Radar`, `Start scanner`, `Tilbake til deltagerportal`
 - `Conference Control Tower`
   - expected strings include `Conference Control Tower`, `Publish content`, `Operations & Insights`
 
@@ -102,6 +112,12 @@ Run participant only:
 ./Scripts/run_conference_configuration_verifier.sh participant all
 ```
 
+Run nearby radar only:
+
+```bash
+./Scripts/run_conference_configuration_verifier.sh nearby all
+```
+
 Run organizer only:
 
 ```bash
@@ -110,22 +126,26 @@ Run organizer only:
 
 ## What worked in the latest green run
 
-Latest verified on March 27, 2026:
+Latest verified on March 28, 2026:
 
 Targeted green checks:
 
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerRenderer`
 
 Observed isolated timings from the latest green checks:
 
 - `Conference Participant Portal` contract: about `1.55s`
+- `Conference Nearby Radar` contract: about `5.21s`
 - `Conference Participant Nearby Follow-Up` contract: about `1.90s`
 - `Conference Control Tower` contract: about `1.37s`
 - `Conference Participant Portal` render: about `4.15s`
+- `Conference Nearby Radar` render: about `6.84s`
 - `Conference Control Tower` render: about `3.54s`
 
 These timings are useful as a moving baseline, not as hard budgets yet.
@@ -137,6 +157,7 @@ The verifier forced us to fix several real issues:
 - direct `dispatchAction` buttons with explicit `url` were not fully understood by the diagnostics validator
 - organizer `Publish content` / `Discard draft` were routed through a weaker nested path and could produce `notFound`
 - participant conference actions needed direct endpoint routing for deterministic verification
+- the dedicated nearby-radar workbench needed its own verifier path so local radar actions and return-to-portal routing do not silently drift
 - nearby follow-up chat needed deterministic local injection and post-action state reads, otherwise we could falsely pass or fail depending on shared runtime state
 - coarse root probes like `conferenceParticipantShell.state` could report `notFound` even when the surface itself was readable through real descendant bindings
 - running multiple verifier targets in one `xcodebuild` process allowed shared Porthole/runtime state to leak between tests
@@ -147,6 +168,7 @@ The verifier forced us to fix several real issues:
 
 - The render verifier is currently macOS/AppKit-only.
 - The contract runner is intentionally process-isolated now: the script launches one fresh `xcodebuild` per verifier test so singleton/Porthole state does not leak across cases.
+- If local tool sandboxing blocks `xcodebuild test` from writing to Xcode or SwiftPM caches, rerun the same verifier command with broader local execution privileges. Treat that as an environment issue, not as a conference regression.
 - The test environment may still log local keychain noise like `-34018` and `missingMasterKey`; those logs do not currently fail the verifier when the surface itself resolves and renders correctly.
 - A green verifier does not prove that staging is healthy. It proves that the local conference configuration, local fallbacks, local routing, and renderer contract are currently coherent.
 

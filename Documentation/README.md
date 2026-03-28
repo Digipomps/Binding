@@ -185,6 +185,23 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `./Scripts/run_conference_configuration_verifier.sh all contract` succeeded
   - `./Scripts/run_conference_configuration_verifier.sh all render` succeeded
 
+## Latest successful changes (March 28, 2026)
+- `Conference Participant Portal` now has a clearer path into a dedicated local `Conference Nearby Radar` workbench in [ConfigurationCatalogCell.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/ConfigurationCatalogCell.swift).
+- The nearby radar workbench is wired through the local `ConferenceNearbyRadar` runtime in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift), including:
+  - `Start scanner`
+  - `Stop scanner`
+  - `Tilbake til deltagerportal`
+- Participant conference cards now surface more explicit actions for sessions, recommendations, discovery, and nearby follow-up instead of reading like passive text-only cards.
+- `ConferenceRecommendationCell` in `CellScaffold` now emits direct participant-shell chat actions for recommendation and search rows, so Binding can surface an honest `Start chat` path.
+- The deterministic verifier now also covers `Conference Nearby Radar`:
+  - contract verification in [CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift)
+  - render verification in [CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift)
+  - runner support in [run_conference_configuration_verifier.sh](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Scripts/run_conference_configuration_verifier.sh)
+- Latest green targeted checks on March 28, 2026:
+  - `testConferenceNearbyRadarContract`
+  - `testConferenceNearbyRadarRenderer`
+  - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build`
+
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.
 - State is accessed exclusively via `Meddle.get/set(keypath:value:requester:)`.

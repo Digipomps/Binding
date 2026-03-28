@@ -6139,6 +6139,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    nonisolated static func conferenceNearbyRadarWorkbenchConfiguration(
+        participantEndpoint: String = "cell:///ConferenceParticipantPreviewShell"
+    ) -> CellConfiguration {
+        conferenceNearbyRadarWorkbenchConfiguration(
+            participantEndpoint: participantEndpoint,
+            displayName: "Conference Nearby Radar",
+            summary: "Binding-lokal nearby radar med scanner, retningssignal og conference follow-up-chat i én arbeidsflate."
+        )
+    }
+
     nonisolated static func conferenceAIAssistantWorkbenchConfiguration(
         conferenceEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
         aiEndpoint: String = "cell://staging.haven.digipomps.org/AIGateway"
@@ -6598,6 +6608,140 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
+    nonisolated private static func conferenceNearbyRadarWorkbenchConfiguration(
+        participantEndpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceNearbyRadar",
+            sourceCellName: "ConferenceNearbyRadarLocalCell",
+            purpose: "Conference nearby radar",
+            purposeDescription: "Binding-lokal nearby-radar over EntityScanner for fysisk retning, nærhet og rask chat-oppfølging i konferanseflyten.",
+            interests: ["conference", "nearby", "scanner", "radar", "uwb", "multipeer", "follow-up-chat"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var participantReference = CellReference(endpoint: participantEndpoint, subscribeFeed: false, label: "conferenceParticipantShell")
+        participantReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(participantReference)
+
+        let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
+        configuration.addReference(nearbyRadarReference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Conference Nearby Radar",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Nearby radar",
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        foregroundColor: "#F5FBFF"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Denne arbeidsflaten er lokal i Binding. Den gjør spatial nearby-signaler og conference follow-up tydelige uten å være avhengig av staging.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.title"),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.workspace.nextStep", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(
+                                keypath: "dispatchAction",
+                                label: "Start scanner",
+                                payload: .object([
+                                    "keypath": .string("start"),
+                                    "payload": .bool(true)
+                                ]),
+                                url: "cell:///ConferenceNearbyRadar"
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "dispatchAction",
+                                label: "Stop scanner",
+                                payload: .object([
+                                    "keypath": .string("stop"),
+                                    "payload": .bool(true)
+                                ]),
+                                url: "cell:///ConferenceNearbyRadar"
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "dispatchAction",
+                                label: "Tilbake til deltagerportal",
+                                payload: .object([
+                                    "keypath": .string("openParticipantPortalWorkbench"),
+                                    "payload": .bool(true)
+                                ]),
+                                url: "cell:///ConferenceNearbyRadar"
+                            )
+                        ])
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalBadgeKeyText("nearbyRadar.state.transportBadge"),
+                            bindingConferencePortalBadgeKeyText("nearbyRadar.state.precisionBadge"),
+                            bindingConferencePortalBadgeKeyText("nearbyRadar.state.statusBadge")
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Spatial Overview",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Treff grupperes som sektorer og konkrete nearby-kort. Med MPC er retning grov. Med UWB kan vi etter hvert vise mer presis retning og avstand.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "nearbyRadar.state.sectors",
+                        min: 180,
+                        max: 220,
+                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
+                    ),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "nearbyRadar.state.nearby",
+                        min: 260,
+                        max: 360,
+                        itemSkeleton: bindingConferencePortalNearbyCardSkeleton()
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "What To Do Next",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Bruk Request contact for å etablere signert kontakt først. Når kontakten er verifisert, bytter kortet til Start chat eller Open chat. Det er den korteste, tryggeste conference-flyten akkurat nå.",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2",
+                        lineLimit: 5
+                    ),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.discovery.nextAction", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.sharedConnections.chatSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3)
+                ]
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
     private static func bindingConferencePortalCardSection(_ title: String, content: SkeletonElementList) -> SkeletonElement {
         var header = SkeletonText(text: title)
         header.modifiers = modifier {
@@ -6870,6 +7014,12 @@ final class ConfigurationCatalogCell: GeneralCell {
         bindingConferencePortalCardSection(
             "Min Agenda",
             content: [
+                bindingConferencePortalStaticText(
+                    "Velg hvordan agendaen skal vises. Oppsummeringene under forklarer alltid hvilken visning og hvilket fokus som er aktivt akkurat nå.",
+                    fontSize: 12,
+                    foregroundColor: "#9AB3C3",
+                    lineLimit: 4
+                ),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.intro"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.agendaSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.viewSummary"),
@@ -6877,6 +7027,38 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.timelineSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.status"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.storageSummary"),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setView",
+                            label: "For deg",
+                            payload: .object(["view": .string("forYou")]),
+                            url: actionEndpoint
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setView",
+                            label: "Hele timeline",
+                            payload: .object(["view": .string("timeline")]),
+                            url: actionEndpoint
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setView",
+                            label: "Lagret",
+                            payload: .object(["view": .string("saved")]),
+                            url: actionEndpoint
+                        ),
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "agenda.setTrackFocus",
+                            label: "Governance-fokus",
+                            payload: .object(["trackId": .string("track-governance")]),
+                            url: actionEndpoint
+                        )
+                    ])
+                ),
                 .Grid(
                     SkeletonGrid(
                         columns: [.adaptive(min: 220, max: 280)],
@@ -6895,43 +7077,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ),
                 bindingConferencePortalCollectionGrid(
                     keypath: "\(referenceLabel).state.program.savedSessions",
-                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
+                    itemSkeleton: bindingConferencePortalActionTimelineCardSkeleton()
                 ),
                 bindingConferencePortalCollectionGrid(
                     keypath: "\(referenceLabel).state.program.timelineSessions",
-                    itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
-                ),
-                .HStack(
-                    SkeletonHStack(elements: [
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setView",
-                            label: "Vis for deg",
-                            payload: .object(["view": .string("forYou")]),
-                            url: actionEndpoint
-                        ),
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setView",
-                            label: "Vis timeline",
-                            payload: .object(["view": .string("timeline")]),
-                            url: actionEndpoint
-                        ),
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setView",
-                            label: "Vis lagret",
-                            payload: .object(["view": .string("saved")]),
-                            url: actionEndpoint
-                        ),
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setTrackFocus",
-                            label: "Fokus governance",
-                            payload: .object(["trackId": .string("track-governance")]),
-                            url: actionEndpoint
-                        )
-                    ])
+                    itemSkeleton: bindingConferencePortalActionTimelineCardSkeleton()
                 )
             ]
         )
@@ -6941,6 +7091,12 @@ final class ConfigurationCatalogCell: GeneralCell {
         bindingConferencePortalCardSection(
             "Dine Personlige Anbefalinger",
             content: [
+                bindingConferencePortalStaticText(
+                    "Bruk anbefalingene til å velge hvem du vil følge opp. Kortene skal ikke bare forklare hvorfor noen er relevante, men også la deg starte en konkret oppfølging direkte.",
+                    fontSize: 12,
+                    foregroundColor: "#9AB3C3",
+                    lineLimit: 4
+                ),
                 bindingConferencePortalKeyText("\(referenceLabel).state.matches.intro"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.matches.filterSummary"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.matches.status"),
@@ -6956,7 +7112,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ),
                 bindingConferencePortalCollectionGrid(
                     keypath: "\(referenceLabel).state.matches.searchResults",
-                    itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
+                    itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                 ),
                 .HStack(
                     SkeletonHStack(elements: [
@@ -7046,6 +7202,12 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalCardSection(
                 "Entity Discovery",
                 content: [
+                    bindingConferencePortalStaticText(
+                        "Når en person eller gruppe ser lovende ut, skal kortet gi deg en tydelig neste handling i stedet for bare forklarende tekst.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
                     bindingConferencePortalKeyText("intro"),
                     bindingConferencePortalKeyText("status"),
                     bindingConferencePortalKeyText("alignmentSummary"),
@@ -7057,15 +7219,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("refreshSummary"),
                     bindingConferencePortalCollectionGrid(
                         keypath: "candidates",
-                        itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
+                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                     ),
                     bindingConferencePortalCollectionGrid(
                         keypath: "proofCandidates",
-                        itemSkeleton: bindingConferencePortalConnectionCardSkeleton()
+                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                     ),
                     bindingConferencePortalCollectionGrid(
                         keypath: "groupSuggestions",
-                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
+                        itemSkeleton: bindingConferencePortalActionTimelineCardSkeleton()
                     ),
                     .HStack(
                         SkeletonHStack(elements: [
@@ -7128,6 +7290,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                     foregroundColor: "#9AB3C3",
                     lineLimit: 4
                 ),
+                bindingConferencePortalStaticText(
+                    "Nearby people appear below as retningsektorer og handlingskort. Med bare MPC er retning og avstand grove signaler; med UWB blir de mer presise.",
+                    fontSize: 12,
+                    foregroundColor: "#D7E7F2",
+                    lineLimit: 4
+                ),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
@@ -7147,6 +7315,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                             label: "Stop scanner",
                             payload: .object([
                                 "keypath": .string("stop"),
+                                "payload": .bool(true)
+                            ]),
+                            url: nearbyRadarEndpoint
+                        ),
+                        bindingConferenceDirectActionButton(
+                            keypath: "dispatchAction",
+                            label: "Åpne full radar",
+                            payload: .object([
+                                "keypath": .string("openExpandedRadarWorkbench"),
                                 "payload": .bool(true)
                             ]),
                             url: nearbyRadarEndpoint
@@ -7212,7 +7389,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
             bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
-            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 1)
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            bindingConferencePortalDynamicCardButton(defaultLabel: "Start chat")
         ])
         section.modifiers = modifier {
             $0.padding = 12
@@ -7220,7 +7398,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#244457"
-            $0.height = 144
+            $0.height = 188
         }
         return .Section(section)
     }
@@ -7230,7 +7408,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
             bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
-            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 1)
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            bindingConferencePortalDynamicCardButton(defaultLabel: "Oppdater agenda")
         ])
         section.modifiers = modifier {
             $0.padding = 12
@@ -7238,7 +7417,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#244457"
-            $0.height = 148
+            $0.height = 188
         }
         return .Section(section)
     }
@@ -7264,7 +7443,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 1),
             bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
-            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 1)
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2)
         ])
         section.modifiers = modifier {
             $0.padding = 12
@@ -7288,6 +7467,44 @@ final class ConfigurationCatalogCell: GeneralCell {
         return .Section(section)
     }
 
+    private static func bindingConferencePortalActionTimelineCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 1),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            bindingConferencePortalDynamicCardButton(defaultLabel: "Utfør neste steg")
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 188
+        }
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalActionConnectionCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1"),
+            bindingConferencePortalDynamicCardButton(defaultLabel: "Åpne handling")
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 188
+        }
+        return .Section(section)
+    }
+
     private static func bindingConferencePortalNearbyCardSkeleton() -> SkeletonElement {
         var section = SkeletonSection(content: [
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
@@ -7296,7 +7513,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
             bindingConferencePortalKeyText("purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
-            .Button(SkeletonButton(keypath: "dispatchAction", label: "Request contact"))
+            bindingConferencePortalDynamicCardButton(defaultLabel: "Request contact")
         ])
         section.modifiers = modifier {
             $0.padding = 12
@@ -7307,6 +7524,19 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.height = 212
         }
         return .Section(section)
+    }
+
+    private static func bindingConferencePortalDynamicCardButton(defaultLabel: String) -> SkeletonElement {
+        var button = SkeletonButton(keypath: "dispatchAction", label: defaultLabel)
+        button.modifiers = modifier {
+            $0.padding = 8
+            $0.background = "#173140"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#2D566B"
+            $0.foregroundColor = "#D9FBFF"
+        }
+        return .Button(button)
     }
 
     private static func bindingConferencePortalMessageCardSkeleton() -> SkeletonElement {

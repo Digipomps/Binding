@@ -25,8 +25,14 @@ add_test() {
 case "$surface" in
   participant)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract"
+    [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"
     [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer"
+    [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer"
+    ;;
+  nearby|radar)
+    [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
+    [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer"
     ;;
   admin|organizer|control-tower)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract"
@@ -35,16 +41,18 @@ case "$surface" in
   all)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && {
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract"
+      add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract"
     }
     [[ "$layer" == "render" || "$layer" == "all" ]] && {
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer"
+      add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerRenderer"
     }
     ;;
   *)
-    echo "Usage: $0 [participant|admin|all] [contract|render|all]" >&2
+    echo "Usage: $0 [participant|nearby|admin|all] [contract|render|all]" >&2
     exit 64
     ;;
 esac
