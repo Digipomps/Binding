@@ -367,6 +367,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private var lastError: String?
     private var lastActionSummary = "Nearby radar is ready. Request contact to unlock verified purpose and interest matching."
 
+    private var scannerAccessRequester: Identity {
+        bootstrapRequester
+    }
+
     required init(owner: Identity) async {
         self.bootstrapRequester = owner
         await super.init(owner: owner)
@@ -393,6 +397,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "requestContact")
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
         agreementTemplate.addGrant("rw--", for: "openExpandedRadarWorkbench")
+        agreementTemplate.addGrant("rw--", for: "openSelectedParticipantWorkbench")
         agreementTemplate.addGrant("rw--", for: "openParticipantPortalWorkbench")
         agreementTemplate.addGrant("rw--", for: "selectEntity")
         agreementTemplate.addGrant("rw--", for: "toggleFollowUp")
@@ -445,6 +450,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return await self.openExpandedRadarWorkbench(requester: requester)
         })
 
+        await addInterceptForSet(requester: owner, key: "openSelectedParticipantWorkbench", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "openSelectedParticipantWorkbench", for: requester) else { return .string("denied") }
+            return await self.openSelectedParticipantWorkbench(requester: requester)
+        })
+
         await addInterceptForSet(requester: owner, key: "openParticipantPortalWorkbench", setValueIntercept: { [weak self] _, _, requester in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "openParticipantPortalWorkbench", for: requester) else { return .string("denied") }
@@ -491,6 +502,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     }
 
     private func connectScannerIfNeeded(requester: Identity) async {
+        let scannerRequester = scannerAccessRequester
         if scannerEmit != nil, scannerMeddle != nil {
             activeRequester = requester
             return
@@ -510,7 +522,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             }
 
             do {
-                let emit = try await resolver.cellAtEndpoint(endpoint: "cell:///EntityScanner", requester: requester)
+                let emit = try await resolver.cellAtEndpoint(endpoint: "cell:///EntityScanner", requester: scannerRequester)
                 guard let meddle = emit as? Meddle else {
                     self.lastError = "EntityScanner does not support meddle"
                     self.emitSnapshot(requester: requester)
@@ -521,9 +533,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 self.scannerEmit = emit
                 self.scannerMeddle = meddle
                 self.lastError = nil
-                try await self.subscribeToScannerFlow(emitter: emit, requester: requester)
-                await self.refreshCapabilitySnapshot(requester: requester)
-                await self.refreshEncounterSnapshot(requester: requester)
+                try await self.subscribeToScannerFlow(emitter: emit, requester: scannerRequester)
+                await self.refreshCapabilitySnapshot(requester: scannerRequester)
+                await self.refreshEncounterSnapshot(requester: scannerRequester)
                 self.emitSnapshot(requester: requester)
             } catch {
                 self.lastError = "Failed to connect nearby scanner: \(error)"
@@ -583,19 +595,26 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
+        let scannerRequester = scannerAccessRequester
 
         do {
             if keypath == "start" {
+                scannerStatus = "started"
+                scannerLifecycleStatus = "started"
+                requestedScannerStatus = "started"
                 lastActionSummary = "Starting scanner and subscribing to nearby signals."
             } else if keypath == "stop" {
+                scannerStatus = "stopped"
+                scannerLifecycleStatus = "stopped"
+                requestedScannerStatus = "stopped"
                 lastActionSummary = "Stopping scanner and clearing live nearby updates."
             }
-            let result = try await scannerMeddle.set(keypath: keypath, value: value, requester: requester)
+            let result = try await scannerMeddle.set(keypath: keypath, value: value, requester: scannerRequester)
             lastError = nil
             applyMutationResult(keypath: keypath, result: result, payload: value)
-            await refreshCapabilitySnapshot(requester: requester)
+            await refreshCapabilitySnapshot(requester: scannerRequester)
             if keypath == "requestContact" {
-                await refreshEncounterSnapshot(requester: requester)
+                await refreshEncounterSnapshot(requester: scannerRequester)
             } else if keypath == "start" {
                 scannerStatus = "started"
                 scannerLifecycleStatus = "started"
@@ -608,9 +627,22 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 lastActionSummary = "Scanner stopped."
             }
         } catch {
-            requestedScannerStatus = nil
             lastError = "Nearby scanner action \(keypath) failed: \(error)"
-            lastActionSummary = "Nearby action failed: \(error)"
+            switch keypath {
+            case "start":
+                scannerStatus = "started"
+                scannerLifecycleStatus = "started"
+                requestedScannerStatus = "started"
+                lastActionSummary = "Scanner start requested locally. Live nearby service is not ready yet: \(error)"
+            case "stop":
+                scannerStatus = "stopped"
+                scannerLifecycleStatus = "stopped"
+                requestedScannerStatus = "stopped"
+                lastActionSummary = "Scanner stop requested locally. Live nearby service is not ready yet: \(error)"
+            default:
+                requestedScannerStatus = nil
+                lastActionSummary = "Nearby action failed: \(error)"
+            }
         }
 
         emitSnapshot(requester: requester)
@@ -639,6 +671,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return await toggleFollowUp(value: actionPayload, requester: requester)
         case "openExpandedRadarWorkbench":
             return await openExpandedRadarWorkbench(requester: requester)
+        case "openSelectedParticipantWorkbench":
+            return await openSelectedParticipantWorkbench(requester: requester)
         case "openParticipantPortalWorkbench":
             return await openParticipantPortalWorkbench(requester: requester)
         default:
@@ -861,6 +895,27 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             configuration,
             requester: requester,
             successSummary: "Opened the conference nearby radar."
+        )
+    }
+
+    private func openSelectedParticipantWorkbench(requester: Identity) async -> ValueType {
+        guard let selectedRemoteUUID,
+              let entity = entitiesById[selectedRemoteUUID] else {
+            lastError = "Velg en nearby deltager før du åpner profilflaten."
+            lastActionSummary = "Velg en nearby deltager før du åpner profilflaten."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+
+        let configuration = ConfigurationCatalogCell.conferenceNearbyParticipantWorkbenchConfiguration(
+            participantEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            displayName: "\(entity.displayName) · Nearby Profile",
+            summary: "Valgt nearby-deltager med oppfølging, chat og spatial kontekst i én arbeidsflate."
+        )
+        return await loadWorkbenchConfiguration(
+            configuration,
+            requester: requester,
+            successSummary: "Opened nearby profile for \(entity.displayName)."
         )
     }
 
@@ -1096,7 +1151,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         guard let scannerEvent = RadarEventParser.parse(flowElement) else {
             let snapshotRequester = activeRequester ?? bootstrapRequester
             if flowElement.topic == "scanner.encounter.saved" || flowElement.topic == "scanner.contact.established" {
-                await refreshEncounterSnapshot(requester: snapshotRequester)
+                await refreshEncounterSnapshot(requester: scannerAccessRequester)
             }
             emitSnapshot(requester: snapshotRequester)
             return
@@ -1131,7 +1186,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         pruneStaleEntities()
         let snapshotRequester = activeRequester ?? bootstrapRequester
         if flowElement.topic == "scanner.encounter.saved" || flowElement.topic == "scanner.contact.established" {
-            await refreshEncounterSnapshot(requester: snapshotRequester)
+            await refreshEncounterSnapshot(requester: scannerAccessRequester)
         }
         emitSnapshot(requester: snapshotRequester)
     }
@@ -1465,6 +1520,11 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 "note": .string("Bruk kortene under til å fokusere på en deltager.")
             ]
         let selectedEntityActions = focusedRemoteUUID.map { selectedEntityActionCards(for: $0) } ?? []
+        let radarLayout = makeRadarLayout(
+            entities: entities,
+            focusedRemoteUUID: focusedRemoteUUID,
+            effectiveScannerStatus: effectiveScannerStatus
+        )
 
         return [
             "headline": .string("Nearby Participants"),
@@ -1478,6 +1538,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "statusBadge": .string(effectiveScannerStatus),
             "localityNote": .string(localityNote),
             "description": .string(capabilityDescription),
+            "radarLayout": .object(radarLayout),
             "selectedEntity": .object(selectedEntity),
             "selectedEntityActions": .list(selectedEntityActions.map(ValueType.object)),
             "sectors": .list(sectors.map(ValueType.object)),
@@ -1548,6 +1609,77 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "note": .string(previewNames.isEmpty
                 ? (sector == .uncertain ? "Waiting for approximate signals" : "Waiting for directional signals")
                 : previewNames)
+        ]
+    }
+
+    private func makeRadarLayout(
+        entities: [NearbyEntity],
+        focusedRemoteUUID: String?,
+        effectiveScannerStatus: String
+    ) -> Object {
+        let groupedEntities = Dictionary(grouping: entities, by: compassSector)
+        return [
+            "ahead": .object(makeRadarSectorNode(for: .ahead, entities: groupedEntities[.ahead] ?? [])),
+            "left": .object(makeRadarSectorNode(for: .left, entities: groupedEntities[.left] ?? [])),
+            "center": .object(makeRadarCenterNode(
+                focusedRemoteUUID: focusedRemoteUUID,
+                entities: entities,
+                effectiveScannerStatus: effectiveScannerStatus
+            )),
+            "right": .object(makeRadarSectorNode(for: .right, entities: groupedEntities[.right] ?? [])),
+            "behind": .object(makeRadarSectorNode(for: .behind, entities: groupedEntities[.behind] ?? [])),
+            "uncertain": .object(makeRadarSectorNode(for: .uncertain, entities: groupedEntities[.uncertain] ?? []))
+        ]
+    }
+
+    private func makeRadarSectorNode(for sector: CompassSector, entities: [NearbyEntity]) -> Object {
+        var card = makeSectorCard(for: sector, entities: entities)
+        card["badge"] = .string(sector == .uncertain ? "USIKKER NÆRHET" : "ROMLIG SEKTOR")
+        card["summary"] = .string(entities.isEmpty
+            ? (sector == .uncertain ? "Ingen usikre nearby-signaler akkurat nå." : "Ingen treff i denne retningen akkurat nå.")
+            : (sector == .uncertain
+                ? "Treffene her er nearby, men mangler presis retning."
+                : "Treffene her deler samme romlige retning akkurat nå."))
+        return card
+    }
+
+    private func makeRadarCenterNode(
+        focusedRemoteUUID: String?,
+        entities: [NearbyEntity],
+        effectiveScannerStatus: String
+    ) -> Object {
+        guard let focusedRemoteUUID,
+              let focusedEntity = entitiesById[focusedRemoteUUID] else {
+            let startGuidance = effectiveScannerStatus == "started"
+                ? "Scanner kjører. Velg en nearby deltager når et treff dukker opp."
+                : "Start scanner for å bygge et lokalt spatialt bilde."
+            return [
+                "badge": .string("FOKUS"),
+                "title": .string("Velg en nearby deltager"),
+                "subtitle": .string("\(entities.count) treff synlige i nærheten"),
+                "detail": .string(startGuidance),
+                "note": .string("Når en deltager er valgt, viser vi neste handling og chat-oppfølging her.")
+            ]
+        }
+
+        let purposeSignal = purposeSignalsById[focusedRemoteUUID]
+        let hasVerifiedContact = contactSignalsById[focusedRemoteUUID]?.status == "verified"
+        let hasFollowUpChat = launchedChatRemoteUUIDs.contains(focusedRemoteUUID)
+        let nextStep: String
+        if hasVerifiedContact, hasFollowUpChat {
+            nextStep = "Chatten er klar. Neste steg er å åpne den eller markere deltakeren for videre oppfølging."
+        } else if hasVerifiedContact {
+            nextStep = "Kontakten er verifisert. Neste steg er å starte chat eller markere deltakeren for oppfølging."
+        } else {
+            nextStep = "Neste steg er å be om kontakt for å verifisere purpose- og interesse-matchen."
+        }
+
+        return [
+            "badge": .string("FOKUS"),
+            "title": .string(focusedEntity.displayName),
+            "subtitle": .string(directionSubtitle(for: focusedEntity, directionIsPrecise: hasDirectionalPosition(focusedEntity))),
+            "detail": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: focusedRemoteUUID, liveScore: focusedEntity.matchScore)),
+            "note": .string(nextStep)
         ]
     }
 
@@ -1691,6 +1823,19 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return []
         }
 
+        let profileAction: Object = [
+            "title": .string("Profil"),
+            "subtitle": .string("Åpne valgt deltager"),
+            "detail": .string("Se valgt deltager med spatial kontekst, verifisert purpose-fit og neste oppfølgingssteg i en egen arbeidsflate."),
+            "note": .string("Dette er raskeste vei til en tydelig profilflate uten å forlate conference-sporet."),
+            "keypath": .string("dispatchAction"),
+            "label": .string("Åpne profil"),
+            "payload": .object([
+                "keypath": .string("openSelectedParticipantWorkbench"),
+                "payload": .bool(true)
+            ])
+        ]
+
         let primaryAction: Object
         if followUpTargetsById[remoteUUID] != nil,
            contactSignalsById[remoteUUID]?.status == "verified" {
@@ -1742,7 +1887,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             ])
         ]
 
-        return [primaryAction, followUpAction]
+        return [profileAction, primaryAction, followUpAction]
     }
 
     private func directionSubtitle(for entity: NearbyEntity, directionIsPrecise: Bool) -> String {
@@ -1871,6 +2016,8 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
     private var searchQuery = "people"
     private var recentMessageTexts: [String] = []
     private var launchedDiscoveryChatNames: [String] = []
+    private var focusedRecommendationName: String?
+    private var followUpMarkedNames = Set<String>()
     private var recentActionSummary = "Participant preview is running locally in Binding because the staging preview was denied."
 
     required init(owner: Identity) async {
@@ -1936,6 +2083,27 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 searchQuery = query
                 recentActionSummary = "Search updated to '\(query)'."
             }
+        case "matchmaking.focusPerson":
+            if case let .object(personObject) = payload,
+               case let .string(displayName)? = personObject["displayName"],
+               displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                focusedRecommendationName = trimmed
+                recentActionSummary = "Opened profile focus for \(trimmed) in local preview."
+            }
+        case "matchmaking.toggleFollowUp":
+            if case let .object(personObject) = payload,
+               case let .string(displayName)? = personObject["displayName"],
+               displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if followUpMarkedNames.contains(trimmed) {
+                    followUpMarkedNames.remove(trimmed)
+                    recentActionSummary = "Removed \(trimmed) from follow-up in local preview."
+                } else {
+                    followUpMarkedNames.insert(trimmed)
+                    recentActionSummary = "Marked \(trimmed) for follow-up in local preview."
+                }
+            }
         case "discovery.refresh":
             recentActionSummary = "Discovery refreshed locally in preview."
         case "scheduling.createMeetingRequest":
@@ -1998,6 +2166,15 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
         let viewSummary = "Current view: \(viewLabel(agendaView))."
         let exportStatus = exportPrepared ? "iCal export is ready to share." : "No iCal export prepared yet."
         let activeChatCount = recentMessageTexts.count
+        let focusedRecommendationSummary = focusedRecommendationName.map {
+            "Focused recommendation: \($0). Open chat or mark follow-up when you are ready."
+        } ?? "3 recommended people with explainability."
+        let followUpSummary = followUpMarkedNames.isEmpty
+            ? "No people marked for follow-up yet."
+            : "\(followUpMarkedNames.count) person(s) marked for follow-up."
+        let matchStatus = focusedRecommendationName.map {
+            "Focused on \($0). The next natural step is to start chat or mark follow-up."
+        } ?? "Recommendations are derived from onboarding interests, purpose signals, and optional track focus."
         let recentMessages = recentMessageTexts.map { text in
             ValueType.object([
                 "title": .string("Shared thread"),
@@ -2058,17 +2235,17 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             "matches": .object([
                 "intro": .string("These people match your current goals and conference interests."),
                 "filterSummary": .string("Filter: \(currentFilter)."),
-                "status": .string("Recommendations are derived from onboarding interests, purpose signals, and optional track focus."),
-                "recommendationSummary": .string("3 recommended people with explainability."),
-                "searchSummary": .string("Search broadening: \(searchQuery)."),
+                "status": .string(matchStatus),
+                "recommendationSummary": .string(focusedRecommendationSummary),
+                "searchSummary": .string("Search broadening: \(searchQuery). \(followUpSummary)"),
                 "recommendations": .list([
                     recommendationCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Strong match on governance and delivery.", note: "92% match"),
                     recommendationCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Works with claims, trust, and organization.", note: "88% match"),
                     recommendationCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Can connect the program to concrete product choices.", note: "84% match")
                 ]),
                 "searchResults": .list([
-                    connectionCard(title: "Governance Forum", subtitle: "Nearby people", detail: "Found people mentioning \(searchQuery.lowercased()).", note: "Local preview"),
-                    connectionCard(title: "Trust Infrastructure Lab", subtitle: "Shared interests", detail: "Shared focus on trust, claims, and operations.", note: "Suggested follow-up")
+                    followUpConnectionCard(title: "Governance Forum", subtitle: "Nearby people", detail: "Found people mentioning \(searchQuery.lowercased()).", note: "Local preview"),
+                    followUpConnectionCard(title: "Trust Infrastructure Lab", subtitle: "Shared interests", detail: "Shared focus on trust, claims, and operations.", note: "Suggested follow-up")
                 ])
             ]),
             "discovery": .object([
@@ -2082,17 +2259,17 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 "nextAction": .string("Refresh discovery, review promising people, and start a follow-up chat when it feels right."),
                 "refreshSummary": .string("Search focus is currently tuned for \(searchQuery.lowercased())."),
                 "candidates": .list([
-                    connectionCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Strong alignment on governance, delivery, and shared trust patterns.", note: "Recommended"),
-                    connectionCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Good match for claims, compliance, and organizer follow-up.", note: "Nearby-capable"),
-                    connectionCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Connects participant needs to service and product design decisions.", note: "Suggested follow-up")
+                    discoveryCandidateCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Strong alignment on governance, delivery, and shared trust patterns.", note: "Recommended"),
+                    discoveryCandidateCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Good match for claims, compliance, and organizer follow-up.", note: "Nearby-capable"),
+                    discoveryCandidateCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Connects participant needs to service and product design decisions.", note: "Suggested follow-up")
                 ]),
                 "proofCandidates": .list([
-                    connectionCard(title: "Shared Relations Forum", subtitle: "Proof-backed discovery", detail: "Participants who can expose stronger matching once contact is verified.", note: "Proof ready"),
-                    connectionCard(title: "Trust Infrastructure Lab", subtitle: "Policy and operations", detail: "Good candidate set for deeper follow-up if you want more precision.", note: "Consent gated")
+                    discoveryCandidateCard(title: "Shared Relations Forum", subtitle: "Proof-backed discovery", detail: "Participants who can expose stronger matching once contact is verified.", note: "Proof ready"),
+                    discoveryCandidateCard(title: "Trust Infrastructure Lab", subtitle: "Policy and operations", detail: "Good candidate set for deeper follow-up if you want more precision.", note: "Consent gated")
                 ]),
                 "groupSuggestions": .list([
-                    timelineCard(title: "Identity and Governance Circle", subtitle: "3 people", detail: "A small group with overlapping agenda and meeting goals.", note: "Suggested group chat"),
-                    timelineCard(title: "Applied AI Follow-up", subtitle: "2 people", detail: "Focused on practical AI systems, trust, and delivery.", note: "Suggested nearby cluster")
+                    groupSuggestionCard(title: "Identity and Governance Circle", subtitle: "3 people", detail: "A small group with overlapping agenda and meeting goals.", note: "Suggested group chat"),
+                    groupSuggestionCard(title: "Applied AI Follow-up", subtitle: "2 people", detail: "Focused on practical AI systems, trust, and delivery.", note: "Suggested nearby cluster")
                 ])
             ]),
             "meetings": .object([
@@ -2187,7 +2364,37 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
     }
 
     private func recommendationCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        sessionCard(title: title, subtitle: subtitle, detail: detail, note: note)
+        let isFocused = focusedRecommendationName == title
+        let chatReady = launchedDiscoveryChatNames.contains(title)
+        let actionLabel = isFocused ? (chatReady ? "Åpne chat" : "Start chat") : "Åpne profil"
+        let actionPayload: ValueType = isFocused
+            ? discoveryChatPayload(for: title, subtitle: subtitle)
+            : .object([
+                "displayName": .string(title),
+                "subtitle": .string(subtitle)
+            ])
+
+        let actionKeypath = isFocused ? "discovery.startChat" : "matchmaking.focusPerson"
+        let updatedNote: String
+        if isFocused {
+            updatedNote = chatReady ? "\(note) · Chat klar." : "\(note) · Profil fokusert."
+        } else {
+            updatedNote = "\(note) · Åpne profil for neste steg."
+        }
+
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(updatedNote),
+            "url": .string("cell:///ConferenceParticipantPreviewShell"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(actionLabel),
+            "payload": .object([
+                "keypath": .string(actionKeypath),
+                "payload": actionPayload
+            ])
+        ])
     }
 
     private func timelineCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
@@ -2196,6 +2403,79 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
 
     private func connectionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
         sessionCard(title: title, subtitle: subtitle, detail: detail, note: note)
+    }
+
+    private func discoveryCandidateCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
+        let chatReady = launchedDiscoveryChatNames.contains(title)
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(chatReady ? "\(note) · Chat klar." : "\(note) · Start chat når du er klar."),
+            "url": .string("cell:///ConferenceParticipantPreviewShell"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(chatReady ? "Åpne chat" : "Start chat"),
+            "payload": .object([
+                "keypath": .string("discovery.startChat"),
+                "payload": discoveryChatPayload(for: title, subtitle: subtitle)
+            ])
+        ])
+    }
+
+    private func followUpConnectionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
+        let marked = followUpMarkedNames.contains(title)
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(marked ? "\(note) · Markert for oppfølging." : "\(note) · Kan markeres for oppfølging."),
+            "url": .string("cell:///ConferenceParticipantPreviewShell"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(marked ? "Fjern markering" : "Marker for oppfølging"),
+            "payload": .object([
+                "keypath": .string("matchmaking.toggleFollowUp"),
+                "payload": .object([
+                    "displayName": .string(title),
+                    "subtitle": .string(subtitle)
+                ])
+            ])
+        ])
+    }
+
+    private func groupSuggestionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string("\(note) · Start group chat when the group is ready."),
+            "url": .string("cell:///ConferenceParticipantPreviewShell"),
+            "keypath": .string("dispatchAction"),
+            "label": .string("Start group chat"),
+            "payload": .object([
+                "keypath": .string("discovery.startGroupChat"),
+                "payload": .object([
+                    "source": .string("participant-portal-group-suggestion"),
+                    "targets": .list([
+                        .object([
+                            "displayName": .string(title),
+                            "headline": .string(subtitle)
+                        ])
+                    ])
+                ])
+            ])
+        ])
+    }
+
+    private func discoveryChatPayload(for title: String, subtitle: String) -> ValueType {
+        .object([
+            "source": .string("participant-portal-recommendation"),
+            "targets": .list([
+                .object([
+                    "displayName": .string(title),
+                    "headline": .string(subtitle)
+                ])
+            ])
+        ])
     }
 }
 

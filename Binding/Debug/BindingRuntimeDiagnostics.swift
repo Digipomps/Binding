@@ -64,6 +64,11 @@ struct CellConfigurationValidationReport: Hashable {
 }
 
 enum CellConfigurationValidationService {
+    private struct CollectedBindingValue: Hashable {
+        let value: String
+        let insideFlowElementContext: Bool
+    }
+
     private static let referenceSensitiveKeys: Set<String> = [
         "keypath",
         "sourceKeypath",
@@ -208,13 +213,18 @@ enum CellConfigurationValidationService {
         )
     }
 
-    private static func unresolvedBindingValues(_ values: [String], labels: Set<String>) -> [String] {
+    private static func unresolvedBindingValues(_ values: [CollectedBindingValue], labels: Set<String>) -> [String] {
         var result: [String] = []
         for value in values {
-            guard let label = inferredLabel(from: value) else { continue }
+            guard let label = inferredLabel(from: value.value) else { continue }
             guard !labels.contains(label) else { continue }
-            if !result.contains(value) {
-                result.append(value)
+            // Bindings inside flowElementSkeleton are relative to the current item snapshot,
+            // so they are not expected to resolve against top-level CellReference labels.
+            if value.insideFlowElementContext {
+                continue
+            }
+            if !result.contains(value.value) {
+                result.append(value.value)
             }
         }
         return result
@@ -241,14 +251,14 @@ enum CellConfigurationValidationService {
         endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    private static func referencedValues(in skeleton: SkeletonElement?) -> [String] {
+    private static func referencedValues(in skeleton: SkeletonElement?) -> [CollectedBindingValue] {
         guard let skeleton,
               let rawObject = rawObject(from: skeleton)
         else {
             return []
         }
 
-        var collected: [String] = []
+        var collected: [CollectedBindingValue] = []
         collectValues(from: rawObject, into: &collected)
         return collected
     }
@@ -260,8 +270,9 @@ enum CellConfigurationValidationService {
 
     private static func collectValues(
         from value: Any,
-        into collected: inout [String],
-        insideDispatchActionPayload: Bool = false
+        into collected: inout [CollectedBindingValue],
+        insideDispatchActionPayload: Bool = false,
+        insideFlowElementContext: Bool = false
     ) {
         switch value {
         case let dictionary as [String: Any]:
@@ -271,17 +282,24 @@ enum CellConfigurationValidationService {
                 keypathValue?.hasSuffix(".dispatchAction") == true
             for (key, child) in dictionary {
                 let childInsideDispatchActionPayload = insideDispatchActionPayload || (isDispatchActionContainer && key == "payload")
+                let childInsideFlowElementContext = insideFlowElementContext || key == "flowElementSkeleton"
                 if let stringValue = child as? String,
                    referenceSensitiveKeys.contains(key) {
                     if insideDispatchActionPayload && key == "keypath" {
                         continue
                     }
-                    collected.append(stringValue)
+                    collected.append(
+                        CollectedBindingValue(
+                            value: stringValue,
+                            insideFlowElementContext: insideFlowElementContext
+                        )
+                    )
                 } else {
                     collectValues(
                         from: child,
                         into: &collected,
-                        insideDispatchActionPayload: childInsideDispatchActionPayload
+                        insideDispatchActionPayload: childInsideDispatchActionPayload,
+                        insideFlowElementContext: childInsideFlowElementContext
                     )
                 }
             }
@@ -290,7 +308,8 @@ enum CellConfigurationValidationService {
                 collectValues(
                     from: child,
                     into: &collected,
-                    insideDispatchActionPayload: insideDispatchActionPayload
+                    insideDispatchActionPayload: insideDispatchActionPayload,
+                    insideFlowElementContext: insideFlowElementContext
                 )
             }
         default:

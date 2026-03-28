@@ -6149,6 +6149,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    nonisolated static func conferenceNearbyParticipantWorkbenchConfiguration(
+        participantEndpoint: String = "cell:///ConferenceParticipantPreviewShell"
+    ) -> CellConfiguration {
+        conferenceNearbyParticipantWorkbenchConfiguration(
+            participantEndpoint: participantEndpoint,
+            displayName: "Nearby Participant Profile",
+            summary: "Valgt nearby-deltager med profil, oppfølging og chat i én conference-konsistent arbeidsflate."
+        )
+    }
+
     nonisolated static func conferenceAIAssistantWorkbenchConfiguration(
         conferenceEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
         aiEndpoint: String = "cell://staging.haven.digipomps.org/AIGateway"
@@ -6727,12 +6737,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                         lineLimit: 4
                     ),
                     bindingConferencePortalKeyText("nearbyRadar.state.spatialTruthSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
-                    bindingConferencePortalCollectionGrid(
-                        keypath: "nearbyRadar.state.sectors",
-                        min: 180,
-                        max: 220,
-                        itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
-                    ),
+                    bindingConferencePortalEmbeddedRadarLayout(baseKeypath: "nearbyRadar.state.radarLayout"),
                     bindingConferencePortalCollectionGrid(
                         keypath: "nearbyRadar.state.nearby",
                         min: 260,
@@ -6752,6 +6757,137 @@ final class ConfigurationCatalogCell: GeneralCell {
                     ),
                     bindingConferencePortalKeyText("conferenceParticipantShell.state.discovery.nextAction", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
                     bindingConferencePortalKeyText("conferenceParticipantShell.state.sharedConnections.chatSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3)
+                ]
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated static func conferenceNearbyParticipantWorkbenchConfiguration(
+        participantEndpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceNearbyRadar",
+            sourceCellName: "ConferenceNearbyRadarLocalCell",
+            purpose: "Conference nearby participant profile",
+            purposeDescription: "Binding-lokal profilflate for valgt nearby-deltager med spatial kontekst, purpose-fit og rask oppfølging/chat.",
+            interests: ["conference", "nearby", "profile", "chat", "follow-up", "scanner"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var participantReference = CellReference(endpoint: participantEndpoint, subscribeFeed: false, label: "conferenceParticipantShell")
+        participantReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(participantReference)
+
+        let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
+        configuration.addReference(nearbyRadarReference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Nearby Participant Profile",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Valgt nearby-deltager",
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        foregroundColor: "#F5FBFF"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Denne arbeidsflaten er en fokusert profilvisning over valgt nearby-deltager. Den gjør det tydelig hvem du ser på, hvor sikre signalene er, og hva neste naturlige oppfølgingssteg er.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0"),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.title", fontSize: 20, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalBadgeKeyText("nearbyRadar.state.transportBadge"),
+                            bindingConferencePortalBadgeKeyText("nearbyRadar.state.precisionBadge"),
+                            bindingConferencePortalBadgeKeyText("nearbyRadar.state.statusBadge")
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Neste steg",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Her skal det være helt tydelig hva som skjer videre: åpne profil for kontekst, be om kontakt for å verifisere match, og start chat når kontakten er klar.",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalKeyText("nearbyRadar.state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("conferenceParticipantShell.state.sharedConnections.chatSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "nearbyRadar.state.selectedEntityActions",
+                        min: 240,
+                        max: 320,
+                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Spatial Context",
+                content: [
+                    bindingConferencePortalKeyText("nearbyRadar.state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.spatialTruthSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+                    bindingConferencePortalEmbeddedRadarLayout(baseKeypath: "nearbyRadar.state.radarLayout")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Arbeidsflater",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Beveg deg mellom portal, full radar og profil uten å miste kontekst. Det gjør demo-flyten mye enklere å følge.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(
+                                keypath: "dispatchAction",
+                                label: "Åpne full radar",
+                                payload: .object([
+                                    "keypath": .string("openExpandedRadarWorkbench"),
+                                    "payload": .bool(true)
+                                ]),
+                                url: "cell:///ConferenceNearbyRadar"
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "dispatchAction",
+                                label: "Tilbake til deltagerportal",
+                                payload: .object([
+                                    "keypath": .string("openParticipantPortalWorkbench"),
+                                    "payload": .bool(true)
+                                ]),
+                                url: "cell:///ConferenceNearbyRadar"
+                            )
+                        ])
+                    )
                 ]
             )
         ])
@@ -6833,6 +6969,131 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderWidth = 1
             $0.borderColor = "#244457"
         }
+    }
+
+    private static func bindingConferencePortalEmbeddedRadarLayout(baseKeypath: String) -> SkeletonElement {
+        .VStack(
+            SkeletonVStack(elements: [
+                bindingConferencePortalRadarNodeCard(
+                    keypath: "\(baseKeypath).ahead",
+                    accentBorder: "#2A4D61",
+                    accentText: "#B9E6FF",
+                    height: 140
+                ),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalRadarNodeCard(
+                            keypath: "\(baseKeypath).left",
+                            accentBorder: "#244457",
+                            accentText: "#8DE1DA",
+                            height: 172
+                        ),
+                        bindingConferencePortalRadarNodeCard(
+                            keypath: "\(baseKeypath).center",
+                            accentBorder: "#2F6B56",
+                            accentText: "#B9FBC0",
+                            background: "#133226",
+                            height: 188
+                        ),
+                        bindingConferencePortalRadarNodeCard(
+                            keypath: "\(baseKeypath).right",
+                            accentBorder: "#244457",
+                            accentText: "#8DE1DA",
+                            height: 172
+                        )
+                    ])
+                ),
+                bindingConferencePortalRadarNodeCard(
+                    keypath: "\(baseKeypath).behind",
+                    accentBorder: "#2A4D61",
+                    accentText: "#B9E6FF",
+                    height: 140
+                ),
+                bindingConferencePortalRadarNodeCard(
+                    keypath: "\(baseKeypath).uncertain",
+                    accentBorder: "#5E5531",
+                    accentText: "#F6D679",
+                    background: "#2A2213",
+                    height: 140
+                )
+            ])
+        )
+    }
+
+    private static func bindingConferencePortalRadarNodeCard(
+        keypath: String,
+        accentBorder: String,
+        accentText: String,
+        background: String = "#122734",
+        height: Double
+    ) -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("\(keypath).badge", fontSize: 11, fontWeight: "bold", foregroundColor: accentText, lineLimit: 1),
+            bindingConferencePortalKeyText("\(keypath).title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("\(keypath).subtitle", fontSize: 12, foregroundColor: accentText, lineLimit: 2),
+            bindingConferencePortalKeyText("\(keypath).detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+            bindingConferencePortalKeyText("\(keypath).summary", fontSize: 12, foregroundColor: "#BFD4E0", lineLimit: 3),
+            bindingConferencePortalKeyText("\(keypath).note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2)
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = background
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = accentBorder
+            $0.height = height
+            $0.maxWidthInfinity = true
+        }
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalStateSummaryCard(
+        title: String,
+        detailKeypath: String,
+        noteKeypath: String? = nil,
+        accentBorder: String = "#244457",
+        accentText: String = "#8DE1DA",
+        background: String = "#122734",
+        height: Double = 148
+    ) -> SkeletonElement {
+        var sectionContent: SkeletonElementList = [
+            bindingConferencePortalStaticText(
+                title,
+                fontSize: 11,
+                fontWeight: "bold",
+                foregroundColor: accentText,
+                lineLimit: 1
+            ),
+            bindingConferencePortalKeyText(
+                detailKeypath,
+                fontSize: 13,
+                fontWeight: "semibold",
+                foregroundColor: "#F5FBFF",
+                lineLimit: 3
+            )
+        ]
+
+        if let noteKeypath {
+            sectionContent.append(
+                bindingConferencePortalKeyText(
+                    noteKeypath,
+                    fontSize: 12,
+                    foregroundColor: "#9AB3C3",
+                    lineLimit: 4
+                )
+            )
+        }
+
+        var section = SkeletonSection(content: sectionContent)
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = background
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = accentBorder
+            $0.height = height
+        }
+        return .Section(section)
     }
 
     private static func bindingConferencePortalCollectionGrid(
@@ -7048,42 +7309,79 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.intro"),
                 bindingConferencePortalKeyText("\(referenceLabel).state.program.agendaSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.program.viewSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.program.trackSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.program.timelineSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.program.status"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.program.storageSummary"),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 320)],
+                        spacing: 12,
+                        elements: [
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Visning nå",
+                                detailKeypath: "\(referenceLabel).state.program.viewSummary",
+                                noteKeypath: "\(referenceLabel).state.program.timelineSummary",
+                                accentBorder: "#2A4D61",
+                                accentText: "#B9E6FF"
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Fokus nå",
+                                detailKeypath: "\(referenceLabel).state.program.trackSummary",
+                                noteKeypath: "\(referenceLabel).state.program.status",
+                                accentBorder: "#2F6B56",
+                                accentText: "#B9FBC0"
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Lagring",
+                                detailKeypath: "\(referenceLabel).state.program.storageSummary",
+                                noteKeypath: "\(referenceLabel).state.program.persistenceStatus",
+                                accentBorder: "#4D3F2A",
+                                accentText: "#F6D679"
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Klar til neste steg",
+                                detailKeypath: "\(referenceLabel).state.program.recommendedSummary",
+                                noteKeypath: "\(referenceLabel).state.program.savedSummary",
+                                accentBorder: "#244457",
+                                accentText: "#8DE1DA"
+                            )
+                        ]
+                    )
+                ),
                 .HStack(
                     SkeletonHStack(elements: [
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "agenda.setView",
-                            label: "For deg",
+                            label: "Vis for deg",
                             payload: .object(["view": .string("forYou")]),
                             url: actionEndpoint
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "agenda.setView",
-                            label: "Hele timeline",
+                            label: "Vis timeline",
                             payload: .object(["view": .string("timeline")]),
                             url: actionEndpoint
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "agenda.setView",
-                            label: "Lagret",
+                            label: "Vis lagret",
                             payload: .object(["view": .string("saved")]),
                             url: actionEndpoint
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "agenda.setTrackFocus",
-                            label: "Governance-fokus",
+                            label: "Fokuser governance",
                             payload: .object(["trackId": .string("track-governance")]),
                             url: actionEndpoint
                         )
                     ])
+                ),
+                bindingConferencePortalStaticText(
+                    "Vis for deg prioriterer anbefalte sesjoner. Vis timeline åpner hele programmet. Vis lagret filtrerer til det du allerede har lagret. Fokuser governance slår governance-sporet av eller på og oppdaterer oversikten over hvilke sesjoner som nå er relevante.",
+                    fontSize: 12,
+                    foregroundColor: "#D7E7F2",
+                    lineLimit: 6
                 ),
                 .Grid(
                     SkeletonGrid(
@@ -7280,16 +7578,9 @@ final class ConfigurationCatalogCell: GeneralCell {
         var snapshotStack = SkeletonVStack(elements: [
             bindingConferencePortalKeyText("headline", fontSize: 14, fontWeight: "bold", foregroundColor: "#F5FBFF"),
             bindingConferencePortalKeyText("summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
-            bindingConferencePortalKeyText("selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
             bindingConferencePortalKeyText("precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
             bindingConferencePortalKeyText("spatialTruthSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
             bindingConferencePortalKeyText("actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
-            bindingConferencePortalKeyText("selectedEntity.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
-            bindingConferencePortalKeyText("selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
-            bindingConferencePortalKeyText("selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
-            bindingConferencePortalKeyText("selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
-            bindingConferencePortalKeyText("selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
-            bindingConferencePortalKeyText("selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
             .HStack(
                 SkeletonHStack(elements: [
                     bindingConferencePortalBadgeKeyText("transportBadge"),
@@ -7297,11 +7588,19 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalBadgeKeyText("statusBadge")
                 ])
             ),
+            bindingConferencePortalEmbeddedRadarLayout(baseKeypath: "radarLayout"),
+            bindingConferencePortalKeyText("selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+            bindingConferencePortalKeyText("selectedEntity.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+            bindingConferencePortalKeyText("selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
+            bindingConferencePortalKeyText("selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
             bindingConferencePortalCollectionGrid(
-                keypath: "sectors",
-                min: 150,
-                max: 210,
-                itemSkeleton: bindingConferencePortalTimelineCardSkeleton()
+                keypath: "selectedEntityActions",
+                min: 220,
+                max: 280,
+                itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
             ),
             bindingConferencePortalCollectionGrid(
                 keypath: "nearby",
@@ -7325,13 +7624,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                 lineLimit: 4
             ),
             bindingConferencePortalStaticText(
-                "Nearby people appear below as sektorer og utvalgte handlingskort. Bruk Velg for å fokusere på en person. Med bare MPC er retning og avstand grove signaler; med UWB blir de mer presise.",
+                "Nearby people appear below as et lite kompass: foran, venstre, fokus, høyre, bak og retning usikker. Bruk Velg for å fokusere på en person. Med bare MPC er retning og avstand grove signaler; med UWB blir de mer presise.",
                 fontSize: 12,
                 foregroundColor: "#D7E7F2",
                 lineLimit: 4
             ),
             bindingConferencePortalKeyText("\(scannerReferenceLabel).state.summary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
-            bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
             bindingConferencePortalKeyText("\(scannerReferenceLabel).state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
             bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
             .HStack(
@@ -7367,6 +7665,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                         bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.precisionBadge")
                     ])
                 ),
+                bindingConferencePortalEmbeddedRadarLayout(baseKeypath: "\(scannerReferenceLabel).state.radarLayout"),
+                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),

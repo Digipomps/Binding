@@ -14,7 +14,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
-                "Hele timeline",
+                "Vis timeline",
                 "Oppdater treff",
                 "Oppdater discovery",
                 "Start scanner",
@@ -82,6 +82,23 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             buttonsToExecute: [
                 "Start scanner",
                 "Stop scanner",
+                "Tilbake til deltagerportal"
+            ]
+        )
+
+        XCTAssertEqual(report.validation.errorCount, 0, "Validation issues: \(report.validation.issues)")
+        XCTAssertTrue(report.unresolvedReferences.isEmpty, "Unresolved references: \(report.unresolvedReferences)")
+        XCTAssertTrue(report.unreadableRootProbes.isEmpty, "Unreadable root probes: \(report.unreadableRootProbes)")
+        XCTAssertTrue(report.failedActions.isEmpty, "Failed actions: \(report.failedActions)")
+    }
+
+    func testConferenceNearbyParticipantProfileContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyParticipantWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Åpne full radar",
                 "Tilbake til deltagerportal"
             ]
         )
@@ -168,6 +185,25 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Start scanner",
                 "Tilbake til deltagerportal",
                 "Valgt deltager"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+    }
+
+    @MainActor
+    func testConferenceNearbyParticipantProfileRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyParticipantWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Nearby Participant Profile",
+                "Åpne full radar",
+                "Tilbake til deltagerportal",
+                "Neste steg"
             ]
         )
 

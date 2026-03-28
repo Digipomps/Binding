@@ -566,6 +566,38 @@ struct BindingTests {
         }))
     }
 
+    @Test func validationServiceIgnoresRelativeBindingsInsideFlowElementSkeleton() {
+        var configuration = CellConfiguration(name: "Flow Element Snapshot")
+        configuration.addReference(
+            CellReference(
+                endpoint: "cell:///ConferenceNearbyRadar",
+                label: "nearbyRadar"
+            )
+        )
+
+        var snapshotReference = SkeletonCellReference(
+            keypath: "nearbyRadar",
+            topic: "nearbyRadar.snapshot"
+        )
+        snapshotReference.flowElementSkeleton = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "radarLayout.ahead.title")),
+            .Text(SkeletonText(keypath: "radarLayout.center.subtitle")),
+            .Text(SkeletonText(keypath: "selectedEntity.title"))
+        ])
+
+        configuration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Reference(snapshotReference)
+            ])
+        )
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        #expect(!report.issues.contains(where: {
+            $0.title == "Bindings uten matchende reference"
+        }))
+    }
+
     @Test func skeletonBindingProbeSupportExtractsConferenceParticipantStateRoot() {
         let configuration = makeConferenceParticipantPortalConfiguration()
         let probes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
@@ -762,6 +794,7 @@ struct BindingTests {
         #expect(object["actionSummary"] != nil)
         #expect(object["selectionSummary"] != nil)
         #expect(object["spatialTruthSummary"] != nil)
+        #expect(object["radarLayout"] != nil)
         #expect(object["selectedEntity"] != nil)
         #expect(object["selectedEntityActions"] != nil)
         #expect(object["sectors"] != nil)
@@ -801,6 +834,7 @@ struct BindingTests {
         #expect(object["precisionSummary"] != nil)
         #expect(object["actionSummary"] != nil)
         #expect(object["selectionSummary"] != nil)
+        #expect(object["radarLayout"] != nil)
     }
 
     @Test func conferenceNearbyRadarDispatchActionReturnsSnapshotObject() async throws {
@@ -919,6 +953,13 @@ struct BindingTests {
             return
         }
         #expect(selectedEntity["title"] == .string("Nora Berg"))
+
+        guard case let .object(radarLayout)? = stateObject["radarLayout"],
+              case let .object(centerNode)? = radarLayout["center"] else {
+            Issue.record("Expected radarLayout.center in nearby radar state")
+            return
+        }
+        #expect(centerNode["title"] == .string("Nora Berg"))
 
         guard case let .list(selectedEntityActions)? = stateObject["selectedEntityActions"],
               case let .object(primaryAction)? = selectedEntityActions.first else {
@@ -2874,7 +2915,7 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
-                "Hele timeline",
+                "Vis timeline",
                 "Oppdater treff",
                 "Oppdater discovery",
                 "Start scanner",
@@ -2931,6 +2972,23 @@ struct CellConfigurationVerifierTests {
         #expect(report.failedActions.isEmpty)
     }
 
+    @Test func conferenceNearbyParticipantProfileContractVerifierKeepsBindingsAndActionsReachable() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyParticipantWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Åpne full radar",
+                "Tilbake til deltagerportal"
+            ]
+        )
+
+        #expect(report.validation.errorCount == 0)
+        #expect(report.unresolvedReferences.isEmpty)
+        #expect(report.unreadableRootProbes.isEmpty)
+        #expect(report.failedActions.isEmpty)
+    }
+
 #if canImport(AppKit)
     @MainActor
     @Test func conferenceParticipantPortalRendererVerifierBuildsVisibleMacOSSurface() async throws {
@@ -2963,6 +3021,25 @@ struct CellConfigurationVerifierTests {
                 "Start scanner",
                 "Tilbake til deltagerportal",
                 "Valgt deltager"
+            ]
+        )
+
+        #expect(report.snapshotByteCount > 0, "Expected a non-empty rendered snapshot")
+        #expect(report.subviewCount > 0)
+        #expect(report.totalRenderMilliseconds > 0)
+    }
+
+    @MainActor
+    @Test func conferenceNearbyParticipantProfileRendererVerifierBuildsVisibleMacOSSurface() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceNearbyParticipantWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Nearby Participant Profile",
+                "Åpne full radar",
+                "Tilbake til deltagerportal",
+                "Neste steg"
             ]
         )
 
@@ -3136,6 +3213,16 @@ enum CellConfigurationVerifier {
         let context = try await makeRuntimeContext(for: configuration)
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+        guard let nearbyRadar = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceNearbyRadar",
+            requester: context.owner
+        ) as? Meddle else {
+            throw NSError(
+                domain: "CellConfigurationVerifier",
+                code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "Could not resolve ConferenceNearbyRadar for nearby follow-up verifier"]
+            )
+        }
 
         func nearbyStateSnapshot(
             from value: ValueType
@@ -3145,7 +3232,9 @@ enum CellConfigurationVerifier {
             }
 
             let object: Object
-            if case let .object(stateObject)? = rawObject["state"] {
+            if rawObject["statusBadge"] != nil || rawObject["nearby"] != nil || rawObject["actionSummary"] != nil {
+                object = rawObject
+            } else if case let .object(stateObject)? = rawObject["state"] {
                 object = stateObject
             } else {
                 object = rawObject
@@ -3187,8 +3276,8 @@ enum CellConfigurationVerifier {
                 seconds: 5,
                 operation: operation
             ) {
-                try await context.porthole.get(
-                    keypath: "nearbyRadar.state",
+                try await nearbyRadar.get(
+                    keypath: "state",
                     requester: context.owner
                 )
             }
@@ -3263,8 +3352,8 @@ enum CellConfigurationVerifier {
             ) {
                 while true {
                     let snapshot = nearbyStateSnapshot(
-                        from: try await context.porthole.get(
-                            keypath: "nearbyRadar.state",
+                        from: try await nearbyRadar.get(
+                            keypath: "state",
                             requester: context.owner
                         )
                     )
@@ -3281,8 +3370,8 @@ enum CellConfigurationVerifier {
             seconds: 5,
             operation: "startNearbyScanner"
         ) {
-            try await context.porthole.set(
-                keypath: "nearbyRadar.dispatchAction",
+            try await nearbyRadar.set(
+                keypath: "dispatchAction",
                 value: .object([
                     "keypath": .string("start"),
                     "payload": .bool(true)
@@ -3317,8 +3406,8 @@ enum CellConfigurationVerifier {
             seconds: 5,
             operation: "injectNearbyCandidate"
         ) {
-            try await context.porthole.set(
-                keypath: "nearbyRadar.testInjectNearbyCandidate",
+            try await nearbyRadar.set(
+                keypath: "testInjectNearbyCandidate",
                 value: .object(candidateInjectPayload),
                 requester: context.owner
             )
@@ -3329,8 +3418,8 @@ enum CellConfigurationVerifier {
             seconds: 5,
             operation: "requestNearbyContact"
         ) {
-            try await context.porthole.set(
-                keypath: "nearbyRadar.dispatchAction",
+            try await nearbyRadar.set(
+                keypath: "dispatchAction",
                 value: .object([
                     "keypath": .string("requestContact"),
                     "payload": .string(remoteUUID)
@@ -3369,8 +3458,8 @@ enum CellConfigurationVerifier {
             seconds: 5,
             operation: "injectVerifiedNearbyContact"
         ) {
-            try await context.porthole.set(
-                keypath: "nearbyRadar.testInjectVerifiedContact",
+            try await nearbyRadar.set(
+                keypath: "testInjectVerifiedContact",
                 value: .object(injectPayload),
                 requester: context.owner
             )
@@ -3391,8 +3480,8 @@ enum CellConfigurationVerifier {
                 seconds: 5,
                 operation: "openNearbyFollowUpChat"
             ) {
-                try await context.porthole.set(
-                    keypath: "nearbyRadar.dispatchAction",
+                try await nearbyRadar.set(
+                    keypath: "dispatchAction",
                     value: .object([
                         "keypath": .string("openFollowUpChat"),
                         "payload": .object(["remoteUUID": .string(remoteUUID)])
@@ -3498,8 +3587,8 @@ enum CellConfigurationVerifier {
             seconds: 5,
             operation: "stopNearbyScanner"
         ) {
-            try await context.porthole.set(
-                keypath: "nearbyRadar.dispatchAction",
+            try await nearbyRadar.set(
+                keypath: "dispatchAction",
                 value: .object([
                     "keypath": .string("stop"),
                     "payload": .bool(true)
