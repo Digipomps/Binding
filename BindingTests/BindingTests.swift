@@ -1185,6 +1185,81 @@ struct BindingTests {
         #expect(firstMessage["detail"] == .string("Nearby follow-up with Nora Berg is ready in discovery chat."))
     }
 
+    @Test func conferenceParticipantPreviewFallbackSupportsRecommendationFocusAndFollowUpActions() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let preview = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantPreviewShell did not resolve as Meddle")
+            return
+        }
+
+        _ = try await preview.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.focusPerson"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await preview.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.toggleFollowUp"),
+                "payload": .object([
+                    "displayName": .string("Governance Forum"),
+                    "subtitle": .string("Nearby people")
+                ])
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await preview.get(keypath: "state", requester: identity)
+        guard case let .object(stateObject) = stateValue,
+              case let .object(workspace)? = stateObject["workspace"],
+              case let .object(matches)? = stateObject["matches"] else {
+            Issue.record("Expected state object from conference participant preview fallback")
+            return
+        }
+
+        #expect(workspace["nextStep"] == .string("Marked Governance Forum for follow-up in local preview."))
+        #expect(matches["recommendationSummary"] == .string("Focused recommendation: Ane Solberg. Open chat or mark follow-up when you are ready."))
+        #expect(matches["status"] == .string("Focused on Ane Solberg. The next natural step is to start chat or mark follow-up."))
+        #expect(matches["searchSummary"] == .string("Search broadening: people. 1 person(s) marked for follow-up."))
+
+        guard case let .list(recommendations)? = matches["recommendations"],
+              case let .object(firstRecommendation)? = recommendations.first else {
+            Issue.record("Expected recommendations list in preview fallback state")
+            return
+        }
+        #expect(firstRecommendation["label"] == .string("Start chat"))
+
+        guard case let .list(searchResults)? = matches["searchResults"],
+              case let .object(firstSearchResult)? = searchResults.first else {
+            Issue.record("Expected search results list in preview fallback state")
+            return
+        }
+        #expect(firstSearchResult["label"] == .string("Fjern markering"))
+    }
+
     @Test func conferenceParticipantPortalDashboardIsWrappedInScrollView() {
         var configuration = CellConfiguration(name: "Conference Participant Portal Dashboard")
         configuration.skeleton = .VStack(SkeletonVStack(elements: [
@@ -2917,10 +2992,14 @@ struct CellConfigurationVerifierTests {
             buttonsToExecute: [
                 "Vis timeline",
                 "Oppdater treff",
+                "Åpne profil",
+                "Start chat",
+                "Marker for oppfølging",
                 "Oppdater discovery",
                 "Start scanner",
                 "Stop scanner",
-                "Åpne full radar"
+                "Åpne full radar",
+                "Start group chat"
             ]
         )
 
