@@ -16,10 +16,14 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             buttonsToExecute: [
                 "Vis timeline",
                 "Oppdater treff",
+                "Åpne profil",
+                "Start chat",
+                "Marker for oppfølging",
                 "Oppdater discovery",
                 "Start scanner",
                 "Stop scanner",
-                "Åpne full radar"
+                "Åpne full radar",
+                "Start group chat"
             ]
         )
 
