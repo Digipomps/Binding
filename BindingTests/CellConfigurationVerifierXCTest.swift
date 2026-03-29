@@ -95,6 +95,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Start scanner",
                 "Stop scanner",
                 "Tilbake til portalen"
+            ],
+            rootProbes: [
+                .init(label: "nearbyRadar", rootKeypath: "state")
             ]
         )
 
@@ -112,6 +115,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             buttonsToExecute: [
                 "Åpne radarflate",
                 "Tilbake til portalen"
+            ],
+            rootProbes: [
+                .init(label: "nearbyRadar", rootKeypath: "state")
             ]
         )
 
@@ -499,20 +505,25 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
         let stateValue = try await snapshot.get(keypath: "state", requester: identity)
         guard case let .object(object) = stateValue,
-              case let .list(focusedActions)? = object["focusedActions"],
-              case let .object(firstAction)? = focusedActions.first,
-              case let .object(secondAction)? = focusedActions.dropFirst().first,
-              case let .object(fourthAction)? = focusedActions.dropFirst(3).first else {
-            XCTFail("Expected agenda snapshot state with focused actions")
+              case let .list(modeChoices)? = object["modeChoices"],
+              case let .object(firstModeChoice)? = modeChoices.first,
+              case let .object(secondModeChoice)? = modeChoices.dropFirst().first,
+              case let .list(trackChoices)? = object["trackChoices"],
+              case let .object(firstTrackChoice)? = trackChoices.first,
+              case let .object(secondTrackChoice)? = trackChoices.dropFirst().first else {
+            XCTFail("Expected agenda snapshot state with mode and track choices")
             return
         }
 
         XCTAssertEqual(object["statusSummary"], ValueType.string("Viser timeline med governance i fokus."))
         XCTAssertEqual(object["selectionSummary"], ValueType.string("Viser timeline med Governance i fokus."))
         XCTAssertEqual(object["actionSummary"], ValueType.string("Governance er nå i fokus i denne siden."))
-        XCTAssertEqual(firstAction["label"], ValueType.string("Vis for deg"))
-        XCTAssertEqual(secondAction["label"], ValueType.string("Viser nå"))
-        XCTAssertEqual(fourthAction["label"], ValueType.string("Vis alle spor"))
+        XCTAssertEqual(firstModeChoice["label"], ValueType.string("Vis for deg"))
+        XCTAssertEqual(secondModeChoice["selectionBadge"], ValueType.string("AKTIV NÅ"))
+        XCTAssertEqual(secondModeChoice["label"], ValueType.string("Viser nå"))
+        XCTAssertEqual(firstTrackChoice["label"], ValueType.string("Vis alle spor"))
+        XCTAssertEqual(secondTrackChoice["selectionBadge"], ValueType.string("FOKUS NÅ"))
+        XCTAssertEqual(secondTrackChoice["label"], ValueType.string("Viser nå"))
     }
 
 #if canImport(AppKit)
@@ -527,7 +538,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             expectedVisibleStrings: [
                 "Conference Participant Portal",
                 "Entity Discovery",
-                "Start scanner"
+                "Start scanner",
+                "Visning nå",
+                "Fokus nå"
             ]
         )
 

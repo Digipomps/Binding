@@ -2807,6 +2807,8 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
         merged["navigationSummary"] = .string("Knappene over bytter visning i denne siden med en gang. Handlingskortene under forklarer hva hver visning gjør.")
         merged["nextStepSummary"] = .string(nextStepSummary(for: activeView, trackID: activeTrackID))
         merged["actionSummary"] = .string(recentActionSummary)
+        merged["modeChoices"] = .list(modeChoiceCards())
+        merged["trackChoices"] = .list(trackChoiceCards())
         merged["trackOptions"] = .list(trackOptions)
         merged["recommendedSessions"] = .list(recommendedSessions)
         merged["savedSessions"] = .list(savedSessions)
@@ -2823,6 +2825,102 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
         if let trackSummary = string(from: object["trackSummary"]) {
             activeTrackID = inferredTrackID(from: trackSummary)
         }
+    }
+
+    private func modeChoiceCards() -> [ValueType] {
+        [
+            selectionChipCard(
+                badge: activeView == "forYou" ? "AKTIV NÅ" : "MODUS",
+                title: "For deg",
+                subtitle: activeView == "forYou" ? "Anbefalingene dine vises nå" : "Anbefalte sesjoner først",
+                detail: "Bruk denne når du vil tilbake til de mest relevante sesjonene for deg.",
+                note: activeView == "forYou"
+                    ? "For deg er aktiv i denne siden."
+                    : "Bytter tilbake til anbefalt deltageragenda.",
+                label: activeView == "forYou" ? "Viser nå" : "Vis for deg",
+                actionKeypath: "agenda.setView",
+                payload: .object(["view": .string("forYou")])
+            ),
+            selectionChipCard(
+                badge: activeView == "timeline" ? "AKTIV NÅ" : "MODUS",
+                title: "Timeline",
+                subtitle: activeView == "timeline" ? "Hele programmet vises nå" : "Hele programmet i rekkefølge",
+                detail: "Bruk denne når du vil orientere deg i hele programflyten.",
+                note: activeView == "timeline"
+                    ? "Timeline er aktiv i denne siden."
+                    : "Bytter til full tidslinje uten å forlate siden.",
+                label: activeView == "timeline" ? "Viser nå" : "Vis timeline",
+                actionKeypath: "agenda.setView",
+                payload: .object(["view": .string("timeline")])
+            ),
+            selectionChipCard(
+                badge: activeView == "saved" ? "AKTIV NÅ" : "MODUS",
+                title: "Lagret",
+                subtitle: activeView == "saved" ? "Lagrede sesjoner vises nå" : "Bare det du har lagret",
+                detail: "Bruk denne når du vil se bare det du allerede har valgt å ta vare på.",
+                note: activeView == "saved"
+                    ? "Lagret er aktiv i denne siden."
+                    : "Bytter til kun lagrede sesjoner.",
+                label: activeView == "saved" ? "Viser nå" : "Vis lagret",
+                actionKeypath: "agenda.setView",
+                payload: .object(["view": .string("saved")])
+            )
+        ]
+    }
+
+    private func trackChoiceCards() -> [ValueType] {
+        [
+            selectionChipCard(
+                badge: activeTrackID == "all" ? "FOKUS NÅ" : "SPOR",
+                title: "Alle spor",
+                subtitle: activeTrackID == "all" ? "Hele bredden er synlig" : "Slå av innsnevret fokus",
+                detail: "Bruk denne når du vil se hele konferansebredden igjen.",
+                note: activeTrackID == "all"
+                    ? "Alle spor er synlige nå."
+                    : "Går tilbake til full oversikt uten spor-fokus.",
+                label: activeTrackID == "all" ? "Viser nå" : "Vis alle spor",
+                actionKeypath: "agenda.setTrackFocus",
+                payload: .object(["trackId": .string("all")])
+            ),
+            selectionChipCard(
+                badge: activeTrackID == "track-governance" ? "FOKUS NÅ" : "SPOR",
+                title: "Governance",
+                subtitle: activeTrackID == "track-governance" ? "Governance er valgt nå" : "Snevr inn til governance",
+                detail: "Bruk denne når du vil se governance-sporet tydeligere i agendaen.",
+                note: activeTrackID == "track-governance"
+                    ? "Governance er aktivt fokus i denne siden."
+                    : "Setter governance i fokus uten å åpne en ny flate.",
+                label: activeTrackID == "track-governance" ? "Viser nå" : "Fokuser governance",
+                actionKeypath: "agenda.setTrackFocus",
+                payload: .object(["trackId": .string("track-governance")])
+            )
+        ]
+    }
+
+    private func selectionChipCard(
+        badge: String,
+        title: String,
+        subtitle: String,
+        detail: String,
+        note: String,
+        label: String,
+        actionKeypath: String,
+        payload: ValueType
+    ) -> ValueType {
+        .object([
+            "selectionBadge": .string(badge),
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note),
+            "url": .string("cell:///ConferenceParticipantAgendaSnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(label),
+            "payload": .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+        ])
     }
 
     private func focusedActionCards() -> [ValueType] {

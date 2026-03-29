@@ -19,8 +19,10 @@ Covered layers:
 
 - contract verification for references, root probes, and selected actions
 - contract verification for the participant-local agenda snapshot, including optimistic mode/track updates when bridge refresh lags
+- contract verification now also requires the visible agenda selection cards (`modeChoices` / `trackChoices`) that the GUI depends on
 - participant-portal contract probing is now intentionally composition-oriented: the portal checks its key snapshot surfaces directly instead of brute-forcing the whole page
 - contract verification for the dedicated nearby-radar workbench, including start/stop and return-to-portal routing
+- nearby workbench contracts should stay composition-oriented too: probe `nearbyRadar.state` directly instead of requiring a coarse participant-shell root that the page itself does not need
 - contract verification for nearby scanner start/requestContact/verified follow-up/stop
 - contract verification for the participant-local matchmaking snapshot, including inline focus, follow-up marking, and chat handoff
 - contract verification for the participant-local discovery snapshot, including inline focus, follow-up marking, and chat handoff
@@ -34,6 +36,7 @@ Current UX decision:
 - participant recommendations now follow that same rule through a local `ConferenceParticipantMatchmakingSnapshot`
 - participant discovery now follows that same rule through a local `ConferenceParticipantDiscoverySnapshot`
 - participant agenda now follows that same rule through a local `ConferenceParticipantAgendaSnapshot`
+- the active agenda state should be obvious in the page itself through visible choice cards, not just inferred from text summaries
 - `Åpne radarflate` and `Åpne profilflate` mean “open a separate workbench in Porthole”
 - do not hide that transition behind a generic button label
 - avoid overlay/modal as the primary pattern for now; the current skeleton/runtime model is better served by explicit inline focus first and explicit workbench expansion second

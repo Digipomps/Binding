@@ -692,6 +692,8 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("agendaSnapshot.state.statusSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("agendaSnapshot.state.selectionSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("agendaSnapshot.state.focusedActions", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.modeChoices", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.trackChoices", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantAgendaSnapshot", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.statusSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.selectionSummary", in: skeleton))
@@ -745,6 +747,8 @@ struct BindingTests {
         }
 
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantAgendaSnapshot", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.modeChoices", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.trackChoices", in: skeleton))
         #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantMatchmakingSnapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
@@ -785,6 +789,8 @@ struct BindingTests {
         #expect(object["selectionSummary"] != nil)
         #expect(object["nextStepSummary"] != nil)
         #expect(object["actionSummary"] != nil)
+        #expect(object["modeChoices"] != nil)
+        #expect(object["trackChoices"] != nil)
         #expect(object["focusedActions"] != nil)
         #expect(object["trackOptions"] != nil)
     }
@@ -836,20 +842,25 @@ struct BindingTests {
 
         let stateValue = try await snapshot.get(keypath: "state", requester: identity)
         guard case let .object(object) = stateValue,
-              case let .list(focusedActions)? = object["focusedActions"],
-              case let .object(firstAction)? = focusedActions.first,
-              case let .object(secondAction)? = focusedActions.dropFirst().first,
-              case let .object(fourthAction)? = focusedActions.dropFirst(3).first else {
-            Issue.record("Expected agenda snapshot state with focused actions")
+              case let .list(modeChoices)? = object["modeChoices"],
+              case let .object(firstModeChoice)? = modeChoices.first,
+              case let .object(secondModeChoice)? = modeChoices.dropFirst().first,
+              case let .list(trackChoices)? = object["trackChoices"],
+              case let .object(firstTrackChoice)? = trackChoices.first,
+              case let .object(secondTrackChoice)? = trackChoices.dropFirst().first else {
+            Issue.record("Expected agenda snapshot state with mode and track choices")
             return
         }
 
         #expect(object["statusSummary"] == .string("Viser timeline med governance i fokus."))
         #expect(object["selectionSummary"] == .string("Viser timeline med Governance i fokus."))
         #expect(object["actionSummary"] == .string("Governance er nå i fokus i denne siden."))
-        #expect(firstAction["label"] == .string("Vis for deg"))
-        #expect(secondAction["label"] == .string("Viser nå"))
-        #expect(fourthAction["label"] == .string("Vis alle spor"))
+        #expect(firstModeChoice["label"] == .string("Vis for deg"))
+        #expect(secondModeChoice["selectionBadge"] == .string("AKTIV NÅ"))
+        #expect(secondModeChoice["label"] == .string("Viser nå"))
+        #expect(firstTrackChoice["label"] == .string("Vis alle spor"))
+        #expect(secondTrackChoice["selectionBadge"] == .string("FOKUS NÅ"))
+        #expect(secondTrackChoice["label"] == .string("Viser nå"))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceDiscoverySnapshotReadable() async throws {

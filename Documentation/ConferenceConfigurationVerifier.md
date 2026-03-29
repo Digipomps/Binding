@@ -68,6 +68,9 @@ Current participant agenda assertions:
 
 - the participant portal resolves a local `ConferenceParticipantAgendaSnapshot`
 - agenda actions stay deterministic even when bridge or preview refresh fails after the local click
+- the participant portal now requires explicit agenda selection grids:
+  - `agendaSnapshot.state.modeChoices`
+  - `agendaSnapshot.state.trackChoices`
 - the participant portal contract now probes its composed snapshot surfaces directly:
   - `agendaSnapshot.state`
   - `matchmakingSnapshot.state`
@@ -76,6 +79,7 @@ Current participant agenda assertions:
 - the local snapshot preserves:
   - selected agenda mode
   - selected track focus
+  - visible active-card badges (`AKTIV NÅ`, `FOKUS NÅ`)
   - focused action labels
   - next-step guidance
 - transient sync issues now surface through `storageSummary` / `persistenceStatus` instead of resetting the visible agenda state
@@ -115,6 +119,7 @@ Current participant discovery assertions:
 Current nearby radar assertions:
 
 - the dedicated nearby-radar workbench resolves both `ConferenceNearbyRadar` and the participant preview shell
+- nearby workbench contract checks now use an explicit focused root probe (`nearbyRadar.state`) instead of assuming the whole participant preview shell must be readable as one coarse root
 - `Start scanner` and `Stop scanner` stay reachable through the same local direct-action route the GUI uses
 - `Tilbake til portalen` returns through the same local action route the GUI uses
 - a focused participant panel is rendered as part of the nearby-radar workbench (`Valgt deltager`)

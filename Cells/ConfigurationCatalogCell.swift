@@ -7423,37 +7423,27 @@ final class ConfigurationCatalogCell: GeneralCell {
                         ]
                     )
                 ),
-                .HStack(
-                    SkeletonHStack(elements: [
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setView",
-                            label: "Vis for deg",
-                            payload: .object(["view": .string("forYou")]),
-                            url: actionEndpoint
-                        ),
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setView",
-                            label: "Vis timeline",
-                            payload: .object(["view": .string("timeline")]),
-                            url: actionEndpoint
-                        ),
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setView",
-                            label: "Vis lagret",
-                            payload: .object(["view": .string("saved")]),
-                            url: actionEndpoint
-                        ),
-                        bindingConferencePortalActionButton(
-                            referenceLabel,
-                            actionKeypath: "agenda.setTrackFocus",
-                            label: "Fokuser governance",
-                            payload: .object(["trackId": .string("track-governance")]),
-                            url: actionEndpoint
-                        )
-                    ])
+                bindingConferencePortalStaticText(
+                    "Raskt valg viser alltid hva som er aktivt nå. Første klikk skjer i denne siden, og valgkortene under oppdateres med en gang.",
+                    fontSize: 12,
+                    foregroundColor: "#9AB3C3",
+                    lineLimit: 3
+                ),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 320)],
+                        spacing: 12,
+                        keypath: "\(referenceLabel).state.modeChoices",
+                        itemSkeleton: bindingConferencePortalSelectionChipCardSkeleton()
+                    )
+                ),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 320)],
+                        spacing: 12,
+                        keypath: "\(referenceLabel).state.trackChoices",
+                        itemSkeleton: bindingConferencePortalSelectionChipCardSkeleton()
+                    )
                 ),
                 bindingConferencePortalKeyText("\(referenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
                 bindingConferencePortalKeyText("\(referenceLabel).state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
@@ -8089,6 +8079,26 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderWidth = 1
             $0.borderColor = "#244457"
             $0.height = 188
+        }
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalSelectionChipCardSkeleton() -> SkeletonElement {
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("selectionBadge", fontSize: 11, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+            bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 1),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            bindingConferencePortalDynamicCardButton(defaultLabel: "Velg")
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 204
         }
         return .Section(section)
     }

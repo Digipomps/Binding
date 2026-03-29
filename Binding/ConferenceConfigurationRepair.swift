@@ -42,6 +42,8 @@ enum BindingConferenceConfigurationRepair {
         })
         let skeletonJSON = serializedSkeleton(configuration.skeleton)
         let hasAgendaSnapshotBindings = skeletonJSON.contains("\"agendaSnapshot.state.statusSummary\"")
+            && skeletonJSON.contains("\"agendaSnapshot.state.modeChoices\"")
+            && skeletonJSON.contains("\"agendaSnapshot.state.trackChoices\"")
             && skeletonJSON.contains("\"agendaSnapshot.state.focusedActions\"")
             && skeletonJSON.contains("\"url\":\"cell:///ConferenceParticipantAgendaSnapshot\"")
         let hasMatchmakingSnapshotBindings = skeletonJSON.contains("\"matchmakingSnapshot.state.statusSummary\"")

@@ -224,6 +224,7 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `Vis for deg`, `Vis timeline`, `Vis lagret` og `Fokuser governance` update the visible page immediately
   - local agenda selection survives bridge or preview refresh glitches instead of snapping tilbake til stale summary fields
   - sync trouble is surfaced as `storageSummary` / `persistenceStatus` instead of wiping out the visible mode and track focus
+  - the portal now surfaces explicit agenda choice cards for active mode and active track focus, so the GUI shows `AKTIV NÅ` / `FOKUS NÅ` instead of forcing the user to infer state from passive summaries
 - `Conference Participant Portal` now gives `Entity Discovery` the same inline-first treatment as nearby and recommendations:
   - a local `ConferenceParticipantDiscoverySnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift)
   - explicit discovery summaries (`statusSummary`, `selectionSummary`, `navigationSummary`, `nextStepSummary`)
