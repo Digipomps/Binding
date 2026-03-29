@@ -6702,6 +6702,14 @@ final class ConfigurationCatalogCell: GeneralCell {
                                     accentBorder: "#4D3F2A",
                                     accentText: "#F4D58D",
                                     height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Match nå",
+                                    detailKeypath: "nearbyRadar.state.matchSummary",
+                                    noteKeypath: "nearbyRadar.state.selectedEntity.followUpSummary",
+                                    accentBorder: "#2F6B56",
+                                    accentText: "#B9FBC0",
+                                    height: 132
                                 )
                             ]
                         )
@@ -6762,8 +6770,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
                     bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
                     bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.relevanceBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#B9FBC0", lineLimit: 1),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.relevanceSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                     bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
                     bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.followUpSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.chatSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
                     bindingConferencePortalKeyText("nearbyRadar.state.selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
                     bindingConferencePortalCollectionGrid(
                         keypath: "nearbyRadar.state.selectedEntityActions",
@@ -6892,6 +6904,14 @@ final class ConfigurationCatalogCell: GeneralCell {
                                     noteKeypath: "nearbyRadar.state.precisionSummary",
                                     accentBorder: "#4D3F2A",
                                     accentText: "#F4D58D",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Match nå",
+                                    detailKeypath: "nearbyRadar.state.matchSummary",
+                                    noteKeypath: "nearbyRadar.state.selectedEntity.followUpSummary",
+                                    accentBorder: "#2F6B56",
+                                    accentText: "#B9FBC0",
                                     height: 132
                                 )
                             ]
@@ -7107,6 +7127,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     ) -> SkeletonElement {
         var section = SkeletonSection(content: [
             bindingConferencePortalKeyText("\(keypath).badge", fontSize: 11, fontWeight: "bold", foregroundColor: accentText, lineLimit: 1),
+            bindingConferencePortalKeyText("\(keypath).relevanceBadge", fontSize: 11, fontWeight: "bold", foregroundColor: "#B9FBC0", lineLimit: 1),
             bindingConferencePortalKeyText("\(keypath).title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("\(keypath).subtitle", fontSize: 12, foregroundColor: accentText, lineLimit: 2),
             bindingConferencePortalKeyText("\(keypath).detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
@@ -7908,12 +7929,16 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
-                bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.relevanceBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#B9FBC0", lineLimit: 1),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.relevanceSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.followUpSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.chatSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
                 .HStack(
                     SkeletonHStack(elements: [
                         bindingConferenceDirectActionButton(
@@ -8131,6 +8156,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
             bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+            bindingConferencePortalKeyText("relevanceBadge", fontSize: 11, fontWeight: "bold", foregroundColor: "#B9FBC0", lineLimit: 1),
+            bindingConferencePortalKeyText("relevanceSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
             bindingConferencePortalKeyText("purposeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 2),
             bindingConferencePortalKeyText("purposeDetail", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
@@ -8142,7 +8169,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#244457"
-            $0.height = 212
+            $0.height = 244
         }
         return .Section(section)
     }

@@ -132,9 +132,13 @@ Current nearby radar assertions:
 Current nearby radar state assertions:
 
 - `selectionSummary` points at the currently focused participant
+- `matchSummary` explains how strong the currently focused or strongest nearby match looks
 - `selectedEntity` exposes the currently focused participant card payload
+- `selectedEntity.relevanceBadge` and `selectedEntity.relevanceSummary` make match strength explicit (`GRØNN MATCH`, `GUL MATCH`, `RØD MATCH`, or `NÆRHET FØRST`)
+- `selectedEntity.followUpSummary` and `selectedEntity.chatSummary` make the next interaction step explicit
 - `selectedEntityActions` expose the next concrete follow-up actions from that focused participant
 - `spatialTruthSummary` explicitly says when one or more peers are nearby but direction is uncertain
+- radar sectors now also carry `relevanceBadge`, so the embedded and full radar can show spatial direction and match strength together
 
 Current nearby follow-up assertions:
 

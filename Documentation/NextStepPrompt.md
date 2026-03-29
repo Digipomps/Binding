@@ -40,6 +40,13 @@ Current UX decision:
 - `Åpne full radar` and `Åpne profilflate` mean “open a separate workbench in Porthole”
 - do not hide that transition behind a generic button label
 - avoid overlay/modal as the primary pattern for now; the current skeleton/runtime model is better served by explicit inline focus first and explicit workbench expansion second
+- nearby radar now carries a richer local status model:
+  - `matchSummary`
+  - `selectedEntity.relevanceBadge`
+  - `selectedEntity.relevanceSummary`
+  - `selectedEntity.followUpSummary`
+  - `selectedEntity.chatSummary`
+  Use those fields instead of forcing users to infer state from generic action text.
 
 Important working assumptions:
 

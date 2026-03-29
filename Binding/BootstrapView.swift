@@ -356,6 +356,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         var detail: String
     }
 
+    private struct RelevanceSignal {
+        var badge: String
+        var summary: String
+        var detail: String
+    }
+
     private let bootstrapRequester: Identity
     private var scannerEmit: Emit?
     private var scannerMeddle: Meddle?
@@ -1531,6 +1537,11 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             focusedRemoteUUID: focusedRemoteUUID,
             effectiveScannerStatus: effectiveScannerStatus
         )
+        let matchSummary = focusedRemoteUUID.flatMap { remoteUUID in
+            entitiesById[remoteUUID].map { entity in
+                relevanceSignal(for: remoteUUID, entity: entity).summary
+            }
+        } ?? strongestRelevanceSummary(in: entities)
         let navigationSummary = focusedRemoteUUID == nil
             ? "Første klikk skjer i denne siden. Full radar og profilflate åpnes bare når du ber om en egen arbeidsflate."
             : "Du ser nå valgt deltager i denne siden. Åpne profilflate og full radar når du vil fordype deg i egne arbeidsflater."
@@ -1540,8 +1551,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 "title": .string("Ingen deltager valgt ennå"),
                 "subtitle": .string("Velg en nearby deltager fra listen under."),
                 "detail": .string("Når en deltager er valgt, viser vi avstand, retning og neste steg her."),
+                "relevanceBadge": .string("AVVENTER VALG"),
+                "relevanceSummary": .string("Velg en deltager for å se hvor sterk matchen ser ut akkurat nå."),
                 "purposeSummary": .string("Ingen valgt deltager ennå"),
                 "purposeDetail": .string("Verifisert purpose/interest-match vises først etter signert kontakt."),
+                "followUpSummary": .string("Ingen oppfølging startet ennå."),
+                "chatSummary": .string("Chat blir tilgjengelig når en valgt deltager er verifisert."),
                 "note": .string("Bruk kortene under til å fokusere på en deltager.")
             ]
         let selectedEntityActions = focusedRemoteUUID.map { selectedEntityActionCards(for: $0) } ?? []
@@ -1559,6 +1574,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "actionSummary": .string(lastActionSummary),
             "selectionSummary": .string(selectionSummary),
             "nextStepSummary": .string(nextStepSummary),
+            "matchSummary": .string(matchSummary),
             "navigationSummary": .string(navigationSummary),
             "spatialTruthSummary": .string(spatialTruthSummary),
             "transportBadge": .string(transportMode.uppercased()),
@@ -1662,12 +1678,23 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
     private func makeRadarSectorNode(for sector: CompassSector, entities: [NearbyEntity]) -> Object {
         var card = makeSectorCard(for: sector, entities: entities)
+        if let strongestEntity = entities.first {
+            let relevance = relevanceSignal(for: strongestEntity.remoteUUID, entity: strongestEntity)
+            card["relevanceBadge"] = .string(relevance.badge)
+            card["summary"] = .string(relevance.summary)
+            card["note"] = .string(relevance.detail)
+        } else {
+            card["relevanceBadge"] = .string(sector == .uncertain ? "NÆRHET FØRST" : "AVVENTER TREFF")
+            card["summary"] = .string(sector == .uncertain
+                ? "Treff her vil først bli vist som usikker nearby-nærhet."
+                : "Når treff dukker opp her, viser vi også hvor sterke matchene ser ut.")
+        }
         card["badge"] = .string(sector == .uncertain ? "USIKKER NÆRHET" : "ROMLIG SEKTOR")
-        card["summary"] = .string(entities.isEmpty
-            ? (sector == .uncertain ? "Ingen usikre nearby-signaler akkurat nå." : "Ingen treff i denne retningen akkurat nå.")
-            : (sector == .uncertain
-                ? "Treffene her er nearby, men mangler presis retning."
-                : "Treffene her deler samme romlige retning akkurat nå."))
+        if entities.isEmpty {
+            card["note"] = .string(sector == .uncertain
+                ? "Ingen usikre nearby-signaler akkurat nå."
+                : "Ingen treff i denne retningen akkurat nå.")
+        }
         return card
     }
 
@@ -1707,6 +1734,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "title": .string(focusedEntity.displayName),
             "subtitle": .string(directionSubtitle(for: focusedEntity, directionIsPrecise: hasDirectionalPosition(focusedEntity))),
             "detail": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: focusedRemoteUUID, liveScore: focusedEntity.matchScore)),
+            "relevanceBadge": .string(relevanceSignal(for: focusedRemoteUUID, entity: focusedEntity).badge),
+            "summary": .string(relevanceSignal(for: focusedRemoteUUID, entity: focusedEntity).summary),
             "note": .string(nextStep)
         ]
     }
@@ -1717,6 +1746,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let contactSignal = contactSignalsById[entity.remoteUUID]
         let followUpMarked = followUpMarkedRemoteUUIDs.contains(entity.remoteUUID)
         let selected = entity.remoteUUID == selectedRemoteUUID
+        let relevance = relevanceSignal(for: entity.remoteUUID, entity: entity)
         let noteParts = [
             selected ? "Valgt i fokus." : nil,
             followUpMarked ? "Markert for oppfølging." : nil,
@@ -1728,6 +1758,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "title": .string(entity.displayName),
             "subtitle": .string(directionSubtitle(for: entity, directionIsPrecise: directionIsPrecise)),
             "detail": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
+            "relevanceBadge": .string(relevance.badge),
+            "relevanceSummary": .string(relevance.summary),
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
             "note": .string(noteParts.joined(separator: " ")),
@@ -1825,6 +1857,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let contactSignal = contactSignalsById[remoteUUID]
         let target = followUpTargetsById[remoteUUID]
         let markedForFollowUp = followUpMarkedRemoteUUIDs.contains(remoteUUID)
+        let hasVerifiedContact = contactSignal?.status == "verified"
+        let hasLaunchedChat = launchedChatRemoteUUIDs.contains(remoteUUID)
+        let relevance = relevanceSignal(for: remoteUUID, entity: entity)
         let selectionBadge = markedForFollowUp ? "VALGT · MARKERT FOR OPPFØLGING" : "VALGT DELTAGER"
         let subtitleParts = [target?.company, target?.role].compactMap { value -> String? in
             guard let value, value.isEmpty == false else { return nil }
@@ -1840,8 +1875,23 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "title": .string(entity.displayName),
             "subtitle": .string(subtitleParts.isEmpty ? directionSubtitle(for: entity, directionIsPrecise: hasDirectionalPosition(entity)) : subtitleParts.joined(separator: " · ")),
             "detail": .string(positionDetail(for: entity, directionIsPrecise: hasDirectionalPosition(entity))),
+            "relevanceBadge": .string(relevance.badge),
+            "relevanceSummary": .string(relevance.summary),
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Verifisert purpose/interest-fit kommer først etter signert kontakt."),
+            "followUpSummary": .string(followUpSummary(
+                remoteUUID: remoteUUID,
+                displayName: entity.displayName,
+                hasVerifiedContact: hasVerifiedContact,
+                hasLaunchedChat: hasLaunchedChat,
+                markedForFollowUp: markedForFollowUp
+            )),
+            "chatSummary": .string(chatSummary(
+                remoteUUID: remoteUUID,
+                displayName: entity.displayName,
+                hasVerifiedContact: hasVerifiedContact,
+                hasLaunchedChat: hasLaunchedChat
+            )),
             "note": .string(noteParts.isEmpty ? positionTrustSummary(for: entity, directionIsPrecise: hasDirectionalPosition(entity)) : noteParts.joined(separator: " "))
         ]
     }
@@ -1960,6 +2010,111 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return "Kontakten med \(entity.displayName) er verifisert. Neste steg er å starte chat eller markere deltakeren for oppfølging."
         }
         return "Neste steg er å be om kontakt med \(entity.displayName) for å verifisere formål og interesser."
+    }
+
+    private func strongestRelevanceSummary(in entities: [NearbyEntity]) -> String {
+        guard let strongest = entities.first else {
+            return "Ingen match vurdert ennå. Start scanner for å hente nearby-signaler."
+        }
+        return relevanceSignal(for: strongest.remoteUUID, entity: strongest).summary
+    }
+
+    private func relevanceSignal(for remoteUUID: String, entity: NearbyEntity) -> RelevanceSignal {
+        let purposeSignal = purposeSignalsById[remoteUUID]
+        let score = purposeSignal?.score ?? entity.matchScore
+        let hasVerifiedContact = contactSignalsById[remoteUUID]?.status == "verified"
+
+        guard let score else {
+            return RelevanceSignal(
+                badge: "NÆRHET FØRST",
+                summary: "Nearby-signal oppdaget, men matchen må verifiseres videre.",
+                detail: "Be om kontakt for å gå fra nearby-nærhet til en mer presis vurdering."
+            )
+        }
+
+        if hasVerifiedContact, score >= 0.8 {
+            return RelevanceSignal(
+                badge: "GRØNN MATCH",
+                summary: "Sterk verifisert match. Denne personen er klar for oppfølging nå.",
+                detail: "Formål og interesser overlapper tydelig etter signert kontakt."
+            )
+        }
+        if hasVerifiedContact, score >= 0.55 {
+            return RelevanceSignal(
+                badge: "GUL MATCH",
+                summary: "God verifisert match. Det er verdt å følge opp videre.",
+                detail: "Kontakten er verifisert, men relevansen er mer moderat enn toppmatchene."
+            )
+        }
+        if hasVerifiedContact {
+            return RelevanceSignal(
+                badge: "RØD MATCH",
+                summary: "Svakt verifisert treff. Vurder om denne personen bør følges opp videre.",
+                detail: "Kontakten er verifisert, men formål og interesser overlapper svakt."
+            )
+        }
+        if score >= 0.65 {
+            return RelevanceSignal(
+                badge: "LOVENDE MATCH",
+                summary: "Lovende nearby-match. Det neste naturlige steget er å be om kontakt.",
+                detail: "Scanneren ser høy relevans, men den er ikke verifisert ennå."
+            )
+        }
+        if score >= 0.35 {
+            return RelevanceSignal(
+                badge: "GUL MATCH",
+                summary: "Moderat nearby-match. Bruk dette som en kandidat, ikke som en bekreftet prioritet.",
+                detail: "Det kan være verdt å be om kontakt hvis samtalen virker relevant."
+            )
+        }
+        return RelevanceSignal(
+            badge: "RØD MATCH",
+            summary: "Lav nearby-relevans akkurat nå. Se gjerne videre før du følger opp.",
+            detail: "Dette treffet er nærme, men scorer lavt på nåværende matchsignal."
+        )
+    }
+
+    private func followUpSummary(
+        remoteUUID: String,
+        displayName: String,
+        hasVerifiedContact: Bool,
+        hasLaunchedChat: Bool,
+        markedForFollowUp: Bool
+    ) -> String {
+        if hasLaunchedChat, markedForFollowUp {
+            return "\(displayName) er både markert for oppfølging og har en chat klar."
+        }
+        if hasLaunchedChat {
+            return "Chatten med \(displayName) er klar til videre oppfølging."
+        }
+        if markedForFollowUp {
+            return "\(displayName) er markert for oppfølging senere."
+        }
+        if hasVerifiedContact {
+            return "Kontakten er verifisert. Nå kan du starte chat eller markere for oppfølging."
+        }
+        if contactSignalsById[remoteUUID]?.status == "sent" || contactSignalsById[remoteUUID]?.status == "pendingConnection" {
+            return "Kontaktforespørselen er sendt. Vent på verifisering før du starter chat."
+        }
+        return "Ingen oppfølging startet ennå. Be om kontakt eller marker deltakeren for senere."
+    }
+
+    private func chatSummary(
+        remoteUUID: String,
+        displayName: String,
+        hasVerifiedContact: Bool,
+        hasLaunchedChat: Bool
+    ) -> String {
+        if hasLaunchedChat {
+            return "Åpne chatten for å fortsette samtalen med \(displayName)."
+        }
+        if hasVerifiedContact {
+            return "Chat er ikke startet ennå. Neste steg er å trykke Start chat."
+        }
+        if contactSignalsById[remoteUUID]?.status == "sent" || contactSignalsById[remoteUUID]?.status == "pendingConnection" {
+            return "Chat blir tilgjengelig når kontakten er verifisert."
+        }
+        return "Chat er låst til verifisert kontakt i denne nearby-flyten."
     }
 
     private func directionSubtitle(for entity: NearbyEntity, directionIsPrecise: Bool) -> String {

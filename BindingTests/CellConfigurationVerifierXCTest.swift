@@ -539,6 +539,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Conference Participant Portal",
                 "Entity Discovery",
                 "Start scanner",
+                "Match nå",
                 "Radar i siden",
                 "Åpne full radar",
                 "Visning nå",
@@ -581,6 +582,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             expectedVisibleStrings: [
                 "Conference Nearby Radar · Full oversikt",
                 "Start scanner",
+                "Match nå",
                 "Tilbake til portalen",
                 "Valgt deltager"
             ]
@@ -599,6 +601,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             for: configuration,
             expectedVisibleStrings: [
                 "Valgt deltager · profilflate",
+                "Match nå",
                 "Åpne full radar",
                 "Tilbake til portalen",
                 "Neste steg"

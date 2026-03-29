@@ -1223,6 +1223,15 @@ struct BindingTests {
             return
         }
         #expect(selectedEntity["title"] == .string("Nora Berg"))
+        #expect(selectedEntity["relevanceBadge"] == .string("GRØNN MATCH"))
+        #expect(selectedEntity["followUpSummary"] == .string("Kontakten er verifisert. Nå kan du starte chat eller markere for oppfølging."))
+        #expect(selectedEntity["chatSummary"] == .string("Chat er ikke startet ennå. Neste steg er å trykke Start chat."))
+
+        guard case let .string(matchSummary)? = stateObject["matchSummary"] else {
+            Issue.record("Expected matchSummary in nearby radar state")
+            return
+        }
+        #expect(matchSummary.contains("Sterk verifisert match"))
 
         guard case let .object(radarLayout)? = stateObject["radarLayout"],
               case let .object(centerNode)? = radarLayout["center"] else {
@@ -1230,6 +1239,7 @@ struct BindingTests {
             return
         }
         #expect(centerNode["title"] == .string("Nora Berg"))
+        #expect(centerNode["relevanceBadge"] == .string("GRØNN MATCH"))
 
         guard case let .list(selectedEntityActions)? = stateObject["selectedEntityActions"],
               case let .object(primaryAction)? = selectedEntityActions.first else {
@@ -1250,6 +1260,7 @@ struct BindingTests {
             return
         }
         #expect(uncertainSector["subtitle"] == .string("1 peer(s)"))
+        #expect(uncertainSector["relevanceBadge"] == .string("RØD MATCH"))
     }
 
     @Test func portholeRoutesNearbyRadarDispatchActionForConferenceParticipantPortal() async throws {
@@ -3473,6 +3484,7 @@ struct CellConfigurationVerifierTests {
                 "Conference Participant Portal",
                 "Entity Discovery",
                 "Start scanner",
+                "Match nå",
                 "Radar i siden",
                 "Åpne full radar"
             ]
@@ -3493,6 +3505,7 @@ struct CellConfigurationVerifierTests {
             expectedVisibleStrings: [
                 "Conference Nearby Radar · Full oversikt",
                 "Start scanner",
+                "Match nå",
                 "Tilbake til portalen",
                 "Valgt deltager"
             ]
@@ -3511,6 +3524,7 @@ struct CellConfigurationVerifierTests {
             for: configuration,
             expectedVisibleStrings: [
                 "Valgt deltager · profilflate",
+                "Match nå",
                 "Åpne full radar",
                 "Tilbake til portalen",
                 "Neste steg"

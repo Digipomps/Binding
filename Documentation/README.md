@@ -245,12 +245,20 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `Radar i siden` makes the inline spatial view visible in the page itself
   - `Åpne full radar` is now the explicit step into the larger nearby workbench
   - the large workbench is now named `Conference Nearby Radar · Full oversikt`
+- Nearby radar now carries explicit local match and follow-up semantics in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift):
+  - `matchSummary`
+  - `relevanceBadge` / `relevanceSummary` on focused and nearby participants
+  - explicit `followUpSummary` and `chatSummary` for the selected participant
+  - sector-level relevance badges so spatial direction and match strength can be read together
 - Latest green targeted run on March 29, 2026:
   - `./Scripts/run_conference_configuration_verifier.sh participant contract`
   - `testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions`
   - `testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions`
   - `testConferenceParticipantPortalContract`
   - `testConferenceParticipantPortalRenderer`
+  - `conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions`
+  - `testConferenceNearbyRadarRenderer`
+  - `testConferenceNearbyParticipantProfileRenderer`
 - Latest green targeted checks on March 28, 2026:
   - `testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
   - `testConferenceNearbyRadarContract`
