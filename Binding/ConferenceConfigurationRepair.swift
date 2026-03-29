@@ -28,6 +28,9 @@ enum BindingConferenceConfigurationRepair {
 
     private static func participantPortalNeedsRepair(_ configuration: CellConfiguration) -> Bool {
         let references = configuration.cellReferences ?? []
+        let hasMatchmakingSnapshotReference = references.contains(where: {
+            $0.label == "matchmakingSnapshot" && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceParticipantMatchmakingSnapshot")
+        })
         let hasDiscoverySnapshotReference = references.contains(where: {
             $0.label == "discoverySnapshot" && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceParticipantDiscoverySnapshot")
         })
@@ -35,6 +38,9 @@ enum BindingConferenceConfigurationRepair {
             $0.label == "nearbyRadar" && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceNearbyRadar")
         })
         let skeletonJSON = serializedSkeleton(configuration.skeleton)
+        let hasMatchmakingSnapshotBindings = skeletonJSON.contains("\"matchmakingSnapshot.state.statusSummary\"")
+            && skeletonJSON.contains("\"matchmakingSnapshot.state.focusedProfile.title\"")
+            && skeletonJSON.contains("\"url\":\"cell:///ConferenceParticipantMatchmakingSnapshot\"")
         let hasDiscoverySnapshotBindings = skeletonJSON.contains("\"discoverySnapshot.state.status\"")
             && skeletonJSON.contains("\"discoverySnapshot.state.nextAction\"")
             && skeletonJSON.contains("\"url\":\"cell:///ConferenceParticipantDiscoverySnapshot\"")
@@ -42,7 +48,7 @@ enum BindingConferenceConfigurationRepair {
             && skeletonJSON.contains("\"keypath\":\"dispatchAction\"")
         let hasNearbySnapshotReference = skeletonJSON.contains("\"nearbyRadar.snapshot\"")
 
-        return !(hasDiscoverySnapshotReference && hasDiscoverySnapshotBindings && hasNearbyRadarReference && hasNearbyDirectDispatchAction && hasNearbySnapshotReference)
+        return !(hasMatchmakingSnapshotReference && hasMatchmakingSnapshotBindings && hasDiscoverySnapshotReference && hasDiscoverySnapshotBindings && hasNearbyRadarReference && hasNearbyDirectDispatchAction && hasNearbySnapshotReference)
     }
 
     private static func participantPortalEndpoint(from configuration: CellConfiguration) -> String {

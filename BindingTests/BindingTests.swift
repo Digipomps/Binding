@@ -674,6 +674,9 @@ struct BindingTests {
 
         #expect(references.contains(where: { $0.label == "conferenceParticipantShell" }))
         #expect(references.contains(where: {
+            $0.label == "matchmakingSnapshot" && $0.endpoint == "cell:///ConferenceParticipantMatchmakingSnapshot"
+        }))
+        #expect(references.contains(where: {
             $0.label == "discoverySnapshot" && $0.endpoint == "cell:///ConferenceParticipantDiscoverySnapshot"
         }))
         #expect(references.contains(where: { $0.label == "nearbyRadar" && $0.endpoint == "cell:///ConferenceNearbyRadar" }))
@@ -683,6 +686,11 @@ struct BindingTests {
             return
         }
 
+        #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.statusSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.selectionSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.focusedProfile.title", in: skeleton))
+        #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.actionSummary", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantMatchmakingSnapshot", in: skeleton))
         #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
         #expect(skeletonContainsTextKeypath("status", in: skeleton))
         #expect(skeletonContainsTextKeypath("nextAction", in: skeleton))
@@ -700,12 +708,16 @@ struct BindingTests {
         var staleConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
         )
+        staleConfiguration.cellReferences?.removeAll { $0.label == "matchmakingSnapshot" }
         staleConfiguration.cellReferences?.removeAll { $0.label == "discoverySnapshot" }
         staleConfiguration.cellReferences?.removeAll { $0.label == "nearbyRadar" }
 
         let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(staleConfiguration)
 
         #expect(repaired != nil)
+        #expect(repaired?.cellReferences?.contains(where: {
+            $0.label == "matchmakingSnapshot" && $0.endpoint == "cell:///ConferenceParticipantMatchmakingSnapshot"
+        }) == true)
         #expect(repaired?.cellReferences?.contains(where: {
             $0.label == "discoverySnapshot" && $0.endpoint == "cell:///ConferenceParticipantDiscoverySnapshot"
         }) == true)
@@ -719,6 +731,7 @@ struct BindingTests {
         }
 
         #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantMatchmakingSnapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
@@ -758,6 +771,43 @@ struct BindingTests {
         #expect(object["candidates"] != nil)
         #expect(object["proofCandidates"] != nil)
         #expect(object["groupSuggestions"] != nil)
+    }
+
+    @Test func bindingLocalCellRegistrationMakesConferenceMatchmakingSnapshotReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantMatchmakingSnapshot did not resolve as Meddle")
+            return
+        }
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue else {
+            Issue.record("Expected object from ConferenceParticipantMatchmakingSnapshot.state, got \(stateValue)")
+            return
+        }
+
+        #expect(object["statusSummary"] != nil)
+        #expect(object["selectionSummary"] != nil)
+        #expect(object["nextStepSummary"] != nil)
+        #expect(object["focusedProfile"] != nil)
+        #expect(object["focusedActions"] != nil)
+        #expect(object["recommendations"] != nil)
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceNearbyRadarReadable() async throws {
@@ -1284,6 +1334,96 @@ struct BindingTests {
             return
         }
         #expect(firstSearchResult["label"] == .string("Fjern markering"))
+    }
+
+    @Test func conferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantMatchmakingSnapshot did not resolve as Meddle")
+            return
+        }
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.focusPerson"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.toggleFollowUp"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("discovery.startChat"),
+                "payload": .object([
+                    "source": .string("binding-test"),
+                    "targets": .list([
+                        .object([
+                            "displayName": .string("Ane Solberg"),
+                            "headline": .string("Public sector interoperability")
+                        ])
+                    ])
+                ])
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue,
+              case let .object(focusedProfile)? = object["focusedProfile"],
+              case let .list(focusedActions)? = object["focusedActions"],
+              case let .list(recommendations)? = object["recommendations"],
+              case let .object(firstRecommendation)? = recommendations.first else {
+            Issue.record("Expected matchmaking snapshot state with focused profile and actions")
+            return
+        }
+
+        #expect(object["selectionSummary"] == .string("Viser Ane Solberg i denne siden."))
+        #expect(focusedProfile["title"] == .string("Ane Solberg"))
+        #expect(firstRecommendation["label"] == .string("Valgt i siden"))
+
+        guard case let .object(chatAction)? = focusedActions.first,
+              case let .object(followUpAction)? = focusedActions.dropFirst().first,
+              case let .object(meetingAction)? = focusedActions.dropFirst(2).first else {
+            Issue.record("Expected three focused actions in matchmaking snapshot")
+            return
+        }
+
+        #expect(chatAction["label"] == .string("Åpne chat"))
+        #expect(followUpAction["label"] == .string("Fjern markering"))
+        #expect(meetingAction["label"] == .string("Be om møte"))
     }
 
     @Test func conferenceParticipantPortalDashboardIsWrappedInScrollView() {

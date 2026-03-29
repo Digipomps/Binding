@@ -58,6 +58,17 @@ Current participant actions exercised:
 - `Åpne radarflate`
 - `Åpne profilflate`
 
+Current participant recommendation assertions:
+
+- the participant portal resolves a local `ConferenceParticipantMatchmakingSnapshot`
+- recommendation cards use the same inline-first action route the GUI uses
+- `Vis i siden` focuses one participant inline on the current page
+- the focused participant card exposes explicit next actions:
+  - `Åpne chat`
+  - `Fjern markering` / `Marker for oppfølging`
+  - `Be om møte`
+- the focused participant state survives the local action refresh path instead of falling tilbake til rå preview-data
+
 Current nearby radar assertions:
 
 - the dedicated nearby-radar workbench resolves both `ConferenceNearbyRadar` and the participant preview shell
@@ -151,6 +162,7 @@ Latest verified on March 29, 2026:
 Targeted green checks:
 
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract`
@@ -163,6 +175,7 @@ Targeted green checks:
 Observed isolated timings from the latest green checks:
 
 - `Conference Participant Portal` contract: about `1.55s`
+- `Conference Participant Matchmaking Snapshot` focused-action contract: about `1.92s`
 - `Conference Nearby Radar` contract: about `1.55s`
 - `Conference Participant Nearby Follow-Up` contract: about `1.90s`
 - `Conference Control Tower` contract: about `1.37s`
@@ -183,6 +196,7 @@ The verifier forced us to fix several real issues:
 - participant conference actions needed direct endpoint routing for deterministic verification
 - the dedicated nearby-radar workbench needed its own verifier path so local radar actions and return-to-portal routing do not silently drift
 - nearby follow-up chat needed deterministic local injection and post-action state reads, otherwise we could falsely pass or fail depending on shared runtime state
+- participant recommendations used to depend too directly on raw preview-shell state; the local matchmaking snapshot and its focused-action verifier now catch regressions in inline selection, follow-up marking, and chat handoff
 - the nearby radar used to blur together “nearby” and “direction known”; the focused-state test now catches that by requiring `Retning usikker` and a selected participant action surface
 - coarse root probes like `conferenceParticipantShell.state` could report `notFound` even when the surface itself was readable through real descendant bindings
 - running multiple verifier targets in one `xcodebuild` process allowed shared Porthole/runtime state to leak between tests

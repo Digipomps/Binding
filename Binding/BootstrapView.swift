@@ -101,6 +101,13 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "ConferenceParticipantMatchmakingSnapshot",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceParticipantMatchmakingSnapshotLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "Lobby",
             cellScope: .scaffoldUnique,
             identityDomain: "private",
@@ -2642,7 +2649,9 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
 
         if let refreshTask {
             await refreshTask.value
-            return
+            if !force {
+                return
+            }
         }
 
         let task = Task { @MainActor [weak self] in
@@ -2831,6 +2840,624 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "candidates": .list([]),
             "proofCandidates": .list([]),
             "groupSuggestions": .list([])
+        ]
+    }
+}
+
+@MainActor
+private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCell {
+    private var cachedMatchmakingState: Object = ConferenceParticipantMatchmakingSnapshotLocalCell.defaultMatchmakingState()
+    private var lastRefreshAt: Date?
+    private var refreshTask: Task<Void, Never>?
+    private var focusedRecommendationName: String?
+    private var followUpMarkedNames: Set<String> = []
+    private var launchedChatNames: [String] = []
+    private var recentActionSummary = "Velg Vis i siden for å fokusere på en anbefalt deltaker her."
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        await configure(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        fatalError("ConferenceParticipantMatchmakingSnapshotLocalCell does not support decoding")
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private func configure(owner: Identity) async {
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("rw--", for: "refresh")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            await self.refreshSnapshotIfNeeded(force: false, forwardAction: nil, requester: requester)
+            return .object(self.cachedMatchmakingState)
+        })
+
+        await addInterceptForSet(requester: owner, key: "refresh", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "refresh", for: requester) else { return .string("denied") }
+            let payload: Object = [
+                "keypath": .string("matchmaking.refreshRecommendations"),
+                "payload": .bool(true)
+            ]
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: .object(payload), requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(self.cachedMatchmakingState)
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "dispatchAction", for: requester) else { return .string("denied") }
+            return await self.handleDispatchAction(value, requester: requester)
+        })
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: owner)
+        }
+    }
+
+    private func handleDispatchAction(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard case let .object(object) = value,
+              let actionKeypath = string(from: object["keypath"]),
+              actionKeypath.isEmpty == false else {
+            cachedMatchmakingState = Self.matchmakingStateWithStatus(
+                basedOn: cachedMatchmakingState,
+                status: "Anbefalingshandlingen mangler keypath.",
+                actionSummary: "Kunne ikke utføre handlingen fordi payloaden var ugyldig."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedMatchmakingState)
+            ])
+        }
+
+        let payload = object["payload"] ?? .null
+
+        switch actionKeypath {
+        case "matchmaking.focusPerson":
+            if case let .object(personObject) = payload,
+               let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+               displayName.isEmpty == false {
+                focusedRecommendationName = displayName
+                recentActionSummary = "Viser \(displayName) i denne siden."
+            }
+        case "matchmaking.toggleFollowUp":
+            if case let .object(personObject) = payload,
+               let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+               displayName.isEmpty == false {
+                if followUpMarkedNames.contains(displayName) {
+                    followUpMarkedNames.remove(displayName)
+                    recentActionSummary = "Fjernet \(displayName) fra oppfølging."
+                } else {
+                    followUpMarkedNames.insert(displayName)
+                    recentActionSummary = "Markerte \(displayName) for oppfølging."
+                }
+            }
+        case "discovery.startChat":
+            let targetNames = discoveryTargetNames(from: payload)
+            if let firstTarget = targetNames.first {
+                focusedRecommendationName = firstTarget
+                launchedChatNames.removeAll { $0 == firstTarget }
+                launchedChatNames.insert(firstTarget, at: 0)
+                launchedChatNames = Array(launchedChatNames.prefix(4))
+                recentActionSummary = "Startet chat med \(firstTarget)."
+            } else {
+                recentActionSummary = "Startet chat fra anbefalingsflaten."
+            }
+        case "scheduling.createMeetingRequest":
+            if let focusedRecommendationName {
+                recentActionSummary = "La til møteforespørsel for \(focusedRecommendationName)."
+            } else {
+                recentActionSummary = "La til en ny møteforespørsel."
+            }
+        case "matchmaking.setFilters":
+            recentActionSummary = "Oppdaterte anbefalingsfilteret."
+        case "matchmaking.searchPeople":
+            recentActionSummary = "Oppdaterte anbefalingssøk."
+        case "matchmaking.refreshRecommendations":
+            recentActionSummary = "Oppdaterte anbefalingene."
+        default:
+            recentActionSummary = "Utførte \(actionKeypath) i anbefalingssnapshotet."
+        }
+
+        cachedMatchmakingState = mergedMatchmakingState(from: cachedMatchmakingState)
+
+        let forwardedAction: ValueType = .object([
+            "keypath": .string(actionKeypath),
+            "payload": payload
+        ])
+        await refreshSnapshotIfNeeded(force: true, forwardAction: forwardedAction, requester: requester)
+        return .object([
+            "status": .string("ok"),
+            "state": .object(cachedMatchmakingState)
+        ])
+    }
+
+    private func refreshSnapshotIfNeeded(
+        force: Bool,
+        forwardAction: ValueType?,
+        requester: Identity
+    ) async {
+        if !force,
+           let lastRefreshAt,
+           Date().timeIntervalSince(lastRefreshAt) < 1 {
+            return
+        }
+
+        if let refreshTask {
+            await refreshTask.value
+            return
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performRefresh(
+                forwardAction: forwardAction,
+                requester: requester
+            )
+        }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    @MainActor
+    private func performRefresh(
+        forwardAction: ValueType?,
+        requester: Identity
+    ) async {
+        await AppInitializer.initialize()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let porthole = try? await resolver.cellAtEndpoint(
+                endpoint: "cell:///Porthole",
+                requester: requester
+              ) as? Meddle else {
+            cachedMatchmakingState = Self.matchmakingStateWithStatus(
+                basedOn: cachedMatchmakingState,
+                status: "Anbefalingene bruker siste lokale snapshot fordi Porthole ikke er tilgjengelig.",
+                actionSummary: "Kunne ikke oppdatere anbefalingene akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
+
+        if let forwardAction {
+            let mutationResult = try? await porthole.set(
+                keypath: "conferenceParticipantShell.dispatchAction",
+                value: forwardAction,
+                requester: requester
+            )
+            if let errorDescription = mutationErrorDescription(from: mutationResult) {
+                cachedMatchmakingState = Self.matchmakingStateWithStatus(
+                    basedOn: cachedMatchmakingState,
+                    status: "Anbefalingene beholdt siste stabile snapshot fordi handlingen feilet.",
+                    actionSummary: errorDescription
+                )
+            }
+        }
+
+        do {
+            let matchesValue = try await porthole.get(
+                keypath: "conferenceParticipantShell.state.matches",
+                requester: requester
+            )
+            guard case let .object(matchesObject) = matchesValue else {
+                cachedMatchmakingState = Self.matchmakingStateWithStatus(
+                    basedOn: cachedMatchmakingState,
+                    status: "Anbefalingene returnerte ikke et lesbart snapshot.",
+                    actionSummary: "Bruker siste stabile data."
+                )
+                lastRefreshAt = Date()
+                return
+            }
+
+            cachedMatchmakingState = mergedMatchmakingState(from: matchesObject)
+            lastRefreshAt = Date()
+        } catch {
+            cachedMatchmakingState = Self.matchmakingStateWithStatus(
+                basedOn: cachedMatchmakingState,
+                status: "Anbefalingene bruker siste stabile snapshot.",
+                actionSummary: "Kunne ikke hente oppdatert anbefalingsdata akkurat nå: \(error)"
+            )
+            lastRefreshAt = Date()
+        }
+    }
+
+    private func mergedMatchmakingState(from object: Object) -> Object {
+        var merged = Self.defaultMatchmakingState()
+        for (key, value) in object {
+            merged[key] = value
+        }
+
+        let recommendationRows = listObjects(from: merged["recommendations"])
+        let searchRows = listObjects(from: merged["searchResults"])
+        let derivedRecommendations = recommendationRows.map { recommendationCard(from: $0) }
+        let derivedSearchResults = searchRows.map { followUpConnectionCard(from: $0) }
+        let focusedCard = focusedRecommendationCard(
+            recommendations: recommendationRows,
+            searchResults: searchRows
+        )
+
+        merged["recommendations"] = .list(derivedRecommendations)
+        merged["searchResults"] = .list(derivedSearchResults)
+        merged["statusSummary"] = .string(statusSummary(for: recommendationRows))
+        merged["selectionSummary"] = .string(selectionSummary(for: focusedCard))
+        merged["navigationSummary"] = .string(navigationSummary(for: focusedCard))
+        merged["nextStepSummary"] = .string(nextStepSummary(for: focusedCard))
+        merged["actionSummary"] = .string(recentActionSummary)
+        merged["focusedProfile"] = .object(focusedProfileObject(from: focusedCard))
+        merged["focusedActions"] = .list(focusedActionCards(for: focusedCard))
+        return merged
+    }
+
+    private func recommendationCard(from raw: Object) -> ValueType {
+        let title = cardTitle(from: raw)
+        let subtitle = cardSubtitle(from: raw)
+        let detail = cardDetail(from: raw)
+        let baseNote = cardNote(from: raw)
+        let isFocused = focusedRecommendationName == title
+        let note: String
+        if isFocused {
+            note = "\(baseNote) · Vises i siden nå."
+        } else {
+            note = "\(baseNote) · Trykk Vis i siden for å fokusere."
+        }
+
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note),
+            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(isFocused ? "Valgt i siden" : "Vis i siden"),
+            "payload": .object([
+                "keypath": .string("matchmaking.focusPerson"),
+                "payload": .object([
+                    "displayName": .string(title),
+                    "subtitle": .string(subtitle)
+                ])
+            ])
+        ])
+    }
+
+    private func followUpConnectionCard(from raw: Object) -> ValueType {
+        let title = cardTitle(from: raw)
+        let subtitle = cardSubtitle(from: raw)
+        let detail = cardDetail(from: raw)
+        let baseNote = cardNote(from: raw)
+        let marked = followUpMarkedNames.contains(title)
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(marked ? "\(baseNote) · Markert for oppfølging." : "\(baseNote) · Kan markeres for oppfølging."),
+            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(marked ? "Fjern markering" : "Marker for oppfølging"),
+            "payload": .object([
+                "keypath": .string("matchmaking.toggleFollowUp"),
+                "payload": .object([
+                    "displayName": .string(title),
+                    "subtitle": .string(subtitle)
+                ])
+            ])
+        ])
+    }
+
+    private func statusSummary(for recommendationRows: [Object]) -> String {
+        if recommendationRows.isEmpty {
+            return "Ingen anbefalte deltakere er klare ennå."
+        }
+        return "\(recommendationRows.count) anbefalte deltakere er klare for gjennomgang."
+    }
+
+    private func selectionSummary(for focusedCard: Object?) -> String {
+        guard let focusedCard else {
+            return "Trykk Vis i siden på en anbefaling for å fokusere på personen her."
+        }
+        return "Viser \(cardTitle(from: focusedCard)) i denne siden."
+    }
+
+    private func navigationSummary(for focusedCard: Object?) -> String {
+        if focusedCard == nil {
+            return "Første klikk skjer i denne siden. Du trenger ikke åpne en ny arbeidsflate for å se hvem anbefalingen gjelder."
+        }
+        return "Du ser nå valgt deltaker i denne siden. Herfra kan du starte chat, markere oppfølging eller be om møte."
+    }
+
+    private func nextStepSummary(for focusedCard: Object?) -> String {
+        guard let focusedCard else {
+            return "Velg en anbefalt deltaker med Vis i siden før du tar neste steg."
+        }
+        let title = cardTitle(from: focusedCard)
+        if launchedChatNames.contains(title) {
+            return "Chatten med \(title) er klar. Neste steg er å åpne chatten eller be om møte."
+        }
+        if followUpMarkedNames.contains(title) {
+            return "\(title) er markert for oppfølging. Neste steg er å starte chat eller be om møte."
+        }
+        return "Neste steg for \(title) er å starte chat, markere oppfølging eller be om møte."
+    }
+
+    private func focusedProfileObject(from focusedCard: Object?) -> Object {
+        guard let focusedCard else {
+            return [
+                "selectionBadge": .string("VALGT DELTAKER"),
+                "title": .string("Ingen deltaker valgt ennå"),
+                "subtitle": .string("Anbefalinger"),
+                "detail": .string("Trykk Vis i siden på en anbefaling for å se personens offentlige og lokale oppsummering her."),
+                "note": .string("Dette er standardvisningen før du velger en anbefalt deltaker.")
+            ]
+        }
+
+        return [
+            "selectionBadge": .string("VALGT DELTAKER"),
+            "title": .string(cardTitle(from: focusedCard)),
+            "subtitle": .string(cardSubtitle(from: focusedCard)),
+            "detail": .string(cardDetail(from: focusedCard)),
+            "note": .string(cardNote(from: focusedCard))
+        ]
+    }
+
+    private func focusedActionCards(for focusedCard: Object?) -> [ValueType] {
+        guard let focusedCard else { return [] }
+        let title = cardTitle(from: focusedCard)
+        let subtitle = cardSubtitle(from: focusedCard)
+        let chatReady = launchedChatNames.contains(title)
+        let followUpMarked = followUpMarkedNames.contains(title)
+
+        let chatAction: ValueType = .object([
+            "title": .string("Chat"),
+            "subtitle": .string(chatReady ? "Fortsett samtalen" : "Start samtalen"),
+            "detail": .string(chatReady ? "Åpne chatten med \(title) og fortsett oppfølgingen." : "Start en conference-chat med \(title) fra denne siden."),
+            "note": .string("Dette er den tydeligste neste handlingen når du vil ta kontakt."),
+            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(chatReady ? "Åpne chat" : "Start chat"),
+            "payload": .object([
+                "keypath": .string("discovery.startChat"),
+                "payload": discoveryChatPayload(for: title, subtitle: subtitle)
+            ])
+        ])
+
+        let followUpAction: ValueType = .object([
+            "title": .string("Oppfølging"),
+            "subtitle": .string(followUpMarked ? "Allerede markert" : "Marker neste steg"),
+            "detail": .string(followUpMarked ? "\(title) er markert for oppfølging." : "Marker \(title) for oppfølging så den er lett å finne igjen."),
+            "note": .string("Bruk dette når du vil huske personen uten å starte chat med en gang."),
+            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(followUpMarked ? "Fjern markering" : "Marker for oppfølging"),
+            "payload": .object([
+                "keypath": .string("matchmaking.toggleFollowUp"),
+                "payload": .object([
+                    "displayName": .string(title),
+                    "subtitle": .string(subtitle)
+                ])
+            ])
+        ])
+
+        let meetingAction: ValueType = .object([
+            "title": .string("Møte"),
+            "subtitle": .string("Foreslå et konkret neste steg"),
+            "detail": .string("Be om møte med \(title) hvis du vil gå fra anbefaling til konkret plan."),
+            "note": .string("Bra når du allerede vet at personen er relevant og vil sette opp et faktisk møtetidspunkt."),
+            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string("Be om møte"),
+            "payload": .object([
+                "keypath": .string("scheduling.createMeetingRequest"),
+                "payload": .object([
+                    "source": .string("binding-matchmaking-snapshot"),
+                    "displayName": .string(title)
+                ])
+            ])
+        ])
+
+        return [chatAction, followUpAction, meetingAction]
+    }
+
+    private func focusedRecommendationCard(
+        recommendations: [Object],
+        searchResults: [Object]
+    ) -> Object? {
+        guard let focusedRecommendationName else { return nil }
+        if let recommendation = recommendations.first(where: { cardTitle(from: $0) == focusedRecommendationName }) {
+            return recommendation
+        }
+        if let searchResult = searchResults.first(where: { cardTitle(from: $0) == focusedRecommendationName }) {
+            return searchResult
+        }
+        return nil
+    }
+
+    private func listObjects(from value: ValueType?) -> [Object] {
+        guard case let .list(values)? = value else { return [] }
+        return values.compactMap {
+            guard case let .object(object) = $0 else { return nil }
+            return object
+        }
+    }
+
+    private func cardTitle(from object: Object) -> String {
+        string(from: object["title"]) ??
+        string(from: object["displayName"]) ??
+        "Ukjent deltaker"
+    }
+
+    private func cardSubtitle(from object: Object) -> String {
+        string(from: object["subtitle"]) ??
+        string(from: object["headline"]) ??
+        "Anbefalt deltaker"
+    }
+
+    private func cardDetail(from object: Object) -> String {
+        string(from: object["detail"]) ??
+        "Ingen detalj tilgjengelig."
+    }
+
+    private func cardNote(from object: Object) -> String {
+        string(from: object["note"]) ??
+        "Ingen ekstra kontekst tilgjengelig ennå."
+    }
+
+    private func discoveryChatPayload(for title: String, subtitle: String) -> ValueType {
+        .object([
+            "source": .string("binding-participant-portal-recommendation"),
+            "targets": .list([
+                .object([
+                    "displayName": .string(title),
+                    "headline": .string(subtitle)
+                ])
+            ])
+        ])
+    }
+
+    private func discoveryTargetNames(from payload: ValueType) -> [String] {
+        guard case let .object(payloadObject) = payload else { return [] }
+        if case let .list(targets)? = payloadObject["targets"] {
+            let names = targets.compactMap { target -> String? in
+                guard case let .object(targetObject) = target else { return nil }
+                if let displayName = string(from: targetObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   displayName.isEmpty == false {
+                    return displayName
+                }
+                if let participantId = string(from: targetObject["participantId"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   participantId.isEmpty == false {
+                    return participantId
+                }
+                return nil
+            }
+            if names.isEmpty == false {
+                return names
+            }
+        }
+        if case let .list(participantIds)? = payloadObject["participantIds"] {
+            return participantIds.compactMap { value in
+                guard let raw = string(from: value) else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+        }
+        return []
+    }
+
+    private func string(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case let .string(string):
+            return string
+        case let .integer(integer):
+            return String(integer)
+        case let .number(number):
+            return String(number)
+        case let .float(float):
+            return String(float)
+        case let .bool(bool):
+            return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private func mutationErrorDescription(from value: ValueType?) -> String? {
+        guard let value else { return "Ukjent anbefalingsfeil." }
+        switch value {
+        case let .string(string):
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { return nil }
+            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
+                return trimmed
+            }
+            return nil
+        case let .object(object):
+            if case let .string(status)? = object["status"],
+               status == "error",
+               let message = string(from: object["message"]) {
+                return message
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private static func matchmakingStateWithStatus(
+        basedOn base: Object,
+        status: String,
+        actionSummary: String
+    ) -> Object {
+        var updated = base
+        updated["statusSummary"] = .string(status)
+        updated["actionSummary"] = .string(actionSummary)
+        return updated
+    }
+
+    private static func defaultMatchmakingState() -> Object {
+        [
+            "intro": .string("Disse anbefalingene samler deltakerens formål, interesser og conference-kontekst i én stabil lokal snapshot-flate."),
+            "filterSummary": .string("Filter: alle anbefalte deltakere."),
+            "status": .string("Anbefalingene er klare for gjennomgang."),
+            "recommendationSummary": .string("3 anbefalte deltakere klare for gjennomgang."),
+            "searchSummary": .string("Søkeutvidelsen er klar når du vil spisse treffene. Ingen personer er markert for oppfølging ennå."),
+            "statusSummary": .string("Anbefalingssnapshotet bruker en lokal startflate mens livedata kobler seg til."),
+            "selectionSummary": .string("Trykk Vis i siden på en anbefaling for å fokusere på personen her."),
+            "navigationSummary": .string("Første klikk skjer i denne siden."),
+            "nextStepSummary": .string("Velg en anbefalt deltaker før du tar neste steg."),
+            "actionSummary": .string("Velg Vis i siden for å fokusere på en anbefalt deltaker her."),
+            "recommendations": .list([
+                .object([
+                    "title": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability"),
+                    "detail": .string("Strong match on governance and delivery."),
+                    "note": .string("92% match")
+                ]),
+                .object([
+                    "title": .string("Mads Hovden"),
+                    "subtitle": .string("Policy and compliance"),
+                    "detail": .string("Works with claims, trust, and organization."),
+                    "note": .string("88% match")
+                ]),
+                .object([
+                    "title": .string("Lea Heger"),
+                    "subtitle": .string("Digital service design"),
+                    "detail": .string("Can connect the program to concrete product choices."),
+                    "note": .string("84% match")
+                ])
+            ]),
+            "searchResults": .list([
+                .object([
+                    "title": .string("Governance Forum"),
+                    "subtitle": .string("Nearby people"),
+                    "detail": .string("Found people mentioning governance."),
+                    "note": .string("Local preview")
+                ]),
+                .object([
+                    "title": .string("Trust Infrastructure Lab"),
+                    "subtitle": .string("Shared interests"),
+                    "detail": .string("Shared focus on trust, claims, and operations."),
+                    "note": .string("Suggested follow-up")
+                ])
+            ]),
+            "focusedProfile": .object([
+                "selectionBadge": .string("VALGT DELTAKER"),
+                "title": .string("Ingen deltaker valgt ennå"),
+                "subtitle": .string("Anbefalinger"),
+                "detail": .string("Trykk Vis i siden på en anbefaling for å se personens offentlige og lokale oppsummering her."),
+                "note": .string("Dette er standardvisningen før du velger en anbefalt deltaker.")
+            ]),
+            "focusedActions": .list([])
         ]
     }
 }

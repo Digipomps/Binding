@@ -192,9 +192,17 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `Stop scanner`
   - `Tilbake til deltagerportal`
 - The nearby radar now keeps a focused participant model instead of mixing all follow-up actions into loose nearby cards:
-  - `Velg` focuses one participant
+  - `Vis i siden` focuses one participant inline on the current page
   - the focused participant is rendered in a dedicated `Valgt deltager` area
   - follow-up actions (`Request contact`, `Start chat` / `Open chat`, `Marker for oppfølging`) are derived from the focused participant
+- `Conference Participant Portal` recommendations now use a dedicated local `ConferenceParticipantMatchmakingSnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift), so the portal can:
+  - keep recommendation focus inline on the current page
+  - expose explicit next steps for the focused participant
+  - survive local refresh without snapping tilbake til rå preview-state
+- The participant recommendation flow is now explicit in GUI:
+  - `Vis i siden` focuses one participant inline
+  - `Åpne chat` / `Marker for oppfølging` / `Be om møte` live in the focused participant action surface
+  - separate workbenches remain explicit secondary steps instead of hidden side effects
 - The nearby radar is now more honest about spatial truth:
   - hard direction is only shown when the scanner actually has direction data
   - MPC-only peers are grouped under `Retning usikker` instead of being presented as a fake direction
@@ -211,6 +219,7 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `spatialTruthSummary`
   - `Retning usikker` for approximate peers
 - Latest green targeted checks on March 28, 2026:
+  - `testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
   - `testConferenceNearbyRadarContract`
   - `testConferenceNearbyRadarRenderer`
   - `conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions`

@@ -6578,13 +6578,20 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
         configuration.addReference(discoverySnapshotReference)
 
+        let matchmakingSnapshotReference = CellReference(
+            endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
+            subscribeFeed: false,
+            label: "matchmakingSnapshot"
+        )
+        configuration.addReference(matchmakingSnapshotReference)
+
         let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
         configuration.addReference(nearbyRadarReference)
 
         var root = SkeletonVStack(elements: [
             bindingConferencePortalHeroSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalAgendaSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
-            bindingConferencePortalRecommendationsSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
+            bindingConferencePortalRecommendationsSection(referenceLabel: "matchmakingSnapshot", actionEndpoint: "cell:///ConferenceParticipantMatchmakingSnapshot"),
             bindingConferencePortalDiscoverySection(referenceLabel: "discoverySnapshot"),
             bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: "nearbyRadar"),
             bindingConferencePortalTimelineSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
@@ -7505,26 +7512,66 @@ final class ConfigurationCatalogCell: GeneralCell {
             "Dine Personlige Anbefalinger",
             content: [
                 bindingConferencePortalStaticText(
-                    "Bruk anbefalingene til å velge hvem du vil følge opp. Kortene skal ikke bare forklare hvorfor noen er relevante, men også la deg starte en konkret oppfølging direkte.",
+                    "Bruk anbefalingene til å velge hvem du vil følge opp. Første klikk skjer i denne siden: bruk Vis i siden for å fokusere på en person her. Deretter blir neste steg tydelig under anbefalingene.",
                     fontSize: 12,
                     foregroundColor: "#9AB3C3",
                     lineLimit: 4
                 ),
-                bindingConferencePortalKeyText("\(referenceLabel).state.matches.intro"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.matches.filterSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.matches.status"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.matches.recommendationSummary"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.matches.searchSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.intro"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.filterSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.status"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.recommendationSummary"),
                 .Grid(
                     SkeletonGrid(
                         columns: [.adaptive(min: 220, max: 320)],
                         spacing: 12,
-                        keypath: "\(referenceLabel).state.matches.recommendations",
+                        elements: [
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Status nå",
+                                detailKeypath: "\(referenceLabel).state.statusSummary",
+                                noteKeypath: "\(referenceLabel).state.actionSummary",
+                                accentBorder: "#2F6B56",
+                                accentText: "#B9FBC0",
+                                height: 132
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Valg nå",
+                                detailKeypath: "\(referenceLabel).state.selectionSummary",
+                                noteKeypath: "\(referenceLabel).state.navigationSummary",
+                                accentBorder: "#2A4D61",
+                                accentText: "#B9E6FF",
+                                height: 132
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Neste steg",
+                                detailKeypath: "\(referenceLabel).state.nextStepSummary",
+                                noteKeypath: "\(referenceLabel).state.searchSummary",
+                                accentBorder: "#4D3F2A",
+                                accentText: "#F4D58D",
+                                height: 132
+                            )
+                        ]
+                    )
+                ),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 320)],
+                        spacing: 12,
+                        keypath: "\(referenceLabel).state.recommendations",
                         itemSkeleton: bindingConferencePortalRecommendationCardSkeleton()
                     )
                 ),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
                 bindingConferencePortalCollectionGrid(
-                    keypath: "\(referenceLabel).state.matches.searchResults",
+                    keypath: "\(referenceLabel).state.focusedActions",
+                    itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                ),
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.searchResults",
                     itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                 ),
                 .HStack(
@@ -7904,7 +7951,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
             bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
-            bindingConferencePortalDynamicCardButton(defaultLabel: "Åpne profil")
+            bindingConferencePortalDynamicCardButton(defaultLabel: "Vis i siden")
         ])
         section.modifiers = modifier {
             $0.padding = 12

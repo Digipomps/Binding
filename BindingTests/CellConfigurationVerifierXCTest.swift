@@ -256,6 +256,102 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(firstSearchResult["label"], ValueType.string("Fjern markering"))
     }
 
+    func testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            XCTFail("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            XCTFail("Missing private identity")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            XCTFail("ConferenceParticipantMatchmakingSnapshot did not resolve as Meddle")
+            return
+        }
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: ValueType.object([
+                "keypath": ValueType.string("matchmaking.focusPerson"),
+                "payload": ValueType.object([
+                    "displayName": ValueType.string("Ane Solberg"),
+                    "subtitle": ValueType.string("Public sector interoperability")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: ValueType.object([
+                "keypath": ValueType.string("matchmaking.toggleFollowUp"),
+                "payload": ValueType.object([
+                    "displayName": ValueType.string("Ane Solberg"),
+                    "subtitle": ValueType.string("Public sector interoperability")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: ValueType.object([
+                "keypath": ValueType.string("discovery.startChat"),
+                "payload": ValueType.object([
+                    "source": ValueType.string("binding-test"),
+                    "targets": ValueType.list([
+                        ValueType.object([
+                            "displayName": ValueType.string("Ane Solberg"),
+                            "headline": ValueType.string("Public sector interoperability")
+                        ])
+                    ])
+                ])
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue else {
+            XCTFail("Expected object from matchmaking snapshot")
+            return
+        }
+        guard let focusedProfileValue = object["focusedProfile"],
+              case let .object(focusedProfile) = focusedProfileValue,
+              let focusedActionsValue = object["focusedActions"],
+              case let .list(focusedActions) = focusedActionsValue,
+              let recommendationsValue = object["recommendations"],
+              case let .list(recommendations) = recommendationsValue,
+              case let .object(firstRecommendation)? = recommendations.first else {
+            XCTFail("Expected focused profile, actions, and recommendations in matchmaking snapshot")
+            return
+        }
+
+        XCTAssertEqual(object["selectionSummary"], ValueType.string("Viser Ane Solberg i denne siden."))
+        XCTAssertEqual(focusedProfile["title"], ValueType.string("Ane Solberg"))
+        XCTAssertEqual(firstRecommendation["label"], ValueType.string("Valgt i siden"))
+
+        guard case let .object(chatAction)? = focusedActions.first,
+              case let .object(followUpAction)? = focusedActions.dropFirst().first,
+              case let .object(meetingAction)? = focusedActions.dropFirst(2).first else {
+            XCTFail("Expected three focused actions")
+            return
+        }
+
+        XCTAssertEqual(chatAction["label"], ValueType.string("Åpne chat"))
+        XCTAssertEqual(followUpAction["label"], ValueType.string("Fjern markering"))
+        XCTAssertEqual(meetingAction["label"], ValueType.string("Be om møte"))
+    }
+
 #if canImport(AppKit)
     @MainActor
     func testConferenceParticipantPortalRenderer() async throws {
