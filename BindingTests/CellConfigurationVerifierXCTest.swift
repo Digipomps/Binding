@@ -571,6 +571,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
         XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
         XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Control tower skal ikke rendre utilgjengelighets-tekster i lokal verifier")
     }
 
     @MainActor

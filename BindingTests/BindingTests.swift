@@ -461,7 +461,14 @@ struct BindingTests {
             contentView.localConferencePreviewFallbackConfiguration(
                 for: participantConfiguration,
                 failureDetails: ["Timeout ved lasting av conference preview"]
-            ) == nil
+            )?.cellReferences?.first?.endpoint == "cell:///ConferenceParticipantPreviewShell"
+        )
+
+        #expect(
+            contentView.localConferencePreviewFallbackConfiguration(
+                for: adminConfiguration,
+                failureDetails: ["Innholdet er ikke tilgjengelig akkurat nå."]
+            )?.cellReferences?.first?.endpoint == "cell:///ConferenceAdminPreviewShell"
         )
     }
 
@@ -754,6 +761,36 @@ struct BindingTests {
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+    }
+
+    @Test func conferenceControlTowerRepairRestoresAdminPreviewWiring() {
+        var staleConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceAdminPreviewShell"
+        )
+        staleConfiguration.cellReferences = []
+        staleConfiguration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Text(SkeletonText(keypath: "conferenceAdminShell.state.workspace.title"))
+            ])
+        )
+
+        let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(staleConfiguration)
+
+        #expect(repaired != nil)
+        #expect(repaired?.cellReferences?.contains(where: {
+            $0.label == "conferenceAdminShell" && $0.endpoint == "cell:///ConferenceAdminPreviewShell"
+        }) == true)
+
+        guard let skeleton = repaired?.skeleton else {
+            Issue.record("Expected repaired conference control tower skeleton")
+            return
+        }
+
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.workspace.title", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.content.intro", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.operations.intro", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.insights.dashboardSummary", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "conferenceAdminShell.dispatchAction", in: skeleton))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceParticipantAgendaSnapshotReadable() async throws {

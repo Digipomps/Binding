@@ -3,11 +3,14 @@ import CellBase
 
 enum BindingConferenceConfigurationRepair {
     private static let participantPortalName = "conference participant portal dashboard"
+    private static let controlTowerName = "conference control tower"
 
     static func updatedConfigurationIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration? {
         switch normalizedName(for: configuration) {
         case participantPortalName:
             return updatedParticipantPortalConfigurationIfNeeded(configuration)
+        case controlTowerName:
+            return updatedControlTowerConfigurationIfNeeded(configuration)
         default:
             return nil
         }
@@ -24,6 +27,15 @@ enum BindingConferenceConfigurationRepair {
 
         let endpoint = participantPortalEndpoint(from: configuration)
         return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(endpoint: endpoint)
+    }
+
+    private static func updatedControlTowerConfigurationIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration? {
+        guard controlTowerNeedsRepair(configuration) else {
+            return nil
+        }
+
+        let endpoint = controlTowerEndpoint(from: configuration)
+        return ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(endpoint: endpoint)
     }
 
     private static func participantPortalNeedsRepair(_ configuration: CellConfiguration) -> Bool {
@@ -70,6 +82,35 @@ enum BindingConferenceConfigurationRepair {
             return previewReference.endpoint
         }
         return "cell:///ConferenceParticipantPreviewShell"
+    }
+
+    private static func controlTowerNeedsRepair(_ configuration: CellConfiguration) -> Bool {
+        let references = configuration.cellReferences ?? []
+        let hasAdminReference = references.contains(where: {
+            $0.label == "conferenceAdminShell"
+        })
+        let skeletonJSON = serializedSkeleton(configuration.skeleton)
+        let hasCurrentBindings = skeletonJSON.contains("\"conferenceAdminShell.state.workspace.title\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.content.intro\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.operations.intro\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.insights.dashboardSummary\"")
+            && skeletonJSON.contains("\"contentPublishing.publishDraft\"")
+            && skeletonJSON.contains("\"contentPublishing.discardDraft\"")
+
+        return !(hasAdminReference && hasCurrentBindings)
+    }
+
+    private static func controlTowerEndpoint(from configuration: CellConfiguration) -> String {
+        let references = configuration.cellReferences ?? []
+        if let labeledReference = references.first(where: { $0.label == "conferenceAdminShell" }) {
+            return labeledReference.endpoint
+        }
+        if let previewReference = references.first(where: {
+            endpointIdentity($0.endpoint).hasSuffix("/conferenceadminpreviewshell")
+        }) {
+            return previewReference.endpoint
+        }
+        return "cell:///ConferenceAdminPreviewShell"
     }
 
     private static func normalizedName(for configuration: CellConfiguration) -> String {

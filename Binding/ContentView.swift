@@ -90,6 +90,7 @@ enum SkeletonBindingProbeSupport {
             normalized.hasPrefix("failure") ||
             normalized.contains("notfound") ||
             normalized.contains("midlertidig utilgjengelig") ||
+            normalized.contains("ikke tilgjengelig akkurat nå") ||
             normalized.contains("bad response from the server") ||
             normalized.contains("notconnected") {
             return trimmed
@@ -285,6 +286,7 @@ struct ContentView: View {
     @State private var didAttemptCatalogMenuSync: Bool = false
     @State private var didApplyStoredDemoStart = false
     @State private var didRepairPersistedConferencePortal = false
+    @State private var didRepairPersistedConferenceControlTower = false
     @State private var activeConfiguration: CellConfiguration?
     @State private var presentingFullLibrary: Bool = false
     @State private var loadErrorMessage: String?
@@ -696,6 +698,7 @@ struct ContentView: View {
             refreshDiagnosticsValidation()
             applyStoredDemoStartConfigurationIfNeeded()
             await repairPersistedConferencePortalIfNeeded()
+            await repairPersistedConferenceControlTowerIfNeeded()
         }
     }
 
@@ -2052,6 +2055,72 @@ struct ContentView: View {
         }
     }
 
+    @MainActor
+    private func repairPersistedConferenceControlTowerIfNeeded() async {
+        guard !didRepairPersistedConferenceControlTower else { return }
+        didRepairPersistedConferenceControlTower = true
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let identity = await privateRequesterIdentity(),
+              let porthole = try? await resolver.cellAtEndpoint(
+                endpoint: Self.portholeEndpoint,
+                requester: identity
+              ) as? OrchestratorCell
+        else {
+            return
+        }
+
+        let titleValue = try? await porthole.get(
+            keypath: "conferenceAdminShell.state.workspace.title",
+            requester: identity
+        )
+        guard titleValue == .string("Conference Control Tower") else {
+            return
+        }
+
+        let contentIntro = try? await porthole.get(
+            keypath: "conferenceAdminShell.state.content.intro",
+            requester: identity
+        )
+        let operationsIntro = try? await porthole.get(
+            keypath: "conferenceAdminShell.state.operations.intro",
+            requester: identity
+        )
+        let insightsSummary = try? await porthole.get(
+            keypath: "conferenceAdminShell.state.insights.dashboardSummary",
+            requester: identity
+        )
+
+        if let contentIntro,
+           SkeletonBindingProbeSupport.failureDetail(from: contentIntro) == nil,
+           let operationsIntro,
+           SkeletonBindingProbeSupport.failureDetail(from: operationsIntro) == nil,
+           let insightsSummary,
+           SkeletonBindingProbeSupport.failureDetail(from: insightsSummary) == nil {
+            return
+        }
+
+        diagnosticsStore.record(
+            severity: .warning,
+            domain: "binding.demo",
+            message: "Fant gammel eller ustabil persisted control tower i Porthole. Reparerer til ny organizer-konfigurasjon."
+        )
+
+        let repairedConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration()
+        do {
+            try await porthole.loadCellConfiguration(repairedConfiguration, requester: identity)
+            activeConfiguration = repairedConfiguration
+            diagnosticsStore.refreshValidation(for: repairedConfiguration)
+        } catch {
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.demo",
+                message: "Direkte reparasjon av persisted control tower feilet. Prøver vanlig last: \(error)"
+            )
+            queueConfigurationLoad(repairedConfiguration)
+        }
+    }
+
     private func queueConfigurationLoad(_ configuration: CellConfiguration?) {
         configurationLoadTask?.cancel()
         configurationLoadTask = Task {
@@ -2553,6 +2622,7 @@ struct ContentView: View {
             || normalized.contains("finishedwithoutvalue")
             || normalized.contains("websocket must be connected")
             || normalized.contains("bad response from the server")
+            || normalized.contains("ikke tilgjengelig akkurat nå")
             || normalized.contains("midlertidig utilgjengelig")
     }
 
