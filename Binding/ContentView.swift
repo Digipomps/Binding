@@ -3968,6 +3968,10 @@ struct ContentView: View {
         return Self.blockedLoadedReferenceNames.contains(pathName)
     }
 
+    static func conferenceAdminMenuSeedConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration()
+    }
+
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
         func stagingEndpoint(_ cellName: String) -> String {
             "cell://\(Self.stagingHost)/\(cellName)"
@@ -3986,9 +3990,7 @@ struct ContentView: View {
             conferenceEndpoint: stagingEndpoint("ConferenceParticipantPreviewShell"),
             aiEndpoint: stagingEndpoint("AIGateway")
         )
-        let conferenceAdmin = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
-            endpoint: stagingEndpoint("ConferenceAdminPreviewShell")
-        )
+        let conferenceAdmin = Self.conferenceAdminMenuSeedConfiguration()
         let conferencePublic = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
             endpoint: stagingEndpoint("ConferencePublicShell")
         )

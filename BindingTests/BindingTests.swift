@@ -824,6 +824,18 @@ struct BindingTests {
             $0.label == "conferenceAdminShell" && $0.endpoint.contains("staging.haven.digipomps.org")
         }))
         #expect(configuration.description?.contains("lokal preview-wrapper") == true)
+        #expect(configuration.discovery?.sourceCellName == "ConferenceAdminPreviewShellLocalFallbackCell")
+    }
+
+    @Test func conferenceAdminMenuSeedUsesLocalPreviewInBinding() {
+        let configuration = ContentView.conferenceAdminMenuSeedConfiguration()
+        let references = configuration.cellReferences ?? []
+
+        #expect(references.contains(where: {
+            $0.label == "conferenceAdminShell" && $0.endpoint == "cell:///ConferenceAdminPreviewShell"
+        }))
+        #expect(configuration.discovery?.sourceCellEndpoint == "cell:///ConferenceAdminPreviewShell")
+        #expect(configuration.discovery?.sourceCellName == "ConferenceAdminPreviewShellLocalFallbackCell")
     }
 
     @Test func conferenceControlTowerUsesReferenceLabelForOrganizerActions() {
@@ -2095,7 +2107,8 @@ struct BindingTests {
 
         let configurationData = try JSONEncoder().encode(configuration)
         let configurationString = String(decoding: configurationData, as: UTF8.self)
-        #expect(configuration.discovery?.sourceCellEndpoint == "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell")
+        #expect(configuration.discovery?.sourceCellEndpoint == "cell:///ConferenceAdminPreviewShell")
+        #expect(configuration.discovery?.sourceCellName == "ConferenceAdminPreviewShellLocalFallbackCell")
         #expect(configurationString.contains("conferenceAdminShell.state.workspace.title"))
         #expect(configurationString.contains("conferenceAdminShell.state.content.intro"))
     }

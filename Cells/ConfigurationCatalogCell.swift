@@ -8426,13 +8426,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         displayName: String,
         summary: String
     ) -> CellConfiguration {
+        let usesLocalPreview = endpoint.caseInsensitiveCompare("cell:///ConferenceAdminPreviewShell") == .orderedSame
         var configuration = CellConfiguration(name: displayName)
         configuration.description = summary
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: endpoint,
-            sourceCellName: "ConferenceAdminPreviewShellCell",
+            sourceCellName: usesLocalPreview
+                ? "ConferenceAdminPreviewShellLocalFallbackCell"
+                : "ConferenceAdminPreviewShellCell",
             purpose: "Conference control tower",
-            purposeDescription: "Organizer-focused preview wrapper for operations, content publishing, insights and sponsor overview.",
+            purposeDescription: usesLocalPreview
+                ? "Organizer-focused local preview wrapper in Binding for operations, content publishing, insights and sponsor overview."
+                : "Organizer-focused preview wrapper for operations, content publishing, insights and sponsor overview.",
             interests: ["conference", "admin", "control-tower", "insights", "sponsor", "operations", "preview"],
             menuSlots: ["upperMid", "lowerMid"]
         )
