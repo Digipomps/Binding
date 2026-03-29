@@ -1754,7 +1754,6 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         ].compactMap { $0 }
 
         return [
-            "url": .string("cell:///ConferenceNearbyRadar"),
             "title": .string(entity.displayName),
             "subtitle": .string(directionSubtitle(for: entity, directionIsPrecise: directionIsPrecise)),
             "detail": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
@@ -1763,7 +1762,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
             "note": .string(noteParts.joined(separator: " ")),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("nearbyRadar.dispatchAction"),
             "label": .string(selected ? "Valgt i siden" : "Vis i siden"),
             "payload": .object([
                 "keypath": .string("selectEntity"),
@@ -1925,7 +1924,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                     ? "Discovery-chatten er klar. Åpne den for å fortsette samtalen med \(entity.displayName)."
                     : "Opprett en conference-chat med \(entity.displayName) fra denne nearby-matchen."),
                 "note": .string("Dette er tilgjengelig fordi kontakten allerede er verifisert."),
-                "keypath": .string("dispatchAction"),
+                "keypath": .string("nearbyRadar.dispatchAction"),
                 "label": .string(hasLaunchedChat ? "Åpne chat" : "Start chat"),
                 "payload": .object([
                     "keypath": .string("openFollowUpChat"),
@@ -1938,7 +1937,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 "subtitle": .string("Be om signert kontakt"),
                 "detail": .string("Etabler kontakt først. Når den er verifisert, kan du starte chat med høyere presisjon i match-signalet."),
                 "note": .string(contactSignalsById[remoteUUID]?.summary ?? "Kontaktbeviset er første steg før verifisert purpose/interest-match."),
-                "keypath": .string("dispatchAction"),
+                "keypath": .string("nearbyRadar.dispatchAction"),
                 "label": .string(contactSignalsById[remoteUUID]?.actionLabel ?? "Be om kontakt"),
                 "payload": .object([
                     "keypath": .string("requestContact"),
@@ -1957,7 +1956,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "note": .string(markedForFollowUp
                 ? "Bruk dette hvis du vil rydde fokuslisten igjen."
                 : "Passer når du vil komme tilbake etter sesjonen eller senere i dagen."),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("nearbyRadar.dispatchAction"),
             "label": .string(markedForFollowUp ? "Fjern markering" : "Marker for oppfølging"),
             "payload": .object([
                 "keypath": .string("toggleFollowUp"),
@@ -2624,8 +2623,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(updatedNote),
-            "url": .string("cell:///ConferenceParticipantPreviewShell"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("conferenceParticipantShell.dispatchAction"),
             "label": .string(actionLabel),
             "payload": .object([
                 "keypath": .string(actionKeypath),
@@ -2649,8 +2647,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(chatReady ? "\(note) · Chat klar." : "\(note) · Start chat når du er klar."),
-            "url": .string("cell:///ConferenceParticipantPreviewShell"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("conferenceParticipantShell.dispatchAction"),
             "label": .string(chatReady ? "Åpne chat" : "Start chat"),
             "payload": .object([
                 "keypath": .string("discovery.startChat"),
@@ -2666,8 +2663,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(marked ? "\(note) · Markert for oppfølging." : "\(note) · Kan markeres for oppfølging."),
-            "url": .string("cell:///ConferenceParticipantPreviewShell"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("conferenceParticipantShell.dispatchAction"),
             "label": .string(marked ? "Fjern markering" : "Marker for oppfølging"),
             "payload": .object([
                 "keypath": .string("matchmaking.toggleFollowUp"),
@@ -2685,8 +2681,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string("\(note) · Start group chat when the group is ready."),
-            "url": .string("cell:///ConferenceParticipantPreviewShell"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("conferenceParticipantShell.dispatchAction"),
             "label": .string("Start group chat"),
             "payload": .object([
                 "keypath": .string("discovery.startGroupChat"),
@@ -3068,8 +3063,7 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
-            "url": .string("cell:///ConferenceParticipantAgendaSnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("agendaSnapshot.dispatchAction"),
             "label": .string(label),
             "payload": .object([
                 "keypath": .string(actionKeypath),
@@ -3143,8 +3137,7 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
-            "url": .string("cell:///ConferenceParticipantAgendaSnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("agendaSnapshot.dispatchAction"),
             "label": .string(label),
             "payload": .object([
                 "keypath": .string(actionKeypath),
@@ -3868,8 +3861,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
-            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("discoverySnapshot.dispatchAction"),
             "label": .string(label),
             "payload": .object([
                 "keypath": .string(actionKeypath),
@@ -3888,8 +3880,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
-            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("discoverySnapshot.dispatchAction"),
             "label": .string("Start gruppesamtale"),
             "payload": .object([
                 "keypath": .string("discovery.startGroupChat"),
@@ -3974,8 +3965,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "subtitle": .string(chatReady ? "Fortsett discovery-chatten" : "Start discovery-chat"),
             "detail": .string(chatReady ? "Åpne chatten med \(title) og fortsett oppfølgingen." : "Start en discovery-chat med \(title) fra denne siden."),
             "note": .string("Dette er det tydeligste neste steget når discovery-kandidaten virker lovende."),
-            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("discoverySnapshot.dispatchAction"),
             "label": .string(chatReady ? "Åpne chat" : "Start chat"),
             "payload": .object([
                 "keypath": .string("discovery.startChat"),
@@ -3988,8 +3978,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "subtitle": .string(followUpMarked ? "Allerede markert" : "Marker neste steg"),
             "detail": .string(followUpMarked ? "\(title) er markert for oppfølging." : "Marker \(title) for oppfølging så discovery-sporet blir lett å komme tilbake til."),
             "note": .string("Bruk dette når du vil holde fast i kandidaten uten å starte chat med en gang."),
-            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("discoverySnapshot.dispatchAction"),
             "label": .string(followUpMarked ? "Fjern markering" : "Marker for oppfølging"),
             "payload": .object([
                 "keypath": .string("matchmaking.toggleFollowUp"),
@@ -4005,8 +3994,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "subtitle": .string("Foreslå et konkret neste steg"),
             "detail": .string("Be om møte med \(title) hvis du vil gå fra discovery til konkret plan."),
             "note": .string("Bra når du allerede vet at kandidaten er relevant og vil sette opp et faktisk møtetidspunkt."),
-            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("discoverySnapshot.dispatchAction"),
             "label": .string("Be om møte"),
             "payload": .object([
                 "keypath": .string("scheduling.createMeetingRequest"),
@@ -4505,8 +4493,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
-            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("matchmakingSnapshot.dispatchAction"),
             "label": .string(isFocused ? "Valgt i siden" : "Vis i siden"),
             "payload": .object([
                 "keypath": .string("matchmaking.focusPerson"),
@@ -4529,8 +4516,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(marked ? "\(baseNote) · Markert for oppfølging." : "\(baseNote) · Kan markeres for oppfølging."),
-            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("matchmakingSnapshot.dispatchAction"),
             "label": .string(marked ? "Fjern markering" : "Marker for oppfølging"),
             "payload": .object([
                 "keypath": .string("matchmaking.toggleFollowUp"),
@@ -4609,8 +4595,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "subtitle": .string(chatReady ? "Fortsett samtalen" : "Start samtalen"),
             "detail": .string(chatReady ? "Åpne chatten med \(title) og fortsett oppfølgingen." : "Start en conference-chat med \(title) fra denne siden."),
             "note": .string("Dette er den tydeligste neste handlingen når du vil ta kontakt."),
-            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("matchmakingSnapshot.dispatchAction"),
             "label": .string(chatReady ? "Åpne chat" : "Start chat"),
             "payload": .object([
                 "keypath": .string("discovery.startChat"),
@@ -4623,8 +4608,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "subtitle": .string(followUpMarked ? "Allerede markert" : "Marker neste steg"),
             "detail": .string(followUpMarked ? "\(title) er markert for oppfølging." : "Marker \(title) for oppfølging så den er lett å finne igjen."),
             "note": .string("Bruk dette når du vil huske personen uten å starte chat med en gang."),
-            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("matchmakingSnapshot.dispatchAction"),
             "label": .string(followUpMarked ? "Fjern markering" : "Marker for oppfølging"),
             "payload": .object([
                 "keypath": .string("matchmaking.toggleFollowUp"),
@@ -4640,8 +4624,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "subtitle": .string("Foreslå et konkret neste steg"),
             "detail": .string("Be om møte med \(title) hvis du vil gå fra anbefaling til konkret plan."),
             "note": .string("Bra når du allerede vet at personen er relevant og vil sette opp et faktisk møtetidspunkt."),
-            "url": .string("cell:///ConferenceParticipantMatchmakingSnapshot"),
-            "keypath": .string("dispatchAction"),
+            "keypath": .string("matchmakingSnapshot.dispatchAction"),
             "label": .string("Be om møte"),
             "payload": .object([
                 "keypath": .string("scheduling.createMeetingRequest"),

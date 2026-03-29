@@ -57,18 +57,17 @@ enum BindingConferenceConfigurationRepair {
             && skeletonJSON.contains("\"agendaSnapshot.state.modeChoices\"")
             && skeletonJSON.contains("\"agendaSnapshot.state.trackChoices\"")
             && skeletonJSON.contains("\"agendaSnapshot.state.focusedActions\"")
-            && skeletonJSON.contains("\"url\":\"cell:///ConferenceParticipantAgendaSnapshot\"")
+            && skeletonJSON.contains("\"keypath\":\"agendaSnapshot.dispatchAction\"")
         let hasMatchmakingSnapshotBindings = skeletonJSON.contains("\"matchmakingSnapshot.state.statusSummary\"")
             && skeletonJSON.contains("\"matchmakingSnapshot.state.focusedProfile.title\"")
-            && skeletonJSON.contains("\"url\":\"cell:///ConferenceParticipantMatchmakingSnapshot\"")
+            && skeletonJSON.contains("\"keypath\":\"matchmakingSnapshot.dispatchAction\"")
         let hasDiscoverySnapshotBindings = skeletonJSON.contains("\"discoverySnapshot.state.statusSummary\"")
             && skeletonJSON.contains("\"discoverySnapshot.state.focusedProfile.title\"")
-            && skeletonJSON.contains("\"url\":\"cell:///ConferenceParticipantDiscoverySnapshot\"")
-        let hasNearbyDirectDispatchAction = skeletonJSON.contains("\"url\":\"cell:///ConferenceNearbyRadar\"")
-            && skeletonJSON.contains("\"keypath\":\"dispatchAction\"")
+            && skeletonJSON.contains("\"keypath\":\"discoverySnapshot.dispatchAction\"")
+        let hasNearbyActionBindings = skeletonJSON.contains("\"keypath\":\"nearbyRadar.dispatchAction\"")
         let hasNearbySnapshotReference = skeletonJSON.contains("\"nearbyRadar.snapshot\"")
 
-        return !(hasAgendaSnapshotReference && hasAgendaSnapshotBindings && hasMatchmakingSnapshotReference && hasMatchmakingSnapshotBindings && hasDiscoverySnapshotReference && hasDiscoverySnapshotBindings && hasNearbyRadarReference && hasNearbyDirectDispatchAction && hasNearbySnapshotReference)
+        return !(hasAgendaSnapshotReference && hasAgendaSnapshotBindings && hasMatchmakingSnapshotReference && hasMatchmakingSnapshotBindings && hasDiscoverySnapshotReference && hasDiscoverySnapshotBindings && hasNearbyRadarReference && hasNearbyActionBindings && hasNearbySnapshotReference)
     }
 
     private static func participantPortalEndpoint(from configuration: CellConfiguration) -> String {

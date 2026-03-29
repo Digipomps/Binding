@@ -6597,12 +6597,12 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var root = SkeletonVStack(elements: [
             bindingConferencePortalHeroSection(referenceLabel: "conferenceParticipantShell"),
-            bindingConferencePortalAgendaSection(referenceLabel: "agendaSnapshot", actionEndpoint: "cell:///ConferenceParticipantAgendaSnapshot"),
-            bindingConferencePortalRecommendationsSection(referenceLabel: "matchmakingSnapshot", actionEndpoint: "cell:///ConferenceParticipantMatchmakingSnapshot"),
+            bindingConferencePortalAgendaSection(referenceLabel: "agendaSnapshot"),
+            bindingConferencePortalRecommendationsSection(referenceLabel: "matchmakingSnapshot"),
             bindingConferencePortalDiscoverySection(referenceLabel: "discoverySnapshot"),
             bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: "nearbyRadar"),
-            bindingConferencePortalTimelineSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
-            bindingConferencePortalNetworkSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
+            bindingConferencePortalTimelineSection(referenceLabel: "conferenceParticipantShell"),
+            bindingConferencePortalNetworkSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalCardSection(
                 "Runtime Notes",
                 content: [
@@ -6719,32 +6719,20 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("nearbyRadar.state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
                     .HStack(
                         SkeletonHStack(elements: [
-                            bindingConferenceDirectActionButton(
-                                keypath: "dispatchAction",
-                                label: "Start scanner",
-                                payload: .object([
-                                    "keypath": .string("start"),
-                                    "payload": .bool(true)
-                                ]),
-                                url: "cell:///ConferenceNearbyRadar"
+                            bindingConferencePortalActionButton(
+                                "nearbyRadar",
+                                actionKeypath: "start",
+                                label: "Start scanner"
                             ),
-                            bindingConferenceDirectActionButton(
-                                keypath: "dispatchAction",
-                                label: "Stop scanner",
-                                payload: .object([
-                                    "keypath": .string("stop"),
-                                    "payload": .bool(true)
-                                ]),
-                                url: "cell:///ConferenceNearbyRadar"
+                            bindingConferencePortalActionButton(
+                                "nearbyRadar",
+                                actionKeypath: "stop",
+                                label: "Stop scanner"
                             ),
-                            bindingConferenceDirectActionButton(
-                                keypath: "dispatchAction",
-                                label: "Tilbake til portalen",
-                                payload: .object([
-                                    "keypath": .string("openParticipantPortalWorkbench"),
-                                    "payload": .bool(true)
-                                ]),
-                                url: "cell:///ConferenceNearbyRadar"
+                            bindingConferencePortalActionButton(
+                                "nearbyRadar",
+                                actionKeypath: "openParticipantPortalWorkbench",
+                                label: "Tilbake til portalen"
                             )
                         ])
                     ),
@@ -6966,23 +6954,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                     ),
                     .HStack(
                         SkeletonHStack(elements: [
-                            bindingConferenceDirectActionButton(
-                                keypath: "dispatchAction",
-                                label: "Åpne full radar",
-                                payload: .object([
-                                    "keypath": .string("openExpandedRadarWorkbench"),
-                                    "payload": .bool(true)
-                                ]),
-                                url: "cell:///ConferenceNearbyRadar"
+                            bindingConferencePortalActionButton(
+                                "nearbyRadar",
+                                actionKeypath: "openExpandedRadarWorkbench",
+                                label: "Åpne full radar"
                             ),
-                            bindingConferenceDirectActionButton(
-                                keypath: "dispatchAction",
-                                label: "Tilbake til portalen",
-                                payload: .object([
-                                    "keypath": .string("openParticipantPortalWorkbench"),
-                                    "payload": .bool(true)
-                                ]),
-                                url: "cell:///ConferenceNearbyRadar"
+                            bindingConferencePortalActionButton(
+                                "nearbyRadar",
+                                actionKeypath: "openParticipantPortalWorkbench",
+                                label: "Tilbake til portalen"
                             )
                         ])
                     )
@@ -7396,7 +7376,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    private static func bindingConferencePortalAgendaSection(referenceLabel: String, actionEndpoint: String) -> SkeletonElement {
+    private static func bindingConferencePortalAgendaSection(referenceLabel: String) -> SkeletonElement {
         bindingConferencePortalCardSection(
             "Min Agenda",
             content: [
@@ -7504,7 +7484,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    private static func bindingConferencePortalRecommendationsSection(referenceLabel: String, actionEndpoint: String) -> SkeletonElement {
+    private static func bindingConferencePortalRecommendationsSection(referenceLabel: String) -> SkeletonElement {
         bindingConferencePortalCardSection(
             "Dine Personlige Anbefalinger",
             content: [
@@ -7576,28 +7556,24 @@ final class ConfigurationCatalogCell: GeneralCell {
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "matchmaking.refreshRecommendations",
-                            label: "Oppdater treff",
-                            url: actionEndpoint
+                            label: "Oppdater treff"
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "matchmaking.setFilters",
-                            label: "Bytt filter",
-                            url: actionEndpoint
+                            label: "Bytt filter"
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "matchmaking.searchPeople",
                             label: "Søk governance",
-                            payload: .object(["query": .string("governance")]),
-                            url: actionEndpoint
+                            payload: .object(["query": .string("governance")])
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "scheduling.createMeetingRequest",
                             label: "Be om møte",
-                            payload: .object(["source": .string("participant-shell")]),
-                            url: actionEndpoint
+                            payload: .object(["source": .string("participant-shell")])
                         )
                     ])
                 )
@@ -7605,7 +7581,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    private static func bindingConferencePortalTimelineSection(referenceLabel: String, actionEndpoint: String) -> SkeletonElement {
+    private static func bindingConferencePortalTimelineSection(referenceLabel: String) -> SkeletonElement {
         bindingConferencePortalCardSection(
             "Min Tidslinje",
             content: [
@@ -7629,20 +7605,17 @@ final class ConfigurationCatalogCell: GeneralCell {
                             referenceLabel,
                             actionKeypath: "scheduling.createMeetingRequest",
                             label: "Be om møte",
-                            payload: .object(["source": .string("binding-participant-portal")]),
-                            url: actionEndpoint
+                            payload: .object(["source": .string("binding-participant-portal")])
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "scheduling.exportICal",
-                            label: "Forbered iCal",
-                            url: actionEndpoint
+                            label: "Forbered iCal"
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "scheduling.respondMeetingRequest",
-                            label: "Godta ventende",
-                            url: actionEndpoint
+                            label: "Godta ventende"
                         )
                     ])
                 )
@@ -7730,13 +7703,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                     .HStack(
                         SkeletonHStack(elements: [
                             bindingConferenceDirectActionButton(
-                                keypath: "dispatchAction",
+                                keypath: "\(referenceLabel).dispatchAction",
                                 label: "Oppdater discovery",
                                 payload: .object([
                                     "keypath": .string("refresh"),
                                     "payload": .bool(true)
-                                ]),
-                                url: "cell:///ConferenceParticipantDiscoverySnapshot"
+                                ])
                             )
                         ])
                     )
@@ -7747,7 +7719,6 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     private static func bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: String) -> SkeletonElement {
-        let nearbyRadarEndpoint = "cell:///ConferenceNearbyRadar"
         var snapshotReference = SkeletonCellReference(keypath: scannerReferenceLabel, topic: "nearbyRadar.snapshot")
         var snapshotStack = SkeletonVStack(elements: [
             bindingConferencePortalKeyText("headline", fontSize: 14, fontWeight: "bold", foregroundColor: "#F5FBFF"),
@@ -7898,32 +7869,20 @@ final class ConfigurationCatalogCell: GeneralCell {
             ),
             .HStack(
                 SkeletonHStack(elements: [
-                        bindingConferenceDirectActionButton(
-                            keypath: "dispatchAction",
-                            label: "Start scanner",
-                            payload: .object([
-                                "keypath": .string("start"),
-                                "payload": .bool(true)
-                            ]),
-                            url: nearbyRadarEndpoint
+                        bindingConferencePortalActionButton(
+                            scannerReferenceLabel,
+                            actionKeypath: "start",
+                            label: "Start scanner"
                         ),
-                        bindingConferenceDirectActionButton(
-                            keypath: "dispatchAction",
-                            label: "Stop scanner",
-                            payload: .object([
-                                "keypath": .string("stop"),
-                                "payload": .bool(true)
-                            ]),
-                            url: nearbyRadarEndpoint
+                        bindingConferencePortalActionButton(
+                            scannerReferenceLabel,
+                            actionKeypath: "stop",
+                            label: "Stop scanner"
                         ),
-                        bindingConferenceDirectActionButton(
-                            keypath: "dispatchAction",
-                            label: "Åpne full radar",
-                            payload: .object([
-                                "keypath": .string("openExpandedRadarWorkbench"),
-                                "payload": .bool(true)
-                            ]),
-                            url: nearbyRadarEndpoint
+                        bindingConferencePortalActionButton(
+                            scannerReferenceLabel,
+                            actionKeypath: "openExpandedRadarWorkbench",
+                            label: "Åpne full radar"
                         ),
                     ])
                 ),
@@ -7941,14 +7900,10 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
                 .HStack(
                     SkeletonHStack(elements: [
-                        bindingConferenceDirectActionButton(
-                            keypath: "dispatchAction",
-                            label: "Åpne profilflate",
-                            payload: .object([
-                                "keypath": .string("openSelectedParticipantWorkbench"),
-                                "payload": .bool(true)
-                            ]),
-                            url: nearbyRadarEndpoint
+                        bindingConferencePortalActionButton(
+                            scannerReferenceLabel,
+                            actionKeypath: "openSelectedParticipantWorkbench",
+                            label: "Åpne profilflate"
                         )
                     ])
                 ),
@@ -7963,7 +7918,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    private static func bindingConferencePortalNetworkSection(referenceLabel: String, actionEndpoint: String) -> SkeletonElement {
+    private static func bindingConferencePortalNetworkSection(referenceLabel: String) -> SkeletonElement {
         bindingConferencePortalCardSection(
             "Nettverks-Hub",
             content: [
@@ -7995,14 +7950,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                             payload: .object([
                                 "text": .string("Takk for praten. Skal vi fortsette etter neste sesjon?"),
                                 "contentType": .string("text/plain")
-                            ]),
-                            url: actionEndpoint
+                            ])
                         ),
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "scheduling.respondMeetingRequest",
-                            label: "Vurder forespørsel",
-                            url: actionEndpoint
+                            label: "Vurder forespørsel"
                         )
                     ])
                 )

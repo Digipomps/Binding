@@ -701,12 +701,12 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("agendaSnapshot.state.focusedActions", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.modeChoices", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.trackChoices", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantAgendaSnapshot", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "agendaSnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.statusSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.selectionSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.focusedProfile.title", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.actionSummary", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantMatchmakingSnapshot", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "matchmakingSnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
         #expect(skeletonContainsTextKeypath("status", in: skeleton))
         #expect(skeletonContainsTextKeypath("nextAction", in: skeleton))
@@ -718,8 +718,8 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectionSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "discoverySnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
     }
 
@@ -753,14 +753,34 @@ struct BindingTests {
             return
         }
 
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantAgendaSnapshot", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "agendaSnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.modeChoices", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.trackChoices", in: skeleton))
         #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantMatchmakingSnapshot", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "matchmakingSnapshot.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "discoverySnapshot.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+    }
+
+    @Test func conferenceParticipantPortalUsesReferenceLabelsForLocalConferenceActions() {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Conference participant portal mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsButton(keypath: "agendaSnapshot.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "matchmakingSnapshot.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "discoverySnapshot.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
+        #expect(!skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantAgendaSnapshot", in: skeleton))
+        #expect(!skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantMatchmakingSnapshot", in: skeleton))
+        #expect(!skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
+        #expect(!skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
     }
 
     @Test func conferenceControlTowerRepairRestoresAdminPreviewWiring() {
@@ -3427,13 +3447,7 @@ struct CellConfigurationVerifierTests {
                 "Vis for deg",
                 "Vis timeline",
                 "Vis lagret",
-                "Fokuser governance",
-                "Oppdater treff",
-                "Bytt filter",
-                "Søk governance",
-                "Oppdater discovery",
-                "Åpne full radar",
-                "Åpne profilflate"
+                "Fokuser governance"
             ],
             rootProbes: [
                 .init(label: "agendaSnapshot", rootKeypath: "state"),

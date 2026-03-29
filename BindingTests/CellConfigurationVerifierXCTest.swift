@@ -19,13 +19,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Vis for deg",
                 "Vis timeline",
                 "Vis lagret",
-                "Fokuser governance",
-                "Oppdater treff",
-                "Bytt filter",
-                "Søk governance",
-                "Oppdater discovery",
-                "Åpne full radar",
-                "Åpne profilflate"
+                "Fokuser governance"
             ],
             rootProbes: [
                 .init(label: "agendaSnapshot", rootKeypath: "state"),
