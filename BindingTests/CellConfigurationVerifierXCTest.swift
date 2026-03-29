@@ -24,10 +24,14 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Bytt filter",
                 "Søk governance",
                 "Oppdater discovery",
-                "Start scanner",
-                "Stop scanner",
                 "Åpne radarflate",
                 "Åpne profilflate"
+            ],
+            rootProbes: [
+                .init(label: "agendaSnapshot", rootKeypath: "state"),
+                .init(label: "matchmakingSnapshot", rootKeypath: "state"),
+                .init(label: "discoverySnapshot", rootKeypath: "state"),
+                .init(label: "nearbyRadar", rootKeypath: "state")
             ]
         )
 
@@ -448,6 +452,69 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(meetingAction["label"], ValueType.string("Be om møte"))
     }
 
+    func testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            XCTFail("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            XCTFail("Missing private identity")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantAgendaSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            XCTFail("ConferenceParticipantAgendaSnapshot did not resolve as Meddle")
+            return
+        }
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("agenda.setView"),
+                "payload": .object([
+                    "view": .string("timeline")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("agenda.setTrackFocus"),
+                "payload": .object([
+                    "trackId": .string("track-governance")
+                ])
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue,
+              case let .list(focusedActions)? = object["focusedActions"],
+              case let .object(firstAction)? = focusedActions.first,
+              case let .object(secondAction)? = focusedActions.dropFirst().first,
+              case let .object(fourthAction)? = focusedActions.dropFirst(3).first else {
+            XCTFail("Expected agenda snapshot state with focused actions")
+            return
+        }
+
+        XCTAssertEqual(object["statusSummary"], ValueType.string("Viser timeline med governance i fokus."))
+        XCTAssertEqual(object["selectionSummary"], ValueType.string("Viser timeline med Governance i fokus."))
+        XCTAssertEqual(object["actionSummary"], ValueType.string("Governance er nå i fokus i denne siden."))
+        XCTAssertEqual(firstAction["label"], ValueType.string("Vis for deg"))
+        XCTAssertEqual(secondAction["label"], ValueType.string("Viser nå"))
+        XCTAssertEqual(fourthAction["label"], ValueType.string("Vis alle spor"))
+    }
+
 #if canImport(AppKit)
     @MainActor
     func testConferenceParticipantPortalRenderer() async throws {
@@ -467,6 +534,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
         XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
         XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Participant-portalen skal ikke rendre utilgjengelighets-tekster i lokal verifier")
     }
 
     @MainActor

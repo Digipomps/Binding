@@ -37,6 +37,7 @@ This is not a replacement for live staging auth/bridge debugging. It is a local 
 Current conference surfaces:
 
 - `Conference Participant Portal`
+- `Conference Participant Agenda Snapshot`
 - `Conference Nearby Radar`
 - `Conference Participant Nearby Follow-Up`
 - `Conference Control Tower`
@@ -47,9 +48,14 @@ Current contract assertions:
 - all flattened `CellReference`s resolve
 - all root probes are readable
 - selected actions return `ok`
+- large composed conference pages can now use explicit composition probes instead of brute-forcing every inferred root probe
 
 Current participant actions exercised:
 
+- `Vis for deg`
+- `Vis timeline`
+- `Vis lagret`
+- `Fokuser governance`
 - `Hele timeline`
 - `Oppdater treff`
 - `Oppdater discovery`
@@ -57,6 +63,23 @@ Current participant actions exercised:
 - `Stop scanner`
 - `Åpne radarflate`
 - `Åpne profilflate`
+
+Current participant agenda assertions:
+
+- the participant portal resolves a local `ConferenceParticipantAgendaSnapshot`
+- agenda actions stay deterministic even when bridge or preview refresh fails after the local click
+- the participant portal contract now probes its composed snapshot surfaces directly:
+  - `agendaSnapshot.state`
+  - `matchmakingSnapshot.state`
+  - `discoverySnapshot.state`
+  - `nearbyRadar.state`
+- the local snapshot preserves:
+  - selected agenda mode
+  - selected track focus
+  - focused action labels
+  - next-step guidance
+- transient sync issues now surface through `storageSummary` / `persistenceStatus` instead of resetting the visible agenda state
+- the local participant renderer path now expects `0` occurrences of `Innholdet er ikke tilgjengelig akkurat nå.`
 
 Current participant recommendation assertions:
 
@@ -183,6 +206,7 @@ Targeted green checks:
 
 - `./Scripts/run_conference_configuration_verifier.sh participant contract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
@@ -197,6 +221,7 @@ Targeted green checks:
 Observed isolated timings from the latest green checks:
 
 - `Conference Participant Portal` contract: about `1.55s`
+- `Conference Participant Agenda Snapshot` focused-action contract: about `6.45s`
 - `Conference Participant Matchmaking Snapshot` focused-action contract: about `1.92s`
 - `Conference Participant Discovery Snapshot` focused-action contract: about `3.90s`
 - `Conference Nearby Radar` contract: about `1.55s`
@@ -221,6 +246,7 @@ The verifier forced us to fix several real issues:
 - nearby follow-up chat needed deterministic local injection and post-action state reads, otherwise we could falsely pass or fail depending on shared runtime state
 - participant recommendations used to depend too directly on raw preview-shell state; the local matchmaking snapshot and its focused-action verifier now catch regressions in inline selection, follow-up marking, and chat handoff
 - participant discovery used to depend on fragile live access through Porthole internals; the local discovery snapshot and its direct preview fallback now catch regressions in inline selection, focused actions, and follow-up state without hanging
+- the agenda snapshot used to reset back to stale `viewSummary` / `trackSummary` values after a local click whenever the remote refresh path glitched; the focused-action contract test now catches that optimistic-state regression
 - the nearby radar used to blur together “nearby” and “direction known”; the focused-state test now catches that by requiring `Retning usikker` and a selected participant action surface
 - coarse root probes like `conferenceParticipantShell.state` could report `notFound` even when the surface itself was readable through real descendant bindings
 - running multiple verifier targets in one `xcodebuild` process allowed shared Porthole/runtime state to leak between tests

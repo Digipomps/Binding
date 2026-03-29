@@ -10,6 +10,7 @@ Current green baseline:
 Covered surfaces:
 
 - `Conference Participant Portal`
+- `Conference Participant Agenda Snapshot`
 - `Conference Nearby Radar`
 - `Conference Participant Nearby Follow-Up`
 - `Conference Control Tower`
@@ -17,6 +18,8 @@ Covered surfaces:
 Covered layers:
 
 - contract verification for references, root probes, and selected actions
+- contract verification for the participant-local agenda snapshot, including optimistic mode/track updates when bridge refresh lags
+- participant-portal contract probing is now intentionally composition-oriented: the portal checks its key snapshot surfaces directly instead of brute-forcing the whole page
 - contract verification for the dedicated nearby-radar workbench, including start/stop and return-to-portal routing
 - contract verification for nearby scanner start/requestContact/verified follow-up/stop
 - contract verification for the participant-local matchmaking snapshot, including inline focus, follow-up marking, and chat handoff
@@ -30,6 +33,7 @@ Current UX decision:
 - `Vis i siden` means “focus this participant here”
 - participant recommendations now follow that same rule through a local `ConferenceParticipantMatchmakingSnapshot`
 - participant discovery now follows that same rule through a local `ConferenceParticipantDiscoverySnapshot`
+- participant agenda now follows that same rule through a local `ConferenceParticipantAgendaSnapshot`
 - `Åpne radarflate` and `Åpne profilflate` mean “open a separate workbench in Porthole”
 - do not hide that transition behind a generic button label
 - avoid overlay/modal as the primary pattern for now; the current skeleton/runtime model is better served by explicit inline focus first and explicit workbench expansion second
@@ -46,10 +50,10 @@ Next recommended engineering steps:
    - honest MPC-only uncertainty
    - clearer UWB-ready direction/distance presentation
    - visible selected-entity follow-up state
-2. Make the participant-portal buttons even more self-explanatory in GUI state:
-   - selected agenda mode
-   - selected track focus
-   - short action feedback after clicks
+2. Turn the agenda snapshot into visible GUI feedback, not just contract safety:
+   - selected agenda mode should be obvious at a glance
+   - selected track focus should read like an active chip, not bare text
+   - local sync warnings should surface without resetting the visible selection
 3. Make the inline participant selection pattern consistent across nearby, recommendations, and discovery:
    - `Åpne profil`
    - `Marker for oppfølging`

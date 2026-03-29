@@ -6571,6 +6571,13 @@ final class ConfigurationCatalogCell: GeneralCell {
         reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
         configuration.addReference(reference)
 
+        let agendaSnapshotReference = CellReference(
+            endpoint: "cell:///ConferenceParticipantAgendaSnapshot",
+            subscribeFeed: false,
+            label: "agendaSnapshot"
+        )
+        configuration.addReference(agendaSnapshotReference)
+
         let discoverySnapshotReference = CellReference(
             endpoint: "cell:///ConferenceParticipantDiscoverySnapshot",
             subscribeFeed: false,
@@ -6590,7 +6597,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var root = SkeletonVStack(elements: [
             bindingConferencePortalHeroSection(referenceLabel: "conferenceParticipantShell"),
-            bindingConferencePortalAgendaSection(referenceLabel: "conferenceParticipantShell", actionEndpoint: endpoint),
+            bindingConferencePortalAgendaSection(referenceLabel: "agendaSnapshot", actionEndpoint: "cell:///ConferenceParticipantAgendaSnapshot"),
             bindingConferencePortalRecommendationsSection(referenceLabel: "matchmakingSnapshot", actionEndpoint: "cell:///ConferenceParticipantMatchmakingSnapshot"),
             bindingConferencePortalDiscoverySection(referenceLabel: "discoverySnapshot"),
             bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: "nearbyRadar"),
@@ -7378,8 +7385,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                     foregroundColor: "#9AB3C3",
                     lineLimit: 4
                 ),
-                bindingConferencePortalKeyText("\(referenceLabel).state.program.intro"),
-                bindingConferencePortalKeyText("\(referenceLabel).state.program.agendaSummary"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.intro"),
+                bindingConferencePortalKeyText("\(referenceLabel).state.agendaSummary"),
                 .Grid(
                     SkeletonGrid(
                         columns: [.adaptive(min: 220, max: 320)],
@@ -7387,29 +7394,29 @@ final class ConfigurationCatalogCell: GeneralCell {
                         elements: [
                             bindingConferencePortalStateSummaryCard(
                                 title: "Visning nå",
-                                detailKeypath: "\(referenceLabel).state.program.viewSummary",
-                                noteKeypath: "\(referenceLabel).state.program.timelineSummary",
+                                detailKeypath: "\(referenceLabel).state.viewSummary",
+                                noteKeypath: "\(referenceLabel).state.timelineSummary",
                                 accentBorder: "#2A4D61",
                                 accentText: "#B9E6FF"
                             ),
                             bindingConferencePortalStateSummaryCard(
                                 title: "Fokus nå",
-                                detailKeypath: "\(referenceLabel).state.program.trackSummary",
-                                noteKeypath: "\(referenceLabel).state.program.status",
+                                detailKeypath: "\(referenceLabel).state.trackSummary",
+                                noteKeypath: "\(referenceLabel).state.status",
                                 accentBorder: "#2F6B56",
                                 accentText: "#B9FBC0"
                             ),
                             bindingConferencePortalStateSummaryCard(
                                 title: "Lagring",
-                                detailKeypath: "\(referenceLabel).state.program.storageSummary",
-                                noteKeypath: "\(referenceLabel).state.program.persistenceStatus",
+                                detailKeypath: "\(referenceLabel).state.storageSummary",
+                                noteKeypath: "\(referenceLabel).state.persistenceStatus",
                                 accentBorder: "#4D3F2A",
                                 accentText: "#F6D679"
                             ),
                             bindingConferencePortalStateSummaryCard(
                                 title: "Klar til neste steg",
-                                detailKeypath: "\(referenceLabel).state.program.recommendedSummary",
-                                noteKeypath: "\(referenceLabel).state.program.savedSummary",
+                                detailKeypath: "\(referenceLabel).state.recommendedSummary",
+                                noteKeypath: "\(referenceLabel).state.savedSummary",
                                 accentBorder: "#244457",
                                 accentText: "#8DE1DA"
                             )
@@ -7448,42 +7455,21 @@ final class ConfigurationCatalogCell: GeneralCell {
                         )
                     ])
                 ),
-                bindingConferencePortalKeyText(
-                    "\(referenceLabel).state.program.viewSummary",
-                    fontSize: 13,
-                    fontWeight: "semibold",
-                    foregroundColor: "#B9FBC0",
-                    lineLimit: 2
-                ),
-                bindingConferencePortalKeyText(
-                    "\(referenceLabel).state.program.trackSummary",
-                    fontSize: 12,
-                    foregroundColor: "#D7E7F2",
-                    lineLimit: 2
-                ),
-                bindingConferencePortalKeyText(
-                    "\(referenceLabel).state.program.status",
-                    fontSize: 12,
-                    foregroundColor: "#D7E7F2",
-                    lineLimit: 2
-                ),
-                bindingConferencePortalKeyText(
-                    "\(referenceLabel).state.program.timelineSummary",
-                    fontSize: 12,
-                    foregroundColor: "#9AB3C3",
-                    lineLimit: 2
-                ),
-                bindingConferencePortalStaticText(
-                    "Vis for deg prioriterer anbefalte sesjoner. Vis timeline åpner hele programmet. Vis lagret filtrerer til det du allerede har lagret. Fokuser governance slår governance-sporet av eller på og oppdaterer oversikten over hvilke sesjoner som nå er relevante.",
-                    fontSize: 12,
-                    foregroundColor: "#D7E7F2",
-                    lineLimit: 6
+                bindingConferencePortalKeyText("\(referenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                bindingConferencePortalKeyText("\(referenceLabel).state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                bindingConferencePortalKeyText("\(referenceLabel).state.navigationSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 4),
+                bindingConferencePortalKeyText("\(referenceLabel).state.nextStepSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.focusedActions",
+                    min: 240,
+                    max: 320,
+                    itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                 ),
                 .Grid(
                     SkeletonGrid(
                         columns: [.adaptive(min: 220, max: 280)],
                         spacing: 12,
-                        keypath: "\(referenceLabel).state.program.trackOptions",
+                        keypath: "\(referenceLabel).state.trackOptions",
                         itemSkeleton: bindingConferencePortalSessionCardSkeleton()
                     )
                 ),
@@ -7491,16 +7477,16 @@ final class ConfigurationCatalogCell: GeneralCell {
                     SkeletonGrid(
                         columns: [.adaptive(min: 220, max: 320)],
                         spacing: 12,
-                        keypath: "\(referenceLabel).state.program.recommendedSessions",
+                        keypath: "\(referenceLabel).state.recommendedSessions",
                         itemSkeleton: bindingConferencePortalSessionCardSkeleton()
                     )
                 ),
                 bindingConferencePortalCollectionGrid(
-                    keypath: "\(referenceLabel).state.program.savedSessions",
+                    keypath: "\(referenceLabel).state.savedSessions",
                     itemSkeleton: bindingConferencePortalActionTimelineCardSkeleton()
                 ),
                 bindingConferencePortalCollectionGrid(
-                    keypath: "\(referenceLabel).state.program.timelineSessions",
+                    keypath: "\(referenceLabel).state.timelineSessions",
                     itemSkeleton: bindingConferencePortalActionTimelineCardSkeleton()
                 )
             ]

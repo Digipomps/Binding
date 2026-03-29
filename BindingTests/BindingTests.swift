@@ -674,6 +674,9 @@ struct BindingTests {
 
         #expect(references.contains(where: { $0.label == "conferenceParticipantShell" }))
         #expect(references.contains(where: {
+            $0.label == "agendaSnapshot" && $0.endpoint == "cell:///ConferenceParticipantAgendaSnapshot"
+        }))
+        #expect(references.contains(where: {
             $0.label == "matchmakingSnapshot" && $0.endpoint == "cell:///ConferenceParticipantMatchmakingSnapshot"
         }))
         #expect(references.contains(where: {
@@ -686,6 +689,10 @@ struct BindingTests {
             return
         }
 
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.statusSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.selectionSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.focusedActions", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantAgendaSnapshot", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.statusSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.selectionSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.focusedProfile.title", in: skeleton))
@@ -714,10 +721,14 @@ struct BindingTests {
         staleConfiguration.cellReferences?.removeAll { $0.label == "matchmakingSnapshot" }
         staleConfiguration.cellReferences?.removeAll { $0.label == "discoverySnapshot" }
         staleConfiguration.cellReferences?.removeAll { $0.label == "nearbyRadar" }
+        staleConfiguration.cellReferences?.removeAll { $0.label == "agendaSnapshot" }
 
         let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(staleConfiguration)
 
         #expect(repaired != nil)
+        #expect(repaired?.cellReferences?.contains(where: {
+            $0.label == "agendaSnapshot" && $0.endpoint == "cell:///ConferenceParticipantAgendaSnapshot"
+        }) == true)
         #expect(repaired?.cellReferences?.contains(where: {
             $0.label == "matchmakingSnapshot" && $0.endpoint == "cell:///ConferenceParticipantMatchmakingSnapshot"
         }) == true)
@@ -733,11 +744,112 @@ struct BindingTests {
             return
         }
 
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantAgendaSnapshot", in: skeleton))
         #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantMatchmakingSnapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceParticipantDiscoverySnapshot", in: skeleton))
         #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceNearbyRadar", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+    }
+
+    @Test func bindingLocalCellRegistrationMakesConferenceParticipantAgendaSnapshotReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantAgendaSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantAgendaSnapshot did not resolve as Meddle")
+            return
+        }
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue else {
+            Issue.record("Expected object from ConferenceParticipantAgendaSnapshot.state, got \(stateValue)")
+            return
+        }
+
+        #expect(object["statusSummary"] != nil)
+        #expect(object["selectionSummary"] != nil)
+        #expect(object["nextStepSummary"] != nil)
+        #expect(object["actionSummary"] != nil)
+        #expect(object["focusedActions"] != nil)
+        #expect(object["trackOptions"] != nil)
+    }
+
+    @Test func conferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantAgendaSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantAgendaSnapshot did not resolve as Meddle")
+            return
+        }
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("agenda.setView"),
+                "payload": .object([
+                    "view": .string("timeline")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("agenda.setTrackFocus"),
+                "payload": .object([
+                    "trackId": .string("track-governance")
+                ])
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue,
+              case let .list(focusedActions)? = object["focusedActions"],
+              case let .object(firstAction)? = focusedActions.first,
+              case let .object(secondAction)? = focusedActions.dropFirst().first,
+              case let .object(fourthAction)? = focusedActions.dropFirst(3).first else {
+            Issue.record("Expected agenda snapshot state with focused actions")
+            return
+        }
+
+        #expect(object["statusSummary"] == .string("Viser timeline med governance i fokus."))
+        #expect(object["selectionSummary"] == .string("Viser timeline med Governance i fokus."))
+        #expect(object["actionSummary"] == .string("Governance er nå i fokus i denne siden."))
+        #expect(firstAction["label"] == .string("Vis for deg"))
+        #expect(secondAction["label"] == .string("Viser nå"))
+        #expect(fourthAction["label"] == .string("Vis alle spor"))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceDiscoverySnapshotReadable() async throws {
@@ -3261,10 +3373,14 @@ struct CellConfigurationVerifierTests {
                 "Bytt filter",
                 "Søk governance",
                 "Oppdater discovery",
-                "Start scanner",
-                "Stop scanner",
                 "Åpne radarflate",
                 "Åpne profilflate"
+            ],
+            rootProbes: [
+                .init(label: "agendaSnapshot", rootKeypath: "state"),
+                .init(label: "matchmakingSnapshot", rootKeypath: "state"),
+                .init(label: "discoverySnapshot", rootKeypath: "state"),
+                .init(label: "nearbyRadar", rootKeypath: "state")
             ]
         )
 
@@ -3352,6 +3468,7 @@ struct CellConfigurationVerifierTests {
         #expect(report.snapshotByteCount > 0, "Expected a non-empty rendered snapshot")
         #expect(report.subviewCount > 0)
         #expect(report.totalRenderMilliseconds > 0)
+        #expect(report.unavailableNowCount == 0)
     }
 
     @MainActor
@@ -3499,12 +3616,14 @@ enum CellConfigurationVerifier {
 
     static func contractReport(
         for configuration: CellConfiguration,
-        buttonsToExecute: Set<String> = []
+        buttonsToExecute: Set<String> = [],
+        rootProbes: [SkeletonBindingProbeSupport.RootProbe]? = nil
     ) async throws -> ContractReport {
         let clock = ContinuousClock()
         let overallStart = clock.now
         let context = try await makeRuntimeContext(for: configuration)
         let directBindingCandidates = directReadableBindings(for: context.configuration)
+        let probes = rootProbes ?? SkeletonBindingProbeSupport.rootProbes(for: context.configuration)
 
         let referenceResolutions = try await resolveReferences(
             flattenReferences(from: context.configuration.cellReferences ?? []),
@@ -3518,7 +3637,7 @@ enum CellConfigurationVerifier {
         let loadMilliseconds = milliseconds(since: loadStart, clock: clock)
 
         let probeResolutions = try await readRootProbes(
-            SkeletonBindingProbeSupport.rootProbes(for: context.configuration),
+            probes,
             bindingCandidates: directBindingCandidates,
             from: context.porthole,
             requester: context.owner
@@ -4227,9 +4346,9 @@ enum CellConfigurationVerifier {
         requester: Identity
     ) async throws -> [RootProbeResolution] {
         let clock = ContinuousClock()
-        let maxAttempts = 5
-        let retryDelayNanoseconds: UInt64 = 300_000_000
-        let perProbeTimeoutSeconds = 0.9
+        let maxAttempts = 3
+        let retryDelayNanoseconds: UInt64 = 120_000_000
+        let perProbeTimeoutSeconds = 0.6
         var latestOutcomes: [SkeletonBindingProbeSupport.RootProbe: String] = [:]
         var latestDurations: [SkeletonBindingProbeSupport.RootProbe: Double] = [:]
 
@@ -4238,6 +4357,21 @@ enum CellConfigurationVerifier {
 
             for probe in probes {
                 let start = clock.now
+                let candidates = bindingCandidates[probe] ?? []
+                if !candidates.isEmpty {
+                    let candidateOutcome = try await firstReadableBindingOutcome(
+                        for: probe,
+                        initialFailure: "candidate-unreadable",
+                        candidates: candidates,
+                        on: porthole,
+                        requester: requester,
+                        timeoutSeconds: perProbeTimeoutSeconds
+                    )
+                    latestDurations[probe] = milliseconds(since: start, clock: clock)
+                    if candidateOutcome == "ok" {
+                        continue
+                    }
+                }
                 do {
                     let value = try await withTimeout(
                         seconds: perProbeTimeoutSeconds,
@@ -4250,7 +4384,7 @@ enum CellConfigurationVerifier {
                         latestOutcomes[probe] = try await firstReadableBindingOutcome(
                             for: probe,
                             initialFailure: detail,
-                            candidates: bindingCandidates[probe] ?? [],
+                            candidates: candidates,
                             on: porthole,
                             requester: requester,
                             timeoutSeconds: perProbeTimeoutSeconds
@@ -4261,7 +4395,7 @@ enum CellConfigurationVerifier {
                     latestOutcomes[probe] = try await firstReadableBindingOutcome(
                         for: probe,
                         initialFailure: String(describing: error),
-                        candidates: bindingCandidates[probe] ?? [],
+                        candidates: candidates,
                         on: porthole,
                         requester: requester,
                         timeoutSeconds: perProbeTimeoutSeconds

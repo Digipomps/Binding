@@ -220,6 +220,10 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `Retning usikker` for approximate peers
 
 ## Latest successful changes (March 29, 2026)
+- `Conference Participant Portal` now routes agenda state through a local `ConferenceParticipantAgendaSnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift), so:
+  - `Vis for deg`, `Vis timeline`, `Vis lagret` og `Fokuser governance` update the visible page immediately
+  - local agenda selection survives bridge or preview refresh glitches instead of snapping tilbake til stale summary fields
+  - sync trouble is surfaced as `storageSummary` / `persistenceStatus` instead of wiping out the visible mode and track focus
 - `Conference Participant Portal` now gives `Entity Discovery` the same inline-first treatment as nearby and recommendations:
   - a local `ConferenceParticipantDiscoverySnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift)
   - explicit discovery summaries (`statusSummary`, `selectionSummary`, `navigationSummary`, `nextStepSummary`)
@@ -232,8 +236,13 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - [CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift)
   - [BindingTests.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/BindingTests.swift)
   - [run_conference_configuration_verifier.sh](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Scripts/run_conference_configuration_verifier.sh)
+- The verifier now also treats the agenda snapshot as a first-class participant contract:
+  - focused-action contract coverage for mode switching and track focus
+  - render expectation that the local participant portal path no longer emits `Innholdet er ikke tilgjengelig akkurat nå.`
+  - composition-oriented participant portal probing so the verifier reads `agendaSnapshot`, `matchmakingSnapshot`, `discoverySnapshot`, and `nearbyRadar` directly instead of stalling on the whole page
 - Latest green targeted run on March 29, 2026:
   - `./Scripts/run_conference_configuration_verifier.sh participant contract`
+  - `testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions`
   - `testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions`
   - `testConferenceParticipantPortalContract`
   - `testConferenceParticipantPortalRenderer`

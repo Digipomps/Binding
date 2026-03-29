@@ -94,6 +94,13 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "ConferenceParticipantAgendaSnapshot",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceParticipantAgendaSnapshotLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "ConferenceParticipantDiscoverySnapshot",
             cellScope: .identityUnique,
             identityDomain: "private",
@@ -2229,6 +2236,13 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
         let trackSummary = activeTrackID == "all" ? "Track focus: all tracks visible." : "Track focus: \(trackLabel(activeTrackID))."
         let timelineSummary = timelineSummaryText(for: agendaView)
         let viewSummary = "Current view: \(viewLabel(agendaView))."
+        let recommendedSummary = agendaView == "forYou"
+            ? "Anbefalte sesjoner vises nå."
+            : "6 anbefalte sesjoner er klare når du går tilbake til For deg."
+        let savedSummary = agendaView == "saved"
+            ? "Lagrede sesjoner vises nå."
+            : "2 lagrede sesjoner er klare når du åpner Lagret."
+        let persistenceStatus = "Agenda-valg lagres lokalt i deltagerportalen."
         let exportStatus = exportPrepared ? "iCal export is ready to share." : "No iCal export prepared yet."
         let activeChatCount = recentMessageTexts.count
         let focusedRecommendationSummary = focusedRecommendationName.map {
@@ -2277,6 +2291,9 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 "timelineSummary": .string(timelineSummary),
                 "status": .string("Agenda selections are ready for review."),
                 "storageSummary": .string("Agenda selections stay local to the participant shell."),
+                "persistenceStatus": .string(persistenceStatus),
+                "recommendedSummary": .string(recommendedSummary),
+                "savedSummary": .string(savedSummary),
                 "trackOptions": .list([
                     sessionCard(title: "Applied AI", subtitle: "4 session(s)", detail: "Practical AI systems and tooling.", note: "Available for focus"),
                     sessionCard(title: "Identity", subtitle: "4 session(s)", detail: "Trust, verification and claims.", note: "Available for focus"),
@@ -2541,6 +2558,733 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 ])
             ])
         ])
+    }
+}
+
+@MainActor
+private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
+    private var cachedAgendaState: Object = ConferenceParticipantAgendaSnapshotLocalCell.defaultAgendaState()
+    private var lastRefreshAt: Date?
+    private var refreshTask: Task<Void, Never>?
+    private var activeView = "forYou"
+    private var activeTrackID = "all"
+    private var recentActionSummary = "Velg hvordan agendaen skal vises. Endringen skjer i denne siden med en gang."
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        await configure(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        fatalError("ConferenceParticipantAgendaSnapshotLocalCell does not support decoding")
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private func configure(owner: Identity) async {
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("rw--", for: "refresh")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            await self.refreshSnapshotIfNeeded(force: false, forwardAction: nil, requester: requester)
+            return .object(self.cachedAgendaState)
+        })
+
+        await addInterceptForSet(requester: owner, key: "refresh", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "refresh", for: requester) else { return .string("denied") }
+            let refreshAction: ValueType = .object([
+                "keypath": .string("agenda.setView"),
+                "payload": .object([
+                    "view": .string(self.activeView)
+                ])
+            ])
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: refreshAction, requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(self.cachedAgendaState)
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "dispatchAction", for: requester) else { return .string("denied") }
+            return await self.handleDispatchAction(value, requester: requester)
+        })
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: owner)
+        }
+    }
+
+    private func handleDispatchAction(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard case let .object(object) = value,
+              let actionKeypath = string(from: object["keypath"]),
+              actionKeypath.isEmpty == false else {
+            cachedAgendaState = Self.agendaStateWithStatus(
+                basedOn: cachedAgendaState,
+                status: "Agenda-handlingen mangler keypath.",
+                actionSummary: "Kunne ikke oppdatere agendaen fordi handlingspayloaden var ugyldig."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedAgendaState)
+            ])
+        }
+
+        let payload = object["payload"] ?? .null
+
+        switch actionKeypath {
+        case "agenda.setView":
+            if case let .object(viewObject) = payload,
+               let view = string(from: viewObject["view"]),
+               view.isEmpty == false {
+                activeView = normalizedView(view)
+                recentActionSummary = actionSummaryForView(activeView)
+            }
+        case "agenda.setTrackFocus":
+            if case let .object(trackObject) = payload,
+               let trackID = string(from: trackObject["trackId"]),
+               trackID.isEmpty == false {
+                activeTrackID = normalizedTrackID(trackID)
+                recentActionSummary = actionSummaryForTrack(activeTrackID)
+            }
+        default:
+            recentActionSummary = "Utførte \(actionKeypath) i agenda-snapshotet."
+        }
+
+        cachedAgendaState = mergedAgendaState(from: cachedAgendaState, preserveCurrentSelection: true)
+        let forwardedAction: ValueType = .object([
+            "keypath": .string(actionKeypath),
+            "payload": payload
+        ])
+        await refreshSnapshotIfNeeded(force: true, forwardAction: forwardedAction, requester: requester)
+        return .object([
+            "status": .string("ok"),
+            "state": .object(cachedAgendaState)
+        ])
+    }
+
+    private func refreshSnapshotIfNeeded(
+        force: Bool,
+        forwardAction: ValueType?,
+        requester: Identity
+    ) async {
+        if !force,
+           let lastRefreshAt,
+           Date().timeIntervalSince(lastRefreshAt) < 1 {
+            return
+        }
+
+        if let refreshTask {
+            await refreshTask.value
+            if !force {
+                return
+            }
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performRefresh(
+                forwardAction: forwardAction,
+                requester: requester
+            )
+        }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    @MainActor
+    private func performRefresh(
+        forwardAction: ValueType?,
+        requester: Identity
+    ) async {
+        await AppInitializer.initialize()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let porthole = try? await resolver.cellAtEndpoint(
+                endpoint: "cell:///Porthole",
+                requester: requester
+              ) as? Meddle else {
+            cachedAgendaState = Self.agendaStateWithSyncWarning(
+                basedOn: mergedAgendaState(from: cachedAgendaState, preserveCurrentSelection: true),
+                storageSummary: "Agenda-valg vises lokalt mens Porthole kobler seg til igjen.",
+                persistenceStatus: "Kunne ikke synkronisere agendaen akkurat nå. Valget ditt vises fortsatt i denne siden."
+            )
+            lastRefreshAt = Date()
+            return
+        }
+
+        if let forwardAction {
+            let mutationResult = try? await porthole.set(
+                keypath: "conferenceParticipantShell.dispatchAction",
+                value: forwardAction,
+                requester: requester
+            )
+            if let errorDescription = mutationErrorDescription(from: mutationResult) {
+                cachedAgendaState = Self.agendaStateWithSyncWarning(
+                    basedOn: mergedAgendaState(from: cachedAgendaState, preserveCurrentSelection: true),
+                    storageSummary: "Agenda-valget ditt vises lokalt mens vi prøver å synkronisere mot deltagerportalen.",
+                    persistenceStatus: "Kunne ikke synkronisere agendahandlingen akkurat nå: \(errorDescription)"
+                )
+            }
+        }
+
+        do {
+            let programValue = try await porthole.get(
+                keypath: "conferenceParticipantShell.state.program",
+                requester: requester
+            )
+            guard case let .object(programObject) = programValue else {
+                cachedAgendaState = Self.agendaStateWithSyncWarning(
+                    basedOn: mergedAgendaState(from: cachedAgendaState, preserveCurrentSelection: true),
+                    storageSummary: "Agendaen bruker siste stabile data mens deltagerportalen blir lesbar igjen.",
+                    persistenceStatus: "Kunne ikke lese oppdatert agenda akkurat nå. Valget ditt vises fortsatt lokalt."
+                )
+                lastRefreshAt = Date()
+                return
+            }
+
+            cachedAgendaState = mergedAgendaState(from: programObject)
+            lastRefreshAt = Date()
+        } catch {
+            cachedAgendaState = Self.agendaStateWithSyncWarning(
+                basedOn: mergedAgendaState(from: cachedAgendaState, preserveCurrentSelection: true),
+                storageSummary: "Agendaen viser siste stabile valg mens oppdateringen kobler seg til igjen.",
+                persistenceStatus: "Kunne ikke hente oppdatert agenda akkurat nå: \(error)"
+            )
+            lastRefreshAt = Date()
+        }
+    }
+
+    private func mergedAgendaState(from object: Object, preserveCurrentSelection: Bool = false) -> Object {
+        var merged = Self.defaultAgendaState()
+        for (key, value) in object {
+            merged[key] = value
+        }
+
+        if !preserveCurrentSelection {
+            synchronizeSelections(from: merged)
+        }
+
+        let rawTrackOptions = listObjects(from: merged["trackOptions"])
+        let rawRecommended = listObjects(from: merged["recommendedSessions"])
+        let rawSaved = listObjects(from: merged["savedSessions"])
+        let rawTimeline = listObjects(from: merged["timelineSessions"])
+
+        let trackOptions = rawTrackOptions.map { trackOptionCard(from: $0) }
+        let recommendedSessions = rawRecommended.map { sessionCard(from: $0, category: .recommended) }
+        let savedSessions = rawSaved.map { sessionCard(from: $0, category: .saved) }
+        let timelineSessions = rawTimeline.map { sessionCard(from: $0, category: .timeline) }
+
+        let activeViewLabel = viewLabel(activeView)
+        let activeTrackLabel = trackLabel(activeTrackID)
+        let activeViewCount = visibleSessionCount(
+            recommendedCount: recommendedSessions.count,
+            savedCount: savedSessions.count,
+            timelineCount: timelineSessions.count
+        )
+
+        merged["intro"] = .string("Velg hvordan agendaen skal vises. Oppsummeringene under forklarer alltid hvilken visning og hvilket fokus som er aktivt akkurat nå.")
+        merged["agendaSummary"] = .string("\(savedSessions.count) lagrede sesjoner · \(recommendedSessions.count) anbefalte sesjoner.")
+        merged["viewSummary"] = .string("Aktiv visning: \(activeViewLabel).")
+        merged["trackSummary"] = .string(activeTrackID == "all" ? "Aktivt spor: alle spor er synlige." : "Aktivt spor: \(activeTrackLabel).")
+        merged["timelineSummary"] = .string(timelineSummaryText(for: activeView, visibleCount: activeViewCount))
+        merged["status"] = .string(statusSummary(for: activeView, trackID: activeTrackID))
+        merged["storageSummary"] = .string("Agenda-valg holdes stabile i deltagerportalen og speiles tilbake i denne siden.")
+        merged["persistenceStatus"] = .string("Valgene dine blir husket lokalt, så siden ikke hopper når du bytter visning.")
+        merged["recommendedSummary"] = .string("\(recommendedSessions.count) anbefalte sesjoner er klare når du bruker For deg.")
+        merged["savedSummary"] = .string("\(savedSessions.count) lagrede sesjoner er klare når du åpner Lagret.")
+        merged["statusSummary"] = .string(statusSummary(for: activeView, trackID: activeTrackID))
+        merged["selectionSummary"] = .string("Viser \(activeViewLabel.lowercased()) med \(trackSelectionLabel(activeTrackID)).")
+        merged["navigationSummary"] = .string("Knappene over bytter visning i denne siden med en gang. Handlingskortene under forklarer hva hver visning gjør.")
+        merged["nextStepSummary"] = .string(nextStepSummary(for: activeView, trackID: activeTrackID))
+        merged["actionSummary"] = .string(recentActionSummary)
+        merged["trackOptions"] = .list(trackOptions)
+        merged["recommendedSessions"] = .list(recommendedSessions)
+        merged["savedSessions"] = .list(savedSessions)
+        merged["timelineSessions"] = .list(timelineSessions)
+        merged["focusedActions"] = .list(focusedActionCards())
+
+        return merged
+    }
+
+    private func synchronizeSelections(from object: Object) {
+        if let viewSummary = string(from: object["viewSummary"]) {
+            activeView = inferredView(from: viewSummary)
+        }
+        if let trackSummary = string(from: object["trackSummary"]) {
+            activeTrackID = inferredTrackID(from: trackSummary)
+        }
+    }
+
+    private func focusedActionCards() -> [ValueType] {
+        [
+            agendaActionCard(
+                title: "For deg",
+                subtitle: activeView == "forYou" ? "Vises nå" : "Anbefalte sesjoner først",
+                detail: "Bruk denne når du vil se de mest relevante sesjonene for deg akkurat nå.",
+                note: activeView == "forYou"
+                    ? "For deg er aktiv. Herfra er neste steg å velge en sesjon eller fokusere et spor."
+                    : "Bytter tilbake til den anbefalte deltageragendaen.",
+                label: activeView == "forYou" ? "Viser nå" : "Vis for deg",
+                actionKeypath: "agenda.setView",
+                payload: .object(["view": .string("forYou")])
+            ),
+            agendaActionCard(
+                title: "Timeline",
+                subtitle: activeView == "timeline" ? "Vises nå" : "Hele programmet i rekkefølge",
+                detail: "Bruk denne når du vil se hele programflyten og orientere deg i konferansen.",
+                note: activeView == "timeline"
+                    ? "Timeline er aktiv. Nå ser du hele programmet i rekkefølge."
+                    : "Bytter til den fulle tidslinjen for konferansen.",
+                label: activeView == "timeline" ? "Viser nå" : "Vis timeline",
+                actionKeypath: "agenda.setView",
+                payload: .object(["view": .string("timeline")])
+            ),
+            agendaActionCard(
+                title: "Lagret",
+                subtitle: activeView == "saved" ? "Vises nå" : "Bare sesjonene du har lagret",
+                detail: "Bruk denne når du vil se bare det du allerede har valgt å ta vare på.",
+                note: activeView == "saved"
+                    ? "Lagret er aktiv. Nå ser du bare det du allerede har valgt."
+                    : "Bytter til kun lagrede sesjoner.",
+                label: activeView == "saved" ? "Viser nå" : "Vis lagret",
+                actionKeypath: "agenda.setView",
+                payload: .object(["view": .string("saved")])
+            ),
+            agendaActionCard(
+                title: activeTrackID == "track-governance" ? "Alle spor" : "Governance",
+                subtitle: activeTrackID == "track-governance" ? "Slå av spor-fokus" : "Sett governance i fokus",
+                detail: activeTrackID == "track-governance"
+                    ? "Bruk denne når du vil gå tilbake til alle spor igjen."
+                    : "Bruk denne når du vil se hva som er mest relevant innen governance.",
+                note: activeTrackID == "track-governance"
+                    ? "Governance er allerede fokusert. Neste steg er ofte å åpne timeline eller gå tilbake til alle spor."
+                    : "Setter governance i fokus uten å forlate siden.",
+                label: activeTrackID == "track-governance" ? "Vis alle spor" : "Fokuser governance",
+                actionKeypath: "agenda.setTrackFocus",
+                payload: .object(["trackId": .string(activeTrackID == "track-governance" ? "all" : "track-governance")])
+            )
+        ]
+    }
+
+    private func agendaActionCard(
+        title: String,
+        subtitle: String,
+        detail: String,
+        note: String,
+        label: String,
+        actionKeypath: String,
+        payload: ValueType
+    ) -> ValueType {
+        .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note),
+            "url": .string("cell:///ConferenceParticipantAgendaSnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(label),
+            "payload": .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+        ])
+    }
+
+    private func trackOptionCard(from raw: Object) -> ValueType {
+        let title = cardTitle(from: raw)
+        let subtitle = cardSubtitle(from: raw)
+        let detail = cardDetail(from: raw)
+        let trackID = trackID(forTitle: title)
+        let note: String
+        if trackID == activeTrackID {
+            note = "Aktivt fokus nå."
+        } else if activeTrackID == "all" {
+            note = "Tilgjengelig for fokus."
+        } else {
+            note = "Tilgjengelig, men ikke i aktivt fokus nå."
+        }
+
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note)
+        ])
+    }
+
+    private enum SessionCategory {
+        case recommended
+        case saved
+        case timeline
+    }
+
+    private func sessionCard(from raw: Object, category: SessionCategory) -> ValueType {
+        let title = cardTitle(from: raw)
+        let subtitle = cardSubtitle(from: raw)
+        let detail = cardDetail(from: raw)
+        let note = sessionNote(baseNote: cardNote(from: raw), category: category)
+
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note)
+        ])
+    }
+
+    private func sessionNote(baseNote: String, category: SessionCategory) -> String {
+        switch category {
+        case .recommended:
+            return activeView == "forYou" ? "\(baseNote) · Vises nå i For deg." : "\(baseNote) · Klar når du går til For deg."
+        case .saved:
+            return activeView == "saved" ? "\(baseNote) · Vises nå i Lagret." : "\(baseNote) · Klar når du åpner Lagret."
+        case .timeline:
+            return activeView == "timeline" ? "\(baseNote) · Vises nå i Timeline." : "\(baseNote) · Klar når du åpner Timeline."
+        }
+    }
+
+    private func visibleSessionCount(recommendedCount: Int, savedCount: Int, timelineCount: Int) -> Int {
+        switch activeView {
+        case "timeline":
+            return timelineCount
+        case "saved":
+            return savedCount
+        default:
+            return recommendedCount
+        }
+    }
+
+    private func statusSummary(for view: String, trackID: String) -> String {
+        switch (view, trackID) {
+        case ("timeline", "track-governance"):
+            return "Viser timeline med governance i fokus."
+        case ("timeline", _):
+            return "Viser timeline med alle spor tilgjengelige."
+        case ("saved", "track-governance"):
+            return "Viser lagrede sesjoner med governance i fokus."
+        case ("saved", _):
+            return "Viser bare lagrede sesjoner akkurat nå."
+        case (_, "track-governance"):
+            return "Viser anbefalte sesjoner med governance i fokus."
+        default:
+            return "Viser anbefalte sesjoner med alle spor tilgjengelige."
+        }
+    }
+
+    private func nextStepSummary(for view: String, trackID: String) -> String {
+        switch (view, trackID) {
+        case ("timeline", "track-governance"):
+            return "Neste steg er å velge en governance-sesjon eller slå av spor-fokus for å se hele bredden igjen."
+        case ("timeline", _):
+            return "Neste steg er å velge en sesjon fra timeline eller fokusere et spor for å snevre inn oversikten."
+        case ("saved", _):
+            return "Neste steg er å bekrefte hva du faktisk vil delta på, eller gå tilbake til For deg for nye forslag."
+        case (_, "track-governance"):
+            return "Neste steg er å se hvilke governance-sesjoner som nå er mest relevante, eller åpne timeline for mer kontekst."
+        default:
+            return "Neste steg er å velge en anbefalt sesjon, åpne timeline, eller fokusere governance hvis du vil snevre inn."
+        }
+    }
+
+    private func timelineSummaryText(for view: String, visibleCount: Int) -> String {
+        switch view {
+        case "timeline":
+            return "\(visibleCount) sesjoner vises i timeline akkurat nå."
+        case "saved":
+            return "\(visibleCount) lagrede sesjoner vises akkurat nå."
+        default:
+            return "\(visibleCount) anbefalte sesjoner vises akkurat nå."
+        }
+    }
+
+    private func trackSelectionLabel(_ trackID: String) -> String {
+        trackID == "all" ? "alle spor synlige" : "\(trackLabel(trackID)) i fokus"
+    }
+
+    private func actionSummaryForView(_ view: String) -> String {
+        switch view {
+        case "timeline":
+            return "Viser timeline i denne siden."
+        case "saved":
+            return "Viser lagrede sesjoner i denne siden."
+        default:
+            return "Viser anbefalte sesjoner for deg i denne siden."
+        }
+    }
+
+    private func actionSummaryForTrack(_ trackID: String) -> String {
+        trackID == "all"
+            ? "Viser alle spor igjen."
+            : "Governance er nå i fokus i denne siden."
+    }
+
+    private func viewLabel(_ view: String) -> String {
+        switch normalizedView(view) {
+        case "timeline": return "Timeline"
+        case "saved": return "Lagret"
+        default: return "For deg"
+        }
+    }
+
+    private func trackLabel(_ trackID: String) -> String {
+        switch normalizedTrackID(trackID) {
+        case "track-governance":
+            return "Governance"
+        case "track-identity":
+            return "Identity"
+        default:
+            return "alle spor"
+        }
+    }
+
+    private func normalizedView(_ view: String) -> String {
+        let normalized = view.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "timeline":
+            return "timeline"
+        case "saved":
+            return "saved"
+        default:
+            return "forYou"
+        }
+    }
+
+    private func normalizedTrackID(_ trackID: String) -> String {
+        let normalized = trackID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "track-governance", "governance":
+            return "track-governance"
+        case "track-identity", "identity":
+            return "track-identity"
+        default:
+            return "all"
+        }
+    }
+
+    private func inferredView(from summary: String) -> String {
+        let normalized = summary.lowercased()
+        if normalized.contains("timeline") {
+            return "timeline"
+        }
+        if normalized.contains("lagret") || normalized.contains("saved") {
+            return "saved"
+        }
+        return "forYou"
+    }
+
+    private func inferredTrackID(from summary: String) -> String {
+        let normalized = summary.lowercased()
+        if normalized.contains("governance") {
+            return "track-governance"
+        }
+        if normalized.contains("identity") {
+            return "track-identity"
+        }
+        return "all"
+    }
+
+    private func trackID(forTitle title: String) -> String {
+        let normalized = title.lowercased()
+        if normalized.contains("governance") {
+            return "track-governance"
+        }
+        if normalized.contains("identity") {
+            return "track-identity"
+        }
+        return "all"
+    }
+
+    private func cardTitle(from object: Object) -> String {
+        string(from: object["title"]) ?? "Ukjent kort"
+    }
+
+    private func cardSubtitle(from object: Object) -> String {
+        string(from: object["subtitle"]) ?? "Ingen undertittel"
+    }
+
+    private func cardDetail(from object: Object) -> String {
+        string(from: object["detail"]) ?? "Ingen detalj tilgjengelig."
+    }
+
+    private func cardNote(from object: Object) -> String {
+        string(from: object["note"]) ?? "Ingen ekstra agenda-kontekst tilgjengelig ennå."
+    }
+
+    private func listObjects(from value: ValueType?) -> [Object] {
+        guard case let .list(values)? = value else { return [] }
+        return values.compactMap {
+            guard case let .object(object) = $0 else { return nil }
+            return object
+        }
+    }
+
+    private func mutationErrorDescription(from value: ValueType?) -> String? {
+        guard let value else { return "Ukjent agenda-feil." }
+        switch value {
+        case let .string(string):
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { return nil }
+            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
+                return trimmed
+            }
+            return nil
+        case let .object(object):
+            if case let .string(status)? = object["status"],
+               status == "error",
+               let message = string(from: object["message"]) {
+                return message
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private func string(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case let .string(string):
+            return string
+        case let .integer(integer):
+            return String(integer)
+        case let .number(number):
+            return String(number)
+        case let .float(float):
+            return String(float)
+        case let .bool(bool):
+            return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private static func agendaStateWithStatus(
+        basedOn base: Object,
+        status: String,
+        actionSummary: String
+    ) -> Object {
+        var updated = base
+        updated["status"] = .string(status)
+        updated["statusSummary"] = .string(status)
+        updated["actionSummary"] = .string(actionSummary)
+        updated["nextStepSummary"] = .string(actionSummary)
+        return updated
+    }
+
+    private static func agendaStateWithSyncWarning(
+        basedOn base: Object,
+        storageSummary: String,
+        persistenceStatus: String
+    ) -> Object {
+        var updated = base
+        updated["storageSummary"] = .string(storageSummary)
+        updated["persistenceStatus"] = .string(persistenceStatus)
+        return updated
+    }
+
+    private static func defaultAgendaState() -> Object {
+        [
+            "intro": .string("Velg hvordan agendaen skal vises. Oppsummeringene under forklarer alltid hvilken visning og hvilket fokus som er aktivt akkurat nå."),
+            "agendaSummary": .string("2 lagrede sesjoner · 6 anbefalte sesjoner."),
+            "viewSummary": .string("Aktiv visning: For deg."),
+            "trackSummary": .string("Aktivt spor: alle spor er synlige."),
+            "timelineSummary": .string("3 anbefalte sesjoner vises akkurat nå."),
+            "status": .string("Viser anbefalte sesjoner med alle spor tilgjengelige."),
+            "storageSummary": .string("Agenda-valg holdes stabile i deltagerportalen og speiles tilbake i denne siden."),
+            "persistenceStatus": .string("Valgene dine blir husket lokalt, så siden ikke hopper når du bytter visning."),
+            "recommendedSummary": .string("3 anbefalte sesjoner er klare når du bruker For deg."),
+            "savedSummary": .string("2 lagrede sesjoner er klare når du åpner Lagret."),
+            "statusSummary": .string("Viser anbefalte sesjoner med alle spor tilgjengelige."),
+            "selectionSummary": .string("Viser for deg med alle spor synlige."),
+            "navigationSummary": .string("Knappene over bytter visning i denne siden med en gang. Handlingskortene under forklarer hva hver visning gjør."),
+            "nextStepSummary": .string("Neste steg er å velge en anbefalt sesjon, åpne timeline, eller fokusere governance hvis du vil snevre inn."),
+            "actionSummary": .string("Velg hvordan agendaen skal vises. Endringen skjer i denne siden med en gang."),
+            "trackOptions": .list([
+                .object([
+                    "title": .string("Applied AI"),
+                    "subtitle": .string("4 sesjoner"),
+                    "detail": .string("Praktiske AI-systemer og verktøy."),
+                    "note": .string("Tilgjengelig for fokus.")
+                ]),
+                .object([
+                    "title": .string("Identity"),
+                    "subtitle": .string("4 sesjoner"),
+                    "detail": .string("Tillit, verifikasjon og claims."),
+                    "note": .string("Tilgjengelig for fokus.")
+                ]),
+                .object([
+                    "title": .string("Governance"),
+                    "subtitle": .string("4 sesjoner"),
+                    "detail": .string("Policy, regulering og koordinering."),
+                    "note": .string("Tilgjengelig for fokus.")
+                ])
+            ]),
+            "recommendedSessions": .list([
+                .object([
+                    "title": .string("Identity Session 8"),
+                    "subtitle": .string("Identity · 09:30-10:00"),
+                    "detail": .string("Forum: identity, AI and digital independence."),
+                    "note": .string("Matches interests")
+                ]),
+                .object([
+                    "title": .string("Governance Session 15"),
+                    "subtitle": .string("Governance · 10:00-10:30"),
+                    "detail": .string("Library: governance, AI and digital independence."),
+                    "note": .string("Visible in current view")
+                ]),
+                .object([
+                    "title": .string("Infra Session 3"),
+                    "subtitle": .string("Infra · 13:00-13:30"),
+                    "detail": .string("Shared infrastructure and deployment patterns."),
+                    "note": .string("Recommended next")
+                ])
+            ]),
+            "savedSessions": .list([
+                .object([
+                    "title": .string("Opening keynote"),
+                    "subtitle": .string("Main stage · 08:30"),
+                    "detail": .string("Framing digital independence across sectors."),
+                    "note": .string("Saved")
+                ]),
+                .object([
+                    "title": .string("Shared relations roundtable"),
+                    "subtitle": .string("Studio 2 · 11:15"),
+                    "detail": .string("Operational follow-up between ecosystem teams."),
+                    "note": .string("Saved")
+                ])
+            ]),
+            "timelineSessions": .list([
+                .object([
+                    "title": .string("Governance Session 3"),
+                    "subtitle": .string("Studio 2 · 08:00"),
+                    "detail": .string("Governance, AI and digital independence."),
+                    "note": .string("Visible in timeline")
+                ]),
+                .object([
+                    "title": .string("Identity Session 2"),
+                    "subtitle": .string("Hall B · 08:30"),
+                    "detail": .string("Identity, AI and digital independence."),
+                    "note": .string("Visible in timeline")
+                ]),
+                .object([
+                    "title": .string("Governance Session 9"),
+                    "subtitle": .string("Bridge · 09:00"),
+                    "detail": .string("Cross-team governance patterns."),
+                    "note": .string("Visible in timeline")
+                ])
+            ]),
+            "focusedActions": .list([])
+        ]
     }
 }
 
