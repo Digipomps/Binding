@@ -2106,10 +2106,13 @@ struct ContentView: View {
             message: "Fant gammel eller ustabil persisted control tower i Porthole. Reparerer til ny organizer-konfigurasjon."
         )
 
-        let repairedConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration()
+        let repairedConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceAdminPreviewShell"
+        )
         do {
             try await porthole.loadCellConfiguration(repairedConfiguration, requester: identity)
             activeConfiguration = repairedConfiguration
+            loadErrorMessage = nil
             diagnosticsStore.refreshValidation(for: repairedConfiguration)
         } catch {
             diagnosticsStore.record(
