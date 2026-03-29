@@ -37,7 +37,7 @@ Current UX decision:
 - participant discovery now follows that same rule through a local `ConferenceParticipantDiscoverySnapshot`
 - participant agenda now follows that same rule through a local `ConferenceParticipantAgendaSnapshot`
 - the active agenda state should be obvious in the page itself through visible choice cards, not just inferred from text summaries
-- `Åpne radarflate` and `Åpne profilflate` mean “open a separate workbench in Porthole”
+- `Åpne full radar` and `Åpne profilflate` mean “open a separate workbench in Porthole”
 - do not hide that transition behind a generic button label
 - avoid overlay/modal as the primary pattern for now; the current skeleton/runtime model is better served by explicit inline focus first and explicit workbench expansion second
 

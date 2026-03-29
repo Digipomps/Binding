@@ -61,7 +61,7 @@ Current participant actions exercised:
 - `Oppdater discovery`
 - `Start scanner`
 - `Stop scanner`
-- `Åpne radarflate`
+- `Åpne full radar`
 - `Åpne profilflate`
 
 Current participant agenda assertions:
@@ -126,7 +126,7 @@ Current nearby radar assertions:
 - approximate MPC-only peers are kept separate from hard directional claims through a dedicated `Retning usikker` bucket
 - the inline-vs-workbench transition is explicit:
   - `Vis i siden` focuses a participant on the current page
-  - `Åpne radarflate` opens the dedicated radar workbench
+  - `Åpne full radar` opens the dedicated radar workbench
   - `Åpne profilflate` opens the dedicated participant profile workbench
 
 Current nearby radar state assertions:
@@ -163,11 +163,11 @@ Current organizer actions exercised:
 Current render assertions:
 
 - `Conference Participant Portal`
-  - expected strings include `Conference Participant Portal`, `Entity Discovery`, `Start scanner`
+  - expected strings include `Conference Participant Portal`, `Entity Discovery`, `Start scanner`, `Radar i siden`, `Åpne full radar`
 - `Conference Nearby Radar`
-  - expected strings include `Conference Nearby Radar · Egen arbeidsflate`, `Start scanner`, `Tilbake til portalen`, `Valgt deltager`
+  - expected strings include `Conference Nearby Radar · Full oversikt`, `Start scanner`, `Tilbake til portalen`, `Valgt deltager`
 - `Nearby Participant Profile`
-  - expected strings include `Valgt deltager · profilflate`, `Åpne radarflate`, `Tilbake til portalen`, `Neste steg`
+  - expected strings include `Valgt deltager · profilflate`, `Åpne full radar`, `Tilbake til portalen`, `Neste steg`
 - `Conference Control Tower`
   - expected strings include `Conference Control Tower`, `Publish content`, `Operations & Insights`
 

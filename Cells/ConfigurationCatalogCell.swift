@@ -6144,8 +6144,8 @@ final class ConfigurationCatalogCell: GeneralCell {
     ) -> CellConfiguration {
         conferenceNearbyRadarWorkbenchConfiguration(
             participantEndpoint: participantEndpoint,
-            displayName: "Conference Nearby Radar · Egen arbeidsflate",
-            summary: "Binding-lokal nearby radar med scanner, retningssignal og conference follow-up-chat i én arbeidsflate."
+            displayName: "Conference Nearby Radar · Full oversikt",
+            summary: "Binding-lokal nearby radar med scanner, retningssignal og conference follow-up-chat i en større arbeidsflate."
         )
     }
 
@@ -6660,13 +6660,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Conference Nearby Radar",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Nearby radar · egen arbeidsflate",
+                        "Nearby radar · full oversikt",
                         fontSize: 18,
                         fontWeight: "bold",
                         foregroundColor: "#F5FBFF"
                     ),
                     bindingConferencePortalStaticText(
-                        "Dette er en egen arbeidsflate i Porthole. Bruk den når du vil ha mer romlig oversikt enn det den innebygde radaren i deltagerportalen gir.",
+                        "Dette er den store radarflaten i Porthole. Bruk den når du vil ha mer romlig oversikt enn det den innebygde radaren i deltagerportalen gir.",
                         fontSize: 12,
                         foregroundColor: "#B9FBC0",
                         lineLimit: 4
@@ -6948,7 +6948,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                         SkeletonHStack(elements: [
                             bindingConferenceDirectActionButton(
                                 keypath: "dispatchAction",
-                                label: "Åpne radarflate",
+                                label: "Åpne full radar",
                                 payload: .object([
                                     "keypath": .string("openExpandedRadarWorkbench"),
                                     "payload": .bool(true)
@@ -7809,7 +7809,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 lineLimit: 4
             ),
             bindingConferencePortalStaticText(
-                "Nearby people appear below as et lite kompass: foran, venstre, fokus, høyre, bak og retning usikker. Første klikk skjer i denne siden: bruk Vis i siden for å fokusere på en person her. Åpne radarflate og Åpne profilflate åpner egne arbeidsflater når du vil fordype deg.",
+                "Nearby people appear below as et lite kompass: foran, venstre, fokus, høyre, bak og retning usikker. Første klikk skjer i denne siden: bruk Vis i siden for å fokusere på en person her. Åpne full radar og Åpne profilflate åpner egne arbeidsflater når du vil fordype deg.",
                 fontSize: 12,
                 foregroundColor: "#D7E7F2",
                 lineLimit: 4
@@ -7849,6 +7849,32 @@ final class ConfigurationCatalogCell: GeneralCell {
             ),
             bindingConferencePortalKeyText("\(scannerReferenceLabel).state.precisionSummary", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
             bindingConferencePortalKeyText("\(scannerReferenceLabel).state.actionSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+            bindingConferencePortalCardSection(
+                "Radar i siden",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Dette er den innebygde radaren i deltagerportalen. Den skal gjøre det lett å oppdage nearby-deltagere uten at du mister resten av conference-siden.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.spatialTruthSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("\(scannerReferenceLabel).state.navigationSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalStaticText(
+                        "Åpne full radar når du vil bruke en større arbeidsflate til romlig oversikt og valg.",
+                        fontSize: 12,
+                        foregroundColor: "#B9FBC0",
+                        lineLimit: 3
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.transportBadge"),
+                            bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.precisionBadge")
+                        ])
+                    ),
+                    bindingConferencePortalEmbeddedRadarLayout(baseKeypath: "\(scannerReferenceLabel).state.radarLayout")
+                ]
+            ),
             .HStack(
                 SkeletonHStack(elements: [
                         bindingConferenceDirectActionButton(
@@ -7871,18 +7897,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                         ),
                         bindingConferenceDirectActionButton(
                             keypath: "dispatchAction",
-                            label: "Åpne radarflate",
+                            label: "Åpne full radar",
                             payload: .object([
                                 "keypath": .string("openExpandedRadarWorkbench"),
                                 "payload": .bool(true)
                             ]),
                             url: nearbyRadarEndpoint
                         ),
-                        bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.transportBadge"),
-                        bindingConferencePortalBadgeKeyText("\(scannerReferenceLabel).state.precisionBadge")
                     ])
                 ),
-                bindingConferencePortalEmbeddedRadarLayout(baseKeypath: "\(scannerReferenceLabel).state.radarLayout"),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectionSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
                 bindingConferencePortalKeyText("\(scannerReferenceLabel).state.selectedEntity.title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),

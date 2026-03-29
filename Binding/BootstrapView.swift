@@ -1532,8 +1532,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             effectiveScannerStatus: effectiveScannerStatus
         )
         let navigationSummary = focusedRemoteUUID == nil
-            ? "Første klikk skjer i denne siden. Egen arbeidsflate brukes bare når du trykker Åpne radarflate eller Åpne profilflate."
-            : "Du ser nå valgt deltager i denne siden. Åpne profilflate og Åpne radarflate åpner egne arbeidsflater i Porthole."
+            ? "Første klikk skjer i denne siden. Full radar og profilflate åpnes bare når du ber om en egen arbeidsflate."
+            : "Du ser nå valgt deltager i denne siden. Åpne profilflate og full radar når du vil fordype deg i egne arbeidsflater."
         let selectedEntity = focusedRemoteUUID.flatMap { selectedEntityObject(for: $0) }
             ?? [
                 "selectionBadge": .string("VALGT DELTAGER"),

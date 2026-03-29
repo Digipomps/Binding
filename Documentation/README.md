@@ -241,6 +241,10 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - focused-action contract coverage for mode switching and track focus
   - render expectation that the local participant portal path no longer emits `Innholdet er ikke tilgjengelig akkurat nå.`
   - composition-oriented participant portal probing so the verifier reads `agendaSnapshot`, `matchmakingSnapshot`, `discoverySnapshot`, and `nearbyRadar` directly instead of stalling on the whole page
+- `Conference Participant Portal` now treats nearby radar as an explicit embedded surface instead of just a loose list:
+  - `Radar i siden` makes the inline spatial view visible in the page itself
+  - `Åpne full radar` is now the explicit step into the larger nearby workbench
+  - the large workbench is now named `Conference Nearby Radar · Full oversikt`
 - Latest green targeted run on March 29, 2026:
   - `./Scripts/run_conference_configuration_verifier.sh participant contract`
   - `testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions`

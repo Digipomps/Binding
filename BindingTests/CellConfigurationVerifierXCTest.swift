@@ -24,7 +24,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Bytt filter",
                 "Søk governance",
                 "Oppdater discovery",
-                "Åpne radarflate",
+                "Åpne full radar",
                 "Åpne profilflate"
             ],
             rootProbes: [
@@ -113,7 +113,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
-                "Åpne radarflate",
+                "Åpne full radar",
                 "Tilbake til portalen"
             ],
             rootProbes: [
@@ -539,6 +539,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Conference Participant Portal",
                 "Entity Discovery",
                 "Start scanner",
+                "Radar i siden",
+                "Åpne full radar",
                 "Visning nå",
                 "Fokus nå"
             ]
@@ -577,7 +579,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let report = try await CellConfigurationVerifier.renderReport(
             for: configuration,
             expectedVisibleStrings: [
-                "Conference Nearby Radar · Egen arbeidsflate",
+                "Conference Nearby Radar · Full oversikt",
                 "Start scanner",
                 "Tilbake til portalen",
                 "Valgt deltager"
@@ -597,7 +599,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             for: configuration,
             expectedVisibleStrings: [
                 "Valgt deltager · profilflate",
-                "Åpne radarflate",
+                "Åpne full radar",
                 "Tilbake til portalen",
                 "Neste steg"
             ]

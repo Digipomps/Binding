@@ -3384,7 +3384,7 @@ struct CellConfigurationVerifierTests {
                 "Bytt filter",
                 "Søk governance",
                 "Oppdater discovery",
-                "Åpne radarflate",
+                "Åpne full radar",
                 "Åpne profilflate"
             ],
             rootProbes: [
@@ -3449,7 +3449,7 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
-                "Åpne radarflate",
+                "Åpne full radar",
                 "Tilbake til portalen"
             ]
         )
@@ -3472,7 +3472,9 @@ struct CellConfigurationVerifierTests {
             expectedVisibleStrings: [
                 "Conference Participant Portal",
                 "Entity Discovery",
-                "Start scanner"
+                "Start scanner",
+                "Radar i siden",
+                "Åpne full radar"
             ]
         )
 
@@ -3489,7 +3491,7 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.renderReport(
             for: configuration,
             expectedVisibleStrings: [
-                "Conference Nearby Radar · Egen arbeidsflate",
+                "Conference Nearby Radar · Full oversikt",
                 "Start scanner",
                 "Tilbake til portalen",
                 "Valgt deltager"
@@ -3509,7 +3511,7 @@ struct CellConfigurationVerifierTests {
             for: configuration,
             expectedVisibleStrings: [
                 "Valgt deltager · profilflate",
-                "Åpne radarflate",
+                "Åpne full radar",
                 "Tilbake til portalen",
                 "Neste steg"
             ]
