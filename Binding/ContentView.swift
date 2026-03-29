@@ -2019,7 +2019,7 @@ struct ContentView: View {
             requester: identity
         )
         let discoveryStatus = try? await porthole.get(
-            keypath: "discoverySnapshot.state.status",
+            keypath: "discoverySnapshot.state.statusSummary",
             requester: identity
         )
         if let nearbySummary,

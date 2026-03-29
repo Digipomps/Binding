@@ -2544,15 +2544,17 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
     }
 }
 
+@MainActor
 private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell {
-    private let bootstrapRequester: Identity
-    private var activeRequester: Identity?
     private var cachedDiscoveryState: Object = ConferenceParticipantDiscoverySnapshotLocalCell.defaultDiscoveryState()
     private var lastRefreshAt: Date?
     private var refreshTask: Task<Void, Never>?
+    private var focusedDiscoveryName: String?
+    private var followUpMarkedNames: Set<String> = []
+    private var launchedDiscoveryChatNames: [String] = []
+    private var recentActionSummary = "Trykk Vis i siden for å fokusere på en person i discovery."
 
     required init(owner: Identity) async {
-        self.bootstrapRequester = owner
         await super.init(owner: owner)
         await configure(owner: owner)
     }
@@ -2573,14 +2575,18 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
-            await self.refreshSnapshotIfNeeded(force: false, forwardParticipantRefresh: false, requester: requester)
+            await self.refreshSnapshotIfNeeded(force: false, forwardAction: nil, requester: requester)
             return .object(self.cachedDiscoveryState)
         })
 
         await addInterceptForSet(requester: owner, key: "refresh", setValueIntercept: { [weak self] _, _, requester in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "refresh", for: requester) else { return .string("denied") }
-            await self.refreshSnapshotIfNeeded(force: true, forwardParticipantRefresh: true, requester: requester)
+            let refreshPayload: ValueType = .object([
+                "keypath": .string("discovery.refresh"),
+                "payload": .bool(true)
+            ])
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: refreshPayload, requester: requester)
             return .object([
                 "status": .string("ok"),
                 "state": .object(self.cachedDiscoveryState)
@@ -2595,7 +2601,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
 
         Task { [weak self] in
             guard let self else { return }
-            await self.refreshSnapshotIfNeeded(force: true, forwardParticipantRefresh: false, requester: owner)
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: owner)
         }
     }
 
@@ -2606,7 +2612,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             cachedDiscoveryState = Self.discoveryStateWithStatus(
                 basedOn: cachedDiscoveryState,
                 status: "Discovery-handlingen mangler keypath.",
-                refreshSummary: "Kunne ikke oppdatere discovery fordi action-payloaden var ugyldig."
+                actionSummary: "Kunne ikke oppdatere discovery fordi action-payloaden var ugyldig."
             )
             return .object([
                 "status": .string("error"),
@@ -2614,33 +2620,92 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             ])
         }
 
+        let payload = object["payload"] ?? .null
+        var forwardedAction: ValueType?
+
         switch actionKeypath {
         case "refresh", "discovery.refresh":
-            await refreshSnapshotIfNeeded(force: true, forwardParticipantRefresh: true, requester: requester)
-            return .object([
-                "status": .string("ok"),
-                "state": .object(cachedDiscoveryState)
+            recentActionSummary = "Oppdaterte discovery-snapshotet."
+            forwardedAction = .object([
+                "keypath": .string("discovery.refresh"),
+                "payload": .bool(true)
+            ])
+        case "discovery.focusPerson":
+            if case let .object(personObject) = payload,
+               let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+               displayName.isEmpty == false {
+                focusedDiscoveryName = displayName
+                recentActionSummary = "Viser \(displayName) i discovery-delen."
+            }
+        case "matchmaking.toggleFollowUp":
+            if case let .object(personObject) = payload,
+               let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+               displayName.isEmpty == false {
+                focusedDiscoveryName = displayName
+                if followUpMarkedNames.contains(displayName) {
+                    followUpMarkedNames.remove(displayName)
+                    recentActionSummary = "Fjernet \(displayName) fra oppfølging."
+                } else {
+                    followUpMarkedNames.insert(displayName)
+                    recentActionSummary = "Markerte \(displayName) for oppfølging."
+                }
+                forwardedAction = .object([
+                    "keypath": .string(actionKeypath),
+                    "payload": payload
+                ])
+            }
+        case "discovery.startChat":
+            let targetNames = discoveryTargetNames(from: payload)
+            if let firstTarget = targetNames.first {
+                focusedDiscoveryName = firstTarget
+                launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
+                launchedDiscoveryChatNames.insert(firstTarget, at: 0)
+                launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
+                recentActionSummary = "Startet chat med \(firstTarget) fra discovery."
+            } else {
+                recentActionSummary = "Startet chat fra discovery."
+            }
+            forwardedAction = .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+        case "scheduling.createMeetingRequest":
+            if let focusedDiscoveryName {
+                recentActionSummary = "La til møteforespørsel for \(focusedDiscoveryName)."
+            } else {
+                recentActionSummary = "La til en ny møteforespørsel fra discovery."
+            }
+            forwardedAction = .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+        case "discovery.startGroupChat":
+            recentActionSummary = "Startet gruppesamtale fra discovery."
+            forwardedAction = .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
             ])
         default:
-            cachedDiscoveryState = Self.discoveryStateWithStatus(
-                basedOn: cachedDiscoveryState,
-                status: "Discovery-handlingen \(actionKeypath) er ikke støttet lokalt.",
-                refreshSummary: "Bruk participant-shellen for denne handlingen."
-            )
-            return .object([
-                "status": .string("error"),
-                "state": .object(cachedDiscoveryState)
+            recentActionSummary = "Utførte \(actionKeypath) i discovery-snapshotet."
+            forwardedAction = .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
             ])
         }
+
+        cachedDiscoveryState = mergedDiscoveryState(from: cachedDiscoveryState)
+        await refreshSnapshotIfNeeded(force: true, forwardAction: forwardedAction, requester: requester)
+        return .object([
+            "status": .string("ok"),
+            "state": .object(cachedDiscoveryState)
+        ])
     }
 
     private func refreshSnapshotIfNeeded(
         force: Bool,
-        forwardParticipantRefresh: Bool,
+        forwardAction: ValueType?,
         requester: Identity
     ) async {
-        activeRequester = requester
-
         if !force,
            let lastRefreshAt,
            Date().timeIntervalSince(lastRefreshAt) < 1 {
@@ -2657,7 +2722,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.performRefresh(
-                forwardParticipantRefresh: forwardParticipantRefresh,
+                forwardAction: forwardAction,
                 requester: requester
             )
         }
@@ -2668,78 +2733,376 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
 
     @MainActor
     private func performRefresh(
-        forwardParticipantRefresh: Bool,
+        forwardAction: ValueType?,
         requester: Identity
     ) async {
         await AppInitializer.initialize()
 
-        guard let resolver = CellBase.defaultCellResolver else {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             cachedDiscoveryState = Self.discoveryStateWithStatus(
                 basedOn: cachedDiscoveryState,
                 status: "Discovery bruker siste lokale snapshot fordi resolver mangler.",
-                refreshSummary: "Kunne ikke oppdatere discovery akkurat nå."
+                actionSummary: "Kunne ikke oppdatere discovery akkurat nå."
             )
             lastRefreshAt = Date()
             return
         }
 
-        guard let porthole = try? await resolver.cellAtEndpoint(
-            endpoint: "cell:///Porthole",
+        guard let previewShell = try? await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
             requester: requester
         ) as? Meddle else {
             cachedDiscoveryState = Self.discoveryStateWithStatus(
                 basedOn: cachedDiscoveryState,
-                status: "Discovery bruker siste lokale snapshot fordi Porthole ikke er tilgjengelig.",
-                refreshSummary: "Kunne ikke oppdatere discovery akkurat nå."
+                status: "Discovery bruker siste lokale snapshot fordi ingen preview-shell er tilgjengelig.",
+                actionSummary: "Kunne ikke oppdatere discovery akkurat nå."
             )
             lastRefreshAt = Date()
             return
         }
 
-        if forwardParticipantRefresh {
-            let refreshPayload: Object = [
-                "keypath": .string("discovery.refresh"),
-                "payload": .bool(true)
-            ]
-            let mutationResult = try? await porthole.set(
-                keypath: "conferenceParticipantShell.dispatchAction",
-                value: .object(refreshPayload),
+        if let forwardAction {
+            let mutationResult = try? await previewShell.set(
+                keypath: "dispatchAction",
+                value: forwardAction,
                 requester: requester
             )
             if let errorDescription = mutationErrorDescription(from: mutationResult) {
                 cachedDiscoveryState = Self.discoveryStateWithStatus(
                     basedOn: cachedDiscoveryState,
-                    status: "Discovery beholdt siste stabile snapshot fordi oppdateringen feilet.",
-                    refreshSummary: errorDescription
+                    status: "Discovery beholdt siste stabile snapshot fordi preview-handlingen feilet.",
+                    actionSummary: errorDescription
                 )
             }
         }
 
         do {
-            let discoveryValue = try await porthole.get(
-                keypath: "conferenceParticipantShell.state.discovery",
+            let discoveryValue = try await previewShell.get(
+                keypath: "state.discovery",
                 requester: requester
             )
             guard case let .object(discoveryObject) = discoveryValue else {
                 cachedDiscoveryState = Self.discoveryStateWithStatus(
                     basedOn: cachedDiscoveryState,
-                    status: "Discovery returnerte ikke et lesbart snapshot.",
-                    refreshSummary: "Bruker siste stabile data."
+                    status: "Discovery returnerte ikke et lesbart preview-snapshot.",
+                    actionSummary: "Bruker siste stabile data."
                 )
                 lastRefreshAt = Date()
                 return
             }
 
-            cachedDiscoveryState = Self.mergedDiscoveryState(from: discoveryObject)
+            var mergedDiscovery = mergedDiscoveryState(from: discoveryObject)
+            mergedDiscovery["sourceSummary"] = .string("Discovery bruker lokal preview i Binding for å holde deltagerportalen stabil mens øvrige data kobler seg til.")
+            cachedDiscoveryState = mergedDiscovery
             lastRefreshAt = Date()
         } catch {
             cachedDiscoveryState = Self.discoveryStateWithStatus(
                 basedOn: cachedDiscoveryState,
                 status: "Discovery bruker siste stabile snapshot.",
-                refreshSummary: "Kunne ikke hente oppdatert discovery akkurat nå: \(error)"
+                actionSummary: "Kunne ikke hente oppdatert discovery akkurat nå: \(error)"
             )
             lastRefreshAt = Date()
         }
+    }
+
+    private func mergedDiscoveryState(from object: Object) -> Object {
+        var merged = Self.defaultDiscoveryState()
+        for (key, value) in object {
+            merged[key] = value
+        }
+
+        let candidateRows = listObjects(from: merged["candidates"])
+        let proofCandidateRows = listObjects(from: merged["proofCandidates"])
+        let groupRows = listObjects(from: merged["groupSuggestions"])
+        let derivedCandidates = candidateRows.map { discoveryCandidateCard(from: $0) }
+        let derivedProofCandidates = proofCandidateRows.map { discoveryCandidateCard(from: $0) }
+        let derivedGroupSuggestions = groupRows.map { groupSuggestionCard(from: $0) }
+        let focusedCard = focusedDiscoveryCard(
+            candidates: candidateRows,
+            proofCandidates: proofCandidateRows
+        )
+
+        merged["candidates"] = .list(derivedCandidates)
+        merged["proofCandidates"] = .list(derivedProofCandidates)
+        merged["groupSuggestions"] = .list(derivedGroupSuggestions)
+        merged["statusSummary"] = .string(statusSummary(for: candidateRows, proofCandidates: proofCandidateRows))
+        merged["selectionSummary"] = .string(selectionSummary(for: focusedCard))
+        merged["navigationSummary"] = .string(navigationSummary(for: focusedCard))
+        merged["nextStepSummary"] = .string(nextStepSummary(for: focusedCard))
+        merged["actionSummary"] = .string(recentActionSummary)
+        merged["focusedProfile"] = .object(focusedProfileObject(from: focusedCard, publicProfileSummary: string(from: merged["publicProfileSummary"])))
+        merged["focusedActions"] = .list(focusedActionCards(for: focusedCard))
+
+        if string(from: merged["status"])?.isEmpty != false {
+            merged["status"] = .string("Discovery er klar for oppfølging.")
+        }
+        if string(from: merged["refreshSummary"])?.isEmpty != false {
+            merged["refreshSummary"] = .string("Discovery-snapshotet er oppdatert lokalt.")
+        }
+
+        return merged
+    }
+
+    private func discoveryCandidateCard(from raw: Object) -> ValueType {
+        let title = cardTitle(from: raw)
+        let subtitle = cardSubtitle(from: raw)
+        let detail = cardDetail(from: raw)
+        let baseNote = cardNote(from: raw)
+        let isFocused = focusedDiscoveryName == title
+        let chatReady = launchedDiscoveryChatNames.contains(title)
+        let label = isFocused ? (chatReady ? "Åpne chat" : "Start chat") : "Vis i siden"
+        let actionKeypath = isFocused ? "discovery.startChat" : "discovery.focusPerson"
+        let note: String
+        if isFocused {
+            note = chatReady ? "\(baseNote) · Chat klar." : "\(baseNote) · Vises i discovery nå."
+        } else {
+            note = "\(baseNote) · Trykk Vis i siden for å fokusere."
+        }
+
+        let payload: ValueType = isFocused
+            ? discoveryChatPayload(for: title, subtitle: subtitle)
+            : .object([
+                "displayName": .string(title),
+                "subtitle": .string(subtitle)
+            ])
+
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note),
+            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(label),
+            "payload": .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+        ])
+    }
+
+    private func groupSuggestionCard(from raw: Object) -> ValueType {
+        let title = cardTitle(from: raw)
+        let subtitle = cardSubtitle(from: raw)
+        let detail = cardDetail(from: raw)
+        let note = "\(cardNote(from: raw)) · Åpner gruppesamtale når gruppen er klar."
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note),
+            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string("Start gruppesamtale"),
+            "payload": .object([
+                "keypath": .string("discovery.startGroupChat"),
+                "payload": .object([
+                    "source": .string("binding-discovery-snapshot"),
+                    "targets": .list([
+                        .object([
+                            "displayName": .string(title),
+                            "headline": .string(subtitle)
+                        ])
+                    ])
+                ])
+            ])
+        ])
+    }
+
+    private func statusSummary(for candidates: [Object], proofCandidates: [Object]) -> String {
+        if candidates.isEmpty && proofCandidates.isEmpty {
+            return "Ingen discovery-kandidater er klare ennå."
+        }
+        return "\(candidates.count) åpne kandidater og \(proofCandidates.count) proof-klare kandidater er klare for gjennomgang."
+    }
+
+    private func selectionSummary(for focusedCard: Object?) -> String {
+        guard let focusedCard else {
+            return "Trykk Vis i siden på en discovery-kandidat for å fokusere på personen her."
+        }
+        return "Viser \(cardTitle(from: focusedCard)) i discovery-delen."
+    }
+
+    private func navigationSummary(for focusedCard: Object?) -> String {
+        if focusedCard == nil {
+            return "Første klikk skjer i denne siden. Du trenger ikke åpne en egen arbeidsflate for å se hvem discovery-kortet gjelder."
+        }
+        return "Du ser nå valgt discovery-deltaker i denne siden. Herfra kan du starte chat, markere oppfølging eller be om møte."
+    }
+
+    private func nextStepSummary(for focusedCard: Object?) -> String {
+        guard let focusedCard else {
+            return "Velg en discovery-kandidat med Vis i siden før du tar neste steg."
+        }
+        let title = cardTitle(from: focusedCard)
+        if launchedDiscoveryChatNames.contains(title) {
+            return "Chatten med \(title) er klar. Neste steg er å åpne chatten eller be om møte."
+        }
+        if followUpMarkedNames.contains(title) {
+            return "\(title) er markert for oppfølging. Neste steg er å starte chat eller be om møte."
+        }
+        return "Neste steg for \(title) er å starte chat, markere oppfølging eller be om møte."
+    }
+
+    private func focusedProfileObject(from focusedCard: Object?, publicProfileSummary: String?) -> Object {
+        let publicSummary = publicProfileSummary ?? "Bare minimal offentlig profil vises til du ber om mer."
+        guard let focusedCard else {
+            return [
+                "selectionBadge": .string("VALGT I DISCOVERY"),
+                "title": .string("Ingen deltaker valgt ennå"),
+                "subtitle": .string("Entity Discovery"),
+                "detail": .string("Trykk Vis i siden på en discovery-kandidat for å se personens offentlige og lokale oppsummering her."),
+                "note": .string(publicSummary)
+            ]
+        }
+
+        return [
+            "selectionBadge": .string("VALGT I DISCOVERY"),
+            "title": .string(cardTitle(from: focusedCard)),
+            "subtitle": .string(cardSubtitle(from: focusedCard)),
+            "detail": .string(cardDetail(from: focusedCard)),
+            "note": .string("\(cardNote(from: focusedCard)) · \(publicSummary)")
+        ]
+    }
+
+    private func focusedActionCards(for focusedCard: Object?) -> [ValueType] {
+        guard let focusedCard else { return [] }
+        let title = cardTitle(from: focusedCard)
+        let subtitle = cardSubtitle(from: focusedCard)
+        let chatReady = launchedDiscoveryChatNames.contains(title)
+        let followUpMarked = followUpMarkedNames.contains(title)
+
+        let chatAction: ValueType = .object([
+            "title": .string("Chat"),
+            "subtitle": .string(chatReady ? "Fortsett discovery-chatten" : "Start discovery-chat"),
+            "detail": .string(chatReady ? "Åpne chatten med \(title) og fortsett oppfølgingen." : "Start en discovery-chat med \(title) fra denne siden."),
+            "note": .string("Dette er det tydeligste neste steget når discovery-kandidaten virker lovende."),
+            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(chatReady ? "Åpne chat" : "Start chat"),
+            "payload": .object([
+                "keypath": .string("discovery.startChat"),
+                "payload": discoveryChatPayload(for: title, subtitle: subtitle)
+            ])
+        ])
+
+        let followUpAction: ValueType = .object([
+            "title": .string("Oppfølging"),
+            "subtitle": .string(followUpMarked ? "Allerede markert" : "Marker neste steg"),
+            "detail": .string(followUpMarked ? "\(title) er markert for oppfølging." : "Marker \(title) for oppfølging så discovery-sporet blir lett å komme tilbake til."),
+            "note": .string("Bruk dette når du vil holde fast i kandidaten uten å starte chat med en gang."),
+            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string(followUpMarked ? "Fjern markering" : "Marker for oppfølging"),
+            "payload": .object([
+                "keypath": .string("matchmaking.toggleFollowUp"),
+                "payload": .object([
+                    "displayName": .string(title),
+                    "subtitle": .string(subtitle)
+                ])
+            ])
+        ])
+
+        let meetingAction: ValueType = .object([
+            "title": .string("Møte"),
+            "subtitle": .string("Foreslå et konkret neste steg"),
+            "detail": .string("Be om møte med \(title) hvis du vil gå fra discovery til konkret plan."),
+            "note": .string("Bra når du allerede vet at kandidaten er relevant og vil sette opp et faktisk møtetidspunkt."),
+            "url": .string("cell:///ConferenceParticipantDiscoverySnapshot"),
+            "keypath": .string("dispatchAction"),
+            "label": .string("Be om møte"),
+            "payload": .object([
+                "keypath": .string("scheduling.createMeetingRequest"),
+                "payload": .object([
+                    "source": .string("binding-discovery-snapshot"),
+                    "displayName": .string(title)
+                ])
+            ])
+        ])
+
+        return [chatAction, followUpAction, meetingAction]
+    }
+
+    private func focusedDiscoveryCard(candidates: [Object], proofCandidates: [Object]) -> Object? {
+        guard let focusedDiscoveryName else { return nil }
+        if let candidate = candidates.first(where: { cardTitle(from: $0) == focusedDiscoveryName }) {
+            return candidate
+        }
+        if let proofCandidate = proofCandidates.first(where: { cardTitle(from: $0) == focusedDiscoveryName }) {
+            return proofCandidate
+        }
+        return nil
+    }
+
+    private func listObjects(from value: ValueType?) -> [Object] {
+        guard case let .list(values)? = value else { return [] }
+        return values.compactMap {
+            guard case let .object(object) = $0 else { return nil }
+            return object
+        }
+    }
+
+    private func cardTitle(from object: Object) -> String {
+        string(from: object["title"]) ??
+        string(from: object["displayName"]) ??
+        "Ukjent deltaker"
+    }
+
+    private func cardSubtitle(from object: Object) -> String {
+        string(from: object["subtitle"]) ??
+        string(from: object["headline"]) ??
+        "Discovery-kandidat"
+    }
+
+    private func cardDetail(from object: Object) -> String {
+        string(from: object["detail"]) ??
+        "Ingen detalj tilgjengelig."
+    }
+
+    private func cardNote(from object: Object) -> String {
+        string(from: object["note"]) ??
+        "Ingen ekstra discovery-kontekst tilgjengelig ennå."
+    }
+
+    private func discoveryChatPayload(for title: String, subtitle: String) -> ValueType {
+        .object([
+            "source": .string("binding-discovery-snapshot"),
+            "targets": .list([
+                .object([
+                    "displayName": .string(title),
+                    "headline": .string(subtitle)
+                ])
+            ])
+        ])
+    }
+
+    private func discoveryTargetNames(from payload: ValueType) -> [String] {
+        guard case let .object(payloadObject) = payload else { return [] }
+        if case let .list(targets)? = payloadObject["targets"] {
+            let names = targets.compactMap { target -> String? in
+                guard case let .object(targetObject) = target else { return nil }
+                if let displayName = string(from: targetObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   displayName.isEmpty == false {
+                    return displayName
+                }
+                if let participantId = string(from: targetObject["participantId"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   participantId.isEmpty == false {
+                    return participantId
+                }
+                return nil
+            }
+            if names.isEmpty == false {
+                return names
+            }
+        }
+        if case let .list(participantIds)? = payloadObject["participantIds"] {
+            return participantIds.compactMap { value in
+                guard let raw = string(from: value) else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+        }
+        return []
     }
 
     private func mutationErrorDescription(from value: ValueType?) -> String? {
@@ -2782,64 +3145,91 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         }
     }
 
-    private static func cachedString(from value: ValueType?) -> String? {
-        guard let value else { return nil }
-        switch value {
-        case let .string(string):
-            return string
-        case let .integer(integer):
-            return String(integer)
-        case let .number(number):
-            return String(number)
-        case let .float(float):
-            return String(float)
-        case let .bool(bool):
-            return bool ? "true" : "false"
-        default:
-            return nil
-        }
-    }
-
-    private static func mergedDiscoveryState(from object: Object) -> Object {
-        var merged = defaultDiscoveryState()
-        for (key, value) in object {
-            merged[key] = value
-        }
-
-        if cachedString(from: merged["status"])?.isEmpty != false {
-            merged["status"] = .string("Discovery is ready for follow-up.")
-        }
-        if cachedString(from: merged["refreshSummary"])?.isEmpty != false {
-            merged["refreshSummary"] = .string("Discovery snapshot refreshed locally.")
-        }
-        return merged
-    }
-
     private static func discoveryStateWithStatus(
         basedOn base: Object,
         status: String,
-        refreshSummary: String
+        actionSummary: String
     ) -> Object {
         var updated = base
         updated["status"] = .string(status)
-        updated["refreshSummary"] = .string(refreshSummary)
+        updated["statusSummary"] = .string(status)
+        updated["actionSummary"] = .string(actionSummary)
+        updated["refreshSummary"] = .string(actionSummary)
         return updated
     }
 
     private static func defaultDiscoveryState() -> Object {
         [
             "intro": .string("Conference discovery combines portable participant discovery with local nearby enrichment."),
-            "status": .string("Discovery snapshot is warming up locally."),
-            "alignmentSummary": .string("Portable and local discovery signals are kept together in one stable snapshot."),
-            "proofSummary": .string("Verified contact can unlock richer purpose and interest matching."),
-            "sourceSummary": .string("Using a local cached snapshot so the discovery section stays stable while live data refreshes."),
-            "publicProfileSummary": .string("Only minimal profile data is shown until you explicitly request more."),
-            "chatSummary": .string("0 discovery chat(s) ready."),
-            "nextAction": .string("Refresh discovery, review promising people, and start a follow-up chat when it feels right."),
-            "refreshSummary": .string("Preparing the first discovery snapshot."),
-            "candidates": .list([]),
-            "proofCandidates": .list([]),
-            "groupSuggestions": .list([])
+            "status": .string("Discovery-snapshotet varmer opp lokalt."),
+            "alignmentSummary": .string("Portable og lokale discovery-signaler holdes samlet i ett stabilt snapshot."),
+            "proofSummary": .string("Verifisert kontakt kan åpne for rikere purpose- og interest-matching."),
+            "sourceSummary": .string("Vi bruker et lokalt cached snapshot så discovery-delen holder seg stabil mens live-data oppdateres."),
+            "publicProfileSummary": .string("Bare minimal offentlig profil vises til du eksplisitt ber om mer."),
+            "chatSummary": .string("0 discovery-chat(er) klare."),
+            "nextAction": .string("Oppdater discovery, vurder lovende personer, og start en oppfølgingschat når det føles riktig."),
+            "refreshSummary": .string("Forbereder første discovery-snapshot."),
+            "statusSummary": .string("Discovery-snapshotet bruker en lokal startflate mens livedata kobler seg til."),
+            "selectionSummary": .string("Trykk Vis i siden på en discovery-kandidat for å fokusere på personen her."),
+            "navigationSummary": .string("Første klikk skjer i denne siden."),
+            "nextStepSummary": .string("Velg en discovery-kandidat før du tar neste steg."),
+            "actionSummary": .string("Trykk Vis i siden for å fokusere på en person i discovery."),
+            "candidates": .list([
+                .object([
+                    "title": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability"),
+                    "detail": .string("Strong alignment on governance, delivery, and shared trust patterns."),
+                    "note": .string("Recommended")
+                ]),
+                .object([
+                    "title": .string("Mads Hovden"),
+                    "subtitle": .string("Policy and compliance"),
+                    "detail": .string("Good match for claims, compliance, and organizer follow-up."),
+                    "note": .string("Nearby-capable")
+                ]),
+                .object([
+                    "title": .string("Lea Heger"),
+                    "subtitle": .string("Digital service design"),
+                    "detail": .string("Connects participant needs to service and product design decisions."),
+                    "note": .string("Suggested follow-up")
+                ])
+            ]),
+            "proofCandidates": .list([
+                .object([
+                    "title": .string("Shared Relations Forum"),
+                    "subtitle": .string("Proof-backed discovery"),
+                    "detail": .string("Participants who can expose stronger matching once contact is verified."),
+                    "note": .string("Proof ready")
+                ]),
+                .object([
+                    "title": .string("Trust Infrastructure Lab"),
+                    "subtitle": .string("Policy and operations"),
+                    "detail": .string("Good candidate set for deeper follow-up if you want more precision."),
+                    "note": .string("Consent gated")
+                ])
+            ]),
+            "groupSuggestions": .list([
+                .object([
+                    "title": .string("Identity and Governance Circle"),
+                    "subtitle": .string("3 people"),
+                    "detail": .string("A small group with overlapping agenda and meeting goals."),
+                    "note": .string("Suggested group chat")
+                ]),
+                .object([
+                    "title": .string("Applied AI Follow-up"),
+                    "subtitle": .string("2 people"),
+                    "detail": .string("Focused on practical AI systems, trust, and delivery."),
+                    "note": .string("Suggested nearby cluster")
+                ])
+            ]),
+            "focusedProfile": .object([
+                "selectionBadge": .string("VALGT I DISCOVERY"),
+                "title": .string("Ingen deltaker valgt ennå"),
+                "subtitle": .string("Entity Discovery"),
+                "detail": .string("Trykk Vis i siden på en discovery-kandidat for å se personens offentlige og lokale oppsummering her."),
+                "note": .string("Bare minimal offentlig profil vises til du eksplisitt ber om mer.")
+            ]),
+            "focusedActions": .list([])
         ]
     }
 }

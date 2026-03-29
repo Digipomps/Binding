@@ -694,6 +694,9 @@ struct BindingTests {
         #expect(skeletonContainsReference(keypath: "discoverySnapshot", topic: "discoverySnapshot.snapshot", in: skeleton))
         #expect(skeletonContainsTextKeypath("status", in: skeleton))
         #expect(skeletonContainsTextKeypath("nextAction", in: skeleton))
+        #expect(skeletonContainsTextKeypath("statusSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("selectionSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("focusedProfile.title", in: skeleton))
         #expect(skeletonContainsTextKeypath("alignmentSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("proofSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
@@ -768,9 +771,103 @@ struct BindingTests {
 
         #expect(object["status"] != nil)
         #expect(object["nextAction"] != nil)
+        #expect(object["statusSummary"] != nil)
+        #expect(object["selectionSummary"] != nil)
+        #expect(object["focusedProfile"] != nil)
+        #expect(object["focusedActions"] != nil)
         #expect(object["candidates"] != nil)
         #expect(object["proofCandidates"] != nil)
         #expect(object["groupSuggestions"] != nil)
+    }
+
+    @Test func conferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantDiscoverySnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantDiscoverySnapshot did not resolve as Meddle")
+            return
+        }
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("discovery.focusPerson"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.toggleFollowUp"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await snapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("discovery.startChat"),
+                "payload": .object([
+                    "source": .string("binding-test"),
+                    "targets": .list([
+                        .object([
+                            "displayName": .string("Ane Solberg"),
+                            "headline": .string("Public sector interoperability")
+                        ])
+                    ])
+                ])
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue,
+              case let .object(focusedProfile)? = object["focusedProfile"],
+              case let .list(focusedActions)? = object["focusedActions"],
+              case let .list(candidates)? = object["candidates"],
+              case let .object(firstCandidate)? = candidates.first else {
+            Issue.record("Expected discovery snapshot state with focused profile and actions")
+            return
+        }
+
+        #expect(object["selectionSummary"] == .string("Viser Ane Solberg i discovery-delen."))
+        #expect(focusedProfile["title"] == .string("Ane Solberg"))
+        #expect(firstCandidate["label"] == .string("Åpne chat"))
+
+        guard case let .object(chatAction)? = focusedActions.first,
+              case let .object(followUpAction)? = focusedActions.dropFirst().first,
+              case let .object(meetingAction)? = focusedActions.dropFirst(2).first else {
+            Issue.record("Expected three focused actions in discovery snapshot")
+            return
+        }
+
+        #expect(chatAction["label"] == .string("Åpne chat"))
+        #expect(followUpAction["label"] == .string("Fjern markering"))
+        #expect(meetingAction["label"] == .string("Be om møte"))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceMatchmakingSnapshotReadable() async throws {
@@ -3502,11 +3599,28 @@ enum CellConfigurationVerifier {
                 selectedActions = []
             }
             let selectedPrimaryAction: Object?
-            if let firstAction = selectedActions.first,
-               case let .object(value) = firstAction {
-                selectedPrimaryAction = value
-            } else {
-                selectedPrimaryAction = nil
+            selectedPrimaryAction = selectedActions.compactMap { action -> Object? in
+                guard case let .object(value) = action else {
+                    return nil
+                }
+                let title = valueString(value["title"])?.lowercased()
+                let label = valueString(value["label"])?.lowercased()
+                if title == "kontakt" || title == "chat" {
+                    return value
+                }
+                if label == "be om kontakt" ||
+                    label == "kobler til..." ||
+                    label == "kontakt venter" ||
+                    label == "start chat" ||
+                    label == "åpne chat" {
+                    return value
+                }
+                return nil
+            }.first ?? selectedActions.first.flatMap { action in
+                guard case let .object(value) = action else {
+                    return nil
+                }
+                return value
             }
 
             return (
@@ -3676,10 +3790,19 @@ enum CellConfigurationVerifier {
         }
         let requestContactDuration = milliseconds(since: requestContactStart, clock: clock)
         let requestContactOutcome = requestContactResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
-        let requestContactSnapshot = try await waitForNearbySnapshot(
-            operation: "waitForNearbyStateAfterRequestContact"
-        ) { snapshot in
-            snapshot.cardLabel == "Kontakt venter"
+        let immediateRequestContactSnapshot = requestContactResponse.map(nearbyStateSnapshot(from:))
+        let requestContactSnapshot: NearbySnapshot
+        if let immediateRequestContactSnapshot,
+           immediateRequestContactSnapshot.cardLabel == "Kontakt venter" ||
+           immediateRequestContactSnapshot.actionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning." {
+            requestContactSnapshot = immediateRequestContactSnapshot
+        } else {
+            requestContactSnapshot = try await waitForNearbySnapshot(
+                operation: "waitForNearbyStateAfterRequestContact"
+            ) { snapshot in
+                snapshot.cardLabel == "Kontakt venter" ||
+                snapshot.actionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning."
+            }
         }
         let requestContactLabel = requestContactSnapshot.cardLabel
         let requestContactSummary = requestContactSnapshot.note

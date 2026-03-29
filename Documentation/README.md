@@ -218,6 +218,25 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `selectedEntityActions`
   - `spatialTruthSummary`
   - `Retning usikker` for approximate peers
+
+## Latest successful changes (March 29, 2026)
+- `Conference Participant Portal` now gives `Entity Discovery` the same inline-first treatment as nearby and recommendations:
+  - a local `ConferenceParticipantDiscoverySnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift)
+  - explicit discovery summaries (`statusSummary`, `selectionSummary`, `navigationSummary`, `nextStepSummary`)
+  - an inline focused participant block with explicit next actions in [ConfigurationCatalogCell.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/ConfigurationCatalogCell.swift)
+- Discovery no longer depends on hidden Porthole internals to decide whether it can refresh. The local discovery snapshot now uses the local preview shell directly, which makes the refresh path both simpler and more deterministic.
+- Repair of persisted conference participant workbenches now recognizes the richer discovery snapshot wiring in:
+  - [ConferenceConfigurationRepair.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/ConferenceConfigurationRepair.swift)
+  - [ContentView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/ContentView.swift)
+- The deterministic verifier now also treats discovery as a first-class participant contract:
+  - [CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift)
+  - [BindingTests.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/BindingTests.swift)
+  - [run_conference_configuration_verifier.sh](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Scripts/run_conference_configuration_verifier.sh)
+- Latest green targeted run on March 29, 2026:
+  - `./Scripts/run_conference_configuration_verifier.sh participant contract`
+  - `testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions`
+  - `testConferenceParticipantPortalContract`
+  - `testConferenceParticipantPortalRenderer`
 - Latest green targeted checks on March 28, 2026:
   - `testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
   - `testConferenceNearbyRadarContract`

@@ -20,6 +20,7 @@ Covered layers:
 - contract verification for the dedicated nearby-radar workbench, including start/stop and return-to-portal routing
 - contract verification for nearby scanner start/requestContact/verified follow-up/stop
 - contract verification for the participant-local matchmaking snapshot, including inline focus, follow-up marking, and chat handoff
+- contract verification for the participant-local discovery snapshot, including inline focus, follow-up marking, and chat handoff
 - nearby-radar state verification for focused participant state and honest `Retning usikker` handling
 - renderer verification for expected visible strings and timing
 
@@ -28,6 +29,7 @@ Current UX decision:
 - first click stays inline in the current conference page
 - `Vis i siden` means “focus this participant here”
 - participant recommendations now follow that same rule through a local `ConferenceParticipantMatchmakingSnapshot`
+- participant discovery now follows that same rule through a local `ConferenceParticipantDiscoverySnapshot`
 - `Åpne radarflate` and `Åpne profilflate` mean “open a separate workbench in Porthole”
 - do not hide that transition behind a generic button label
 - avoid overlay/modal as the primary pattern for now; the current skeleton/runtime model is better served by explicit inline focus first and explicit workbench expansion second
@@ -44,14 +46,15 @@ Next recommended engineering steps:
    - honest MPC-only uncertainty
    - clearer UWB-ready direction/distance presentation
    - visible selected-entity follow-up state
-2. Extend the same “inline first, workbench second” rule from nearby/recommendations to discovery cards:
-   - `Åpne profil`
-   - `Marker for oppfølging`
-   - `Start chat`
-3. Make the participant-portal buttons even more self-explanatory in GUI state:
+2. Make the participant-portal buttons even more self-explanatory in GUI state:
    - selected agenda mode
    - selected track focus
    - short action feedback after clicks
+3. Make the inline participant selection pattern consistent across nearby, recommendations, and discovery:
+   - `Åpne profil`
+   - `Marker for oppfølging`
+   - `Åpne chat`
+   - `Be om møte`
 4. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
 5. Extend verifier coverage to one more conference configuration that matters for the demo story.
 6. Consider a separate iOS-oriented layer later:

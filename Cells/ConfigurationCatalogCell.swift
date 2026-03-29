@@ -7663,7 +7663,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Entity Discovery",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Når en person eller gruppe ser lovende ut, skal kortet gi deg en tydelig neste handling i stedet for bare forklarende tekst.",
+                        "Når en person eller gruppe ser lovende ut, skal første klikk fortsatt skje i denne siden. Bruk Vis i siden for å fokusere på kandidaten her, og ta deretter neste steg fra den valgte discovery-flaten.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3",
                         lineLimit: 4
@@ -7677,12 +7677,53 @@ final class ConfigurationCatalogCell: GeneralCell {
                     bindingConferencePortalKeyText("chatSummary"),
                     bindingConferencePortalKeyText("nextAction"),
                     bindingConferencePortalKeyText("refreshSummary"),
+                    .Grid(
+                        SkeletonGrid(
+                            columns: [.adaptive(min: 220, max: 320)],
+                            spacing: 12,
+                            elements: [
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Status nå",
+                                    detailKeypath: "statusSummary",
+                                    noteKeypath: "actionSummary",
+                                    accentBorder: "#2F6B56",
+                                    accentText: "#B9FBC0",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Valg nå",
+                                    detailKeypath: "selectionSummary",
+                                    noteKeypath: "navigationSummary",
+                                    accentBorder: "#2A4D61",
+                                    accentText: "#B9E6FF",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Neste steg",
+                                    detailKeypath: "nextStepSummary",
+                                    noteKeypath: "chatSummary",
+                                    accentBorder: "#4D3F2A",
+                                    accentText: "#F4D58D",
+                                    height: 132
+                                )
+                            ]
+                        )
+                    ),
                     bindingConferencePortalCollectionGrid(
                         keypath: "candidates",
                         itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                     ),
                     bindingConferencePortalCollectionGrid(
                         keypath: "proofCandidates",
+                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                    ),
+                    bindingConferencePortalKeyText("focusedProfile.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+                    bindingConferencePortalKeyText("focusedProfile.title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                    bindingConferencePortalKeyText("focusedProfile.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+                    bindingConferencePortalKeyText("focusedProfile.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+                    bindingConferencePortalKeyText("focusedProfile.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "focusedActions",
                         itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                     ),
                     bindingConferencePortalCollectionGrid(

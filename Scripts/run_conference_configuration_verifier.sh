@@ -25,6 +25,8 @@ add_test() {
 case "$surface" in
   participant)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract"
+    [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions"
+    [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileContract"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"
@@ -45,6 +47,8 @@ case "$surface" in
   all)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && {
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract"
+      add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions"
+      add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"

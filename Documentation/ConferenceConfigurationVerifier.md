@@ -69,6 +69,26 @@ Current participant recommendation assertions:
   - `Be om møte`
 - the focused participant state survives the local action refresh path instead of falling tilbake til rå preview-data
 
+Current participant discovery assertions:
+
+- the participant portal resolves a local `ConferenceParticipantDiscoverySnapshot`
+- discovery cards now follow the same inline-first rule as nearby and recommendations:
+  - `Vis i siden`
+  - explicit focused participant summary inside the current page
+  - explicit next actions in the focused block
+- focused discovery state is explicit and readable:
+  - `statusSummary`
+  - `selectionSummary`
+  - `navigationSummary`
+  - `nextStepSummary`
+  - `focusedProfile`
+  - `focusedActions`
+- discovery action flow is deterministic and survives local refresh:
+  - `Vis i siden` focuses the participant inline
+  - `Marker for oppfølging` toggles inline follow-up state
+  - `Åpne chat` upgrades in-place after the local chat handoff
+- the local snapshot now falls back directly to `ConferenceParticipantPreviewShell` instead of relying on hidden Porthole internals
+
 Current nearby radar assertions:
 
 - the dedicated nearby-radar workbench resolves both `ConferenceNearbyRadar` and the participant preview shell
@@ -161,8 +181,10 @@ Latest verified on March 29, 2026:
 
 Targeted green checks:
 
+- `./Scripts/run_conference_configuration_verifier.sh participant contract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract`
@@ -176,6 +198,7 @@ Observed isolated timings from the latest green checks:
 
 - `Conference Participant Portal` contract: about `1.55s`
 - `Conference Participant Matchmaking Snapshot` focused-action contract: about `1.92s`
+- `Conference Participant Discovery Snapshot` focused-action contract: about `3.90s`
 - `Conference Nearby Radar` contract: about `1.55s`
 - `Conference Participant Nearby Follow-Up` contract: about `1.90s`
 - `Conference Control Tower` contract: about `1.37s`
@@ -197,6 +220,7 @@ The verifier forced us to fix several real issues:
 - the dedicated nearby-radar workbench needed its own verifier path so local radar actions and return-to-portal routing do not silently drift
 - nearby follow-up chat needed deterministic local injection and post-action state reads, otherwise we could falsely pass or fail depending on shared runtime state
 - participant recommendations used to depend too directly on raw preview-shell state; the local matchmaking snapshot and its focused-action verifier now catch regressions in inline selection, follow-up marking, and chat handoff
+- participant discovery used to depend on fragile live access through Porthole internals; the local discovery snapshot and its direct preview fallback now catch regressions in inline selection, focused actions, and follow-up state without hanging
 - the nearby radar used to blur together “nearby” and “direction known”; the focused-state test now catches that by requiring `Retning usikker` and a selected participant action surface
 - coarse root probes like `conferenceParticipantShell.state` could report `notFound` even when the surface itself was readable through real descendant bindings
 - running multiple verifier targets in one `xcodebuild` process allowed shared Porthole/runtime state to leak between tests
