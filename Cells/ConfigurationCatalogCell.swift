@@ -4975,17 +4975,17 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "briefing", "follow-up"]
             ),
             StaticCatalogDescriptor(
-                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell",
-                sourceCellName: "ConferenceAdminPreviewShellCell",
+                sourceCellEndpoint: "cell:///ConferenceAdminPreviewShell",
+                sourceCellName: "ConferenceAdminPreviewShellLocalFallbackCell",
                 displayName: "Conference Control Tower",
                 purpose: "Conference control tower",
-                purposeDescription: "Organizer-fokusert preview-wrapper for drift, innhold, innsikt og sponsor-oversikt.",
+                purposeDescription: "Organizer-fokusert preview-wrapper for drift, innhold, innsikt og sponsor-oversikt i Binding.",
                 interests: ["conference", "admin", "control-tower", "operations", "insights"],
-                summary: "Organizer control tower via preview-wrapper over staging-admin-shellen.",
+                summary: "Organizer control tower via lokal preview-wrapper i Binding.",
                 categoryPath: ["experiences", "conference", "operations"],
                 tags: ["conference", "admin", "operations", "insights"],
                 menuSlots: [.upperRight],
-                chip: "REMOTE",
+                chip: "LOCAL PREVIEW",
                 borderColor: "#B45309",
                 flowDriven: true,
                 recommendedContexts: ["conference", "operations", "organizer"]
@@ -6171,11 +6171,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    nonisolated static func conferenceAdminWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell") -> CellConfiguration {
+    nonisolated static func conferenceAdminWorkbenchConfiguration(endpoint: String = "cell:///ConferenceAdminPreviewShell") -> CellConfiguration {
         conferenceAdminWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Control Tower",
-            summary: "Organizer control tower via preview-wrapper over staging-admin-shellen."
+            summary: "Organizer control tower via lokal preview-wrapper i Binding."
         )
     }
 
@@ -7228,16 +7228,22 @@ final class ConfigurationCatalogCell: GeneralCell {
         actionKeypath: String,
         label: String,
         payload: ValueType = .bool(true),
+        responseMode: String? = nil,
         url: String? = nil
     ) -> SkeletonElement {
+        var actionObject: Object = [
+            "keypath": .string(actionKeypath),
+            "payload": payload
+        ]
+        if let responseMode,
+           !responseMode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            actionObject["responseMode"] = .string(responseMode)
+        }
         var button = SkeletonButton(
             keypath: url == nil ? "\(referenceLabel).dispatchAction" : "dispatchAction",
             label: label,
             url: url,
-            payload: .object([
-                "keypath": .string(actionKeypath),
-                "payload": payload
-            ])
+            payload: .object(actionObject)
         )
         button.modifiers = modifier {
             $0.padding = 8
@@ -8492,13 +8498,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                                 "conferenceAdminShell",
                                 actionKeypath: "contentPublishing.publishDraft",
                                 label: "Publish content",
-                                url: endpoint
+                                responseMode: "ack"
                             ),
                             bindingConferencePortalActionButton(
                                 "conferenceAdminShell",
                                 actionKeypath: "contentPublishing.discardDraft",
                                 label: "Discard draft",
-                                url: endpoint
+                                responseMode: "ack"
                             )
                         ])
                     )

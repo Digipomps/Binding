@@ -785,7 +785,7 @@ struct BindingTests {
 
     @Test func conferenceControlTowerRepairRestoresAdminPreviewWiring() {
         var staleConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
-            endpoint: "cell:///ConferenceAdminPreviewShell"
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell"
         )
         staleConfiguration.cellReferences = []
         staleConfiguration.skeleton = .VStack(
@@ -811,6 +811,76 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.operations.intro", in: skeleton))
         #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.insights.dashboardSummary", in: skeleton))
         #expect(skeletonContainsButton(keypath: "conferenceAdminShell.dispatchAction", in: skeleton))
+    }
+
+    @Test func conferenceControlTowerDefaultsToLocalPreviewInBinding() {
+        let configuration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration()
+        let references = configuration.cellReferences ?? []
+
+        #expect(references.contains(where: {
+            $0.label == "conferenceAdminShell" && $0.endpoint == "cell:///ConferenceAdminPreviewShell"
+        }))
+        #expect(!references.contains(where: {
+            $0.label == "conferenceAdminShell" && $0.endpoint.contains("staging.haven.digipomps.org")
+        }))
+        #expect(configuration.description?.contains("lokal preview-wrapper") == true)
+    }
+
+    @Test func conferenceControlTowerUsesReferenceLabelForOrganizerActions() {
+        let configuration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceAdminPreviewShell"
+        )
+
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Conference control tower mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsButton(keypath: "conferenceAdminShell.dispatchAction", in: skeleton))
+        #expect(!skeletonContainsButton(keypath: "dispatchAction", url: "cell:///ConferenceAdminPreviewShell", in: skeleton))
+    }
+
+    @Test func conferenceControlTowerOrganizerActionsAckThroughProxyAndPreviewShell() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceAdminPreviewShell"
+        )
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let actionPayload: ValueType = .object([
+            "keypath": .string("contentPublishing.publishDraft"),
+            "payload": .bool(true),
+            "responseMode": .string("ack")
+        ])
+
+        let portholeResponse = try await context.porthole.set(
+            keypath: "conferenceAdminShell.dispatchAction",
+            value: actionPayload,
+            requester: context.owner
+        )
+        #expect(portholeResponse != nil)
+        if let portholeResponse {
+            #expect(SkeletonBindingProbeSupport.failureDetail(from: portholeResponse) == nil)
+        }
+
+        guard let previewShell = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceAdminPreviewShell",
+            requester: context.owner
+        ) as? Meddle else {
+            Issue.record("ConferenceAdminPreviewShell did not resolve as Meddle")
+            return
+        }
+
+        let previewResponse = try await previewShell.set(
+            keypath: "dispatchAction",
+            value: actionPayload,
+            requester: context.owner
+        )
+        #expect(previewResponse != nil)
+        if let previewResponse {
+            #expect(SkeletonBindingProbeSupport.failureDetail(from: previewResponse) == nil)
+        }
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceParticipantAgendaSnapshotReadable() async throws {
@@ -3723,7 +3793,10 @@ enum CellConfigurationVerifier {
 
         let actionExecutions = try await executeStaticButtons(
             in: context.configuration.skeleton,
-            allowedLabels: buttonsToExecute
+            allowedLabels: buttonsToExecute,
+            porthole: context.porthole,
+            resolver: context.resolver,
+            requester: context.owner
         )
 
         return ContractReport(
@@ -4281,7 +4354,7 @@ enum CellConfigurationVerifier {
     }
 #endif
 
-    private struct RuntimeContext {
+    fileprivate struct RuntimeContext {
         let configuration: CellConfiguration
         let validation: CellConfigurationValidationReport
         let resolver: CellResolver
@@ -4298,7 +4371,7 @@ enum CellConfigurationVerifier {
         }
     }
 
-    private static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
+    fileprivate static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
         let identityVault = BindingTests.testIdentityVault
         _ = await identityVault.initialize()
         CellBase.defaultIdentityVault = identityVault
@@ -4534,7 +4607,10 @@ enum CellConfigurationVerifier {
 
     private static func executeStaticButtons(
         in skeleton: SkeletonElement?,
-        allowedLabels: Set<String>
+        allowedLabels: Set<String>,
+        porthole: OrchestratorCell,
+        resolver: CellResolver,
+        requester: Identity
     ) async throws -> [ActionExecution] {
         guard let skeleton, !allowedLabels.isEmpty else {
             return []
@@ -4553,7 +4629,12 @@ enum CellConfigurationVerifier {
                     seconds: 5,
                     operation: "executeButton:\(button.label)"
                 ) {
-                    await button.execute()
+                    try await executeButtonDeterministically(
+                        button,
+                        porthole: porthole,
+                        resolver: resolver,
+                        requester: requester
+                    )
                 }
             } catch {
                 results.append(
@@ -4585,6 +4666,43 @@ enum CellConfigurationVerifier {
         }
 
         return results
+    }
+
+    private static func executeButtonDeterministically(
+        _ button: SkeletonButton,
+        porthole: OrchestratorCell,
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws -> ValueType? {
+        let target: Meddle
+        if let url = button.url {
+            guard let resolved = try await resolver.cellAtEndpoint(
+                endpoint: url,
+                requester: requester
+            ) as? Meddle else {
+                throw NSError(
+                    domain: "CellConfigurationVerifier",
+                    code: 7,
+                    userInfo: [NSLocalizedDescriptionKey: "Button target was not Meddle for \(button.label)"]
+                )
+            }
+            target = resolved
+        } else {
+            target = porthole
+        }
+
+        if let payload = button.payload {
+            return try await target.set(
+                keypath: button.keypath,
+                value: payload,
+                requester: requester
+            )
+        }
+
+        return try await target.get(
+            keypath: button.keypath,
+            requester: requester
+        )
     }
 
     private static func directReadableBindings(

@@ -34,8 +34,9 @@ enum BindingConferenceConfigurationRepair {
             return nil
         }
 
-        let endpoint = controlTowerEndpoint(from: configuration)
-        return ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(endpoint: endpoint)
+        return ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceAdminPreviewShell"
+        )
     }
 
     private static func participantPortalNeedsRepair(_ configuration: CellConfiguration) -> Bool {
@@ -87,6 +88,7 @@ enum BindingConferenceConfigurationRepair {
         let references = configuration.cellReferences ?? []
         let hasAdminReference = references.contains(where: {
             $0.label == "conferenceAdminShell"
+                && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceAdminPreviewShell")
         })
         let skeletonJSON = serializedSkeleton(configuration.skeleton)
         let hasCurrentBindings = skeletonJSON.contains("\"conferenceAdminShell.state.workspace.title\"")
@@ -98,20 +100,6 @@ enum BindingConferenceConfigurationRepair {
 
         return !(hasAdminReference && hasCurrentBindings)
     }
-
-    private static func controlTowerEndpoint(from configuration: CellConfiguration) -> String {
-        let references = configuration.cellReferences ?? []
-        if let labeledReference = references.first(where: { $0.label == "conferenceAdminShell" }) {
-            return labeledReference.endpoint
-        }
-        if let previewReference = references.first(where: {
-            endpointIdentity($0.endpoint).hasSuffix("/conferenceadminpreviewshell")
-        }) {
-            return previewReference.endpoint
-        }
-        return "cell:///ConferenceAdminPreviewShell"
-    }
-
     private static func normalizedName(for configuration: CellConfiguration) -> String {
         configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
