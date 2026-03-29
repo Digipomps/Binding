@@ -681,6 +681,9 @@ struct BindingTests {
 
         #expect(references.contains(where: { $0.label == "conferenceParticipantShell" }))
         #expect(references.contains(where: {
+            $0.label == "conferenceParticipantShell" && $0.endpoint == "cell:///ConferenceParticipantPreviewShell"
+        }))
+        #expect(references.contains(where: {
             $0.label == "agendaSnapshot" && $0.endpoint == "cell:///ConferenceParticipantAgendaSnapshot"
         }))
         #expect(references.contains(where: {
@@ -721,6 +724,19 @@ struct BindingTests {
         #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
         #expect(skeletonContainsButton(keypath: "discoverySnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+        #expect(configuration.discovery?.sourceCellEndpoint == "cell:///ConferenceParticipantPreviewShell")
+        #expect(configuration.discovery?.sourceCellName == "ConferenceParticipantPreviewShellLocalFallbackCell")
+        #expect(configuration.description?.contains("lokal preview-wrapper") == true)
+    }
+
+    @Test func conferenceParticipantPortalMenuSeedUsesLocalPreviewInBinding() {
+        let configuration = ContentView.conferenceParticipantPortalMenuSeedConfiguration()
+
+        #expect(configuration.cellReferences?.contains(where: {
+            $0.label == "conferenceParticipantShell" && $0.endpoint == "cell:///ConferenceParticipantPreviewShell"
+        }) == true)
+        #expect(configuration.discovery?.sourceCellEndpoint == "cell:///ConferenceParticipantPreviewShell")
+        #expect(configuration.discovery?.sourceCellName == "ConferenceParticipantPreviewShellLocalFallbackCell")
     }
 
     @Test func conferenceParticipantPortalRepairRestoresDiscoveryAndNearbyWiring() {
@@ -735,6 +751,9 @@ struct BindingTests {
         let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(staleConfiguration)
 
         #expect(repaired != nil)
+        #expect(repaired?.cellReferences?.contains(where: {
+            $0.label == "conferenceParticipantShell" && $0.endpoint == "cell:///ConferenceParticipantPreviewShell"
+        }) == true)
         #expect(repaired?.cellReferences?.contains(where: {
             $0.label == "agendaSnapshot" && $0.endpoint == "cell:///ConferenceParticipantAgendaSnapshot"
         }) == true)

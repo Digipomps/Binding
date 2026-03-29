@@ -25,8 +25,9 @@ enum BindingConferenceConfigurationRepair {
             return nil
         }
 
-        let endpoint = participantPortalEndpoint(from: configuration)
-        return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(endpoint: endpoint)
+        return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
     }
 
     private static func updatedControlTowerConfigurationIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration? {
@@ -70,20 +71,6 @@ enum BindingConferenceConfigurationRepair {
 
         return !(hasAgendaSnapshotReference && hasAgendaSnapshotBindings && hasMatchmakingSnapshotReference && hasMatchmakingSnapshotBindings && hasDiscoverySnapshotReference && hasDiscoverySnapshotBindings && hasNearbyRadarReference && hasNearbyActionBindings && hasNearbySnapshotReference)
     }
-
-    private static func participantPortalEndpoint(from configuration: CellConfiguration) -> String {
-        let references = configuration.cellReferences ?? []
-        if let labeledReference = references.first(where: { $0.label == "conferenceParticipantShell" }) {
-            return labeledReference.endpoint
-        }
-        if let previewReference = references.first(where: {
-            endpointIdentity($0.endpoint).hasSuffix("/conferenceparticipantpreviewshell")
-        }) {
-            return previewReference.endpoint
-        }
-        return "cell:///ConferenceParticipantPreviewShell"
-    }
-
     private static func controlTowerNeedsRepair(_ configuration: CellConfiguration) -> Bool {
         let references = configuration.cellReferences ?? []
         let hasAdminReference = references.contains(where: {

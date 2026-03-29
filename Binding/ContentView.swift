@@ -3972,6 +3972,10 @@ struct ContentView: View {
         ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration()
     }
 
+    static func conferenceParticipantPortalMenuSeedConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration()
+    }
+
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
         func stagingEndpoint(_ cellName: String) -> String {
             "cell://\(Self.stagingHost)/\(cellName)"
@@ -3983,9 +3987,7 @@ struct ContentView: View {
         let conference = ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(
             endpoint: stagingEndpoint("ConferenceUIRouter")
         )
-        let conferenceParticipantPortal = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
-            endpoint: stagingEndpoint("ConferenceParticipantPreviewShell")
-        )
+        let conferenceParticipantPortal = Self.conferenceParticipantPortalMenuSeedConfiguration()
         let conferenceAIAssistant = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: stagingEndpoint("ConferenceParticipantPreviewShell"),
             aiEndpoint: stagingEndpoint("AIGateway")

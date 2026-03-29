@@ -4943,17 +4943,17 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "partnering", "event-day"]
             ),
             StaticCatalogDescriptor(
-                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-                sourceCellName: "ConferenceParticipantPreviewShellCell",
+                sourceCellEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                sourceCellName: "ConferenceParticipantPreviewShellLocalFallbackCell",
                 displayName: "Conference Participant Portal Dashboard",
                 purpose: "Conference participantportal",
-                purposeDescription: "Participant-shell med agenda, people, meetings og shared relations over en stabil preview-wrapper.",
+                purposeDescription: "Participant-shell med agenda, people, meetings og shared relations over en lokal preview-wrapper i Binding.",
                 interests: ["conference", "participant", "dashboard", "agenda", "sessions", "matchmaking", "meetings"],
-                summary: "Participant-shell med agenda, anbefalinger og meeting timeline over preview-wrapperen på staging.",
+                summary: "Participant-shell med agenda, anbefalinger og meeting timeline over lokal preview-wrapper i Binding.",
                 categoryPath: ["experiences", "conference", "participant"],
                 tags: ["conference", "participant", "agenda", "matchmaking", "meetings"],
                 menuSlots: [.upperMid, .lowerMid],
-                chip: "REMOTE",
+                chip: "LOCAL PREVIEW",
                 borderColor: "#0F766E",
                 flowDriven: true,
                 recommendedContexts: ["conference", "event-day", "participant"]
@@ -6131,11 +6131,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    nonisolated static func conferenceParticipantPortalWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell") -> CellConfiguration {
+    nonisolated static func conferenceParticipantPortalWorkbenchConfiguration(endpoint: String = "cell:///ConferenceParticipantPreviewShell") -> CellConfiguration {
         conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Participant Portal Dashboard",
-            summary: "Participant-shell med agenda, anbefalinger og meeting timeline over preview-wrapperen på staging."
+            summary: "Participant-shell med agenda, anbefalinger og meeting timeline over lokal preview-wrapper i Binding."
         )
     }
 
@@ -6556,13 +6556,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         displayName: String,
         summary: String
     ) -> CellConfiguration {
+        let usesLocalPreview = endpoint.caseInsensitiveCompare("cell:///ConferenceParticipantPreviewShell") == .orderedSame
         var configuration = CellConfiguration(name: displayName)
         configuration.description = summary
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: endpoint,
-            sourceCellName: "ConferenceParticipantPreviewShellCell",
+            sourceCellName: usesLocalPreview
+                ? "ConferenceParticipantPreviewShellLocalFallbackCell"
+                : "ConferenceParticipantPreviewShellCell",
             purpose: "Conference participantportal",
-            purposeDescription: "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over preview-wrapper så samme contract kan brukes i Binding og scaffold. Binding legger i tillegg paa lokal scanner-enrichment.",
+            purposeDescription: usesLocalPreview
+                ? "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over en lokal preview-wrapper i Binding. Binding legger i tillegg på lokal scanner-enrichment."
+                : "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over preview-wrapper så samme contract kan brukes i Binding og scaffold. Binding legger i tillegg på lokal scanner-enrichment.",
             interests: ["conference", "participant", "agenda", "sessions", "matchmaking", "meetings", "network", "discovery", "nearby", "scanner"],
             menuSlots: ["upperMid", "lowerMid"]
         )
