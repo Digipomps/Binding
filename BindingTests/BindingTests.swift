@@ -1024,8 +1024,8 @@ struct BindingTests {
             return
         }
         #expect(
-            beforeSummaryText == "Nearby radar is ready. Request contact to unlock verified purpose and interest matching." ||
-                beforeSummaryText == "Scanner started. Waiting for nearby participants."
+            beforeSummaryText == "Nearby-radaren er klar. Be om kontakt for å verifisere formål og interesser." ||
+                beforeSummaryText == "Scanner kjører. Venter på nearby-deltagere."
         )
 
         let response = try await porthole.set(
@@ -1211,6 +1211,28 @@ struct BindingTests {
         _ = try await preview.set(
             keypath: "dispatchAction",
             value: .object([
+                "keypath": .string("agenda.setView"),
+                "payload": .object([
+                    "view": .string("timeline")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await preview.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("agenda.setTrackFocus"),
+                "payload": .object([
+                    "trackId": .string("track-governance")
+                ])
+            ]),
+            requester: identity
+        )
+
+        _ = try await preview.set(
+            keypath: "dispatchAction",
+            value: .object([
                 "keypath": .string("matchmaking.focusPerson"),
                 "payload": .object([
                     "displayName": .string("Ane Solberg"),
@@ -1235,12 +1257,16 @@ struct BindingTests {
         let stateValue = try await preview.get(keypath: "state", requester: identity)
         guard case let .object(stateObject) = stateValue,
               case let .object(workspace)? = stateObject["workspace"],
+              case let .object(program)? = stateObject["program"],
               case let .object(matches)? = stateObject["matches"] else {
             Issue.record("Expected state object from conference participant preview fallback")
             return
         }
 
         #expect(workspace["nextStep"] == .string("Marked Governance Forum for follow-up in local preview."))
+        #expect(program["viewSummary"] == .string("Current view: Timeline."))
+        #expect(program["trackSummary"] == .string("Track focus: Governance."))
+        #expect(program["timelineSummary"] == .string("8 session(s) visible in timeline view."))
         #expect(matches["recommendationSummary"] == .string("Focused recommendation: Ane Solberg. Open chat or mark follow-up when you are ready."))
         #expect(matches["status"] == .string("Focused on Ane Solberg. The next natural step is to start chat or mark follow-up."))
         #expect(matches["searchSummary"] == .string("Search broadening: people. 1 person(s) marked for follow-up."))
@@ -2990,16 +3016,18 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
+                "Vis for deg",
                 "Vis timeline",
+                "Vis lagret",
+                "Fokuser governance",
                 "Oppdater treff",
-                "Åpne profil",
-                "Start chat",
-                "Marker for oppfølging",
+                "Bytt filter",
+                "Søk governance",
                 "Oppdater discovery",
                 "Start scanner",
                 "Stop scanner",
-                "Åpne full radar",
-                "Start group chat"
+                "Åpne radarflate",
+                "Åpne profilflate"
             ]
         )
 
@@ -3019,13 +3047,13 @@ struct CellConfigurationVerifierTests {
         #expect(report.startSucceeded)
         #expect(report.statusAfterStart == "started")
         #expect(report.requestContactSucceeded)
-        #expect(report.requestContactLabel == "Contact pending")
-        #expect(report.requestContactSummary == "Signed contact request sent. Waiting for acceptance.")
-        #expect(report.requestContactActionSummary == "Signed contact request sent. Waiting for acceptance.")
+        #expect(report.requestContactLabel == "Kontakt venter")
+        #expect(report.requestContactSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
+        #expect(report.requestContactActionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
         #expect(report.chatOpened)
-        #expect(report.nearbyCardLabel == "Open chat")
+        #expect(report.nearbyCardLabel == "Åpne chat")
         #expect(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
-        #expect(report.nearbyActionSummary == "Started a conference follow-up chat with Nora Berg.")
+        #expect(report.nearbyActionSummary == "Startet conference-chat med Nora Berg.")
         #expect(report.workspaceNextStep == "Started follow-up chat with Nora Berg in local preview.")
         #expect(report.sharedChatSummary == "1 shared message(s) visible.")
         #expect(report.firstRecentMessage == "Nearby follow-up with Nora Berg is ready in discovery chat.")
@@ -3041,7 +3069,7 @@ struct CellConfigurationVerifierTests {
             buttonsToExecute: [
                 "Start scanner",
                 "Stop scanner",
-                "Tilbake til deltagerportal"
+                "Tilbake til portalen"
             ]
         )
 
@@ -3057,8 +3085,8 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.contractReport(
             for: configuration,
             buttonsToExecute: [
-                "Åpne full radar",
-                "Tilbake til deltagerportal"
+                "Åpne radarflate",
+                "Tilbake til portalen"
             ]
         )
 
@@ -3096,9 +3124,9 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.renderReport(
             for: configuration,
             expectedVisibleStrings: [
-                "Conference Nearby Radar",
+                "Conference Nearby Radar · Egen arbeidsflate",
                 "Start scanner",
-                "Tilbake til deltagerportal",
+                "Tilbake til portalen",
                 "Valgt deltager"
             ]
         )
@@ -3115,9 +3143,9 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.renderReport(
             for: configuration,
             expectedVisibleStrings: [
-                "Nearby Participant Profile",
-                "Åpne full radar",
-                "Tilbake til deltagerportal",
+                "Valgt deltager · profilflate",
+                "Åpne radarflate",
+                "Tilbake til portalen",
                 "Neste steg"
             ]
         )
@@ -3511,7 +3539,7 @@ enum CellConfigurationVerifier {
         let requestContactSnapshot = try await waitForNearbySnapshot(
             operation: "waitForNearbyStateAfterRequestContact"
         ) { snapshot in
-            snapshot.cardLabel == "Contact pending"
+            snapshot.cardLabel == "Kontakt venter"
         }
         let requestContactLabel = requestContactSnapshot.cardLabel
         let requestContactSummary = requestContactSnapshot.note
@@ -4235,10 +4263,9 @@ enum CellConfigurationVerifier {
         case .Reference(let reference):
             return reference.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
         case .List(let list):
-            return list.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
+            return []
         case .Grid(let grid):
-            return (grid.itemSkeleton.map { collectButtons(in: $0) } ?? []) +
-                grid.elements.flatMap(collectButtons)
+            return grid.elements.flatMap(collectButtons)
         case .ZStack(let stack):
             return stack.elements.flatMap(collectButtons)
         case .Object(let object):

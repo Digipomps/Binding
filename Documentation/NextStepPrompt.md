@@ -22,6 +22,14 @@ Covered layers:
 - nearby-radar state verification for focused participant state and honest `Retning usikker` handling
 - renderer verification for expected visible strings and timing
 
+Current UX decision:
+
+- first click stays inline in the current conference page
+- `Vis i siden` means “focus this participant here”
+- `Åpne radarflate` and `Åpne profilflate` mean “open a separate workbench in Porthole”
+- do not hide that transition behind a generic button label
+- avoid overlay/modal as the primary pattern for now; the current skeleton/runtime model is better served by explicit inline focus first and explicit workbench expansion second
+
 Important working assumptions:
 
 - a green verifier means local conference wiring, local fallbacks, and renderer behavior are coherent
@@ -30,25 +38,29 @@ Important working assumptions:
 
 Next recommended engineering steps:
 
-1. Use the nearby-radar workbench as the next home for a real spatial conference view:
+1. Use the nearby-radar workbench as the next home for a more genuinely spatial conference view:
    - honest MPC-only uncertainty
    - clearer UWB-ready direction/distance presentation
    - visible selected-entity follow-up state
 2. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
-3. Make the participant-portal buttons more self-explanatory in GUI state:
+3. Extend the same “inline first, workbench second” rule to discovery/recommendation cards:
+   - `Åpne profil`
+   - `Marker for oppfølging`
+   - `Start chat`
+4. Make the participant-portal buttons even more self-explanatory in GUI state:
    - selected agenda mode
    - selected track focus
    - short action feedback after clicks
-4. Extend verifier coverage to one more conference configuration that matters for the demo story.
-5. Consider a separate iOS-oriented layer later:
+5. Extend verifier coverage to one more conference configuration that matters for the demo story.
+6. Consider a separate iOS-oriented layer later:
    - contract verification can still be local
    - render verification may need screenshot-driven validation instead of AppKit hosting
-6. If live UI still claims the debug panel is drawing outside its frame, inspect:
+7. If live UI still claims the debug panel is drawing outside its frame, inspect:
    - `Binding/Debug/BindingRuntimeDiagnostics.swift`
    - rounded shape clipping
    - scroll container clipping
    - lazy log stack behavior
-7. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
+8. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
 
 If you need to debug a fresh conference regression, start with:
 

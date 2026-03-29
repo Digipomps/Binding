@@ -365,7 +365,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private var launchedChatRemoteUUIDs: Set<String> = []
     private var testInjectedRemoteUUIDs: Set<String> = []
     private var lastError: String?
-    private var lastActionSummary = "Nearby radar is ready. Request contact to unlock verified purpose and interest matching."
+    private var lastActionSummary = "Nearby-radaren er klar. Be om kontakt for å verifisere formål og interesser."
 
     private var scannerAccessRequester: Identity {
         bootstrapRequester
@@ -580,11 +580,11 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
-                summary: "Signed contact request sent. Waiting for acceptance.",
-                actionLabel: "Contact pending"
+                summary: "Signert kontaktforespørsel sendt. Venter på godkjenning.",
+                actionLabel: "Kontakt venter"
             )
             lastError = nil
-            lastActionSummary = "Signed contact request sent. Waiting for acceptance."
+            lastActionSummary = "Signert kontaktforespørsel sendt. Venter på godkjenning."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
@@ -602,12 +602,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 scannerStatus = "started"
                 scannerLifecycleStatus = "started"
                 requestedScannerStatus = "started"
-                lastActionSummary = "Starting scanner and subscribing to nearby signals."
+                lastActionSummary = "Starter scanner og lytter etter nearby-signaler."
             } else if keypath == "stop" {
                 scannerStatus = "stopped"
                 scannerLifecycleStatus = "stopped"
                 requestedScannerStatus = "stopped"
-                lastActionSummary = "Stopping scanner and clearing live nearby updates."
+                lastActionSummary = "Stopper scanner og rydder live nearby-signaler."
             }
             let result = try await scannerMeddle.set(keypath: keypath, value: value, requester: scannerRequester)
             lastError = nil
@@ -619,12 +619,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 scannerStatus = "started"
                 scannerLifecycleStatus = "started"
                 requestedScannerStatus = "started"
-                lastActionSummary = "Scanner started. Waiting for nearby participants."
+                lastActionSummary = "Scanner kjører. Venter på nearby-deltagere."
             } else if keypath == "stop" {
                 scannerStatus = "stopped"
                 scannerLifecycleStatus = "stopped"
                 requestedScannerStatus = "stopped"
-                lastActionSummary = "Scanner stopped."
+                lastActionSummary = "Scanner er stoppet."
             }
         } catch {
             lastError = "Nearby scanner action \(keypath) failed: \(error)"
@@ -633,15 +633,15 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 scannerStatus = "started"
                 scannerLifecycleStatus = "started"
                 requestedScannerStatus = "started"
-                lastActionSummary = "Scanner start requested locally. Live nearby service is not ready yet: \(error)"
+                lastActionSummary = "Scanner-start ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå: \(error)"
             case "stop":
                 scannerStatus = "stopped"
                 scannerLifecycleStatus = "stopped"
                 requestedScannerStatus = "stopped"
-                lastActionSummary = "Scanner stop requested locally. Live nearby service is not ready yet: \(error)"
+                lastActionSummary = "Scanner-stopp ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå: \(error)"
             default:
                 requestedScannerStatus = nil
-                lastActionSummary = "Nearby action failed: \(error)"
+                lastActionSummary = "Nearby-handlingen feilet: \(error)"
             }
         }
 
@@ -653,8 +653,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         guard case let .object(actionObject) = value,
               let actionKeypath = string(from: actionObject["keypath"]),
               actionKeypath.isEmpty == false else {
-            lastError = "Nearby action payload mangler keypath."
-            lastActionSummary = "Nearby action payload mangler keypath."
+            lastError = "Nearby-handlingen mangler keypath."
+            lastActionSummary = "Nearby-handlingen mangler keypath."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
@@ -676,8 +676,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         case "openParticipantPortalWorkbench":
             return await openParticipantPortalWorkbench(requester: requester)
         default:
-            lastError = "Nearby action \(actionKeypath) er ikke støttet."
-            lastActionSummary = "Nearby action \(actionKeypath) er ikke støttet."
+            lastError = "Nearby-handlingen \(actionKeypath) er ikke støttet."
+            lastActionSummary = "Nearby-handlingen \(actionKeypath) er ikke støttet."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
@@ -712,8 +712,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private func openFollowUpChat(value: ValueType, requester: Identity) async -> ValueType {
         guard let remoteUUID = normalizedRemoteUUID(string(from: object(from: value)?["remoteUUID"]) ?? string(from: value)),
               let target = followUpTargetsById[remoteUUID] else {
-            lastError = "Nearby follow-up is not ready yet. Complete signed contact proof first."
-            lastActionSummary = "Nearby follow-up is not ready yet. Complete signed contact proof first."
+            lastError = "Nearby-oppfølging er ikke klar ennå. Fullfør signert kontakt først."
+            lastActionSummary = "Nearby-oppfølging er ikke klar ennå. Fullfør signert kontakt først."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
@@ -743,10 +743,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         ) {
             lastError = nil
             launchedChatRemoteUUIDs.insert(remoteUUID)
-            lastActionSummary = "Started a conference follow-up chat with \(target.displayName)."
+            lastActionSummary = "Startet conference-chat med \(target.displayName)."
             if var contactSignal = contactSignalsById[remoteUUID] {
-                contactSignal.summary = "Verified contact saved. Discovery chat is ready for follow-up."
-                contactSignal.actionLabel = "Open chat"
+                contactSignal.summary = "Verifisert kontakt lagret. Chatten er klar for oppfølging."
+                contactSignal.actionLabel = "Åpne chat"
                 contactSignalsById[remoteUUID] = contactSignal
             }
             emitSnapshot(requester: requester)
@@ -800,10 +800,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             ) || localFallbackSucceededAfterNoop {
                 lastError = nil
                 launchedChatRemoteUUIDs.insert(remoteUUID)
-                lastActionSummary = "Started a conference follow-up chat with \(target.displayName)."
+                lastActionSummary = "Startet conference-chat med \(target.displayName)."
                 if var contactSignal = contactSignalsById[remoteUUID] {
-                    contactSignal.summary = "Verified contact saved. Discovery chat is ready for follow-up."
-                    contactSignal.actionLabel = "Open chat"
+                    contactSignal.summary = "Verifisert kontakt lagret. Chatten er klar for oppfølging."
+                    contactSignal.actionLabel = "Åpne chat"
                     contactSignalsById[remoteUUID] = contactSignal
                 }
             } else {
@@ -827,15 +827,15 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             ) {
                 lastError = nil
                 launchedChatRemoteUUIDs.insert(remoteUUID)
-                lastActionSummary = "Started a conference follow-up chat with \(target.displayName)."
+                lastActionSummary = "Startet conference-chat med \(target.displayName)."
                 if var contactSignal = contactSignalsById[remoteUUID] {
-                    contactSignal.summary = "Verified contact saved. Discovery chat is ready for follow-up."
-                    contactSignal.actionLabel = "Open chat"
+                    contactSignal.summary = "Verifisert kontakt lagret. Chatten er klar for oppfølging."
+                    contactSignal.actionLabel = "Åpne chat"
                     contactSignalsById[remoteUUID] = contactSignal
                 }
             } else {
-                lastError = "Nearby follow-up chat failed: \(error)"
-                lastActionSummary = "Nearby follow-up chat failed: \(error)"
+                lastError = "Nearby-chatten kunne ikke startes: \(error)"
+                lastActionSummary = "Nearby-chatten kunne ikke startes: \(error)"
             }
         }
 
@@ -894,7 +894,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         return await loadWorkbenchConfiguration(
             configuration,
             requester: requester,
-            successSummary: "Opened the conference nearby radar."
+            successSummary: "Åpnet radarflaten i egen arbeidsflate."
         )
     }
 
@@ -909,13 +909,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         let configuration = ConfigurationCatalogCell.conferenceNearbyParticipantWorkbenchConfiguration(
             participantEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            displayName: "\(entity.displayName) · Nearby Profile",
+            displayName: "\(entity.displayName) · Profilflate",
             summary: "Valgt nearby-deltager med oppfølging, chat og spatial kontekst i én arbeidsflate."
         )
         return await loadWorkbenchConfiguration(
             configuration,
             requester: requester,
-            successSummary: "Opened nearby profile for \(entity.displayName)."
+            successSummary: "Åpnet profilflaten for \(entity.displayName)."
         )
     }
 
@@ -926,7 +926,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         return await loadWorkbenchConfiguration(
             configuration,
             requester: requester,
-            successSummary: "Returned to the conference participant portal."
+            successSummary: "Tilbake i deltagerportalen."
         )
     }
 
@@ -1299,18 +1299,18 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "pendingConnection",
-                summary: "Invite sent. Signed contact proof starts when the device link is ready.",
-                actionLabel: "Connecting..."
+                summary: "Invitasjon sendt. Signert kontakt starter når enhetslenken er klar.",
+                actionLabel: "Kobler til..."
             )
-            lastActionSummary = "Invite sent. Signed contact proof starts when the device link is ready."
+            lastActionSummary = "Invitasjon sendt. Signert kontakt starter når enhetslenken er klar."
         case "sent":
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
-                summary: "Signed contact request sent. Waiting for the other side to accept.",
-                actionLabel: "Contact pending"
+                summary: "Signert kontaktforespørsel sendt. Venter på at den andre siden godkjenner.",
+                actionLabel: "Kontakt venter"
             )
-            lastActionSummary = "Signed contact request sent. Waiting for the other side to accept."
+            lastActionSummary = "Signert kontaktforespørsel sendt. Venter på at den andre siden godkjenner."
         case "error":
             let message = string(from: resultObject["message"]) ?? "Nearby contact request failed."
             lastError = message
@@ -1337,29 +1337,29 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "pendingConnection",
-                summary: string(from: object["message"]) ?? "Invite sent. Waiting for a direct device link.",
-                actionLabel: "Connecting..."
+                summary: string(from: object["message"]) ?? "Invitasjon sendt. Venter på direkte enhetslenke.",
+                actionLabel: "Kobler til..."
             )
-            lastActionSummary = "Invite sent. Waiting for a direct device link before signed contact proof."
+            lastActionSummary = "Invitasjon sendt. Venter på direkte enhetslenke før signert kontakt."
         case "scanner.contact.outgoing":
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
-                summary: "Signed contact request sent. Waiting for acceptance.",
-                actionLabel: "Contact pending"
+                summary: "Signert kontaktforespørsel sendt. Venter på godkjenning.",
+                actionLabel: "Kontakt venter"
             )
-            lastActionSummary = "Signed contact request sent."
+            lastActionSummary = "Signert kontaktforespørsel sendt."
         case "scanner.contact.established", "scanner.encounter.saved":
             selectedRemoteUUID = remoteUUID
             let matchCount = purposeSignalsById[remoteUUID]?.count ?? int(from: object["matchCount"]) ?? 0
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "verified",
                 summary: matchCount > 0
-                    ? "Verified contact saved with \(matchCount) purpose/interest overlap(s)."
-                    : "Verified contact saved. No overlap confirmed yet.",
-                actionLabel: "Verified contact"
+                    ? "Verifisert kontakt lagret med \(matchCount) formål-/interesseoverlapp."
+                    : "Verifisert kontakt lagret. Ingen overlapp bekreftet ennå.",
+                actionLabel: "Verifisert kontakt"
             )
-            lastActionSummary = contactSignalsById[remoteUUID]?.summary ?? "Verified contact saved."
+            lastActionSummary = contactSignalsById[remoteUUID]?.summary ?? "Verifisert kontakt lagret."
         default:
             break
         }
@@ -1483,6 +1483,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let summary = entities.isEmpty
             ? "Ingen nearby peers enda. Start scanner for å bygge et lokalt spatialt bilde."
             : "\(entities.count) nearby peer(s) · \(connectedCount) connected · \(verifiedMatchCount) verified purpose fit(s) · \(followUpCount) follow-up chat(s) ready."
+        let statusSummary = scannerStatusSummary(
+            effectiveScannerStatus: effectiveScannerStatus,
+            visibleEntityCount: entities.count
+        )
 
         let precisionSummary: String
         if precisionMode.lowercased().contains("uwb") || supportsNearbyPrecision {
@@ -1505,10 +1509,17 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let selectionSummary: String
         if let focusedRemoteUUID,
            let focusedEntity = entitiesById[focusedRemoteUUID] {
-            selectionSummary = "Fokuserer på \(focusedEntity.displayName). Neste steg ligger i valgt deltager-panelet."
+            selectionSummary = "Fokuserer på \(focusedEntity.displayName) i denne siden."
         } else {
-            selectionSummary = "Velg en nearby deltager for å se profiloppsummering og neste handling."
+            selectionSummary = "Trykk Vis i siden på en nearby-deltager for å fokusere på personen her."
         }
+        let nextStepSummary = nextStepSummary(
+            focusedRemoteUUID: focusedRemoteUUID,
+            effectiveScannerStatus: effectiveScannerStatus
+        )
+        let navigationSummary = focusedRemoteUUID == nil
+            ? "Første klikk skjer i denne siden. Egen arbeidsflate brukes bare når du trykker Åpne radarflate eller Åpne profilflate."
+            : "Du ser nå valgt deltager i denne siden. Åpne profilflate og Åpne radarflate åpner egne arbeidsflater i Porthole."
         let selectedEntity = focusedRemoteUUID.flatMap { selectedEntityObject(for: $0) }
             ?? [
                 "selectionBadge": .string("VALGT DELTAGER"),
@@ -1529,9 +1540,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         return [
             "headline": .string("Nearby Participants"),
             "summary": .string(summary),
+            "statusSummary": .string(statusSummary),
             "precisionSummary": .string(precisionSummary),
             "actionSummary": .string(lastActionSummary),
             "selectionSummary": .string(selectionSummary),
+            "nextStepSummary": .string(nextStepSummary),
+            "navigationSummary": .string(navigationSummary),
             "spatialTruthSummary": .string(spatialTruthSummary),
             "transportBadge": .string(transportMode.uppercased()),
             "precisionBadge": .string(precisionMode.uppercased()),
@@ -1704,7 +1718,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
             "note": .string(noteParts.joined(separator: " ")),
             "keypath": .string("dispatchAction"),
-            "label": .string(selected ? "Valgt" : "Velg"),
+            "label": .string(selected ? "Valgt i siden" : "Vis i siden"),
             "payload": .object([
                 "keypath": .string("selectEntity"),
                 "payload": .object(["remoteUUID": .string(entity.remoteUUID)])
@@ -1824,12 +1838,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         let profileAction: Object = [
-            "title": .string("Profil"),
-            "subtitle": .string("Åpne valgt deltager"),
-            "detail": .string("Se valgt deltager med spatial kontekst, verifisert purpose-fit og neste oppfølgingssteg i en egen arbeidsflate."),
-            "note": .string("Dette er raskeste vei til en tydelig profilflate uten å forlate conference-sporet."),
+            "title": .string("Profilflate"),
+            "subtitle": .string("Åpne valgt deltager i egen flate"),
+            "detail": .string("Vis valgt deltager som en hybrid av offentlig profil, lokal spatial kontekst og neste oppfølgingssteg."),
+            "note": .string("Bruk dette når du vil fordype deg uten å miste conference-konteksten."),
             "keypath": .string("dispatchAction"),
-            "label": .string("Åpne profil"),
+            "label": .string("Åpne profilflate"),
             "payload": .object([
                 "keypath": .string("openSelectedParticipantWorkbench"),
                 "payload": .bool(true)
@@ -1848,7 +1862,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                     : "Opprett en conference-chat med \(entity.displayName) fra denne nearby-matchen."),
                 "note": .string("Dette er tilgjengelig fordi kontakten allerede er verifisert."),
                 "keypath": .string("dispatchAction"),
-                "label": .string(hasLaunchedChat ? "Open chat" : "Start chat"),
+                "label": .string(hasLaunchedChat ? "Åpne chat" : "Start chat"),
                 "payload": .object([
                     "keypath": .string("openFollowUpChat"),
                     "payload": .object(["remoteUUID": .string(remoteUUID)])
@@ -1861,7 +1875,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 "detail": .string("Etabler kontakt først. Når den er verifisert, kan du starte chat med høyere presisjon i match-signalet."),
                 "note": .string(contactSignalsById[remoteUUID]?.summary ?? "Kontaktbeviset er første steg før verifisert purpose/interest-match."),
                 "keypath": .string("dispatchAction"),
-                "label": .string(contactSignalsById[remoteUUID]?.actionLabel ?? "Request contact"),
+                "label": .string(contactSignalsById[remoteUUID]?.actionLabel ?? "Be om kontakt"),
                 "payload": .object([
                     "keypath": .string("requestContact"),
                     "payload": .string(remoteUUID)
@@ -1888,6 +1902,50 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         ]
 
         return [profileAction, primaryAction, followUpAction]
+    }
+
+    private func scannerStatusSummary(
+        effectiveScannerStatus: String,
+        visibleEntityCount: Int
+    ) -> String {
+        switch effectiveScannerStatus {
+        case "started":
+            return visibleEntityCount == 0
+                ? "Scanner kjører. Når første nearby-treff dukker opp, vises det her."
+                : "Scanner kjører og oppdaterer nearby-treffene løpende."
+        case "stopped":
+            return "Scanner er stoppet. Start den når du vil lete etter nearby-deltagere."
+        case "starting":
+            return "Scanner starter nå. Nearby-signaler vil dukke opp her så snart første treff kommer inn."
+        case "stopping":
+            return "Scanner stopper nå og rydder live nearby-signaler."
+        default:
+            return visibleEntityCount == 0
+                ? "Nearby-radaren er klar, men har ingen live treff ennå."
+                : "Nearby-radaren er klar med siste kjente nearby-treff."
+        }
+    }
+
+    private func nextStepSummary(
+        focusedRemoteUUID: String?,
+        effectiveScannerStatus: String
+    ) -> String {
+        guard let focusedRemoteUUID,
+              let entity = entitiesById[focusedRemoteUUID] else {
+            return effectiveScannerStatus == "started"
+                ? "Trykk Vis i siden på en nearby-deltager for å fokusere på personen her."
+                : "Start scanner og velg deretter en nearby-deltager med Vis i siden."
+        }
+
+        let hasVerifiedContact = contactSignalsById[focusedRemoteUUID]?.status == "verified"
+        let hasFollowUpChat = launchedChatRemoteUUIDs.contains(focusedRemoteUUID)
+        if hasVerifiedContact, hasFollowUpChat {
+            return "Chatten med \(entity.displayName) er klar. Neste steg er å åpne chatten eller markere deltakeren for oppfølging."
+        }
+        if hasVerifiedContact {
+            return "Kontakten med \(entity.displayName) er verifisert. Neste steg er å starte chat eller markere deltakeren for oppfølging."
+        }
+        return "Neste steg er å be om kontakt med \(entity.displayName) for å verifisere formål og interesser."
     }
 
     private func directionSubtitle(for entity: NearbyEntity, directionIsPrecise: Bool) -> String {

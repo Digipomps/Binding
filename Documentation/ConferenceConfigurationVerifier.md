@@ -55,15 +55,20 @@ Current participant actions exercised:
 - `Oppdater discovery`
 - `Start scanner`
 - `Stop scanner`
-- `Åpne full radar`
+- `Åpne radarflate`
+- `Åpne profilflate`
 
 Current nearby radar assertions:
 
 - the dedicated nearby-radar workbench resolves both `ConferenceNearbyRadar` and the participant preview shell
 - `Start scanner` and `Stop scanner` stay reachable through the same local direct-action route the GUI uses
-- `Tilbake til deltagerportal` returns through the same local action route the GUI uses
+- `Tilbake til portalen` returns through the same local action route the GUI uses
 - a focused participant panel is rendered as part of the nearby-radar workbench (`Valgt deltager`)
 - approximate MPC-only peers are kept separate from hard directional claims through a dedicated `Retning usikker` bucket
+- the inline-vs-workbench transition is explicit:
+  - `Vis i siden` focuses a participant on the current page
+  - `Åpne radarflate` opens the dedicated radar workbench
+  - `Åpne profilflate` opens the dedicated participant profile workbench
 
 Current nearby radar state assertions:
 
@@ -86,6 +91,10 @@ Current nearby follow-up assertions:
 - verify that participant preview state advances (`nextStep`, shared chat summary, recent message)
 - stop the local nearby scanner through `dispatchAction`
 - verify scanner status transitions to `stopped`
+- verify that the selected participant flow stays coherent across:
+  - inline focus in the current page
+  - separate profile workbench
+  - separate radar workbench
 
 Current organizer actions exercised:
 
@@ -97,7 +106,9 @@ Current render assertions:
 - `Conference Participant Portal`
   - expected strings include `Conference Participant Portal`, `Entity Discovery`, `Start scanner`
 - `Conference Nearby Radar`
-  - expected strings include `Conference Nearby Radar`, `Start scanner`, `Tilbake til deltagerportal`, `Valgt deltager`
+  - expected strings include `Conference Nearby Radar · Egen arbeidsflate`, `Start scanner`, `Tilbake til portalen`, `Valgt deltager`
+- `Nearby Participant Profile`
+  - expected strings include `Valgt deltager · profilflate`, `Åpne radarflate`, `Tilbake til portalen`, `Neste steg`
 - `Conference Control Tower`
   - expected strings include `Conference Control Tower`, `Publish content`, `Operations & Insights`
 
@@ -135,7 +146,7 @@ Run organizer only:
 
 ## What worked in the latest green run
 
-Latest verified on March 28, 2026:
+Latest verified on March 29, 2026:
 
 Targeted green checks:
 
@@ -145,17 +156,19 @@ Targeted green checks:
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions`
 
 Observed isolated timings from the latest green checks:
 
 - `Conference Participant Portal` contract: about `1.55s`
-- `Conference Nearby Radar` contract: about `5.21s`
+- `Conference Nearby Radar` contract: about `1.55s`
 - `Conference Participant Nearby Follow-Up` contract: about `1.90s`
 - `Conference Control Tower` contract: about `1.37s`
-- `Conference Participant Portal` render: about `4.15s`
-- `Conference Nearby Radar` render: about `6.84s`
+- `Conference Participant Portal` render: about `3.34s`
+- `Conference Nearby Radar` render: about `2.79s`
+- `Nearby Participant Profile` render: about `2.70s`
 - `Conference Control Tower` render: about `3.54s`
 - focused nearby-radar state truth test: about `2.07s`
 
