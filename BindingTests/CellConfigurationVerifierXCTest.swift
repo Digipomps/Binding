@@ -43,6 +43,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Vis timeline",
                 "Vis lagret",
                 "Fokuser governance",
+                "Søk governance",
                 "Åpne chatflate"
             ],
             rootProbes: [
@@ -398,6 +399,52 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(chatAction["label"], ValueType.string("Åpne chatflate"))
         XCTAssertEqual(followUpAction["label"], ValueType.string("Fjern markering"))
         XCTAssertEqual(meetingAction["label"], ValueType.string("Be om møte"))
+    }
+
+    func testConferenceParticipantPortalSearchGovernanceButtonUsesRendererExecutionPath() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let button = SkeletonButton(
+            keypath: "matchmakingSnapshot.dispatchAction",
+            label: "Søk governance",
+            payload: .object([
+                "keypath": .string("matchmaking.searchPeople"),
+                "payload": .object(["query": .string("governance")])
+            ])
+        )
+
+        let response = await button.execute()
+        XCTAssertNotNil(response, "Renderer button path returned nil for Søk governance")
+        if let response {
+            XCTAssertNil(
+                SkeletonBindingProbeSupport.failureDetail(from: response),
+                "Renderer button path returned failure payload for Søk governance: \(response)"
+            )
+        }
+
+        let actionSummary = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.actionSummary",
+            requester: context.owner
+        )
+        XCTAssertEqual(actionSummary, .string("Oppdaterte anbefalingssøk."))
+
+        let searchSummary = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.searchSummary",
+            requester: context.owner
+        )
+        if case let .string(searchSummaryText) = searchSummary {
+            XCTAssertTrue(
+                searchSummaryText.localizedCaseInsensitiveContains("governance"),
+                "Expected governance-focused search summary, got: \(searchSummaryText)"
+            )
+        } else {
+            XCTFail("Expected string searchSummary after Søk governance, got \(searchSummary)")
+        }
     }
 
     func testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions() async throws {

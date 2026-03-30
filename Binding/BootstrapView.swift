@@ -4390,7 +4390,9 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
 
         if let refreshTask {
             await refreshTask.value
-            return
+            if !force && forwardAction == nil {
+                return
+            }
         }
 
         let task = Task { @MainActor [weak self] in
@@ -4997,7 +4999,9 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
 
         if let refreshTask {
             await refreshTask.value
-            return
+            if !force && forwardAction == nil {
+                return
+            }
         }
 
         let task = Task { @MainActor [weak self] in
