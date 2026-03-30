@@ -7,7 +7,30 @@ import CellApple
 import AppKit
 #endif
 
+@MainActor
 final class CellConfigurationVerifierXCTest: XCTestCase {
+    @MainActor
+    func testConferencePreviewCellsStayLocalWhenRetargeting() {
+        let contentView = ContentView()
+
+        XCTAssertEqual(
+            contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantPreviewShell"),
+            "cell:///ConferenceParticipantPreviewShell"
+        )
+        XCTAssertEqual(
+            contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceAdminPreviewShell"),
+            "cell:///ConferenceAdminPreviewShell"
+        )
+        XCTAssertEqual(
+            contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantDiscoverySnapshot"),
+            "cell:///ConferenceParticipantDiscoverySnapshot"
+        )
+        XCTAssertEqual(
+            contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat"),
+            "cell://staging.haven.digipomps.org/Chat"
+        )
+    }
+
     func testConferenceParticipantPortalContract() async throws {
         let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
@@ -19,13 +42,15 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Vis for deg",
                 "Vis timeline",
                 "Vis lagret",
-                "Fokuser governance"
+                "Fokuser governance",
+                "Åpne chatflate"
             ],
             rootProbes: [
                 .init(label: "agendaSnapshot", rootKeypath: "state"),
                 .init(label: "matchmakingSnapshot", rootKeypath: "state"),
                 .init(label: "discoverySnapshot", rootKeypath: "state"),
-                .init(label: "nearbyRadar", rootKeypath: "state")
+                .init(label: "nearbyRadar", rootKeypath: "state"),
+                .init(label: "chatSnapshot", rootKeypath: "state")
             ]
         )
 
@@ -121,6 +146,25 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertTrue(report.failedActions.isEmpty, "Failed actions: \(report.failedActions)")
     }
 
+    func testConferenceParticipantChatContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Tilbake til portalen"
+            ],
+            rootProbes: [
+                .init(label: "chatSnapshot", rootKeypath: "state")
+            ]
+        )
+
+        XCTAssertEqual(report.validation.errorCount, 0, "Validation issues: \(report.validation.issues)")
+        XCTAssertTrue(report.unresolvedReferences.isEmpty, "Unresolved references: \(report.unresolvedReferences)")
+        XCTAssertTrue(report.unreadableRootProbes.isEmpty, "Unreadable root probes: \(report.unreadableRootProbes)")
+        XCTAssertTrue(report.failedActions.isEmpty, "Failed actions: \(report.failedActions)")
+    }
+
     func testConferenceParticipantNearbyFollowUpContract() async throws {
         let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
@@ -135,7 +179,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(report.requestContactSummary, "Signert kontaktforespørsel sendt. Venter på godkjenning.")
         XCTAssertEqual(report.requestContactActionSummary, "Signert kontaktforespørsel sendt. Venter på godkjenning.")
         XCTAssertEqual(report.openChatOutcome, "ok")
-        XCTAssertEqual(report.nearbyCardLabel, "Åpne chat")
+        XCTAssertEqual(report.nearbyCardLabel, "Åpne chatflate")
         XCTAssertTrue(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
         XCTAssertEqual(report.nearbyActionSummary, "Startet conference-chat med Nora Berg.")
         XCTAssertEqual(report.workspaceNextStep, "Started follow-up chat with Nora Berg in local preview.")
@@ -351,7 +395,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return
         }
 
-        XCTAssertEqual(chatAction["label"], ValueType.string("Åpne chat"))
+        XCTAssertEqual(chatAction["label"], ValueType.string("Åpne chatflate"))
         XCTAssertEqual(followUpAction["label"], ValueType.string("Fjern markering"))
         XCTAssertEqual(meetingAction["label"], ValueType.string("Be om møte"))
     }
@@ -438,7 +482,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
         XCTAssertEqual(object["selectionSummary"], ValueType.string("Viser Ane Solberg i discovery-delen."))
         XCTAssertEqual(focusedProfile["title"], ValueType.string("Ane Solberg"))
-        XCTAssertEqual(firstCandidate["label"], ValueType.string("Åpne chat"))
+        XCTAssertEqual(firstCandidate["label"], ValueType.string("Åpne chatflate"))
 
         guard case let .object(chatAction)? = focusedActions.first,
               case let .object(followUpAction)? = focusedActions.dropFirst().first,
@@ -447,7 +491,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return
         }
 
-        XCTAssertEqual(chatAction["label"], ValueType.string("Åpne chat"))
+        XCTAssertEqual(chatAction["label"], ValueType.string("Åpne chatflate"))
         XCTAssertEqual(followUpAction["label"], ValueType.string("Fjern markering"))
         XCTAssertEqual(meetingAction["label"], ValueType.string("Be om møte"))
     }
@@ -518,6 +562,187 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(firstTrackChoice["label"], ValueType.string("Vis alle spor"))
         XCTAssertEqual(secondTrackChoice["selectionBadge"], ValueType.string("FOKUS NÅ"))
         XCTAssertEqual(secondTrackChoice["label"], ValueType.string("Viser nå"))
+    }
+
+    func testConferenceParticipantPortalProxyActionsCanOpenChatWorkbench() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let focusResponse = try await context.porthole.set(
+            keypath: "matchmakingSnapshot.dispatchAction",
+            value: ValueType.object([
+                "keypath": ValueType.string("matchmaking.focusPerson"),
+                "payload": ValueType.object([
+                    "displayName": ValueType.string("Ane Solberg"),
+                    "subtitle": ValueType.string("Public sector interoperability")
+                ])
+            ]),
+            requester: context.owner
+        )
+        guard let focusResponse else {
+            XCTFail("Focus action returned nil response")
+            return
+        }
+        let focusFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: focusResponse)
+        }
+        XCTAssertNil(focusFailure)
+
+        let focusedTitle = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.focusedProfile.title",
+            requester: context.owner
+        )
+        XCTAssertEqual(focusedTitle, ValueType.string("Ane Solberg"))
+
+        let chatStartResponse = try await context.porthole.set(
+            keypath: "matchmakingSnapshot.dispatchAction",
+            value: ValueType.object([
+                "keypath": ValueType.string("discovery.startChat"),
+                "payload": ValueType.object([
+                    "source": ValueType.string("binding-participant-portal-recommendation"),
+                    "targets": ValueType.list([
+                        ValueType.object([
+                            "displayName": ValueType.string("Ane Solberg"),
+                            "headline": ValueType.string("Public sector interoperability")
+                        ])
+                    ])
+                ])
+            ]),
+            requester: context.owner
+        )
+        guard let chatStartResponse else {
+            XCTFail("Start chat action returned nil response")
+            return
+        }
+        let chatStartFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: chatStartResponse)
+        }
+        XCTAssertNil(chatStartFailure)
+
+        let chatActionLabel = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.focusedActions[0].label",
+            requester: context.owner
+        )
+        XCTAssertEqual(chatActionLabel, ValueType.string("Åpne chatflate"))
+
+        let expectedWorkbenchLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Chat")
+        }
+        let openChatResponse = try await context.porthole.set(
+            keypath: "chatSnapshot.dispatchAction",
+            value: ValueType.object([
+                "keypath": ValueType.string("openChatWorkbench"),
+                "payload": ValueType.object([
+                    "displayName": ValueType.string("Ane Solberg"),
+                    "subtitle": ValueType.string("Public sector interoperability")
+                ])
+            ]),
+            requester: context.owner
+        )
+        guard let openChatResponse else {
+            XCTFail("Open chat workbench action returned nil response")
+            return
+        }
+        let openChatFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openChatResponse)
+        }
+        XCTAssertNil(openChatFailure)
+
+        guard let configuration = await expectedWorkbenchLoad.value else {
+            let actionSummaryValue = try? await context.porthole.get(
+                keypath: "chatSnapshot.state.actionSummary",
+                requester: context.owner
+            )
+            let statusSummaryValue = try? await context.porthole.get(
+                keypath: "chatSnapshot.state.statusSummary",
+                requester: context.owner
+            )
+
+            XCTFail(
+                """
+                Expected BindingPortholeLoadBridge request for Conference Chat.
+                actionSummary=\(String(describing: actionSummaryValue))
+                statusSummary=\(String(describing: statusSummaryValue))
+                """
+            )
+            return
+        }
+        XCTAssertTrue(configuration.name.contains("Conference Chat"))
+        XCTAssertTrue(configuration.cellReferences?.contains(where: { $0.label == "chatSnapshot" }) == true)
+    }
+
+    private func waitForPortholeSkeleton(
+        on porthole: OrchestratorCell,
+        requester: Identity,
+        containing expectedFragments: [String],
+        timeout: TimeInterval = 1.5,
+        pollInterval: UInt64 = 100_000_000
+    ) async throws -> String? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let skeletonValue = try await porthole.get(
+                keypath: "skeleton",
+                requester: requester
+            )
+            if case let .string(skeletonString) = skeletonValue,
+               expectedFragments.allSatisfy(skeletonString.contains) {
+                return skeletonString
+            }
+            try await Task.sleep(nanoseconds: pollInterval)
+        }
+
+        let finalValue = try await porthole.get(
+            keypath: "skeleton",
+            requester: requester
+        )
+        if case let .string(skeletonString) = finalValue {
+            return skeletonString
+        }
+        return nil
+    }
+
+    private func waitForPortholeLoadBridgeConfiguration(
+        containingName expectedNameFragment: String,
+        timeout: TimeInterval = 2.0
+    ) async -> CellConfiguration? {
+        let notificationCenter = NotificationCenter.default
+        return await withCheckedContinuation { continuation in
+            var token: NSObjectProtocol?
+            var didResume = false
+
+            func finish(_ configuration: CellConfiguration?) {
+                guard !didResume else { return }
+                didResume = true
+                if let token {
+                    notificationCenter.removeObserver(token)
+                }
+                continuation.resume(returning: configuration)
+            }
+
+            let deadline = DispatchTime.now() + timeout
+
+            token = notificationCenter.addObserver(
+                forName: BindingPortholeLoadBridge.notificationName,
+                object: nil,
+                queue: nil
+            ) { notification in
+                guard let configuration = BindingPortholeLoadBridge.configuration(from: notification) else {
+                    return
+                }
+                guard configuration.name.contains(expectedNameFragment) else {
+                    return
+                }
+                finish(configuration)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: deadline) {
+                finish(nil)
+            }
+        }
     }
 
 #if canImport(AppKit)
@@ -600,6 +825,26 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Åpne full radar",
                 "Tilbake til portalen",
                 "Neste steg"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+    }
+
+    @MainActor
+    func testConferenceParticipantChatRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Chat · Oppfølging",
+                "Conference chat · oppfølging",
+                "Delte tråder",
+                "Siste meldinger",
+                "Tilbake til portalen"
             ]
         )
 

@@ -115,6 +115,13 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "ConferenceParticipantChatSnapshot",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceParticipantChatSnapshotLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "Lobby",
             cellScope: .scaffoldUnique,
             identityDomain: "private",
@@ -955,30 +962,24 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         requester: Identity,
         successSummary: String
     ) async -> ValueType {
-        guard let resolver = CellBase.defaultCellResolver else {
-            lastError = "Cell resolver missing"
-            lastActionSummary = "Could not open the requested workspace because the local resolver is missing."
-            emitSnapshot(requester: requester)
-            return .object(snapshotObject())
-        }
-
-        do {
-            guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: requester) as? OrchestratorCell else {
-                lastError = "Porthole unavailable"
-                lastActionSummary = "Could not open the requested workspace because Porthole is unavailable."
-                emitSnapshot(requester: requester)
-                return .object(snapshotObject())
-            }
-            try await porthole.loadCellConfiguration(configuration, requester: requester)
-            lastError = nil
-            lastActionSummary = successSummary
-        } catch {
-            lastError = "Could not open the requested workspace: \(error)"
-            lastActionSummary = "Could not open the requested workspace: \(error)"
-        }
-
+        lastError = nil
+        lastActionSummary = "Åpner arbeidsflaten…"
         emitSnapshot(requester: requester)
+        scheduleWorkbenchLoad(configuration, requester: requester, successSummary: successSummary)
         return .object(snapshotObject())
+    }
+
+    private func scheduleWorkbenchLoad(
+        _ configuration: CellConfiguration,
+        requester: Identity,
+        successSummary: String
+    ) {
+        Task { @MainActor [weak self] in
+            BindingPortholeLoadBridge.post(configuration: configuration)
+            self?.lastError = nil
+            self?.lastActionSummary = successSummary
+            self?.emitSnapshot(requester: requester)
+        }
     }
 
     private func participantFollowUpState(via porthole: Meddle, requester: Identity) async -> (nextStep: String?, chatSummary: String?, firstRecentMessage: String?) {
@@ -1921,15 +1922,22 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 "title": .string("Chat"),
                 "subtitle": .string(hasLaunchedChat ? "Fortsett oppfølging" : "Start oppfølging"),
                 "detail": .string(hasLaunchedChat
-                    ? "Discovery-chatten er klar. Åpne den for å fortsette samtalen med \(entity.displayName)."
+                    ? "Discovery-chatten er klar. Åpne chatflaten for å fortsette samtalen med \(entity.displayName)."
                     : "Opprett en conference-chat med \(entity.displayName) fra denne nearby-matchen."),
                 "note": .string("Dette er tilgjengelig fordi kontakten allerede er verifisert."),
-                "keypath": .string("nearbyRadar.dispatchAction"),
-                "label": .string(hasLaunchedChat ? "Åpne chat" : "Start chat"),
-                "payload": .object([
-                    "keypath": .string("openFollowUpChat"),
-                    "payload": .object(["remoteUUID": .string(remoteUUID)])
-                ])
+                "keypath": .string(hasLaunchedChat ? "chatSnapshot.dispatchAction" : "nearbyRadar.dispatchAction"),
+                "label": .string(hasLaunchedChat ? "Åpne chatflate" : "Start chat"),
+                "payload": hasLaunchedChat
+                    ? .object([
+                        "keypath": .string("openChatWorkbench"),
+                        "payload": .object([
+                            "displayName": .string(entity.displayName)
+                        ])
+                    ])
+                    : .object([
+                        "keypath": .string("openFollowUpChat"),
+                        "payload": .object(["remoteUUID": .string(remoteUUID)])
+                    ])
             ]
         } else {
             primaryAction = [
@@ -3840,17 +3848,24 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         let baseNote = cardNote(from: raw)
         let isFocused = focusedDiscoveryName == title
         let chatReady = launchedDiscoveryChatNames.contains(title)
-        let label = isFocused ? (chatReady ? "Åpne chat" : "Start chat") : "Vis i siden"
-        let actionKeypath = isFocused ? "discovery.startChat" : "discovery.focusPerson"
+        let label = isFocused ? (chatReady ? "Åpne chatflate" : "Start chat") : "Vis i siden"
+        let actionKeypath = isFocused
+            ? (chatReady ? "openChatWorkbench" : "discovery.startChat")
+            : "discovery.focusPerson"
         let note: String
         if isFocused {
-            note = chatReady ? "\(baseNote) · Chat klar." : "\(baseNote) · Vises i discovery nå."
+            note = chatReady ? "\(baseNote) · Chat klar i egen flate." : "\(baseNote) · Vises i discovery nå."
         } else {
             note = "\(baseNote) · Trykk Vis i siden for å fokusere."
         }
 
         let payload: ValueType = isFocused
-            ? discoveryChatPayload(for: title, subtitle: subtitle)
+            ? (chatReady
+                ? .object([
+                    "displayName": .string(title),
+                    "subtitle": .string(subtitle)
+                ])
+                : discoveryChatPayload(for: title, subtitle: subtitle))
             : .object([
                 "displayName": .string(title),
                 "subtitle": .string(subtitle)
@@ -3861,7 +3876,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
-            "keypath": .string("discoverySnapshot.dispatchAction"),
+            "keypath": .string(isFocused && chatReady ? "chatSnapshot.dispatchAction" : "discoverySnapshot.dispatchAction"),
             "label": .string(label),
             "payload": .object([
                 "keypath": .string(actionKeypath),
@@ -3963,13 +3978,18 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         let chatAction: ValueType = .object([
             "title": .string("Chat"),
             "subtitle": .string(chatReady ? "Fortsett discovery-chatten" : "Start discovery-chat"),
-            "detail": .string(chatReady ? "Åpne chatten med \(title) og fortsett oppfølgingen." : "Start en discovery-chat med \(title) fra denne siden."),
+            "detail": .string(chatReady ? "Åpne chatflaten med \(title) og fortsett oppfølgingen." : "Start en discovery-chat med \(title) fra denne siden."),
             "note": .string("Dette er det tydeligste neste steget når discovery-kandidaten virker lovende."),
-            "keypath": .string("discoverySnapshot.dispatchAction"),
-            "label": .string(chatReady ? "Åpne chat" : "Start chat"),
+            "keypath": .string(chatReady ? "chatSnapshot.dispatchAction" : "discoverySnapshot.dispatchAction"),
+            "label": .string(chatReady ? "Åpne chatflate" : "Start chat"),
             "payload": .object([
-                "keypath": .string("discovery.startChat"),
-                "payload": discoveryChatPayload(for: title, subtitle: subtitle)
+                "keypath": .string(chatReady ? "openChatWorkbench" : "discovery.startChat"),
+                "payload": chatReady
+                    ? .object([
+                        "displayName": .string(title),
+                        "subtitle": .string(subtitle)
+                    ])
+                    : discoveryChatPayload(for: title, subtitle: subtitle)
             ])
         ])
 
@@ -4593,13 +4613,18 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         let chatAction: ValueType = .object([
             "title": .string("Chat"),
             "subtitle": .string(chatReady ? "Fortsett samtalen" : "Start samtalen"),
-            "detail": .string(chatReady ? "Åpne chatten med \(title) og fortsett oppfølgingen." : "Start en conference-chat med \(title) fra denne siden."),
+            "detail": .string(chatReady ? "Åpne chatflaten med \(title) og fortsett oppfølgingen." : "Start en conference-chat med \(title) fra denne siden."),
             "note": .string("Dette er den tydeligste neste handlingen når du vil ta kontakt."),
-            "keypath": .string("matchmakingSnapshot.dispatchAction"),
-            "label": .string(chatReady ? "Åpne chat" : "Start chat"),
+            "keypath": .string(chatReady ? "chatSnapshot.dispatchAction" : "matchmakingSnapshot.dispatchAction"),
+            "label": .string(chatReady ? "Åpne chatflate" : "Start chat"),
             "payload": .object([
-                "keypath": .string("discovery.startChat"),
-                "payload": discoveryChatPayload(for: title, subtitle: subtitle)
+                "keypath": .string(chatReady ? "openChatWorkbench" : "discovery.startChat"),
+                "payload": chatReady
+                    ? .object([
+                        "displayName": .string(title),
+                        "subtitle": .string(subtitle)
+                    ])
+                    : discoveryChatPayload(for: title, subtitle: subtitle)
             ])
         ])
 
@@ -4828,6 +4853,583 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
                 "note": .string("Dette er standardvisningen før du velger en anbefalt deltaker.")
             ]),
             "focusedActions": .list([])
+        ]
+    }
+}
+
+@MainActor
+private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
+    private var cachedChatState: Object = ConferenceParticipantChatSnapshotLocalCell.defaultChatState()
+    private var lastRefreshAt: Date?
+    private var refreshTask: Task<Void, Never>?
+    private var focusedChatName: String?
+    private var recentActionSummary = "Start chat fra deltagerportalen for å gjøre en delt tråd klar her."
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        await configure(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        fatalError("ConferenceParticipantChatSnapshotLocalCell does not support decoding")
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private func configure(owner: Identity) async {
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("rw--", for: "refresh")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "state", for: requester) else { return .string("denied") }
+            await self.refreshSnapshotIfNeeded(force: false, forwardAction: nil, requester: requester)
+            return .object(self.cachedChatState)
+        })
+
+        await addInterceptForSet(requester: owner, key: "refresh", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "refresh", for: requester) else { return .string("denied") }
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(self.cachedChatState)
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "dispatchAction", for: requester) else { return .string("denied") }
+            return await self.handleDispatchAction(value, requester: requester)
+        })
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: owner)
+        }
+    }
+
+    private func handleDispatchAction(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard case let .object(object) = value,
+              let actionKeypath = string(from: object["keypath"]),
+              actionKeypath.isEmpty == false else {
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: cachedChatState,
+                status: "Chat-handlingen mangler keypath.",
+                actionSummary: "Kunne ikke utføre handlingen fordi payloaden var ugyldig."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedChatState)
+            ])
+        }
+
+        let payload = object["payload"] ?? .null
+
+        switch actionKeypath {
+        case "chat.focusThread":
+            if case let .object(threadObject) = payload,
+               let displayName = string(from: threadObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+               displayName.isEmpty == false {
+                focusedChatName = displayName
+                recentActionSummary = "Viser den delte tråden med \(displayName)."
+                cachedChatState = mergedChatState(from: cachedChatState)
+            }
+            return .object([
+                "status": .string("ok"),
+                "state": .object(cachedChatState)
+            ])
+
+        case "openChatWorkbench":
+            if case let .object(threadObject) = payload,
+               let displayName = string(from: threadObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+               displayName.isEmpty == false {
+                focusedChatName = displayName
+            }
+            return await openChatWorkbench(requester: requester)
+
+        case "openParticipantPortalWorkbench":
+            return await openParticipantPortalWorkbench(requester: requester)
+
+        case "connections.postSharedMessage", "scheduling.createMeetingRequest":
+            let forwardedAction: ValueType = .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+            if actionKeypath == "connections.postSharedMessage" {
+                recentActionSummary = "Sendte en oppfølgingsmelding i delt tråd."
+            } else {
+                recentActionSummary = "La til en møteforespørsel fra chatflaten."
+            }
+            await refreshSnapshotIfNeeded(force: true, forwardAction: forwardedAction, requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(cachedChatState)
+            ])
+
+        default:
+            recentActionSummary = "Utførte \(actionKeypath) i chat-snapshotet."
+            let forwardedAction: ValueType = .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ])
+            await refreshSnapshotIfNeeded(force: true, forwardAction: forwardedAction, requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(cachedChatState)
+            ])
+        }
+    }
+
+    private func refreshSnapshotIfNeeded(
+        force: Bool,
+        forwardAction: ValueType?,
+        requester: Identity
+    ) async {
+        if !force,
+           let lastRefreshAt,
+           Date().timeIntervalSince(lastRefreshAt) < 1 {
+            return
+        }
+
+        if let refreshTask {
+            await refreshTask.value
+            return
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performRefresh(forwardAction: forwardAction, requester: requester)
+        }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    @MainActor
+    private func performRefresh(
+        forwardAction: ValueType?,
+        requester: Identity
+    ) async {
+        await AppInitializer.initialize()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let previewShell = try? await resolver.cellAtEndpoint(
+                endpoint: "cell:///ConferenceParticipantPreviewShell",
+                requester: requester
+              ) as? Meddle else {
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: cachedChatState,
+                status: "Chatflaten bruker siste lokale snapshot fordi deltager-preview ikke er tilgjengelig.",
+                actionSummary: "Kunne ikke oppdatere chat akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
+
+        if let forwardAction {
+            let mutationResult = try? await previewShell.set(
+                keypath: "dispatchAction",
+                value: forwardAction,
+                requester: requester
+            )
+            if let errorDescription = mutationErrorDescription(from: mutationResult) {
+                cachedChatState = Self.chatStateWithStatus(
+                    basedOn: cachedChatState,
+                    status: "Chatflaten beholdt siste stabile snapshot fordi handlingen feilet.",
+                    actionSummary: errorDescription
+                )
+                lastRefreshAt = Date()
+                return
+            }
+        }
+
+        do {
+            let stateValue = try await previewShell.get(keypath: "state", requester: requester)
+            guard case let .object(stateObject) = stateValue else {
+                cachedChatState = Self.chatStateWithStatus(
+                    basedOn: cachedChatState,
+                    status: "Chatflaten returnerte ikke et lesbart preview-snapshot.",
+                    actionSummary: "Bruker siste stabile data."
+                )
+                lastRefreshAt = Date()
+                return
+            }
+
+            let workspace = object(from: stateObject["workspace"])
+            let sharedConnections = object(from: stateObject["sharedConnections"])
+            cachedChatState = mergedChatState(
+                workspace: workspace,
+                sharedConnections: sharedConnections
+            )
+            lastRefreshAt = Date()
+        } catch {
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: cachedChatState,
+                status: "Chatflaten bruker siste stabile snapshot.",
+                actionSummary: "Kunne ikke hente oppdatert chat akkurat nå: \(error)"
+            )
+            lastRefreshAt = Date()
+        }
+    }
+
+    private func mergedChatState(
+        workspace: Object?,
+        sharedConnections: Object?
+    ) -> Object {
+        var merged = Self.defaultChatState()
+
+        if let intro = string(from: sharedConnections?["intro"]) {
+            merged["intro"] = .string(intro)
+        }
+        if let chatSummary = string(from: sharedConnections?["chatSummary"]) {
+            merged["chatSummary"] = .string(chatSummary)
+            merged["recentMessagesSummary"] = .string(chatSummary)
+        }
+        if let connectionSummary = string(from: sharedConnections?["connectionSummary"]) {
+            merged["threadSummary"] = .string(connectionSummary)
+            merged["statusSummary"] = .string(connectionSummary)
+        }
+
+        let connectionRows = listObjects(from: sharedConnections?["connections"])
+        let recentMessageRows = listObjects(from: sharedConnections?["recentMessages"])
+        let effectiveFocusedName = ensureFocusedChatName(in: connectionRows)
+
+        merged["selectionSummary"] = .string(selectionSummary(
+            focusedName: effectiveFocusedName,
+            connectionCount: connectionRows.count
+        ))
+        merged["nextStepSummary"] = .string(nextStepSummary(
+            focusedName: effectiveFocusedName,
+            workspaceNextStep: string(from: workspace?["nextStep"]),
+            connectionCount: connectionRows.count
+        ))
+        merged["actionSummary"] = .string(recentActionSummary)
+        merged["focusedThread"] = .object(focusedThreadObject(
+            focusedName: effectiveFocusedName,
+            connectionRows: connectionRows,
+            messageRows: recentMessageRows
+        ))
+        merged["focusedActions"] = .list(focusedActionCards(for: effectiveFocusedName).map(ValueType.object))
+        merged["connections"] = .list(connectionRows.map { connectionCard(from: $0, focusedName: effectiveFocusedName) })
+        merged["recentMessages"] = .list(recentMessageRows.map(messageCard))
+
+        return merged
+    }
+
+    private func ensureFocusedChatName(in connectionRows: [Object]) -> String? {
+        if let focusedChatName,
+           connectionRows.contains(where: { cardTitle(from: $0) == focusedChatName }) {
+            return focusedChatName
+        }
+        let firstName = connectionRows.first.map { cardTitle(from: $0) }
+        focusedChatName = firstName
+        return firstName
+    }
+
+    private func selectionSummary(focusedName: String?, connectionCount: Int) -> String {
+        if let focusedName {
+            return "Viser den delte tråden med \(focusedName)."
+        }
+        if connectionCount == 0 {
+            return "Ingen delt tråd er klar ennå. Start chat i deltagerportalen først."
+        }
+        return "Velg en delt tråd for å fokusere samtalen her."
+    }
+
+    private func nextStepSummary(
+        focusedName: String?,
+        workspaceNextStep: String?,
+        connectionCount: Int
+    ) -> String {
+        if let focusedName {
+            return "Neste steg for \(focusedName) er å sende en kort oppfølging eller gå tilbake til deltagerportalen."
+        }
+        if connectionCount == 0 {
+            return workspaceNextStep ?? "Start en chat fra recommendations, discovery eller nearby for å gjøre chatflaten aktiv."
+        }
+        return "Velg en delt tråd og fortsett oppfølgingen derfra."
+    }
+
+    private func focusedThreadObject(
+        focusedName: String?,
+        connectionRows: [Object],
+        messageRows: [Object]
+    ) -> Object {
+        guard let focusedName,
+              let connection = connectionRows.first(where: { cardTitle(from: $0) == focusedName }) else {
+            return [
+                "selectionBadge": .string("VALGT TRÅD"),
+                "title": .string("Ingen delt tråd valgt ennå"),
+                "subtitle": .string("Conference chat"),
+                "detail": .string("Start chat fra deltagerportalen eller velg en delt tråd fra listen under."),
+                "note": .string("Når en tråd er valgt, viser vi siste oppsummering og neste steg her.")
+            ]
+        }
+
+        let latestMessage = messageRows.first.flatMap { string(from: $0["detail"]) }
+        let note = latestMessage.map { "Siste melding: \($0)" }
+            ?? "Ingen melding sendt ennå. Send en kort oppfølging for å gjøre chatten tydelig i demoen."
+
+        return [
+            "selectionBadge": .string("VALGT TRÅD"),
+            "title": .string(cardTitle(from: connection)),
+            "subtitle": .string(cardSubtitle(from: connection)),
+            "detail": .string(cardDetail(from: connection)),
+            "note": .string(note)
+        ]
+    }
+
+    private func focusedActionCards(for focusedName: String?) -> [Object] {
+        let returnAction: Object = [
+            "title": .string("Tilbake"),
+            "subtitle": .string("Gå tilbake til deltagerportalen"),
+            "detail": .string("Hold deg i samme conference-kontekst og gå tilbake til recommendations, discovery og nearby."),
+            "note": .string("Bruk dette når du vil fortsette demoen i deltagerportalen."),
+            "keypath": .string("chatSnapshot.dispatchAction"),
+            "label": .string("Tilbake til portalen"),
+            "payload": .object([
+                "keypath": .string("openParticipantPortalWorkbench"),
+                "payload": .bool(true)
+            ])
+        ]
+
+        guard let focusedName else {
+            return [returnAction]
+        }
+
+        let sendAction: Object = [
+            "title": .string("Oppfølging"),
+            "subtitle": .string("Send en kort melding"),
+            "detail": .string("Send en konkret oppfølgingsmelding til \(focusedName) for å vise at den delte tråden faktisk lever."),
+            "note": .string("Dette er den sikreste demo-handlingen når tråden allerede er klar."),
+            "keypath": .string("chatSnapshot.dispatchAction"),
+            "label": .string("Send oppfølging"),
+            "payload": .object([
+                "keypath": .string("connections.postSharedMessage"),
+                "payload": .object([
+                    "text": .string("Hei \(focusedName). Skal vi fortsette praten etter neste sesjon?"),
+                    "contentType": .string("text/plain")
+                ])
+            ])
+        ]
+
+        let meetingAction: Object = [
+            "title": .string("Møte"),
+            "subtitle": .string("Foreslå neste steg"),
+            "detail": .string("Be om møte med \(focusedName) når chatten ser relevant ut."),
+            "note": .string("Dette binder chat og scheduling sammen i samme conference-flyt."),
+            "keypath": .string("chatSnapshot.dispatchAction"),
+            "label": .string("Be om møte"),
+            "payload": .object([
+                "keypath": .string("scheduling.createMeetingRequest"),
+                "payload": .object([
+                    "source": .string("binding-chat-snapshot"),
+                    "displayName": .string(focusedName)
+                ])
+            ])
+        ]
+
+        return [sendAction, meetingAction, returnAction]
+    }
+
+    private func connectionCard(from raw: Object, focusedName: String?) -> ValueType {
+        let title = cardTitle(from: raw)
+        let isFocused = focusedName == title
+        let note = cardNote(from: raw)
+        let updatedNote = isFocused ? "\(note) · Vises i chatflaten nå." : "\(note) · Velg tråden for å fokusere den her."
+        return .object([
+            "title": .string(title),
+            "subtitle": .string(cardSubtitle(from: raw)),
+            "detail": .string(cardDetail(from: raw)),
+            "note": .string(updatedNote),
+            "keypath": .string("chatSnapshot.dispatchAction"),
+            "label": .string(isFocused ? "Valgt tråd" : "Vis tråd"),
+            "payload": .object([
+                "keypath": .string("chat.focusThread"),
+                "payload": .object([
+                    "displayName": .string(title)
+                ])
+            ])
+        ])
+    }
+
+    private func messageCard(from raw: Object) -> ValueType {
+        .object([
+            "title": .string(cardTitle(from: raw)),
+            "detail": .string(cardDetail(from: raw)),
+            "note": .string(cardNote(from: raw))
+        ])
+    }
+
+    private func openChatWorkbench(requester: Identity) async -> ValueType {
+        let displayName = focusedChatName.map { "Conference Chat · \($0)" } ?? "Conference Chat · Oppfølging"
+        let configuration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
+            participantEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            displayName: displayName,
+            summary: "Delt conference-chat med oppfølging, meldinger og neste steg i egen arbeidsflate."
+        )
+        return await loadWorkbenchConfiguration(
+            configuration,
+            requester: requester,
+            successSummary: "Åpnet chatflaten i egen arbeidsflate."
+        )
+    }
+
+    private func openParticipantPortalWorkbench(requester: Identity) async -> ValueType {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        return await loadWorkbenchConfiguration(
+            configuration,
+            requester: requester,
+            successSummary: "Tilbake i deltagerportalen."
+        )
+    }
+
+    private func loadWorkbenchConfiguration(
+        _ configuration: CellConfiguration,
+        requester: Identity,
+        successSummary: String
+    ) async -> ValueType {
+        recentActionSummary = "Åpner chatflaten…"
+        cachedChatState = mergedChatState(from: cachedChatState)
+        scheduleWorkbenchLoad(configuration, requester: requester, successSummary: successSummary)
+        return .object([
+            "status": .string("ok"),
+            "state": .object(cachedChatState)
+        ])
+    }
+
+    private func scheduleWorkbenchLoad(
+        _ configuration: CellConfiguration,
+        requester: Identity,
+        successSummary: String
+    ) {
+        Task { @MainActor [weak self] in
+            BindingPortholeLoadBridge.post(configuration: configuration)
+            self?.recentActionSummary = successSummary
+            if let self {
+                self.cachedChatState = Self.chatStateWithStatus(
+                    basedOn: self.cachedChatState,
+                    status: "Chatflaten åpnes i egen arbeidsflate.",
+                    actionSummary: successSummary
+                )
+            }
+        }
+    }
+
+    private func mergedChatState(from object: Object) -> Object {
+        var merged = object
+        merged["actionSummary"] = .string(recentActionSummary)
+        return merged
+    }
+
+    private func listObjects(from value: ValueType?) -> [Object] {
+        guard case let .list(values)? = value else { return [] }
+        return values.compactMap {
+            guard case let .object(object) = $0 else { return nil }
+            return object
+        }
+    }
+
+    private func cardTitle(from object: Object) -> String {
+        string(from: object["title"]) ??
+        string(from: object["displayName"]) ??
+        "Delt tråd"
+    }
+
+    private func cardSubtitle(from object: Object) -> String {
+        string(from: object["subtitle"]) ?? "Conference chat"
+    }
+
+    private func cardDetail(from object: Object) -> String {
+        string(from: object["detail"]) ?? "Ingen detalj tilgjengelig ennå."
+    }
+
+    private func cardNote(from object: Object) -> String {
+        string(from: object["note"]) ?? "Ingen ekstra chat-kontekst tilgjengelig ennå."
+    }
+
+    private func string(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case let .string(string):
+            return string
+        case let .integer(integer):
+            return String(integer)
+        case let .number(number):
+            return String(number)
+        case let .float(float):
+            return String(float)
+        case let .bool(bool):
+            return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private func object(from value: ValueType?) -> Object? {
+        guard case let .object(object)? = value else { return nil }
+        return object
+    }
+
+    private func mutationErrorDescription(from value: ValueType?) -> String? {
+        guard let value else { return "Ukjent chatfeil." }
+        switch value {
+        case let .string(string):
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { return nil }
+            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
+                return trimmed
+            }
+            return nil
+        case let .object(object):
+            if case let .string(status)? = object["status"],
+               status == "error",
+               let message = string(from: object["message"]) {
+                return message
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private static func chatStateWithStatus(
+        basedOn base: Object,
+        status: String,
+        actionSummary: String
+    ) -> Object {
+        var updated = base
+        updated["statusSummary"] = .string(status)
+        updated["actionSummary"] = .string(actionSummary)
+        return updated
+    }
+
+    private static func defaultChatState() -> Object {
+        [
+            "intro": .string("Denne flaten viser når en conference-chat faktisk er klar, og gjør det tydelig hvordan du fortsetter oppfølgingen."),
+            "statusSummary": .string("Ingen delt tråd er klar ennå."),
+            "selectionSummary": .string("Start chat fra deltagerportalen for å gjøre en delt tråd klar her."),
+            "nextStepSummary": .string("Når en delt tråd finnes, kan du sende oppfølging eller gå tilbake til portalen."),
+            "actionSummary": .string("Start chat fra deltagerportalen for å gjøre en delt tråd klar her."),
+            "threadSummary": .string("0 delte tråder synlige."),
+            "recentMessagesSummary": .string("0 delte meldinger synlige."),
+            "chatSummary": .string("0 delte meldinger synlige."),
+            "focusedThread": .object([
+                "selectionBadge": .string("VALGT TRÅD"),
+                "title": .string("Ingen delt tråd valgt ennå"),
+                "subtitle": .string("Conference chat"),
+                "detail": .string("Start chat fra deltagerportalen eller velg en delt tråd når en blir synlig."),
+                "note": .string("Når en tråd er valgt, viser vi siste oppsummering og neste steg her.")
+            ]),
+            "focusedActions": .list([]),
+            "connections": .list([]),
+            "recentMessages": .list([])
         ]
     }
 }

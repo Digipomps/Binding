@@ -152,9 +152,10 @@ struct BindingTests {
 
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///EntityScanner") == "cell:///EntityScanner")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantDiscoverySnapshot") == "cell:///ConferenceParticipantDiscoverySnapshot")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantPreviewShell") == "cell:///ConferenceParticipantPreviewShell")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceAdminPreviewShell") == "cell:///ConferenceAdminPreviewShell")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
-        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantPreviewShell") == "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AIGateway") == "cell://staging.haven.digipomps.org/AIGateway")
     }
 
@@ -722,6 +723,7 @@ struct BindingTests {
             $0.label == "discoverySnapshot" && $0.endpoint == "cell:///ConferenceParticipantDiscoverySnapshot"
         }))
         #expect(references.contains(where: { $0.label == "nearbyRadar" && $0.endpoint == "cell:///ConferenceNearbyRadar" }))
+        #expect(references.contains(where: { $0.label == "chatSnapshot" && $0.endpoint == "cell:///ConferenceParticipantChatSnapshot" }))
 
         guard let skeleton = configuration.skeleton else {
             Issue.record("Conference participant portal mangler skeleton")
@@ -750,6 +752,10 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectionSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatSnapshot.state.statusSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatSnapshot.state.selectionSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatSnapshot.state.focusedThread.title", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "chatSnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
         #expect(skeletonContainsButton(keypath: "discoverySnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
@@ -941,6 +947,112 @@ struct BindingTests {
         if let previewResponse {
             #expect(SkeletonBindingProbeSupport.failureDetail(from: previewResponse) == nil)
         }
+    }
+
+    @Test func conferenceParticipantPortalProxyActionsFocusParticipantAndOpenChatWorkbench() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let focusResponse = try await context.porthole.set(
+            keypath: "matchmakingSnapshot.dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.focusPerson"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: context.owner
+        )
+        #expect(focusResponse != nil)
+        if let focusResponse {
+            let focusFailure = await MainActor.run {
+                SkeletonBindingProbeSupport.failureDetail(from: focusResponse)
+            }
+            #expect(focusFailure == nil)
+        }
+
+        let focusedTitle = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.focusedProfile.title",
+            requester: context.owner
+        )
+        #expect(focusedTitle == .string("Ane Solberg"))
+
+        let chatStartResponse = try await context.porthole.set(
+            keypath: "matchmakingSnapshot.dispatchAction",
+            value: .object([
+                "keypath": .string("discovery.startChat"),
+                "payload": .object([
+                    "source": .string("binding-participant-portal-recommendation"),
+                    "targets": .list([
+                        .object([
+                            "displayName": .string("Ane Solberg"),
+                            "headline": .string("Public sector interoperability")
+                        ])
+                    ])
+                ])
+            ]),
+            requester: context.owner
+        )
+        #expect(chatStartResponse != nil)
+        if let chatStartResponse {
+            let chatStartFailure = await MainActor.run {
+                SkeletonBindingProbeSupport.failureDetail(from: chatStartResponse)
+            }
+            #expect(chatStartFailure == nil)
+        }
+
+        let chatActionLabel = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.focusedActions[0].label",
+            requester: context.owner
+        )
+        #expect(chatActionLabel == .string("Åpne chatflate"))
+
+        let expectedWorkbenchLoad = Task {
+            await CellConfigurationVerifier.waitForPortholeLoadBridgeConfiguration(
+                containingName: "Conference Chat"
+            )
+        }
+        let openChatResponse = try await context.porthole.set(
+            keypath: "chatSnapshot.dispatchAction",
+            value: .object([
+                "keypath": .string("openChatWorkbench"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: context.owner
+        )
+        #expect(openChatResponse != nil)
+        if let openChatResponse {
+            let openChatFailure = await MainActor.run {
+                SkeletonBindingProbeSupport.failureDetail(from: openChatResponse)
+            }
+            #expect(openChatFailure == nil)
+        }
+
+        guard let configuration = await expectedWorkbenchLoad.value else {
+            let actionSummary = try? await context.porthole.get(
+                keypath: "chatSnapshot.state.actionSummary",
+                requester: context.owner
+            )
+            let statusSummary = try? await context.porthole.get(
+                keypath: "chatSnapshot.state.statusSummary",
+                requester: context.owner
+            )
+            Issue.record(
+                "Expected BindingPortholeLoadBridge request for Conference Chat. actionSummary=\(String(describing: actionSummary)) statusSummary=\(String(describing: statusSummary))"
+            )
+            return
+        }
+
+        #expect(configuration.name.contains("Conference Chat"))
+        #expect(configuration.cellReferences?.contains(where: { $0.label == "chatSnapshot" }) == true)
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceParticipantAgendaSnapshotReadable() async throws {
@@ -1166,7 +1278,7 @@ struct BindingTests {
 
         #expect(object["selectionSummary"] == .string("Viser Ane Solberg i discovery-delen."))
         #expect(focusedProfile["title"] == .string("Ane Solberg"))
-        #expect(firstCandidate["label"] == .string("Åpne chat"))
+        #expect(firstCandidate["label"] == .string("Åpne chatflate"))
 
         guard case let .object(chatAction)? = focusedActions.first,
               case let .object(followUpAction)? = focusedActions.dropFirst().first,
@@ -1175,7 +1287,7 @@ struct BindingTests {
             return
         }
 
-        #expect(chatAction["label"] == .string("Åpne chat"))
+        #expect(chatAction["label"] == .string("Åpne chatflate"))
         #expect(followUpAction["label"] == .string("Fjern markering"))
         #expect(meetingAction["label"] == .string("Be om møte"))
     }
@@ -1215,6 +1327,74 @@ struct BindingTests {
         #expect(object["focusedProfile"] != nil)
         #expect(object["focusedActions"] != nil)
         #expect(object["recommendations"] != nil)
+    }
+
+    @Test func bindingLocalCellRegistrationMakesConferenceChatSnapshotReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after app initialization")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let preview = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantPreviewShell did not resolve as Meddle")
+            return
+        }
+        guard let snapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantChatSnapshot did not resolve as Meddle")
+            return
+        }
+
+        _ = try await preview.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("discovery.startChat"),
+                "payload": .object([
+                    "source": .string("binding-test"),
+                    "targets": .list([
+                        .object([
+                            "displayName": .string("Ane Solberg"),
+                            "headline": .string("Public sector interoperability")
+                        ])
+                    ])
+                ])
+            ]),
+            requester: identity
+        )
+
+        let stateValue = try await snapshot.get(keypath: "state", requester: identity)
+        guard case let .object(object) = stateValue,
+              case let .object(focusedThread)? = object["focusedThread"],
+              case let .list(focusedActions)? = object["focusedActions"] else {
+            Issue.record("Expected chat snapshot state with focused thread and actions")
+            return
+        }
+
+        #expect(object["statusSummary"] != nil)
+        #expect(object["selectionSummary"] == .string("Viser den delte tråden med Ane Solberg."))
+        #expect(focusedThread["title"] == .string("Ane Solberg"))
+        #expect(object["connections"] != nil)
+        #expect(object["recentMessages"] != nil)
+
+        guard case let .object(firstAction)? = focusedActions.first else {
+            Issue.record("Expected at least one focused chat action")
+            return
+        }
+        #expect(firstAction["label"] == .string("Send oppfølging"))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceNearbyRadarReadable() async throws {
@@ -1839,7 +2019,7 @@ struct BindingTests {
             return
         }
 
-        #expect(chatAction["label"] == .string("Åpne chat"))
+        #expect(chatAction["label"] == .string("Åpne chatflate"))
         #expect(followUpAction["label"] == .string("Fjern markering"))
         #expect(meetingAction["label"] == .string("Be om møte"))
     }
@@ -3608,7 +3788,7 @@ struct CellConfigurationVerifierTests {
         #expect(report.requestContactSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
         #expect(report.requestContactActionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
         #expect(report.chatOpened)
-        #expect(report.nearbyCardLabel == "Åpne chat")
+        #expect(report.nearbyCardLabel == "Åpne chatflate")
         #expect(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
         #expect(report.nearbyActionSummary == "Startet conference-chat med Nora Berg.")
         #expect(report.workspaceNextStep == "Started follow-up chat with Nora Berg in local preview.")
@@ -3644,6 +3824,25 @@ struct CellConfigurationVerifierTests {
             buttonsToExecute: [
                 "Åpne full radar",
                 "Tilbake til portalen"
+            ]
+        )
+
+        #expect(report.validation.errorCount == 0)
+        #expect(report.unresolvedReferences.isEmpty)
+        #expect(report.unreadableRootProbes.isEmpty)
+        #expect(report.failedActions.isEmpty)
+    }
+
+    @Test func conferenceParticipantChatContractVerifierKeepsBindingsAndActionsReachable() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Tilbake til portalen"
+            ],
+            rootProbes: [
+                .init(label: "chatSnapshot", rootKeypath: "state")
             ]
         )
 
@@ -3710,6 +3909,26 @@ struct CellConfigurationVerifierTests {
                 "Åpne full radar",
                 "Tilbake til portalen",
                 "Neste steg"
+            ]
+        )
+
+        #expect(report.snapshotByteCount > 0, "Expected a non-empty rendered snapshot")
+        #expect(report.subviewCount > 0)
+        #expect(report.totalRenderMilliseconds > 0)
+    }
+
+    @MainActor
+    @Test func conferenceParticipantChatRendererVerifierBuildsVisibleMacOSSurface() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Chat · Oppfølging",
+                "Conference chat · oppfølging",
+                "Delte tråder",
+                "Siste meldinger",
+                "Tilbake til portalen"
             ]
         )
 
@@ -4415,7 +4634,7 @@ enum CellConfigurationVerifier {
     }
 #endif
 
-    fileprivate struct RuntimeContext {
+    struct RuntimeContext {
         let configuration: CellConfiguration
         let validation: CellConfigurationValidationReport
         let resolver: CellResolver
@@ -4432,7 +4651,7 @@ enum CellConfigurationVerifier {
         }
     }
 
-    fileprivate static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
+    static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
         let identityVault = BindingTests.testIdentityVault
         _ = await identityVault.initialize()
         CellBase.defaultIdentityVault = identityVault
@@ -4462,6 +4681,45 @@ enum CellConfigurationVerifier {
             owner: owner,
             porthole: porthole
         )
+    }
+
+    fileprivate static func waitForPortholeLoadBridgeConfiguration(
+        containingName expectedNameFragment: String,
+        timeout: TimeInterval = 2.0
+    ) async -> CellConfiguration? {
+        let notificationCenter = NotificationCenter.default
+        return await withCheckedContinuation { continuation in
+            var token: NSObjectProtocol?
+            var didResume = false
+
+            func finish(_ configuration: CellConfiguration?) {
+                guard !didResume else { return }
+                didResume = true
+                if let token {
+                    notificationCenter.removeObserver(token)
+                }
+                continuation.resume(returning: configuration)
+            }
+
+            let deadline = DispatchTime.now() + timeout
+            token = notificationCenter.addObserver(
+                forName: BindingPortholeLoadBridge.notificationName,
+                object: nil,
+                queue: nil
+            ) { notification in
+                guard let configuration = BindingPortholeLoadBridge.configuration(from: notification) else {
+                    return
+                }
+                guard configuration.name.contains(expectedNameFragment) else {
+                    return
+                }
+                finish(configuration)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: deadline) {
+                finish(nil)
+            }
+        }
     }
 
     private static func withTimeout<T: Sendable>(

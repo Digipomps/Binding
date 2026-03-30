@@ -29,6 +29,27 @@ enum ConfigurationCatalogPreviewBridge {
     }
 }
 
+enum BindingPortholeLoadBridge {
+    nonisolated static let notificationName = Notification.Name("BindingPortholeLoadBridge.requested")
+
+    nonisolated private static let configurationDataKey = "configurationData"
+
+    nonisolated static func post(configuration: CellConfiguration, notificationCenter: NotificationCenter = .default) {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(configuration) else { return }
+        notificationCenter.post(
+            name: notificationName,
+            object: nil,
+            userInfo: [configurationDataKey: data]
+        )
+    }
+
+    nonisolated static func configuration(from notification: Notification) -> CellConfiguration? {
+        guard let data = notification.userInfo?[configurationDataKey] as? Data else { return nil }
+        return try? JSONDecoder().decode(CellConfiguration.self, from: data)
+    }
+}
+
 final class ConfigurationCatalogCell: GeneralCell {
     private static let blockedCatalogReferenceNames: Set<String> = [
         "eventemitter",
@@ -6159,6 +6180,16 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    nonisolated static func conferenceParticipantChatWorkbenchConfiguration(
+        participantEndpoint: String = "cell:///ConferenceParticipantPreviewShell"
+    ) -> CellConfiguration {
+        conferenceParticipantChatWorkbenchConfiguration(
+            participantEndpoint: participantEndpoint,
+            displayName: "Conference Chat · Oppfølging",
+            summary: "Delt conference-chat med oppfølging, meldinger og neste steg i en tydelig arbeidsflate."
+        )
+    }
+
     nonisolated static func conferenceAIAssistantWorkbenchConfiguration(
         conferenceEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
         aiEndpoint: String = "cell://staging.haven.digipomps.org/AIGateway"
@@ -6600,12 +6631,20 @@ final class ConfigurationCatalogCell: GeneralCell {
         let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
         configuration.addReference(nearbyRadarReference)
 
+        let chatSnapshotReference = CellReference(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            subscribeFeed: false,
+            label: "chatSnapshot"
+        )
+        configuration.addReference(chatSnapshotReference)
+
         var root = SkeletonVStack(elements: [
             bindingConferencePortalHeroSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalAgendaSection(referenceLabel: "agendaSnapshot"),
             bindingConferencePortalRecommendationsSection(referenceLabel: "matchmakingSnapshot"),
             bindingConferencePortalDiscoverySection(referenceLabel: "discoverySnapshot"),
             bindingConferencePortalNearbyScannerSection(scannerReferenceLabel: "nearbyRadar"),
+            bindingConferencePortalChatSection(referenceLabel: "chatSnapshot"),
             bindingConferencePortalTimelineSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalNetworkSection(referenceLabel: "conferenceParticipantShell"),
             bindingConferencePortalCardSection(
@@ -6659,6 +6698,13 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
         configuration.addReference(nearbyRadarReference)
+
+        let chatSnapshotReference = CellReference(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            subscribeFeed: false,
+            label: "chatSnapshot"
+        )
+        configuration.addReference(chatSnapshotReference)
 
         var root = SkeletonVStack(elements: [
             bindingConferencePortalCardSection(
@@ -6847,6 +6893,13 @@ final class ConfigurationCatalogCell: GeneralCell {
         let nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", subscribeFeed: true, label: "nearbyRadar")
         configuration.addReference(nearbyRadarReference)
 
+        let chatSnapshotReference = CellReference(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            subscribeFeed: false,
+            label: "chatSnapshot"
+        )
+        configuration.addReference(chatSnapshotReference)
+
         var root = SkeletonVStack(elements: [
             bindingConferencePortalCardSection(
                 "Valgt deltager · profilflate",
@@ -6970,6 +7023,143 @@ final class ConfigurationCatalogCell: GeneralCell {
                                 label: "Tilbake til portalen"
                             )
                         ])
+                    )
+                ]
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated static func conferenceParticipantChatWorkbenchConfiguration(
+        participantEndpoint: String,
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceParticipantChatSnapshot",
+            sourceCellName: "ConferenceParticipantChatSnapshotLocalCell",
+            purpose: "Conference participant chat",
+            purposeDescription: "Binding-lokal oppfølgingsflate for delt conference-chat, delt trådstatus og tydelige neste steg fra participant-perspektivet.",
+            interests: ["conference", "chat", "follow-up", "participant", "meetings", "shared-relations"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var participantReference = CellReference(endpoint: participantEndpoint, subscribeFeed: false, label: "conferenceParticipantShell")
+        participantReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(participantReference)
+
+        let chatSnapshotReference = CellReference(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            subscribeFeed: false,
+            label: "chatSnapshot"
+        )
+        configuration.addReference(chatSnapshotReference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Conference Chat",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Conference chat · oppfølging",
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        foregroundColor: "#F5FBFF"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Dette er den eksplisitte chatflaten for participant-flyten. Bruk den når en delt tråd er klar og du vil vise samtalen som en egen arbeidsflate, ikke bare som status i portalen.",
+                        fontSize: 12,
+                        foregroundColor: "#B9FBC0",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalKeyText("chatSnapshot.state.intro", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    .Grid(
+                        SkeletonGrid(
+                            columns: [.adaptive(min: 220, max: 320)],
+                            spacing: 12,
+                            elements: [
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Status nå",
+                                    detailKeypath: "chatSnapshot.state.statusSummary",
+                                    noteKeypath: "chatSnapshot.state.actionSummary",
+                                    accentBorder: "#2F6B56",
+                                    accentText: "#B9FBC0",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Valg nå",
+                                    detailKeypath: "chatSnapshot.state.selectionSummary",
+                                    noteKeypath: "chatSnapshot.state.threadSummary",
+                                    accentBorder: "#2A4D61",
+                                    accentText: "#B9E6FF",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Neste steg",
+                                    detailKeypath: "chatSnapshot.state.nextStepSummary",
+                                    noteKeypath: "chatSnapshot.state.recentMessagesSummary",
+                                    accentBorder: "#4D3F2A",
+                                    accentText: "#F4D58D",
+                                    height: 132
+                                )
+                            ]
+                        )
+                    ),
+                    bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+                    bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                    bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+                    bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+                    bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "chatSnapshot.state.focusedActions",
+                        min: 240,
+                        max: 320,
+                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton(
+                                "chatSnapshot",
+                                actionKeypath: "openParticipantPortalWorkbench",
+                                label: "Tilbake til portalen"
+                            )
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Delte tråder",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Velg en delt tråd for å fokusere den her. Dette er den tydeligste måten å vise at chatten faktisk ble startet.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "chatSnapshot.state.connections",
+                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Siste meldinger",
+                content: [
+                    bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "chatSnapshot.state.recentMessages",
+                        itemSkeleton: bindingConferencePortalMessageCardSkeleton()
                     )
                 ]
             )
@@ -7627,6 +7817,70 @@ final class ConfigurationCatalogCell: GeneralCell {
                             referenceLabel,
                             actionKeypath: "scheduling.respondMeetingRequest",
                             label: "Godta ventende"
+                        )
+                    ])
+                )
+            ]
+        )
+    }
+
+    private static func bindingConferencePortalChatSection(referenceLabel: String) -> SkeletonElement {
+        bindingConferencePortalCardSection(
+            "Chat og Oppfølging",
+            content: [
+                bindingConferencePortalStaticText(
+                    "Når en chat er klar, skal det være synlig her med én gang. Denne seksjonen gjør handoffen fra deltagervalg til faktisk samtaleflate mye tydeligere.",
+                    fontSize: 12,
+                    foregroundColor: "#9AB3C3",
+                    lineLimit: 4
+                ),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 220, max: 320)],
+                        spacing: 12,
+                        elements: [
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Status nå",
+                                detailKeypath: "\(referenceLabel).state.statusSummary",
+                                noteKeypath: "\(referenceLabel).state.actionSummary",
+                                accentBorder: "#2F6B56",
+                                accentText: "#B9FBC0",
+                                height: 132
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Valg nå",
+                                detailKeypath: "\(referenceLabel).state.selectionSummary",
+                                noteKeypath: "\(referenceLabel).state.threadSummary",
+                                accentBorder: "#2A4D61",
+                                accentText: "#B9E6FF",
+                                height: 132
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Neste steg",
+                                detailKeypath: "\(referenceLabel).state.nextStepSummary",
+                                noteKeypath: "\(referenceLabel).state.recentMessagesSummary",
+                                accentBorder: "#4D3F2A",
+                                accentText: "#F4D58D",
+                                height: 132
+                            )
+                        ]
+                    )
+                ),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedThread.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedThread.title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedThread.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedThread.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedThread.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                bindingConferencePortalCollectionGrid(
+                    keypath: "\(referenceLabel).state.focusedActions",
+                    itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                ),
+                .HStack(
+                    SkeletonHStack(elements: [
+                        bindingConferencePortalActionButton(
+                            referenceLabel,
+                            actionKeypath: "openChatWorkbench",
+                            label: "Åpne chatflate"
                         )
                     ])
                 )

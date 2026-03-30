@@ -212,9 +212,7 @@ struct ContentView: View {
         "aigateway",
         "conferenceuirouter",
         "conferenceadminshell",
-        "conferenceadminpreviewshell",
         "conferenceparticipantshell",
-        "conferenceparticipantpreviewshell",
         "conferencepublicshell",
         "conferencesponsorshell",
         "vault",
@@ -591,6 +589,16 @@ struct ContentView: View {
                 .compactMap(ConfigurationCatalogPreviewBridge.configuration)
         ) { configuration in
             editorMode = .edit
+            queueConfigurationLoad(configuration)
+        }
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: BindingPortholeLoadBridge.notificationName)
+                .compactMap(BindingPortholeLoadBridge.configuration)
+        ) { configuration in
+            if editorMode == .edit {
+                editorMode = .view
+            }
             queueConfigurationLoad(configuration)
         }
         .onPreferenceChange(TopChromeHeightPreferenceKey.self) { topChromeHeight in
@@ -2009,7 +2017,23 @@ struct ContentView: View {
             keypath: "conferenceParticipantShell.state.workspace.title",
             requester: identity
         )
-        guard titleValue == .string("Conference Participant Portal Dashboard") else {
+        let skeletonValue = try? await porthole.get(
+            keypath: "skeleton",
+            requester: identity
+        )
+        let skeletonText: String?
+        if case let .string(text)? = skeletonValue {
+            skeletonText = text
+        } else {
+            skeletonText = nil
+        }
+
+        let currentlyLooksLikeParticipantPortal =
+            titleValue == .string("Conference Participant Portal Dashboard")
+            || activeConfiguration?.name == "Conference Participant Portal Dashboard"
+            || skeletonText?.contains("Conference Participant Portal") == true
+
+        guard currentlyLooksLikeParticipantPortal else {
             return
         }
 
@@ -2074,7 +2098,23 @@ struct ContentView: View {
             keypath: "conferenceAdminShell.state.workspace.title",
             requester: identity
         )
-        guard titleValue == .string("Conference Control Tower") else {
+        let skeletonValue = try? await porthole.get(
+            keypath: "skeleton",
+            requester: identity
+        )
+        let skeletonText: String?
+        if case let .string(text)? = skeletonValue {
+            skeletonText = text
+        } else {
+            skeletonText = nil
+        }
+
+        let currentlyLooksLikeControlTower =
+            titleValue == .string("Conference Control Tower")
+            || activeConfiguration?.name == "Conference Control Tower"
+            || skeletonText?.contains("Conference Control Tower") == true
+
+        guard currentlyLooksLikeControlTower else {
             return
         }
 
