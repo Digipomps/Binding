@@ -2289,6 +2289,10 @@ struct ContentView: View {
                 for: loadRequesterDescriptor,
                 fallback: fallbackIdentity
             ) {
+                if shouldWarmConferenceRuntime(for: normalizedConfiguration) {
+                    updateLoadingStatus("Varmer opp lokal conference-runtime for \(sanitizedConfiguration.name)…", requestID: requestID)
+                    await BindingLocalCellRegistration.shared.warmConferenceRuntime(requester: identity)
+                }
                 guard !Task.isCancelled else { return }
                 updateLoadingStatus("Henter fjernkonfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
                 normalizedConfiguration = await recoverRemoteConfigurationOnDemandIfNeeded(
@@ -2386,6 +2390,24 @@ struct ContentView: View {
         refreshDiagnosticsValidation()
     }
 
+    private func shouldWarmConferenceRuntime(for configuration: CellConfiguration) -> Bool {
+        let endpoints = (configuration.cellReferences ?? []).map(\.endpoint)
+        let discoveryEndpoint = configuration.discovery?.sourceCellEndpoint.map { [$0] } ?? []
+
+        return (endpoints + discoveryEndpoint).contains { endpoint in
+            let normalized = endpoint
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return normalized == "cell:///conferenceparticipantpreviewshell"
+                || normalized == "cell:///conferenceparticipantagendasnapshot"
+                || normalized == "cell:///conferenceadminpreviewshell"
+                || normalized == "cell:///conferenceparticipantdiscoverysnapshot"
+                || normalized == "cell:///conferenceparticipantmatchmakingsnapshot"
+                || normalized == "cell:///conferenceparticipantchatsnapshot"
+                || normalized == "cell:///conferencenearbyradar"
+        }
+    }
+
     private func loadConfigurationIntoPorthole(
         _ configuration: CellConfiguration,
         requestID: UUID,
@@ -2464,7 +2486,38 @@ struct ContentView: View {
             requestID: requestID
         )
 
+        let resolvedAvailability: RootBindingAvailability
         switch availability {
+        case .failed(let failures) where shouldWarmConferenceRuntime(for: configuration):
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.load",
+                message: "Readable roots for \(configuration.name) were not ready after initial absorb. Rewarming local conference runtime and probing once more."
+            )
+            updateLoadingStatus(
+                "Varmer opp lokal conference-runtime på nytt for \(configuration.name)…",
+                requestID: requestID
+            )
+            await BindingLocalCellRegistration.shared.warmConferenceRuntime(requester: loadRequester)
+            resolvedAvailability = await waitForReadableBindingRoots(
+                rootProbes,
+                on: porthole,
+                requester: loadRequester,
+                configurationName: configuration.name,
+                requestID: requestID
+            )
+            if case .failed = resolvedAvailability {
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.load",
+                    message: "Conference rewarm did not fully clear unreadable roots for \(configuration.name): \(summarizeBindingFailures(failures))"
+                )
+            }
+        default:
+            resolvedAvailability = availability
+        }
+
+        switch resolvedAvailability {
         case .ready(let attempts):
             loadErrorMessage = nil
             if attempts > 1 {

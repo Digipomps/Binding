@@ -1474,6 +1474,98 @@ struct BindingTests {
         #expect(object["radarLayout"] != nil)
     }
 
+    @Test func bindingLaunchWarmupMakesConferenceParticipantPreviewAndChatReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+
+        await BindingLaunchWarmup.preloadLocalRuntime()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after launch warmup")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+        guard let preview = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantPreviewShell did not resolve as Meddle after launch warmup")
+            return
+        }
+        guard let chat = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantChatSnapshot did not resolve as Meddle after launch warmup")
+            return
+        }
+
+        let previewState = try await preview.get(keypath: "state", requester: identity)
+        guard case let .object(previewObject) = previewState else {
+            Issue.record("Expected object from ConferenceParticipantPreviewShell.state after launch warmup, got \(previewState)")
+            return
+        }
+        #expect(previewObject["workspace"] != nil)
+        #expect(previewObject["sharedConnections"] != nil)
+
+        let chatState = try await chat.get(keypath: "state", requester: identity)
+        guard case let .object(chatObject) = chatState else {
+            Issue.record("Expected object from ConferenceParticipantChatSnapshot.state after launch warmup, got \(chatState)")
+            return
+        }
+        #expect(chatObject["statusSummary"] != nil)
+        #expect(chatObject["selectionSummary"] != nil)
+        #expect(chatObject["nextStepSummary"] != nil)
+    }
+
+    @Test func bindingLaunchWarmupMakesConferenceParticipantSurfacesReadable() async throws {
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+
+        await BindingLaunchWarmup.preloadLocalRuntime()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared CellResolver after launch warmup")
+            return
+        }
+        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Missing private identity")
+            return
+        }
+
+        let expectedRootKeys: [(String, [String])] = [
+            ("cell:///ConferenceParticipantAgendaSnapshot", ["viewSummary", "trackSummary", "actionSummary"]),
+            ("cell:///ConferenceParticipantDiscoverySnapshot", ["status", "sourceSummary", "actionSummary"]),
+            ("cell:///ConferenceParticipantMatchmakingSnapshot", ["status", "searchSummary", "actionSummary"]),
+            ("cell:///ConferenceNearbyRadar", ["statusSummary", "selectionSummary", "actionSummary"])
+        ]
+
+        for (endpoint, keys) in expectedRootKeys {
+            guard let cell = try await resolver.cellAtEndpoint(
+                endpoint: endpoint,
+                requester: identity
+            ) as? Meddle else {
+                Issue.record("\(endpoint) did not resolve as Meddle after launch warmup")
+                continue
+            }
+
+            let state = try await cell.get(keypath: "state", requester: identity)
+            guard case let .object(object) = state else {
+                Issue.record("Expected object from \(endpoint).state after launch warmup, got \(state)")
+                continue
+            }
+
+            for key in keys {
+                #expect(object[key] != nil, "\(endpoint) missing \(key) after launch warmup")
+            }
+        }
+    }
+
     @Test func conferenceNearbyRadarDispatchActionReturnsSnapshotObject() async throws {
         let identityVault = IdentityVault.shared
         _ = await identityVault.initialize()

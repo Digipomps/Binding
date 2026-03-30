@@ -1,8 +1,10 @@
 import Foundation
+import CellApple
 
 enum BindingLaunchWarmup {
     static func preloadLocalRuntime() async {
-        await BindingLocalCellRegistration.shared.ensureRegistered()
+        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.warmConferenceRuntime()
     }
 }
 

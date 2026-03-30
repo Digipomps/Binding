@@ -9,6 +9,15 @@ import OpenCombine
 
 actor BindingLocalCellRegistration {
     static let shared = BindingLocalCellRegistration()
+    private static let safeConferenceWarmupEndpoints: [String] = [
+        "cell:///ConferenceParticipantPreviewShell",
+        "cell:///ConferenceParticipantAgendaSnapshot",
+        "cell:///ConferenceParticipantDiscoverySnapshot",
+        "cell:///ConferenceParticipantMatchmakingSnapshot",
+        "cell:///ConferenceNearbyRadar",
+        "cell:///ConferenceParticipantChatSnapshot",
+        "cell:///ConferenceAdminPreviewShell",
+    ]
 
     private var isRegistered = false
     private var registrationTask: Task<Void, Never>?
@@ -31,6 +40,36 @@ actor BindingLocalCellRegistration {
         await task.value
         isRegistered = true
         registrationTask = nil
+    }
+
+    func warmConferenceRuntime(requester: Identity? = nil) async {
+        await ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            return
+        }
+
+        let effectiveRequester: Identity?
+        if let requester {
+            effectiveRequester = requester
+        } else {
+            effectiveRequester = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
+        }
+
+        guard let effectiveRequester else {
+            return
+        }
+
+        for endpoint in Self.safeConferenceWarmupEndpoints {
+            guard let meddle = try? await resolver.cellAtEndpoint(
+                endpoint: endpoint,
+                requester: effectiveRequester
+            ) as? Meddle else {
+                continue
+            }
+
+            _ = try? await meddle.get(keypath: "state", requester: effectiveRequester)
+        }
     }
 
     private static func registerAll(on resolver: CellResolver) async {
@@ -163,6 +202,44 @@ actor BindingLocalCellRegistration {
             }
             print("Binding local cell registration failed for \(name): \(error)")
         }
+    }
+}
+
+private enum ConferenceSnapshotRetrySupport {
+    private static let retryableFragments: [String] = [
+        "ikke tilgjengelig",
+        "kunne ikke",
+        "notfound",
+        "denied",
+        "timeout",
+        "finishedwithoutvalue",
+        "siste stabile snapshot",
+        "siste lokale snapshot",
+        "beholdt siste stabile snapshot"
+    ]
+
+    static func shouldRetryImmediately(
+        cachedState: Object,
+        statusKeys: [String]
+    ) -> Bool {
+        statusKeys.contains { key in
+            containsRetryableFailure(cachedState[key])
+        }
+    }
+
+    private static func containsRetryableFailure(_ value: ValueType?) -> Bool {
+        guard case let .string(text)? = value else {
+            return false
+        }
+
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else {
+            return false
+        }
+
+        return retryableFragments.contains(where: normalized.contains)
     }
 }
 
@@ -2834,7 +2911,13 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
         forwardAction: ValueType?,
         requester: Identity
     ) async {
+        let shouldRetryImmediately = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+            cachedState: cachedAgendaState,
+            statusKeys: ["storageSummary", "persistenceStatus"]
+        )
+
         if !force,
+           !shouldRetryImmediately,
            let lastRefreshAt,
            Date().timeIntervalSince(lastRefreshAt) < 1 {
             return
@@ -2842,7 +2925,11 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
 
         if let refreshTask {
             await refreshTask.value
-            if !force {
+            let shouldRetryAfterInflight = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+                cachedState: cachedAgendaState,
+                statusKeys: ["storageSummary", "persistenceStatus"]
+            )
+            if !force && !shouldRetryAfterInflight {
                 return
             }
         }
@@ -3704,7 +3791,13 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         forwardAction: ValueType?,
         requester: Identity
     ) async {
+        let shouldRetryImmediately = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+            cachedState: cachedDiscoveryState,
+            statusKeys: ["status", "actionSummary", "sourceSummary"]
+        )
+
         if !force,
+           !shouldRetryImmediately,
            let lastRefreshAt,
            Date().timeIntervalSince(lastRefreshAt) < 1 {
             return
@@ -3712,7 +3805,11 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
 
         if let refreshTask {
             await refreshTask.value
-            if !force {
+            let shouldRetryAfterInflight = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+                cachedState: cachedDiscoveryState,
+                statusKeys: ["status", "actionSummary", "sourceSummary"]
+            )
+            if !force && !shouldRetryAfterInflight {
                 return
             }
         }
@@ -4382,7 +4479,13 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         forwardAction: ValueType?,
         requester: Identity
     ) async {
+        let shouldRetryImmediately = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+            cachedState: cachedMatchmakingState,
+            statusKeys: ["status", "actionSummary", "searchSummary"]
+        )
+
         if !force,
+           !shouldRetryImmediately,
            let lastRefreshAt,
            Date().timeIntervalSince(lastRefreshAt) < 1 {
             return
@@ -4390,7 +4493,11 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
 
         if let refreshTask {
             await refreshTask.value
-            if !force && forwardAction == nil {
+            let shouldRetryAfterInflight = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+                cachedState: cachedMatchmakingState,
+                statusKeys: ["status", "actionSummary", "searchSummary"]
+            )
+            if !force && forwardAction == nil && !shouldRetryAfterInflight {
                 return
             }
         }
@@ -4991,7 +5098,13 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         forwardAction: ValueType?,
         requester: Identity
     ) async {
+        let shouldRetryImmediately = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+            cachedState: cachedChatState,
+            statusKeys: ["statusSummary", "actionSummary", "threadSummary", "recentMessagesSummary"]
+        )
+
         if !force,
+           !shouldRetryImmediately,
            let lastRefreshAt,
            Date().timeIntervalSince(lastRefreshAt) < 1 {
             return
@@ -4999,7 +5112,11 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
 
         if let refreshTask {
             await refreshTask.value
-            if !force && forwardAction == nil {
+            let shouldRetryAfterInflight = ConferenceSnapshotRetrySupport.shouldRetryImmediately(
+                cachedState: cachedChatState,
+                statusKeys: ["statusSummary", "actionSummary", "threadSummary", "recentMessagesSummary"]
+            )
+            if !force && forwardAction == nil && !shouldRetryAfterInflight {
                 return
             }
         }
