@@ -363,26 +363,52 @@ struct BindingTests {
         #expect(
             contentView.preferredRequesterDescriptor(
                 for: "cell://staging.haven.digipomps.org/ConferenceAdminShell"
-            ) == .init(identityContext: "conference-organizer", displayName: "Conference Organizer")
+            ) == .init(
+                identityContext: "conference-organizer@staging.haven.digipomps.org",
+                displayName: "Conference Organizer"
+            )
         )
         #expect(
             contentView.preferredRequesterDescriptor(
                 for: "cell://staging.haven.digipomps.org/ConferenceUIRouter"
-            ) == .init(identityContext: "conference-organizer", displayName: "Conference Organizer")
+            ) == .init(
+                identityContext: "conference-organizer@staging.haven.digipomps.org",
+                displayName: "Conference Organizer"
+            )
         )
         #expect(
             contentView.preferredRequesterDescriptor(
                 for: "cell://staging.haven.digipomps.org/ConferencePublicShell"
-            ) == .init(identityContext: "conference-public-publisher", displayName: "Conference Public Publisher")
+            ) == .init(
+                identityContext: "conference-public-publisher@staging.haven.digipomps.org",
+                displayName: "Conference Public Publisher"
+            )
         )
         #expect(
             contentView.preferredRequesterDescriptor(
                 for: "cell://staging.haven.digipomps.org/ConferenceSponsorShell"
             ) == .init(
-                identityContext: "conference-sponsor:sponsor-ai-digital-independence",
+                identityContext: "conference-sponsor:sponsor-ai-digital-independence@staging.haven.digipomps.org",
                 displayName: "sponsor-ai-digital-independence"
             )
         )
+    }
+
+    @Test func conferenceRequesterDescriptorsAreScopedPerRemoteHost() {
+        let contentView = ContentView()
+
+        let stagingDescriptor = contentView.preferredRequesterDescriptor(
+            for: "cell://staging.haven.digipomps.org/ConferenceAdminShell"
+        )
+        let demoDescriptor = contentView.preferredRequesterDescriptor(
+            for: "cell://demo.haven.digipomps.org/ConferenceAdminShell"
+        )
+
+        #expect(stagingDescriptor?.displayName == "Conference Organizer")
+        #expect(demoDescriptor?.displayName == "Conference Organizer")
+        #expect(stagingDescriptor?.identityContext == "conference-organizer@staging.haven.digipomps.org")
+        #expect(demoDescriptor?.identityContext == "conference-organizer@demo.haven.digipomps.org")
+        #expect(stagingDescriptor != demoDescriptor)
     }
 
     @Test func bindingLocalCellRegistrationMakesConferencePreviewFallbacksReadable() async throws {
@@ -480,7 +506,10 @@ struct BindingTests {
 
         #expect(
             contentView.preferredRequesterDescriptor(for: configuration)
-            == .init(identityContext: "conference-organizer", displayName: "Conference Organizer")
+            == .init(
+                identityContext: "conference-organizer@staging.haven.digipomps.org",
+                displayName: "Conference Organizer"
+            )
         )
     }
 
@@ -2138,7 +2167,7 @@ struct BindingTests {
             for: "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell"
         )
 
-        #expect(descriptor?.identityContext == "conference-organizer")
+        #expect(descriptor?.identityContext == "conference-organizer@staging.haven.digipomps.org")
         #expect(descriptor?.displayName == "Conference Organizer")
     }
 

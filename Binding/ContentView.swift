@@ -2934,26 +2934,51 @@ struct ContentView: View {
             return nil
         }
 
+        let organizerContext = remoteScopedIdentityContext(
+            baseContext: "conference-organizer",
+            endpoint: endpoint
+        )
+        let publicPublisherContext = remoteScopedIdentityContext(
+            baseContext: "conference-public-publisher",
+            endpoint: endpoint
+        )
+
         switch cellName {
         case "conferenceadminshell", "conferenceadminpreviewshell", "conferenceuirouter":
             return RemoteRequesterDescriptor(
-                identityContext: "conference-organizer",
+                identityContext: organizerContext,
                 displayName: "Conference Organizer"
             )
         case "conferencepublicshell":
             return RemoteRequesterDescriptor(
-                identityContext: "conference-public-publisher",
+                identityContext: publicPublisherContext,
                 displayName: "Conference Public Publisher"
             )
         case "conferencesponsorshell":
             let sponsorOrganizationID = Self.defaultConferenceSponsorOrganizationID
             return RemoteRequesterDescriptor(
-                identityContext: "conference-sponsor:\(sponsorOrganizationID)",
+                identityContext: remoteScopedIdentityContext(
+                    baseContext: "conference-sponsor:\(sponsorOrganizationID)",
+                    endpoint: endpoint
+                ),
                 displayName: sponsorOrganizationID
             )
         default:
             return nil
         }
+    }
+
+    private func remoteScopedIdentityContext(baseContext: String, endpoint: String) -> String {
+        guard let components = URLComponents(string: endpoint),
+              let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              host.isEmpty == false else {
+            return baseContext
+        }
+
+        if let port = components.port {
+            return "\(baseContext)@\(host):\(port)"
+        }
+        return "\(baseContext)@\(host)"
     }
 
     private func remoteCellName(from endpoint: String) -> String? {
