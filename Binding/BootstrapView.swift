@@ -243,6 +243,144 @@ private enum ConferenceSnapshotRetrySupport {
     }
 }
 
+private func conferenceMutationString(from value: ValueType?) -> String? {
+    guard let value else { return nil }
+    switch value {
+    case let .string(string):
+        return string
+    case let .integer(integer):
+        return String(integer)
+    case let .number(number):
+        return String(number)
+    case let .float(float):
+        return String(float)
+    case let .bool(bool):
+        return bool ? "true" : "false"
+    default:
+        return nil
+    }
+}
+
+private func conferenceMutationErrorDescription(from value: ValueType?) -> String? {
+    guard let value else { return "Ukjent conference-feil." }
+    switch value {
+    case let .string(string):
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        let normalized = trimmed.lowercased()
+        if normalized == "denied"
+            || normalized == "notfound"
+            || normalized == "not found"
+            || normalized == "timeout"
+            || normalized == "finishedwithoutvalue"
+            || normalized.hasPrefix("error:")
+            || normalized.hasPrefix("failure")
+            || normalized.contains("notfound")
+            || normalized.contains("finishedwithoutvalue") {
+            return trimmed
+        }
+        return nil
+    case let .object(object):
+        if let status = conferenceMutationString(from: object["status"])?.lowercased(),
+           ["error", "denied", "notfound", "timeout", "finishedwithoutvalue"].contains(status),
+           let message = conferenceMutationString(from: object["message"]) {
+            return message
+        }
+        if let error = conferenceMutationString(from: object["error"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+           error.isEmpty == false {
+            return error
+        }
+        return nil
+    default:
+        return nil
+    }
+}
+
+private func conferenceSharedConnectionNames(from sharedConnections: Object?) -> [String] {
+    guard case let .list(values)? = sharedConnections?["connections"] else {
+        return []
+    }
+
+    return values.compactMap { value in
+        guard case let .object(object) = value else { return nil }
+        let raw = conferenceMutationString(from: object["title"])
+            ?? conferenceMutationString(from: object["displayName"])
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private func conferenceObject(from value: ValueType?) -> Object? {
+    guard case let .object(object)? = value else {
+        return nil
+    }
+    return object
+}
+
+private func conferenceActionKeypath(from value: ValueType?) -> String? {
+    guard case let .object(object)? = value,
+          case let .string(keypath)? = object["keypath"] else {
+        return nil
+    }
+    return keypath
+}
+
+private func conferenceActionPayload(from value: ValueType?) -> ValueType? {
+    guard case let .object(object)? = value else {
+        return nil
+    }
+    return object["payload"]
+}
+
+private struct ConferenceParticipantPreviewFallbackState {
+    var agendaView = "forYou"
+    var activeTrackID = "all"
+    var currentFilter = "All recommended people"
+    var pendingRequestCount = 0
+    var confirmedMeetingCount = 0
+    var exportPrepared = false
+    var searchQuery = "people"
+    var recentMessages: [ConferenceParticipantPreviewFallbackMessage] = []
+    var launchedDiscoveryChatNames: [String] = []
+    var focusedRecommendationName: String?
+    var followUpMarkedNames = Set<String>()
+    var recentActionSummary = "Participant preview is running locally in Binding because the staging preview was denied."
+}
+
+private struct ConferenceParticipantPreviewFallbackMessage: Equatable {
+    var title: String
+    var subtitle: String
+    var detail: String
+    var note: String
+
+    var value: ValueType {
+        .object([
+            "title": .string(title),
+            "subtitle": .string(subtitle),
+            "detail": .string(detail),
+            "note": .string(note)
+        ])
+    }
+}
+
+actor ConferenceParticipantPreviewFallbackStateStore {
+    static let shared = ConferenceParticipantPreviewFallbackStateStore()
+
+    private var statesByOwnerUUID: [String: ConferenceParticipantPreviewFallbackState] = [:]
+
+    fileprivate func load(for ownerUUID: String) -> ConferenceParticipantPreviewFallbackState? {
+        statesByOwnerUUID[ownerUUID]
+    }
+
+    fileprivate func save(_ state: ConferenceParticipantPreviewFallbackState, for ownerUUID: String) {
+        statesByOwnerUUID[ownerUUID] = state
+    }
+
+    func reset(for ownerUUID: String) {
+        statesByOwnerUUID.removeValue(forKey: ownerUUID)
+    }
+}
+
 struct ConferenceNearbyFollowUpTarget: Equatable {
     var remoteUUID: String
     var participantId: String
@@ -2318,6 +2456,7 @@ struct BootstrapView<Content: View>: View {
 }
 
 private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
+    private var storeKey = ""
     private var agendaView = "forYou"
     private var activeTrackID = "all"
     private var currentFilter = "All recommended people"
@@ -2325,7 +2464,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
     private var confirmedMeetingCount = 0
     private var exportPrepared = false
     private var searchQuery = "people"
-    private var recentMessageTexts: [String] = []
+    private var recentMessages: [ConferenceParticipantPreviewFallbackMessage] = []
     private var launchedDiscoveryChatNames: [String] = []
     private var focusedRecommendationName: String?
     private var followUpMarkedNames = Set<String>()
@@ -2333,6 +2472,8 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
+        storeKey = owner.uuid
+        await restoreStoredStateIfAvailable()
         await configure(owner: owner)
     }
 
@@ -2342,6 +2483,50 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
 
     nonisolated override func encode(to encoder: Encoder) throws {
         try super.encode(to: encoder)
+    }
+
+    private func restoreStoredStateIfAvailable() async {
+        guard !storeKey.isEmpty,
+              let storedState = await ConferenceParticipantPreviewFallbackStateStore.shared.load(for: storeKey) else {
+            return
+        }
+
+        agendaView = storedState.agendaView
+        activeTrackID = storedState.activeTrackID
+        currentFilter = storedState.currentFilter
+        pendingRequestCount = storedState.pendingRequestCount
+        confirmedMeetingCount = storedState.confirmedMeetingCount
+        exportPrepared = storedState.exportPrepared
+        searchQuery = storedState.searchQuery
+        recentMessages = storedState.recentMessages
+        launchedDiscoveryChatNames = storedState.launchedDiscoveryChatNames
+        focusedRecommendationName = storedState.focusedRecommendationName
+        followUpMarkedNames = storedState.followUpMarkedNames
+        recentActionSummary = storedState.recentActionSummary
+    }
+
+    private func persistCurrentState() async {
+        guard !storeKey.isEmpty else {
+            return
+        }
+
+        await ConferenceParticipantPreviewFallbackStateStore.shared.save(
+            ConferenceParticipantPreviewFallbackState(
+                agendaView: agendaView,
+                activeTrackID: activeTrackID,
+                currentFilter: currentFilter,
+                pendingRequestCount: pendingRequestCount,
+                confirmedMeetingCount: confirmedMeetingCount,
+                exportPrepared: exportPrepared,
+                searchQuery: searchQuery,
+                recentMessages: recentMessages,
+                launchedDiscoveryChatNames: launchedDiscoveryChatNames,
+                focusedRecommendationName: focusedRecommendationName,
+                followUpMarkedNames: followUpMarkedNames,
+                recentActionSummary: recentActionSummary
+            ),
+            for: storeKey
+        )
     }
 
     private func configure(owner: Identity) async {
@@ -2433,9 +2618,22 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             if case let .object(messageObject) = payload,
                case let .string(text)? = messageObject["text"],
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                recentMessageTexts.insert(text, at: 0)
-                recentMessageTexts = Array(recentMessageTexts.prefix(4))
-                recentActionSummary = "Added a shared follow-up message in local preview."
+                let focusedThreadName = launchedDiscoveryChatNames.first ?? focusedRecommendationName ?? "Konferansekontakt"
+                prependRecentMessages([
+                    ConferenceParticipantPreviewFallbackMessage(
+                        title: focusedThreadName,
+                        subtitle: "Simulert demosvar",
+                        detail: simulatedReply(to: text, from: focusedThreadName),
+                        note: "Siste melding i delt tråd"
+                    ),
+                    ConferenceParticipantPreviewFallbackMessage(
+                        title: "Deg",
+                        subtitle: "Sendt fra chatflaten",
+                        detail: text,
+                        note: "Siste melding i delt tråd"
+                    )
+                ])
+                recentActionSummary = "La en oppfølgingsmelding i tråden med \(focusedThreadName). Simulert demosvar kom inn."
             }
         case "discovery.startChat":
             let targetNames = discoveryTargetNames(from: payload)
@@ -2443,8 +2641,20 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
                 launchedDiscoveryChatNames.insert(firstTarget, at: 0)
                 launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
-                recentMessageTexts.insert("Nearby follow-up with \(firstTarget) is ready in discovery chat.", at: 0)
-                recentMessageTexts = Array(recentMessageTexts.prefix(4))
+                prependRecentMessages([
+                    ConferenceParticipantPreviewFallbackMessage(
+                        title: firstTarget,
+                        subtitle: "Svar i delt tråd",
+                        detail: "Ja, gjerne. La oss fortsette praten om governance og oppfølging etter neste sesjon.",
+                        note: "Siste melding i delt tråd"
+                    ),
+                    ConferenceParticipantPreviewFallbackMessage(
+                        title: "Deg",
+                        subtitle: "Startet fra deltagerportalen",
+                        detail: "Hei \(firstTarget). Skal vi fortsette praten etter neste sesjon?",
+                        note: "Chat startet i deltagerportalen"
+                    )
+                ])
                 recentActionSummary = "Started follow-up chat with \(firstTarget) in local preview."
             } else {
                 recentActionSummary = "Started a discovery chat in local preview."
@@ -2453,8 +2663,20 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             let targetNames = discoveryTargetNames(from: payload)
             if targetNames.isEmpty == false {
                 let summary = targetNames.joined(separator: ", ")
-                recentMessageTexts.insert("Nearby group follow-up is ready with \(summary).", at: 0)
-                recentMessageTexts = Array(recentMessageTexts.prefix(4))
+                prependRecentMessages([
+                    ConferenceParticipantPreviewFallbackMessage(
+                        title: "Gruppechat",
+                        subtitle: "Oppfølging klar",
+                        detail: "Nearby group follow-up is ready with \(summary).",
+                        note: "Siste melding i delt tråd"
+                    ),
+                    ConferenceParticipantPreviewFallbackMessage(
+                        title: "Deg",
+                        subtitle: "Neste steg",
+                        detail: "Start med en kort introduksjon og avklar hva gruppen vil følge opp sammen.",
+                        note: "Forslag til åpning"
+                    )
+                ])
                 recentActionSummary = "Started a group chat with \(summary) in local preview."
             } else {
                 recentActionSummary = "Started a discovery group chat in local preview."
@@ -2463,10 +2685,34 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             recentActionSummary = "Utførte \(actionKeypath) i lokal conference-preview."
         }
 
+        await persistCurrentState()
+
         return .object([
             "status": .string("ok"),
             "state": .object(makeStateObject())
         ])
+    }
+
+    private func prependRecentMessages(_ messages: [ConferenceParticipantPreviewFallbackMessage]) {
+        for message in messages.reversed() {
+            recentMessages.removeAll(where: { $0 == message })
+            recentMessages.insert(message, at: 0)
+        }
+        recentMessages = Array(recentMessages.prefix(6))
+    }
+
+    private func simulatedReply(to message: String, from name: String) -> String {
+        let lowered = message.lowercased()
+        if lowered.contains("governance") {
+            return "Ja, gjerne. Governance er også mitt hovedspor. Jeg kan ta 10 minutter etter neste sesjon."
+        }
+        if lowered.contains("sesjon") || lowered.contains("session") {
+            return "Det passer bra. Jeg blir igjen etter neste sesjon, så vi kan ta praten da."
+        }
+        if lowered.contains("møte") || lowered.contains("meeting") {
+            return "Ja, la oss gjøre det konkret. Jeg har et lite vindu etter lunsj om det passer."
+        }
+        return "Takk. Dette ser relevant ut for meg også, så vi kan gjerne følge opp videre."
     }
 
     private func makeStateObject() -> Object {
@@ -2483,7 +2729,8 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             : "2 lagrede sesjoner er klare når du åpner Lagret."
         let persistenceStatus = "Agenda-valg lagres lokalt i deltagerportalen."
         let exportStatus = exportPrepared ? "iCal export is ready to share." : "No iCal export prepared yet."
-        let activeChatCount = recentMessageTexts.count
+        let activeChatCount = recentMessages.count
+        let primaryChatName = launchedDiscoveryChatNames.first ?? "Conference follow-up"
         let focusedRecommendationSummary = focusedRecommendationName.map {
             "Focused recommendation: \($0). Open chat or mark follow-up when you are ready."
         } ?? "3 recommended people with explainability."
@@ -2493,21 +2740,24 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
         let matchStatus = focusedRecommendationName.map {
             "Focused on \($0). The next natural step is to start chat or mark follow-up."
         } ?? "Recommendations are derived from onboarding interests, purpose signals, and optional track focus."
-        let recentMessages = recentMessageTexts.map { text in
-            ValueType.object([
-                "title": .string("Shared thread"),
-                "detail": .string(text),
-                "note": .string("Recent follow-up")
-            ])
-        }
+        let recentMessagesValue = recentMessages.map(\.value)
         let dynamicNearbyConnections = launchedDiscoveryChatNames.map { name in
             connectionCard(
                 title: name,
                 subtitle: "Nearby verified contact",
-                detail: "Verified nearby encounter opened a discovery follow-up chat.",
-                note: "Scanner enriched"
+                detail: "Verified nearby encounter opened a discovery follow-up chat with \(activeChatCount) message(s) ready.",
+                note: "Scanner enriched · Chat klar"
             )
         }
+        let sharedIntro = activeChatCount > 0
+            ? "Delt tråd med \(primaryChatName) er klar. Vis samtalen her og send neste oppfølging når det passer."
+            : "Shared relation state is empty until a live thread or meeting is created."
+        let sharedAccessSummary = activeChatCount > 0
+            ? "Shared follow-up with \(primaryChatName) is available in local preview."
+            : "No shared meeting/chat projection loaded."
+        let agreementBoundary = activeChatCount > 0
+            ? "Local preview agreement boundary for participant follow-up."
+            : "No agreement boundary loaded."
 
         return [
             "workspace": .object([
@@ -2604,16 +2854,16 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                 "confirmedMeetings": .list([])
             ]),
             "sharedConnections": .object([
-                "intro": .string("Shared relation state is empty until a live thread or meeting is created."),
-                "accessSummary": .string("No shared meeting/chat projection loaded."),
-                "agreementBoundary": .string("No agreement boundary loaded."),
+                "intro": .string(sharedIntro),
+                "accessSummary": .string(sharedAccessSummary),
+                "agreementBoundary": .string(agreementBoundary),
                 "connectionSummary": .string("\(launchedDiscoveryChatNames.count) shared relation(s) visible."),
                 "requestSummary": .string(requestSummary),
                 "meetingSummary": .string(meetingSummary),
                 "chatSummary": .string("\(activeChatCount) shared message(s) visible."),
                 "connections": .list(dynamicNearbyConnections.map { $0 }),
                 "confirmedMeetings": .list([]),
-                "recentMessages": .list(recentMessages)
+                "recentMessages": .list(recentMessagesValue)
             ])
         ]
     }
@@ -3872,11 +4122,12 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         }
 
         do {
-            let discoveryValue = try await previewShell.get(
-                keypath: "state.discovery",
+            let stateValue = try await previewShell.get(
+                keypath: "state",
                 requester: requester
             )
-            guard case let .object(discoveryObject) = discoveryValue else {
+            guard case let .object(stateObject) = stateValue,
+                  case let .object(discoveryObject)? = stateObject["discovery"] else {
                 cachedDiscoveryState = Self.discoveryStateWithStatus(
                     basedOn: cachedDiscoveryState,
                     status: "Discovery returnerte ikke et lesbart preview-snapshot.",
@@ -3885,6 +4136,12 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
                 lastRefreshAt = Date()
                 return
             }
+
+            let sharedConnections = conferenceObject(from: stateObject["sharedConnections"])
+            synchronizeLaunchedChats(
+                from: sharedConnections,
+                forwardedAction: forwardAction
+            )
 
             var mergedDiscovery = mergedDiscoveryState(from: discoveryObject)
             mergedDiscovery["sourceSummary"] = .string("Discovery bruker lokal preview i Binding for å holde deltagerportalen stabil mens øvrige data kobler seg til.")
@@ -3897,6 +4154,29 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
                 actionSummary: "Kunne ikke hente oppdatert discovery akkurat nå: \(error)"
             )
             lastRefreshAt = Date()
+        }
+    }
+
+    private func synchronizeLaunchedChats(
+        from sharedConnections: Object?,
+        forwardedAction: ValueType?
+    ) {
+        let sharedNames = conferenceSharedConnectionNames(from: sharedConnections)
+        launchedDiscoveryChatNames = sharedNames
+
+        guard conferenceActionKeypath(from: forwardedAction) == "discovery.startChat" else {
+            return
+        }
+
+        let targetNames = discoveryTargetNames(from: conferenceActionPayload(from: forwardedAction) ?? .null)
+        guard let firstTarget = targetNames.first else {
+            return
+        }
+
+        if sharedNames.contains(firstTarget) {
+            recentActionSummary = "Chatten med \(firstTarget) er klar."
+        } else {
+            recentActionSummary = "Chatten med \(firstTarget) ble ikke klar ennå. Prøv Start chat igjen."
         }
     }
 
@@ -4052,7 +4332,11 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
                 "title": .string("Ingen deltaker valgt ennå"),
                 "subtitle": .string("Entity Discovery"),
                 "detail": .string("Trykk Vis i siden på en discovery-kandidat for å se personens offentlige og lokale oppsummering her."),
-                "note": .string(publicSummary)
+                "note": .string(publicSummary),
+                "publicProfileSummary": .string(publicSummary),
+                "profileDetail": .string("Vi viser offentlig profil, lokal begrunnelse og neste steg når en kandidat er valgt."),
+                "fitSummary": .string("Ingen discovery-kandidat er valgt ennå."),
+                "nextStep": .string("Velg en kandidat først, og bruk deretter chat, oppfølging eller møte.")
             ]
         }
 
@@ -4061,7 +4345,11 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "title": .string(cardTitle(from: focusedCard)),
             "subtitle": .string(cardSubtitle(from: focusedCard)),
             "detail": .string(cardDetail(from: focusedCard)),
-            "note": .string("\(cardNote(from: focusedCard)) · \(publicSummary)")
+            "note": .string("\(cardNote(from: focusedCard)) · \(publicSummary)"),
+            "publicProfileSummary": .string(publicSummary),
+            "profileDetail": .string("Offentlig profil: \(cardSubtitle(from: focusedCard)). \(cardDetail(from: focusedCard))"),
+            "fitSummary": .string(cardNote(from: focusedCard)),
+            "nextStep": .string("Bruk Start chat, Marker for oppfølging eller Be om møte med \(cardTitle(from: focusedCard)).")
         ]
     }
 
@@ -4208,25 +4496,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
     }
 
     private func mutationErrorDescription(from value: ValueType?) -> String? {
-        guard let value else { return "Ukjent discovery-feil." }
-        switch value {
-        case let .string(string):
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed.isEmpty == false else { return nil }
-            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
-                return trimmed
-            }
-            return nil
-        case let .object(object):
-            if case let .string(status)? = object["status"],
-               status == "error",
-               let message = string(from: object["message"]) {
-                return message
-            }
-            return nil
-        default:
-            return nil
-        }
+        conferenceMutationErrorDescription(from: value)
     }
 
     private func string(from value: ValueType?) -> String? {
@@ -4521,14 +4791,23 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
     ) async {
         await AppInitializer.initialize()
 
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
-              let porthole = try? await resolver.cellAtEndpoint(
-                endpoint: "cell:///Porthole",
-                requester: requester
-              ) as? Meddle else {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             cachedMatchmakingState = Self.matchmakingStateWithStatus(
                 basedOn: cachedMatchmakingState,
-                status: "Anbefalingene bruker siste lokale snapshot fordi Porthole ikke er tilgjengelig.",
+                status: "Anbefalingene bruker siste lokale snapshot fordi resolver mangler.",
+                actionSummary: "Kunne ikke oppdatere anbefalingene akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
+
+        guard let previewShell = try? await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: requester
+        ) as? Meddle else {
+            cachedMatchmakingState = Self.matchmakingStateWithStatus(
+                basedOn: cachedMatchmakingState,
+                status: "Anbefalingene bruker siste lokale snapshot fordi ingen preview-shell er tilgjengelig.",
                 actionSummary: "Kunne ikke oppdatere anbefalingene akkurat nå."
             )
             lastRefreshAt = Date()
@@ -4536,8 +4815,8 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         }
 
         if let forwardAction {
-            let mutationResult = try? await porthole.set(
-                keypath: "conferenceParticipantShell.dispatchAction",
+            let mutationResult = try? await previewShell.set(
+                keypath: "dispatchAction",
                 value: forwardAction,
                 requester: requester
             )
@@ -4551,11 +4830,12 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         }
 
         do {
-            let matchesValue = try await porthole.get(
-                keypath: "conferenceParticipantShell.state.matches",
+            let stateValue = try await previewShell.get(
+                keypath: "state",
                 requester: requester
             )
-            guard case let .object(matchesObject) = matchesValue else {
+            guard case let .object(stateObject) = stateValue,
+                  case let .object(matchesObject)? = stateObject["matches"] else {
                 cachedMatchmakingState = Self.matchmakingStateWithStatus(
                     basedOn: cachedMatchmakingState,
                     status: "Anbefalingene returnerte ikke et lesbart snapshot.",
@@ -4564,6 +4844,12 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
                 lastRefreshAt = Date()
                 return
             }
+
+            let sharedConnections = conferenceObject(from: stateObject["sharedConnections"])
+            synchronizeLaunchedChats(
+                from: sharedConnections,
+                forwardedAction: forwardAction
+            )
 
             cachedMatchmakingState = mergedMatchmakingState(from: matchesObject)
             lastRefreshAt = Date()
@@ -4574,6 +4860,29 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
                 actionSummary: "Kunne ikke hente oppdatert anbefalingsdata akkurat nå: \(error)"
             )
             lastRefreshAt = Date()
+        }
+    }
+
+    private func synchronizeLaunchedChats(
+        from sharedConnections: Object?,
+        forwardedAction: ValueType?
+    ) {
+        let sharedNames = conferenceSharedConnectionNames(from: sharedConnections)
+        launchedChatNames = sharedNames
+
+        guard conferenceActionKeypath(from: forwardedAction) == "discovery.startChat" else {
+            return
+        }
+
+        let targetNames = discoveryTargetNames(from: conferenceActionPayload(from: forwardedAction) ?? .null)
+        guard let firstTarget = targetNames.first else {
+            return
+        }
+
+        if sharedNames.contains(firstTarget) {
+            recentActionSummary = "Chatten med \(firstTarget) er klar."
+        } else {
+            recentActionSummary = "Chatten med \(firstTarget) ble ikke klar ennå. Prøv Start chat igjen."
         }
     }
 
@@ -4699,7 +5008,11 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
                 "title": .string("Ingen deltaker valgt ennå"),
                 "subtitle": .string("Anbefalinger"),
                 "detail": .string("Trykk Vis i siden på en anbefaling for å se personens offentlige og lokale oppsummering her."),
-                "note": .string("Dette er standardvisningen før du velger en anbefalt deltaker.")
+                "note": .string("Dette er standardvisningen før du velger en anbefalt deltaker."),
+                "publicProfileSummary": .string("Velg en anbefaling for å se en tydelig offentlig profil og lokal oppsummering her."),
+                "profileDetail": .string("Vi viser fagområde, begrunnelse og anbefalt neste steg når en deltaker er valgt."),
+                "fitSummary": .string("Ingen anbefalt deltaker er valgt ennå."),
+                "nextStep": .string("Velg en anbefaling først, og bruk deretter chat, oppfølging eller møte.")
             ]
         }
 
@@ -4708,7 +5021,11 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "title": .string(cardTitle(from: focusedCard)),
             "subtitle": .string(cardSubtitle(from: focusedCard)),
             "detail": .string(cardDetail(from: focusedCard)),
-            "note": .string(cardNote(from: focusedCard))
+            "note": .string(cardNote(from: focusedCard)),
+            "publicProfileSummary": .string("Offentlig profil: \(cardSubtitle(from: focusedCard))."),
+            "profileDetail": .string(cardDetail(from: focusedCard)),
+            "fitSummary": .string(cardNote(from: focusedCard)),
+            "nextStep": .string("Bruk Start chat, Marker for oppfølging eller Be om møte med \(cardTitle(from: focusedCard)).")
         ]
     }
 
@@ -4876,25 +5193,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
     }
 
     private func mutationErrorDescription(from value: ValueType?) -> String? {
-        guard let value else { return "Ukjent anbefalingsfeil." }
-        switch value {
-        case let .string(string):
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed.isEmpty == false else { return nil }
-            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
-                return trimmed
-            }
-            return nil
-        case let .object(object):
-            if case let .string(status)? = object["status"],
-               status == "error",
-               let message = string(from: object["message"]) {
-                return message
-            }
-            return nil
-        default:
-            return nil
-        }
+        conferenceMutationErrorDescription(from: value)
     }
 
     private static func matchmakingStateWithStatus(
@@ -4972,6 +5271,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     private var lastRefreshAt: Date?
     private var refreshTask: Task<Void, Never>?
     private var focusedChatName: String?
+    private var draftMessage = ""
     private var recentActionSummary = "Start chat fra deltagerportalen for å gjøre en delt tråd klar her."
 
     required init(owner: Identity) async {
@@ -4990,6 +5290,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     private func configure(owner: Identity) async {
         agreementTemplate.addGrant("r---", for: "state")
         agreementTemplate.addGrant("rw--", for: "refresh")
+        agreementTemplate.addGrant("rw--", for: "setDraftMessage")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, requester in
@@ -5003,6 +5304,20 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "refresh", for: requester) else { return .string("denied") }
             await self.refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: requester)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(self.cachedChatState)
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "setDraftMessage", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "setDraftMessage", for: requester) else { return .string("denied") }
+            self.draftMessage = self.normalizedDraftText(from: value) ?? ""
+            self.recentActionSummary = self.draftMessage.isEmpty
+                ? "Meldingsutkastet er tomt igjen."
+                : "Meldingsutkastet er oppdatert i chatflaten."
+            self.cachedChatState = self.mergedChatState(from: self.cachedChatState)
             return .object([
                 "status": .string("ok"),
                 "state": .object(self.cachedChatState)
@@ -5052,12 +5367,16 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                 "state": .object(cachedChatState)
             ])
 
+        case "chat.sendDraftMessage":
+            return await sendDraftMessage(requester: requester)
+
         case "openChatWorkbench":
             if case let .object(threadObject) = payload,
                let displayName = string(from: threadObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
                displayName.isEmpty == false {
                 focusedChatName = displayName
             }
+            await refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: requester)
             return await openChatWorkbench(requester: requester)
 
         case "openParticipantPortalWorkbench":
@@ -5234,6 +5553,9 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             connectionRows: connectionRows,
             messageRows: recentMessageRows
         ))
+        merged["draftMessage"] = .string(draftMessage)
+        merged["draftSummary"] = .string(draftSummary(focusedName: effectiveFocusedName, connectionCount: connectionRows.count))
+        merged["draftHint"] = .string(draftHint(focusedName: effectiveFocusedName))
         merged["focusedActions"] = .list(focusedActionCards(for: effectiveFocusedName).map(ValueType.object))
         merged["connections"] = .list(connectionRows.map { connectionCard(from: $0, focusedName: effectiveFocusedName) })
         merged["recentMessages"] = .list(recentMessageRows.map(messageCard))
@@ -5275,6 +5597,23 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         return "Velg en delt tråd og fortsett oppfølgingen derfra."
     }
 
+    private func draftSummary(focusedName: String?, connectionCount: Int) -> String {
+        if let focusedName {
+            return "Skriv en kort oppfølging til \(focusedName) og send den direkte fra denne flaten."
+        }
+        if connectionCount == 0 {
+            return "Start en chat i deltagerportalen først, så kan du skrive en egen melding her."
+        }
+        return "Velg en tråd, og skriv deretter en konkret oppfølging i compose-feltet."
+    }
+
+    private func draftHint(focusedName: String?) -> String {
+        if let focusedName {
+            return "Hold meldingen kort og konkret. Det skal være tydelig hvorfor du tar kontakt med \(focusedName)."
+        }
+        return "Når en tråd er valgt, kan du skrive en egen melding eller bruke forslagsteksten som utgangspunkt."
+    }
+
     private func focusedThreadObject(
         focusedName: String?,
         connectionRows: [Object],
@@ -5287,20 +5626,25 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                 "title": .string("Ingen delt tråd valgt ennå"),
                 "subtitle": .string("Conference chat"),
                 "detail": .string("Start chat fra deltagerportalen eller velg en delt tråd fra listen under."),
-                "note": .string("Når en tråd er valgt, viser vi siste oppsummering og neste steg her.")
+                "note": .string("Når en tråd er valgt, viser vi siste oppsummering og neste steg her."),
+                "nextMessage": .string("Velg en delt tråd for å se forslag til neste melding."),
+                "nextMessageHint": .string("Når tråden er klar, kan du skrive en egen melding eller sende forslagsteksten herfra.")
             ]
         }
 
         let latestMessage = messageRows.first.flatMap { string(from: $0["detail"]) }
         let note = latestMessage.map { "Siste melding: \($0)" }
             ?? "Ingen melding sendt ennå. Send en kort oppfølging for å gjøre chatten tydelig i demoen."
+        let suggestedNextMessage = "Hei \(focusedName). Takk for praten. Skal vi ta 10 minutter etter neste sesjon?"
 
         return [
             "selectionBadge": .string("VALGT TRÅD"),
             "title": .string(cardTitle(from: connection)),
             "subtitle": .string(cardSubtitle(from: connection)),
             "detail": .string(cardDetail(from: connection)),
-            "note": .string(note)
+            "note": .string(note),
+            "nextMessage": .string(suggestedNextMessage),
+            "nextMessageHint": .string("Bruk compose-feltet under for å skrive en egen melding, eller send forslagsteksten med ett trykk.")
         ]
     }
 
@@ -5323,12 +5667,12 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         }
 
         let sendAction: Object = [
-            "title": .string("Oppfølging"),
-            "subtitle": .string("Send en kort melding"),
-            "detail": .string("Send en konkret oppfølgingsmelding til \(focusedName) for å vise at den delte tråden faktisk lever."),
-            "note": .string("Dette er den sikreste demo-handlingen når tråden allerede er klar."),
+            "title": .string("Send forslag"),
+            "subtitle": .string("Bruk standardsvaret"),
+            "detail": .string("Send en ferdig oppfølgingsmelding til \(focusedName) hvis du vil demonstrere flyten raskt."),
+            "note": .string("Bruk compose-feltet over hvis du vil skrive en egen melding."),
             "keypath": .string("chatSnapshot.dispatchAction"),
-            "label": .string("Send oppfølging"),
+            "label": .string("Send forslag"),
             "payload": .object([
                 "keypath": .string("connections.postSharedMessage"),
                 "payload": .object([
@@ -5381,9 +5725,123 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     private func messageCard(from raw: Object) -> ValueType {
         .object([
             "title": .string(cardTitle(from: raw)),
+            "subtitle": .string(cardSubtitle(from: raw)),
             "detail": .string(cardDetail(from: raw)),
             "note": .string(cardNote(from: raw))
         ])
+    }
+
+    private func normalizedDraftText(from value: ValueType) -> String? {
+        if let text = string(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           text.isEmpty == false {
+            return text
+        }
+        if case let .object(object) = value,
+           let text = string(from: object["text"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+           text.isEmpty == false {
+            return text
+        }
+        return nil
+    }
+
+    private func sendDraftMessage(requester: Identity) async -> ValueType {
+        let outgoingText = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard outgoingText.isEmpty == false else {
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: mergedChatState(from: cachedChatState),
+                status: "Skriv en melding før du sender.",
+                actionSummary: "Meldingsutkastet var tomt."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedChatState)
+            ])
+        }
+
+        let focusedName = focusedChatName ?? "delt tråd"
+        let forwardedAction: ValueType = .object([
+            "keypath": .string("connections.postSharedMessage"),
+            "payload": .object([
+                "text": .string(outgoingText),
+                "contentType": .string("text/plain")
+            ])
+        ])
+
+        recentActionSummary = "Sender meldingen til \(focusedName)…"
+        await AppInitializer.initialize()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let previewShell = try? await resolver.cellAtEndpoint(
+                endpoint: "cell:///ConferenceParticipantPreviewShell",
+                requester: requester
+              ) as? Meddle else {
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: mergedChatState(from: cachedChatState),
+                status: "Chatflaten bruker siste lokale snapshot fordi deltager-preview ikke er tilgjengelig.",
+                actionSummary: "Kunne ikke sende meldingen akkurat nå."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedChatState)
+            ])
+        }
+
+        do {
+            let mutationResult = try await previewShell.set(
+                keypath: "dispatchAction",
+                value: forwardedAction,
+                requester: requester
+            )
+            if let errorDescription = mutationErrorDescription(from: mutationResult) {
+                cachedChatState = Self.chatStateWithStatus(
+                    basedOn: mergedChatState(from: cachedChatState),
+                    status: "Chatflaten beholdt meldingsutkastet fordi sendingen feilet.",
+                    actionSummary: errorDescription
+                )
+                return .object([
+                    "status": .string("error"),
+                    "state": .object(cachedChatState)
+                ])
+            }
+
+            draftMessage = ""
+            recentActionSummary = "Sendte meldingen til \(focusedName)."
+
+            let stateValue = try await previewShell.get(keypath: "state", requester: requester)
+            guard case let .object(stateObject) = stateValue else {
+                cachedChatState = Self.chatStateWithStatus(
+                    basedOn: mergedChatState(from: cachedChatState),
+                    status: "Meldingen ble sendt, men chatflaten fikk ikke lest nytt snapshot.",
+                    actionSummary: "Bruker siste stabile data."
+                )
+                return .object([
+                    "status": .string("ok"),
+                    "state": .object(cachedChatState)
+                ])
+            }
+
+            let workspace = object(from: stateObject["workspace"])
+            let sharedConnections = object(from: stateObject["sharedConnections"])
+            cachedChatState = mergedChatState(
+                workspace: workspace,
+                sharedConnections: sharedConnections
+            )
+            lastRefreshAt = Date()
+            return .object([
+                "status": .string("ok"),
+                "state": .object(cachedChatState)
+            ])
+        } catch {
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: mergedChatState(from: cachedChatState),
+                status: "Chatflaten beholdt meldingsutkastet fordi sendingen feilet.",
+                actionSummary: "Kunne ikke sende meldingen akkurat nå: \(error)"
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedChatState)
+            ])
+        }
     }
 
     private func openChatWorkbench(requester: Identity) async -> ValueType {
@@ -5446,6 +5904,12 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     private func mergedChatState(from object: Object) -> Object {
         var merged = object
         merged["actionSummary"] = .string(recentActionSummary)
+        let focusedName = self.object(from: merged["focusedThread"]).flatMap { string(from: $0["title"]) }
+        let normalizedFocusedName = (focusedName == "Ingen delt tråd valgt ennå") ? nil : focusedName
+        let connectionCount = listObjects(from: merged["connections"]).count
+        merged["draftMessage"] = .string(draftMessage)
+        merged["draftSummary"] = .string(draftSummary(focusedName: normalizedFocusedName, connectionCount: connectionCount))
+        merged["draftHint"] = .string(draftHint(focusedName: normalizedFocusedName))
         return merged
     }
 
@@ -5499,25 +5963,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func mutationErrorDescription(from value: ValueType?) -> String? {
-        guard let value else { return "Ukjent chatfeil." }
-        switch value {
-        case let .string(string):
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed.isEmpty == false else { return nil }
-            if trimmed == "denied" || trimmed.hasPrefix("error:") || trimmed.hasPrefix("failure") {
-                return trimmed
-            }
-            return nil
-        case let .object(object):
-            if case let .string(status)? = object["status"],
-               status == "error",
-               let message = string(from: object["message"]) {
-                return message
-            }
-            return nil
-        default:
-            return nil
-        }
+        conferenceMutationErrorDescription(from: value)
     }
 
     private static func chatStateWithStatus(
@@ -5541,12 +5987,17 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             "threadSummary": .string("0 delte tråder synlige."),
             "recentMessagesSummary": .string("0 delte meldinger synlige."),
             "chatSummary": .string("0 delte meldinger synlige."),
+            "draftMessage": .string(""),
+            "draftSummary": .string("Start en chat i deltagerportalen først, så kan du skrive en egen melding her."),
+            "draftHint": .string("Når en tråd er valgt, kan du skrive en egen melding eller bruke forslagsteksten som utgangspunkt."),
             "focusedThread": .object([
                 "selectionBadge": .string("VALGT TRÅD"),
                 "title": .string("Ingen delt tråd valgt ennå"),
                 "subtitle": .string("Conference chat"),
                 "detail": .string("Start chat fra deltagerportalen eller velg en delt tråd når en blir synlig."),
-                "note": .string("Når en tråd er valgt, viser vi siste oppsummering og neste steg her.")
+                "note": .string("Når en tråd er valgt, viser vi siste oppsummering og neste steg her."),
+                "nextMessage": .string("Velg en delt tråd for å se forslag til neste melding."),
+                "nextMessageHint": .string("Når tråden er klar, kan du skrive en egen melding eller sende forslagsteksten herfra.")
             ]),
             "focusedActions": .list([]),
             "connections": .list([]),

@@ -184,8 +184,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertTrue(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
         XCTAssertEqual(report.nearbyActionSummary, "Startet conference-chat med Nora Berg.")
         XCTAssertEqual(report.workspaceNextStep, "Started follow-up chat with Nora Berg in local preview.")
-        XCTAssertEqual(report.sharedChatSummary, "1 shared message(s) visible.")
-        XCTAssertEqual(report.firstRecentMessage, "Nearby follow-up with Nora Berg is ready in discovery chat.")
+        XCTAssertEqual(report.sharedChatSummary, "2 shared message(s) visible.")
+        XCTAssertEqual(report.firstRecentMessage, "Ja, gjerne. La oss fortsette praten om governance og oppfølging etter neste sesjon.")
         XCTAssertEqual(report.stopOutcome, "ok")
         XCTAssertEqual(report.statusAfterStop, "stopped")
     }
@@ -387,6 +387,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
         XCTAssertEqual(object["selectionSummary"], ValueType.string("Viser Ane Solberg i denne siden."))
         XCTAssertEqual(focusedProfile["title"], ValueType.string("Ane Solberg"))
+        XCTAssertEqual(focusedProfile["publicProfileSummary"], ValueType.string("Offentlig profil: Public sector interoperability."))
+        XCTAssertEqual(
+            focusedProfile["nextStep"],
+            ValueType.string("Bruk Start chat, Marker for oppfølging eller Be om møte med Ane Solberg.")
+        )
         XCTAssertEqual(firstRecommendation["label"], ValueType.string("Valgt i siden"))
 
         guard case let .object(chatAction)? = focusedActions.first,
@@ -399,6 +404,45 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(chatAction["label"], ValueType.string("Åpne chatflate"))
         XCTAssertEqual(followUpAction["label"], ValueType.string("Fjern markering"))
         XCTAssertEqual(meetingAction["label"], ValueType.string("Be om møte"))
+
+        guard let preview = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: identity
+        ) as? Meddle else {
+            XCTFail("ConferenceParticipantPreviewShell did not resolve as Meddle")
+            return
+        }
+
+        let previewState = try await preview.get(keypath: "state", requester: identity)
+        guard case let .object(previewObject) = previewState,
+              case let .object(sharedConnections)? = previewObject["sharedConnections"],
+              case let .list(connections)? = sharedConnections["connections"],
+              case let .object(firstConnection)? = connections.first else {
+            XCTFail("Expected shared connection after start chat")
+            return
+        }
+
+        XCTAssertEqual(sharedConnections["connectionSummary"], ValueType.string("1 shared relation(s) visible."))
+        XCTAssertEqual(sharedConnections["chatSummary"], ValueType.string("2 shared message(s) visible."))
+        XCTAssertEqual(firstConnection["title"], ValueType.string("Ane Solberg"))
+
+        guard let chatSnapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            XCTFail("ConferenceParticipantChatSnapshot did not resolve as Meddle")
+            return
+        }
+
+        let chatState = try await chatSnapshot.get(keypath: "state", requester: identity)
+        guard case let .object(chatObject) = chatState,
+              case let .object(focusedThread)? = chatObject["focusedThread"] else {
+            XCTFail("Expected chat snapshot state after start chat")
+            return
+        }
+
+        XCTAssertEqual(chatObject["selectionSummary"], ValueType.string("Viser den delte tråden med Ane Solberg."))
+        XCTAssertEqual(focusedThread["title"], ValueType.string("Ane Solberg"))
     }
 
     func testConferenceParticipantPortalSearchGovernanceButtonUsesRendererExecutionPath() async throws {
@@ -720,6 +764,97 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
         XCTAssertTrue(configuration.name.contains("Conference Chat"))
         XCTAssertTrue(configuration.cellReferences?.contains(where: { $0.label == "chatSnapshot" }) == true)
+
+        guard let preview = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: context.owner
+        ) as? Meddle else {
+            XCTFail("ConferenceParticipantPreviewShell did not resolve after opening chat workbench")
+            return
+        }
+        guard let chatSnapshot = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            requester: context.owner
+        ) as? Meddle else {
+            XCTFail("ConferenceParticipantChatSnapshot did not resolve after opening chat workbench")
+            return
+        }
+
+        let previewState = try await preview.get(keypath: "state", requester: context.owner)
+        guard case let .object(previewObject) = previewState,
+              case let .object(sharedConnections)? = previewObject["sharedConnections"] else {
+            XCTFail("Expected preview state with sharedConnections after opening chat workbench")
+            return
+        }
+
+        XCTAssertEqual(sharedConnections["connectionSummary"], ValueType.string("1 shared relation(s) visible."))
+        XCTAssertEqual(sharedConnections["chatSummary"], ValueType.string("2 shared message(s) visible."))
+
+        let chatState = try await chatSnapshot.get(keypath: "state", requester: context.owner)
+        guard case let .object(chatObject) = chatState,
+              case let .object(focusedThread)? = chatObject["focusedThread"],
+              case let .list(recentMessages)? = chatObject["recentMessages"],
+              case let .object(firstRecentMessage)? = recentMessages.first else {
+            XCTFail("Expected populated chat snapshot after opening chat workbench")
+            return
+        }
+
+        XCTAssertEqual(chatObject["selectionSummary"], ValueType.string("Viser den delte tråden med Ane Solberg."))
+        XCTAssertEqual(focusedThread["title"], ValueType.string("Ane Solberg"))
+        XCTAssertEqual(firstRecentMessage["title"], ValueType.string("Ane Solberg"))
+
+        _ = try await chatSnapshot.set(
+            keypath: "setDraftMessage",
+            value: .string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon."),
+            requester: context.owner
+        )
+
+        let sendResponse = try await chatSnapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("chat.sendDraftMessage"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let sendResponse else {
+            XCTFail("Send draft message action returned nil response")
+            return
+        }
+        let sendFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: sendResponse)
+        }
+        XCTAssertNil(sendFailure)
+
+        let updatedPreviewState = try await preview.get(keypath: "state", requester: context.owner)
+        guard case let .object(updatedPreviewObject) = updatedPreviewState,
+              case let .object(updatedSharedConnections)? = updatedPreviewObject["sharedConnections"],
+              case let .list(updatedMessages)? = updatedSharedConnections["recentMessages"],
+              case let .object(latestReply)? = updatedMessages.first,
+              case let .object(latestOutgoing)? = updatedMessages.dropFirst().first else {
+            XCTFail("Expected populated shared chat messages after sending custom draft")
+            return
+        }
+
+        XCTAssertEqual(updatedSharedConnections["chatSummary"], ValueType.string("4 shared message(s) visible."))
+        XCTAssertEqual(latestReply["title"], ValueType.string("Ane Solberg"))
+        XCTAssertEqual(
+            latestReply["detail"],
+            ValueType.string("Ja, gjerne. Governance er også mitt hovedspor. Jeg kan ta 10 minutter etter neste sesjon.")
+        )
+        XCTAssertEqual(latestOutgoing["title"], ValueType.string("Deg"))
+        XCTAssertEqual(
+            latestOutgoing["detail"],
+            ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.")
+        )
+
+        let updatedChatState = try await chatSnapshot.get(keypath: "state", requester: context.owner)
+        guard case let .object(updatedChatObject) = updatedChatState else {
+            XCTFail("Expected updated chat snapshot state after sending custom draft")
+            return
+        }
+        XCTAssertEqual(updatedChatObject["draftMessage"], ValueType.string(""))
+        XCTAssertEqual(updatedChatObject["chatSummary"], ValueType.string("4 shared message(s) visible."))
     }
 
     private func waitForPortholeSkeleton(
@@ -890,7 +1025,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Conference Chat · Oppfølging",
                 "Conference chat · oppfølging",
                 "Delte tråder",
-                "Siste meldinger",
+                "Samtalen nå",
+                "Skriv melding",
+                "Send melding",
+                "Samtaleutdrag",
                 "Tilbake til portalen"
             ]
         )

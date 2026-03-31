@@ -1290,6 +1290,45 @@ struct BindingTests {
         #expect(chatAction["label"] == .string("Åpne chatflate"))
         #expect(followUpAction["label"] == .string("Fjern markering"))
         #expect(meetingAction["label"] == .string("Be om møte"))
+
+        guard let preview = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantPreviewShell did not resolve as Meddle")
+            return
+        }
+
+        let previewState = try await preview.get(keypath: "state", requester: identity)
+        guard case let .object(previewObject) = previewState,
+              case let .object(sharedConnections)? = previewObject["sharedConnections"],
+              case let .list(connections)? = sharedConnections["connections"],
+              case let .object(firstConnection)? = connections.first else {
+            Issue.record("Expected shared connection after start chat")
+            return
+        }
+
+        #expect(sharedConnections["connectionSummary"] == .string("1 shared relation(s) visible."))
+        #expect(sharedConnections["chatSummary"] == .string("2 shared message(s) visible."))
+        #expect(firstConnection["title"] == .string("Ane Solberg"))
+
+        guard let chatSnapshot = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+            requester: identity
+        ) as? Meddle else {
+            Issue.record("ConferenceParticipantChatSnapshot did not resolve as Meddle")
+            return
+        }
+
+        let chatState = try await chatSnapshot.get(keypath: "state", requester: identity)
+        guard case let .object(chatObject) = chatState,
+              case let .object(focusedThread)? = chatObject["focusedThread"] else {
+            Issue.record("Expected chat snapshot state after start chat")
+            return
+        }
+
+        #expect(chatObject["selectionSummary"] == .string("Viser den delte tråden med Ane Solberg."))
+        #expect(focusedThread["title"] == .string("Ane Solberg"))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceMatchmakingSnapshotReadable() async throws {
@@ -1386,6 +1425,7 @@ struct BindingTests {
 
         #expect(object["statusSummary"] != nil)
         #expect(object["selectionSummary"] == .string("Viser den delte tråden med Ane Solberg."))
+        #expect(object["draftSummary"] == .string("Skriv en kort oppfølging til Ane Solberg og send den direkte fra denne flaten."))
         #expect(focusedThread["title"] == .string("Ane Solberg"))
         #expect(object["connections"] != nil)
         #expect(object["recentMessages"] != nil)
@@ -1394,7 +1434,7 @@ struct BindingTests {
             Issue.record("Expected at least one focused chat action")
             return
         }
-        #expect(firstAction["label"] == .string("Send oppfølging"))
+        #expect(firstAction["label"] == .string("Send forslag"))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceNearbyRadarReadable() async throws {
@@ -1909,7 +1949,7 @@ struct BindingTests {
         }
 
         #expect(workspace["nextStep"] == .string("Started follow-up chat with Nora Berg in local preview."))
-        #expect(sharedConnections["chatSummary"] == .string("1 shared message(s) visible."))
+        #expect(sharedConnections["chatSummary"] == .string("2 shared message(s) visible."))
 
         guard case let .list(connections)? = sharedConnections["connections"] else {
             Issue.record("Expected shared connections list")
@@ -2102,6 +2142,8 @@ struct BindingTests {
 
         #expect(object["selectionSummary"] == .string("Viser Ane Solberg i denne siden."))
         #expect(focusedProfile["title"] == .string("Ane Solberg"))
+        #expect(focusedProfile["publicProfileSummary"] == .string("Offentlig profil: Public sector interoperability."))
+        #expect(focusedProfile["nextStep"] == .string("Bruk Start chat, Marker for oppfølging eller Be om møte med Ane Solberg."))
         #expect(firstRecommendation["label"] == .string("Valgt i siden"))
 
         guard case let .object(chatAction)? = focusedActions.first,
@@ -3884,8 +3926,8 @@ struct CellConfigurationVerifierTests {
         #expect(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
         #expect(report.nearbyActionSummary == "Startet conference-chat med Nora Berg.")
         #expect(report.workspaceNextStep == "Started follow-up chat with Nora Berg in local preview.")
-        #expect(report.sharedChatSummary == "1 shared message(s) visible.")
-        #expect(report.firstRecentMessage == "Nearby follow-up with Nora Berg is ready in discovery chat.")
+        #expect(report.sharedChatSummary == "2 shared message(s) visible.")
+        #expect(report.firstRecentMessage == "Ja, gjerne. La oss fortsette praten om governance og oppfølging etter neste sesjon.")
         #expect(report.stopSucceeded)
         #expect(report.statusAfterStop == "stopped")
     }
@@ -4019,7 +4061,10 @@ struct CellConfigurationVerifierTests {
                 "Conference Chat · Oppfølging",
                 "Conference chat · oppfølging",
                 "Delte tråder",
-                "Siste meldinger",
+                "Samtalen nå",
+                "Skriv melding",
+                "Send melding",
+                "Samtaleutdrag",
                 "Tilbake til portalen"
             ]
         )
@@ -4754,9 +4799,12 @@ enum CellConfigurationVerifier {
             throw NSError(domain: "CellConfigurationVerifier", code: 2, userInfo: [NSLocalizedDescriptionKey: "Expected CellResolver after local runtime warmup"])
         }
 
-        guard let owner = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
+        let identityContext = "verifier-\(UUID().uuidString)"
+        guard let owner = await identityVault.identity(for: identityContext, makeNewIfNotFound: true) else {
             throw NSError(domain: "CellConfigurationVerifier", code: 3, userInfo: [NSLocalizedDescriptionKey: "Could not create verifier identity"])
         }
+
+        await ConferenceParticipantPreviewFallbackStateStore.shared.reset(for: owner.uuid)
 
         guard let porthole = try await resolver.cellAtEndpoint(
             endpoint: "cell:///Porthole",

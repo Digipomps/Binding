@@ -7116,11 +7116,52 @@ final class ConfigurationCatalogCell: GeneralCell {
                             ]
                         )
                     ),
+                    bindingConferencePortalStaticText(
+                        "Samtalen nå",
+                        fontSize: 13,
+                        fontWeight: "bold",
+                        foregroundColor: "#B9FBC0",
+                        lineLimit: 1
+                    ),
                     bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
-                    bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                    bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
                     bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
                     bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
                     bindingConferencePortalKeyText("chatSnapshot.state.focusedThread.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalStateSummaryCard(
+                        title: "Neste melding",
+                        detailKeypath: "chatSnapshot.state.focusedThread.nextMessage",
+                        noteKeypath: "chatSnapshot.state.focusedThread.nextMessageHint",
+                        accentBorder: "#2F6B56",
+                        accentText: "#B9FBC0",
+                        background: "#133226",
+                        height: 132
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Skriv melding",
+                        fontSize: 13,
+                        fontWeight: "bold",
+                        foregroundColor: "#B9FBC0",
+                        lineLimit: 1
+                    ),
+                    bindingConferencePortalTextArea(
+                        sourceKeypath: "chatSnapshot.state.draftMessage",
+                        targetKeypath: "chatSnapshot.setDraftMessage",
+                        placeholder: "Skriv en konkret oppfølgingsmelding til valgt deltager…",
+                        minLines: 4,
+                        maxLines: 8
+                    ),
+                    bindingConferencePortalKeyText("chatSnapshot.state.draftSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("chatSnapshot.state.draftHint", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton(
+                                "chatSnapshot",
+                                actionKeypath: "chat.sendDraftMessage",
+                                label: "Send melding"
+                            )
+                        ])
+                    ),
                     bindingConferencePortalCollectionGrid(
                         keypath: "chatSnapshot.state.focusedActions",
                         min: 240,
@@ -7154,11 +7195,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ]
             ),
             bindingConferencePortalCardSection(
-                "Siste meldinger",
+                "Samtaleutdrag",
                 content: [
                     bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                     bindingConferencePortalCollectionGrid(
                         keypath: "chatSnapshot.state.recentMessages",
+                        min: 420,
+                        max: 1200,
                         itemSkeleton: bindingConferencePortalMessageCardSkeleton()
                     )
                 ]
@@ -7735,18 +7778,57 @@ final class ConfigurationCatalogCell: GeneralCell {
                     SkeletonGrid(
                         columns: [.adaptive(min: 220, max: 320)],
                         spacing: 12,
-                        keypath: "\(referenceLabel).state.recommendations",
-                        itemSkeleton: bindingConferencePortalRecommendationCardSkeleton()
+                        elements: [
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Offentlig profil",
+                                detailKeypath: "\(referenceLabel).state.focusedProfile.publicProfileSummary",
+                                noteKeypath: "\(referenceLabel).state.focusedProfile.profileDetail",
+                                accentBorder: "#2A4D61",
+                                accentText: "#B9E6FF",
+                                height: 148
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Match nå",
+                                detailKeypath: "\(referenceLabel).state.focusedProfile.fitSummary",
+                                noteKeypath: "\(referenceLabel).state.focusedProfile.note",
+                                accentBorder: "#2F6B56",
+                                accentText: "#B9FBC0",
+                                height: 148
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Neste steg",
+                                detailKeypath: "\(referenceLabel).state.focusedProfile.nextStep",
+                                noteKeypath: "\(referenceLabel).state.navigationSummary",
+                                accentBorder: "#4D3F2A",
+                                accentText: "#F4D58D",
+                                height: 148
+                            )
+                        ]
                     )
                 ),
                 bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.selectionBadge", fontSize: 12, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
-                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.title", fontSize: 16, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
                 bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
                 bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
-                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+                bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
                 bindingConferencePortalCollectionGrid(
                     keypath: "\(referenceLabel).state.focusedActions",
                     itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                ),
+                bindingConferencePortalStaticText(
+                    "Flere anbefalte deltakere",
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    foregroundColor: "#9AB3C3",
+                    lineLimit: 1
+                ),
+                .Grid(
+                    SkeletonGrid(
+                        columns: [.adaptive(min: 200, max: 280)],
+                        spacing: 12,
+                        keypath: "\(referenceLabel).state.recommendations",
+                        itemSkeleton: bindingConferencePortalRecommendationCardSkeleton()
+                    )
                 ),
                 bindingConferencePortalCollectionGrid(
                     keypath: "\(referenceLabel).state.searchResults",
@@ -8232,8 +8314,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         var section = SkeletonSection(content: [
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
-            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
-            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 1),
             bindingConferencePortalDynamicCardButton(defaultLabel: "Vis i siden")
         ])
         section.modifiers = modifier {
@@ -8242,7 +8324,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#244457"
-            $0.height = 188
+            $0.height = 164
         }
         return .Section(section)
     }
@@ -8408,6 +8490,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     private static func bindingConferencePortalMessageCardSkeleton() -> SkeletonElement {
         var section = SkeletonSection(content: [
             bindingConferencePortalKeyText("title", fontSize: 14, fontWeight: "semibold", foregroundColor: "#F5FBFF"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
             bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
             bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
         ])
