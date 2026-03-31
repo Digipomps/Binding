@@ -219,6 +219,15 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `spatialTruthSummary`
   - `Retning usikker` for approximate peers
 
+## Current implementation plan (March 31, 2026)
+
+- The next nearby-radar pass is documented in [ConferenceNearbyRadarImplementationPlan.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/ConferenceNearbyRadarImplementationPlan.md).
+- The plan keeps Skeleton responsible for structure and actions, while the moving nearby radar itself is intended to become a Binding-local native SwiftUI surface.
+- The plan is explicitly device-relative:
+  - UWB direction and distance should update as the device rotates or moves
+  - MPC-only peers must stay in an honest approximate or uncertain presentation
+- The work is intentionally phased so we stabilize truth and test coverage before adding richer motion or visual polish.
+
 ## Latest successful changes (March 29, 2026)
 - `Conference Participant Portal` now routes agenda state through a local `ConferenceParticipantAgendaSnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift), so:
   - `Vis for deg`, `Vis timeline`, `Vis lagret` og `Fokuser governance` update the visible page immediately

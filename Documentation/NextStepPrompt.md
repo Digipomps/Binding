@@ -59,6 +59,8 @@ Current demo-story reality:
 - see `Documentation/ConferenceDemoStory.md`
 - staged persona support should be pushed into CellScaffold using
   `Documentation/CellScaffoldConferenceDemoPersonasPrompt.md`
+- the next nearby-radar implementation pass is scoped in
+  `Documentation/ConferenceNearbyRadarImplementationPlan.md`
 
 Important working assumptions:
 
@@ -68,42 +70,40 @@ Important working assumptions:
 
 Next recommended engineering steps:
 
-1. Make chat readiness even harder to miss in the participant page:
+1. Implement the nearby-radar plan in `Documentation/ConferenceNearbyRadarImplementationPlan.md` in order:
+   - honest spatial contract
+   - native full radar surface
+   - compact embedded radar
+   - inspect/action card tightening
+   - motion and quality pass only after the interaction model is stable
+2. Make chat readiness even harder to miss in the participant page:
    - `Start chat` should make "chat ready" unmissable inline
    - the current page should show that the dedicated chat workbench is ready before the user leaves the page
-2. Seed stable staged demo personas in CellScaffold:
+3. Seed stable staged demo personas in CellScaffold:
    - governance / policy
    - service design / product
    - interoperability / operations
    - optional group anchor
-3. Use the nearby-radar workbench as the next home for a more genuinely spatial conference view:
-   - honest MPC-only uncertainty
-   - clearer UWB-ready direction/distance presentation
-   - visible selected-entity follow-up state
-4. Turn the nearby radar into a more explicitly spatial embedded view inside the participant page:
-   - compact radar in page
-   - obvious expand-to-workbench transition
-   - visible selected participant and next step
-5. Keep the agenda snapshot visible in the GUI, not just contract-safe:
+4. Keep the agenda snapshot visible in the GUI, not just contract-safe:
    - selected agenda mode should be obvious at a glance
    - selected track focus should read like an active chip, not bare text
    - local sync warnings should surface without resetting the visible selection
-6. Make the inline participant selection pattern consistent across nearby, recommendations, discovery, and chat:
+5. Make the inline participant selection pattern consistent across nearby, recommendations, discovery, and chat:
    - `Åpne profil`
    - `Marker for oppfølging`
    - `Åpne chatflate`
    - `Be om møte`
-7. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
-8. Extend verifier coverage to one more conference configuration that matters for the demo story.
-9. Consider a separate iOS-oriented layer later:
+6. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
+7. Extend verifier coverage to one more conference configuration that matters for the demo story.
+8. Consider a separate iOS-oriented layer later:
    - contract verification can still be local
    - render verification may need screenshot-driven validation instead of AppKit hosting
-10. If live UI still claims the debug panel is drawing outside its frame, inspect:
+9. If live UI still claims the debug panel is drawing outside its frame, inspect:
    - `Binding/Debug/BindingRuntimeDiagnostics.swift`
    - rounded shape clipping
    - scroll container clipping
    - lazy log stack behavior
-11. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
+10. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
 
 If you need to debug a fresh conference regression, start with:
 
