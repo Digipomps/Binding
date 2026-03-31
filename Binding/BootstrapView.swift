@@ -373,7 +373,124 @@ private struct ConferenceDemoPersona {
     var simulatedAgentSummary: String
 }
 
-private func conferenceDemoPersona(named rawName: String?) -> ConferenceDemoPersona {
+private struct ConferenceDemoPersonaSeed {
+    var name: String?
+    var roleSummary: String?
+    var publicProfileDetail: String?
+    var fitContext: String?
+    var conversationStyle: String?
+    var suggestedOpening: String?
+    var simulatedAgentSummary: String?
+    var starterReply: String?
+}
+
+private struct ConferenceDemoPersonaProvider {
+    func persona(named rawName: String?, source sourceObject: Object? = nil) -> ConferenceDemoPersona {
+        let fallback = fallbackPersona(named: rawName)
+        guard let seed = seed(from: sourceObject) else {
+            return fallback
+        }
+
+        return ConferenceDemoPersona(
+            name: nonEmpty(seed.name) ?? fallback.name,
+            roleSummary: nonEmpty(seed.roleSummary) ?? fallback.roleSummary,
+            publicProfileDetail: nonEmpty(seed.publicProfileDetail) ?? fallback.publicProfileDetail,
+            fitContext: nonEmpty(seed.fitContext) ?? fallback.fitContext,
+            conversationStyle: nonEmpty(seed.conversationStyle) ?? fallback.conversationStyle,
+            suggestedOpening: nonEmpty(seed.suggestedOpening) ?? fallback.suggestedOpening,
+            simulatedAgentSummary: nonEmpty(seed.simulatedAgentSummary) ?? fallback.simulatedAgentSummary
+        )
+    }
+
+    func starterReply(named rawName: String?, source sourceObject: Object? = nil) -> String {
+        if let starterReply = nonEmpty(seed(from: sourceObject)?.starterReply) {
+            return starterReply
+        }
+        let persona = persona(named: rawName, source: sourceObject)
+        return "Ja, gjerne. \(persona.publicProfileDetail) Hvis du vil, kan vi ta et kort neste steg etter sesjonen."
+    }
+
+    func seedObject(named rawName: String?) -> Object {
+        let persona = fallbackPersona(named: rawName)
+        return [
+            "name": .string(persona.name),
+            "roleSummary": .string(persona.roleSummary),
+            "publicProfileDetail": .string(persona.publicProfileDetail),
+            "fitContext": .string(persona.fitContext),
+            "conversationStyle": .string(persona.conversationStyle),
+            "suggestedOpening": .string(persona.suggestedOpening),
+            "simulatedAgentSummary": .string(persona.simulatedAgentSummary),
+            "starterReply": .string("Ja, gjerne. \(persona.publicProfileDetail) Hvis du vil, kan vi ta et kort neste steg etter sesjonen.")
+        ]
+    }
+
+    private func seed(from sourceObject: Object?) -> ConferenceDemoPersonaSeed? {
+        let nested = object(from: sourceObject?["demoPersona"])
+        let raw = nested ?? sourceObject
+
+        let seed = ConferenceDemoPersonaSeed(
+            name: nonEmpty(string(from: raw?["name"])),
+            roleSummary: nonEmpty(string(from: raw?["roleSummary"])),
+            publicProfileDetail: nonEmpty(string(from: raw?["publicProfileDetail"])),
+            fitContext: nonEmpty(string(from: raw?["fitContext"])),
+            conversationStyle: nonEmpty(string(from: raw?["conversationStyle"])),
+            suggestedOpening: nonEmpty(string(from: raw?["suggestedOpening"])),
+            simulatedAgentSummary: nonEmpty(string(from: raw?["simulatedAgentSummary"])),
+            starterReply: nonEmpty(string(from: raw?["starterReply"]))
+        )
+
+        let hasSeedValues =
+            seed.name != nil ||
+            seed.roleSummary != nil ||
+            seed.publicProfileDetail != nil ||
+            seed.fitContext != nil ||
+            seed.conversationStyle != nil ||
+            seed.suggestedOpening != nil ||
+            seed.simulatedAgentSummary != nil ||
+            seed.starterReply != nil
+
+        return hasSeedValues ? seed : nil
+    }
+
+    private func fallbackPersona(named rawName: String?) -> ConferenceDemoPersona {
+        conferenceFallbackDemoPersona(named: rawName)
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              trimmed.isEmpty == false else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private func string(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case let .string(string):
+            return string
+        case let .integer(integer):
+            return String(integer)
+        case let .number(number):
+            return String(number)
+        case let .float(float):
+            return String(float)
+        case let .bool(bool):
+            return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private func object(from value: ValueType?) -> Object? {
+        guard case let .object(object)? = value else { return nil }
+        return object
+    }
+}
+
+private let conferenceDemoPersonaProvider = ConferenceDemoPersonaProvider()
+
+private func conferenceFallbackDemoPersona(named rawName: String?) -> ConferenceDemoPersona {
     let name = rawName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     switch name {
     case "Ane Solberg":
@@ -430,6 +547,14 @@ private func conferenceDemoPersona(named rawName: String?) -> ConferenceDemoPers
     }
 }
 
+private func conferenceDemoPersona(named rawName: String?, source sourceObject: Object? = nil) -> ConferenceDemoPersona {
+    conferenceDemoPersonaProvider.persona(named: rawName, source: sourceObject)
+}
+
+private func conferenceDemoPersonaSeedObject(named rawName: String?) -> Object {
+    conferenceDemoPersonaProvider.seedObject(named: rawName)
+}
+
 private func conferenceDemoReply(
     to message: String,
     persona: ConferenceDemoPersona,
@@ -457,8 +582,8 @@ private func conferenceDemoStarterMessage(for persona: ConferenceDemoPersona) ->
     persona.suggestedOpening
 }
 
-private func conferenceDemoStarterReply(for persona: ConferenceDemoPersona) -> String {
-    "Ja, gjerne. \(persona.publicProfileDetail) Hvis du vil, kan vi ta et kort neste steg etter sesjonen."
+private func conferenceDemoStarterReply(for persona: ConferenceDemoPersona, source sourceObject: Object? = nil) -> String {
+    conferenceDemoPersonaProvider.starterReply(named: persona.name, source: sourceObject)
 }
 
 actor ConferenceParticipantPreviewFallbackStateStore {
@@ -2829,12 +2954,13 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
         } ?? "Recommendations are derived from onboarding interests, purpose signals, and optional track focus."
         let recentMessagesValue = recentMessages.map(\.value)
         let dynamicNearbyConnections = launchedDiscoveryChatNames.map { name in
-            connectionCard(
-                title: name,
-                subtitle: "Nearby verified contact",
-                detail: "Verified nearby encounter opened a discovery follow-up chat with \(activeChatCount) message(s) ready.",
-                note: "Scanner enriched · Chat klar"
-            )
+            ValueType.object([
+                "title": .string(name),
+                "subtitle": .string("Nearby verified contact"),
+                "detail": .string("Verified nearby encounter opened a discovery follow-up chat with \(activeChatCount) message(s) ready."),
+                "note": .string("Scanner enriched · Chat klar"),
+                "demoPersona": .object(conferenceDemoPersonaSeedObject(named: name))
+            ])
         }
         let sharedIntro = activeChatCount > 0
             ? "Delt tråd med \(primaryChatName) er klar. Vis samtalen her og send neste oppfølging når det passer."
@@ -3045,6 +3171,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(updatedNote),
+            "demoPersona": .object(conferenceDemoPersonaSeedObject(named: title)),
             "keypath": .string("conferenceParticipantShell.dispatchAction"),
             "label": .string(actionLabel),
             "payload": .object([
@@ -3069,6 +3196,7 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(chatReady ? "\(note) · Chat klar." : "\(note) · Start chat når du er klar."),
+            "demoPersona": .object(conferenceDemoPersonaSeedObject(named: title)),
             "keypath": .string("conferenceParticipantShell.dispatchAction"),
             "label": .string(chatReady ? "Åpne chat" : "Start chat"),
             "payload": .object([
@@ -4340,6 +4468,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
+            "demoPersona": raw["demoPersona"] ?? .object(conferenceDemoPersonaSeedObject(named: title)),
             "keypath": .string(isFocused && chatReady ? "chatSnapshot.dispatchAction" : "discoverySnapshot.dispatchAction"),
             "label": .string(label),
             "payload": .object([
@@ -4430,7 +4559,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             ]
         }
 
-        let persona = conferenceDemoPersona(named: cardTitle(from: focusedCard))
+        let persona = conferenceDemoPersona(named: cardTitle(from: focusedCard), source: focusedCard)
         return [
             "selectionBadge": .string("VALGT I DISCOVERY"),
             "title": .string(cardTitle(from: focusedCard)),
@@ -5025,6 +5154,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note),
+            "demoPersona": raw["demoPersona"] ?? .object(conferenceDemoPersonaSeedObject(named: title)),
             "keypath": .string("matchmakingSnapshot.dispatchAction"),
             "label": .string(isFocused ? "Valgt i siden" : "Vis i siden"),
             "payload": .object([
@@ -5048,6 +5178,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(marked ? "\(baseNote) · Markert for oppfølging." : "\(baseNote) · Kan markeres for oppfølging."),
+            "demoPersona": raw["demoPersona"] ?? .object(conferenceDemoPersonaSeedObject(named: title)),
             "keypath": .string("matchmakingSnapshot.dispatchAction"),
             "label": .string(marked ? "Fjern markering" : "Marker for oppfølging"),
             "payload": .object([
@@ -5113,7 +5244,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             ]
         }
 
-        let persona = conferenceDemoPersona(named: cardTitle(from: focusedCard))
+        let persona = conferenceDemoPersona(named: cardTitle(from: focusedCard), source: focusedCard)
         return [
             "selectionBadge": .string("VALGT DELTAKER"),
             "title": .string(cardTitle(from: focusedCard)),
@@ -5638,6 +5769,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         let connectionRows = listObjects(from: sharedConnections?["connections"])
         let recentMessageRows = listObjects(from: sharedConnections?["recentMessages"])
         let effectiveFocusedName = ensureFocusedChatName(in: connectionRows)
+        let focusedPersona = resolvedPersona(focusedName: effectiveFocusedName, connectionRows: connectionRows)
 
         merged["selectionSummary"] = .string(selectionSummary(
             focusedName: effectiveFocusedName,
@@ -5649,18 +5781,18 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             connectionCount: connectionRows.count
         ))
         merged["actionSummary"] = .string(recentActionSummary)
-        merged["personaSummary"] = .string(personaSummary(focusedName: effectiveFocusedName))
-        merged["personaDetail"] = .string(personaDetail(focusedName: effectiveFocusedName))
-        merged["simulationSummary"] = .string(simulationSummary(focusedName: effectiveFocusedName))
+        merged["personaSummary"] = .string(personaSummary(persona: focusedPersona))
+        merged["personaDetail"] = .string(personaDetail(persona: focusedPersona))
+        merged["simulationSummary"] = .string(simulationSummary(persona: focusedPersona))
         merged["focusedThread"] = .object(focusedThreadObject(
-            focusedName: effectiveFocusedName,
+            persona: focusedPersona,
             connectionRows: connectionRows,
             messageRows: recentMessageRows
         ))
         merged["draftMessage"] = .string(draftMessage)
         merged["draftSummary"] = .string(draftSummary(focusedName: effectiveFocusedName, connectionCount: connectionRows.count))
-        merged["draftHint"] = .string(draftHint(focusedName: effectiveFocusedName))
-        merged["focusedActions"] = .list(focusedActionCards(for: effectiveFocusedName).map(ValueType.object))
+        merged["draftHint"] = .string(draftHint(persona: focusedPersona))
+        merged["focusedActions"] = .list(focusedActionCards(persona: focusedPersona).map(ValueType.object))
         merged["connections"] = .list(connectionRows.map { connectionCard(from: $0, focusedName: effectiveFocusedName) })
         merged["recentMessages"] = .list(recentMessageRows.map(messageCard))
 
@@ -5675,6 +5807,12 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         let firstName = connectionRows.first.map { cardTitle(from: $0) }
         focusedChatName = firstName
         return firstName
+    }
+
+    private func resolvedPersona(focusedName: String?, connectionRows: [Object]) -> ConferenceDemoPersona? {
+        guard let focusedName else { return nil }
+        let sourceObject = connectionRows.first(where: { cardTitle(from: $0) == focusedName })
+        return conferenceDemoPersona(named: focusedName, source: sourceObject)
     }
 
     private func selectionSummary(focusedName: String?, connectionCount: Int) -> String {
@@ -5701,26 +5839,25 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         return "Velg en delt tråd og fortsett oppfølgingen derfra."
     }
 
-    private func personaSummary(focusedName: String?) -> String {
-        guard let focusedName else {
+    private func personaSummary(persona: ConferenceDemoPersona?) -> String {
+        guard let persona else {
             return "Ingen demo-deltager er valgt ennå."
         }
-        let persona = conferenceDemoPersona(named: focusedName)
         return "\(persona.name) · \(persona.roleSummary)"
     }
 
-    private func personaDetail(focusedName: String?) -> String {
-        guard let focusedName else {
+    private func personaDetail(persona: ConferenceDemoPersona?) -> String {
+        guard let persona else {
             return "Når en tråd er valgt, viser vi offentlig profil og samtalestil for demo-deltageren her."
         }
-        return conferenceDemoPersona(named: focusedName).publicProfileDetail
+        return persona.publicProfileDetail
     }
 
-    private func simulationSummary(focusedName: String?) -> String {
-        guard let focusedName else {
+    private func simulationSummary(persona: ConferenceDemoPersona?) -> String {
+        guard let persona else {
             return "Svarene i demoen er bounded og følger valgt deltagerprofil."
         }
-        return conferenceDemoPersona(named: focusedName).simulatedAgentSummary
+        return persona.simulatedAgentSummary
     }
 
     private func draftSummary(focusedName: String?, connectionCount: Int) -> String {
@@ -5733,20 +5870,20 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         return "Velg en tråd, og skriv deretter en konkret oppfølging i compose-feltet."
     }
 
-    private func draftHint(focusedName: String?) -> String {
-        if let focusedName {
-            let persona = conferenceDemoPersona(named: focusedName)
+    private func draftHint(persona: ConferenceDemoPersona?) -> String {
+        if let persona {
             return "Hold meldingen kort og konkret. \(persona.conversationStyle) Svarene i demoen følger denne personaen."
         }
         return "Når en tråd er valgt, kan du skrive en egen melding eller bruke forslagsteksten som utgangspunkt."
     }
 
     private func focusedThreadObject(
-        focusedName: String?,
+        persona: ConferenceDemoPersona?,
         connectionRows: [Object],
         messageRows: [Object]
     ) -> Object {
-        guard let focusedName,
+        guard let persona,
+              let focusedName = Optional(persona.name),
               let connection = connectionRows.first(where: { cardTitle(from: $0) == focusedName }) else {
             return [
                 "selectionBadge": .string("VALGT TRÅD"),
@@ -5762,7 +5899,6 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         let latestMessage = messageRows.first.flatMap { string(from: $0["detail"]) }
         let note = latestMessage.map { "Siste melding: \($0)" }
             ?? "Ingen melding sendt ennå. Send en kort oppfølging for å gjøre chatten tydelig i demoen."
-        let persona = conferenceDemoPersona(named: focusedName)
         let suggestedNextMessage = persona.suggestedOpening
 
         return [
@@ -5776,7 +5912,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         ]
     }
 
-    private func focusedActionCards(for focusedName: String?) -> [Object] {
+    private func focusedActionCards(persona: ConferenceDemoPersona?) -> [Object] {
         let returnAction: Object = [
             "title": .string("Tilbake"),
             "subtitle": .string("Gå tilbake til deltagerportalen"),
@@ -5790,9 +5926,10 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             ])
         ]
 
-        guard let focusedName else {
+        guard let persona else {
             return [returnAction]
         }
+        let focusedName = persona.name
 
         let sendAction: Object = [
             "title": .string("Send forslag"),
@@ -5804,7 +5941,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             "payload": .object([
                 "keypath": .string("connections.postSharedMessage"),
                 "payload": .object([
-                    "text": .string(conferenceDemoPersona(named: focusedName).suggestedOpening),
+                    "text": .string(persona.suggestedOpening),
                     "contentType": .string("text/plain")
                 ])
             ])
@@ -6034,10 +6171,11 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         merged["actionSummary"] = .string(recentActionSummary)
         let focusedName = self.object(from: merged["focusedThread"]).flatMap { string(from: $0["title"]) }
         let normalizedFocusedName = (focusedName == "Ingen delt tråd valgt ennå") ? nil : focusedName
+        let focusedPersona = normalizedFocusedName.map { conferenceDemoPersona(named: $0) }
         let connectionCount = listObjects(from: merged["connections"]).count
         merged["draftMessage"] = .string(draftMessage)
         merged["draftSummary"] = .string(draftSummary(focusedName: normalizedFocusedName, connectionCount: connectionCount))
-        merged["draftHint"] = .string(draftHint(focusedName: normalizedFocusedName))
+        merged["draftHint"] = .string(draftHint(persona: focusedPersona))
         return merged
     }
 
