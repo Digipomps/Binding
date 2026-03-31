@@ -61,6 +61,12 @@ Current demo-story reality:
   `Documentation/CellScaffoldConferenceDemoPersonasPrompt.md`
 - the next nearby-radar implementation pass is scoped in
   `Documentation/ConferenceNearbyRadarImplementationPlan.md`
+- the next organizer/dashboard uplift pass is scoped in
+  `Documentation/ConferenceControlTowerUpliftPlan.md`
+- staging admin preview is no longer broadly dead:
+  - access, audience discovery, insights, sponsor, session polling, session thread, and simulation are now populated
+  - the remaining staging preview gaps are mainly `content` and `system`
+  - see `Documentation/CellScaffoldConferenceAdminPreviewStagingHandoff.md`
 
 Important working assumptions:
 
@@ -70,40 +76,45 @@ Important working assumptions:
 
 Next recommended engineering steps:
 
-1. Implement the nearby-radar plan in `Documentation/ConferenceNearbyRadarImplementationPlan.md` in order:
+1. Finish organizer preview parity on staging:
+   - fix the `content` lane so organizer publishing does not read as unavailable
+   - fix the `system` lane so `AdminOverview` no longer returns denied in preview
+   - once those are healthy, implement the visual uplift in `Documentation/ConferenceControlTowerUpliftPlan.md`
+2. Implement the nearby-radar plan in `Documentation/ConferenceNearbyRadarImplementationPlan.md` in order:
    - honest spatial contract
    - native full radar surface
    - compact embedded radar
    - inspect/action card tightening
    - motion and quality pass only after the interaction model is stable
-2. Make chat readiness even harder to miss in the participant page:
+3. Keep tightening the participant chat surface:
    - `Start chat` should make "chat ready" unmissable inline
-   - the current page should show that the dedicated chat workbench is ready before the user leaves the page
-3. Seed stable staged demo personas in CellScaffold:
+   - the dedicated chat workbench should read like a real transcript, not a dashboard of status cards
+   - compose state should stay stable while the user types
+4. Seed stable staged demo personas in CellScaffold:
    - governance / policy
    - service design / product
    - interoperability / operations
    - optional group anchor
-4. Keep the agenda snapshot visible in the GUI, not just contract-safe:
+5. Keep the agenda snapshot visible in the GUI, not just contract-safe:
    - selected agenda mode should be obvious at a glance
    - selected track focus should read like an active chip, not bare text
    - local sync warnings should surface without resetting the visible selection
-5. Make the inline participant selection pattern consistent across nearby, recommendations, discovery, and chat:
+6. Make the inline participant selection pattern consistent across nearby, recommendations, discovery, and chat:
    - `Åpne profil`
    - `Marker for oppfølging`
    - `Åpne chatflate`
    - `Be om møte`
-6. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
-7. Extend verifier coverage to one more conference configuration that matters for the demo story.
-8. Consider a separate iOS-oriented layer later:
+7. Add simple timing summaries or soft thresholds so slowdowns are easier to spot automatically.
+8. Extend verifier coverage to one more conference configuration that matters for the demo story.
+9. Consider a separate iOS-oriented layer later:
    - contract verification can still be local
    - render verification may need screenshot-driven validation instead of AppKit hosting
-9. If live UI still claims the debug panel is drawing outside its frame, inspect:
+10. If live UI still claims the debug panel is drawing outside its frame, inspect:
    - `Binding/Debug/BindingRuntimeDiagnostics.swift`
    - rounded shape clipping
    - scroll container clipping
    - lazy log stack behavior
-10. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
+11. If a verifier case becomes flaky again, first check whether shared runtime state or local test-environment cache restrictions have crept back in before blaming staging.
 
 If you need to debug a fresh conference regression, start with:
 

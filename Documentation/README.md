@@ -222,11 +222,16 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 ## Current implementation plan (March 31, 2026)
 
 - The next nearby-radar pass is documented in [ConferenceNearbyRadarImplementationPlan.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/ConferenceNearbyRadarImplementationPlan.md).
+- The next organizer/dashboard uplift pass is documented in [ConferenceControlTowerUpliftPlan.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/ConferenceControlTowerUpliftPlan.md).
 - The plan keeps Skeleton responsible for structure and actions, while the moving nearby radar itself is intended to become a Binding-local native SwiftUI surface.
 - The plan is explicitly device-relative:
   - UWB direction and distance should update as the device rotates or moves
   - MPC-only peers must stay in an honest approximate or uncertain presentation
 - The work is intentionally phased so we stabilize truth and test coverage before adding richer motion or visual polish.
+- Staging admin preview improved materially on March 31, 2026:
+  - access, audience discovery, insights, sponsor, session polling, session thread, and simulation now return meaningful organizer data
+  - the main remaining organizer preview gaps are `content` and `system` / `AdminOverview`
+  - see [CellScaffoldConferenceAdminPreviewStagingHandoff.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/CellScaffoldConferenceAdminPreviewStagingHandoff.md)
 
 ## Latest successful changes (March 29, 2026)
 - `Conference Participant Portal` now routes agenda state through a local `ConferenceParticipantAgendaSnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift), so:

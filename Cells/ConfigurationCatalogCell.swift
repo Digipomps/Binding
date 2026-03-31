@@ -7171,11 +7171,43 @@ final class ConfigurationCatalogCell: GeneralCell {
                         height: 132
                     ),
                     bindingConferencePortalStaticText(
+                        "Meldinger i tråden",
+                        fontSize: 13,
+                        fontWeight: "bold",
+                        foregroundColor: "#B9FBC0",
+                        lineLimit: 1
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Meldingene rendres i en smalere kolonne, så samtalen leses mer som vanlig chat. På smale skjermer blir dette én kolonne; på større flater kan flere kolonner brukes uten at hvert kort blir for bredt.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Tråden vises eldste først, slik at det er lett å følge hvem som skrev hva før du svarer.",
+                        fontSize: 12,
+                        foregroundColor: "#88A2B1",
+                        lineLimit: 3
+                    ),
+                    bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "chatSnapshot.state.recentMessages",
+                        min: 360,
+                        max: 520,
+                        itemSkeleton: bindingConferencePortalMessageCardSkeleton()
+                    ),
+                    bindingConferencePortalStaticText(
                         "Skriv melding",
                         fontSize: 13,
                         fontWeight: "bold",
                         foregroundColor: "#B9FBC0",
                         lineLimit: 1
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Første melding er ferdig utfylt når en demo-deltager er valgt. Du kan sende den som den er, eller redigere den til en mer personlig oppfølging.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
                     ),
                     bindingConferencePortalTextArea(
                         sourceKeypath: "chatSnapshot.state.draftMessage",
@@ -7194,26 +7226,6 @@ final class ConfigurationCatalogCell: GeneralCell {
                                 label: "Send melding"
                             )
                         ])
-                    ),
-                    bindingConferencePortalStaticText(
-                        "Chat-utdrag",
-                        fontSize: 13,
-                        fontWeight: "bold",
-                        foregroundColor: "#B9FBC0",
-                        lineLimit: 1
-                    ),
-                    bindingConferencePortalStaticText(
-                        "Meldingene ligger i en smalere kolonne, så chatten leses mer som en vanlig samtale enn som brede dashboard-kort.",
-                        fontSize: 12,
-                        foregroundColor: "#9AB3C3",
-                        lineLimit: 4
-                    ),
-                    bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
-                    bindingConferencePortalCollectionGrid(
-                        keypath: "chatSnapshot.state.recentMessages",
-                        min: 280,
-                        max: 360,
-                        itemSkeleton: bindingConferencePortalMessageCardSkeleton()
                     ),
                     bindingConferencePortalStaticText(
                         "Forslag til handlinger",
@@ -8687,9 +8699,9 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     private static func bindingConferencePortalMessageCardSkeleton() -> SkeletonElement {
         var section = SkeletonSection(content: [
-            bindingConferencePortalKeyText("title", fontSize: 14, fontWeight: "semibold", foregroundColor: "#F5FBFF"),
-            bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
-            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 8),
+            bindingConferencePortalKeyText("title", fontSize: 13, fontWeight: "bold", foregroundColor: "#B9FBC0"),
+            bindingConferencePortalKeyText("subtitle", fontSize: 11, foregroundColor: "#8DE1DA"),
+            bindingConferencePortalKeyText("detail", fontSize: 13, foregroundColor: "#F5FBFF", lineLimit: 10),
             bindingConferencePortalKeyText("note", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 3)
         ])
         section.modifiers = bindingConferencePortalInlineCardModifier()

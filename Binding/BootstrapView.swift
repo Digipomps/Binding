@@ -5841,6 +5841,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
 
         let connectionRows = listObjects(from: sharedConnections?["connections"])
         let recentMessageRows = listObjects(from: sharedConnections?["recentMessages"])
+        let transcriptRows = Array(recentMessageRows.reversed())
         let effectiveFocusedName = ensureFocusedChatName(in: connectionRows)
         let focusedPersona = resolvedPersona(focusedName: effectiveFocusedName, connectionRows: connectionRows)
         seedDraftIfNeeded(persona: focusedPersona)
@@ -5855,6 +5856,14 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             connectionCount: connectionRows.count
         ))
         merged["actionSummary"] = .string(recentActionSummary)
+        merged["recentMessagesSummary"] = .string(transcriptSummary(
+            focusedName: effectiveFocusedName,
+            messageCount: transcriptRows.count
+        ))
+        merged["chatSummary"] = .string(transcriptSummary(
+            focusedName: effectiveFocusedName,
+            messageCount: transcriptRows.count
+        ))
         merged["personaSummary"] = .string(personaSummary(persona: focusedPersona))
         merged["personaDetail"] = .string(personaDetail(persona: focusedPersona))
         merged["simulationSummary"] = .string(simulationSummary(persona: focusedPersona))
@@ -5868,7 +5877,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         merged["draftHint"] = .string(draftHint(persona: focusedPersona))
         merged["focusedActions"] = .list(focusedActionCards(persona: focusedPersona).map(ValueType.object))
         merged["connections"] = .list(connectionRows.map { connectionCard(from: $0, focusedName: effectiveFocusedName) })
-        merged["recentMessages"] = .list(recentMessageRows.map(messageCard))
+        merged["recentMessages"] = .list(transcriptRows.map(messageCard))
 
         return merged
     }
@@ -5932,6 +5941,25 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             return "Svarene i demoen er bounded og følger valgt deltagerprofil."
         }
         return persona.simulatedAgentSummary
+    }
+
+    private func transcriptSummary(focusedName: String?, messageCount: Int) -> String {
+        if let focusedName {
+            if messageCount == 0 {
+                return "Ingen meldinger synlige ennå i tråden med \(focusedName)."
+            }
+            if messageCount == 1 {
+                return "1 melding synlig i tråden med \(focusedName), eldste først."
+            }
+            return "\(messageCount) meldinger synlige i tråden med \(focusedName), eldste først."
+        }
+        if messageCount == 0 {
+            return "Ingen delte meldinger synlige ennå."
+        }
+        if messageCount == 1 {
+            return "1 delt melding synlig, eldste først."
+        }
+        return "\(messageCount) delte meldinger synlige, eldste først."
     }
 
     private func draftSummary(focusedName: String?, connectionCount: Int) -> String {
