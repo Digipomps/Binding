@@ -141,6 +141,42 @@ Most likely one or more of these:
 3. Verify preview-specific fallback behavior
 - If preview intentionally cannot read some live authoring or observer state, serve an honest reduced preview instead of full `Unavailable.` placeholders.
 
+## Likely code anchors
+
+These look like the highest-signal places to inspect next in CellScaffold:
+
+- `ConferenceAdminShellCell.resolvedPublishedContentAdminState`
+  - `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/Cells/ConferenceAdminShellCell.swift`
+- `ConferenceAdminShellCell.conferencePublishedContentAccess`
+  - same file
+- `ConferenceAdminPreviewAccessSupport.ensurePreviewAccess`
+  - `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/ConferenceAdminPreviewAccessSupport.swift`
+- `ConferenceAdminShellCell.resolvedAdminMetricsState`
+  - `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/Cells/ConferenceAdminShellCell.swift`
+- `ConferenceAdminShellCell.conferenceAdminOverviewCell`
+  - same file
+
+Why these are likely:
+
+- `content` still falls back to the explicit organizer-shell unavailable object:
+  - `intro = "Published content editor unavailable."`
+  - `lifecycleSummary = "Published content state unavailable."`
+- `system` still falls back to the explicit observer failure object:
+  - `status = "Live admin metrics unavailable."`
+  - `topProcessSummary = "AdminOverview lookup failed: denied"`
+
+## Working hypothesis
+
+The current staging behavior suggests this split:
+
+- organizer-safe projection lanes are now healthy
+- direct organizer authoring / observer lanes still have requester or seeding mismatch
+
+So the next likely win is not broad preview repair anymore. It is fixing the two remaining direct lanes:
+
+- published content admin state
+- admin overview observer state
+
 ## Expected outcome for Binding parity
 
 Binding should be able to load staging admin preview without filling major sections with unavailable placeholders.
