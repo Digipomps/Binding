@@ -54,6 +54,9 @@ enum BindingConferenceConfigurationRepair {
         let hasNearbyRadarReference = references.contains(where: {
             $0.label == "nearbyRadar" && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceNearbyRadar")
         })
+        let hasChatSnapshotReference = references.contains(where: {
+            $0.label == "chatSnapshot" && endpointIdentity($0.endpoint) == endpointIdentity("cell:///ConferenceParticipantChatSnapshot")
+        })
         let skeletonJSON = serializedSkeleton(configuration.skeleton)
         let hasAgendaSnapshotBindings = skeletonJSON.contains("\"agendaSnapshot.state.statusSummary\"")
             && skeletonJSON.contains("\"agendaSnapshot.state.modeChoices\"")
@@ -68,8 +71,21 @@ enum BindingConferenceConfigurationRepair {
             && skeletonJSON.contains("\"keypath\":\"discoverySnapshot.dispatchAction\"")
         let hasNearbyActionBindings = skeletonJSON.contains("\"keypath\":\"nearbyRadar.dispatchAction\"")
         let hasNearbySnapshotReference = skeletonJSON.contains("\"nearbyRadar.snapshot\"")
+        let hasChatBindings = skeletonJSON.contains("\"chatSnapshot.state.statusSummary\"")
+            && skeletonJSON.contains("\"chatSnapshot.state.focusedThread.title\"")
+            && skeletonJSON.contains("\"keypath\":\"chatSnapshot.dispatchAction\"")
 
-        return !(hasAgendaSnapshotReference && hasAgendaSnapshotBindings && hasMatchmakingSnapshotReference && hasMatchmakingSnapshotBindings && hasDiscoverySnapshotReference && hasDiscoverySnapshotBindings && hasNearbyRadarReference && hasNearbyActionBindings && hasNearbySnapshotReference)
+        return !(hasAgendaSnapshotReference
+            && hasAgendaSnapshotBindings
+            && hasMatchmakingSnapshotReference
+            && hasMatchmakingSnapshotBindings
+            && hasDiscoverySnapshotReference
+            && hasDiscoverySnapshotBindings
+            && hasNearbyRadarReference
+            && hasNearbyActionBindings
+            && hasNearbySnapshotReference
+            && hasChatSnapshotReference
+            && hasChatBindings)
     }
     private static func controlTowerNeedsRepair(_ configuration: CellConfiguration) -> Bool {
         let references = configuration.cellReferences ?? []

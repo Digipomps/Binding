@@ -258,6 +258,27 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `testConferenceParticipantPortalRenderer`
   - `conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions`
   - `testConferenceNearbyRadarRenderer`
+
+## Latest successful changes (March 30, 2026)
+- `Conference Participant Portal` now exposes an explicit handoff to a dedicated `Conference Participant Chat` workbench in [ConfigurationCatalogCell.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/ConfigurationCatalogCell.swift).
+- The dedicated chat surface is backed by a local `ConferenceParticipantChatSnapshot` in [BootstrapView.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift), so we can:
+  - keep chat state visible in the participant page
+  - open a dedicated chat workbench only when the user explicitly chooses `Åpne chatflate`
+  - preserve the existing participant preview shell as the underlying source of truth
+- Nearby, discovery, and recommendation flows now upgrade from `Start chat` to `Åpne chatflate` instead of leaving chat hidden as shared-thread state only.
+- Persisted participant configurations are now repaired forward to include the new `chatSnapshot` wiring in [ConferenceConfigurationRepair.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/ConferenceConfigurationRepair.swift).
+- The deterministic verifier now also covers the dedicated participant chat surface:
+  - contract verification in [CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift)
+  - render verification in [CellConfigurationVerifierXCTest.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/CellConfigurationVerifierXCTest.swift)
+  - runner support in [run_conference_configuration_verifier.sh](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Scripts/run_conference_configuration_verifier.sh)
+- Latest green targeted run on March 30, 2026:
+  - `./Scripts/run_conference_configuration_verifier.sh chat contract`
+  - `testConferenceParticipantPortalContract`
+  - `testConferenceParticipantPortalRenderer`
+  - `testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
+  - `testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions`
+  - `testConferenceParticipantChatContract`
+  - `testConferenceParticipantChatRenderer`
   - `testConferenceNearbyParticipantProfileRenderer`
 - Latest green targeted checks on March 28, 2026:
   - `testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
@@ -300,6 +321,8 @@ Projects importing CellProtocol must include:
 - Full Library UX/UI: [Documentation/FullLibraryView.md](Documentation/FullLibraryView.md)
 - Conference debug playbook: [Documentation/ConferenceDebugPlaybook.md](Documentation/ConferenceDebugPlaybook.md)
 - Conference configuration verifier: [Documentation/ConferenceConfigurationVerifier.md](Documentation/ConferenceConfigurationVerifier.md)
+- Conference demo story: [Documentation/ConferenceDemoStory.md](Documentation/ConferenceDemoStory.md)
+- CellScaffold prompt for staged conference demo personas: [Documentation/CellScaffoldConferenceDemoPersonasPrompt.md](Documentation/CellScaffoldConferenceDemoPersonasPrompt.md)
 - CellScaffold parity prompt for conference demo flows: [Documentation/CellScaffoldConferenceParityPrompt.md](Documentation/CellScaffoldConferenceParityPrompt.md)
 - CellScaffold Playwright prompt for conference demo smoke tests: [Documentation/CellScaffoldPlaywrightPrompt.md](Documentation/CellScaffoldPlaywrightPrompt.md)
 - Cross-vault identity enrollment: [Documentation/CrossVaultIdentityEnrollment.md](Documentation/CrossVaultIdentityEnrollment.md)

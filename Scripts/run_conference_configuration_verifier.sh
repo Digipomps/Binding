@@ -28,12 +28,18 @@ case "$surface" in
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions"
+    [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatContract"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileContract"
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"
     [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer"
+    [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatRenderer"
     [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer"
     [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileRenderer"
+    ;;
+  chat)
+    [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatContract"
+    [[ "$layer" == "render" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatRenderer"
     ;;
   nearby|radar|profile)
     [[ "$layer" == "contract" || "$layer" == "all" ]] && add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
@@ -51,6 +57,7 @@ case "$surface" in
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions"
+      add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileContract"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract"
@@ -58,13 +65,14 @@ case "$surface" in
     }
     [[ "$layer" == "render" || "$layer" == "all" ]] && {
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer"
+      add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatRenderer"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarRenderer"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileRenderer"
       add_test "BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerRenderer"
     }
     ;;
   *)
-    echo "Usage: $0 [participant|nearby|profile|admin|all] [contract|render|all]" >&2
+    echo "Usage: $0 [participant|chat|nearby|profile|admin|all] [contract|render|all]" >&2
     exit 64
     ;;
 esac

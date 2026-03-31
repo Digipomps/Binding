@@ -38,6 +38,7 @@ Current conference surfaces:
 
 - `Conference Participant Portal`
 - `Conference Participant Agenda Snapshot`
+- `Conference Participant Chat`
 - `Conference Nearby Radar`
 - `Conference Participant Nearby Follow-Up`
 - `Conference Control Tower`
@@ -91,10 +92,11 @@ Current participant recommendation assertions:
 - recommendation cards use the same inline-first action route the GUI uses
 - `Vis i siden` focuses one participant inline on the current page
 - the focused participant card exposes explicit next actions:
-  - `Åpne chat`
+  - `Åpne chatflate`
   - `Fjern markering` / `Marker for oppfølging`
   - `Be om møte`
 - the focused participant state survives the local action refresh path instead of falling tilbake til rå preview-data
+- when chat is already ready, the focused action opens the dedicated participant chat workbench instead of silently reusing a hidden shared-thread state
 
 Current participant discovery assertions:
 
@@ -113,8 +115,25 @@ Current participant discovery assertions:
 - discovery action flow is deterministic and survives local refresh:
   - `Vis i siden` focuses the participant inline
   - `Marker for oppfølging` toggles inline follow-up state
-  - `Åpne chat` upgrades in-place after the local chat handoff
+  - `Åpne chatflate` opens the explicit participant chat workbench after the local chat handoff
 - the local snapshot now falls back directly to `ConferenceParticipantPreviewShell` instead of relying on hidden Porthole internals
+
+Current participant chat assertions:
+
+- the participant portal resolves a local `ConferenceParticipantChatSnapshot`
+- the chat snapshot can open a dedicated participant chat workbench in Porthole without bypassing the existing participant shell
+- the chat workbench keeps explicit summaries for:
+  - `statusSummary`
+  - `selectionSummary`
+  - `nextStepSummary`
+  - `actionSummary`
+  - `focusedThread`
+  - `recentMessages`
+- the focused thread exposes concrete follow-up actions:
+  - `Send oppfølging`
+  - `Be om møte`
+  - `Tilbake til portalen`
+- chat readiness is now visible both inline in participant surfaces and in a separate dedicated workbench
 
 Current nearby radar assertions:
 
@@ -149,7 +168,7 @@ Current nearby follow-up assertions:
 - verify that the nearby card upgrades to `Contact pending`
 - inject a deterministic verified nearby contact into the local conference radar
 - open the follow-up chat handoff through the same Porthole wiring the UI uses
-- verify that the nearby card upgrades to `Open chat`
+- verify that the nearby card upgrades to `Åpne chatflate`
 - verify that purpose/interest text reflects verified overlap
 - verify that participant preview state advances (`nextStep`, shared chat summary, recent message)
 - stop the local nearby scanner through `dispatchAction`
@@ -170,6 +189,8 @@ Current render assertions:
   - expected strings include `Conference Participant Portal`, `Entity Discovery`, `Start scanner`, `Radar i siden`, `Åpne full radar`
 - `Conference Nearby Radar`
   - expected strings include `Conference Nearby Radar · Full oversikt`, `Start scanner`, `Tilbake til portalen`, `Valgt deltager`
+- `Conference Participant Chat`
+  - expected strings include `Conference Chat`, `Tilbake til portalen`, `Delte tråder`, `Siste meldinger`
 - `Nearby Participant Profile`
   - expected strings include `Valgt deltager · profilflate`, `Åpne full radar`, `Tilbake til portalen`, `Neste steg`
 - `Conference Control Tower`
@@ -209,15 +230,18 @@ Run organizer only:
 
 ## What worked in the latest green run
 
-Latest verified on March 29, 2026:
+Latest verified on March 30, 2026:
 
 Targeted green checks:
 
-- `./Scripts/run_conference_configuration_verifier.sh participant contract`
+- `./Scripts/run_conference_configuration_verifier.sh chat contract`
+- `xcodebuild -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalRenderer -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatContract -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatContract`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantChatRenderer`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceParticipantNearbyFollowUpContract`
 - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceControlTowerContract`
