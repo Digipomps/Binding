@@ -161,6 +161,13 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "ConferenceDemoLauncher",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceDemoLauncherLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "Lobby",
             cellScope: .scaffoldUnique,
             identityDomain: "private",
@@ -601,6 +608,25 @@ actor ConferenceParticipantPreviewFallbackStateStore {
 
     func reset(for ownerUUID: String) {
         statesByOwnerUUID.removeValue(forKey: ownerUUID)
+    }
+}
+
+actor ConferenceParticipantSelectionStore {
+    static let shared = ConferenceParticipantSelectionStore()
+
+    private var selectedParticipantByOwnerUUID: [String: String] = [:]
+
+    func load(for ownerUUID: String) -> String? {
+        selectedParticipantByOwnerUUID[ownerUUID]
+    }
+
+    func save(_ displayName: String?, for ownerUUID: String) {
+        guard let trimmed = displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              trimmed.isEmpty == false else {
+            selectedParticipantByOwnerUUID.removeValue(forKey: ownerUUID)
+            return
+        }
+        selectedParticipantByOwnerUUID[ownerUUID] = trimmed
     }
 }
 
@@ -4099,6 +4125,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
     private var cachedDiscoveryState: Object = ConferenceParticipantDiscoverySnapshotLocalCell.defaultDiscoveryState()
     private var lastRefreshAt: Date?
     private var refreshTask: Task<Void, Never>?
+    private var storeKey = ""
     private var focusedDiscoveryName: String?
     private var followUpMarkedNames: Set<String> = []
     private var launchedDiscoveryChatNames: [String] = []
@@ -4118,6 +4145,8 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
     }
 
     private func configure(owner: Identity) async {
+        storeKey = owner.uuid
+        await restoreSelectedParticipantIfAvailable()
         agreementTemplate.addGrant("r---", for: "state")
         agreementTemplate.addGrant("rw--", for: "refresh")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
@@ -4185,6 +4214,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
                let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
                displayName.isEmpty == false {
                 focusedDiscoveryName = displayName
+                await rememberSelectedParticipant(displayName)
                 recentActionSummary = "Viser \(displayName) i discovery-delen."
             }
         case "matchmaking.toggleFollowUp":
@@ -4192,6 +4222,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
                let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
                displayName.isEmpty == false {
                 focusedDiscoveryName = displayName
+                await rememberSelectedParticipant(displayName)
                 if followUpMarkedNames.contains(displayName) {
                     followUpMarkedNames.remove(displayName)
                     recentActionSummary = "Fjernet \(displayName) fra oppfølging."
@@ -4208,6 +4239,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             let targetNames = discoveryTargetNames(from: payload)
             if let firstTarget = targetNames.first {
                 focusedDiscoveryName = firstTarget
+                await rememberSelectedParticipant(firstTarget)
                 launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
                 launchedDiscoveryChatNames.insert(firstTarget, at: 0)
                 launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
@@ -4655,6 +4687,20 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         }
     }
 
+    private func restoreSelectedParticipantIfAvailable() async {
+        guard focusedDiscoveryName == nil,
+              !storeKey.isEmpty,
+              let storedSelection = await ConferenceParticipantSelectionStore.shared.load(for: storeKey) else {
+            return
+        }
+        focusedDiscoveryName = storedSelection
+    }
+
+    private func rememberSelectedParticipant(_ displayName: String?) async {
+        guard !storeKey.isEmpty else { return }
+        await ConferenceParticipantSelectionStore.shared.save(displayName, for: storeKey)
+    }
+
     private func cardTitle(from object: Object) -> String {
         string(from: object["title"]) ??
         string(from: object["displayName"]) ??
@@ -4834,6 +4880,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
     private var cachedMatchmakingState: Object = ConferenceParticipantMatchmakingSnapshotLocalCell.defaultMatchmakingState()
     private var lastRefreshAt: Date?
     private var refreshTask: Task<Void, Never>?
+    private var storeKey = ""
     private var focusedRecommendationName: String?
     private var followUpMarkedNames: Set<String> = []
     private var launchedChatNames: [String] = []
@@ -4853,6 +4900,8 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
     }
 
     private func configure(owner: Identity) async {
+        storeKey = owner.uuid
+        await restoreSelectedParticipantIfAvailable()
         agreementTemplate.addGrant("r---", for: "state")
         agreementTemplate.addGrant("rw--", for: "refresh")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
@@ -4913,12 +4962,15 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
                let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
                displayName.isEmpty == false {
                 focusedRecommendationName = displayName
+                await rememberSelectedParticipant(displayName)
                 recentActionSummary = "Viser \(displayName) i denne siden."
             }
         case "matchmaking.toggleFollowUp":
             if case let .object(personObject) = payload,
                let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
                displayName.isEmpty == false {
+                focusedRecommendationName = displayName
+                await rememberSelectedParticipant(displayName)
                 if followUpMarkedNames.contains(displayName) {
                     followUpMarkedNames.remove(displayName)
                     recentActionSummary = "Fjernet \(displayName) fra oppfølging."
@@ -4931,6 +4983,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             let targetNames = discoveryTargetNames(from: payload)
             if let firstTarget = targetNames.first {
                 focusedRecommendationName = firstTarget
+                await rememberSelectedParticipant(firstTarget)
                 launchedChatNames.removeAll { $0 == firstTarget }
                 launchedChatNames.insert(firstTarget, at: 0)
                 launchedChatNames = Array(launchedChatNames.prefix(4))
@@ -4947,7 +5000,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         case "matchmaking.setFilters":
             recentActionSummary = "Oppdaterte anbefalingsfilteret."
         case "matchmaking.searchPeople":
-            recentActionSummary = "Oppdaterte anbefalingssøk."
+            recentActionSummary = "Viser governance-relevante personer i anbefalingene."
         case "matchmaking.refreshRecommendations":
             recentActionSummary = "Oppdaterte anbefalingene."
         default:
@@ -5335,6 +5388,20 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         return nil
     }
 
+    private func restoreSelectedParticipantIfAvailable() async {
+        guard focusedRecommendationName == nil,
+              !storeKey.isEmpty,
+              let storedSelection = await ConferenceParticipantSelectionStore.shared.load(for: storeKey) else {
+            return
+        }
+        focusedRecommendationName = storedSelection
+    }
+
+    private func rememberSelectedParticipant(_ displayName: String?) async {
+        guard !storeKey.isEmpty else { return }
+        await ConferenceParticipantSelectionStore.shared.save(displayName, for: storeKey)
+    }
+
     private func listObjects(from value: ValueType?) -> [Object] {
         guard case let .list(values)? = value else { return [] }
         return values.compactMap {
@@ -5502,8 +5569,10 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     private var cachedChatState: Object = ConferenceParticipantChatSnapshotLocalCell.defaultChatState()
     private var lastRefreshAt: Date?
     private var refreshTask: Task<Void, Never>?
+    private var storeKey = ""
     private var focusedChatName: String?
     private var draftMessage = ""
+    private var draftSeedName: String?
     private var recentActionSummary = "Start chat fra deltagerportalen for å gjøre en delt tråd klar her."
 
     required init(owner: Identity) async {
@@ -5520,6 +5589,8 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func configure(owner: Identity) async {
+        storeKey = owner.uuid
+        await restoreSelectedParticipantIfAvailable()
         agreementTemplate.addGrant("r---", for: "state")
         agreementTemplate.addGrant("rw--", for: "refresh")
         agreementTemplate.addGrant("rw--", for: "setDraftMessage")
@@ -5545,8 +5616,8 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         await addInterceptForSet(requester: owner, key: "setDraftMessage", setValueIntercept: { [weak self] _, value, requester in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "setDraftMessage", for: requester) else { return .string("denied") }
-            self.draftMessage = self.normalizedDraftText(from: value) ?? ""
-            self.recentActionSummary = self.draftMessage.isEmpty
+            self.draftMessage = self.draftText(from: value) ?? ""
+            self.recentActionSummary = self.draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? "Meldingsutkastet er tomt igjen."
                 : "Meldingsutkastet er oppdatert i chatflaten."
             self.cachedChatState = self.mergedChatState(from: self.cachedChatState)
@@ -5591,6 +5662,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                let displayName = string(from: threadObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
                displayName.isEmpty == false {
                 focusedChatName = displayName
+                await rememberSelectedParticipant(displayName)
                 recentActionSummary = "Viser den delte tråden med \(displayName)."
                 cachedChatState = mergedChatState(from: cachedChatState)
             }
@@ -5607,6 +5679,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                let displayName = string(from: threadObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
                displayName.isEmpty == false {
                 focusedChatName = displayName
+                await rememberSelectedParticipant(displayName)
             }
             await refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: requester)
             return await openChatWorkbench(requester: requester)
@@ -5770,6 +5843,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         let recentMessageRows = listObjects(from: sharedConnections?["recentMessages"])
         let effectiveFocusedName = ensureFocusedChatName(in: connectionRows)
         let focusedPersona = resolvedPersona(focusedName: effectiveFocusedName, connectionRows: connectionRows)
+        seedDraftIfNeeded(persona: focusedPersona)
 
         merged["selectionSummary"] = .string(selectionSummary(
             focusedName: effectiveFocusedName,
@@ -5913,21 +5987,8 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func focusedActionCards(persona: ConferenceDemoPersona?) -> [Object] {
-        let returnAction: Object = [
-            "title": .string("Tilbake"),
-            "subtitle": .string("Gå tilbake til deltagerportalen"),
-            "detail": .string("Hold deg i samme conference-kontekst og gå tilbake til recommendations, discovery og nearby."),
-            "note": .string("Bruk dette når du vil fortsette demoen i deltagerportalen."),
-            "keypath": .string("chatSnapshot.dispatchAction"),
-            "label": .string("Tilbake til portalen"),
-            "payload": .object([
-                "keypath": .string("openParticipantPortalWorkbench"),
-                "payload": .bool(true)
-            ])
-        ]
-
         guard let persona else {
-            return [returnAction]
+            return []
         }
         let focusedName = persona.name
 
@@ -5963,7 +6024,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             ])
         ]
 
-        return [sendAction, meetingAction, returnAction]
+        return [sendAction, meetingAction]
     }
 
     private func connectionCard(from raw: Object, focusedName: String?) -> ValueType {
@@ -5996,14 +6057,12 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         ])
     }
 
-    private func normalizedDraftText(from value: ValueType) -> String? {
-        if let text = string(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           text.isEmpty == false {
+    private func draftText(from value: ValueType) -> String? {
+        if let text = string(from: value) {
             return text
         }
         if case let .object(object) = value,
-           let text = string(from: object["text"])?.trimmingCharacters(in: .whitespacesAndNewlines),
-           text.isEmpty == false {
+           let text = string(from: object["text"]) {
             return text
         }
         return nil
@@ -6070,6 +6129,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             }
 
             draftMessage = ""
+            draftSeedName = focusedName
             recentActionSummary = "Sendte meldingen til \(focusedName). Demo-personaen svarte i samme tråd."
 
             let stateValue = try await previewShell.get(keypath: "state", requester: requester)
@@ -6172,6 +6232,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         let focusedName = self.object(from: merged["focusedThread"]).flatMap { string(from: $0["title"]) }
         let normalizedFocusedName = (focusedName == "Ingen delt tråd valgt ennå") ? nil : focusedName
         let focusedPersona = normalizedFocusedName.map { conferenceDemoPersona(named: $0) }
+        seedDraftIfNeeded(persona: focusedPersona)
         let connectionCount = listObjects(from: merged["connections"]).count
         merged["draftMessage"] = .string(draftMessage)
         merged["draftSummary"] = .string(draftSummary(focusedName: normalizedFocusedName, connectionCount: connectionCount))
@@ -6232,6 +6293,37 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         conferenceMutationErrorDescription(from: value)
     }
 
+    private func restoreSelectedParticipantIfAvailable() async {
+        guard focusedChatName == nil,
+              !storeKey.isEmpty,
+              let storedSelection = await ConferenceParticipantSelectionStore.shared.load(for: storeKey) else {
+            return
+        }
+        focusedChatName = storedSelection
+    }
+
+    private func rememberSelectedParticipant(_ displayName: String?) async {
+        guard !storeKey.isEmpty else { return }
+        await ConferenceParticipantSelectionStore.shared.save(displayName, for: storeKey)
+    }
+
+    private func seedDraftIfNeeded(persona: ConferenceDemoPersona?) {
+        guard let persona else {
+            if draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                draftSeedName = nil
+            }
+            return
+        }
+        guard draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        guard draftSeedName != persona.name else {
+            return
+        }
+        draftMessage = persona.suggestedOpening
+        draftSeedName = persona.name
+    }
+
     private static func chatStateWithStatus(
         basedOn base: Object,
         status: String,
@@ -6271,6 +6363,164 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             "focusedActions": .list([]),
             "connections": .list([]),
             "recentMessages": .list([])
+        ]
+    }
+}
+
+private final class ConferenceDemoLauncherLocalCell: GeneralCell {
+    private static let stagingHost = "staging.haven.digipomps.org"
+
+    private var cachedState: Object = ConferenceDemoLauncherLocalCell.defaultState()
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        await configure(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        fatalError("ConferenceDemoLauncherLocalCell does not support decoding")
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private func configure(owner: Identity) async {
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, _ in
+            guard let self else { return .string("failure") }
+            return .object(self.cachedState)
+        })
+
+        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, _ in
+            guard let self else { return .string("failure") }
+            return await self.handleDispatchAction(value)
+        })
+    }
+
+    private func handleDispatchAction(_ value: ValueType) async -> ValueType {
+        guard case let .object(object) = value,
+              case let .string(actionKeypath)? = object["keypath"] else {
+            cachedState = Self.stateWithStatus(
+                basedOn: cachedState,
+                status: "Launcheren kunne ikke lese handlingen.",
+                actionSummary: "Payloaden manglet action-keypath."
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedState)
+            ])
+        }
+
+        guard let configuration = configuration(for: actionKeypath) else {
+            cachedState = Self.stateWithStatus(
+                basedOn: cachedState,
+                status: "Launcheren støtter ikke denne handlingen ennå.",
+                actionSummary: "Ukjent launcher-handling: \(actionKeypath)"
+            )
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedState)
+            ])
+        }
+
+        let successSummary = successSummary(for: actionKeypath, configurationName: configuration.name)
+        cachedState = Self.stateWithStatus(
+            basedOn: cachedState,
+            status: "Åpner \(configuration.name)…",
+            actionSummary: successSummary
+        )
+        scheduleWorkbenchLoad(configuration, successSummary: successSummary)
+        return .object([
+            "status": .string("ok"),
+            "state": .object(cachedState)
+        ])
+    }
+
+    private func scheduleWorkbenchLoad(
+        _ configuration: CellConfiguration,
+        successSummary: String
+    ) {
+        Task { @MainActor [weak self] in
+            BindingPortholeLoadBridge.post(configuration: configuration)
+            guard let self else { return }
+            self.cachedState = Self.stateWithStatus(
+                basedOn: self.cachedState,
+                status: "Launcheren åpnet \(configuration.name).",
+                actionSummary: successSummary
+            )
+        }
+    }
+
+    private func configuration(for actionKeypath: String) -> CellConfiguration? {
+        switch actionKeypath {
+        case "launcher.openPublicSurface":
+            return ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+                endpoint: "cell://\(Self.stagingHost)/ConferencePublicShell"
+            )
+        case "launcher.openParticipantCockpit":
+            return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceParticipantPreviewShell"
+            )
+        case "launcher.openParticipantChat":
+            return ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
+                participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+            )
+        case "launcher.openControlTower":
+            return ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceAdminPreviewShell"
+            )
+        case "launcher.openAIAssistant":
+            return ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+                conferenceEndpoint: "cell://\(Self.stagingHost)/ConferenceParticipantPreviewShell",
+                aiEndpoint: "cell://\(Self.stagingHost)/AIGateway"
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func successSummary(for actionKeypath: String, configurationName: String) -> String {
+        switch actionKeypath {
+        case "launcher.openPublicSurface":
+            return "Åpner den publiserte conference-flaten først."
+        case "launcher.openParticipantCockpit":
+            return "Åpner deltagerportalen i samme demo-løp."
+        case "launcher.openParticipantChat":
+            return "Åpner den eksplisitte chatflaten for participant-flyten."
+        case "launcher.openControlTower":
+            return "Bytter til organizer-perspektivet i control tower."
+        case "launcher.openAIAssistant":
+            return "Åpner conference-copiloten side om side med participant preview-state."
+        default:
+            return "Åpner \(configurationName)."
+        }
+    }
+
+    private static func stateWithStatus(
+        basedOn base: Object,
+        status: String,
+        actionSummary: String
+    ) -> Object {
+        var updated = base
+        updated["statusSummary"] = .string(status)
+        updated["actionSummary"] = .string(actionSummary)
+        return updated
+    }
+
+    private static func defaultState() -> Object {
+        [
+            "intro": .string("Dette er Binding sin parity-launcher for conference-demoen. Den holder seg til eksisterende conference-konfigurasjoner og bruker samme Porthole-session hele veien."),
+            "statusSummary": .string("Launcheren er klar. Start med den publiserte public surface før du går videre til participant eller organizer."),
+            "actionSummary": .string("Velg en act under for å åpne neste conference-flate."),
+            "nextStepSummary": .string("Act 0 åpner public surface. Derfra går du videre til participant cockpit, chat og control tower."),
+            "readinessSummary": .string("Public opener, participant cockpit, explicit chat, control tower og AI assistant er tilgjengelige som egne konfigurasjoner i Binding."),
+            "stretchSummary": .string("Nearby-radar forblir en tydelig merket Binding-only stretch, og er ikke del av den staging-first demo-historien."),
+            "publicActSummary": .string("Vis publisert landing, spor og program som faktisk kommer fra CellScaffold på staging."),
+            "participantActSummary": .string("Fortsett i participant-portalen og åpne chatflaten eksplisitt når samtalen er startet."),
+            "organizerActSummary": .string("Bytt deretter til control tower eller AI assistant for organizer-/briefing-perspektivet.")
         ]
     }
 }

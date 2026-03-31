@@ -4964,6 +4964,22 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "partnering", "event-day"]
             ),
             StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///ConferenceDemoLauncher",
+                sourceCellName: "ConferenceDemoLauncherLocalCell",
+                displayName: "Conference Demo Launcher",
+                purpose: "Conference demo launcher",
+                purposeDescription: "Fast startflate for konferansedemoen i Binding. Hver knapp laster en eksisterende conference-konfigurasjon i samme Porthole-session, tett opp mot CellScaffold-historien.",
+                interests: ["conference", "demo", "launcher", "participant", "organizer", "binding", "web"],
+                summary: "Deterministisk launcher for konferansedemoen i Binding, med public opener, participant cockpit, chat og control tower i fast rekkefølge.",
+                categoryPath: ["experiences", "conference", "demo"],
+                tags: ["conference", "demo", "launcher", "participant", "organizer"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "LOCAL FLOW",
+                borderColor: "#0F766E",
+                flowDriven: true,
+                recommendedContexts: ["conference", "demo", "story"]
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///ConferenceParticipantPreviewShell",
                 sourceCellName: "ConferenceParticipantPreviewShellLocalFallbackCell",
                 displayName: "Conference Participant Portal Dashboard",
@@ -5681,6 +5697,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 displayName: descriptor.displayName,
                 summary: descriptor.summary
             )
+        case "cell:///conferencedemolauncher":
+            return conferenceDemoLauncherWorkbenchConfiguration()
         case "cell:///conferenceparticipantpreviewshell", "cell://staging.haven.digipomps.org/conferenceparticipantpreviewshell":
             if descriptor.displayName == "Conference AI Assistant" {
                 let aiEndpoint: String
@@ -6157,6 +6175,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             endpoint: endpoint,
             displayName: "Conference Participant Portal Dashboard",
             summary: "Participant-shell med agenda, anbefalinger og meeting timeline over lokal preview-wrapper i Binding."
+        )
+    }
+
+    nonisolated static func conferenceDemoLauncherWorkbenchConfiguration() -> CellConfiguration {
+        conferenceDemoLauncherWorkbenchConfiguration(
+            displayName: "Conference Demo Launcher",
+            summary: "Deterministisk launcher for konferansedemoen i Binding, tett opp mot CellScaffold sin demo-historie."
         )
     }
 
@@ -7170,10 +7195,37 @@ final class ConfigurationCatalogCell: GeneralCell {
                             )
                         ])
                     ),
+                    bindingConferencePortalStaticText(
+                        "Chat-utdrag",
+                        fontSize: 13,
+                        fontWeight: "bold",
+                        foregroundColor: "#B9FBC0",
+                        lineLimit: 1
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Meldingene ligger i en smalere kolonne, så chatten leses mer som en vanlig samtale enn som brede dashboard-kort.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 4
+                    ),
+                    bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "chatSnapshot.state.recentMessages",
+                        min: 280,
+                        max: 360,
+                        itemSkeleton: bindingConferencePortalMessageCardSkeleton()
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Forslag til handlinger",
+                        fontSize: 13,
+                        fontWeight: "bold",
+                        foregroundColor: "#B9FBC0",
+                        lineLimit: 1
+                    ),
                     bindingConferencePortalCollectionGrid(
                         keypath: "chatSnapshot.state.focusedActions",
                         min: 240,
-                        max: 320,
+                        max: 300,
                         itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                     ),
                     .HStack(
@@ -7201,22 +7253,146 @@ final class ConfigurationCatalogCell: GeneralCell {
                         itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
                     )
                 ]
-            ),
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func conferenceDemoLauncherWorkbenchConfiguration(
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceDemoLauncher",
+            sourceCellName: "ConferenceDemoLauncherLocalCell",
+            purpose: "Conference demo launcher",
+            purposeDescription: "Deterministisk startflate for conference-demoen i Binding. Hver knapp åpner en eksisterende conference-konfigurasjon i samme Porthole-session.",
+            interests: ["conference", "demo", "launcher", "participant", "organizer", "binding", "web"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var launcherReference = CellReference(
+            endpoint: "cell:///ConferenceDemoLauncher",
+            subscribeFeed: false,
+            label: "conferenceDemoLauncher"
+        )
+        launcherReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(launcherReference)
+
+        var root = SkeletonVStack(elements: [
             bindingConferencePortalCardSection(
-                "Meldinger i tråden",
+                "Conference Demo Launcher",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Her ser du de faktiske meldingene mellom deg og valgt deltager i denne demo-tråden.",
-                        fontSize: 12,
-                        foregroundColor: "#9AB3C3",
-                        lineLimit: 3
+                        "Conference Demo Launcher",
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        foregroundColor: "#F5FBFF"
                     ),
-                    bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
-                    bindingConferencePortalCollectionGrid(
-                        keypath: "chatSnapshot.state.recentMessages",
-                        min: 420,
-                        max: 1200,
-                        itemSkeleton: bindingConferencePortalMessageCardSkeleton()
+                    bindingConferencePortalKeyText("conferenceDemoLauncher.state.intro", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
+                    .Grid(
+                        SkeletonGrid(
+                            columns: [.adaptive(min: 220, max: 320)],
+                            spacing: 12,
+                            elements: [
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Status nå",
+                                    detailKeypath: "conferenceDemoLauncher.state.statusSummary",
+                                    noteKeypath: "conferenceDemoLauncher.state.actionSummary",
+                                    accentBorder: "#2F6B56",
+                                    accentText: "#B9FBC0",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Readiness",
+                                    detailKeypath: "conferenceDemoLauncher.state.readinessSummary",
+                                    noteKeypath: "conferenceDemoLauncher.state.stretchSummary",
+                                    accentBorder: "#2A4D61",
+                                    accentText: "#B9E6FF",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Neste steg",
+                                    detailKeypath: "conferenceDemoLauncher.state.nextStepSummary",
+                                    noteKeypath: "conferenceDemoLauncher.state.participantActSummary",
+                                    accentBorder: "#4D3F2A",
+                                    accentText: "#F4D58D",
+                                    height: 132
+                                )
+                            ]
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Act 0 · Public Opener",
+                content: [
+                    bindingConferencePortalKeyText("conferenceDemoLauncher.state.publicActSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton(
+                                "conferenceDemoLauncher",
+                                actionKeypath: "launcher.openPublicSurface",
+                                label: "Open public surface"
+                            ),
+                            bindingConferencePortalActionButton(
+                                "conferenceDemoLauncher",
+                                actionKeypath: "launcher.openParticipantCockpit",
+                                label: "Open participant cockpit"
+                            )
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Act 1 · Participant Cockpit",
+                content: [
+                    bindingConferencePortalKeyText("conferenceDemoLauncher.state.participantActSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton(
+                                "conferenceDemoLauncher",
+                                actionKeypath: "launcher.openParticipantCockpit",
+                                label: "Open participant cockpit"
+                            ),
+                            bindingConferencePortalActionButton(
+                                "conferenceDemoLauncher",
+                                actionKeypath: "launcher.openParticipantChat",
+                                label: "Open participant chat"
+                            )
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Act 2 · Organizer Perspective",
+                content: [
+                    bindingConferencePortalKeyText("conferenceDemoLauncher.state.organizerActSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton(
+                                "conferenceDemoLauncher",
+                                actionKeypath: "launcher.openControlTower",
+                                label: "Open control tower"
+                            ),
+                            bindingConferencePortalActionButton(
+                                "conferenceDemoLauncher",
+                                actionKeypath: "launcher.openAIAssistant",
+                                label: "Open AI assistant"
+                            )
+                        ])
                     )
                 ]
             )
@@ -7871,7 +8047,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                         bindingConferencePortalActionButton(
                             referenceLabel,
                             actionKeypath: "matchmaking.searchPeople",
-                            label: "Søk governance",
+                            label: "Finn governance-matcher",
                             payload: .object(["query": .string("governance")])
                         ),
                         bindingConferencePortalActionButton(
@@ -8513,8 +8689,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         var section = SkeletonSection(content: [
             bindingConferencePortalKeyText("title", fontSize: 14, fontWeight: "semibold", foregroundColor: "#F5FBFF"),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA"),
-            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED"),
-            bindingConferencePortalKeyText("note", fontSize: 12, foregroundColor: "#88A2B1")
+            bindingConferencePortalKeyText("detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 8),
+            bindingConferencePortalKeyText("note", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 3)
         ])
         section.modifiers = bindingConferencePortalInlineCardModifier()
         return .Section(section)

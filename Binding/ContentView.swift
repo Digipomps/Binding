@@ -1974,6 +1974,17 @@ struct ContentView: View {
                     message: "Oppgraderte lagret demo-start til nyeste conference-konfigurasjon."
                 )
             }
+            if decoded.name == "Conference Sponsor Follow-up" {
+                let demoLauncher = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+                if let updatedData = try? JSONEncoder().encode(demoLauncher) {
+                    demoStartConfigurationJSON = String(decoding: updatedData, as: UTF8.self)
+                }
+                diagnosticsStore.record(
+                    domain: "binding.demo",
+                    message: "Erstatter lagret sponsor-start med Conference Demo Launcher, så demoen starter i samme faste rekkefølge som CellScaffold."
+                )
+                return demoLauncher
+            }
             return decoded
         } catch {
             diagnosticsStore.record(
@@ -4094,6 +4105,10 @@ struct ContentView: View {
         ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration()
     }
 
+    static func conferenceDemoLauncherMenuSeedConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+    }
+
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
         func stagingEndpoint(_ cellName: String) -> String {
             "cell://\(Self.stagingHost)/\(cellName)"
@@ -4102,9 +4117,7 @@ struct ContentView: View {
         let chat = ConfigurationCatalogCell.scaffoldChatWorkbenchMenuConfiguration(
             endpoint: stagingEndpoint("Chat")
         )
-        let conference = ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(
-            endpoint: stagingEndpoint("ConferenceUIRouter")
-        )
+        let conferenceDemoLauncher = Self.conferenceDemoLauncherMenuSeedConfiguration()
         let conferenceParticipantPortal = Self.conferenceParticipantPortalMenuSeedConfiguration()
         let conferenceAIAssistant = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: stagingEndpoint("ConferenceParticipantPreviewShell"),
@@ -4113,9 +4126,6 @@ struct ContentView: View {
         let conferenceAdmin = Self.conferenceAdminMenuSeedConfiguration()
         let conferencePublic = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
             endpoint: stagingEndpoint("ConferencePublicShell")
-        )
-        let conferenceSponsor = ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
-            endpoint: stagingEndpoint("ConferenceSponsorShell")
         )
         let todo = referenceMenuConfiguration(
             name: "Todo MVP",
@@ -4146,11 +4156,11 @@ struct ContentView: View {
         let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
 
         return (
-            upperLeft: [chat, conference, conferencePublic, todo],
-            upperMid: [appleIntelligence, conferenceAIAssistant, conferenceParticipantPortal, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
-            upperRight: [conference, conferenceParticipantPortal, conferenceSponsor, conferenceAdmin, obsidian, portholeWorkbench],
+            upperLeft: [conferenceDemoLauncher, conferencePublic, chat, todo],
+            upperMid: [conferenceDemoLauncher, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
+            upperRight: [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, obsidian, portholeWorkbench],
             lowerLeft: [localEntityScanner, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
-            lowerMid: [todo, conferenceParticipantPortal, conferenceAIAssistant, conferenceSponsor, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
+            lowerMid: [conferenceDemoLauncher, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, todo, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
             lowerRight: [obsidian, vaultWorkbench, graphIndexWorkbench, trustedIssuersWorkbench]
         )
     }

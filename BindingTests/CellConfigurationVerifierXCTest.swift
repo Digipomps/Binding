@@ -43,7 +43,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Vis timeline",
                 "Vis lagret",
                 "Fokuser governance",
-                "Søk governance",
+                "Finn governance-matcher",
                 "Åpne chatflate"
             ],
             rootProbes: [
@@ -52,6 +52,42 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 .init(label: "discoverySnapshot", rootKeypath: "state"),
                 .init(label: "nearbyRadar", rootKeypath: "state"),
                 .init(label: "chatSnapshot", rootKeypath: "state")
+            ]
+        )
+
+        XCTAssertEqual(
+            report.validation.errorCount,
+            0,
+            "Validation issues: \(report.validation.issues)"
+        )
+        XCTAssertTrue(
+            report.unresolvedReferences.isEmpty,
+            "Unresolved references: \(report.unresolvedReferences)"
+        )
+        XCTAssertTrue(
+            report.unreadableRootProbes.isEmpty,
+            "Unreadable root probes: \(report.unreadableRootProbes)"
+        )
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Failed actions: \(report.failedActions)"
+        )
+    }
+
+    func testConferenceDemoLauncherContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Open public surface",
+                "Open participant cockpit",
+                "Open participant chat",
+                "Open control tower",
+                "Open AI assistant"
+            ],
+            rootProbes: [
+                .init(label: "conferenceDemoLauncher", rootKeypath: "state")
             ]
         )
 
@@ -455,7 +491,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
         let button = SkeletonButton(
             keypath: "matchmakingSnapshot.dispatchAction",
-            label: "Søk governance",
+            label: "Finn governance-matcher",
             payload: .object([
                 "keypath": .string("matchmaking.searchPeople"),
                 "payload": .object(["query": .string("governance")])
@@ -463,11 +499,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
 
         let response = await button.execute()
-        XCTAssertNotNil(response, "Renderer button path returned nil for Søk governance")
+        XCTAssertNotNil(response, "Renderer button path returned nil for Finn governance-matcher")
         if let response {
             XCTAssertNil(
                 SkeletonBindingProbeSupport.failureDetail(from: response),
-                "Renderer button path returned failure payload for Søk governance: \(response)"
+                "Renderer button path returned failure payload for Finn governance-matcher: \(response)"
             )
         }
 
@@ -475,7 +511,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             keypath: "matchmakingSnapshot.state.actionSummary",
             requester: context.owner
         )
-        XCTAssertEqual(actionSummary, .string("Oppdaterte anbefalingssøk."))
+        XCTAssertEqual(actionSummary, .string("Viser governance-relevante personer i anbefalingene."))
 
         let searchSummary = try await context.porthole.get(
             keypath: "matchmakingSnapshot.state.searchSummary",
@@ -487,7 +523,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Expected governance-focused search summary, got: \(searchSummaryText)"
             )
         } else {
-            XCTFail("Expected string searchSummary after Søk governance, got \(searchSummary)")
+            XCTFail("Expected string searchSummary after Finn governance-matcher, got \(searchSummary)")
         }
     }
 
@@ -810,12 +846,26 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             focusedThread["nextMessage"],
             ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.")
         )
+        XCTAssertEqual(
+            chatObject["draftMessage"],
+            ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.")
+        )
         XCTAssertEqual(firstRecentMessage["title"], ValueType.string("Ane Solberg"))
 
         _ = try await chatSnapshot.set(
             keypath: "setDraftMessage",
-            value: .string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon."),
+            value: .string("Hei Ane.  Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.  "),
             requester: context.owner
+        )
+
+        let draftAfterTyping = try await chatSnapshot.get(keypath: "state", requester: context.owner)
+        guard case let .object(draftStateObject) = draftAfterTyping else {
+            XCTFail("Expected chat snapshot state after updating draft")
+            return
+        }
+        XCTAssertEqual(
+            draftStateObject["draftMessage"],
+            ValueType.string("Hei Ane.  Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.  ")
         )
 
         let sendResponse = try await chatSnapshot.set(
@@ -854,7 +904,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(latestOutgoing["title"], ValueType.string("Deg"))
         XCTAssertEqual(
             latestOutgoing["detail"],
-            ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.")
+            ValueType.string("Hei Ane.  Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.")
         )
 
         let updatedChatState = try await chatSnapshot.get(keypath: "state", requester: context.owner)
@@ -864,6 +914,99 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
         XCTAssertEqual(updatedChatObject["draftMessage"], ValueType.string(""))
         XCTAssertEqual(updatedChatObject["chatSummary"], ValueType.string("4 shared message(s) visible."))
+
+        let expectedPortalLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Portal")
+        }
+        let returnResponse = try await chatSnapshot.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("openParticipantPortalWorkbench"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let returnResponse else {
+            XCTFail("Return to participant portal action returned nil response")
+            return
+        }
+        let returnFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: returnResponse)
+        }
+        XCTAssertNil(returnFailure)
+
+        guard let participantPortalConfiguration = await expectedPortalLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Participant Portal")
+            return
+        }
+        XCTAssertTrue(participantPortalConfiguration.name.contains("Conference Participant Portal"))
+
+        let focusedTitleAfterReturn = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.focusedProfile.title",
+            requester: context.owner
+        )
+        XCTAssertEqual(focusedTitleAfterReturn, ValueType.string("Ane Solberg"))
+    }
+
+    func testConferenceDemoLauncherCanOpenPublicSurfaceAndControlTower() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let expectedPublicSurfaceLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Public Surface")
+        }
+        let openPublicSurfaceResponse = try await context.porthole.set(
+            keypath: "conferenceDemoLauncher.dispatchAction",
+            value: .object([
+                "keypath": .string("launcher.openPublicSurface"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openPublicSurfaceResponse else {
+            XCTFail("Open public surface action returned nil response")
+            return
+        }
+        let openPublicSurfaceFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openPublicSurfaceResponse)
+        }
+        XCTAssertNil(openPublicSurfaceFailure)
+
+        guard let publicSurfaceConfiguration = await expectedPublicSurfaceLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Public Surface")
+            return
+        }
+        XCTAssertTrue(publicSurfaceConfiguration.name.contains("Conference Public Surface"))
+        XCTAssertTrue(publicSurfaceConfiguration.cellReferences?.contains(where: { $0.label == "conferencePublicShell" }) == true)
+
+        let expectedControlTowerLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Control Tower")
+        }
+        let openControlTowerResponse = try await context.porthole.set(
+            keypath: "conferenceDemoLauncher.dispatchAction",
+            value: .object([
+                "keypath": .string("launcher.openControlTower"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openControlTowerResponse else {
+            XCTFail("Open control tower action returned nil response")
+            return
+        }
+        let openControlTowerFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openControlTowerResponse)
+        }
+        XCTAssertNil(openControlTowerFailure)
+
+        guard let controlTowerConfiguration = await expectedControlTowerLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Control Tower")
+            return
+        }
+        XCTAssertTrue(controlTowerConfiguration.name.contains("Conference Control Tower"))
+        XCTAssertTrue(controlTowerConfiguration.cellReferences?.contains(where: { $0.label == "conferenceAdminShell" }) == true)
     }
 
     private func waitForPortholeSkeleton(
