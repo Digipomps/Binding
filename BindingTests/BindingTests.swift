@@ -1426,7 +1426,10 @@ struct BindingTests {
         #expect(object["statusSummary"] != nil)
         #expect(object["selectionSummary"] == .string("Viser den delte tråden med Ane Solberg."))
         #expect(object["draftSummary"] == .string("Skriv en kort oppfølging til Ane Solberg og send den direkte fra denne flaten."))
+        #expect(object["personaSummary"] == .string("Ane Solberg · Public sector interoperability"))
+        #expect(object["simulationSummary"] == .string("Demo-svarene holder seg til en bounded persona som representerer offentlig samhandling og governance."))
         #expect(focusedThread["title"] == .string("Ane Solberg"))
+        #expect(focusedThread["nextMessage"] == .string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis."))
         #expect(object["connections"] != nil)
         #expect(object["recentMessages"] != nil)
 
@@ -1962,7 +1965,7 @@ struct BindingTests {
             Issue.record("Expected recent messages list")
             return
         }
-        #expect(firstMessage["detail"] == .string("Nearby follow-up with Nora Berg is ready in discovery chat."))
+        #expect(firstMessage["detail"] == .string("Ja, gjerne. Jobber med tillit, relasjoner og hvordan identitet og oppfølging kan flyte mellom team. Hvis du vil, kan vi ta et kort neste steg etter sesjonen."))
     }
 
     @Test func conferenceParticipantPreviewFallbackSupportsRecommendationFocusAndFollowUpActions() async throws {
@@ -4061,10 +4064,11 @@ struct CellConfigurationVerifierTests {
                 "Conference Chat · Oppfølging",
                 "Conference chat · oppfølging",
                 "Delte tråder",
+                "Demo-deltager",
                 "Samtalen nå",
                 "Skriv melding",
                 "Send melding",
-                "Samtaleutdrag",
+                "Meldinger i tråden",
                 "Tilbake til portalen"
             ]
         )

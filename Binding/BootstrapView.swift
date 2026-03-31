@@ -363,6 +363,104 @@ private struct ConferenceParticipantPreviewFallbackMessage: Equatable {
     }
 }
 
+private struct ConferenceDemoPersona {
+    var name: String
+    var roleSummary: String
+    var publicProfileDetail: String
+    var fitContext: String
+    var conversationStyle: String
+    var suggestedOpening: String
+    var simulatedAgentSummary: String
+}
+
+private func conferenceDemoPersona(named rawName: String?) -> ConferenceDemoPersona {
+    let name = rawName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    switch name {
+    case "Ane Solberg":
+        return ConferenceDemoPersona(
+            name: "Ane Solberg",
+            roleSummary: "Public sector interoperability",
+            publicProfileDetail: "Jobber med offentlig samhandling, interoperabilitet og styring på tvers av virksomheter.",
+            fitContext: "Sterk på governance, leveranse og offentlig koordinering.",
+            conversationStyle: "Kort, konkret og opptatt av hva som faktisk kan følges opp etter sesjonen.",
+            suggestedOpening: "Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.",
+            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer offentlig samhandling og governance."
+        )
+    case "Mads Hovden":
+        return ConferenceDemoPersona(
+            name: "Mads Hovden",
+            roleSummary: "Policy and compliance",
+            publicProfileDetail: "Jobber med policy, etterlevelse og hvordan claims og tillit kan forankres organisatorisk.",
+            fitContext: "Sterk på policy, claims og operativ compliance.",
+            conversationStyle: "Svarene er strukturerte og dreier raskt inn mot ansvar, policy og beslutningsløp.",
+            suggestedOpening: "Hei Mads. Jeg vil gjerne høre hvordan du kobler policy og claims til konkrete driftsvalg.",
+            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer policy, claims og compliance."
+        )
+    case "Lea Heger":
+        return ConferenceDemoPersona(
+            name: "Lea Heger",
+            roleSummary: "Digital service design",
+            publicProfileDetail: "Kobler konferansens temaer til tjenestedesign, produktvalg og tydelige brukerforløp.",
+            fitContext: "Sterk på oversettelsen fra strategi til faktisk tjenesteopplevelse.",
+            conversationStyle: "Svarene er brukerorienterte og prøver å gjøre neste steg konkret og forståelig.",
+            suggestedOpening: "Hei Lea. Jeg vil gjerne høre hvordan du ville oversatt governance-sporet til konkrete tjenestevalg.",
+            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer tjenestedesign og produktnær oppfølging."
+        )
+    case "Nora Berg":
+        return ConferenceDemoPersona(
+            name: "Nora Berg",
+            roleSummary: "Trust infrastructure",
+            publicProfileDetail: "Jobber med tillit, relasjoner og hvordan identitet og oppfølging kan flyte mellom team.",
+            fitContext: "Sterk på tillit, samarbeid og relasjonell oppfølging.",
+            conversationStyle: "Svarene er varme og samarbeidsorienterte, men prøver raskt å lande neste steg.",
+            suggestedOpening: "Hei Nora. Jeg tror vi har overlapp på trust og oppfølging. Har du tid til en kort prat etter neste sesjon?",
+            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer tillit, relasjoner og oppfølging."
+        )
+    default:
+        let fallbackName = name.isEmpty ? "Konferansekontakt" : name
+        return ConferenceDemoPersona(
+            name: fallbackName,
+            roleSummary: "Conference follow-up",
+            publicProfileDetail: "Representerer en generell konferansedeltager med offentlig profil og tydelig oppfølgingskontekst.",
+            fitContext: "Relevant for videre conference-oppfølging.",
+            conversationStyle: "Svarene er korte og forsøker å lande et konkret neste steg.",
+            suggestedOpening: "Hei. Jeg tror vi har relevant overlapp og vil gjerne ta en kort oppfølgingsprat etter neste sesjon.",
+            simulatedAgentSummary: "Demo-svarene holder seg til en bounded konferansepersona, ikke fri generativ improvisasjon."
+        )
+    }
+}
+
+private func conferenceDemoReply(
+    to message: String,
+    persona: ConferenceDemoPersona,
+    priorTurns: Int
+) -> String {
+    let lowered = message.lowercased()
+    if lowered.contains("governance") {
+        return priorTurns > 0
+            ? "Ja, governance er fortsatt mest relevant for meg. Hvis du vil, kan vi gjøre det konkret og se på neste steg rett etter sesjonen."
+            : "Ja, gjerne. Governance er også mitt hovedspor. Jeg kan ta 10 minutter etter neste sesjon."
+    }
+    if lowered.contains("interoperabilitet") || lowered.contains("interop") {
+        return "\(persona.name) her: det er også der jeg bruker mest tid nå. Jeg tror vi kan få en god prat hvis vi gjør det konkret rundt samhandling og ansvar."
+    }
+    if lowered.contains("sesjon") || lowered.contains("session") {
+        return "Det passer bra. Jeg blir igjen etter neste sesjon, så vi kan ta praten da."
+    }
+    if lowered.contains("møte") || lowered.contains("meeting") {
+        return "Ja, la oss gjøre det konkret. Jeg har et lite vindu etter lunsj om det passer."
+    }
+    return "Takk. Dette ser relevant ut for meg også, så vi kan gjerne følge opp videre. \(persona.conversationStyle)"
+}
+
+private func conferenceDemoStarterMessage(for persona: ConferenceDemoPersona) -> String {
+    persona.suggestedOpening
+}
+
+private func conferenceDemoStarterReply(for persona: ConferenceDemoPersona) -> String {
+    "Ja, gjerne. \(persona.publicProfileDetail) Hvis du vil, kan vi ta et kort neste steg etter sesjonen."
+}
+
 actor ConferenceParticipantPreviewFallbackStateStore {
     static let shared = ConferenceParticipantPreviewFallbackStateStore()
 
@@ -2619,12 +2717,14 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
                case let .string(text)? = messageObject["text"],
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let focusedThreadName = launchedDiscoveryChatNames.first ?? focusedRecommendationName ?? "Konferansekontakt"
+                let persona = conferenceDemoPersona(named: focusedThreadName)
+                let priorTurns = recentMessages.filter { $0.title == persona.name }.count
                 prependRecentMessages([
                     ConferenceParticipantPreviewFallbackMessage(
-                        title: focusedThreadName,
-                        subtitle: "Simulert demosvar",
-                        detail: simulatedReply(to: text, from: focusedThreadName),
-                        note: "Siste melding i delt tråd"
+                        title: persona.name,
+                        subtitle: "Simulert deltager · \(persona.roleSummary)",
+                        detail: conferenceDemoReply(to: text, persona: persona, priorTurns: priorTurns),
+                        note: "Siste melding i delt tråd · \(persona.conversationStyle)"
                     ),
                     ConferenceParticipantPreviewFallbackMessage(
                         title: "Deg",
@@ -2638,20 +2738,21 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
         case "discovery.startChat":
             let targetNames = discoveryTargetNames(from: payload)
             if let firstTarget = targetNames.first {
+                let persona = conferenceDemoPersona(named: firstTarget)
                 launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
                 launchedDiscoveryChatNames.insert(firstTarget, at: 0)
                 launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
                 prependRecentMessages([
                     ConferenceParticipantPreviewFallbackMessage(
-                        title: firstTarget,
-                        subtitle: "Svar i delt tråd",
-                        detail: "Ja, gjerne. La oss fortsette praten om governance og oppfølging etter neste sesjon.",
-                        note: "Siste melding i delt tråd"
+                        title: persona.name,
+                        subtitle: "Simulert deltager · \(persona.roleSummary)",
+                        detail: conferenceDemoStarterReply(for: persona),
+                        note: "Delt tråd er klar · \(persona.simulatedAgentSummary)"
                     ),
                     ConferenceParticipantPreviewFallbackMessage(
                         title: "Deg",
                         subtitle: "Startet fra deltagerportalen",
-                        detail: "Hei \(firstTarget). Skal vi fortsette praten etter neste sesjon?",
+                        detail: conferenceDemoStarterMessage(for: persona),
                         note: "Chat startet i deltagerportalen"
                     )
                 ])
@@ -2699,20 +2800,6 @@ private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralC
             recentMessages.insert(message, at: 0)
         }
         recentMessages = Array(recentMessages.prefix(6))
-    }
-
-    private func simulatedReply(to message: String, from name: String) -> String {
-        let lowered = message.lowercased()
-        if lowered.contains("governance") {
-            return "Ja, gjerne. Governance er også mitt hovedspor. Jeg kan ta 10 minutter etter neste sesjon."
-        }
-        if lowered.contains("sesjon") || lowered.contains("session") {
-            return "Det passer bra. Jeg blir igjen etter neste sesjon, så vi kan ta praten da."
-        }
-        if lowered.contains("møte") || lowered.contains("meeting") {
-            return "Ja, la oss gjøre det konkret. Jeg har et lite vindu etter lunsj om det passer."
-        }
-        return "Takk. Dette ser relevant ut for meg også, så vi kan gjerne følge opp videre."
     }
 
     private func makeStateObject() -> Object {
@@ -4336,10 +4423,14 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
                 "publicProfileSummary": .string(publicSummary),
                 "profileDetail": .string("Vi viser offentlig profil, lokal begrunnelse og neste steg når en kandidat er valgt."),
                 "fitSummary": .string("Ingen discovery-kandidat er valgt ennå."),
-                "nextStep": .string("Velg en kandidat først, og bruk deretter chat, oppfølging eller møte.")
+                "nextStep": .string("Velg en kandidat først, og bruk deretter chat, oppfølging eller møte."),
+                "conversationStyle": .string("Når en kandidat er valgt, viser vi hvordan demo-personaen typisk svarer i chat."),
+                "openingPrompt": .string("Velg en kandidat først for å se et godt forslag til åpningsmelding."),
+                "simulationSummary": .string("Demo-svarene er bounded og følger valgt deltagerprofil.")
             ]
         }
 
+        let persona = conferenceDemoPersona(named: cardTitle(from: focusedCard))
         return [
             "selectionBadge": .string("VALGT I DISCOVERY"),
             "title": .string(cardTitle(from: focusedCard)),
@@ -4347,9 +4438,12 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             "detail": .string(cardDetail(from: focusedCard)),
             "note": .string("\(cardNote(from: focusedCard)) · \(publicSummary)"),
             "publicProfileSummary": .string(publicSummary),
-            "profileDetail": .string("Offentlig profil: \(cardSubtitle(from: focusedCard)). \(cardDetail(from: focusedCard))"),
+            "profileDetail": .string("Offentlig profil: \(cardSubtitle(from: focusedCard)). \(cardDetail(from: focusedCard)) \(persona.publicProfileDetail)"),
             "fitSummary": .string(cardNote(from: focusedCard)),
-            "nextStep": .string("Bruk Start chat, Marker for oppfølging eller Be om møte med \(cardTitle(from: focusedCard)).")
+            "nextStep": .string("Bruk Start chat, Marker for oppfølging eller Be om møte med \(cardTitle(from: focusedCard))."),
+            "conversationStyle": .string(persona.conversationStyle),
+            "openingPrompt": .string(persona.suggestedOpening),
+            "simulationSummary": .string(persona.simulatedAgentSummary)
         ]
     }
 
@@ -5012,10 +5106,14 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
                 "publicProfileSummary": .string("Velg en anbefaling for å se en tydelig offentlig profil og lokal oppsummering her."),
                 "profileDetail": .string("Vi viser fagområde, begrunnelse og anbefalt neste steg når en deltaker er valgt."),
                 "fitSummary": .string("Ingen anbefalt deltaker er valgt ennå."),
-                "nextStep": .string("Velg en anbefaling først, og bruk deretter chat, oppfølging eller møte.")
+                "nextStep": .string("Velg en anbefaling først, og bruk deretter chat, oppfølging eller møte."),
+                "conversationStyle": .string("Når en deltaker er valgt, viser vi hvordan demo-personaen typisk svarer i chat."),
+                "openingPrompt": .string("Velg en anbefaling først for å se et konkret forslag til åpningsmelding."),
+                "simulationSummary": .string("Demo-svarene er bounded og følger valgt deltagerprofil.")
             ]
         }
 
+        let persona = conferenceDemoPersona(named: cardTitle(from: focusedCard))
         return [
             "selectionBadge": .string("VALGT DELTAKER"),
             "title": .string(cardTitle(from: focusedCard)),
@@ -5023,9 +5121,12 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             "detail": .string(cardDetail(from: focusedCard)),
             "note": .string(cardNote(from: focusedCard)),
             "publicProfileSummary": .string("Offentlig profil: \(cardSubtitle(from: focusedCard))."),
-            "profileDetail": .string(cardDetail(from: focusedCard)),
-            "fitSummary": .string(cardNote(from: focusedCard)),
-            "nextStep": .string("Bruk Start chat, Marker for oppfølging eller Be om møte med \(cardTitle(from: focusedCard)).")
+            "profileDetail": .string("\(cardDetail(from: focusedCard)) \(persona.publicProfileDetail)"),
+            "fitSummary": .string("\(cardNote(from: focusedCard)) · \(persona.fitContext)"),
+            "nextStep": .string("Bruk Start chat, Marker for oppfølging eller Be om møte med \(cardTitle(from: focusedCard))."),
+            "conversationStyle": .string(persona.conversationStyle),
+            "openingPrompt": .string(persona.suggestedOpening),
+            "simulationSummary": .string(persona.simulatedAgentSummary)
         ]
     }
 
@@ -5548,6 +5649,9 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             connectionCount: connectionRows.count
         ))
         merged["actionSummary"] = .string(recentActionSummary)
+        merged["personaSummary"] = .string(personaSummary(focusedName: effectiveFocusedName))
+        merged["personaDetail"] = .string(personaDetail(focusedName: effectiveFocusedName))
+        merged["simulationSummary"] = .string(simulationSummary(focusedName: effectiveFocusedName))
         merged["focusedThread"] = .object(focusedThreadObject(
             focusedName: effectiveFocusedName,
             connectionRows: connectionRows,
@@ -5597,6 +5701,28 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         return "Velg en delt tråd og fortsett oppfølgingen derfra."
     }
 
+    private func personaSummary(focusedName: String?) -> String {
+        guard let focusedName else {
+            return "Ingen demo-deltager er valgt ennå."
+        }
+        let persona = conferenceDemoPersona(named: focusedName)
+        return "\(persona.name) · \(persona.roleSummary)"
+    }
+
+    private func personaDetail(focusedName: String?) -> String {
+        guard let focusedName else {
+            return "Når en tråd er valgt, viser vi offentlig profil og samtalestil for demo-deltageren her."
+        }
+        return conferenceDemoPersona(named: focusedName).publicProfileDetail
+    }
+
+    private func simulationSummary(focusedName: String?) -> String {
+        guard let focusedName else {
+            return "Svarene i demoen er bounded og følger valgt deltagerprofil."
+        }
+        return conferenceDemoPersona(named: focusedName).simulatedAgentSummary
+    }
+
     private func draftSummary(focusedName: String?, connectionCount: Int) -> String {
         if let focusedName {
             return "Skriv en kort oppfølging til \(focusedName) og send den direkte fra denne flaten."
@@ -5609,7 +5735,8 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
 
     private func draftHint(focusedName: String?) -> String {
         if let focusedName {
-            return "Hold meldingen kort og konkret. Det skal være tydelig hvorfor du tar kontakt med \(focusedName)."
+            let persona = conferenceDemoPersona(named: focusedName)
+            return "Hold meldingen kort og konkret. \(persona.conversationStyle) Svarene i demoen følger denne personaen."
         }
         return "Når en tråd er valgt, kan du skrive en egen melding eller bruke forslagsteksten som utgangspunkt."
     }
@@ -5635,7 +5762,8 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         let latestMessage = messageRows.first.flatMap { string(from: $0["detail"]) }
         let note = latestMessage.map { "Siste melding: \($0)" }
             ?? "Ingen melding sendt ennå. Send en kort oppfølging for å gjøre chatten tydelig i demoen."
-        let suggestedNextMessage = "Hei \(focusedName). Takk for praten. Skal vi ta 10 minutter etter neste sesjon?"
+        let persona = conferenceDemoPersona(named: focusedName)
+        let suggestedNextMessage = persona.suggestedOpening
 
         return [
             "selectionBadge": .string("VALGT TRÅD"),
@@ -5644,7 +5772,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             "detail": .string(cardDetail(from: connection)),
             "note": .string(note),
             "nextMessage": .string(suggestedNextMessage),
-            "nextMessageHint": .string("Bruk compose-feltet under for å skrive en egen melding, eller send forslagsteksten med ett trykk.")
+            "nextMessageHint": .string("Bruk compose-feltet under for å skrive en egen melding, eller send forslagsteksten med ett trykk. Demo-svaret holder seg til \(persona.roleSummary.lowercased()).")
         ]
     }
 
@@ -5676,7 +5804,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             "payload": .object([
                 "keypath": .string("connections.postSharedMessage"),
                 "payload": .object([
-                    "text": .string("Hei \(focusedName). Skal vi fortsette praten etter neste sesjon?"),
+                    "text": .string(conferenceDemoPersona(named: focusedName).suggestedOpening),
                     "contentType": .string("text/plain")
                 ])
             ])
@@ -5805,7 +5933,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             }
 
             draftMessage = ""
-            recentActionSummary = "Sendte meldingen til \(focusedName)."
+            recentActionSummary = "Sendte meldingen til \(focusedName). Demo-personaen svarte i samme tråd."
 
             let stateValue = try await previewShell.get(keypath: "state", requester: requester)
             guard case let .object(stateObject) = stateValue else {
@@ -5987,6 +6115,9 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             "threadSummary": .string("0 delte tråder synlige."),
             "recentMessagesSummary": .string("0 delte meldinger synlige."),
             "chatSummary": .string("0 delte meldinger synlige."),
+            "personaSummary": .string("Ingen demo-deltager er valgt ennå."),
+            "personaDetail": .string("Når en tråd er valgt, viser vi offentlig profil og samtalestil for demo-deltageren her."),
+            "simulationSummary": .string("Svarene i demoen er bounded og følger valgt deltagerprofil."),
             "draftMessage": .string(""),
             "draftSummary": .string("Start en chat i deltagerportalen først, så kan du skrive en egen melding her."),
             "draftHint": .string("Når en tråd er valgt, kan du skrive en egen melding eller bruke forslagsteksten som utgangspunkt."),

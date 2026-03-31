@@ -7112,6 +7112,14 @@ final class ConfigurationCatalogCell: GeneralCell {
                                     accentBorder: "#4D3F2A",
                                     accentText: "#F4D58D",
                                     height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Demo-deltager",
+                                    detailKeypath: "chatSnapshot.state.personaSummary",
+                                    noteKeypath: "chatSnapshot.state.simulationSummary",
+                                    accentBorder: "#2A4D61",
+                                    accentText: "#B9E6FF",
+                                    height: 132
                                 )
                             ]
                         )
@@ -7195,8 +7203,14 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ]
             ),
             bindingConferencePortalCardSection(
-                "Samtaleutdrag",
+                "Meldinger i tråden",
                 content: [
+                    bindingConferencePortalStaticText(
+                        "Her ser du de faktiske meldingene mellom deg og valgt deltager i denne demo-tråden.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 3
+                    ),
                     bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
                     bindingConferencePortalCollectionGrid(
                         keypath: "chatSnapshot.state.recentMessages",
@@ -7801,6 +7815,14 @@ final class ConfigurationCatalogCell: GeneralCell {
                                 noteKeypath: "\(referenceLabel).state.navigationSummary",
                                 accentBorder: "#4D3F2A",
                                 accentText: "#F4D58D",
+                                height: 148
+                            ),
+                            bindingConferencePortalStateSummaryCard(
+                                title: "Bra åpning",
+                                detailKeypath: "\(referenceLabel).state.focusedProfile.openingPrompt",
+                                noteKeypath: "\(referenceLabel).state.focusedProfile.simulationSummary",
+                                accentBorder: "#2F6B56",
+                                accentText: "#B9FBC0",
                                 height: 148
                             )
                         ]

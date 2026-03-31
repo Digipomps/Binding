@@ -185,7 +185,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(report.nearbyActionSummary, "Startet conference-chat med Nora Berg.")
         XCTAssertEqual(report.workspaceNextStep, "Started follow-up chat with Nora Berg in local preview.")
         XCTAssertEqual(report.sharedChatSummary, "2 shared message(s) visible.")
-        XCTAssertEqual(report.firstRecentMessage, "Ja, gjerne. La oss fortsette praten om governance og oppfølging etter neste sesjon.")
+        XCTAssertEqual(report.firstRecentMessage, "Ja, gjerne. Jobber med tillit, relasjoner og hvordan identitet og oppfølging kan flyte mellom team. Hvis du vil, kan vi ta et kort neste steg etter sesjonen.")
         XCTAssertEqual(report.stopOutcome, "ok")
         XCTAssertEqual(report.statusAfterStop, "stopped")
     }
@@ -800,7 +800,16 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
 
         XCTAssertEqual(chatObject["selectionSummary"], ValueType.string("Viser den delte tråden med Ane Solberg."))
+        XCTAssertEqual(chatObject["personaSummary"], ValueType.string("Ane Solberg · Public sector interoperability"))
+        XCTAssertEqual(
+            chatObject["simulationSummary"],
+            ValueType.string("Demo-svarene holder seg til en bounded persona som representerer offentlig samhandling og governance.")
+        )
         XCTAssertEqual(focusedThread["title"], ValueType.string("Ane Solberg"))
+        XCTAssertEqual(
+            focusedThread["nextMessage"],
+            ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.")
+        )
         XCTAssertEqual(firstRecentMessage["title"], ValueType.string("Ane Solberg"))
 
         _ = try await chatSnapshot.set(
@@ -840,7 +849,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(latestReply["title"], ValueType.string("Ane Solberg"))
         XCTAssertEqual(
             latestReply["detail"],
-            ValueType.string("Ja, gjerne. Governance er også mitt hovedspor. Jeg kan ta 10 minutter etter neste sesjon.")
+            ValueType.string("Ja, governance er fortsatt mest relevant for meg. Hvis du vil, kan vi gjøre det konkret og se på neste steg rett etter sesjonen.")
         )
         XCTAssertEqual(latestOutgoing["title"], ValueType.string("Deg"))
         XCTAssertEqual(
@@ -1025,10 +1034,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Conference Chat · Oppfølging",
                 "Conference chat · oppfølging",
                 "Delte tråder",
+                "Demo-deltager",
                 "Samtalen nå",
                 "Skriv melding",
                 "Send melding",
-                "Samtaleutdrag",
+                "Meldinger i tråden",
                 "Tilbake til portalen"
             ]
         )
