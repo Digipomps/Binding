@@ -4240,12 +4240,9 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             if let firstTarget = targetNames.first {
                 focusedDiscoveryName = firstTarget
                 await rememberSelectedParticipant(firstTarget)
-                launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
-                launchedDiscoveryChatNames.insert(firstTarget, at: 0)
-                launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
-                recentActionSummary = "Startet chat med \(firstTarget) fra discovery."
+                recentActionSummary = "Starter chat med \(firstTarget) fra discovery…"
             } else {
-                recentActionSummary = "Startet chat fra discovery."
+                recentActionSummary = "Starter chat fra discovery…"
             }
             forwardedAction = .object([
                 "keypath": .string(actionKeypath),
@@ -4984,12 +4981,9 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             if let firstTarget = targetNames.first {
                 focusedRecommendationName = firstTarget
                 await rememberSelectedParticipant(firstTarget)
-                launchedChatNames.removeAll { $0 == firstTarget }
-                launchedChatNames.insert(firstTarget, at: 0)
-                launchedChatNames = Array(launchedChatNames.prefix(4))
-                recentActionSummary = "Startet chat med \(firstTarget)."
+                recentActionSummary = "Starter chat med \(firstTarget)…"
             } else {
-                recentActionSummary = "Startet chat fra anbefalingsflaten."
+                recentActionSummary = "Starter chat fra anbefalingsflaten…"
             }
         case "scheduling.createMeetingRequest":
             if let focusedRecommendationName {
@@ -5681,7 +5675,19 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                 focusedChatName = displayName
                 await rememberSelectedParticipant(displayName)
             }
-            await refreshSnapshotIfNeeded(force: true, forwardAction: nil, requester: requester)
+            let threadReady = await ensureSharedThreadReady(requester: requester)
+            if !threadReady {
+                let currentState = mergedChatState(from: cachedChatState)
+                cachedChatState = Self.chatStateWithStatus(
+                    basedOn: currentState,
+                    status: string(from: currentState["statusSummary"]) ?? "Ingen delt tråd er klar ennå.",
+                    actionSummary: recentActionSummary
+                )
+                return .object([
+                    "status": .string("error"),
+                    "state": .object(cachedChatState)
+                ])
+            }
             return await openChatWorkbench(requester: requester)
 
         case "openParticipantPortalWorkbench":
@@ -6195,6 +6201,120 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                 "state": .object(cachedChatState)
             ])
         }
+    }
+
+    private func ensureSharedThreadReady(requester: Identity) async -> Bool {
+        await AppInitializer.initialize()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let previewShell = try? await resolver.cellAtEndpoint(
+                endpoint: "cell:///ConferenceParticipantPreviewShell",
+                requester: requester
+              ) as? Meddle else {
+            recentActionSummary = "Kunne ikke åpne chatflaten fordi deltager-preview ikke er tilgjengelig."
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: mergedChatState(from: cachedChatState),
+                status: "Chatflaten bruker siste lokale snapshot fordi deltager-preview ikke er tilgjengelig.",
+                actionSummary: recentActionSummary
+            )
+            return false
+        }
+
+        let currentState = try? await previewShell.get(keypath: "state", requester: requester)
+        if let currentObject = object(from: currentState),
+           let workspace = object(from: currentObject["workspace"]),
+           let sharedConnections = object(from: currentObject["sharedConnections"]) {
+            cachedChatState = mergedChatState(workspace: workspace, sharedConnections: sharedConnections)
+            let sharedNames = conferenceSharedConnectionNames(from: sharedConnections)
+            if let focusedChatName, sharedNames.contains(focusedChatName) {
+                recentActionSummary = "Chatten med \(focusedChatName) er klar."
+                cachedChatState = mergedChatState(from: cachedChatState)
+                return true
+            }
+            if let firstSharedName = sharedNames.first {
+                focusedChatName = firstSharedName
+                await rememberSelectedParticipant(firstSharedName)
+                recentActionSummary = "Viser den delte tråden med \(firstSharedName)."
+                cachedChatState = mergedChatState(from: cachedChatState)
+                return true
+            }
+        }
+
+        guard let bootstrapTarget = focusedChatName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              bootstrapTarget.isEmpty == false else {
+            recentActionSummary = "Velg en deltager i portalen eller trykk Start chat før du åpner chatflaten."
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: mergedChatState(from: cachedChatState),
+                status: "Ingen delt tråd er klar ennå.",
+                actionSummary: recentActionSummary
+            )
+            return false
+        }
+
+        let persona = conferenceDemoPersona(named: bootstrapTarget)
+        let bootstrapAction: ValueType = .object([
+            "keypath": .string("discovery.startChat"),
+            "payload": .object([
+                "source": .string("binding-chat-workbench"),
+                "targets": .list([
+                    .object([
+                        "displayName": .string(bootstrapTarget),
+                        "headline": .string(persona.roleSummary)
+                    ])
+                ])
+            ])
+        ])
+
+        recentActionSummary = "Gjør chatten med \(bootstrapTarget) klar…"
+        let mutationResult = try? await previewShell.set(
+            keypath: "dispatchAction",
+            value: bootstrapAction,
+            requester: requester
+        )
+        if let errorDescription = mutationErrorDescription(from: mutationResult) {
+            recentActionSummary = errorDescription
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: mergedChatState(from: cachedChatState),
+                status: "Chatflaten beholdt siste stabile snapshot fordi chatten ikke ble klar.",
+                actionSummary: recentActionSummary
+            )
+            return false
+        }
+
+        let refreshedState = try? await previewShell.get(keypath: "state", requester: requester)
+        guard let refreshedObject = object(from: refreshedState),
+              let refreshedWorkspace = object(from: refreshedObject["workspace"]),
+              let refreshedConnections = object(from: refreshedObject["sharedConnections"]) else {
+            recentActionSummary = "Chatten med \(bootstrapTarget) ble ikke klar ennå. Prøv Start chat i portalen igjen."
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: mergedChatState(from: cachedChatState),
+                status: "Ingen delt tråd er klar ennå.",
+                actionSummary: recentActionSummary
+            )
+            return false
+        }
+
+        cachedChatState = mergedChatState(workspace: refreshedWorkspace, sharedConnections: refreshedConnections)
+        let refreshedNames = conferenceSharedConnectionNames(from: refreshedConnections)
+        if refreshedNames.contains(bootstrapTarget) {
+            focusedChatName = bootstrapTarget
+            await rememberSelectedParticipant(bootstrapTarget)
+            recentActionSummary = "Chatten med \(bootstrapTarget) er klar."
+            cachedChatState = mergedChatState(from: cachedChatState)
+            return true
+        }
+
+        if let firstSharedName = refreshedNames.first {
+            focusedChatName = firstSharedName
+            await rememberSelectedParticipant(firstSharedName)
+        }
+        recentActionSummary = "Chatten med \(bootstrapTarget) ble ikke klar ennå. Prøv Start chat i portalen igjen."
+        cachedChatState = Self.chatStateWithStatus(
+            basedOn: mergedChatState(from: cachedChatState),
+            status: "Ingen delt tråd er klar ennå.",
+            actionSummary: recentActionSummary
+        )
+        return false
     }
 
     private func openChatWorkbench(requester: Identity) async -> ValueType {

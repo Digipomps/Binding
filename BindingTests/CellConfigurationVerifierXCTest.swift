@@ -951,6 +951,93 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(focusedTitleAfterReturn, ValueType.string("Ane Solberg"))
     }
 
+    func testConferenceParticipantChatWorkbenchWarmsThreadFromSelectedParticipant() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        _ = try await context.porthole.set(
+            keypath: "matchmakingSnapshot.dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.focusPerson"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: context.owner
+        )
+
+        let expectedWorkbenchLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Chat")
+        }
+        let openChatResponse = try await context.porthole.set(
+            keypath: "chatSnapshot.dispatchAction",
+            value: .object([
+                "keypath": .string("openChatWorkbench"),
+                "payload": .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            ]),
+            requester: context.owner
+        )
+        guard let openChatResponse else {
+            XCTFail("Open chat workbench action returned nil response")
+            return
+        }
+        let openChatFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openChatResponse)
+        }
+        XCTAssertNil(openChatFailure)
+
+        guard let workbenchConfiguration = await expectedWorkbenchLoad.value else {
+            let actionSummaryValue = try? await context.porthole.get(
+                keypath: "chatSnapshot.state.actionSummary",
+                requester: context.owner
+            )
+            let statusSummaryValue = try? await context.porthole.get(
+                keypath: "chatSnapshot.state.statusSummary",
+                requester: context.owner
+            )
+            XCTFail(
+                """
+                Expected BindingPortholeLoadBridge request for Conference Chat after warming thread.
+                actionSummary=\(String(describing: actionSummaryValue))
+                statusSummary=\(String(describing: statusSummaryValue))
+                """
+            )
+            return
+        }
+        XCTAssertTrue(workbenchConfiguration.name.contains("Conference Chat"))
+
+        guard let preview = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceParticipantPreviewShell",
+            requester: context.owner
+        ) as? Meddle else {
+            XCTFail("ConferenceParticipantPreviewShell did not resolve after warming chat workbench")
+            return
+        }
+        let previewState = try await preview.get(keypath: "state", requester: context.owner)
+        guard case let .object(previewObject) = previewState,
+              case let .object(sharedConnections)? = previewObject["sharedConnections"] else {
+            XCTFail("Expected preview state with sharedConnections after warming chat workbench")
+            return
+        }
+
+        XCTAssertEqual(sharedConnections["connectionSummary"], ValueType.string("1 shared relation(s) visible."))
+        XCTAssertEqual(sharedConnections["chatSummary"], ValueType.string("2 shared message(s) visible."))
+
+        let selectionSummary = try await context.porthole.get(
+            keypath: "chatSnapshot.state.selectionSummary",
+            requester: context.owner
+        )
+        XCTAssertEqual(selectionSummary, ValueType.string("Viser den delte tråden med Ane Solberg."))
+    }
+
     func testConferenceDemoLauncherCanOpenPublicSurfaceAndControlTower() async throws {
         let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
