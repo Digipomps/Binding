@@ -5,33 +5,45 @@ Date checked: 2026-03-31
 Context:
 - Binding `main` now routes conference demo start through `Conference Demo Launcher`.
 - `Conference Public Surface` is intentionally staging-backed because staging is the deployed CellScaffold instance.
-- Binding-side routing/build now looks healthy.
-- The remaining gap is the quality of the organizer/admin preview state served by staging.
+- Binding-side routing/build still looks healthy.
+- The organizer/admin preview gap is now best understood as a deployment mismatch: local CellScaffold code and tests are green for fresh admin preview content/system state, while staging still serves the older fallback strings.
 
 ## Summary
 
-`Conference Public Surface` on staging looks healthy.
+`Conference Public Surface` on staging still looks healthy.
 
-`Conference Control Tower` on staging now serves much more real organizer data than it did earlier the same day. The remaining organizer gap is narrower now: the `system` lane is still denied, and the `content` lane still reports `Unavailable.`, but access, audience discovery, insights, sponsor, session polling, session thread, and simulation now return meaningful state.
+`Conference Control Tower` on staging is no longer a broad preview-shell failure. Access, audience discovery, access requests, insights, sponsor, session thread, session polling, and simulation are already returning meaningful state. The concrete organizer gap visible in staging right now is narrower:
 
-This means the current organizer problem no longer looks like broad Binding routing failure. It looks like a narrower staging-side preview parity gap around:
+- `content` still returns the older unavailable fallback strings
+- `system` still returns the older denied metrics fallback strings
 
-- published content editor state
-- `AdminOverview` / system observer metrics
+The important update since the previous check is this:
 
-## Endpoints checked
+- local CellScaffold route tests now prove that fresh admin preview identities can read the organizer-backed published-content admin state and proof-backed admin metrics state
+- fresh admin preview identities now also get explicit organizer/admin proof material plus preview-specific agreements for the admin shell, published content, and admin metrics lanes when those cells are present
 
-Public surface:
-- `https://staging.haven.digipomps.org/conference-public`
-- `https://staging.haven.digipomps.org/conference-public/api/configuration`
-- `https://staging.haven.digipomps.org/conference-public/api/state`
+So the remaining problem is no longer “we do not know how to make admin preview work.”
+It is “staging has not yet been rolled to the code that makes those lanes work.”
 
-Admin preview:
-- `https://staging.haven.digipomps.org/conference-admin-preview?previewAdminId=preview-fresh-check`
-- `https://staging.haven.digipomps.org/conference-admin-preview/api/configuration?previewAdminId=preview-fresh-check`
-- `https://staging.haven.digipomps.org/conference-admin-preview/api/state?previewAdminId=preview-fresh-check`
+## Current staging observation
 
-## What is healthy
+Direct staging check on 2026-03-31 still returns the old fallback values from:
+- `GET https://staging.haven.digipomps.org/conference-admin-preview/api/state?previewAdminId=preview-fresh-check`
+
+Observed values:
+- `content.intro = "Published content editor unavailable."`
+- `content.lifecycleSummary = "Published content state unavailable."`
+- `system.status = "Live admin metrics unavailable."`
+- `system.topProcessSummary = "AdminOverview lookup failed: denied"`
+
+Host check at the same time showed staging still running:
+- repo HEAD: `40c63ca`
+- `origin/main`: `40c63ca`
+- container: `cellscaffold-app-1   Up About an hour`
+
+That means the host is currently consistent with deployed `main`, but not with the local uncommitted CellScaffold fixes that now pass the relevant tests.
+
+## What is healthy on staging right now
 
 ### Public surface
 
@@ -48,8 +60,6 @@ The public route is healthy and serves:
   - `facilities`
   - `access`
 
-This means the staging-backed public opener is currently good enough for Binding parity.
-
 ### Admin preview configuration
 
 The admin preview configuration itself is healthy:
@@ -57,54 +67,9 @@ The admin preview configuration itself is healthy:
 - source cell: `ConferenceAdminPreviewShellCell`
 - reference label: `conferenceAdminShell`
 
-So the route and top-level config are not the main problem.
+### Admin preview state lanes already healthy on staging
 
-## What is failing or unresolved on admin preview state
-
-From `GET /conference-admin-preview/api/state?previewAdminId=preview-fresh-check`:
-
-### Published content / organizer CMS
-- `content.intro = "Published content editor unavailable."`
-- `content.status = "Unavailable."`
-- `content.lifecycleSummary = "Published content state unavailable."`
-- content previews and draft collections still look unresolved
-
-### System / admin observer
-- `system.status = "Live admin metrics unavailable."`
-- `system.topProcessSummary = "AdminOverview lookup failed: denied"`
-- resolver / storage / host summaries remain unavailable
-
-## What is healthy now on admin preview state
-
-### Access / agreements
-- `access.agreementSummary = "No access requests created yet."`
-- `access.coverageSummary` is populated
-- `access.selectionSummary` is populated
-- organizer access matrix rows are populated
-
-### Access requests
-- `accessRequests.headline = "Audience access requests"`
-- `accessRequests.status = "0 request(s) total · 0 pending · 0 active grants."`
-- segment options and policy summaries are populated
-
-### Audience discovery
-- `audienceDiscovery.headline = "Audience discovery"`
-- `audienceDiscovery.status = "4 cohort(s) modeled. 123 query-ready and 97 still gated across roughly 213 relevant entities."`
-- query-ready and gated entities are populated
-
-### Organizer insights
-- `insights.dashboardSummary = "2 relations · 1 meetings · 0 bilaterally persisted agreement set(s) · 0 consented signal(s)"`
-- `insights.status = "Organizer projection ready..."`
-- the section now reads like a real organizer aggregate instead of a dead shell
-
-### Sponsor / exhibitor
-- `sponsor.dashboardSummary = "No sponsor-safe participant feed loaded."`
-- `sponsor.status = "Sponsor dashboard ready from organizer-safe consent and lead aggregates."`
-- zero-data is now intentional rather than unavailable
-
-## What still works inside admin preview
-
-These parts are healthy:
+These lanes already return meaningful state:
 - `workspace`
 - `access`
 - `accessRequests`
@@ -115,85 +80,91 @@ These parts are healthy:
 - `sessionThread`
 - `simulation`
 
-That suggests:
+That still supports the same high-level conclusion:
 - the preview route is alive
 - the wrapper shell is alive
-- most organizer-side subcells are now resolvable
-- the remaining broken lanes are much more specific than before
+- most organizer-side subcells are resolvable
+- the remaining bad lanes are specific, not systemic
 
-## Likely problem shape
+## What is now green locally in CellScaffold
 
-Most likely one or more of these:
-- published content still expects a stronger organizer requester or stronger seeded authoring state
-- `AdminOverview` observer path is still denied for the preview identity
-- preview fallback behavior is still too harsh for content/system lanes even when the rest of the organizer shell is healthy
+These local tests now pass against the fresh admin preview path:
 
-## Suggested debug order
+- `ConferencePlaywrightIdentityVaultTests/testConferenceFreshAdminPreviewIdentityInstallsOrganizerAndObserverProofs`
+- `ConferenceSurfaceRoutesTests/testConferenceAdminFreshPreviewIdentityCanReadAdminSubcellsDirectly`
+- `ConferenceSurfaceRoutesTests/testConferenceAdminFreshPreviewStateIncludesPublishedContentAndProofBackedSystemMetrics`
+- `ConferenceShellCellsTests/testAdminPreviewShellUsesProofBackedRequesterForLiveSystemMetrics`
+- `ConferenceShellCellsTests/testAdminPreviewShellExposesOrganizerStateForForeignRequester`
+- `ConferenceShellCellsTests/testAdminPreviewShellUsesStableOrganizerIdentityEvenIfVaultHasContextMapping`
 
-1. Re-check published content preview path
-- Confirm why `content` still resolves to `Unavailable.` while the rest of the organizer shell is now healthy.
-- Compare requester choice there with the now-healthy access / insights / sponsor lanes.
+What these prove:
+- a fresh preview identity gets organizer same-entity proof
+- a fresh preview identity gets organizer admin role grant
+- a fresh preview identity gets explicit scaffold admin observer proof
+- the preview path can read `ConferencePublishedContent.adminState`
+- the preview path can read `AdminOverview.state`
+- `/conference-admin-preview/api/state?previewAdminId=preview-fresh-check` can return non-fallback `content` and `system` objects locally
 
-2. Re-check `AdminOverview`
-- `system.topProcessSummary = "AdminOverview lookup failed: denied"` is still the clearest remaining signal.
-- If that requester path is fixed, the whole `system` lane may unblock quickly.
+## CellScaffold changes that matter
 
-3. Verify preview-specific fallback behavior
-- If preview intentionally cannot read some live authoring or observer state, serve an honest reduced preview instead of full `Unavailable.` placeholders.
+Highest-signal code anchors:
+- `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/ConferenceAdminPreviewAccessSupport.swift`
+- `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/ConferenceAdminPreviewIdentity.swift`
+- `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/ConferencePlaywrightPersonaBootstrap.swift`
+- `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/Cells/ConferenceAdminShellCell.swift`
+- `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Tests/AppTests/ConferencePlaywrightIdentityVaultTests.swift`
+- `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Tests/AppTests/ConferenceSurfaceRoutesTests.swift`
 
-## Likely code anchors
+In practical terms, the local fix did three things:
+1. fresh demo-preview identities now receive explicit organizer/admin proof material, including scaffold admin observer proof
+2. admin preview now seeds explicit preview agreements for the admin shell, published content admin state, and admin metrics observer state when those cells are available
+3. organizer-backed fallback/requester selection in `ConferenceAdminShellCell` is now strong enough that the published-content and metrics lanes resolve correctly in the real route path
 
-These look like the highest-signal places to inspect next in CellScaffold:
+## Revised likely problem shape
 
-- `ConferenceAdminShellCell.resolvedPublishedContentAdminState`
-  - `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/Cells/ConferenceAdminShellCell.swift`
-- `ConferenceAdminShellCell.conferencePublishedContentAccess`
-  - same file
-- `ConferenceAdminPreviewAccessSupport.ensurePreviewAccess`
-  - `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/ConferenceAdminPreviewAccessSupport.swift`
-- `ConferenceAdminShellCell.resolvedAdminMetricsState`
-  - `/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Sources/App/Cells/ConferenceMVP/Cells/ConferenceAdminShellCell.swift`
-- `ConferenceAdminShellCell.conferenceAdminOverviewCell`
-  - same file
+The current status now suggests this split:
 
-Why these are likely:
+- Binding routing is not the active problem
+- fresh admin preview logic in CellScaffold is locally fixed
+- staging is still serving an older build that does not contain the fresh admin preview content/system repair
 
-- `content` still falls back to the explicit organizer-shell unavailable object:
-  - `intro = "Published content editor unavailable."`
-  - `lifecycleSummary = "Published content state unavailable."`
-- `system` still falls back to the explicit observer failure object:
-  - `status = "Live admin metrics unavailable."`
-  - `topProcessSummary = "AdminOverview lookup failed: denied"`
+So the next likely win is no longer more preview architecture work.
+It is rolling staging to the updated CellScaffold build and then re-checking the exact same endpoint.
 
-## Working hypothesis
+## Revised suggested debug/deploy order
 
-The current staging behavior suggests this split:
+1. Roll staging to the updated CellScaffold build
+- get the fresh admin preview fixes onto the actual staging host
+- rebuild/restart `cellscaffold-app-1`
 
-- organizer-safe projection lanes are now healthy
-- direct organizer authoring / observer lanes still have requester or seeding mismatch
+2. Re-check the exact admin preview state endpoint
+- `GET /conference-admin-preview/api/state?previewAdminId=preview-fresh-check`
+- confirm `content` and `system` no longer use the old fallback strings
 
-So the next likely win is not broad preview repair anymore. It is fixing the two remaining direct lanes:
+3. Re-run Binding parity against the same staging host
+- only after staging has the new build
+- Binding should not carry extra compensating logic for a server-side gap that is already fixed locally
 
-- published content admin state
-- admin overview observer state
+4. Only if staging still fails after rollout
+- inspect whether host build inputs differ from local source or whether another runtime-only proof/config mismatch exists on host
 
 ## Expected outcome for Binding parity
 
 Binding should be able to load staging admin preview without filling major sections with unavailable placeholders.
 
-Minimum parity target:
+Minimum parity target after rollout:
 - access section populated
-- content section populated or intentionally reduced-but-readable
+- content section populated
 - insights section populated
 - sponsor section populated
-- system section either populated or intentionally omitted in preview
+- system section populated when the fresh preview identity carries the intended admin-observer proof/agreements
 
 ## Binding-side status
 
-Binding commit used during this check:
+Binding commit used during the earlier check:
 - `9a6384bc` `Align Binding conference demo launcher with staging`
 
-Binding-side conclusions:
+Binding-side conclusion remains:
 - public surface routing is healthy
 - admin preview routing is healthy
-- the organizer gap is now mostly about content/system parity and visual hierarchy, not a dead preview route
+- the remaining organizer problem is staging rollout parity, not dead preview routing
