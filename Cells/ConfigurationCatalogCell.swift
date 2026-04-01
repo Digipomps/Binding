@@ -5765,15 +5765,9 @@ final class ConfigurationCatalogCell: GeneralCell {
             return conferenceDemoLauncherWorkbenchConfiguration()
         case "cell:///conferenceparticipantpreviewshell", "cell://staging.haven.digipomps.org/conferenceparticipantpreviewshell":
             if descriptor.displayName == "Conference AI Assistant" {
-                let aiEndpoint: String
-                if descriptor.sourceCellEndpoint.lowercased().contains("staging.haven.digipomps.org") {
-                    aiEndpoint = "cell://staging.haven.digipomps.org/AIGateway"
-                } else {
-                    aiEndpoint = "cell:///AIGateway"
-                }
                 return conferenceAIAssistantWorkbenchConfiguration(
                     conferenceEndpoint: descriptor.sourceCellEndpoint,
-                    aiEndpoint: aiEndpoint,
+                    aiEndpoint: "cell:///AIGateway",
                     displayName: descriptor.displayName,
                     summary: descriptor.summary
                 )
@@ -6281,7 +6275,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated static func conferenceAIAssistantWorkbenchConfiguration(
         conferenceEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-        aiEndpoint: String = "cell://staging.haven.digipomps.org/AIGateway"
+        aiEndpoint: String = "cell:///AIGateway"
     ) -> CellConfiguration {
         conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: conferenceEndpoint,
@@ -9062,6 +9056,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     ) -> CellConfiguration {
         var configuration = CellConfiguration(name: displayName)
         configuration.description = summary
+        _ = aiEndpoint
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: conferenceEndpoint,
             sourceCellName: "ConferenceParticipantPreviewShellCell",
@@ -9075,7 +9070,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         conferenceReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
         configuration.addReference(conferenceReference)
 
-        var aiReference = CellReference(endpoint: aiEndpoint, label: "aiGateway")
+        let resolvedAIGatewayEndpoint = "cell:///AIGateway"
+        var aiReference = CellReference(endpoint: resolvedAIGatewayEndpoint, label: "aiGateway")
         aiReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
         configuration.addReference(aiReference)
 
@@ -9129,16 +9125,23 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalCardSection(
                 "Copilot Setup",
                 content: [
+                    bindingConferencePortalStaticText(
+                        "Conference-copiloten bruker participant-konteksten fra denne arbeidsflaten, men kjører selve AIGateway lokalt i Binding. Velg route, last en session key ved behov, og fyll deretter ut den store request-boksen nederst før du invoke-er.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3"
+                    ),
                     bindingConferencePortalKeyText("aiGateway.state.setup.statusLabel"),
                     bindingConferencePortalKeyText("aiGateway.state.setup.nextStep"),
                     bindingConferencePortalKeyText("aiGateway.state.setup.providerLabel"),
                     bindingConferencePortalKeyText("aiGateway.state.setup.credentialStatus"),
                     bindingConferencePortalKeyText("aiGateway.state.setup.storageHint"),
+                    bindingConferencePortalKeyText("aiGateway.state.setup.activeCredentialSource"),
+                    bindingConferencePortalKeyText("aiGateway.state.setup.lastMessage"),
                     .HStack(
                         SkeletonHStack(elements: [
                             bindingConferenceDirectActionButton(
                                 keypath: "aiGateway.applyDraftProfile",
-                                label: "Hosted API",
+                                label: "Hosted API (API key)",
                                 payload: .object([
                                     "providerID": .string("openai-compatible"),
                                     "model": .string("gpt-4.1-mini"),
@@ -9155,6 +9158,16 @@ final class ConfigurationCatalogCell: GeneralCell {
                                     "requiresAPIKey": .bool(false),
                                     "cachePolicy": .string("useCache")
                                 ])
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftRequiresAPIKey",
+                                label: "API key on",
+                                payload: .bool(true)
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "aiGateway.setDraftRequiresAPIKey",
+                                label: "API key off",
+                                payload: .bool(false)
                             ),
                             bindingConferenceDirectActionButton(
                                 keypath: "aiGateway.setDraftDeterministicMode",
@@ -9174,7 +9187,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Conference Prompt Presets",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Last inn et conference-spisset systemprompt forst, og bruk deretter en task-preset eller skriv videre i promptfeltet.",
+                        "Load copilot system prompt fyller bare det valgfrie systemprompt-feltet. Preset-knappene under fyller bare den store request-boksen som faktisk kreves for invoke.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3"
                     ),
@@ -9187,12 +9200,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                             ),
                             bindingConferenceDirectActionButton(
                                 keypath: "aiGateway.setDraftPrompt",
-                                label: "Daily brief",
+                                label: "Fill request: Daily brief",
                                 payload: .string("Use the visible conference summaries in this workspace and give me a crisp brief for the rest of today: what matters most, what I should prepare for, and which session or conversation is highest leverage next.")
                             ),
                             bindingConferenceDirectActionButton(
                                 keypath: "aiGateway.setDraftPrompt",
-                                label: "Who should I meet?",
+                                label: "Fill request: Who should I meet?",
                                 payload: .string("Based on the visible matchmaking, meeting, and shared-connection summaries, identify the three strongest people for me to meet next. Explain why each one matters and suggest a short opener for each conversation.")
                             )
                         ])
@@ -9201,12 +9214,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                         SkeletonHStack(elements: [
                             bindingConferenceDirectActionButton(
                                 keypath: "aiGateway.setDraftPrompt",
-                                label: "Follow-up plan",
+                                label: "Fill request: Follow-up plan",
                                 payload: .string("Using the visible meeting and shared-connection summaries, draft a practical follow-up plan with owners, message drafts, and the next concrete step for each item.")
                             ),
                             bindingConferenceDirectActionButton(
                                 keypath: "aiGateway.setDraftPrompt",
-                                label: "Session priorities",
+                                label: "Fill request: Session priorities",
                                 payload: .string("Use the agenda and program summaries in this workspace to rank the next sessions or activities for me. Explain the tradeoffs, what to skip, and what questions I should be ready to ask.")
                             )
                         ])
@@ -9216,50 +9229,111 @@ final class ConfigurationCatalogCell: GeneralCell {
             bindingConferencePortalCardSection(
                 "Prompt Draft",
                 content: [
+                    bindingConferencePortalStaticText(
+                        "De fire feltene under styrer route-oppsettet for AIGateway. Under dem ligger session API key, et lite valgfrtt systemprompt-felt, og til slutt den store request-boksen som maa fylles ut for aa kunne invoke.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Provider ID",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
+                    ),
                     bindingConferencePortalTextField(
                         sourceKeypath: "aiGateway.state.draft.providerID",
                         targetKeypath: "aiGateway.setDraftProviderID",
                         placeholder: "Provider ID"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Model",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
                     ),
                     bindingConferencePortalTextField(
                         sourceKeypath: "aiGateway.state.draft.model",
                         targetKeypath: "aiGateway.setDraftModel",
                         placeholder: "Model"
                     ),
+                    bindingConferencePortalStaticText(
+                        "Base URL (optional)",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
+                    ),
                     bindingConferencePortalTextField(
                         sourceKeypath: "aiGateway.state.draft.baseURL",
                         targetKeypath: "aiGateway.setDraftBaseURL",
                         placeholder: "Optional base URL"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "API key alias",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
                     ),
                     bindingConferencePortalTextField(
                         sourceKeypath: "aiGateway.state.draft.apiKeyAlias",
                         targetKeypath: "aiGateway.setDraftAPIKeyAlias",
                         placeholder: "API key alias"
                     ),
+                    bindingConferencePortalStaticText(
+                        "Session API key",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Lim inn API key og trykk Enter for aa laste den inn i denne sesjonen. Save API key virker bare etter at session key allerede er lastet.",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2"
+                    ),
                     bindingConferencePortalTextField(
                         sourceKeypath: nil,
                         targetKeypath: "aiGateway.setDraftAPIKey",
                         placeholder: "Paste API key and press Enter"
                     ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(keypath: "aiGateway.persistDraftAPIKey", label: "Save API key"),
+                            bindingConferenceDirectActionButton(keypath: "aiGateway.clearDraftAPIKey", label: "Clear session key")
+                        ])
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Copilot system prompt (optional)",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
+                    ),
                     bindingConferencePortalTextArea(
                         sourceKeypath: "aiGateway.state.draft.systemPrompt",
                         targetKeypath: "aiGateway.setDraftSystemPrompt",
-                        placeholder: "Optional system prompt",
+                        placeholder: "Optional system prompt. Load the preset above or write your own.",
                         minLines: 4,
                         maxLines: 10
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Copilot request (required)",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Dette er feltet som maa inneholde den faktiske oppgaven. Hvis det er tomt, vil invoke feile med en draft prompt-melding.",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2"
                     ),
                     bindingConferencePortalTextArea(
                         sourceKeypath: "aiGateway.state.draft.prompt",
                         targetKeypath: "aiGateway.setDraftPrompt",
-                        placeholder: "What should the conference copilot help with right now?",
+                        placeholder: "Required: what should the conference copilot help with right now?",
                         minLines: 7,
                         maxLines: 18
                     ),
                     .HStack(
                         SkeletonHStack(elements: [
-                            bindingConferenceDirectActionButton(keypath: "aiGateway.invokeDraft", label: "Invoke conference copilot"),
-                            bindingConferenceDirectActionButton(keypath: "aiGateway.persistDraftAPIKey", label: "Save API key"),
-                            bindingConferenceDirectActionButton(keypath: "aiGateway.clearDraftAPIKey", label: "Clear session key")
+                            bindingConferenceDirectActionButton(keypath: "aiGateway.invokeDraft", label: "Invoke conference copilot")
                         ])
                     )
                 ]

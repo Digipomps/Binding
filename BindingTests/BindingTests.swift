@@ -318,7 +318,7 @@ struct BindingTests {
     @Test func conferenceAIAssistantWorkbenchSeedsConferenceAndAIGatewayState() {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell://staging.haven.digipomps.org/AIGateway"
+            aiEndpoint: "cell:///AIGateway"
         )
 
         #expect(configuration.name == "Conference AI Assistant")
@@ -326,7 +326,7 @@ struct BindingTests {
         #expect(configuration.cellReferences?.first?.label == "conferenceParticipantShell")
         #expect(configuration.cellReferences?.first?.setKeysAndValues.contains(where: { $0.key == "state" }) == true)
         #expect(configuration.cellReferences?.last?.label == "aiGateway")
-        #expect(configuration.cellReferences?.last?.endpoint == "cell://staging.haven.digipomps.org/AIGateway")
+        #expect(configuration.cellReferences?.last?.endpoint == "cell:///AIGateway")
 
         guard case .ScrollView? = configuration.skeleton else {
             Issue.record("Conference AI Assistant should use a designed scroll surface")
@@ -475,7 +475,7 @@ struct BindingTests {
 
         let aiAssistantConfiguration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell://staging.haven.digipomps.org/AIGateway"
+            aiEndpoint: "cell:///AIGateway"
         )
         #expect(
             contentView.localConferencePreviewFallbackConfiguration(
@@ -518,7 +518,7 @@ struct BindingTests {
         let contentView = ContentView()
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell://staging.haven.digipomps.org/AIGateway"
+            aiEndpoint: "cell:///AIGateway"
         )
 
         #expect(contentView.preferredRequesterDescriptor(for: configuration) == nil)
