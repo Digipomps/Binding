@@ -448,6 +448,9 @@ struct BindingDiagnosticsPanel: View {
     @ObservedObject var diagnostics: BindingRuntimeDiagnostics
     let bridgeStatus: LightweightBridgeConnectionStatus?
     let onRefreshValidation: () -> Void
+    let runtimeIdentityTitle: String
+    let runtimeIdentitySubtitle: String
+    let onResetToDemoLauncher: () -> Void
 
     private static let timestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -483,6 +486,22 @@ struct BindingDiagnosticsPanel: View {
                     subtitle: bridgeStatus.subtitleText,
                     tint: bridgeStatus.tintColor
                 )
+            }
+
+            diagnosticChip(
+                title: runtimeIdentityTitle,
+                subtitle: runtimeIdentitySubtitle,
+                tint: .cyan
+            )
+
+            HStack(spacing: 8) {
+                Button("Reset til Demo Launcher") {
+                    onResetToDemoLauncher()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+
+                Spacer(minLength: 0)
             }
 
             if let report = diagnostics.validationReport {

@@ -507,7 +507,10 @@ struct ContentView: View {
                 BindingDiagnosticsPanel(
                     diagnostics: diagnosticsStore,
                     bridgeStatus: bridgeStatusStore.primaryStatus,
-                    onRefreshValidation: refreshDiagnosticsValidation
+                    onRefreshValidation: refreshDiagnosticsValidation,
+                    runtimeIdentityTitle: runtimeIdentityTitle,
+                    runtimeIdentitySubtitle: runtimeIdentitySubtitle,
+                    onResetToDemoLauncher: resetToConferenceDemoLauncher
                 )
                 .padding(.trailing, 14)
                 .padding(.top, topChromeHeight + 14)
@@ -658,7 +661,10 @@ struct ContentView: View {
                     BindingDiagnosticsPanel(
                         diagnostics: diagnosticsStore,
                         bridgeStatus: bridgeStatusStore.primaryStatus,
-                        onRefreshValidation: refreshDiagnosticsValidation
+                        onRefreshValidation: refreshDiagnosticsValidation,
+                        runtimeIdentityTitle: runtimeIdentityTitle,
+                        runtimeIdentitySubtitle: runtimeIdentitySubtitle,
+                        onResetToDemoLauncher: resetToConferenceDemoLauncher
                     )
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -1518,6 +1524,8 @@ struct ContentView: View {
                 .frame(maxWidth: 220, alignment: .leading)
             }
 
+            runtimeIdentityBadge
+
             Spacer(minLength: 8)
 
             Menu {
@@ -1662,6 +1670,12 @@ struct ContentView: View {
         Divider()
 
         Toggle("Show names in open menus", isOn: $edgeMenuShowsTitles)
+
+        Divider()
+
+        Button("Reset til Conference Demo Launcher") {
+            resetToConferenceDemoLauncher()
+        }
     }
 
     private var compactConvenienceTray: some View {
@@ -1956,6 +1970,20 @@ struct ContentView: View {
         }
     }
 
+    @MainActor
+    private func resetToConferenceDemoLauncher() {
+        let demoLauncher = Self.conferenceDemoLauncherMenuSeedConfiguration()
+        storeDemoStartConfiguration(demoLauncher)
+        editorMode = .view
+        presentingFullLibrary = false
+        loadErrorMessage = nil
+        diagnosticsStore.record(
+            domain: "binding.demo",
+            message: "Resetter til Conference Demo Launcher fra \(runtimeIdentityTitle)."
+        )
+        queueConfigurationLoad(demoLauncher)
+    }
+
     private func decodeStoredDemoStartConfiguration() -> CellConfiguration? {
         guard !demoStartConfigurationJSON.isEmpty,
               let data = demoStartConfigurationJSON.data(using: .utf8) else {
@@ -2244,6 +2272,34 @@ struct ContentView: View {
 
     private func refreshDiagnosticsValidation() {
         diagnosticsStore.refreshValidation(for: diagnosticConfiguration)
+    }
+
+    private var runtimeDerivedDataToken: String {
+        let components = Bundle.main.bundleURL.pathComponents
+        if let derivedDataComponent = components.last(where: { $0.hasPrefix("Binding-") && $0 != "Binding.app" }) {
+            return derivedDataComponent
+        }
+        return Bundle.main.bundleURL.deletingPathExtension().lastPathComponent
+    }
+
+    private var runtimeIdentityTitle: String {
+        "PID \(ProcessInfo.processInfo.processIdentifier) · \(runtimeDerivedDataToken)"
+    }
+
+    private var runtimeIdentitySubtitle: String {
+        let activeName = activeConfiguration?.name ?? "Ingen konfig lastet"
+        return "\(activeName) · \(Bundle.main.bundleURL.path)"
+    }
+
+    @ViewBuilder
+    private var runtimeIdentityBadge: some View {
+        Text(runtimeIdentityTitle)
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.secondary.opacity(0.12), in: Capsule())
+            .help(runtimeIdentitySubtitle)
     }
 
     private var diagnosticConfiguration: CellConfiguration? {
