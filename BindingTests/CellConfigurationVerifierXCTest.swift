@@ -850,7 +850,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             chatObject["draftMessage"],
             ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.")
         )
-        XCTAssertEqual(firstRecentMessage["title"], ValueType.string("Ane Solberg"))
+        XCTAssertEqual(firstRecentMessage["title"], ValueType.string("Deg"))
 
         _ = try await chatSnapshot.set(
             keypath: "setDraftMessage",
@@ -913,7 +913,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return
         }
         XCTAssertEqual(updatedChatObject["draftMessage"], ValueType.string(""))
-        XCTAssertEqual(updatedChatObject["chatSummary"], ValueType.string("4 shared message(s) visible."))
+        XCTAssertEqual(
+            updatedChatObject["chatSummary"],
+            ValueType.string("4 meldinger synlige i tråden med Ane Solberg, eldste først.")
+        )
 
         let expectedPortalLoad = Task {
             await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Portal")
