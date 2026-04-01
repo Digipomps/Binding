@@ -564,12 +564,13 @@ struct BindingTests {
             conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
             aiEndpoint: "cell:///AIGateway"
         )
-        #expect(
-            contentView.localConferencePreviewFallbackConfiguration(
-                for: aiAssistantConfiguration,
-                failureDetails: ["denied: preview owner required"]
-            ) == nil
+        let aiAssistantFallback = contentView.localConferencePreviewFallbackConfiguration(
+            for: aiAssistantConfiguration,
+            failureDetails: ["denied: preview owner required"]
         )
+        #expect(aiAssistantFallback?.cellReferences?.first?.endpoint == "cell:///ConferenceParticipantPreviewShell")
+        #expect(aiAssistantFallback?.cellReferences?.contains(where: { $0.label == "aiGateway" && $0.endpoint == "cell:///ConferenceAIAssistantGatewayProxy" }) == true)
+        #expect(aiAssistantFallback?.discovery?.sourceCellEndpoint == "cell:///ConferenceParticipantPreviewShell")
 
         #expect(
             contentView.localConferencePreviewFallbackConfiguration(

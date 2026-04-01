@@ -2763,6 +2763,12 @@ struct ContentView: View {
 
         switch remoteCellName(from: primaryReference.endpoint) {
         case "conferenceparticipantpreviewshell":
+            if configuration.name == "Conference AI Assistant" {
+                return ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+                    conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                    aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
+                )
+            }
             return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
                 endpoint: "cell:///ConferenceParticipantPreviewShell"
             )
