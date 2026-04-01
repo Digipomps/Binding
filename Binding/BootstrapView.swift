@@ -259,6 +259,8 @@ private enum ConferenceSnapshotRetrySupport {
 
 private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private static let localGatewayEndpoint = "cell:///AIGateway"
+    private var pendingAPIKeyEntry = ""
+
     private static let readableKeys = [
         "state",
         "contracts",
@@ -278,6 +280,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         "setDraftMaxTokensText",
         "setDraftDeterministicMode",
         "setDraftRequiresAPIKey",
+        "setDraftAPIKeyEntry",
+        "commitDraftAPIKeyEntry",
         "setDraftAPIKey",
         "clearDraftAPIKey",
         "persistDraftAPIKey",
@@ -332,7 +336,11 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private func forwardGet(keypath: String, requester: Identity) async -> ValueType {
         do {
             let gateway = try await resolveGateway(requester: requester)
-            return try await gateway.get(keypath: keypath, requester: requester)
+            let value = try await gateway.get(keypath: keypath, requester: requester)
+            if keypath == "state" {
+                return augmentGatewayState(value)
+            }
+            return value
         } catch {
             return .string("Conference AI gateway proxy get failed: \(error)")
         }
@@ -341,13 +349,70 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private func forwardSet(keypath: String, value: ValueType, requester: Identity) async -> ValueType {
         do {
             let gateway = try await resolveGateway(requester: requester)
-            if let response = try await gateway.set(keypath: keypath, value: value, requester: requester) {
-                return response
+
+            switch keypath {
+            case "setDraftAPIKeyEntry":
+                pendingAPIKeyEntry = conferenceMutationString(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let state = try await gateway.get(keypath: "state", requester: requester)
+                return augmentGatewayState(state)
+            case "commitDraftAPIKeyEntry":
+                let response = try await gateway.set(
+                    keypath: "setDraftAPIKey",
+                    value: .string(pendingAPIKeyEntry),
+                    requester: requester
+                )
+                let stateValue: ValueType
+                if let response {
+                    stateValue = response
+                } else {
+                    stateValue = try await gateway.get(keypath: "state", requester: requester)
+                }
+                return augmentGatewayState(stateValue)
+            case "persistDraftAPIKey", "invokeDraft":
+                if pendingAPIKeyEntry.isEmpty == false {
+                    _ = try await gateway.set(
+                        keypath: "setDraftAPIKey",
+                        value: .string(pendingAPIKeyEntry),
+                        requester: requester
+                    )
+                }
+            case "clearDraftAPIKey":
+                pendingAPIKeyEntry = ""
+            case "setDraftAPIKey":
+                pendingAPIKeyEntry = conferenceMutationString(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            default:
+                break
             }
-            return try await gateway.get(keypath: "state", requester: requester)
+
+            if let response = try await gateway.set(keypath: keypath, value: value, requester: requester) {
+                return augmentGatewayState(response)
+            }
+            return augmentGatewayState(try await gateway.get(keypath: "state", requester: requester))
         } catch {
             return .string("Conference AI gateway proxy set failed: \(error)")
         }
+    }
+
+    private func augmentGatewayState(_ value: ValueType) -> ValueType {
+        guard case let .object(initialRootObject) = value else {
+            return value
+        }
+
+        var rootObject: Object = initialRootObject
+        guard case let .object(existingSetup)? = rootObject["setup"] else {
+            return value
+        }
+
+        var setupObject: Object = existingSetup
+        let pendingEntryPresent = pendingAPIKeyEntry.isEmpty == false
+        setupObject["pendingEntryPresent"] = .bool(pendingEntryPresent)
+        setupObject["pendingEntryStatus"] = .string(
+            pendingEntryPresent
+                ? "A local session key is buffered in this field. Invoke and Save API key will load it automatically."
+                : ""
+        )
+        rootObject["setup"] = .object(setupObject)
+        return .object(rootObject)
     }
 }
 

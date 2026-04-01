@@ -7848,10 +7848,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                 placeholder: placeholder,
                 modifiers: modifier {
                     $0.padding = 8
-                    $0.background = "#F8FAFC"
+                    $0.background = "#10212D"
                     $0.cornerRadius = 8
                     $0.borderWidth = 1
-                    $0.borderColor = "#D3DEEB"
+                    $0.borderColor = "#2D566B"
+                    $0.foregroundColor = "#EAF7FF"
                 }
             )
         )
@@ -7875,10 +7876,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                 submitOnEnter: false,
                 modifiers: modifier {
                     $0.padding = 8
-                    $0.background = "#F8FAFC"
+                    $0.background = "#10212D"
                     $0.cornerRadius = 8
                     $0.borderWidth = 1
-                    $0.borderColor = "#D3DEEB"
+                    $0.borderColor = "#2D566B"
+                    $0.foregroundColor = "#EAF7FF"
                 }
             )
         )
@@ -9309,17 +9311,21 @@ final class ConfigurationCatalogCell: GeneralCell {
                         foregroundColor: "#8DE1DA"
                     ),
                     bindingConferencePortalStaticText(
-                        "Lim inn API key og trykk Enter for aa laste den inn i denne sesjonen. Save API key virker bare etter at session key allerede er lastet.",
+                        "Lim inn API key her. Load, Save API key og Invoke conference copilot vil alle kunne bruke den lokale key-bufferen uten at Enter maa treffe perfekt.",
                         fontSize: 12,
                         foregroundColor: "#D7E7F2"
                     ),
-                    bindingConferencePortalTextField(
+                    bindingConferencePortalTextArea(
                         sourceKeypath: nil,
-                        targetKeypath: "aiGateway.setDraftAPIKey",
-                        placeholder: "Paste API key and press Enter"
+                        targetKeypath: "aiGateway.setDraftAPIKeyEntry",
+                        placeholder: "Paste API key here",
+                        minLines: 1,
+                        maxLines: 3
                     ),
+                    bindingConferencePortalKeyText("aiGateway.state.setup.pendingEntryStatus"),
                     .HStack(
                         SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(keypath: "aiGateway.commitDraftAPIKeyEntry", label: "Load session key"),
                             bindingConferenceDirectActionButton(keypath: "aiGateway.persistDraftAPIKey", label: "Save API key"),
                             bindingConferenceDirectActionButton(keypath: "aiGateway.clearDraftAPIKey", label: "Clear session key")
                         ])

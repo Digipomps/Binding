@@ -492,6 +492,49 @@ struct BindingTests {
         #expect(draftObject["prompt"] == .string("Give me a concise conference brief."))
     }
 
+    @Test func conferenceAIAssistantGatewayProxyCanCommitBufferedSessionAPIKey() async throws {
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+
+        let owner = await makeOwnerIdentity()
+
+        guard let proxy = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceAIAssistantGatewayProxy",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Could not resolve ConferenceAIAssistantGatewayProxy as Meddle")
+            return
+        }
+
+        let bufferResponse = try await proxy.set(
+            keypath: "setDraftAPIKeyEntry",
+            value: .string("sk-test-buffered-session-key"),
+            requester: owner
+        )
+        #expect(bufferResponse != nil)
+
+        let commitResponse = try await proxy.set(
+            keypath: "commitDraftAPIKeyEntry",
+            value: .null,
+            requester: owner
+        )
+        #expect(commitResponse != nil)
+
+        let stateValue = try await proxy.get(
+            keypath: "state",
+            requester: owner
+        )
+        guard case let .object(stateObject) = stateValue,
+              case let .object(setupObject)? = stateObject["setup"] else {
+            Issue.record("Expected setup object from conference AI gateway proxy state")
+            return
+        }
+
+        #expect(setupObject["sessionCredentialAvailable"] == .bool(true))
+        #expect(setupObject["activeCredentialSource"] == .string("session"))
+    }
+
     @Test func conferenceWorkbenchFallsBackToLocalPreviewWhenStagingPreviewIsDenied() {
         let contentView = ContentView()
 
