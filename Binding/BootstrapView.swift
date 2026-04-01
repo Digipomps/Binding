@@ -595,38 +595,94 @@ private func conferenceDemoStarterReply(for persona: ConferenceDemoPersona, sour
 
 actor ConferenceParticipantPreviewFallbackStateStore {
     static let shared = ConferenceParticipantPreviewFallbackStateStore()
+    private static let maximumRetainedOwners = 12
+    private static let memoryPressureRetainedOwners = 4
 
     private var statesByOwnerUUID: [String: ConferenceParticipantPreviewFallbackState] = [:]
+    private var ownerRecency: [String] = []
 
     fileprivate func load(for ownerUUID: String) -> ConferenceParticipantPreviewFallbackState? {
-        statesByOwnerUUID[ownerUUID]
+        guard let state = statesByOwnerUUID[ownerUUID] else {
+            return nil
+        }
+        touch(ownerUUID)
+        return state
     }
 
     fileprivate func save(_ state: ConferenceParticipantPreviewFallbackState, for ownerUUID: String) {
         statesByOwnerUUID[ownerUUID] = state
+        touch(ownerUUID)
+        trimIfNeeded(limit: Self.maximumRetainedOwners)
     }
 
     func reset(for ownerUUID: String) {
         statesByOwnerUUID.removeValue(forKey: ownerUUID)
+        ownerRecency.removeAll { $0 == ownerUUID }
+    }
+
+    func handleMemoryPressure() {
+        trimIfNeeded(limit: Self.memoryPressureRetainedOwners)
+    }
+
+    private func touch(_ ownerUUID: String) {
+        ownerRecency.removeAll { $0 == ownerUUID }
+        ownerRecency.append(ownerUUID)
+    }
+
+    private func trimIfNeeded(limit: Int) {
+        guard ownerRecency.count > limit else { return }
+        let staleOwners = ownerRecency.prefix(ownerRecency.count - limit)
+        for ownerUUID in staleOwners {
+            statesByOwnerUUID.removeValue(forKey: ownerUUID)
+        }
+        ownerRecency = Array(ownerRecency.suffix(limit))
     }
 }
 
 actor ConferenceParticipantSelectionStore {
     static let shared = ConferenceParticipantSelectionStore()
+    private static let maximumRetainedOwners = 12
+    private static let memoryPressureRetainedOwners = 4
 
     private var selectedParticipantByOwnerUUID: [String: String] = [:]
+    private var ownerRecency: [String] = []
 
     func load(for ownerUUID: String) -> String? {
-        selectedParticipantByOwnerUUID[ownerUUID]
+        guard let selection = selectedParticipantByOwnerUUID[ownerUUID] else {
+            return nil
+        }
+        touch(ownerUUID)
+        return selection
     }
 
     func save(_ displayName: String?, for ownerUUID: String) {
         guard let trimmed = displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
               trimmed.isEmpty == false else {
             selectedParticipantByOwnerUUID.removeValue(forKey: ownerUUID)
+            ownerRecency.removeAll { $0 == ownerUUID }
             return
         }
         selectedParticipantByOwnerUUID[ownerUUID] = trimmed
+        touch(ownerUUID)
+        trimIfNeeded(limit: Self.maximumRetainedOwners)
+    }
+
+    func handleMemoryPressure() {
+        trimIfNeeded(limit: Self.memoryPressureRetainedOwners)
+    }
+
+    private func touch(_ ownerUUID: String) {
+        ownerRecency.removeAll { $0 == ownerUUID }
+        ownerRecency.append(ownerUUID)
+    }
+
+    private func trimIfNeeded(limit: Int) {
+        guard ownerRecency.count > limit else { return }
+        let staleOwners = ownerRecency.prefix(ownerRecency.count - limit)
+        for ownerUUID in staleOwners {
+            selectedParticipantByOwnerUUID.removeValue(forKey: ownerUUID)
+        }
+        ownerRecency = Array(ownerRecency.suffix(limit))
     }
 }
 
@@ -6043,7 +6099,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         ]
 
         let meetingAction: Object = [
-            "title": .string("Møte"),
+            "title": .string("Be om møte"),
             "subtitle": .string("Foreslå neste steg"),
             "detail": .string("Be om møte med \(focusedName) når chatten ser relevant ut."),
             "note": .string("Dette binder chat og scheduling sammen i samme conference-flyt."),
@@ -6083,12 +6139,30 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func messageCard(from raw: Object) -> ValueType {
-        .object([
-            "title": .string(cardTitle(from: raw)),
+        let title = cardTitle(from: raw)
+        return .object([
+            "title": .string(title),
             "subtitle": .string(cardSubtitle(from: raw)),
             "detail": .string(cardDetail(from: raw)),
-            "note": .string(cardNote(from: raw))
+            "note": .string(cardNote(from: raw)),
+            "senderInitials": .string(senderInitials(for: title))
         ])
+    }
+
+    private func senderInitials(for title: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return "?" }
+        if trimmed == "Deg" {
+            return "DU"
+        }
+
+        let components = trimmed
+            .split(whereSeparator: \.isWhitespace)
+            .prefix(2)
+            .compactMap { $0.first }
+
+        let initials = String(components).uppercased()
+        return initials.isEmpty ? String(trimmed.prefix(1)).uppercased() : initials
     }
 
     private func draftText(from value: ValueType) -> String? {

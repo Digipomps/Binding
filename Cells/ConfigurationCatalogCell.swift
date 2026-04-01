@@ -57,6 +57,12 @@ final class ConfigurationCatalogCell: GeneralCell {
         "timeswrapper",
         "locationswrapper"
     ]
+    private static let maximumAgreementHistoryEntries = 48
+    private static let maximumAgreementPreviewSnapshots = 32
+    private static let maximumAgreementNonComplianceReports = 96
+    private static let maximumAgreementAuditEntries = 160
+    private static let maximumMatchingSuggestionEntries = 24
+    private static let maximumMatchingBookmarkEntries = 30
 
     private enum MenuSlot: String, Codable, CaseIterable {
         case upperLeft
@@ -799,15 +805,32 @@ final class ConfigurationCatalogCell: GeneralCell {
         self.agreementTemplateDocument = (try? container.decode(ValueType.self, forKey: .agreementTemplateDocument)) ?? ConfigurationCatalogCell.defaultAgreementTemplateDocument()
         self.agreementAccessDelegationsByIdentity = (try? container.decode([String: AgreementAccessDelegation].self, forKey: .agreementAccessDelegationsByIdentity)) ?? [:]
         self.agreementCurrentRecord = try? container.decode(AgreementRecord.self, forKey: .agreementCurrentRecord)
-        self.agreementHistory = (try? container.decode([AgreementRecord].self, forKey: .agreementHistory)) ?? []
-        self.agreementPreviewsByToken = (try? container.decode([String: AgreementPreviewSnapshot].self, forKey: .agreementPreviewsByToken)) ?? [:]
-        self.agreementNonComplianceReports = (try? container.decode([AgreementNonComplianceReport].self, forKey: .agreementNonComplianceReports)) ?? []
+        self.agreementHistory = ConfigurationCatalogCell.trimmedAgreementHistory(
+            (try? container.decode([AgreementRecord].self, forKey: .agreementHistory)) ?? []
+        )
+        self.agreementPreviewsByToken = ConfigurationCatalogCell.trimmedAgreementPreviews(
+            (try? container.decode([String: AgreementPreviewSnapshot].self, forKey: .agreementPreviewsByToken)) ?? [:]
+        )
+        self.agreementNonComplianceReports = ConfigurationCatalogCell.trimmedAgreementNonComplianceReports(
+            (try? container.decode([AgreementNonComplianceReport].self, forKey: .agreementNonComplianceReports)) ?? []
+        )
         self.agreementNonCompliancePolicyByIdentity = (try? container.decode([String: AgreementNonCompliancePolicy].self, forKey: .agreementNonCompliancePolicyByIdentity)) ?? [:]
-        self.agreementAuditLog = (try? container.decode([AgreementAuditEntry].self, forKey: .agreementAuditLog)) ?? []
+        self.agreementAuditLog = ConfigurationCatalogCell.trimmedAgreementAuditLog(
+            (try? container.decode([AgreementAuditEntry].self, forKey: .agreementAuditLog)) ?? []
+        )
         self.matchingPromptText = (try? container.decode(String.self, forKey: .matchingPromptText)) ?? ""
         self.matchingSelectedIndex = (try? container.decode(Int.self, forKey: .matchingSelectedIndex)) ?? -1
-        self.matchingSuggestions = (try? container.decode([MatchingSuggestion].self, forKey: .matchingSuggestions)) ?? []
-        self.matchingBookmarks = (try? container.decode([MatchingSuggestion].self, forKey: .matchingBookmarks)) ?? []
+        self.matchingSuggestions = ConfigurationCatalogCell.trimmedMatchingSuggestions(
+            (try? container.decode([MatchingSuggestion].self, forKey: .matchingSuggestions)) ?? []
+        )
+        self.matchingBookmarks = ConfigurationCatalogCell.trimmedMatchingBookmarks(
+            (try? container.decode([MatchingSuggestion].self, forKey: .matchingBookmarks)) ?? []
+        )
+        if self.matchingSuggestions.isEmpty {
+            self.matchingSelectedIndex = -1
+        } else {
+            self.matchingSelectedIndex = min(self.matchingSelectedIndex, self.matchingSuggestions.count - 1)
+        }
         self.matchingPurposeStatsByPurpose = (try? container.decode([String: PurposeUsageStat].self, forKey: .matchingPurposeStatsByPurpose)) ?? [:]
         self.matchingPublishedEntityPurposes = (try? container.decode([PublishedEntityPurpose].self, forKey: .matchingPublishedEntityPurposes)) ?? []
         self.matchingPublishPersonName = (try? container.decode(String.self, forKey: .matchingPublishPersonName)) ?? ""
@@ -849,6 +872,49 @@ final class ConfigurationCatalogCell: GeneralCell {
         try container.encode(matchingPublishGroupName, forKey: .matchingPublishGroupName)
         try container.encode(matchingPublishGroupType, forKey: .matchingPublishGroupType)
         try container.encode(matchingPublishNote, forKey: .matchingPublishNote)
+    }
+
+    nonisolated private static func trimmedAgreementHistory(_ history: [AgreementRecord]) -> [AgreementRecord] {
+        Array(history.suffix(maximumAgreementHistoryEntries))
+    }
+
+    nonisolated private static func trimmedAgreementPreviews(_ previews: [String: AgreementPreviewSnapshot]) -> [String: AgreementPreviewSnapshot] {
+        guard previews.count > maximumAgreementPreviewSnapshots else { return previews }
+        let retained = previews.values
+            .sorted { $0.requestedAt > $1.requestedAt }
+            .prefix(maximumAgreementPreviewSnapshots)
+        return Dictionary(uniqueKeysWithValues: retained.map { ($0.token, $0) })
+    }
+
+    nonisolated private static func trimmedAgreementNonComplianceReports(_ reports: [AgreementNonComplianceReport]) -> [AgreementNonComplianceReport] {
+        Array(reports.suffix(maximumAgreementNonComplianceReports))
+    }
+
+    nonisolated private static func trimmedAgreementAuditLog(_ entries: [AgreementAuditEntry]) -> [AgreementAuditEntry] {
+        Array(entries.suffix(maximumAgreementAuditEntries))
+    }
+
+    nonisolated private static func trimmedMatchingSuggestions(_ suggestions: [MatchingSuggestion]) -> [MatchingSuggestion] {
+        Array(suggestions.prefix(maximumMatchingSuggestionEntries))
+    }
+
+    nonisolated private static func trimmedMatchingBookmarks(_ bookmarks: [MatchingSuggestion]) -> [MatchingSuggestion] {
+        Array(bookmarks.prefix(maximumMatchingBookmarkEntries))
+    }
+
+    private func appendAgreementHistory(_ agreement: AgreementRecord) {
+        agreementHistory.append(agreement)
+        agreementHistory = Self.trimmedAgreementHistory(agreementHistory)
+    }
+
+    private func appendAgreementNonComplianceReport(_ report: AgreementNonComplianceReport) {
+        agreementNonComplianceReports.append(report)
+        agreementNonComplianceReports = Self.trimmedAgreementNonComplianceReports(agreementNonComplianceReports)
+    }
+
+    private func appendAgreementAuditEntry(_ entry: AgreementAuditEntry) {
+        agreementAuditLog.append(entry)
+        agreementAuditLog = Self.trimmedAgreementAuditLog(agreementAuditLog)
     }
 
     private func setupPermissions(owner: Identity) async {
@@ -1631,14 +1697,14 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         stateQueue.sync {
             agreementPreviewsByToken[token] = snapshot
-            if agreementPreviewsByToken.count > 64 {
+            if agreementPreviewsByToken.count > Self.maximumAgreementPreviewSnapshots {
                 let keysToDrop = agreementPreviewsByToken.values
                     .sorted { $0.requestedAt < $1.requestedAt }
-                    .prefix(agreementPreviewsByToken.count - 64)
+                    .prefix(agreementPreviewsByToken.count - Self.maximumAgreementPreviewSnapshots)
                     .map(\.token)
                 keysToDrop.forEach { agreementPreviewsByToken.removeValue(forKey: $0) }
             }
-            agreementAuditLog.append(
+            appendAgreementAuditEntry(
                 AgreementAuditEntry(
                     id: UUID().uuidString,
                     action: "agreementTemplate.preview",
@@ -1744,7 +1810,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             agreementTemplateVersion = agreement.version
             agreementTemplateDocument = template
             agreementCurrentRecord = agreement
-            agreementHistory.append(agreement)
+            appendAgreementHistory(agreement)
             if let requestedPreviewToken {
                 agreementPreviewsByToken.removeValue(forKey: requestedPreviewToken)
             }
@@ -1762,11 +1828,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                         status: policy == .autoRestrictUntilResolved || evictIfNonCompliant ? "restricted" : "open",
                         createdAt: now
                     )
-                    agreementNonComplianceReports.append(report)
+                    appendAgreementNonComplianceReport(report)
                     generatedReports.append(report)
                 }
             }
-            agreementAuditLog.append(
+            appendAgreementAuditEntry(
                 AgreementAuditEntry(
                     id: UUID().uuidString,
                     action: "agreementTemplate.apply",
@@ -1851,7 +1917,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         stateQueue.sync {
             agreementAccessDelegationsByIdentity[targetIdentityKey] = delegation
-            agreementAuditLog.append(
+            appendAgreementAuditEntry(
                 AgreementAuditEntry(
                     id: UUID().uuidString,
                     action: "agreementTemplate.access.grant",
@@ -1908,7 +1974,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "identityKey": .string(targetIdentityKey),
                 "revokedCapabilities": .list(Array(capabilitiesToRevoke).sorted().map { .string($0) })
             ]
-            agreementAuditLog.append(
+            appendAgreementAuditEntry(
                 AgreementAuditEntry(
                     id: UUID().uuidString,
                     action: "agreementTemplate.access.revoke",
@@ -1980,7 +2046,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             if let historyIndex = agreementHistory.firstIndex(where: { $0.agreementID == agreementID }) {
                 agreementHistory[historyIndex] = agreement
             }
-            agreementAuditLog.append(
+            appendAgreementAuditEntry(
                 AgreementAuditEntry(
                     id: UUID().uuidString,
                     action: "agreements.sign",
@@ -2041,8 +2107,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
 
         stateQueue.sync {
-            agreementNonComplianceReports.append(report)
-            agreementAuditLog.append(
+            appendAgreementNonComplianceReport(report)
+            appendAgreementAuditEntry(
                 AgreementAuditEntry(
                     id: UUID().uuidString,
                     action: "agreements.nonCompliant.report",
@@ -2082,7 +2148,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         let now = Date().timeIntervalSince1970
         stateQueue.sync {
             agreementNonCompliancePolicyByIdentity[targetIdentityKey] = policy
-            agreementAuditLog.append(
+            appendAgreementAuditEntry(
                 AgreementAuditEntry(
                     id: UUID().uuidString,
                     action: "agreements.nonCompliant.policy",
@@ -3707,7 +3773,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         stateQueue.sync {
-            matchingSuggestions = suggestions
+            matchingSuggestions = Self.trimmedMatchingSuggestions(suggestions)
             matchingSelectedIndex = suggestions.isEmpty ? -1 : 0
         }
 
@@ -3923,9 +3989,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         stateQueue.sync {
             if matchingBookmarks.contains(where: { $0.configuration.uuid == selected.configuration.uuid }) == false {
                 matchingBookmarks.insert(selected, at: 0)
-                if matchingBookmarks.count > 30 {
-                    matchingBookmarks = Array(matchingBookmarks.prefix(30))
-                }
+                matchingBookmarks = Self.trimmedMatchingBookmarks(matchingBookmarks)
             }
         }
         return .object([
@@ -7178,7 +7242,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                         lineLimit: 1
                     ),
                     bindingConferencePortalStaticText(
-                        "Meldingene rendres i en smalere kolonne, så samtalen leses mer som vanlig chat. På smale skjermer blir dette én kolonne; på større flater kan flere kolonner brukes uten at hvert kort blir for bredt.",
+                        "Tråden rendres som én sammenhengende feed, så samtalen leses mer som chat og mindre som separate dashboard-kort.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3",
                         lineLimit: 4
@@ -7190,64 +7254,63 @@ final class ConfigurationCatalogCell: GeneralCell {
                         lineLimit: 3
                     ),
                     bindingConferencePortalKeyText("chatSnapshot.state.chatSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
-                    bindingConferencePortalCollectionGrid(
-                        keypath: "chatSnapshot.state.recentMessages",
-                        min: 360,
-                        max: 520,
-                        itemSkeleton: bindingConferencePortalMessageCardSkeleton()
+                    bindingConferencePortalTranscriptList(
+                        keypath: "chatSnapshot.state.recentMessages"
                     ),
                     bindingConferencePortalStaticText(
-                        "Skriv melding",
+                        "Svar i tråden",
                         fontSize: 13,
                         fontWeight: "bold",
                         foregroundColor: "#B9FBC0",
                         lineLimit: 1
                     ),
                     bindingConferencePortalStaticText(
-                        "Første melding er ferdig utfylt når en demo-deltager er valgt. Du kan sende den som den er, eller redigere den til en mer personlig oppfølging.",
+                        "Utkastet kan sendes som det er, eller finjusteres til en mer personlig oppfølging før du sender.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3",
                         lineLimit: 4
                     ),
-                    bindingConferencePortalTextArea(
+                    bindingConferencePortalKeyText("chatSnapshot.state.draftSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 2),
+                    bindingConferencePortalKeyText("chatSnapshot.state.draftHint", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 2),
+                    bindingConferencePortalChatTextArea(
                         sourceKeypath: "chatSnapshot.state.draftMessage",
                         targetKeypath: "chatSnapshot.setDraftMessage",
                         placeholder: "Skriv en konkret oppfølgingsmelding til valgt deltager…",
                         minLines: 4,
                         maxLines: 8
                     ),
-                    bindingConferencePortalKeyText("chatSnapshot.state.draftSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
-                    bindingConferencePortalKeyText("chatSnapshot.state.draftHint", fontSize: 12, foregroundColor: "#9AB3C3", lineLimit: 3),
                     .HStack(
-                        SkeletonHStack(elements: [
-                            bindingConferencePortalActionButton(
-                                "chatSnapshot",
-                                actionKeypath: "chat.sendDraftMessage",
-                                label: "Send melding"
-                            )
-                        ])
+                        SkeletonHStack(
+                            elements: [
+                                bindingConferencePortalPrimaryActionButton(
+                                    "chatSnapshot",
+                                    actionKeypath: "chat.sendDraftMessage",
+                                    label: "Send melding"
+                                ),
+                                bindingConferencePortalActionButton(
+                                    "chatSnapshot",
+                                    actionKeypath: "openParticipantPortalWorkbench",
+                                    label: "Tilbake til portalen"
+                                )
+                            ],
+                            spacing: 10
+                        )
                     ),
                     bindingConferencePortalStaticText(
-                        "Forslag til handlinger",
+                        "Raske handlinger",
                         fontSize: 13,
                         fontWeight: "bold",
                         foregroundColor: "#B9FBC0",
                         lineLimit: 1
                     ),
-                    bindingConferencePortalCollectionGrid(
-                        keypath: "chatSnapshot.state.focusedActions",
-                        min: 240,
-                        max: 300,
-                        itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                    bindingConferencePortalStaticText(
+                        "Hold de vanligste neste stegene tett på samtalen. Dette er støttehandlinger, ikke en egen ny flate.",
+                        fontSize: 12,
+                        foregroundColor: "#9AB3C3",
+                        lineLimit: 3
                     ),
-                    .HStack(
-                        SkeletonHStack(elements: [
-                            bindingConferencePortalActionButton(
-                                "chatSnapshot",
-                                actionKeypath: "openParticipantPortalWorkbench",
-                                label: "Tilbake til portalen"
-                            )
-                        ])
+                    bindingConferencePortalCompactActionList(
+                        keypath: "chatSnapshot.state.focusedActions"
                     )
                 ]
             ),
@@ -7631,6 +7694,38 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    private static func bindingConferencePortalTranscriptList(keypath: String) -> SkeletonElement {
+        var transcriptList = SkeletonList(
+            keypath: keypath,
+            flowElementSkeleton: bindingConferencePortalTranscriptMessageRowSkeleton()
+        )
+        transcriptList.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#10212D"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 380
+        }
+        return .List(transcriptList)
+    }
+
+    private static func bindingConferencePortalCompactActionList(keypath: String) -> SkeletonElement {
+        var actionList = SkeletonList(
+            keypath: keypath,
+            flowElementSkeleton: bindingConferencePortalCompactActionRowSkeleton()
+        )
+        actionList.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#10212D"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 210
+        }
+        return .List(actionList)
+    }
+
     private static func bindingConferencePortalBadgeKeyText(_ keypath: String) -> SkeletonElement {
         var label = SkeletonText(keypath: keypath)
         label.modifiers = modifier {
@@ -7692,6 +7787,33 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderWidth = 1
             $0.borderColor = "#2D566B"
             $0.foregroundColor = "#D9FBFF"
+        }
+        return .Button(button)
+    }
+
+    private static func bindingConferencePortalPrimaryActionButton(
+        _ referenceLabel: String,
+        actionKeypath: String,
+        label: String,
+        payload: ValueType = .bool(true)
+    ) -> SkeletonElement {
+        var actionObject: Object = [
+            "keypath": .string(actionKeypath),
+            "payload": payload
+        ]
+        var button = SkeletonButton(
+            keypath: "\(referenceLabel).dispatchAction",
+            label: label,
+            payload: .object(actionObject)
+        )
+        button.modifiers = modifier {
+            $0.padding = 8
+            $0.background = "#1E5C49"
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = "#2F6B56"
+            $0.foregroundColor = "#F5FBFF"
+            $0.fontWeight = "semibold"
         }
         return .Button(button)
     }
@@ -7763,6 +7885,34 @@ final class ConfigurationCatalogCell: GeneralCell {
                     $0.cornerRadius = 8
                     $0.borderWidth = 1
                     $0.borderColor = "#D3DEEB"
+                }
+            )
+        )
+    }
+
+    private static func bindingConferencePortalChatTextArea(
+        sourceKeypath: String?,
+        targetKeypath: String,
+        placeholder: String,
+        minLines: Int,
+        maxLines: Int
+    ) -> SkeletonElement {
+        .TextArea(
+            SkeletonTextArea(
+                text: nil,
+                sourceKeypath: sourceKeypath,
+                targetKeypath: targetKeypath,
+                placeholder: placeholder,
+                minLines: minLines,
+                maxLines: maxLines,
+                submitOnEnter: false,
+                modifiers: modifier {
+                    $0.padding = 10
+                    $0.background = "#10212D"
+                    $0.cornerRadius = 12
+                    $0.borderWidth = 1
+                    $0.borderColor = "#2D566B"
+                    $0.foregroundColor = "#F5FBFF"
                 }
             )
         )
@@ -8706,6 +8856,173 @@ final class ConfigurationCatalogCell: GeneralCell {
         ])
         section.modifiers = bindingConferencePortalInlineCardModifier()
         return .Section(section)
+    }
+
+    private static func bindingConferencePortalTranscriptMessageRowSkeleton() -> SkeletonVStack {
+        var avatar = SkeletonText(keypath: "senderInitials")
+        avatar.modifiers = modifier {
+            $0.padding = 8
+            $0.width = 34
+            $0.height = 34
+            $0.background = "#173140"
+            $0.cornerRadius = 17
+            $0.borderWidth = 1
+            $0.borderColor = "#2D566B"
+            $0.foregroundColor = "#B9FBC0"
+            $0.fontSize = 11
+            $0.fontWeight = "bold"
+            $0.multilineTextAlignment = "center"
+        }
+
+        var sender = SkeletonText(keypath: "title")
+        sender.modifiers = modifier {
+            $0.fontSize = 13
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#F5FBFF"
+            $0.lineLimit = 1
+        }
+
+        var meta = SkeletonText(keypath: "subtitle")
+        meta.modifiers = modifier {
+            $0.fontSize = 11
+            $0.foregroundColor = "#8DE1DA"
+            $0.lineLimit = 2
+        }
+
+        var body = SkeletonText(keypath: "detail")
+        body.modifiers = modifier {
+            $0.fontSize = 13
+            $0.foregroundColor = "#F5FBFF"
+            $0.lineLimit = 12
+            $0.multilineTextAlignment = "leading"
+        }
+
+        var note = SkeletonText(keypath: "note")
+        note.modifiers = modifier {
+            $0.fontSize = 11
+            $0.foregroundColor = "#88A2B1"
+            $0.lineLimit = 3
+        }
+
+        var bubble = SkeletonVStack(
+            elements: [
+                .Text(body),
+                .Text(note)
+            ],
+            spacing: 6
+        )
+        bubble.modifiers = modifier {
+            $0.padding = 10
+            $0.background = "#173140"
+            $0.cornerRadius = 14
+            $0.borderWidth = 1
+            $0.borderColor = "#2D566B"
+        }
+
+        var messageColumn = SkeletonVStack(
+            elements: [
+                .Text(sender),
+                .Text(meta),
+                .VStack(bubble)
+            ],
+            spacing: 4
+        )
+        messageColumn.modifiers = modifier {
+            $0.hAlignment = "leading"
+        }
+
+        var row = SkeletonVStack(
+            elements: [
+                .HStack(
+                    SkeletonHStack(
+                        elements: [
+                            .Text(avatar),
+                            .VStack(messageColumn)
+                        ],
+                        spacing: 10
+                    )
+                )
+            ]
+        )
+        row.modifiers = modifier {
+            $0.padding = 2
+        }
+        return row
+    }
+
+    private static func bindingConferencePortalCompactActionRowSkeleton() -> SkeletonVStack {
+        var title = SkeletonText(keypath: "title")
+        title.modifiers = modifier {
+            $0.fontSize = 14
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = "#F5FBFF"
+            $0.lineLimit = 1
+        }
+
+        var subtitle = SkeletonText(keypath: "subtitle")
+        subtitle.modifiers = modifier {
+            $0.fontSize = 11
+            $0.foregroundColor = "#8DE1DA"
+            $0.lineLimit = 2
+        }
+
+        var detail = SkeletonText(keypath: "detail")
+        detail.modifiers = modifier {
+            $0.fontSize = 12
+            $0.foregroundColor = "#D5E4ED"
+            $0.lineLimit = 3
+        }
+
+        var note = SkeletonText(keypath: "note")
+        note.modifiers = modifier {
+            $0.fontSize = 11
+            $0.foregroundColor = "#88A2B1"
+            $0.lineLimit = 2
+        }
+
+        var rowButton = SkeletonButton(keypath: "dispatchAction", label: "Neste steg")
+        rowButton.modifiers = modifier {
+            $0.padding = 8
+            $0.background = "#173140"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#2D566B"
+            $0.foregroundColor = "#D9FBFF"
+        }
+
+        var textColumn = SkeletonVStack(
+            elements: [
+                .Text(title),
+                .Text(subtitle),
+                .Text(detail),
+                .Text(note)
+            ],
+            spacing: 4
+        )
+        textColumn.modifiers = modifier {
+            $0.hAlignment = "leading"
+        }
+
+        var row = SkeletonVStack(
+            elements: [
+                .HStack(
+                    SkeletonHStack(
+                        elements: [
+                            .VStack(textColumn),
+                            .Spacer(SkeletonSpacer()),
+                            .Button(rowButton)
+                        ],
+                        spacing: 10
+                    )
+                ),
+                .Divider(SkeletonDivider())
+            ],
+            spacing: 8
+        )
+        row.modifiers = modifier {
+            $0.padding = 2
+        }
+        return row
     }
 
     private static func bindingConferencePortalTimelineRowSkeleton() -> SkeletonVStack {
