@@ -9070,7 +9070,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         conferenceReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
         configuration.addReference(conferenceReference)
 
-        let resolvedAIGatewayEndpoint = "cell:///AIGateway"
+        let resolvedAIGatewayEndpoint = "cell:///ConferenceAIAssistantGatewayProxy"
         var aiReference = CellReference(endpoint: resolvedAIGatewayEndpoint, label: "aiGateway")
         aiReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
         configuration.addReference(aiReference)
@@ -9190,6 +9190,30 @@ final class ConfigurationCatalogCell: GeneralCell {
                         "Load copilot system prompt fyller bare det valgfrie systemprompt-feltet. Preset-knappene under fyller bare den store request-boksen som faktisk kreves for invoke.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3"
+                    ),
+                    bindingConferencePortalStaticText(
+                        "System prompt preview",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
+                    ),
+                    bindingConferencePortalKeyText(
+                        "aiGateway.state.draft.systemPrompt",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2",
+                        lineLimit: 3
+                    ),
+                    bindingConferencePortalStaticText(
+                        "Request preview",
+                        fontSize: 11,
+                        fontWeight: "semibold",
+                        foregroundColor: "#8DE1DA"
+                    ),
+                    bindingConferencePortalKeyText(
+                        "aiGateway.state.draft.prompt",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2",
+                        lineLimit: 3
                     ),
                     .HStack(
                         SkeletonHStack(elements: [

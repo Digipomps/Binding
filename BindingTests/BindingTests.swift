@@ -154,6 +154,7 @@ struct BindingTests {
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantDiscoverySnapshot") == "cell:///ConferenceParticipantDiscoverySnapshot")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantPreviewShell") == "cell:///ConferenceParticipantPreviewShell")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceAdminPreviewShell") == "cell:///ConferenceAdminPreviewShell")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceAIAssistantGatewayProxy") == "cell:///ConferenceAIAssistantGatewayProxy")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AIGateway") == "cell://staging.haven.digipomps.org/AIGateway")
@@ -326,7 +327,7 @@ struct BindingTests {
         #expect(configuration.cellReferences?.first?.label == "conferenceParticipantShell")
         #expect(configuration.cellReferences?.first?.setKeysAndValues.contains(where: { $0.key == "state" }) == true)
         #expect(configuration.cellReferences?.last?.label == "aiGateway")
-        #expect(configuration.cellReferences?.last?.endpoint == "cell:///AIGateway")
+        #expect(configuration.cellReferences?.last?.endpoint == "cell:///ConferenceAIAssistantGatewayProxy")
 
         guard case .ScrollView? = configuration.skeleton else {
             Issue.record("Conference AI Assistant should use a designed scroll surface")
@@ -446,6 +447,49 @@ struct BindingTests {
             requester: owner
         )
         #expect(adminTitle == .string("Conference Control Tower"))
+    }
+
+    @Test func conferenceAIAssistantGatewayProxyReturnsStateForPresetWrites() async throws {
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+
+        let owner = await makeOwnerIdentity()
+
+        guard let proxy = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceAIAssistantGatewayProxy",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Could not resolve ConferenceAIAssistantGatewayProxy as Meddle")
+            return
+        }
+
+        let systemPromptResponse = try await proxy.set(
+            keypath: "setDraftSystemPrompt",
+            value: .string("Conference copilot system prompt"),
+            requester: owner
+        )
+        #expect(systemPromptResponse != nil)
+
+        let promptResponse = try await proxy.set(
+            keypath: "setDraftPrompt",
+            value: .string("Give me a concise conference brief."),
+            requester: owner
+        )
+        #expect(promptResponse != nil)
+
+        let stateValue = try await proxy.get(
+            keypath: "state",
+            requester: owner
+        )
+        guard case let .object(stateObject) = stateValue,
+              case let .object(draftObject)? = stateObject["draft"] else {
+            Issue.record("Expected draft object from conference AI gateway proxy state")
+            return
+        }
+
+        #expect(draftObject["systemPrompt"] == .string("Conference copilot system prompt"))
+        #expect(draftObject["prompt"] == .string("Give me a concise conference brief."))
     }
 
     @Test func conferenceWorkbenchFallsBackToLocalPreviewWhenStagingPreviewIsDenied() {

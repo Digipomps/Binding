@@ -161,6 +161,13 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "ConferenceAIAssistantGatewayProxy",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceAIAssistantGatewayProxyCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "ConferenceDemoLauncher",
             cellScope: .identityUnique,
             identityDomain: "private",
@@ -247,6 +254,100 @@ private enum ConferenceSnapshotRetrySupport {
         }
 
         return retryableFragments.contains(where: normalized.contains)
+    }
+}
+
+private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
+    private static let localGatewayEndpoint = "cell:///AIGateway"
+    private static let readableKeys = [
+        "state",
+        "contracts",
+        "purposeGoal",
+        "configuration",
+        "skeletonConfiguration"
+    ]
+    private static let writableKeys = [
+        "applyDraftProfile",
+        "setDraftPrompt",
+        "setDraftSystemPrompt",
+        "setDraftProviderID",
+        "setDraftModel",
+        "setDraftBaseURL",
+        "setDraftAPIKeyAlias",
+        "setDraftTemperatureText",
+        "setDraftMaxTokensText",
+        "setDraftDeterministicMode",
+        "setDraftRequiresAPIKey",
+        "setDraftAPIKey",
+        "clearDraftAPIKey",
+        "persistDraftAPIKey",
+        "invokeDraft",
+        "ai.invoke",
+        "invokeAI"
+    ]
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        Self.readableKeys.forEach { agreementTemplate.addGrant("r---", for: $0) }
+        Self.writableKeys.forEach { agreementTemplate.addGrant("rw--", for: $0) }
+
+        for key in Self.readableKeys {
+            await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
+                return await self.forwardGet(keypath: key, requester: requester)
+            }
+        }
+
+        for key in Self.writableKeys {
+            await addInterceptForSet(requester: owner, key: key) { [weak self] _, value, requester in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }
+                return await self.forwardSet(keypath: key, value: value, requester: requester)
+            }
+        }
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private func resolveGateway(requester: Identity) async throws -> Meddle {
+        guard let resolver = CellBase.defaultCellResolver else {
+            throw CellBaseError.noResolver
+        }
+        guard let gateway = try await resolver.cellAtEndpoint(
+            endpoint: Self.localGatewayEndpoint,
+            requester: requester
+        ) as? Meddle else {
+            throw CellBaseError.noTargetCell
+        }
+        return gateway
+    }
+
+    private func forwardGet(keypath: String, requester: Identity) async -> ValueType {
+        do {
+            let gateway = try await resolveGateway(requester: requester)
+            return try await gateway.get(keypath: keypath, requester: requester)
+        } catch {
+            return .string("Conference AI gateway proxy get failed: \(error)")
+        }
+    }
+
+    private func forwardSet(keypath: String, value: ValueType, requester: Identity) async -> ValueType {
+        do {
+            let gateway = try await resolveGateway(requester: requester)
+            if let response = try await gateway.set(keypath: keypath, value: value, requester: requester) {
+                return response
+            }
+            return try await gateway.get(keypath: "state", requester: requester)
+        } catch {
+            return .string("Conference AI gateway proxy set failed: \(error)")
+        }
     }
 }
 
