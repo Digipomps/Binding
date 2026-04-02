@@ -2023,7 +2023,7 @@ struct ContentView: View {
 
     @MainActor
     private func resetToConferenceDemoLauncher() {
-        let demoLauncher = Self.conferenceDemoLauncherMenuSeedConfiguration()
+        let demoLauncher = Self.defaultDemoStartConfiguration()
         storeDemoStartConfiguration(demoLauncher)
         editorMode = .view
         presentingFullLibrary = false
@@ -2079,7 +2079,19 @@ struct ContentView: View {
     private func applyStoredDemoStartConfigurationIfNeeded() {
         guard !didApplyStoredDemoStart else { return }
         didApplyStoredDemoStart = true
-        guard let storedConfiguration = decodeStoredDemoStartConfiguration() else { return }
+        let storedConfiguration: CellConfiguration
+        if let decoded = decodeStoredDemoStartConfiguration() {
+            storedConfiguration = decoded
+        } else {
+            storedConfiguration = Self.defaultDemoStartConfiguration()
+            if let data = try? JSONEncoder().encode(storedConfiguration) {
+                demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
+            }
+            diagnosticsStore.record(
+                domain: "binding.demo",
+                message: "Ingen lagret demo-start funnet. Bruker Conference Demo Launcher som standard inntil demoen er ferdig."
+            )
+        }
         diagnosticsStore.record(
             domain: "binding.demo",
             message: "Laster demo-start: \(storedConfiguration.name)"
@@ -4332,6 +4344,10 @@ struct ContentView: View {
 
     static func conferenceDemoLauncherMenuSeedConfiguration() -> CellConfiguration {
         ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+    }
+
+    static func defaultDemoStartConfiguration() -> CellConfiguration {
+        conferenceDemoLauncherMenuSeedConfiguration()
     }
 
     static func conferenceIdentityLinkMenuSeedConfiguration() -> CellConfiguration {

@@ -905,6 +905,15 @@ struct BindingTests {
         #expect(configuration.discovery?.sourceCellName == "ConferenceParticipantPreviewShellLocalFallbackCell")
     }
 
+    @Test func defaultDemoStartConfigurationUsesConferenceDemoLauncher() {
+        let configuration = ContentView.defaultDemoStartConfiguration()
+
+        #expect(configuration.name == "Conference Demo Launcher")
+        #expect(configuration.cellReferences?.contains(where: {
+            $0.label == "conferenceDemoLauncher" && $0.endpoint == "cell:///ConferenceDemoLauncher"
+        }) == true)
+    }
+
     @Test func conferenceParticipantPortalRepairRestoresDiscoveryAndNearbyWiring() {
         var staleConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
