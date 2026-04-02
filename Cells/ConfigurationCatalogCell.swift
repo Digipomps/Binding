@@ -8394,7 +8394,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                             bindingConferencePortalPrimaryActionButton(
                                 referenceLabel,
                                 actionKeypath: "discovery.startChatWithFocusedPerson",
-                                label: "Start chat"
+                                label: "Klargjør chat"
+                            ),
+                            bindingConferenceDirectActionButton(
+                                keypath: "chatSnapshot.dispatchAction",
+                                label: "Åpne chatflate",
+                                payload: .object([
+                                    "keypath": .string("openChatWorkbenchForSelectedParticipant"),
+                                    "payload": .bool(true)
+                                ])
                             ),
                             bindingConferencePortalActionButton(
                                 referenceLabel,

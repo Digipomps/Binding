@@ -5473,7 +5473,15 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         if sharedNames.contains(firstTarget) {
             recentActionSummary = "Chatten med \(firstTarget) er klar."
         } else {
-            recentActionSummary = "Chatten med \(firstTarget) ble ikke klar ennå. Prøv Start chat igjen."
+            if launchedChatNames.contains(firstTarget) == false {
+                launchedChatNames.insert(firstTarget, at: 0)
+                launchedChatNames = Array(Set(launchedChatNames)).sorted {
+                    if $0 == firstTarget { return true }
+                    if $1 == firstTarget { return false }
+                    return $0 < $1
+                }
+            }
+            recentActionSummary = "Chatten med \(firstTarget) klargjøres. Du kan åpne chatflaten nå."
         }
     }
 
@@ -5586,7 +5594,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         }
         let title = cardTitle(from: focusedCard)
         if launchedChatNames.contains(title) {
-            return "Chatten med \(title) er klar. Neste steg er å åpne chatten eller be om møte."
+            return "Chatten med \(title) er klar. Neste steg er å åpne chatflaten eller be om møte."
         }
         if followUpMarkedNames.contains(title) {
             return "\(title) er markert for oppfølging. Neste steg er å starte chat eller be om møte."
@@ -5613,16 +5621,35 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         }
 
         let persona = conferenceDemoPersona(named: cardTitle(from: focusedCard), source: focusedCard)
+        let title = cardTitle(from: focusedCard)
+        let chatReady = launchedChatNames.contains(title)
+        let followUpMarked = followUpMarkedNames.contains(title)
+        let note: String
+        if chatReady {
+            note = "\(cardNote(from: focusedCard)) · Chatten er klar i chat og oppfølging."
+        } else if followUpMarked {
+            note = "\(cardNote(from: focusedCard)) · Markert for oppfølging."
+        } else {
+            note = cardNote(from: focusedCard)
+        }
+        let nextStep: String
+        if chatReady {
+            nextStep = "Åpne chatflaten eller be om møte med \(title)."
+        } else if followUpMarked {
+            nextStep = "Fortsett med chat eller be om møte med \(title)."
+        } else {
+            nextStep = "Bruk Klargjør chat, Marker for oppfølging eller Be om møte med \(title)."
+        }
         return [
             "selectionBadge": .string("VALGT DELTAKER"),
-            "title": .string(cardTitle(from: focusedCard)),
+            "title": .string(title),
             "subtitle": .string(cardSubtitle(from: focusedCard)),
             "detail": .string(cardDetail(from: focusedCard)),
-            "note": .string(cardNote(from: focusedCard)),
+            "note": .string(note),
             "publicProfileSummary": .string("Offentlig profil: \(cardSubtitle(from: focusedCard))."),
             "profileDetail": .string("\(cardDetail(from: focusedCard)) \(persona.publicProfileDetail)"),
             "fitSummary": .string("\(cardNote(from: focusedCard)) · \(persona.fitContext)"),
-            "nextStep": .string("Bruk Start chat, Marker for oppfølging eller Be om møte med \(cardTitle(from: focusedCard))."),
+            "nextStep": .string(nextStep),
             "conversationStyle": .string(persona.conversationStyle),
             "openingPrompt": .string(persona.suggestedOpening),
             "simulationSummary": .string(persona.simulatedAgentSummary)
@@ -6014,6 +6041,28 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
 
         case "chat.sendDraftMessage":
             return await sendDraftMessage(requester: requester)
+
+        case "openChatWorkbenchForSelectedParticipant":
+            if let storedSelection = await selectedParticipantFromStore() {
+                focusedChatName = storedSelection
+                await rememberSelectedParticipant(storedSelection)
+            }
+            let selectedName = focusedChatName ?? "valgt deltaker"
+            recentActionSummary = "Åpner chatflaten for \(selectedName)…"
+            let selectedThreadReady = await ensureSharedThreadReady(requester: requester)
+            if !selectedThreadReady {
+                let currentState = mergedChatState(from: cachedChatState)
+                cachedChatState = Self.chatStateWithStatus(
+                    basedOn: currentState,
+                    status: string(from: currentState["statusSummary"]) ?? "Ingen delt tråd er klar ennå.",
+                    actionSummary: recentActionSummary
+                )
+                return .object([
+                    "status": .string("error"),
+                    "state": .object(cachedChatState)
+                ])
+            }
+            return await openChatWorkbench(requester: requester)
 
         case "openChatWorkbench":
             if case let .object(threadObject) = payload,
@@ -6819,11 +6868,19 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
 
     private func restoreSelectedParticipantIfAvailable() async {
         guard focusedChatName == nil,
-              !storeKey.isEmpty,
-              let storedSelection = await ConferenceParticipantSelectionStore.shared.load(for: storeKey) else {
+              let storedSelection = await selectedParticipantFromStore() else {
             return
         }
         focusedChatName = storedSelection
+    }
+
+    private func selectedParticipantFromStore() async -> String? {
+        guard !storeKey.isEmpty,
+              let storedSelection = await ConferenceParticipantSelectionStore.shared.load(for: storeKey) else {
+            return nil
+        }
+        let trimmed = storedSelection.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func rememberSelectedParticipant(_ displayName: String?) async {

@@ -752,17 +752,23 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
         XCTAssertEqual(chatActionLabel, ValueType.string("Åpne chatflate"))
 
+        let nextStepSummary = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.nextStepSummary",
+            requester: context.owner
+        )
+        XCTAssertEqual(
+            nextStepSummary,
+            ValueType.string("Chatten med Ane Solberg er klar. Neste steg er å åpne chatflaten eller be om møte.")
+        )
+
         let expectedWorkbenchLoad = Task {
             await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Chat")
         }
         let openChatResponse = try await context.porthole.set(
             keypath: "chatSnapshot.dispatchAction",
             value: ValueType.object([
-                "keypath": ValueType.string("openChatWorkbench"),
-                "payload": ValueType.object([
-                    "displayName": ValueType.string("Ane Solberg"),
-                    "subtitle": ValueType.string("Public sector interoperability")
-                ])
+                "keypath": ValueType.string("openChatWorkbenchForSelectedParticipant"),
+                "payload": ValueType.bool(true)
             ]),
             requester: context.owner
         )

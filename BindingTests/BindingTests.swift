@@ -1160,6 +1160,12 @@ struct BindingTests {
         )
         #expect(chatActionLabel == .string("Åpne chatflate"))
 
+        let nextStepSummary = try await context.porthole.get(
+            keypath: "matchmakingSnapshot.state.nextStepSummary",
+            requester: context.owner
+        )
+        #expect(nextStepSummary == .string("Chatten med Ane Solberg er klar. Neste steg er å åpne chatflaten eller be om møte."))
+
         let expectedWorkbenchLoad = Task {
             await CellConfigurationVerifier.waitForPortholeLoadBridgeConfiguration(
                 containingName: "Conference Chat"
@@ -1168,11 +1174,8 @@ struct BindingTests {
         let openChatResponse = try await context.porthole.set(
             keypath: "chatSnapshot.dispatchAction",
             value: .object([
-                "keypath": .string("openChatWorkbench"),
-                "payload": .object([
-                    "displayName": .string("Ane Solberg"),
-                    "subtitle": .string("Public sector interoperability")
-                ])
+                "keypath": .string("openChatWorkbenchForSelectedParticipant"),
+                "payload": .bool(true)
             ]),
             requester: context.owner
         )
