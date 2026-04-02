@@ -26,6 +26,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             "cell:///ConferenceParticipantDiscoverySnapshot"
         )
         XCTAssertEqual(
+            contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceIdentityLinkIntake"),
+            "cell:///ConferenceIdentityLinkIntake"
+        )
+        XCTAssertEqual(
             contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat"),
             "cell://staging.haven.digipomps.org/Chat"
         )
@@ -81,6 +85,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             for: configuration,
             buttonsToExecute: [
                 "Open public surface",
+                "Open identity link setup",
                 "Open participant cockpit",
                 "Open participant chat",
                 "Open control tower",
@@ -918,8 +923,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             ValueType.string("4 meldinger synlige i tråden med Ane Solberg, eldste først.")
         )
 
-        let expectedPortalLoad = Task {
-            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Portal")
+        let expectedPortalPop = Task {
+            await waitForConferenceNavigationPopFallbackConfiguration(containingName: "Conference Participant Portal")
         }
         let returnResponse = try await chatSnapshot.set(
             keypath: "dispatchAction",
@@ -938,8 +943,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
         XCTAssertNil(returnFailure)
 
-        guard let participantPortalConfiguration = await expectedPortalLoad.value else {
-            XCTFail("Expected BindingPortholeLoadBridge request for Conference Participant Portal")
+        guard let participantPortalConfiguration = await expectedPortalPop.value else {
+            XCTFail("Expected BindingConferenceNavigationBridge pop request for Conference Participant Portal")
             return
         }
         XCTAssertTrue(participantPortalConfiguration.name.contains("Conference Participant Portal"))
@@ -1036,6 +1041,40 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             requester: context.owner
         )
         XCTAssertEqual(selectionSummary, ValueType.string("Viser den delte tråden med Ane Solberg."))
+    }
+
+    func testConferenceDemoLauncherCanOpenIdentityLinkSetup() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let expectedIdentityLinkLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Scaffold Setup & Identity Link")
+        }
+        let openIdentityLinkResponse = try await context.porthole.set(
+            keypath: "conferenceDemoLauncher.dispatchAction",
+            value: .object([
+                "keypath": .string("launcher.openIdentityLink"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openIdentityLinkResponse else {
+            XCTFail("Open identity link action returned nil response")
+            return
+        }
+        let openIdentityLinkFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openIdentityLinkResponse)
+        }
+        XCTAssertNil(openIdentityLinkFailure)
+
+        guard let identityLinkConfiguration = await expectedIdentityLinkLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Scaffold Setup & Identity Link")
+            return
+        }
+        XCTAssertTrue(identityLinkConfiguration.name.contains("Conference Scaffold Setup & Identity Link"))
+        XCTAssertTrue(identityLinkConfiguration.cellReferences?.contains(where: { $0.label == "identityLink" }) == true)
     }
 
     func testConferenceDemoLauncherCanOpenPublicSurfaceAndControlTower() async throws {
@@ -1158,6 +1197,45 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                     return
                 }
                 guard configuration.name.contains(expectedNameFragment) else {
+                    return
+                }
+                finish(configuration)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: deadline) {
+                finish(nil)
+            }
+        }
+    }
+
+    private func waitForConferenceNavigationPopFallbackConfiguration(
+        containingName expectedNameFragment: String,
+        timeout: TimeInterval = 2.0
+    ) async -> CellConfiguration? {
+        let notificationCenter = NotificationCenter.default
+        return await withCheckedContinuation { continuation in
+            var token: NSObjectProtocol?
+            var didResume = false
+
+            func finish(_ configuration: CellConfiguration?) {
+                guard !didResume else { return }
+                didResume = true
+                if let token {
+                    notificationCenter.removeObserver(token)
+                }
+                continuation.resume(returning: configuration)
+            }
+
+            let deadline = DispatchTime.now() + timeout
+
+            token = notificationCenter.addObserver(
+                forName: BindingConferenceNavigationBridge.notificationName,
+                object: nil,
+                queue: nil
+            ) { notification in
+                guard BindingConferenceNavigationBridge.isPopRequest(notification),
+                      let configuration = BindingConferenceNavigationBridge.fallbackConfiguration(from: notification),
+                      configuration.name.contains(expectedNameFragment) else {
                     return
                 }
                 finish(configuration)

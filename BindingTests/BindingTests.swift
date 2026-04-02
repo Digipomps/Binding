@@ -155,6 +155,7 @@ struct BindingTests {
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceParticipantPreviewShell") == "cell:///ConferenceParticipantPreviewShell")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceAdminPreviewShell") == "cell:///ConferenceAdminPreviewShell")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceAIAssistantGatewayProxy") == "cell:///ConferenceAIAssistantGatewayProxy")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceIdentityLinkIntake") == "cell:///ConferenceIdentityLinkIntake")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AIGateway") == "cell://staging.haven.digipomps.org/AIGateway")
@@ -333,6 +334,48 @@ struct BindingTests {
             Issue.record("Conference AI Assistant should use a designed scroll surface")
             return
         }
+    }
+
+    @Test func conferenceIdentityLinkWorkbenchSeedsLocalIntakeState() {
+        let configuration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+
+        #expect(configuration.name == "Conference Scaffold Setup & Identity Link")
+        #expect(configuration.cellReferences?.count == 1)
+        #expect(configuration.cellReferences?.first?.label == "identityLink")
+        #expect(configuration.cellReferences?.first?.endpoint == "cell:///ConferenceIdentityLinkIntake")
+        #expect(configuration.cellReferences?.first?.setKeysAndValues.contains(where: { $0.key == "state" }) == true)
+
+        guard case .ScrollView? = configuration.skeleton else {
+            Issue.record("Conference identity-link workbench should use a designed scroll surface")
+            return
+        }
+    }
+
+    @Test func conferenceIdentityLinkInboxParsesDeepLinkChallenge() async throws {
+        let store = ConferenceIdentityLinkInboxStore.shared
+        await store.clear()
+
+        let url = try #require(
+            URL(string: "haven://identity-link?requestId=REQ-123&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=nonce-123&expiresAt=2026-04-02T12:00:00Z&algorithm=P256-ES256")
+        )
+
+        #expect(await store.ingest(url: url))
+
+        let state = await store.stateObject()
+        guard case let .object(incoming)? = state["incoming"],
+              case let .object(review)? = state["review"] else {
+            Issue.record("Expected incoming/review identity-link state objects")
+            await store.clear()
+            return
+        }
+
+        #expect(incoming["challengeSummary"] == .string("Request REQ-123"))
+        #expect(incoming["audienceSummary"] == .string("Audience: staging.haven.digipomps.org"))
+        #expect(incoming["domainSummary"] == .string("Requested domains: private, scaffold"))
+        #expect(incoming["scopeSummary"] == .string("Requested scopes: entity-auth, personal-cells"))
+        #expect(review["confirmationStatus"] == .string("Lokal brukerbekreftelse mangler."))
+
+        await store.clear()
     }
 
     @Test func conferenceAdminPublicAndSponsorWorkbenchesSeedStateAndUseScrollSurfaces() {

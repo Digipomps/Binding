@@ -50,6 +50,39 @@ enum BindingPortholeLoadBridge {
     }
 }
 
+enum BindingConferenceNavigationBridge {
+    nonisolated static let notificationName = Notification.Name("BindingConferenceNavigationBridge.requested")
+
+    nonisolated private static let actionKey = "action"
+    nonisolated private static let fallbackConfigurationDataKey = "fallbackConfigurationData"
+
+    nonisolated static func postPop(
+        fallbackConfiguration: CellConfiguration? = nil,
+        notificationCenter: NotificationCenter = .default
+    ) {
+        let encoder = JSONEncoder()
+        let fallbackData = fallbackConfiguration.flatMap { try? encoder.encode($0) }
+        var userInfo: [String: Any] = [actionKey: "pop"]
+        if let fallbackData {
+            userInfo[fallbackConfigurationDataKey] = fallbackData
+        }
+        notificationCenter.post(
+            name: notificationName,
+            object: nil,
+            userInfo: userInfo
+        )
+    }
+
+    nonisolated static func isPopRequest(_ notification: Notification) -> Bool {
+        notification.userInfo?[actionKey] as? String == "pop"
+    }
+
+    nonisolated static func fallbackConfiguration(from notification: Notification) -> CellConfiguration? {
+        guard let data = notification.userInfo?[fallbackConfigurationDataKey] as? Data else { return nil }
+        return try? JSONDecoder().decode(CellConfiguration.self, from: data)
+    }
+}
+
 final class ConfigurationCatalogCell: GeneralCell {
     private static let blockedCatalogReferenceNames: Set<String> = [
         "eventemitter",
@@ -5044,6 +5077,22 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "demo", "story"]
             ),
             StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///ConferenceIdentityLinkIntake",
+                sourceCellName: "ConferenceIdentityLinkIntakeCell",
+                displayName: "Conference Scaffold Setup & Identity Link",
+                purpose: "Conference scaffold setup and identity link review",
+                purposeDescription: "Mobil intake for scaffold setup og identity-link challenges. Binding viser incoming challenge-data, requested scopes og lokal key-ownership før web/scaffold fullfører approval.",
+                interests: ["conference", "identity-link", "setup", "enrollment", "scaffold", "proofs"],
+                summary: "Mobil inngang for scaffold setup, QR/deep-link challenge review og lokal key-possession før approval.",
+                categoryPath: ["experiences", "conference", "setup"],
+                tags: ["conference", "identity-link", "setup", "enrollment", "proofs"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "LOCAL FLOW",
+                borderColor: "#2563EB",
+                flowDriven: true,
+                recommendedContexts: ["conference", "setup", "identity-link"]
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///ConferenceParticipantPreviewShell",
                 sourceCellName: "ConferenceParticipantPreviewShellLocalFallbackCell",
                 displayName: "Conference Participant Portal Dashboard",
@@ -6243,6 +6292,13 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    nonisolated static func conferenceIdentityLinkWorkbenchConfiguration() -> CellConfiguration {
+        conferenceIdentityLinkWorkbenchConfiguration(
+            displayName: "Conference Scaffold Setup & Identity Link",
+            summary: "Mobil inngang for scaffold setup, QR/deep-link challenge review og lokal key-possession før approval."
+        )
+    }
+
     nonisolated static func conferenceNearbyRadarWorkbenchConfiguration(
         participantEndpoint: String = "cell:///ConferenceParticipantPreviewShell"
     ) -> CellConfiguration {
@@ -7395,7 +7451,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                                 bindingConferencePortalStateSummaryCard(
                                     title: "Neste steg",
                                     detailKeypath: "conferenceDemoLauncher.state.nextStepSummary",
-                                    noteKeypath: "conferenceDemoLauncher.state.participantActSummary",
+                                    noteKeypath: "conferenceDemoLauncher.state.identityLinkActSummary",
                                     accentBorder: "#4D3F2A",
                                     accentText: "#F4D58D",
                                     height: 132
@@ -7420,6 +7476,21 @@ final class ConfigurationCatalogCell: GeneralCell {
                                 "conferenceDemoLauncher",
                                 actionKeypath: "launcher.openParticipantCockpit",
                                 label: "Open participant cockpit"
+                            )
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Act 0.5 · Scaffold Setup & Identity Link",
+                content: [
+                    bindingConferencePortalKeyText("conferenceDemoLauncher.state.identityLinkActSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalActionButton(
+                                "conferenceDemoLauncher",
+                                actionKeypath: "launcher.openIdentityLink",
+                                label: "Open identity link setup"
                             )
                         ])
                     )
@@ -7460,6 +7531,156 @@ final class ConfigurationCatalogCell: GeneralCell {
                                 "conferenceDemoLauncher",
                                 actionKeypath: "launcher.openAIAssistant",
                                 label: "Open AI assistant"
+                            )
+                        ])
+                    )
+                ]
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func conferenceIdentityLinkWorkbenchConfiguration(
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceIdentityLinkIntake",
+            sourceCellName: "ConferenceIdentityLinkIntakeCell",
+            purpose: "Conference scaffold setup and identity link",
+            purposeDescription: "Mobil intake for scaffold setup og cross-vault identity-link challenges. Binding viser incoming challenge-data, requested scopes og lokal key-possession før web/scaffold fullfører approval.",
+            interests: ["conference", "identity-link", "setup", "enrollment", "proofs", "scaffold"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var identityLinkReference = CellReference(
+            endpoint: "cell:///ConferenceIdentityLinkIntake",
+            subscribeFeed: false,
+            label: "identityLink"
+        )
+        identityLinkReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(identityLinkReference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Conference Scaffold Setup & Identity Link",
+                content: [
+                    bindingConferencePortalKeyText("identityLink.state.workspace.title", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+                    bindingConferencePortalKeyText("identityLink.state.workspace.subtitle", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    bindingConferencePortalKeyText("identityLink.state.workspace.notice", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
+                    .Grid(
+                        SkeletonGrid(
+                            columns: [.adaptive(min: 220, max: 320)],
+                            spacing: 12,
+                            elements: [
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Status nå",
+                                    detailKeypath: "identityLink.state.incoming.statusSummary",
+                                    noteKeypath: "identityLink.state.review.actionSummary",
+                                    accentBorder: "#2F6B56",
+                                    accentText: "#B9FBC0",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Lokal review",
+                                    detailKeypath: "identityLink.state.review.confirmationStatus",
+                                    noteKeypath: "identityLink.state.review.localIdentitySummary",
+                                    accentBorder: "#2A4D61",
+                                    accentText: "#B9E6FF",
+                                    height: 132
+                                ),
+                                bindingConferencePortalStateSummaryCard(
+                                    title: "Neste steg",
+                                    detailKeypath: "identityLink.state.review.nextStepSummary",
+                                    noteKeypath: "identityLink.state.review.limitationSummary",
+                                    accentBorder: "#4D3F2A",
+                                    accentText: "#F4D58D",
+                                    height: 132
+                                )
+                            ]
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Incoming challenge",
+                content: [
+                    bindingConferencePortalKeyText("identityLink.state.incoming.sourceSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.challengeSummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.deviceSummary", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.audienceSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.originSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.entitySummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.domainSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.contextSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.scopeSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.expirySummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.proofSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3)
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Open or paste challenge data",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Åpne `haven://identity-link?...`, `haven://binding/add-device?...` eller lim inn QR/deep-link payload direkte her. Binding parser challenge-data uten å late som approval allerede er fullført.",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2",
+                        lineLimit: 5
+                    ),
+                    bindingConferencePortalTextArea(
+                        sourceKeypath: "identityLink.state.draftInput",
+                        targetKeypath: "identityLink.setDraftInput",
+                        placeholder: "Lim inn haven://identity-link… eller JSON request her",
+                        minLines: 4,
+                        maxLines: 8
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalPrimaryActionButton(
+                                "identityLink",
+                                actionKeypath: "identityLink.importDraft",
+                                label: "Import challenge"
+                            ),
+                            bindingConferencePortalActionButton(
+                                "identityLink",
+                                actionKeypath: "identityLink.clear",
+                                label: "Clear"
+                            )
+                        ])
+                    ),
+                    bindingConferencePortalKeyText("identityLink.state.incoming.rawPreview", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 8)
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Local Binding review",
+                content: [
+                    bindingConferencePortalKeyText("identityLink.state.review.localIdentitySummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    bindingConferencePortalKeyText("identityLink.state.review.confirmationStatus", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
+                    bindingConferencePortalKeyText("identityLink.state.review.limitationSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 4),
+                    bindingConferencePortalKeyText("identityLink.state.review.nextStepSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferencePortalPrimaryActionButton(
+                                "identityLink",
+                                actionKeypath: "identityLink.confirmLocalReview",
+                                label: "Confirm local key & continue"
+                            ),
+                            bindingConferencePortalActionButton(
+                                "identityLink",
+                                actionKeypath: "identityLink.openLauncher",
+                                label: "Back to launcher"
                             )
                         ])
                     )

@@ -1,6 +1,24 @@
 import Foundation
 import CellApple
 
+enum BindingIncomingURLBridge {
+    nonisolated static let notificationName = Notification.Name("BindingIncomingURLBridge.received")
+
+    nonisolated private static let urlKey = "url"
+
+    nonisolated static func post(url: URL, notificationCenter: NotificationCenter = .default) {
+        notificationCenter.post(
+            name: notificationName,
+            object: nil,
+            userInfo: [urlKey: url]
+        )
+    }
+
+    nonisolated static func url(from notification: Notification) -> URL? {
+        notification.userInfo?[urlKey] as? URL
+    }
+}
+
 enum BindingLaunchWarmup {
     static func preloadLocalRuntime() async {
         await AppInitializer.initialize()
@@ -39,6 +57,15 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
             NotificationEnrollmentManager.shared.declineTerms()
         }
         print("APNS registration failed: \(error)")
+    }
+
+    func application(
+        _ application: UIApplication,
+        open url: URL,
+        options: [UIApplication.OpenURLOptionsKey : Any] = [:]
+    ) -> Bool {
+        BindingIncomingURLBridge.post(url: url)
+        return true
     }
 
     func application(_ application: UIApplication,

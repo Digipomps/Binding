@@ -193,6 +193,12 @@ private func contentViewModifier(_ configure: (inout SkeletonModifiers) -> Void)
 }
 
 struct ContentView: View {
+    private enum ConferenceNavigationMode {
+        case automatic
+        case reset
+        case skipPush
+    }
+
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "publishersws"
@@ -303,6 +309,7 @@ struct ContentView: View {
     @State private var componentCanvasDropTargeted = false
     @State private var configurationLoadTask: Task<Void, Never>?
     @State private var initialRuntimeBootstrapTask: Task<Void, Never>?
+    @State private var conferenceNavigationStack: [CellConfiguration] = []
     @StateObject private var componentPlacementState = ComponentPlacementState()
     @StateObject private var diagnosticsStore = BindingRuntimeDiagnostics.shared
 
@@ -604,6 +611,28 @@ struct ContentView: View {
             }
             queueConfigurationLoad(configuration)
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: BindingConferenceNavigationBridge.notificationName)
+        ) { notification in
+            guard BindingConferenceNavigationBridge.isPopRequest(notification) else { return }
+            popConferenceNavigation(
+                fallbackConfiguration: BindingConferenceNavigationBridge.fallbackConfiguration(from: notification)
+            )
+        }
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: BindingIncomingURLBridge.notificationName)
+                .compactMap(BindingIncomingURLBridge.url)
+        ) { url in
+            handleIncomingURL(url)
+        }
+#if os(iOS)
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
+        ) { _ in
+            handleMemoryWarning()
+        }
+#endif
         .onPreferenceChange(TopChromeHeightPreferenceKey.self) { topChromeHeight in
             self.topChromeHeight = topChromeHeight
         }
@@ -626,7 +655,7 @@ struct ContentView: View {
                 onSetDemoStartConfiguration: { configuration in
                     storeDemoStartConfiguration(configuration)
                     editorMode = .view
-                    queueConfigurationLoad(configuration)
+                    queueConfigurationLoad(configuration, navigationMode: .reset)
                     presentingFullLibrary = false
                 },
                 onAddComponent: { item in
@@ -1487,6 +1516,17 @@ struct ContentView: View {
 
     private var regularAppToolbar: some View {
         HStack(spacing: 10) {
+            if canPopConferenceNavigation {
+                Button {
+                    popConferenceNavigation()
+                } label: {
+                    Label(conferenceNavigationBackLabel, systemImage: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Gå tilbake i conference-demo-stacken")
+            }
+
             Button {
                 presentingFullLibrary = true
             } label: {
@@ -1569,6 +1609,17 @@ struct ContentView: View {
 
     private var compactAppToolbar: some View {
         HStack(spacing: 8) {
+            if canPopConferenceNavigation {
+                Button {
+                    popConferenceNavigation()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(conferenceNavigationBackLabel)
+            }
+
             Button {
                 presentingFullLibrary = true
             } label: {
@@ -1981,7 +2032,7 @@ struct ContentView: View {
             domain: "binding.demo",
             message: "Resetter til Conference Demo Launcher fra \(runtimeIdentityTitle)."
         )
-        queueConfigurationLoad(demoLauncher)
+        queueConfigurationLoad(demoLauncher, navigationMode: .reset)
     }
 
     private func decodeStoredDemoStartConfiguration() -> CellConfiguration? {
@@ -2034,7 +2085,7 @@ struct ContentView: View {
             message: "Laster demo-start: \(storedConfiguration.name)"
         )
         editorMode = .view
-        queueConfigurationLoad(storedConfiguration)
+        queueConfigurationLoad(storedConfiguration, navigationMode: .reset)
     }
 
     @MainActor
@@ -2114,7 +2165,7 @@ struct ContentView: View {
                 domain: "binding.demo",
                 message: "Direkte reparasjon av persisted participant-portal feilet. Prøver vanlig last: \(error)"
             )
-            queueConfigurationLoad(repairedConfiguration)
+            queueConfigurationLoad(repairedConfiguration, navigationMode: .reset)
         }
     }
 
@@ -2199,15 +2250,97 @@ struct ContentView: View {
                 domain: "binding.demo",
                 message: "Direkte reparasjon av persisted control tower feilet. Prøver vanlig last: \(error)"
             )
-            queueConfigurationLoad(repairedConfiguration)
+            queueConfigurationLoad(repairedConfiguration, navigationMode: .reset)
         }
     }
 
-    private func queueConfigurationLoad(_ configuration: CellConfiguration?) {
+    private func queueConfigurationLoad(
+        _ configuration: CellConfiguration?,
+        navigationMode: ConferenceNavigationMode = .automatic
+    ) {
+        prepareConferenceNavigation(for: configuration, mode: navigationMode)
         configurationLoadTask?.cancel()
         configurationLoadTask = Task {
             await loadConfigurationForEditing(configuration)
         }
+    }
+
+    private func prepareConferenceNavigation(
+        for configuration: CellConfiguration?,
+        mode: ConferenceNavigationMode
+    ) {
+        guard let configuration else { return }
+
+        switch mode {
+        case .reset:
+            conferenceNavigationStack.removeAll(keepingCapacity: false)
+        case .skipPush:
+            return
+        case .automatic:
+            guard let current = activeConfiguration,
+                  isConferenceNavigationEligible(current),
+                  isConferenceNavigationEligible(configuration) else {
+                return
+            }
+
+            let currentIdentity = conferenceNavigationIdentity(for: current)
+            let nextIdentity = conferenceNavigationIdentity(for: configuration)
+            guard currentIdentity != nextIdentity else { return }
+            guard conferenceNavigationStack.last.map({ conferenceNavigationIdentity(for: $0) }) != currentIdentity else { return }
+            conferenceNavigationStack.append(current)
+        }
+    }
+
+    private func popConferenceNavigation(fallbackConfiguration: CellConfiguration? = nil) {
+        if let previous = conferenceNavigationStack.popLast() {
+            queueConfigurationLoad(previous, navigationMode: .skipPush)
+            return
+        }
+
+        guard let fallbackConfiguration else { return }
+        queueConfigurationLoad(fallbackConfiguration, navigationMode: .reset)
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        Task {
+            let accepted = await ConferenceIdentityLinkInboxStore.shared.ingest(url: url)
+            guard accepted else { return }
+            await MainActor.run {
+                diagnosticsStore.record(
+                    domain: "binding.identityLink",
+                    message: "Åpner Conference Scaffold Setup & Identity Link fra \(url.absoluteString)"
+                )
+                if editorMode == .edit {
+                    editorMode = .view
+                }
+                queueConfigurationLoad(
+                    Self.conferenceIdentityLinkMenuSeedConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        }
+    }
+
+    private func isConferenceNavigationEligible(_ configuration: CellConfiguration?) -> Bool {
+        guard let configuration else { return false }
+        let normalizedName = configuration.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        return normalizedName == "conference demo launcher"
+            || normalizedName == "conference participant portal dashboard"
+            || normalizedName.contains("conference chat")
+            || normalizedName == "conference control tower"
+            || normalizedName == "conference public surface"
+            || normalizedName == "conference ai assistant"
+            || normalizedName == "conference scaffold setup & identity link"
+            || normalizedName.contains("conference nearby radar")
+            || normalizedName.contains("profilflate")
+    }
+
+    private func conferenceNavigationIdentity(for configuration: CellConfiguration) -> String {
+        let firstEndpoint = configuration.cellReferences?.first?.endpoint ?? ""
+        return "\(configuration.name.lowercased())|\(firstEndpoint.lowercased())"
     }
 
     private func updateLoadingStatus(_ message: String, requestID: UUID? = nil) {
@@ -2274,6 +2407,25 @@ struct ContentView: View {
         diagnosticsStore.refreshValidation(for: diagnosticConfiguration)
     }
 
+    @MainActor
+    private func handleMemoryWarning() {
+        diagnosticsStore.record(
+            severity: .warning,
+            domain: "binding.memory",
+            message: "iOS rapporterte memory pressure. Rydder midlertidige buffere og editorhistorikk."
+        )
+        configurationLoadTask?.cancel()
+        bridgeStatusStore.handleMemoryPressure()
+        diagnosticsStore.handleMemoryPressure()
+        editorState.discardTransientHistory()
+        componentPlacementState.clear()
+
+        Task {
+            await ConferenceParticipantPreviewFallbackStateStore.shared.handleMemoryPressure()
+            await ConferenceParticipantSelectionStore.shared.handleMemoryPressure()
+        }
+    }
+
     private var runtimeDerivedDataToken: String {
         let components = Bundle.main.bundleURL.pathComponents
         if let derivedDataComponent = components.last(where: { $0.hasPrefix("Binding-") && $0 != "Binding.app" }) {
@@ -2300,6 +2452,17 @@ struct ContentView: View {
             .padding(.vertical, 6)
             .background(Color.secondary.opacity(0.12), in: Capsule())
             .help(runtimeIdentitySubtitle)
+    }
+
+    private var canPopConferenceNavigation: Bool {
+        !conferenceNavigationStack.isEmpty && isConferenceNavigationEligible(activeConfiguration)
+    }
+
+    private var conferenceNavigationBackLabel: String {
+        guard let previous = conferenceNavigationStack.last else {
+            return "Back"
+        }
+        return "Tilbake til \(previous.name)"
     }
 
     private var diagnosticConfiguration: CellConfiguration? {
@@ -3555,13 +3718,13 @@ struct ContentView: View {
         case .upperLeft:
             return ["scaffold chat", "conference public surface", "conference mvp", "todo mvp", "notification outbox"]
         case .upperMid:
-            return ["apple intelligence purpose matcher", "conference ai assistant", "conference participant portal dashboard", "catalog workbench", "perspective context", "porthole control surface"]
+            return ["conference scaffold setup & identity link", "apple intelligence purpose matcher", "conference ai assistant", "conference participant portal dashboard", "catalog workbench", "perspective context", "porthole control surface"]
         case .upperRight:
-            return ["conference mvp", "conference participant portal dashboard", "conference sponsor follow-up", "conference control tower", "obsidian vault", "vault control surface", "porthole control surface", "lead vault"]
+            return ["conference mvp", "conference participant portal dashboard", "conference scaffold setup & identity link", "conference sponsor follow-up", "conference control tower", "obsidian vault", "vault control surface", "porthole control surface", "lead vault"]
         case .lowerLeft:
             return ["entity scanner", "perspective context", "entity anchor records", "trusted issuers registry", "entity scanner test helper", "entity scanner pairing checklist"]
         case .lowerMid:
-            return ["todo mvp", "conference participant portal dashboard", "conference ai assistant", "conference sponsor follow-up", "catalog workbench", "folder watch automation", "graph index control", "perspective context", "device registration"]
+            return ["conference scaffold setup & identity link", "todo mvp", "conference participant portal dashboard", "conference ai assistant", "conference sponsor follow-up", "catalog workbench", "folder watch automation", "graph index control", "perspective context", "device registration"]
         case .lowerRight:
             return ["obsidian vault", "vault control surface", "graph index control", "porthole control surface", "trusted issuers registry", "consent receipt"]
         }
@@ -3572,13 +3735,13 @@ struct ContentView: View {
         case .upperLeft:
             return ["chat", "communication", "collaboration", "conference", "public"]
         case .upperMid:
-            return ["assistant", "purpose", "matching", "tools", "conference", "copilot"]
+            return ["assistant", "purpose", "matching", "tools", "conference", "copilot", "identity-link", "setup", "enrollment"]
         case .upperRight:
-            return ["conference", "event", "lead", "consent", "sponsor", "operations", "admin"]
+            return ["conference", "event", "lead", "consent", "sponsor", "operations", "admin", "identity-link", "setup"]
         case .lowerLeft:
             return ["scanner", "identity", "trust", "credentials", "proofs", "nearby"]
         case .lowerMid:
-            return ["todo", "tasks", "planning", "productivity", "context", "conference", "meetings"]
+            return ["todo", "tasks", "planning", "productivity", "context", "conference", "meetings", "identity-link", "setup", "proofs"]
         case .lowerRight:
             return ["vault", "notes", "knowledge", "records", "consent"]
         }
@@ -4171,6 +4334,10 @@ struct ContentView: View {
         ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
     }
 
+    static func conferenceIdentityLinkMenuSeedConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+    }
+
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
         func stagingEndpoint(_ cellName: String) -> String {
             "cell://\(Self.stagingHost)/\(cellName)"
@@ -4180,6 +4347,7 @@ struct ContentView: View {
             endpoint: stagingEndpoint("Chat")
         )
         let conferenceDemoLauncher = Self.conferenceDemoLauncherMenuSeedConfiguration()
+        let conferenceIdentityLink = Self.conferenceIdentityLinkMenuSeedConfiguration()
         let conferenceParticipantPortal = Self.conferenceParticipantPortalMenuSeedConfiguration()
         let conferenceAIAssistant = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: stagingEndpoint("ConferenceParticipantPreviewShell"),
@@ -4219,10 +4387,10 @@ struct ContentView: View {
 
         return (
             upperLeft: [conferenceDemoLauncher, conferencePublic, chat, todo],
-            upperMid: [conferenceDemoLauncher, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
-            upperRight: [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, obsidian, portholeWorkbench],
+            upperMid: [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
+            upperRight: [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceIdentityLink, obsidian, portholeWorkbench],
             lowerLeft: [localEntityScanner, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
-            lowerMid: [conferenceDemoLauncher, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, todo, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
+            lowerMid: [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, todo, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
             lowerRight: [obsidian, vaultWorkbench, graphIndexWorkbench, trustedIssuersWorkbench]
         )
     }
@@ -4724,6 +4892,8 @@ private extension CellConfiguration {
 
 @MainActor
 final class BridgeConnectionStatusStore: ObservableObject {
+    private static let maximumRetainedStatuses = 16
+
     @Published private(set) var visibleStatuses: [LightweightBridgeConnectionStatus] = []
 
     private var statusesByEndpoint: [String: LightweightBridgeConnectionStatus] = [:]
@@ -4770,6 +4940,13 @@ final class BridgeConnectionStatusStore: ObservableObject {
             !status.isExpired(relativeTo: now)
         }
 
+        if statusesByEndpoint.count > Self.maximumRetainedStatuses {
+            let retained = statusesByEndpoint.values
+                .sorted { $0.updatedAt > $1.updatedAt }
+                .prefix(Self.maximumRetainedStatuses)
+            statusesByEndpoint = Dictionary(uniqueKeysWithValues: retained.map { ($0.endpoint, $0) })
+        }
+
         visibleStatuses = statusesByEndpoint.values
             .filter { $0.shouldDisplay(relativeTo: now) }
             .sorted { lhs, rhs in
@@ -4778,6 +4955,11 @@ final class BridgeConnectionStatusStore: ObservableObject {
                 }
                 return lhs.severityRank > rhs.severityRank
             }
+    }
+
+    func handleMemoryPressure() {
+        statusesByEndpoint.removeAll(keepingCapacity: false)
+        visibleStatuses.removeAll(keepingCapacity: false)
     }
 }
 

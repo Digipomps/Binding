@@ -38,6 +38,12 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach { url in
+            BindingIncomingURLBridge.post(url: url)
+        }
+    }
+
     private func clearSavedWindowState() {
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
 

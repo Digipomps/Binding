@@ -375,6 +375,11 @@ final class BindingRuntimeDiagnostics: ObservableObject {
         entries.removeAll()
     }
 
+    func handleMemoryPressure() {
+        let retained = Array(entries.prefix(24))
+        entries = retained
+    }
+
     private func append(
         severity: BindingDiagnosticSeverity,
         domain: String,

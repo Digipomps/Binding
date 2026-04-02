@@ -4,6 +4,9 @@ import CellBase
 
 @MainActor
 final class EditorState: ObservableObject {
+    private static let maximumUndoDepth = 32
+    private static let maximumRedoDepth = 32
+
     @Published private(set) var viewerDocument: EditorDocument?
     @Published private(set) var workingDocument: EditorDocument?
     @Published var selectedNodePath: SkeletonNodePath?
@@ -76,6 +79,9 @@ final class EditorState: ObservableObject {
         }
         if recordUndo {
             undoStack.append(current)
+            if undoStack.count > Self.maximumUndoDepth {
+                undoStack.removeFirst(undoStack.count - Self.maximumUndoDepth)
+            }
             redoStack.removeAll()
         }
         workingDocument = newValue
@@ -92,6 +98,9 @@ final class EditorState: ObservableObject {
     func undo() {
         guard let previous = undoStack.popLast(), let current = workingDocument else { return }
         redoStack.append(current)
+        if redoStack.count > Self.maximumRedoDepth {
+            redoStack.removeFirst(redoStack.count - Self.maximumRedoDepth)
+        }
         workingDocument = previous
         normalizeSelection()
         revision &+= 1
@@ -151,6 +160,12 @@ final class EditorState: ObservableObject {
         selectedNodePath = viewerDocument.skeleton == nil ? nil : .root
         undoStack.removeAll()
         redoStack.removeAll()
+        revision &+= 1
+    }
+
+    func discardTransientHistory() {
+        undoStack.removeAll(keepingCapacity: false)
+        redoStack.removeAll(keepingCapacity: false)
         revision &+= 1
     }
 

@@ -161,6 +161,13 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "ConferenceIdentityLinkIntake",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceIdentityLinkIntakeCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "ConferenceAIAssistantGatewayProxy",
             cellScope: .identityUnique,
             identityDomain: "private",
@@ -1633,14 +1640,19 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     }
 
     private func openParticipantPortalWorkbench(requester: Identity) async -> ValueType {
-        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
-            endpoint: "cell:///ConferenceParticipantPreviewShell"
-        )
-        return await loadWorkbenchConfiguration(
-            configuration,
-            requester: requester,
-            successSummary: "Tilbake i deltagerportalen."
-        )
+        lastError = nil
+        lastActionSummary = "Går tilbake til deltagerportalen…"
+        emitSnapshot(requester: requester)
+        await MainActor.run {
+            BindingConferenceNavigationBridge.postPop(
+                fallbackConfiguration: ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+                    endpoint: "cell:///ConferenceParticipantPreviewShell"
+                )
+            )
+        }
+        lastActionSummary = "Tilbake i deltagerportalen."
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
     }
 
     private func loadWorkbenchConfiguration(
@@ -6572,14 +6584,25 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func openParticipantPortalWorkbench(requester: Identity) async -> ValueType {
-        let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
-            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        recentActionSummary = "Går tilbake til deltagerportalen…"
+        cachedChatState = mergedChatState(from: cachedChatState)
+        await MainActor.run {
+            BindingConferenceNavigationBridge.postPop(
+                fallbackConfiguration: ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+                    endpoint: "cell:///ConferenceParticipantPreviewShell"
+                )
+            )
+        }
+        recentActionSummary = "Tilbake i deltagerportalen."
+        cachedChatState = Self.chatStateWithStatus(
+            basedOn: cachedChatState,
+            status: "Chatflaten lukket. Deltagerportalen er aktiv igjen.",
+            actionSummary: recentActionSummary
         )
-        return await loadWorkbenchConfiguration(
-            configuration,
-            requester: requester,
-            successSummary: "Tilbake i deltagerportalen."
-        )
+        return .object([
+            "status": .string("ok"),
+            "state": .object(cachedChatState)
+        ])
     }
 
     private func loadWorkbenchConfiguration(
@@ -6755,6 +6778,414 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 }
 
+struct ConferenceIdentityLinkParsedChallenge {
+    var sourceSummary: String
+    var statusSummary: String
+    var challengeSummary: String
+    var audienceSummary: String
+    var originSummary: String
+    var entitySummary: String
+    var deviceSummary: String
+    var domainSummary: String
+    var contextSummary: String
+    var scopeSummary: String
+    var expirySummary: String
+    var proofSummary: String
+    var rawPreview: String
+}
+
+enum ConferenceIdentityLinkSupport {
+    private static let emptySummary = "Ingen challenge lastet ennå."
+
+    nonisolated static func parse(url: URL) -> ConferenceIdentityLinkParsedChallenge? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        let scheme = components.scheme?.lowercased()
+        let host = components.host?.lowercased()
+        let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        let matchesIdentityLinkRoute =
+            (scheme == "haven" && (host == "identity-link" || normalizedPath == "identity-link" || (host == "binding" && normalizedPath == "add-device")))
+            || (scheme == "https" || scheme == "http") && (normalizedPath.contains("identity-link") || normalizedPath.contains("add-device"))
+
+        guard matchesIdentityLinkRoute else {
+            return nil
+        }
+
+        let queryMap = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        if let payload = queryMap["payload"] ?? queryMap["request"],
+           let parsed = parse(raw: payload, sourceSummary: "Deep link fra \(host ?? "ukjent vert")") {
+            return parsed
+        }
+
+        return buildChallenge(
+            sourceSummary: "Deep link fra \(host ?? "lokal app-lenke")",
+            requestID: queryMap["requestId"] ?? queryMap["request_id"],
+            purpose: queryMap["purpose"] ?? "link_identity",
+            audience: queryMap["audience"],
+            origin: queryMap["origin"] ?? url.absoluteString,
+            entityAnchorReference: queryMap["entityAnchorReference"] ?? queryMap["entity"],
+            deviceLabel: queryMap["deviceLabel"] ?? queryMap["device"],
+            identityLabel: queryMap["displayName"] ?? queryMap["identity"],
+            requestedDomains: splitCSV(queryMap["domains"]),
+            requestedIdentityContexts: splitCSV(queryMap["contexts"]),
+            requestedScopes: splitCSV(queryMap["scopes"]),
+            expiresAt: queryMap["expiresAt"] ?? queryMap["expires_at"],
+            challenge: queryMap["challenge"] ?? queryMap["nonce"],
+            proofAlgorithm: queryMap["algorithm"],
+            rawPreview: url.absoluteString
+        )
+    }
+
+    nonisolated static func parse(raw: String, sourceSummary: String = "Innlimt challenge-data") -> ConferenceIdentityLinkParsedChallenge? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let url = URL(string: trimmed),
+           let parsedURL = parse(url: url) {
+            return parsedURL
+        }
+
+        if let decodedPayload = decodePotentialBase64URL(trimmed),
+           let decodedText = String(data: decodedPayload, encoding: .utf8),
+           let parsedDecoded = parseJSONObjectString(decodedText, sourceSummary: sourceSummary) {
+            return parsedDecoded
+        }
+
+        return parseJSONObjectString(trimmed, sourceSummary: sourceSummary)
+    }
+
+    private nonisolated static func parseJSONObjectString(_ value: String, sourceSummary: String) -> ConferenceIdentityLinkParsedChallenge? {
+        guard let data = value.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        return buildChallenge(
+            sourceSummary: sourceSummary,
+            requestID: string(in: json, path: ["requestId"]),
+            purpose: string(in: json, path: ["purpose"]) ?? "link_identity",
+            audience: string(in: json, path: ["audience"]),
+            origin: string(in: json, path: ["origin"]),
+            entityAnchorReference: string(in: json, path: ["entityAnchorReference"]),
+            deviceLabel: string(in: json, path: ["device", "label"]),
+            identityLabel: string(in: json, path: ["newIdentity", "displayName"]),
+            requestedDomains: strings(in: json, path: ["requestedDomains"]),
+            requestedIdentityContexts: strings(in: json, path: ["requestedIdentityContexts"]),
+            requestedScopes: strings(in: json, path: ["requestedScopes"]),
+            expiresAt: string(in: json, path: ["expiresAt"]),
+            challenge: string(in: json, path: ["nonce"]),
+            proofAlgorithm: string(in: json, path: ["proof", "algorithm"]),
+            rawPreview: value
+        )
+    }
+
+    private nonisolated static func buildChallenge(
+        sourceSummary: String,
+        requestID: String?,
+        purpose: String,
+        audience: String?,
+        origin: String?,
+        entityAnchorReference: String?,
+        deviceLabel: String?,
+        identityLabel: String?,
+        requestedDomains: [String],
+        requestedIdentityContexts: [String],
+        requestedScopes: [String],
+        expiresAt: String?,
+        challenge: String?,
+        proofAlgorithm: String?,
+        rawPreview: String
+    ) -> ConferenceIdentityLinkParsedChallenge {
+        let effectiveAudience = audience?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveOrigin = origin?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveRequestID = requestID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveChallenge = challenge?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveDeviceLabel = deviceLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveIdentityLabel = identityLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveEntity = entityAnchorReference?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveExpiresAt = expiresAt?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let challengeSummary: String
+        if let effectiveRequestID, !effectiveRequestID.isEmpty {
+            challengeSummary = "Request \(effectiveRequestID)"
+        } else if let effectiveChallenge, !effectiveChallenge.isEmpty {
+            challengeSummary = "Challenge \(effectiveChallenge)"
+        } else {
+            challengeSummary = emptySummary
+        }
+
+        let compactPreview = rawPreview
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return ConferenceIdentityLinkParsedChallenge(
+            sourceSummary: sourceSummary,
+            statusSummary: "Incoming identity-link challenge klar for review. Binding viser challenge-data og lokal key-possession før scaffold/web fullfører approval.",
+            challengeSummary: challengeSummary,
+            audienceSummary: effectiveAudience.map { "Audience: \($0)" } ?? "Audience mangler i challenge-data.",
+            originSummary: effectiveOrigin.map { "Origin: \($0)" } ?? "Origin mangler i challenge-data.",
+            entitySummary: effectiveEntity.map { "Entity anchor: \($0)" } ?? "Entity anchor ikke oppgitt i challenge-data.",
+            deviceSummary: {
+                let identityPart = effectiveIdentityLabel.map { "Ny Binding-identitet: \($0)" } ?? "Ny Binding-identitet ikke navngitt ennå."
+                let devicePart = effectiveDeviceLabel.map { "Device: \($0)" } ?? "Device label mangler."
+                return "\(identityPart) · \(devicePart)"
+            }(),
+            domainSummary: requestedDomains.isEmpty ? "Ingen requested domains oppgitt." : "Requested domains: \(requestedDomains.joined(separator: ", "))",
+            contextSummary: requestedIdentityContexts.isEmpty ? "Ingen requested identity contexts oppgitt." : "Requested contexts: \(requestedIdentityContexts.joined(separator: ", "))",
+            scopeSummary: requestedScopes.isEmpty ? "Ingen requested scopes oppgitt." : "Requested scopes: \(requestedScopes.joined(separator: ", "))",
+            expirySummary: effectiveExpiresAt.map { "Expires: \($0)" } ?? "Expiry mangler i challenge-data.",
+            proofSummary: "Purpose: \(purpose) · Proof alg: \(proofAlgorithm ?? "ikke oppgitt")",
+            rawPreview: compactPreview.isEmpty ? emptySummary : compactPreview
+        )
+    }
+
+    private nonisolated static func splitCSV(_ value: String?) -> [String] {
+        guard let value else { return [] }
+        return value
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private nonisolated static func decodePotentialBase64URL(_ value: String) -> Data? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var normalized = trimmed
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while normalized.count % 4 != 0 {
+            normalized.append("=")
+        }
+        return Data(base64Encoded: normalized)
+    }
+
+    private nonisolated static func string(in object: [String: Any], path: [String]) -> String? {
+        var current: Any = object
+        for component in path {
+            guard let dictionary = current as? [String: Any],
+                  let next = dictionary[component] else {
+                return nil
+            }
+            current = next
+        }
+        return current as? String
+    }
+
+    private nonisolated static func strings(in object: [String: Any], path: [String]) -> [String] {
+        var current: Any = object
+        for component in path {
+            guard let dictionary = current as? [String: Any],
+                  let next = dictionary[component] else {
+                return []
+            }
+            current = next
+        }
+        guard let values = current as? [Any] else { return [] }
+        return values.compactMap { $0 as? String }
+    }
+}
+
+actor ConferenceIdentityLinkInboxStore {
+    static let shared = ConferenceIdentityLinkInboxStore()
+
+    private var draftInput = ""
+    private var incomingChallenge: ConferenceIdentityLinkParsedChallenge?
+    private var localIdentitySummary = "Ingen lokal Binding-identitet er bekreftet i denne flaten ennå."
+    private var confirmationStatus = "Lokal brukerbekreftelse mangler."
+    private var actionSummary = "Åpne en haven://identity-link-lenke eller lim inn challenge-data for å starte review."
+    private var lastIntakeSource = "Ingen challenge mottatt ennå."
+    private var limitationSummary = "Binding gjør ekte challenge-intake og lokal key-review her. Endelig approval/fullføring i cross-vault identity-link-protokollen er fortsatt ikke koblet helt ferdig i denne flaten."
+    private var nextStepSummary = "Når challenge-data er synlig, bekrefter du lokal nøkkelbesittelse og går deretter tilbake til Scaffold/web for approval eller completion."
+
+    func ingest(url: URL) -> Bool {
+        guard let parsed = ConferenceIdentityLinkSupport.parse(url: url) else {
+            return false
+        }
+        incomingChallenge = parsed
+        lastIntakeSource = parsed.sourceSummary
+        actionSummary = "Lastet challenge-data fra deep link. Kontroller audience, scopes og lokal identitet før du går videre."
+        nextStepSummary = "Bekreft lokal nøkkelbesittelse i Binding, og fullfør deretter approval i Scaffold/web."
+        return true
+    }
+
+    func setDraftInput(_ input: String) {
+        draftInput = input
+    }
+
+    func importDraft() -> Bool {
+        guard let parsed = ConferenceIdentityLinkSupport.parse(raw: draftInput) else {
+            actionSummary = "Klarte ikke å tolke innlimt challenge-data."
+            return false
+        }
+        incomingChallenge = parsed
+        lastIntakeSource = parsed.sourceSummary
+        actionSummary = "Tolket challenge-data fra innlimt payload. Kontroller audience, scopes og origin før du går videre."
+        nextStepSummary = "Bekreft lokal nøkkelbesittelse i Binding, og fullfør deretter approval i Scaffold/web."
+        return true
+    }
+
+    func clear() {
+        draftInput = ""
+        incomingChallenge = nil
+        localIdentitySummary = "Ingen lokal Binding-identitet er bekreftet i denne flaten ennå."
+        confirmationStatus = "Lokal brukerbekreftelse mangler."
+        actionSummary = "Åpne en haven://identity-link-lenke eller lim inn challenge-data for å starte review."
+        lastIntakeSource = "Ingen challenge mottatt ennå."
+        nextStepSummary = "Når challenge-data er synlig, bekrefter du lokal nøkkelbesittelse og går deretter tilbake til Scaffold/web for approval eller completion."
+    }
+
+    func confirmLocalReview(with identity: Identity?) {
+        guard incomingChallenge != nil else {
+            confirmationStatus = "Last en identity-link challenge før du bekrefter lokal review."
+            actionSummary = "Ingen challenge er lastet ennå."
+            return
+        }
+        guard let identity else {
+            confirmationStatus = "Binding fant ingen lokal private-identitet å bekrefte."
+            actionSummary = "Lokal key-possession kunne ikke bekreftes."
+            return
+        }
+
+        let label = identity.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let identityLabel = label.isEmpty ? identity.uuid : label
+        localIdentitySummary = "Binding verifiserte lokal nøkkelbesittelse for \(identityLabel) i private-domenet. Denne identiteten kan signere videre i den vanlige cross-vault-flyten."
+        confirmationStatus = "Lokal brukerbekreftelse registrert. Binding er klar for neste proof-/approval-steg når Scaffold/web tilbyr det."
+        actionSummary = "Lokal Binding-identitet er klar. Fullfør approval eller completeEnrollment på Scaffold-siden."
+        nextStepSummary = "Gå tilbake til Scaffold Setup & Identity Link i web, godkjenn requesten der, og fullfør deretter den ordinære protocol completion uten demo-only bypass."
+    }
+
+    func stateObject() -> Object {
+        let challenge = incomingChallenge
+        return [
+            "workspace": .object([
+                "title": .string("Conference Scaffold Setup & Identity Link"),
+                "subtitle": .string("Mobil intake for scaffold setup og cross-vault identity-link challenges. Denne flaten viser hva som faktisk er på vei inn til Binding, og hva som fortsatt må fullføres i den delte protokollen."),
+                "notice": .string("Ingen skjult global identitet. Ingen demo-bypass. Binding viser incoming challenge-data, requested scopes og lokal key-possession eksplisitt.")
+            ]),
+            "incoming": .object([
+                "statusSummary": .string(challenge?.statusSummary ?? "Ingen identity-link challenge synlig ennå."),
+                "sourceSummary": .string(lastIntakeSource),
+                "challengeSummary": .string(challenge?.challengeSummary ?? "Ingen request eller challenge lastet ennå."),
+                "audienceSummary": .string(challenge?.audienceSummary ?? "Audience mangler til en challenge er lastet."),
+                "originSummary": .string(challenge?.originSummary ?? "Origin mangler til en challenge er lastet."),
+                "entitySummary": .string(challenge?.entitySummary ?? "Entity anchor blir vist når requesten er lastet."),
+                "deviceSummary": .string(challenge?.deviceSummary ?? "Ny Binding-identitet og device label vises når requesten er lest."),
+                "domainSummary": .string(challenge?.domainSummary ?? "Requested domains vises når challenge-data er lastet."),
+                "contextSummary": .string(challenge?.contextSummary ?? "Requested contexts vises når challenge-data er lastet."),
+                "scopeSummary": .string(challenge?.scopeSummary ?? "Requested scopes vises når challenge-data er lastet."),
+                "expirySummary": .string(challenge?.expirySummary ?? "Expiry vises når challenge-data er lastet."),
+                "proofSummary": .string(challenge?.proofSummary ?? "Proof metadata vises når challenge-data er lastet."),
+                "rawPreview": .string(challenge?.rawPreview ?? "Ingen raw preview tilgjengelig ennå.")
+            ]),
+            "review": .object([
+                "localIdentitySummary": .string(localIdentitySummary),
+                "confirmationStatus": .string(confirmationStatus),
+                "actionSummary": .string(actionSummary),
+                "limitationSummary": .string(limitationSummary),
+                "nextStepSummary": .string(nextStepSummary)
+            ]),
+            "draftInput": .string(draftInput)
+        ]
+    }
+}
+
+private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        await configure(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        fatalError("ConferenceIdentityLinkIntakeCell does not support decoding")
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private func configure(owner: Identity) async {
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("rw--", for: "setDraftInput")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { _, _ in
+            .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+        })
+
+        await addInterceptForSet(requester: owner, key: "setDraftInput", setValueIntercept: { _, value, _ in
+            await ConferenceIdentityLinkInboxStore.shared.setDraftInput(Self.string(from: value))
+            return .object([
+                "status": .string("ok"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { _, value, requester in
+            await self.handleDispatchAction(value, requester: requester)
+        })
+    }
+
+    private func handleDispatchAction(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard case let .object(object) = value,
+              case let .string(actionKeypath)? = object["keypath"] else {
+            return .object([
+                "status": .string("error"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        }
+
+        switch actionKeypath {
+        case "identityLink.importDraft":
+            let imported = await ConferenceIdentityLinkInboxStore.shared.importDraft()
+            return .object([
+                "status": .string(imported ? "ok" : "error"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        case "identityLink.clear":
+            await ConferenceIdentityLinkInboxStore.shared.clear()
+            return .object([
+                "status": .string("ok"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        case "identityLink.confirmLocalReview":
+            await AppInitializer.initialize()
+            let localIdentity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) ?? requester
+            await ConferenceIdentityLinkInboxStore.shared.confirmLocalReview(with: localIdentity)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        case "identityLink.openLauncher":
+            await MainActor.run {
+                BindingConferenceNavigationBridge.postPop(
+                    fallbackConfiguration: ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+                )
+            }
+            return .object([
+                "status": .string("ok"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        default:
+            return .object([
+                "status": .string("error"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        }
+    }
+
+    private static func string(from value: ValueType) -> String {
+        switch value {
+        case let .string(string):
+            return string
+        default:
+            return ""
+        }
+    }
+}
+
 private final class ConferenceDemoLauncherLocalCell: GeneralCell {
     private static let stagingHost = "staging.haven.digipomps.org"
 
@@ -6848,6 +7279,8 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
             return ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
                 endpoint: "cell://\(Self.stagingHost)/ConferencePublicShell"
             )
+        case "launcher.openIdentityLink":
+            return ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
         case "launcher.openParticipantCockpit":
             return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
                 endpoint: "cell:///ConferenceParticipantPreviewShell"
@@ -6874,6 +7307,8 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
         switch actionKeypath {
         case "launcher.openPublicSurface":
             return "Åpner den publiserte conference-flaten først."
+        case "launcher.openIdentityLink":
+            return "Åpner scaffold setup og identity-link review i Binding."
         case "launcher.openParticipantCockpit":
             return "Åpner deltagerportalen i samme demo-løp."
         case "launcher.openParticipantChat":
@@ -6903,10 +7338,11 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
             "intro": .string("Dette er Binding sin parity-launcher for conference-demoen. Den holder seg til eksisterende conference-konfigurasjoner og bruker samme Porthole-session hele veien."),
             "statusSummary": .string("Launcheren er klar. Start med den publiserte public surface før du går videre til participant eller organizer."),
             "actionSummary": .string("Velg en act under for å åpne neste conference-flate."),
-            "nextStepSummary": .string("Act 0 åpner public surface. Derfra går du videre til participant cockpit, chat og control tower."),
-            "readinessSummary": .string("Public opener, participant cockpit, explicit chat, control tower og AI assistant er tilgjengelige som egne konfigurasjoner i Binding."),
+            "nextStepSummary": .string("Act 0 åpner public surface. Act 0.5 åpner scaffold setup og identity-link review. Derfra går du videre til participant cockpit, chat og control tower."),
+            "readinessSummary": .string("Public opener, scaffold setup / identity link review, participant cockpit, explicit chat, control tower og AI assistant er tilgjengelige som egne konfigurasjoner i Binding."),
             "stretchSummary": .string("Nearby-radar forblir en tydelig merket Binding-only stretch, og er ikke del av den staging-first demo-historien."),
             "publicActSummary": .string("Vis publisert landing, spor og program som faktisk kommer fra CellScaffold på staging."),
+            "identityLinkActSummary": .string("Åpne scaffold setup og review incoming identity-link challenge-data i Binding uten å omgå den delte cross-vault-protokollen."),
             "participantActSummary": .string("Fortsett i participant-portalen og åpne chatflaten eksplisitt når samtalen er startet."),
             "organizerActSummary": .string("Bytt deretter til control tower eller AI assistant for organizer-/briefing-perspektivet.")
         ]
