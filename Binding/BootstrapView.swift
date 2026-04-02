@@ -17,6 +17,7 @@ actor BindingLocalCellRegistration {
         "cell:///ConferenceNearbyRadar",
         "cell:///ConferenceParticipantChatSnapshot",
         "cell:///ConferenceAdminPreviewShell",
+        "cell:///ConferenceAIAssistantGatewayProxy",
     ]
 
     private var isRegistered = false
@@ -266,6 +267,7 @@ private enum ConferenceSnapshotRetrySupport {
 
 private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private static let localGatewayEndpoint = "cell:///AIGateway"
+    private static let stagingGatewayEndpoint = "cell://staging.haven.digipomps.org/AIGateway"
     private var pendingAPIKeyEntry = ""
 
     private static let readableKeys = [
@@ -328,16 +330,22 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     }
 
     private func resolveGateway(requester: Identity) async throws -> Meddle {
+        await BindingRuntimeBootstrap.ensureBaseline()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
         guard let resolver = CellBase.defaultCellResolver else {
             throw CellBaseError.noResolver
         }
-        guard let gateway = try await resolver.cellAtEndpoint(
-            endpoint: Self.localGatewayEndpoint,
-            requester: requester
-        ) as? Meddle else {
-            throw CellBaseError.noTargetCell
+
+        for endpoint in [Self.localGatewayEndpoint, Self.stagingGatewayEndpoint] {
+            if let gateway = try? await resolver.cellAtEndpoint(
+                endpoint: endpoint,
+                requester: requester
+            ) as? Meddle {
+                return gateway
+            }
         }
-        return gateway
+
+        throw CellBaseError.noTargetCell
     }
 
     private func forwardGet(keypath: String, requester: Identity) async -> ValueType {
