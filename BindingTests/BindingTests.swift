@@ -1117,10 +1117,9 @@ struct BindingTests {
         let focusResponse = try await context.porthole.set(
             keypath: "matchmakingSnapshot.dispatchAction",
             value: .object([
-                "keypath": .string("matchmaking.focusPerson"),
+                "keypath": .string("matchmaking.focusRecommendationAtIndex"),
                 "payload": .object([
-                    "displayName": .string("Ane Solberg"),
-                    "subtitle": .string("Public sector interoperability")
+                    "index": .integer(0)
                 ])
             ]),
             requester: context.owner
@@ -1142,16 +1141,8 @@ struct BindingTests {
         let chatStartResponse = try await context.porthole.set(
             keypath: "matchmakingSnapshot.dispatchAction",
             value: .object([
-                "keypath": .string("discovery.startChat"),
-                "payload": .object([
-                    "source": .string("binding-participant-portal-recommendation"),
-                    "targets": .list([
-                        .object([
-                            "displayName": .string("Ane Solberg"),
-                            "headline": .string("Public sector interoperability")
-                        ])
-                    ])
-                ])
+                "keypath": .string("discovery.startChatWithFocusedPerson"),
+                "payload": .bool(true)
             ]),
             requester: context.owner
         )

@@ -8388,9 +8388,26 @@ final class ConfigurationCatalogCell: GeneralCell {
                 bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 2),
                 bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 3),
                 bindingConferencePortalKeyText("\(referenceLabel).state.focusedProfile.note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
-                bindingConferencePortalCollectionGrid(
-                    keypath: "\(referenceLabel).state.focusedActions",
-                    itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
+                .HStack(
+                    SkeletonHStack(
+                        elements: [
+                            bindingConferencePortalPrimaryActionButton(
+                                referenceLabel,
+                                actionKeypath: "discovery.startChatWithFocusedPerson",
+                                label: "Start chat"
+                            ),
+                            bindingConferencePortalActionButton(
+                                referenceLabel,
+                                actionKeypath: "matchmaking.toggleFollowUpForFocusedPerson",
+                                label: "Marker for oppfølging"
+                            ),
+                            bindingConferencePortalActionButton(
+                                referenceLabel,
+                                actionKeypath: "scheduling.createMeetingRequestForFocusedPerson",
+                                label: "Be om møte"
+                            )
+                        ]
+                    )
                 ),
                 bindingConferencePortalStaticText(
                     "Flere anbefalte deltakere",
@@ -8399,14 +8416,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                     foregroundColor: "#9AB3C3",
                     lineLimit: 1
                 ),
-                .Grid(
-                    SkeletonGrid(
-                        columns: [.adaptive(min: 200, max: 280)],
-                        spacing: 12,
-                        keypath: "\(referenceLabel).state.recommendations",
-                        itemSkeleton: bindingConferencePortalRecommendationCardSkeleton()
-                    )
-                ),
+                bindingConferencePortalRecommendationCards(referenceLabel: referenceLabel),
                 bindingConferencePortalCollectionGrid(
                     keypath: "\(referenceLabel).state.searchResults",
                     itemSkeleton: bindingConferencePortalActionConnectionCardSkeleton()
@@ -8902,6 +8912,47 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.borderWidth = 1
             $0.borderColor = "#244457"
             $0.height = 164
+        }
+        return .Section(section)
+    }
+
+    private static func bindingConferencePortalRecommendationCards(referenceLabel: String) -> SkeletonElement {
+        .Grid(
+            SkeletonGrid(
+                columns: [.adaptive(min: 200, max: 280)],
+                spacing: 12,
+                elements: [
+                    bindingConferencePortalIndexedRecommendationCard(referenceLabel: referenceLabel, index: 0),
+                    bindingConferencePortalIndexedRecommendationCard(referenceLabel: referenceLabel, index: 1),
+                    bindingConferencePortalIndexedRecommendationCard(referenceLabel: referenceLabel, index: 2)
+                ]
+            )
+        )
+    }
+
+    private static func bindingConferencePortalIndexedRecommendationCard(referenceLabel: String, index: Int) -> SkeletonElement {
+        let base = "\(referenceLabel).state.recommendations[\(index)]"
+        var section = SkeletonSection(content: [
+            bindingConferencePortalKeyText("\(base).title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
+            bindingConferencePortalKeyText("\(base).subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
+            bindingConferencePortalKeyText("\(base).detail", fontSize: 12, foregroundColor: "#D5E4ED", lineLimit: 2),
+            bindingConferencePortalKeyText("\(base).note", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 2),
+            bindingConferencePortalActionButton(
+                referenceLabel,
+                actionKeypath: "matchmaking.focusRecommendationAtIndex",
+                label: "Vis i siden",
+                payload: .object([
+                    "index": .integer(index)
+                ])
+            )
+        ])
+        section.modifiers = modifier {
+            $0.padding = 12
+            $0.background = "#122734"
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.height = 172
         }
         return .Section(section)
     }

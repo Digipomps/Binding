@@ -5186,8 +5186,35 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         }
 
         let payload = object["payload"] ?? .null
+        let recommendationRows = listObjects(from: cachedMatchmakingState["recommendations"])
+        let searchRows = listObjects(from: cachedMatchmakingState["searchResults"])
+        var forwardedAction: ValueType? = .object([
+            "keypath": .string(actionKeypath),
+            "payload": payload
+        ])
 
         switch actionKeypath {
+        case "matchmaking.focusRecommendationAtIndex":
+            let index = recommendationIndex(from: payload)
+            if let index,
+               recommendationRows.indices.contains(index) {
+                let focusedCard = recommendationRows[index]
+                let displayName = cardTitle(from: focusedCard)
+                let subtitle = cardSubtitle(from: focusedCard)
+                focusedRecommendationName = displayName
+                await rememberSelectedParticipant(displayName)
+                recentActionSummary = "Viser \(displayName) i denne siden."
+                forwardedAction = .object([
+                    "keypath": .string("matchmaking.focusPerson"),
+                    "payload": .object([
+                        "displayName": .string(displayName),
+                        "subtitle": .string(subtitle)
+                    ])
+                ])
+            } else {
+                recentActionSummary = "Kunne ikke finne anbefalingen du prøvde å fokusere."
+                forwardedAction = nil
+            }
         case "matchmaking.focusPerson":
             if case let .object(personObject) = payload,
                let displayName = string(from: personObject["displayName"])?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -5195,6 +5222,71 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
                 focusedRecommendationName = displayName
                 await rememberSelectedParticipant(displayName)
                 recentActionSummary = "Viser \(displayName) i denne siden."
+            }
+        case "discovery.startChatWithFocusedPerson":
+            if let focusedCard = focusedRecommendationCard(
+                recommendations: recommendationRows,
+                searchResults: searchRows
+            ) {
+                let displayName = cardTitle(from: focusedCard)
+                let subtitle = cardSubtitle(from: focusedCard)
+                focusedRecommendationName = displayName
+                await rememberSelectedParticipant(displayName)
+                recentActionSummary = "Starter chat med \(displayName)…"
+                forwardedAction = .object([
+                    "keypath": .string("discovery.startChat"),
+                    "payload": discoveryChatPayload(for: displayName, subtitle: subtitle)
+                ])
+            } else {
+                recentActionSummary = "Velg Vis i siden på en anbefaling før du starter chat."
+                forwardedAction = nil
+            }
+        case "matchmaking.toggleFollowUpForFocusedPerson":
+            if let focusedCard = focusedRecommendationCard(
+                recommendations: recommendationRows,
+                searchResults: searchRows
+            ) {
+                let displayName = cardTitle(from: focusedCard)
+                let subtitle = cardSubtitle(from: focusedCard)
+                focusedRecommendationName = displayName
+                await rememberSelectedParticipant(displayName)
+                if followUpMarkedNames.contains(displayName) {
+                    followUpMarkedNames.remove(displayName)
+                    recentActionSummary = "Fjernet \(displayName) fra oppfølging."
+                } else {
+                    followUpMarkedNames.insert(displayName)
+                    recentActionSummary = "Markerte \(displayName) for oppfølging."
+                }
+                forwardedAction = .object([
+                    "keypath": .string("matchmaking.toggleFollowUp"),
+                    "payload": .object([
+                        "displayName": .string(displayName),
+                        "subtitle": .string(subtitle)
+                    ])
+                ])
+            } else {
+                recentActionSummary = "Velg Vis i siden på en anbefaling før du markerer oppfølging."
+                forwardedAction = nil
+            }
+        case "scheduling.createMeetingRequestForFocusedPerson":
+            if let focusedCard = focusedRecommendationCard(
+                recommendations: recommendationRows,
+                searchResults: searchRows
+            ) {
+                let displayName = cardTitle(from: focusedCard)
+                focusedRecommendationName = displayName
+                await rememberSelectedParticipant(displayName)
+                recentActionSummary = "La til møteforespørsel for \(displayName)."
+                forwardedAction = .object([
+                    "keypath": .string("scheduling.createMeetingRequest"),
+                    "payload": .object([
+                        "source": .string("binding-matchmaking-focused-person"),
+                        "displayName": .string(displayName)
+                    ])
+                ])
+            } else {
+                recentActionSummary = "Velg Vis i siden på en anbefaling før du ber om møte."
+                forwardedAction = nil
             }
         case "matchmaking.toggleFollowUp":
             if case let .object(personObject) = payload,
@@ -5236,11 +5328,6 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         }
 
         cachedMatchmakingState = mergedMatchmakingState(from: cachedMatchmakingState)
-
-        let forwardedAction: ValueType = .object([
-            "keypath": .string(actionKeypath),
-            "payload": payload
-        ])
         await refreshSnapshotIfNeeded(force: true, forwardAction: forwardedAction, requester: requester)
         return .object([
             "status": .string("ok"),
@@ -5701,6 +5788,16 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         return []
     }
 
+    private func recommendationIndex(from payload: ValueType) -> Int? {
+        if let direct = int(from: payload) {
+            return direct
+        }
+        guard case let .object(payloadObject) = payload else {
+            return nil
+        }
+        return int(from: payloadObject["index"])
+    }
+
     private func string(from value: ValueType?) -> String? {
         guard let value else { return nil }
         switch value {
@@ -5714,6 +5811,22 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
             return String(float)
         case let .bool(bool):
             return bool ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private func int(from value: ValueType?) -> Int? {
+        guard let value else { return nil }
+        switch value {
+        case let .integer(integer):
+            return integer
+        case let .float(float):
+            return Int(float)
+        case let .number(number):
+            return number
+        case let .string(string):
+            return Int(string)
         default:
             return nil
         }

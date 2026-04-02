@@ -707,10 +707,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let focusResponse = try await context.porthole.set(
             keypath: "matchmakingSnapshot.dispatchAction",
             value: ValueType.object([
-                "keypath": ValueType.string("matchmaking.focusPerson"),
+                "keypath": ValueType.string("matchmaking.focusRecommendationAtIndex"),
                 "payload": ValueType.object([
-                    "displayName": ValueType.string("Ane Solberg"),
-                    "subtitle": ValueType.string("Public sector interoperability")
+                    "index": ValueType.integer(0)
                 ])
             ]),
             requester: context.owner
@@ -733,16 +732,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let chatStartResponse = try await context.porthole.set(
             keypath: "matchmakingSnapshot.dispatchAction",
             value: ValueType.object([
-                "keypath": ValueType.string("discovery.startChat"),
-                "payload": ValueType.object([
-                    "source": ValueType.string("binding-participant-portal-recommendation"),
-                    "targets": ValueType.list([
-                        ValueType.object([
-                            "displayName": ValueType.string("Ane Solberg"),
-                            "headline": ValueType.string("Public sector interoperability")
-                        ])
-                    ])
-                ])
+                "keypath": ValueType.string("discovery.startChatWithFocusedPerson"),
+                "payload": ValueType.bool(true)
             ]),
             requester: context.owner
         )
