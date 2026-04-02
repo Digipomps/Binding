@@ -2079,11 +2079,20 @@ struct ContentView: View {
     private func applyStoredDemoStartConfigurationIfNeeded() {
         guard !didApplyStoredDemoStart else { return }
         didApplyStoredDemoStart = true
-        let storedConfiguration: CellConfiguration
-        if let decoded = decodeStoredDemoStartConfiguration() {
-            storedConfiguration = decoded
-        } else {
-            storedConfiguration = Self.defaultDemoStartConfiguration()
+        let decodedStoredConfiguration = decodeStoredDemoStartConfiguration()
+        let storedConfiguration = Self.effectiveDemoStartConfiguration(
+            storedConfiguration: decodedStoredConfiguration
+        )
+        if let decoded = decodedStoredConfiguration,
+           decoded.name != storedConfiguration.name {
+            if let data = try? JSONEncoder().encode(storedConfiguration) {
+                demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
+            }
+            diagnosticsStore.record(
+                domain: "binding.demo",
+                message: "Overstyrer lagret demo-start med Conference Demo Launcher inntil demoen er ferdig."
+            )
+        } else if decodedStoredConfiguration == nil {
             if let data = try? JSONEncoder().encode(storedConfiguration) {
                 demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
             }
@@ -2098,6 +2107,21 @@ struct ContentView: View {
         )
         editorMode = .view
         queueConfigurationLoad(storedConfiguration, navigationMode: .reset)
+    }
+
+    static func effectiveDemoStartConfiguration(
+        storedConfiguration: CellConfiguration?
+    ) -> CellConfiguration {
+        let defaultConfiguration = defaultDemoStartConfiguration()
+        guard let storedConfiguration else {
+            return defaultConfiguration
+        }
+
+        guard storedConfiguration.name == defaultConfiguration.name else {
+            return defaultConfiguration
+        }
+
+        return storedConfiguration
     }
 
     @MainActor

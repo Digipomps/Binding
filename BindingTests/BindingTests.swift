@@ -914,6 +914,23 @@ struct BindingTests {
         }) == true)
     }
 
+    @Test func effectiveDemoStartConfigurationOverridesNonLauncherStoredConfiguration() {
+        let effectiveWhenMissing = ContentView.effectiveDemoStartConfiguration(
+            storedConfiguration: nil
+        )
+        #expect(effectiveWhenMissing.name == "Conference Demo Launcher")
+
+        let effectiveWhenLauncherStored = ContentView.effectiveDemoStartConfiguration(
+            storedConfiguration: ContentView.conferenceDemoLauncherMenuSeedConfiguration()
+        )
+        #expect(effectiveWhenLauncherStored.name == "Conference Demo Launcher")
+
+        let effectiveWhenDifferentStored = ContentView.effectiveDemoStartConfiguration(
+            storedConfiguration: ContentView.conferenceParticipantPortalMenuSeedConfiguration()
+        )
+        #expect(effectiveWhenDifferentStored.name == "Conference Demo Launcher")
+    }
+
     @Test func conferenceParticipantPortalRepairRestoresDiscoveryAndNearbyWiring() {
         var staleConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
