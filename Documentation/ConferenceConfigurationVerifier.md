@@ -36,12 +36,17 @@ This is not a replacement for live staging auth/bridge debugging. It is a local 
 
 Current conference surfaces:
 
+- `Conference Demo Launcher`
+- `Conference Scaffold Setup & Identity Link`
 - `Conference Participant Portal`
 - `Conference Participant Agenda Snapshot`
 - `Conference Participant Chat`
 - `Conference Nearby Radar`
 - `Conference Participant Nearby Follow-Up`
+- `Conference AI Assistant`
 - `Conference Control Tower`
+- `Conference Public Surface`
+- `Conference Sponsor Follow-up`
 
 Current contract assertions:
 
@@ -49,7 +54,54 @@ Current contract assertions:
 - all flattened `CellReference`s resolve
 - all root probes are readable
 - selected actions return `ok`
+- local fixture-backed conference shells now stand in for staging where deterministic verification matters:
+  - `cell:///ConferencePublicShellFixture`
+  - `cell:///ConferenceSponsorShellFixture`
 - large composed conference pages can now use explicit composition probes instead of brute-forcing every inferred root probe
+
+Current launcher assertions:
+
+- the launcher resolves its local `ConferenceDemoLauncher` cell deterministically
+- all launcher acts stay reachable through the same bridge path the GUI uses:
+  - `Open public surface`
+  - `Open identity link setup`
+  - `Open participant cockpit`
+  - `Open participant chat`
+  - `Open control tower`
+  - `Open AI assistant`
+- the launcher can push the expected conference workbench configuration for each act without relying on hidden menu state
+
+Current identity-link assertions:
+
+- the identity-link workbench resolves the local `ConferenceIdentityLinkIntake`
+- the workbench keeps explicit review state visible:
+  - `incoming.statusSummary`
+  - `incoming.challengeSummary`
+  - `review.confirmationStatus`
+  - `review.localIdentitySummary`
+  - `review.nextStepSummary`
+- deep-link or pasted challenge payload can be imported deterministically
+- local review can be confirmed without inventing a separate Binding-only proof format
+- `Back to launcher` returns through the same conference navigation pop bridge the GUI uses
+
+Current AI assistant assertions:
+
+- the AI assistant resolves participant context plus the local `ConferenceAIAssistantGatewayProxy`
+- setup and prompt controls stay reachable through the renderer path:
+  - `Load copilot system prompt`
+  - `Fill request: Daily brief`
+  - `Fill request: Who should I meet?`
+  - `Fill request: Follow-up plan`
+  - `Fill request: Session priorities`
+  - `Load session key`
+- prompt draft and buffered session key state are readable after button execution
+
+Current public / sponsor assertions:
+
+- `Conference Public Surface` now has deterministic local contract/render coverage through `ConferencePublicShellFixture`
+- `Conference Sponsor Follow-up` now has deterministic local contract/render coverage through `ConferenceSponsorShellFixture`
+- public surface coverage proves the published landing/program/people/articles/facilities bindings stay readable even when staging is not part of the test
+- sponsor follow-up coverage proves the inbox/compliance/retention bindings and action buttons stay wired without pretending the fixture is staging truth
 
 Current participant actions exercised:
 
@@ -185,16 +237,26 @@ Current organizer actions exercised:
 
 Current render assertions:
 
+- `Conference Demo Launcher`
+  - expected strings include `Conference Demo Launcher`, `Open public surface`, `Open identity link setup`, `Open participant chat`, `Open control tower`
+- `Conference Scaffold Setup & Identity Link`
+  - expected strings include `Conference Scaffold Setup & Identity Link`, `Incoming challenge`, `Import challenge`, `Confirm local key & continue`, `Back to launcher`
 - `Conference Participant Portal`
   - expected strings include `Conference Participant Portal`, `Entity Discovery`, `Start scanner`, `Radar i siden`, `Åpne full radar`
 - `Conference Nearby Radar`
   - expected strings include `Conference Nearby Radar · Full oversikt`, `Start scanner`, `Tilbake til portalen`, `Valgt deltager`
 - `Conference Participant Chat`
   - expected strings include `Conference Chat`, `Tilbake til portalen`, `Delte tråder`, `Siste meldinger`
+- `Conference AI Assistant`
+  - expected strings include `Conference AI Assistant`, `Copilot Setup`, `Conference Prompt Presets`, `Prompt Draft`, `Invoke conference copilot`
 - `Nearby Participant Profile`
   - expected strings include `Valgt deltager · profilflate`, `Åpne full radar`, `Tilbake til portalen`, `Neste steg`
 - `Conference Control Tower`
   - expected strings include `Conference Control Tower`, `Publish content`, `Operations & Insights`
+- `Conference Public Surface`
+  - expected strings include `AI & Digital Independence`, `Publication & Access`, `Tracks & Program Highlights`, `People, Articles & Facilities`
+- `Conference Sponsor Follow-up`
+  - expected strings include `Conference Sponsor Follow-up`, `Lead Inbox`, `Consent, Unlock & Retention`, `Refresh inbox`, `Run retention sweep`
 
 ## Commands
 
@@ -216,6 +278,24 @@ Run participant only:
 ./Scripts/run_conference_configuration_verifier.sh participant all
 ```
 
+Run demo launcher only:
+
+```bash
+./Scripts/run_conference_configuration_verifier.sh demo all
+```
+
+Run identity-link/setup only:
+
+```bash
+./Scripts/run_conference_configuration_verifier.sh identity all
+```
+
+Run AI assistant only:
+
+```bash
+./Scripts/run_conference_configuration_verifier.sh ai all
+```
+
 Run nearby radar only:
 
 ```bash
@@ -226,6 +306,13 @@ Run organizer only:
 
 ```bash
 ./Scripts/run_conference_configuration_verifier.sh admin all
+```
+
+Run public or sponsor only:
+
+```bash
+./Scripts/run_conference_configuration_verifier.sh public all
+./Scripts/run_conference_configuration_verifier.sh sponsor all
 ```
 
 ## What worked in the latest green run

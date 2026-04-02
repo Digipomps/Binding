@@ -402,6 +402,44 @@ struct BindingTests {
         }
     }
 
+    @Test func conferenceWorkbenchConfigurationsValidateWithoutBrokenBindings() {
+        let configurations = [
+            ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration(),
+            ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration(),
+            ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceParticipantPreviewShell"
+            ),
+            ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
+                participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+            ),
+            ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration(
+                participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+            ),
+            ConfigurationCatalogCell.conferenceNearbyParticipantWorkbenchConfiguration(
+                participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+            ),
+            ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+                conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                aiEndpoint: "cell:///AIGateway"
+            ),
+            ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceAdminPreviewShell"
+            ),
+            ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+                endpoint: "cell:///ConferencePublicShellFixture"
+            ),
+            ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceSponsorShellFixture"
+            )
+        ]
+
+        for configuration in configurations {
+            let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(configuration) ?? configuration
+            let report = CellConfigurationValidationService.validate(repaired)
+            #expect(report.errorCount == 0, "\(repaired.name): \(report.issues)")
+        }
+    }
+
     @Test func conferenceRequesterDescriptorsMatchConferenceShellOwnershipModel() {
         let contentView = ContentView()
 
@@ -3933,6 +3971,85 @@ private final class RootOnlyStateCell: GeneralCell {
     ]
 }
 
+enum ConferenceVerifierFixtureSupport {
+    static func ensureRegistered(on resolver: CellResolver) async {
+        await register(
+            name: "ConferenceParticipantPreviewShellFixture",
+            type: ConferenceParticipantPreviewShellFixtureCell.self,
+            on: resolver
+        )
+        await register(
+            name: "ConferencePublicShellFixture",
+            type: ConferencePublicShellFixtureCell.self,
+            on: resolver
+        )
+        await register(
+            name: "ConferenceSponsorShellFixture",
+            type: ConferenceSponsorShellFixtureCell.self,
+            on: resolver
+        )
+    }
+
+    private static func register<CellType: Emit & OwnerInstantiable>(
+        name: String,
+        type: CellType.Type,
+        on resolver: CellResolver
+    ) async {
+        do {
+            try await resolver.addCellResolve(
+                name: name,
+                cellScope: .scaffoldUnique,
+                persistency: .persistant,
+                identityDomain: "private",
+                type: type
+            )
+        } catch {
+            let description = String(describing: error).lowercased()
+            guard !description.contains("duplicatedendpointname"),
+                  !description.contains("registeratalreadytakenendpoint") else {
+                return
+            }
+            Issue.record("Could not register \(name) fixture: \(error)")
+        }
+    }
+}
+
+private func timelineCard(
+    title: String,
+    subtitle: String,
+    detail: String,
+    note: String
+) -> ValueType {
+    .object([
+        "title": .string(title),
+        "subtitle": .string(subtitle),
+        "detail": .string(detail),
+        "note": .string(note)
+    ])
+}
+
+private func titleDetailRow(
+    title: String,
+    detail: String
+) -> ValueType {
+    .object([
+        "title": .string(title),
+        "detail": .string(detail)
+    ])
+}
+
+private func titleSubtitleDetailRow(
+    title: String,
+    subtitle: String,
+    detail: String
+) -> ValueType {
+    .object([
+        "title": .string(title),
+        "subtitle": .string(subtitle),
+        "detail": .string(detail)
+    ])
+}
+
 private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -4029,6 +4146,181 @@ private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
             "chatSummary": .string("0 shared message(s) visible."),
             "connections": .list([]),
             "recentMessages": .list([])
+        ])
+    ]
+}
+
+private final class ConferencePublicShellFixtureCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state") { _, _ in
+            .object(Self.stateObject)
+        }
+        await addInterceptForGet(requester: owner, key: "skeletonConfiguration") { _, _ in
+            .null
+        }
+        await addInterceptForSet(requester: owner, key: "dispatchAction") { _, _, _ in
+            .object([
+                "status": .string("ok"),
+                "state": .object(Self.stateObject)
+            ])
+        }
+    }
+
+    required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private static let stateObject: Object = [
+        "workspace": .object([
+            "title": .string("AI & Digital Independence"),
+            "subtitle": .string("Conference public surface for the live program, people, articles and facilities."),
+            "dateBadge": .string("30. mars"),
+            "venueBadge": .string("Oslo"),
+            "ctaTitle": .string("Join the public program"),
+            "ctaDetail": .string("Tracks, sessions and facilities are now published for everyone.")
+        ]),
+        "access": .object([
+            "headline": .string("Public conference publication scope"),
+            "ownerScope": .string("Owner: conference public publisher"),
+            "readScope": .string("Read: public audience"),
+            "writeScope": .string("Write: public publishing pipeline"),
+            "deliveryScope": .string("Delivery: published surfaces only"),
+            "storageScope": .string("Storage: scaffold publication state"),
+            "notes": .string("This fixture mirrors the public-shell contract without pretending to be staging."),
+            "keypathMatrix": .list([
+                timelineCard(title: "workspace.*", subtitle: "Public landing", detail: "Title, badges and CTA", note: "Readable"),
+                timelineCard(title: "tracks/sessions", subtitle: "Published program", detail: "Tracks and sessions visible to attendees", note: "Readable")
+            ])
+        ]),
+        "tracksIntro": .string("Tracks currently highlighted for the public audience."),
+        "tracks": .list([
+            titleDetailRow(title: "Trusted AI", detail: "Governance, controls and public interest deployment."),
+            titleDetailRow(title: "Digital Independence", detail: "Infrastructure, procurement and resilient service design.")
+        ]),
+        "sessionsIntro": .string("Featured sessions from the published conference program."),
+        "sessions": .list([
+            titleSubtitleDetailRow(title: "Opening keynote", subtitle: "Main stage", detail: "Why trustworthy AI needs better institutional memory."),
+            titleSubtitleDetailRow(title: "Implementation roundtable", subtitle: "Room B", detail: "How public-sector teams move from pilots to dependable delivery.")
+        ]),
+        "peopleIntro": .string("People currently highlighted on the public surface."),
+        "people": .list([
+            titleSubtitleDetailRow(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Speaking on procurement, coordination and follow-up."),
+            titleSubtitleDetailRow(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Moderating the governance track discussion.")
+        ]),
+        "articlesIntro": .string("Editorial highlights and conference explainers."),
+        "articles": .list([
+            titleSubtitleDetailRow(title: "Why this conference now", subtitle: "Editorial", detail: "Explains the public framing for AI and digital independence."),
+            titleSubtitleDetailRow(title: "How to navigate the day", subtitle: "Guide", detail: "Program guide for attendees and visitors.")
+        ]),
+        "facilitiesIntro": .string("Facilities and practical venue information."),
+        "facilities": .list([
+            titleSubtitleDetailRow(title: "Main stage", subtitle: "Ground floor", detail: "Keynotes and plenary sessions."),
+            titleSubtitleDetailRow(title: "Quiet work area", subtitle: "Second floor", detail: "Space for follow-up and focused conversation.")
+        ])
+    ]
+}
+
+private final class ConferenceSponsorShellFixtureCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+
+        await addInterceptForGet(requester: owner, key: "state") { _, _ in
+            .object(Self.stateObject)
+        }
+        await addInterceptForGet(requester: owner, key: "skeletonConfiguration") { _, _ in
+            .null
+        }
+        await addInterceptForSet(requester: owner, key: "dispatchAction") { _, _, _ in
+            .object([
+                "status": .string("ok"),
+                "state": .object(Self.stateObject)
+            ])
+        }
+    }
+
+    required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private static let stateObject: Object = [
+        "workspace": .object([
+            "title": .string("Conference Sponsor Follow-up"),
+            "subtitle": .string("Sponsor-owned inbox, compliance and retention overview."),
+            "conferenceBadge": .string("Conference"),
+            "sponsorBadge": .string("Sponsor"),
+            "pipelineBadge": .string("Pipeline active"),
+            "retentionBadge": .string("Retention ready"),
+            "creditBadge": .string("Credits healthy"),
+            "nextStep": .string("Refresh the inbox, prepare export, and clear the retention review queue."),
+            "previewNotice": .string("Fixture mirrors the sponsor-shell contract for deterministic verification.")
+        ]),
+        "access": .object([
+            "headline": .string("Sponsor follow-up access scope"),
+            "ownerScope": .string("Owner: sponsor workspace"),
+            "readScope": .string("Read: sponsor lead inbox"),
+            "writeScope": .string("Write: sponsor follow-up operations"),
+            "deliveryScope": .string("Delivery: sponsor exports and unlock handoff"),
+            "storageScope": .string("Storage: consented sponsor data only"),
+            "notes": .string("Retention and export steps stay inside sponsor-owned state."),
+            "keypathMatrix": .list([
+                timelineCard(title: "followUp.*", subtitle: "Lead inbox", detail: "Pickup and qualified leads", note: "Readable"),
+                timelineCard(title: "retention.*", subtitle: "Retention controls", detail: "Unlocks, reclaim and review queue", note: "Readable")
+            ])
+        ]),
+        "followUp": .object([
+            "intro": .string("Lead inbox for sponsor-owned pickup and qualification."),
+            "pickupSummary": .string("2 pickup leads waiting."),
+            "qualificationSummary": .string("1 qualified lead ready for export."),
+            "status": .string("Inbox is synchronized."),
+            "pickupLeads": .list([
+                timelineCard(title: "Ingrid Nilsen", subtitle: "Municipal AI lead", detail: "Asked for a short follow-up after the keynote.", note: "Pickup"),
+                timelineCard(title: "Jon Hauge", subtitle: "Digital procurement", detail: "Interested in sponsor roundtable materials.", note: "Pickup")
+            ]),
+            "qualifiedLeads": .list([
+                timelineCard(title: "Lea Heger", subtitle: "Service design", detail: "Qualified after consent review and sponsor handoff.", note: "Qualified")
+            ])
+        ]),
+        "compliance": .object([
+            "intro": .string("Consent, agreement and chronicle review for sponsor follow-up."),
+            "consentSummary": .string("All exported leads have explicit consent receipts."),
+            "agreementSummary": .string("Agreement template is current."),
+            "chronicleSummary": .string("Chronicle entries ready for sponsor audit."),
+            "status": .string("Compliance checks are green."),
+            "consentReceipts": .list([
+                timelineCard(title: "Receipt #104", subtitle: "Lea Heger", detail: "Consent captured for sponsor follow-up export.", note: "Valid")
+            ])
+        ]),
+        "retention": .object([
+            "creditSummary": .string("Credits remain within sponsor allocation."),
+            "unlockSummary": .string("1 unlock action is pending approval."),
+            "reclaimSummary": .string("No reclaims needed right now."),
+            "reviewSummary": .string("2 review items in the retention queue."),
+            "policySummary": .string("Retention policy is aligned with sponsor agreement."),
+            "slaSummary": .string("Next retention review due tomorrow."),
+            "exportStatus": .string("Last export pack prepared 10 minutes ago."),
+            "reviewQueue": .list([
+                timelineCard(title: "Review Lea Heger", subtitle: "Retention queue", detail: "Check unlock scope before export.", note: "Pending"),
+                timelineCard(title: "Review Ingrid Nilsen", subtitle: "Retention queue", detail: "Confirm follow-up objective and SLA.", note: "Pending")
+            ]),
+            "unlockedLeads": .list([
+                timelineCard(title: "Mads Hovden", subtitle: "Unlocked lead", detail: "Ready for sponsor-owned next step.", note: "Unlocked")
+            ])
         ])
     ]
 }
@@ -4953,6 +5245,8 @@ enum CellConfigurationVerifier {
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw NSError(domain: "CellConfigurationVerifier", code: 2, userInfo: [NSLocalizedDescriptionKey: "Expected CellResolver after local runtime warmup"])
         }
+
+        await ConferenceVerifierFixtureSupport.ensureRegistered(on: resolver)
 
         let identityContext = "verifier-\(UUID().uuidString)"
         guard let owner = await identityVault.identity(for: identityContext, makeNewIfNotFound: true) else {

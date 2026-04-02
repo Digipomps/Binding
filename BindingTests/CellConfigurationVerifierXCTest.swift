@@ -115,6 +115,152 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
     }
 
+    func testConferenceIdentityLinkContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Clear",
+                "Back to launcher"
+            ],
+            rootProbes: [
+                .init(label: "identityLink", rootKeypath: "state")
+            ]
+        )
+
+        XCTAssertEqual(
+            report.validation.errorCount,
+            0,
+            "Validation issues: \(report.validation.issues)"
+        )
+        XCTAssertTrue(
+            report.unresolvedReferences.isEmpty,
+            "Unresolved references: \(report.unresolvedReferences)"
+        )
+        XCTAssertTrue(
+            report.unreadableRootProbes.isEmpty,
+            "Unreadable root probes: \(report.unreadableRootProbes)"
+        )
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Failed actions: \(report.failedActions)"
+        )
+    }
+
+    func testConferenceAIAssistantContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell:///AIGateway"
+        )
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Hosted API (API key)",
+                "No-auth gateway",
+                "API key on",
+                "API key off",
+                "Deterministic on",
+                "Deterministic off",
+                "Load copilot system prompt",
+                "Fill request: Daily brief",
+                "Fill request: Who should I meet?",
+                "Fill request: Follow-up plan",
+                "Fill request: Session priorities"
+            ],
+            rootProbes: [
+                .init(label: "conferenceParticipantShell", rootKeypath: "state"),
+                .init(label: "aiGateway", rootKeypath: "state")
+            ]
+        )
+
+        XCTAssertEqual(
+            report.validation.errorCount,
+            0,
+            "Validation issues: \(report.validation.issues)"
+        )
+        XCTAssertTrue(
+            report.unresolvedReferences.isEmpty,
+            "Unresolved references: \(report.unresolvedReferences)"
+        )
+        XCTAssertTrue(
+            report.unreadableRootProbes.isEmpty,
+            "Unreadable root probes: \(report.unreadableRootProbes)"
+        )
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Failed actions: \(report.failedActions)"
+        )
+    }
+
+    func testConferencePublicSurfaceContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: "cell:///ConferencePublicShellFixture"
+        )
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            rootProbes: [
+                .init(label: "conferencePublicShell", rootKeypath: "state")
+            ]
+        )
+
+        XCTAssertEqual(
+            report.validation.errorCount,
+            0,
+            "Validation issues: \(report.validation.issues)"
+        )
+        XCTAssertTrue(
+            report.unresolvedReferences.isEmpty,
+            "Unresolved references: \(report.unresolvedReferences)"
+        )
+        XCTAssertTrue(
+            report.unreadableRootProbes.isEmpty,
+            "Unreadable root probes: \(report.unreadableRootProbes)"
+        )
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Failed actions: \(report.failedActions)"
+        )
+    }
+
+    func testConferenceSponsorFollowUpContract() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceSponsorShellFixture"
+        )
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Refresh inbox",
+                "Prepare export",
+                "Run retention sweep"
+            ],
+            rootProbes: [
+                .init(label: "conferenceSponsorShell", rootKeypath: "state")
+            ]
+        )
+
+        XCTAssertEqual(
+            report.validation.errorCount,
+            0,
+            "Validation issues: \(report.validation.issues)"
+        )
+        XCTAssertTrue(
+            report.unresolvedReferences.isEmpty,
+            "Unresolved references: \(report.unresolvedReferences)"
+        )
+        XCTAssertTrue(
+            report.unreadableRootProbes.isEmpty,
+            "Unreadable root probes: \(report.unreadableRootProbes)"
+        )
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Failed actions: \(report.failedActions)"
+        )
+    }
+
     func testConferenceControlTowerContract() async throws {
         let configuration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
             endpoint: "cell:///ConferenceAdminPreviewShell"
@@ -1135,6 +1281,299 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertTrue(controlTowerConfiguration.cellReferences?.contains(where: { $0.label == "conferenceAdminShell" }) == true)
     }
 
+    func testConferenceDemoLauncherCanOpenParticipantCockpitChatAndAIAssistant() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let expectedParticipantLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Portal")
+        }
+        let openParticipantResponse = try await context.porthole.set(
+            keypath: "conferenceDemoLauncher.dispatchAction",
+            value: .object([
+                "keypath": .string("launcher.openParticipantCockpit"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openParticipantResponse else {
+            XCTFail("Open participant cockpit action returned nil response")
+            return
+        }
+        let openParticipantFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openParticipantResponse)
+        }
+        XCTAssertNil(openParticipantFailure)
+
+        guard let participantConfiguration = await expectedParticipantLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Participant Portal")
+            return
+        }
+        XCTAssertTrue(participantConfiguration.name.contains("Conference Participant Portal"))
+        XCTAssertTrue(participantConfiguration.cellReferences?.contains(where: { $0.label == "matchmakingSnapshot" }) == true)
+
+        let expectedChatLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Chat")
+        }
+        let openChatResponse = try await context.porthole.set(
+            keypath: "conferenceDemoLauncher.dispatchAction",
+            value: .object([
+                "keypath": .string("launcher.openParticipantChat"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openChatResponse else {
+            XCTFail("Open participant chat action returned nil response")
+            return
+        }
+        let openChatFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openChatResponse)
+        }
+        XCTAssertNil(openChatFailure)
+
+        guard let chatConfiguration = await expectedChatLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Chat")
+            return
+        }
+        XCTAssertTrue(chatConfiguration.name.contains("Conference Chat"))
+        XCTAssertTrue(chatConfiguration.cellReferences?.contains(where: { $0.label == "chatSnapshot" }) == true)
+
+        let expectedAIAssistantLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference AI Assistant")
+        }
+        let openAIResponse = try await context.porthole.set(
+            keypath: "conferenceDemoLauncher.dispatchAction",
+            value: .object([
+                "keypath": .string("launcher.openAIAssistant"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openAIResponse else {
+            XCTFail("Open AI assistant action returned nil response")
+            return
+        }
+        let openAIFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openAIResponse)
+        }
+        XCTAssertNil(openAIFailure)
+
+        guard let aiAssistantConfiguration = await expectedAIAssistantLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference AI Assistant")
+            return
+        }
+        XCTAssertTrue(aiAssistantConfiguration.name.contains("Conference AI Assistant"))
+        XCTAssertTrue(aiAssistantConfiguration.cellReferences?.contains(where: { $0.label == "aiGateway" }) == true)
+    }
+
+    func testConferenceIdentityLinkImportAndReviewFlow() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let challengeURL = "haven://identity-link?requestId=REQ-123&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=nonce-123&expiresAt=2026-04-02T12:00:00Z&algorithm=P256-ES256"
+
+        let setDraftResponse = try await context.porthole.set(
+            keypath: "identityLink.setDraftInput",
+            value: .string(challengeURL),
+            requester: context.owner
+        )
+        guard let setDraftResponse else {
+            XCTFail("Setting identity-link draft returned nil response")
+            return
+        }
+        let setDraftFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: setDraftResponse)
+        }
+        XCTAssertNil(setDraftFailure)
+
+        let importResponse = try await context.porthole.set(
+            keypath: "identityLink.dispatchAction",
+            value: .object([
+                "keypath": .string("identityLink.importDraft"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let importResponse else {
+            XCTFail("Import identity-link challenge action returned nil response")
+            return
+        }
+        let importFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: importResponse)
+        }
+        XCTAssertNil(importFailure)
+
+        let challengeSummary = try await context.porthole.get(
+            keypath: "identityLink.state.incoming.challengeSummary",
+            requester: context.owner
+        )
+        XCTAssertEqual(challengeSummary, .string("Request REQ-123"))
+
+        let confirmationBeforeReview = try await context.porthole.get(
+            keypath: "identityLink.state.review.confirmationStatus",
+            requester: context.owner
+        )
+        XCTAssertEqual(confirmationBeforeReview, .string("Lokal brukerbekreftelse mangler."))
+
+        let confirmResponse = try await context.porthole.set(
+            keypath: "identityLink.dispatchAction",
+            value: .object([
+                "keypath": .string("identityLink.confirmLocalReview"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let confirmResponse else {
+            XCTFail("Confirm local identity-link review action returned nil response")
+            return
+        }
+        let confirmFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: confirmResponse)
+        }
+        XCTAssertNil(confirmFailure)
+
+        let confirmationAfterReview = try await context.porthole.get(
+            keypath: "identityLink.state.review.confirmationStatus",
+            requester: context.owner
+        )
+        XCTAssertEqual(
+            confirmationAfterReview,
+            .string("Lokal brukerbekreftelse registrert. Binding er klar for neste proof-/approval-steg når Scaffold/web tilbyr det.")
+        )
+
+        let localIdentitySummary = try await context.porthole.get(
+            keypath: "identityLink.state.review.localIdentitySummary",
+            requester: context.owner
+        )
+        if case let .string(localIdentitySummaryText) = localIdentitySummary {
+            XCTAssertTrue(
+                localIdentitySummaryText.localizedCaseInsensitiveContains("private-domenet"),
+                "Expected local identity summary to mention private domain, got: \(localIdentitySummaryText)"
+            )
+        } else {
+            XCTFail("Expected string localIdentitySummary after confirming identity-link review")
+        }
+
+        let expectedLauncherPop = Task {
+            await waitForConferenceNavigationPopFallbackConfiguration(containingName: "Conference Demo Launcher")
+        }
+        let openLauncherResponse = try await context.porthole.set(
+            keypath: "identityLink.dispatchAction",
+            value: .object([
+                "keypath": .string("identityLink.openLauncher"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openLauncherResponse else {
+            XCTFail("Back to launcher action returned nil response")
+            return
+        }
+        let openLauncherFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openLauncherResponse)
+        }
+        XCTAssertNil(openLauncherFailure)
+
+        guard let launcherConfiguration = await expectedLauncherPop.value else {
+            XCTFail("Expected BindingConferenceNavigationBridge pop request for Conference Demo Launcher")
+            return
+        }
+        XCTAssertTrue(launcherConfiguration.name.contains("Conference Demo Launcher"))
+    }
+
+    func testConferenceAIAssistantButtonsUpdateDraftAndSessionKeyViaRendererExecutionPath() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell:///AIGateway"
+        )
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let conferenceSystemPrompt = """
+        You are a conference copilot. Use only the participant context visible in this workspace. Stay concrete, concise, and action-oriented. Prioritize the next sessions, the best people to meet, and the shortest path to meaningful follow-up.
+        """
+        let whoShouldIMeetPrompt = "Based on the visible matchmaking, meeting, and shared-connection summaries, identify the three strongest people for me to meet next. Explain why each one matters and suggest a short opener for each conversation."
+
+        let loadSystemPromptButton = SkeletonButton(
+            keypath: "aiGateway.setDraftSystemPrompt",
+            label: "Load copilot system prompt",
+            payload: .string(conferenceSystemPrompt)
+        )
+        let loadSystemPromptResponse = await loadSystemPromptButton.execute()
+        XCTAssertNotNil(loadSystemPromptResponse, "Renderer button path returned nil for Load copilot system prompt")
+        if let loadSystemPromptResponse {
+            XCTAssertNil(
+                SkeletonBindingProbeSupport.failureDetail(from: loadSystemPromptResponse),
+                "Renderer button path returned failure payload for Load copilot system prompt: \(loadSystemPromptResponse)"
+            )
+        }
+
+        let fillRequestButton = SkeletonButton(
+            keypath: "aiGateway.setDraftPrompt",
+            label: "Fill request: Who should I meet?",
+            payload: .string(whoShouldIMeetPrompt)
+        )
+        let fillRequestResponse = await fillRequestButton.execute()
+        XCTAssertNotNil(fillRequestResponse, "Renderer button path returned nil for Fill request: Who should I meet?")
+        if let fillRequestResponse {
+            XCTAssertNil(
+                SkeletonBindingProbeSupport.failureDetail(from: fillRequestResponse),
+                "Renderer button path returned failure payload for Fill request: Who should I meet?: \(fillRequestResponse)"
+            )
+        }
+
+        let bufferedKeyResponse = try await context.porthole.set(
+            keypath: "aiGateway.setDraftAPIKeyEntry",
+            value: .string("sk-test-buffered-session-key"),
+            requester: context.owner
+        )
+        guard let bufferedKeyResponse else {
+            XCTFail("Buffering session key returned nil response")
+            return
+        }
+        let bufferedKeyFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: bufferedKeyResponse)
+        }
+        XCTAssertNil(bufferedKeyFailure)
+
+        let loadSessionKeyButton = SkeletonButton(
+            keypath: "aiGateway.commitDraftAPIKeyEntry",
+            label: "Load session key"
+        )
+        let loadSessionKeyResponse = await loadSessionKeyButton.execute()
+        XCTAssertNotNil(loadSessionKeyResponse, "Renderer button path returned nil for Load session key")
+        if let loadSessionKeyResponse {
+            XCTAssertNil(
+                SkeletonBindingProbeSupport.failureDetail(from: loadSessionKeyResponse),
+                "Renderer button path returned failure payload for Load session key: \(loadSessionKeyResponse)"
+            )
+        }
+
+        let systemPromptState = try await context.porthole.get(
+            keypath: "aiGateway.state.draft.systemPrompt",
+            requester: context.owner
+        )
+        XCTAssertEqual(systemPromptState, .string(conferenceSystemPrompt))
+
+        let requestPromptState = try await context.porthole.get(
+            keypath: "aiGateway.state.draft.prompt",
+            requester: context.owner
+        )
+        XCTAssertEqual(requestPromptState, .string(whoShouldIMeetPrompt))
+
+        let activeCredentialSource = try await context.porthole.get(
+            keypath: "aiGateway.state.setup.activeCredentialSource",
+            requester: context.owner
+        )
+        XCTAssertEqual(activeCredentialSource, .string("session"))
+    }
+
     private func waitForPortholeSkeleton(
         on porthole: OrchestratorCell,
         requester: Identity,
@@ -1245,6 +1684,127 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     }
 
 #if canImport(AppKit)
+    @MainActor
+    func testConferenceDemoLauncherRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Demo Launcher",
+                "Act 0 · Public Opener",
+                "Open public surface",
+                "Open identity link setup",
+                "Open participant chat",
+                "Open control tower",
+                "Open AI assistant"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Demo launcheren skal ikke rendre utilgjengelighets-tekster i lokal verifier")
+    }
+
+    @MainActor
+    func testConferenceIdentityLinkRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Scaffold Setup & Identity Link",
+                "Incoming challenge",
+                "Open or paste challenge data",
+                "Import challenge",
+                "Local Binding review",
+                "Confirm local key & continue",
+                "Back to launcher"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Identity-link-flaten skal ikke rendre utilgjengelighets-tekster i lokal verifier")
+    }
+
+    @MainActor
+    func testConferenceAIAssistantRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell:///AIGateway"
+        )
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference AI Assistant",
+                "Conference Snapshot",
+                "Copilot Setup",
+                "Conference Prompt Presets",
+                "Prompt Draft",
+                "Load session key",
+                "Load copilot system prompt",
+                "Invoke conference copilot",
+                "Latest AI Result"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Conference AI Assistant skal ikke rendre utilgjengelighets-tekster i lokal verifier")
+    }
+
+    @MainActor
+    func testConferencePublicSurfaceRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: "cell:///ConferencePublicShellFixture"
+        )
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "AI & Digital Independence",
+                "Publication & Access",
+                "Tracks & Program Highlights",
+                "People, Articles & Facilities",
+                "Join the public program"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Conference public surface skal ikke rendre utilgjengelighets-tekster i lokal verifier")
+    }
+
+    @MainActor
+    func testConferenceSponsorFollowUpRenderer() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceSponsorShellFixture"
+        )
+
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration,
+            expectedVisibleStrings: [
+                "Conference Sponsor Follow-up",
+                "Lead Inbox",
+                "Consent, Unlock & Retention",
+                "Refresh inbox",
+                "Prepare export",
+                "Run retention sweep"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Conference sponsor follow-up skal ikke rendre utilgjengelighets-tekster i lokal verifier")
+    }
+
     @MainActor
     func testConferenceParticipantPortalRenderer() async throws {
         let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
