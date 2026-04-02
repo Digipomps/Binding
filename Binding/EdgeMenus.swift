@@ -91,7 +91,7 @@ struct EdgeMenu: View {
 
     var body: some View {
         ZStack(alignment: anchorAlignment) {
-            ForEach(Array(items.enumerated()), id: \.1.id) { idx, item in
+            ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
                 itemButton(item, index: idx)
                     .frame(maxWidth: stackFrameWidth, alignment: stackItemAlignment)
                     .offset(currentOffset(for: idx, count: items.count))
