@@ -22,25 +22,28 @@ This pass tested the current conference demo story in the running macOS Binding 
 ### Passed
 
 - Binding can now start from `Conference Demo Launcher` after relaunch.
-- `Conference Demo Launcher` opens correctly from the library.
-- `Conference Participant Portal Dashboard` opens from the launcher.
-- `Conference Scaffold Setup & Identity Link` opens from the library/launcher path.
+- `Conference Demo Launcher` opens correctly in a fresh `My Mac` process after bootstrap warmup.
+- `Conference Participant Portal Dashboard` opens from the launcher in the fresh process.
+- `Conference Scaffold Setup & Identity Link` opens from the launcher path.
+- `haven://identity-link?...` deep links are dispatched into the app and populate the intake screen for review.
 - `Conference Control Tower` opens from the library and clearly shows current staging denial state instead of a black/empty shell.
 - `haven://identity-link?...` is now recognized by the app bundle after adding URL scheme registration in `Info.plist`. Before this fix macOS returned `-10814`.
 
 ### Partial / Degraded
 
 - `Conference Public Surface` opens, but still shows a warning banner and degraded/denied state from staging.
-- `Conference Participant Portal Dashboard` loads and shows the current local participant fallback, but the recommended-person action path was not fully executable in this GUI pass.
+- `Conference Participant Portal Dashboard` loads and shows the current local participant fallback, but the recommendation-card action path is still not visibly selecting a person in the live GUI pass.
+- `Conference Sponsor Follow-up` opens and shows partial/fallback content, but still carries a staging denial banner.
+- `Conference AI Assistant` opens through the library, but the live surface is still degraded because `aiGateway.state` is unavailable in this path.
 - Organizer parity is still degraded because `Conference Control Tower` is mostly placeholder/unavailable content when `conferenceAdminShell.state` is denied by staging.
 
 ### Failed / Blocked
 
-- The visible `Vis i siden` actions on recommended participants did not produce a selected-participant transition during this automated GUI pass.
+- The visible recommendation-card actions in the participant portal still did not produce a selected-participant transition during this automated GUI pass.
 - Because selected participant state did not advance from the visible recommendation cards, the pure GUI happy path
   `participant portal -> select Ane Solberg -> Start chat -> Åpne chatflate`
   could not be completed end-to-end from the portal itself in this pass.
-- The library search result `Conference Participant Chat` still opens the generic snapshot workbench, not the dedicated demo chat surface.
+- `Conference AI Assistant` still reaches a degraded gateway state in the fresh live process.
 
 ## Concrete Findings
 
@@ -54,12 +57,12 @@ Related local changes:
 - `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/ContentView.swift`
 - `/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/BindingTests.swift`
 
-### 2. Launcher is usable as the primary demo entry
+### 2. Launcher is usable as the primary demo entry in a fresh process
 
 `Conference Demo Launcher` rendered correctly and exposed the intended conference entry points.
 
 Useful capture:
-- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_10-22-17.png`
+- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_23-26-52.png`
 
 ### 3. Participant portal opens, but selection from recommendation cards is still a real blocker
 
@@ -69,13 +72,13 @@ The participant portal renders correctly enough to present the recommended peopl
 - `Lea Heger`
 
 Useful capture:
-- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_10-25-37.png`
+- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_23-30-09.png`
 
 However, the visible `Vis i siden` actions did not move the UI out of:
 - `VALGT DELTAKER`
 - `Ingen deltaker valgt ennå`
 
-This means the user-facing recommendation-to-chat handoff is still not reliable enough in the live GUI.
+This means the user-facing recommendation-to-chat handoff is still not reliable enough in the live GUI, even though the portal itself is now stable to open.
 
 ### 4. Control Tower still reflects staging denial, not a Binding-only bug
 
@@ -85,24 +88,60 @@ This means the user-facing recommendation-to-chat handoff is still not reliable 
 - `conferenceAdminShell.state: denied`
 
 Useful capture:
-- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_10-40-54.png`
+- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_23-36-59.png`
 
 This is consistent with the earlier staging handoff and should still be treated as a staging/admin-preview parity issue, not something Binding should paper over with fake content.
 
-### 5. Identity-link intake is now OS-reachable
+### 5. Identity-link intake is now OS-reachable and live-populated
 
 Before adding URL registration, a live `haven://identity-link?...` open attempt failed with:
 - `-10814`
 
 After adding `CFBundleURLTypes` for the `haven` scheme and rebuilding, `open location "haven://identity-link?..."`
-returned successfully instead of failing immediately.
+returned successfully instead of failing immediately, and the running intake surface updated with the incoming challenge details.
 
-Related local change:
-- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/Info.plist`
+Useful capture:
+- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_23-34-32.png`
 
 Important nuance:
 - the intake screen itself opened correctly before this change
 - the new fix specifically addresses OS-level dispatch into the app
+
+### 6. Fresh-process bootstrap needed an extra baseline guard
+
+The fresh `My Mac` Binding process could previously get stuck behind:
+- `Venter på autentisering og runtime-bootstrap for Conference Demo Launcher…`
+- `Venter på autentisering og runtime-bootstrap for Conference Participant Portal Dashboard…`
+
+The fix was to make launch warmup and late bootstrap retries explicitly restore the baseline CellBase runtime defaults before waiting on conference content.
+
+Related local changes:
+- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BindingAppNotifications.swift`
+- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/ContentView.swift`
+
+Regression coverage:
+- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/BindingTests.swift`
+
+### 7. Public surface, sponsor follow-up, and AI assistant are not equivalent in live quality
+
+`Conference Public Surface` loads, but still shows:
+- `conferencePublicShell.state: denied`
+
+Useful capture:
+- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_23-28-36.png`
+
+`Conference Sponsor Follow-up` loads with some useful shell content, but still shows:
+- `conferenceSponsorShell.state: denied`
+
+Useful capture:
+- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_23-41-43.png`
+
+`Conference AI Assistant` is still the weakest live surface in this pass. It opened through the library, but the visible state was degraded with:
+- `aiGateway.state: Conference AI gateway proxy get failed ...`
+- repeated `Innholdet er ikke tilgjengelig akkurat nå.`
+
+Useful capture:
+- `/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/codex-shot-2026-04-02_23-39-34.png`
 
 ## Recommended Next Fixes
 
@@ -112,10 +151,8 @@ Important nuance:
   - recommendation action wiring in `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift`
   - recommendation card/button skeleton in `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/ConfigurationCatalogCell.swift`
 
-2. Make the dedicated participant chat surface discoverable without requiring a generic snapshot route.
-- The library should distinguish between:
-  - generic snapshot inspection
-  - actual `Conference Participant Chat` demo surface
+2. Re-test the now-fixed bootstrap path before every deeper GUI sweep.
+- Fresh-process testing is now reliable enough to trust, but only if we keep testing the current DerivedData app and not a stale debug-spawned instance.
 
 3. Keep treating organizer degradation as a staging-truth issue.
 - Do not add Binding-only fake organizer content.
@@ -123,6 +160,9 @@ Important nuance:
 
 4. Add one explicit GUI-verifier path for:
 - `Ane Solberg -> Vis i siden -> Start chat -> Åpne chatflate`
+
+5. Take `Conference AI Assistant` as its own live-fix pass.
+- It is no longer a pure layout problem; the remaining issue is the gateway/proxy availability in the fresh process path.
 
 ## Verification Performed
 

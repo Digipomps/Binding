@@ -18,6 +18,21 @@ import CellBase
 @Suite(.serialized)
 struct BindingTests {
 
+    @Test func bindingRuntimeBootstrapEnsuresDefaultsWhenMissing() async {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+        CellBase.documentRootPath = ""
+
+        await BindingRuntimeBootstrap.ensureBaseline()
+
+        #expect(CellBase.defaultIdentityVault != nil)
+        #expect(CellBase.defaultCellResolver is CellResolver)
+        #expect(CellBase.typedCellUtility != nil)
+        #expect(CellBase.documentRootPath != nil)
+        #expect(!(CellBase.documentRootPath ?? "").isEmpty)
+    }
+
     @Test func componentMergeReusesExistingReferenceLabelAndRewritesFragmentKeypaths() {
         let recipe = ComponentPaletteCatalog.embeddedChatCard(endpoint: "cell:///Chat").recipe
         let existingReferences = [CellReference(endpoint: "cell:///Chat", label: "teamChat")]

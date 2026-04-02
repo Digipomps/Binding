@@ -2406,7 +2406,9 @@ struct ContentView: View {
             "Venter på autentisering og runtime-bootstrap for \(configurationName)…",
             requestID: requestID
         )
+        await BindingRuntimeBootstrap.ensureBaseline()
         await AppInitializer.initialize()
+        await BindingRuntimeBootstrap.ensureBaseline()
         await BindingLocalCellRegistration.shared.ensureRegistered()
         if runtimeBootstrapIsReady {
             return true
@@ -2419,6 +2421,9 @@ struct ContentView: View {
             guard !Task.isCancelled else { return false }
             if runtimeBootstrapIsReady {
                 return true
+            }
+            if attempt == 1 || attempt.isMultiple(of: 10) {
+                await BindingRuntimeBootstrap.ensureBaseline()
             }
             if attempt < maxAttempts {
                 updateLoadingStatus(

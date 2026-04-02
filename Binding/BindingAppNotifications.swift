@@ -1,4 +1,5 @@
 import Foundation
+import CellBase
 import CellApple
 
 enum BindingIncomingURLBridge {
@@ -21,8 +22,56 @@ enum BindingIncomingURLBridge {
 
 enum BindingLaunchWarmup {
     static func preloadLocalRuntime() async {
+        await BindingRuntimeBootstrap.ensureBaseline()
         await AppInitializer.initialize()
+        await BindingRuntimeBootstrap.ensureBaseline()
         await BindingLocalCellRegistration.shared.warmConferenceRuntime()
+    }
+}
+
+enum BindingRuntimeBootstrap {
+    @MainActor
+    static func ensureBaseline() async {
+        CellBase.sendDataAsText = true
+
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        if CellBase.defaultIdentityVault == nil {
+            CellBase.defaultIdentityVault = identityVault
+        }
+
+        let resolver = CellResolver.sharedInstance
+        if !(CellBase.defaultCellResolver is CellResolver) {
+            CellBase.defaultCellResolver = resolver
+        }
+
+#if DEBUG
+        CellBase.webSocketSecurityPolicy = .developmentOnlyInsecureAllowed
+#else
+        CellBase.webSocketSecurityPolicy = .requireTLS
+#endif
+
+        CellBase.documentRootPath = documentsDirectoryPath()
+
+        if resolver.tcUtility == nil {
+            let utility = TypedCellUtility(storage: FileSystemCellStorage())
+            resolver.tcUtility = utility
+            CellBase.typedCellUtility = utility
+        } else if CellBase.typedCellUtility == nil {
+            CellBase.typedCellUtility = resolver.tcUtility
+        }
+
+        try? await resolver.registerDefaultWebSocketBridgeTransports()
+        if CellBase.hostname != "localhost", !CellBase.hostname.isEmpty {
+            resolver.registerRemoteCellHost(
+                CellBase.hostname,
+                route: RemoteCellHostRoute(websocketEndpoint: "publishersws", schemePreference: .automatic)
+            )
+        }
+    }
+
+    private static func documentsDirectoryPath() -> String {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.path ?? ""
     }
 }
 
