@@ -463,6 +463,40 @@ struct BindingTests {
         #expect(!ContentView.matchesConferenceAutomationWindow(targetWindowNumber: 42, hostingWindowNumber: nil))
     }
 
+    @Test func conferenceAutomationGlobalOptInUsesOnlyExplicitGlobalInputs() {
+        #expect(
+            ContentView.conferenceAutomationGlobalOptInEnabled(
+                environment: [:],
+                launchArguments: [],
+                persistedOptIn: false
+            ) == false
+        )
+
+        #expect(
+            ContentView.conferenceAutomationGlobalOptInEnabled(
+                environment: ["BINDING_ENABLE_CONFERENCE_AUTOMATION": "1"],
+                launchArguments: [],
+                persistedOptIn: false
+            ) == true
+        )
+
+        #expect(
+            ContentView.conferenceAutomationGlobalOptInEnabled(
+                environment: [:],
+                launchArguments: ["Binding", "--enable-conference-automation"],
+                persistedOptIn: false
+            ) == true
+        )
+
+        #expect(
+            ContentView.conferenceAutomationGlobalOptInEnabled(
+                environment: [:],
+                launchArguments: [],
+                persistedOptIn: true
+            ) == true
+        )
+    }
+
     @Test func incomingURLBridgeCarriesTargetWindowNumber() throws {
         let center = NotificationCenter()
         let url = try #require(URL(string: "haven://conference-automation?action=open-launcher"))
@@ -483,6 +517,31 @@ struct BindingTests {
 
         #expect(receivedURL == url)
         #expect(receivedTargetWindowNumber == 314)
+    }
+
+    @Test func conferenceAutomationBridgeCarriesHookAndTargetWindow() {
+        let center = NotificationCenter()
+        var receivedHook: ContentView.ConferenceAutomationHook?
+        var receivedTargetWindowNumber: Int?
+
+        let observer = center.addObserver(
+            forName: BindingConferenceAutomationBridge.notificationName,
+            object: nil,
+            queue: nil
+        ) { notification in
+            receivedHook = BindingConferenceAutomationBridge.hook(from: notification)
+            receivedTargetWindowNumber = BindingConferenceAutomationBridge.targetWindowNumber(from: notification)
+        }
+
+        BindingConferenceAutomationBridge.post(
+            hook: .openParticipantPortal,
+            targetWindowNumber: 271,
+            notificationCenter: center
+        )
+        center.removeObserver(observer)
+
+        #expect(receivedHook == .openParticipantPortal)
+        #expect(receivedTargetWindowNumber == 271)
     }
 
     @Test func conferenceAdminPublicAndSponsorWorkbenchesSeedStateAndUseScrollSurfaces() {

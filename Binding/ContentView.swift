@@ -707,6 +707,15 @@ struct ContentView: View {
                 targetWindowNumber: BindingIncomingURLBridge.targetWindowNumber(from: notification)
             )
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: BindingConferenceAutomationBridge.notificationName)
+        ) { notification in
+            guard let hook = BindingConferenceAutomationBridge.hook(from: notification) else { return }
+            handleConferenceAutomationNotification(
+                hook,
+                targetWindowNumber: BindingConferenceAutomationBridge.targetWindowNumber(from: notification)
+            )
+        }
 #if os(iOS)
         .onReceive(
             NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
@@ -2659,6 +2668,34 @@ struct ContentView: View {
                     navigationMode: .automatic
                 )
             }
+        }
+    }
+
+    private func handleConferenceAutomationNotification(
+        _ hook: ConferenceAutomationHook,
+        targetWindowNumber: Int?
+    ) {
+        Task {
+            let shouldHandle = await MainActor.run {
+                shouldHandleIncomingURL(targetWindowNumber: targetWindowNumber)
+            }
+            guard shouldHandle else { return }
+
+            let automationEnabled = await MainActor.run {
+                conferenceAutomationOptInEnabled
+            }
+            guard automationEnabled else {
+                await MainActor.run {
+                    diagnosticsStore.record(
+                        severity: .warning,
+                        domain: "binding.automation",
+                        message: "Ignorerte automation hook \(hook.rawValue) fordi conference automation ikke er aktivert."
+                    )
+                }
+                return
+            }
+
+            await performConferenceAutomation(hook)
         }
     }
 
@@ -5051,6 +5088,19 @@ struct ContentView: View {
     }
 
     static let conferenceAutomationDefaultsKey = "Binding.EnableConferenceAutomation"
+
+    static func conferenceAutomationGlobalOptInEnabled(
+        environment: [String: String],
+        launchArguments: [String],
+        persistedOptIn: Bool
+    ) -> Bool {
+        conferenceAutomationEnabled(
+            debugPanelVisible: false,
+            environment: environment,
+            launchArguments: launchArguments,
+            persistedOptIn: persistedOptIn
+        )
+    }
 
     static func conferenceAutomationEnabled(
         debugPanelVisible: Bool,

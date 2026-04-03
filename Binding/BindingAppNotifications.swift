@@ -33,6 +33,38 @@ enum BindingIncomingURLBridge {
     }
 }
 
+enum BindingConferenceAutomationBridge {
+    nonisolated static let notificationName = Notification.Name("BindingConferenceAutomationBridge.received")
+
+    nonisolated private static let hookKey = "hook"
+    nonisolated private static let targetWindowNumberKey = "targetWindowNumber"
+
+    nonisolated static func post(
+        hook: ContentView.ConferenceAutomationHook,
+        targetWindowNumber: Int? = nil,
+        notificationCenter: NotificationCenter = .default
+    ) {
+        var userInfo: [String: Any] = [hookKey: hook.rawValue]
+        if let targetWindowNumber {
+            userInfo[targetWindowNumberKey] = targetWindowNumber
+        }
+        notificationCenter.post(
+            name: notificationName,
+            object: nil,
+            userInfo: userInfo
+        )
+    }
+
+    nonisolated static func hook(from notification: Notification) -> ContentView.ConferenceAutomationHook? {
+        guard let rawValue = notification.userInfo?[hookKey] as? String else { return nil }
+        return ContentView.ConferenceAutomationHook(rawValue: rawValue)
+    }
+
+    nonisolated static func targetWindowNumber(from notification: Notification) -> Int? {
+        notification.userInfo?[targetWindowNumberKey] as? Int
+    }
+}
+
 enum BindingLaunchWarmup {
     static func preloadLocalRuntime() async {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
