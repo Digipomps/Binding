@@ -410,6 +410,40 @@ struct BindingTests {
         #expect(ContentView.conferenceAutomationHook(from: identityLinkURL) == nil)
     }
 
+    @Test func conferenceAutomationRequiresExplicitOptIn() {
+        #expect(
+            ContentView.conferenceAutomationEnabled(
+                debugPanelVisible: false,
+                environment: [:],
+                persistedOptIn: false
+            ) == false
+        )
+
+        #expect(
+            ContentView.conferenceAutomationEnabled(
+                debugPanelVisible: true,
+                environment: [:],
+                persistedOptIn: false
+            ) == true
+        )
+
+        #expect(
+            ContentView.conferenceAutomationEnabled(
+                debugPanelVisible: false,
+                environment: ["BINDING_ENABLE_CONFERENCE_AUTOMATION": "1"],
+                persistedOptIn: false
+            ) == true
+        )
+
+        #expect(
+            ContentView.conferenceAutomationEnabled(
+                debugPanelVisible: false,
+                environment: [:],
+                persistedOptIn: true
+            ) == true
+        )
+    }
+
     @Test func conferenceAdminPublicAndSponsorWorkbenchesSeedStateAndUseScrollSurfaces() {
         let configurations = [
             ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(

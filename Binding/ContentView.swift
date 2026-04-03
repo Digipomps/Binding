@@ -1829,11 +1829,20 @@ struct ContentView: View {
     }
 
     private var showsConferenceAutomationControls: Bool {
-        isConferenceNavigationEligible(activeConfiguration)
+        conferenceAutomationOptInEnabled && isConferenceNavigationEligible(activeConfiguration)
     }
 
     private var showsConferenceParticipantQuickActions: Bool {
-        normalizedActiveConferenceConfigurationName == "conference participant portal dashboard"
+        conferenceAutomationOptInEnabled
+            && normalizedActiveConferenceConfigurationName == "conference participant portal dashboard"
+    }
+
+    private var conferenceAutomationOptInEnabled: Bool {
+        Self.conferenceAutomationEnabled(
+            debugPanelVisible: diagnosticsStore.panelVisible,
+            environment: ProcessInfo.processInfo.environment,
+            persistedOptIn: UserDefaults.standard.bool(forKey: Self.conferenceAutomationDefaultsKey)
+        )
     }
 
     private var normalizedActiveConferenceConfigurationName: String? {
@@ -1852,7 +1861,7 @@ struct ContentView: View {
         .controlSize(.small)
         .accessibilityLabel("Conference automation")
         .accessibilityIdentifier("conference-automation-menu")
-        .help("Native conference hooks for GUI automation, deep links, and deterministic demo navigation.")
+        .help("Debug-only conference hooks for GUI automation and deterministic demo navigation.")
     }
 
     private var conferenceParticipantQuickActions: some View {
@@ -2585,6 +2594,20 @@ struct ContentView: View {
     private func handleIncomingURL(_ url: URL) {
         Task {
             if let hook = Self.conferenceAutomationHook(from: url) {
+                let automationEnabled = await MainActor.run {
+                    conferenceAutomationOptInEnabled
+                }
+                guard automationEnabled else {
+                    await MainActor.run {
+                        loadErrorMessage = "Conference automation-deeplinks er av inntil du eksplisitt aktiverer debug-automation."
+                        diagnosticsStore.record(
+                            severity: .warning,
+                            domain: "binding.automation",
+                            message: "Ignorerte \(url.absoluteString) fordi conference automation ikke er aktivert."
+                        )
+                    }
+                    return
+                }
                 await performConferenceAutomation(hook)
                 return
             }
@@ -4974,6 +4997,30 @@ struct ContentView: View {
         ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
             endpoint: "cell://\(Self.stagingHost)/ConferencePublicShell"
         )
+    }
+
+    static let conferenceAutomationDefaultsKey = "Binding.EnableConferenceAutomation"
+
+    static func conferenceAutomationEnabled(
+        debugPanelVisible: Bool,
+        environment: [String: String],
+        persistedOptIn: Bool
+    ) -> Bool {
+#if DEBUG
+        if debugPanelVisible || persistedOptIn {
+            return true
+        }
+
+        let rawValue = environment["BINDING_ENABLE_CONFERENCE_AUTOMATION"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return rawValue == "1" || rawValue == "true" || rawValue == "yes"
+#else
+        _ = debugPanelVisible
+        _ = environment
+        _ = persistedOptIn
+        return false
+#endif
     }
 
     static func conferenceAutomationHook(from url: URL) -> ConferenceAutomationHook? {
