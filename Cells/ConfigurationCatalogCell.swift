@@ -9408,7 +9408,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Copilot Setup",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Conference-copiloten bruker participant-konteksten fra denne arbeidsflaten, men kjører selve AIGateway lokalt i Binding. Velg route, last en session key ved behov, og fyll deretter ut den store request-boksen nederst før du invoke-er.",
+                        "Conference-copiloten bruker participant-konteksten fra denne arbeidsflaten. I CellScaffold lever AI-delen som embedded AIGateway, men i Binding er live AI-pathen fortsatt avhengig av at gateway-routen faktisk er lesbar. Setup-seksjonen under skal vise den konkrete gateway-feilen hvis den ikke kommer opp.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3"
                     ),
@@ -9536,7 +9536,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Prompt Draft",
                 content: [
                     bindingConferencePortalStaticText(
-                        "De fire feltene under styrer route-oppsettet for AIGateway. Under dem ligger session API key, et lite valgfrtt systemprompt-felt, og til slutt den store request-boksen som maa fylles ut for aa kunne invoke.",
+                        "Feltene under speiler draft-oppsettet for AIGateway. Hvis gatewayen ikke er lesbar, skal setup-seksjonen over forklare hvorfor, i stedet for at denne delen later som invoke bare mangler input.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3"
                     ),

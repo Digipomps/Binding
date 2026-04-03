@@ -19,7 +19,6 @@ actor BindingLocalCellRegistration {
         "cell:///ConferenceNearbyRadar",
         "cell:///ConferenceParticipantChatSnapshot",
         "cell:///ConferenceAdminPreviewShell",
-        "cell:///ConferenceAIAssistantGatewayProxy",
     ]
 
     private var isLocallyRegistered = false
@@ -379,7 +378,12 @@ private enum ConferenceSnapshotRetrySupport {
 private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private static let localGatewayEndpoint = "cell:///AIGateway"
     private static let stagingGatewayEndpoint = "cell://staging.haven.digipomps.org/AIGateway"
+    private static let resolveTimeoutNanoseconds: UInt64 = 4_000_000_000
+    private static let stateReadTimeoutNanoseconds: UInt64 = 8_000_000_000
+    private static let mutationTimeoutNanoseconds: UInt64 = 12_000_000_000
     private var pendingAPIKeyEntry = ""
+    private var lastResolvedGatewayEndpoint: String?
+    private var lastFailureMessage: String?
 
     private static let readableKeys = [
         "state",
@@ -440,65 +444,176 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         try super.encode(to: encoder)
     }
 
-    private func resolveGateway(requester: Identity) async throws -> Meddle {
-        await BindingRuntimeBootstrap.ensureBaseline()
-        await BindingLocalCellRegistration.shared.ensureRegistered()
-        guard let resolver = CellBase.defaultCellResolver else {
+    private func resolveGateway(requester: Identity) async throws -> (endpoint: String, gateway: Meddle) {
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw CellBaseError.noResolver
         }
 
+        var failureMessages: [String] = []
         for endpoint in [Self.localGatewayEndpoint, Self.stagingGatewayEndpoint] {
-            if let gateway = try? await resolver.cellAtEndpoint(
-                endpoint: endpoint,
-                requester: requester
-            ) as? Meddle {
-                return gateway
+            do {
+                let gateway = try await resolveGateway(
+                    at: endpoint,
+                    with: resolver,
+                    requester: requester
+                )
+                lastResolvedGatewayEndpoint = endpoint
+                lastFailureMessage = nil
+                return (endpoint, gateway)
+            } catch {
+                failureMessages.append("\(endpoint): \(error.localizedDescription)")
             }
         }
 
-        throw CellBaseError.noTargetCell
+        throw ConferenceAIGatewayProxyResolutionError(
+            endpoint: Self.stagingGatewayEndpoint,
+            details: failureMessages
+        )
+    }
+
+    private func resolveGateway(
+        at endpoint: String,
+        with resolver: CellResolver,
+        requester: Identity
+    ) async throws -> Meddle {
+        try await withThrowingTaskGroup(of: Meddle.self) { group in
+            group.addTask {
+                guard let gateway = try await resolver.cellAtEndpoint(
+                    endpoint: endpoint,
+                    requester: requester,
+                ) as? Meddle else {
+                    throw ConferenceAIGatewayProxyResolutionError(
+                        endpoint: endpoint,
+                        details: []
+                    )
+                }
+                return gateway
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.resolveTimeoutNanoseconds)
+                throw ConferenceAIGatewayProxyTimeoutError(
+                    operation: "resolve",
+                    endpoint: endpoint
+                )
+            }
+
+            guard let firstResult = try await group.next() else {
+                throw ConferenceAIGatewayProxyTimeoutError(
+                    operation: "resolve",
+                    endpoint: endpoint
+                )
+            }
+            group.cancelAll()
+            return firstResult
+        }
+    }
+
+    private func gatewayGet(
+        _ keypath: String,
+        from gateway: Meddle,
+        requester: Identity
+    ) async throws -> ValueType {
+        try await withThrowingTaskGroup(of: ValueType.self) { group in
+            group.addTask {
+                try await gateway.get(keypath: keypath, requester: requester)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.stateReadTimeoutNanoseconds)
+                throw ConferenceAIGatewayProxyTimeoutError(
+                    operation: "get(\(keypath))",
+                    endpoint: "gateway"
+                )
+            }
+
+            guard let firstResult = try await group.next() else {
+                throw ConferenceAIGatewayProxyTimeoutError(
+                    operation: "get(\(keypath))",
+                    endpoint: "gateway"
+                )
+            }
+            group.cancelAll()
+            return firstResult
+        }
+    }
+
+    private func gatewaySet(
+        _ keypath: String,
+        value: ValueType,
+        on gateway: Meddle,
+        requester: Identity
+    ) async throws -> ValueType? {
+        try await withThrowingTaskGroup(of: ValueType?.self) { group in
+            group.addTask {
+                try await gateway.set(keypath: keypath, value: value, requester: requester)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.mutationTimeoutNanoseconds)
+                throw ConferenceAIGatewayProxyTimeoutError(
+                    operation: "set(\(keypath))",
+                    endpoint: "gateway"
+                )
+            }
+
+            guard let firstResult = try await group.next() else {
+                throw ConferenceAIGatewayProxyTimeoutError(
+                    operation: "set(\(keypath))",
+                    endpoint: "gateway"
+                )
+            }
+            group.cancelAll()
+            return firstResult
+        }
     }
 
     private func forwardGet(keypath: String, requester: Identity) async -> ValueType {
         do {
-            let gateway = try await resolveGateway(requester: requester)
-            let value = try await gateway.get(keypath: keypath, requester: requester)
+            let resolved = try await resolveGateway(requester: requester)
+            let value = try await gatewayGet(keypath, from: resolved.gateway, requester: requester)
             if keypath == "state" {
                 return augmentGatewayState(value)
             }
             return value
         } catch {
-            return .string("Conference AI gateway proxy get failed: \(error)")
+            let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
+            lastFailureMessage = message
+            if keypath == "state" {
+                return .object(gatewayFailureState(message: message))
+            }
+            return .string(message)
         }
     }
 
     private func forwardSet(keypath: String, value: ValueType, requester: Identity) async -> ValueType {
         do {
-            let gateway = try await resolveGateway(requester: requester)
+            let resolved = try await resolveGateway(requester: requester)
+            let gateway = resolved.gateway
 
             switch keypath {
             case "setDraftAPIKeyEntry":
                 pendingAPIKeyEntry = conferenceMutationString(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let state = try await gateway.get(keypath: "state", requester: requester)
+                let state = try await gatewayGet("state", from: gateway, requester: requester)
                 return augmentGatewayState(state)
             case "commitDraftAPIKeyEntry":
-                let response = try await gateway.set(
-                    keypath: "setDraftAPIKey",
+                let response = try await gatewaySet(
+                    "setDraftAPIKey",
                     value: .string(pendingAPIKeyEntry),
+                    on: gateway,
                     requester: requester
                 )
                 let stateValue: ValueType
                 if let response {
                     stateValue = response
                 } else {
-                    stateValue = try await gateway.get(keypath: "state", requester: requester)
+                    stateValue = try await gatewayGet("state", from: gateway, requester: requester)
                 }
                 return augmentGatewayState(stateValue)
             case "persistDraftAPIKey", "invokeDraft":
                 if pendingAPIKeyEntry.isEmpty == false {
-                    _ = try await gateway.set(
-                        keypath: "setDraftAPIKey",
+                    _ = try await gatewaySet(
+                        "setDraftAPIKey",
                         value: .string(pendingAPIKeyEntry),
+                        on: gateway,
                         requester: requester
                     )
                 }
@@ -510,12 +625,24 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 break
             }
 
-            if let response = try await gateway.set(keypath: keypath, value: value, requester: requester) {
+            if let response = try await gatewaySet(
+                keypath,
+                value: value,
+                on: gateway,
+                requester: requester
+            ) {
                 return augmentGatewayState(response)
             }
-            return augmentGatewayState(try await gateway.get(keypath: "state", requester: requester))
+            return augmentGatewayState(
+                try await gatewayGet("state", from: gateway, requester: requester)
+            )
         } catch {
-            return .string("Conference AI gateway proxy set failed: \(error)")
+            let message = "Conference AI gateway proxy set failed: \(error.localizedDescription)"
+            lastFailureMessage = message
+            return .object([
+                "status": .string("error"),
+                "state": .object(gatewayFailureState(message: message))
+            ])
         }
     }
 
@@ -539,6 +666,75 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         )
         rootObject["setup"] = .object(setupObject)
         return .object(rootObject)
+    }
+
+    private func gatewayFailureState(message: String) -> Object {
+        let pendingEntryPresent = pendingAPIKeyEntry.isEmpty == false
+        let resolvedEndpoint = lastResolvedGatewayEndpoint ?? "Ingen lesbar gateway-route"
+
+        return [
+            "setup": .object([
+                "statusLabel": .string("Conference AI gateway er utilgjengelig i Binding."),
+                "nextStep": .string("Participant-konteksten er lastet, men embedded AIGateway ble ikke lesbar. Dette er en gateway-/bridge-feil, ikke en manglende prompt."),
+                "providerLabel": .string(resolvedEndpoint),
+                "credentialStatus": .string("En session key kan buffers lokalt, men ingen lesbar gateway var tilgjengelig for aa bruke den."),
+                "storageHint": .string("Binding registrerer forelopig ikke en lokal AIGateway-cell. Live AI-path avhenger derfor av en lesbar scaffold-gateway over bridgehead."),
+                "activeCredentialSource": .string("Ingen aktiv gateway"),
+                "lastMessage": .string(lastFailureMessage ?? message),
+                "pendingEntryPresent": .bool(pendingEntryPresent),
+                "pendingEntryStatus": .string(
+                    pendingEntryPresent
+                        ? "En lokal session key ligger i buffer, men gatewayen er fortsatt utilgjengelig."
+                        : ""
+                )
+            ]),
+            "draft": .object([
+                "prompt": .string(""),
+                "systemPrompt": .string(""),
+                "providerID": .string("openai-compatible"),
+                "model": .string("gpt-4.1-mini"),
+                "baseURL": .string(""),
+                "apiKeyAlias": .string(""),
+                "temperatureText": .string(""),
+                "maxTokensText": .string(""),
+                "deterministicMode": .bool(false),
+                "requiresAPIKey": .bool(true),
+                "cachePolicy": .string("useCache")
+            ]),
+            "lastInvocation": .object([
+                "hasResult": .bool(false),
+                "providerID": .string(""),
+                "model": .string(""),
+                "cacheHit": .bool(false),
+                "invokeTimeMs": .integer(0),
+                "attempts": .integer(0),
+                "quotaStatus": .string("gatewayUnavailable"),
+                "warningsText": .string(lastFailureMessage ?? message),
+                "errorsText": .string(lastFailureMessage ?? message),
+                "outputPreview": .string("Conference AI Assistant fant participant-konteksten, men ikke en lesbar AIGateway.")
+            ])
+        ]
+    }
+}
+
+private struct ConferenceAIGatewayProxyTimeoutError: LocalizedError {
+    let operation: String
+    let endpoint: String
+
+    var errorDescription: String? {
+        "Conference AI gateway proxy timed out during \(operation) at \(endpoint)."
+    }
+}
+
+private struct ConferenceAIGatewayProxyResolutionError: LocalizedError {
+    let endpoint: String
+    let details: [String]
+
+    var errorDescription: String? {
+        if details.isEmpty {
+            return "Conference AI gateway proxy could not resolve meddle at \(endpoint)."
+        }
+        return "Conference AI gateway proxy could not resolve a readable gateway. Attempts: \(details.joined(separator: " | "))"
     }
 }
 
