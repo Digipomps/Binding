@@ -42,3 +42,25 @@ Tested binary:
 2. Verify `Vis i siden` updates the selected participant card live.
 3. Verify `Start chat` promotes the participant into `Chat og Oppfølging`.
 4. Verify `Åpne chatflate` still opens the dedicated chat workbench from that state.
+
+## Automation Sweep Update
+
+En repeterbar smoke-run finnes nå i:
+
+- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Scripts/run_conference_demo_smoke.sh`
+
+Siste fullkjørte rapport:
+
+- `/tmp/binding-conference-smoke-20260403-175428/report.md`
+
+Siste sweep med native `Conference Automation`-kommandoer og vindusbilder viste:
+
+- `Conference Demo Launcher`: OK
+- `Conference Participant Portal`: OK
+- `Focus Ane Solberg -> Start chat -> Open focused chat workbench`: OK
+- `Conference Control Tower`: OK
+- `Conference Scaffold Setup & Identity Link`: OK
+- `Conference Public Surface`: laster nå stabilt over bridge og ender i staging-preget `Innholdet er ikke tilgjengelig akkurat nå.` i stedet for host-registration-feil
+- `Conference AI Assistant`: fortsatt ikke ferdig. Flaten åpner local-first og krever ikke auth-bootstrap, men blir stående i `Laster innhold...` i smoke-sweepen og kan fortsatt ende i timeout ved lang venting
+
+Dette betyr at GUI-automatiseringen nå er sterk nok til å bevise de fleste demo-flatene ende-til-ende. Den tydeligste gjenværende funksjonelle feilen er fortsatt `Conference AI Assistant`, ikke selve automation-verktøyene.

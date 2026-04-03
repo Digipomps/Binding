@@ -2831,14 +2831,24 @@ struct ContentView: View {
         _ configuration: CellConfiguration,
         navigationMode: ConferenceNavigationMode
     ) {
+        let preparedConfiguration: CellConfiguration
+        if let resolver = CellBase.defaultCellResolver as? CellResolver {
+            preparedConfiguration = normalizeConfigurationForResolver(
+                configuration,
+                origin: nil,
+                resolver: resolver
+            )
+        } else {
+            preparedConfiguration = configuration
+        }
         diagnosticsStore.record(
             domain: "binding.automation",
-            message: "Automation åpner \(configuration.name)."
+            message: "Automation åpner \(preparedConfiguration.name)."
         )
         if editorMode == .edit {
             editorMode = .view
         }
-        queueConfigurationLoad(configuration, navigationMode: navigationMode)
+        queueConfigurationLoad(preparedConfiguration, navigationMode: navigationMode)
     }
 
     private func dispatchConferenceAutomationAction(
@@ -3269,6 +3279,7 @@ struct ContentView: View {
             "conference demo launcher",
             "conference scaffold setup & identity link",
             "conference participant portal dashboard",
+            "conference ai assistant",
             "conference chat · oppfølging",
             "conference control tower",
             "conference nearby radar · full oversikt",
@@ -3477,7 +3488,7 @@ struct ContentView: View {
         on porthole: OrchestratorCell,
         requester: Identity
     ) async throws {
-        let timeoutNanoseconds: UInt64 = 10_000_000_000
+        let timeoutNanoseconds = configurationLoadTimeoutNanoseconds(for: configuration)
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
@@ -3493,6 +3504,20 @@ struct ContentView: View {
             }
             group.cancelAll()
         }
+    }
+
+    func configurationLoadTimeoutNanoseconds(for configuration: CellConfiguration) -> UInt64 {
+        let normalizedName = configuration.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalizedName == "conference ai assistant" {
+            return 30_000_000_000
+        }
+        if normalizedName == "conference public surface" {
+            return 20_000_000_000
+        }
+        return 10_000_000_000
     }
 
     private func waitForReadableBindingRoots(

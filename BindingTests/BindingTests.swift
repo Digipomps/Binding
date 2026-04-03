@@ -854,6 +854,7 @@ struct BindingTests {
         let publicConfiguration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
             endpoint: "cell://staging.haven.digipomps.org/ConferencePublicShell"
         )
+        let aiAssistantConfiguration = ContentView.conferenceAIAssistantAutomationConfiguration()
         let launcherConfiguration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
         let identityLinkConfiguration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
         let participantPortalConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
@@ -872,12 +873,24 @@ struct BindingTests {
         )
 
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(publicConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(aiAssistantConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(launcherConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(identityLinkConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantPortalConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantChatConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(namedParticipantChatConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(controlTowerConfiguration) == false)
+    }
+
+    @Test func conferenceBridgeHeavySurfacesUseExtendedLoadTimeouts() {
+        let contentView = ContentView()
+        let aiAssistantConfiguration = ContentView.conferenceAIAssistantAutomationConfiguration()
+        let publicConfiguration = ContentView.conferencePublicAutomationConfiguration()
+        let participantConfiguration = ContentView.conferenceParticipantPortalMenuSeedConfiguration()
+
+        #expect(contentView.configurationLoadTimeoutNanoseconds(for: aiAssistantConfiguration) == 30_000_000_000)
+        #expect(contentView.configurationLoadTimeoutNanoseconds(for: publicConfiguration) == 20_000_000_000)
+        #expect(contentView.configurationLoadTimeoutNanoseconds(for: participantConfiguration) == 10_000_000_000)
     }
 
     @Test func mixedConferenceAndAIWorkbenchDoesNotForceSingleSpecialRequester() {
