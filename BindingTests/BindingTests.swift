@@ -698,6 +698,31 @@ struct BindingTests {
         )
     }
 
+    @Test func conferencePublicSurfaceDoesNotRequireAuthenticatedRuntimeBootstrap() {
+        let contentView = ContentView()
+        let publicConfiguration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: "cell://staging.haven.digipomps.org/ConferencePublicShell"
+        )
+        let launcherConfiguration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+        let identityLinkConfiguration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+        let participantPortalConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        let participantChatConfiguration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
+            participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+        )
+        let controlTowerConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceAdminPreviewShell"
+        )
+
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(publicConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(launcherConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(identityLinkConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantPortalConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantChatConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(controlTowerConfiguration) == false)
+    }
+
     @Test func mixedConferenceAndAIWorkbenchDoesNotForceSingleSpecialRequester() {
         let contentView = ContentView()
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(

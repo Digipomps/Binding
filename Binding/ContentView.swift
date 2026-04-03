@@ -745,7 +745,7 @@ struct ContentView: View {
                     storedConfiguration: decodeStoredDemoStartConfiguration()
                 )
 
-            if shouldLoadLocallyWithoutRuntimeBootstrap(startupConfiguration) {
+            if shouldLoadWithoutAuthenticatedRuntimeBootstrap(startupConfiguration) {
                 await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
                 diagnosticsStore.record(
                     domain: "binding.demo",
@@ -2174,7 +2174,7 @@ struct ContentView: View {
 
     @MainActor
     private func presentImmediatePreviewIfNeeded(for configuration: CellConfiguration) {
-        guard shouldLoadLocallyWithoutRuntimeBootstrap(configuration) else { return }
+        guard shouldLoadWithoutAuthenticatedRuntimeBootstrap(configuration) else { return }
         activeConfiguration = configuration
         if let skeleton = configuration.skeleton {
             viewModel.currentSkeleton = skeleton
@@ -2619,7 +2619,8 @@ struct ContentView: View {
         loadErrorMessage = nil
         diagnosticsStore.refreshValidation(for: sanitizedConfiguration)
         guard !Task.isCancelled else { return }
-        if shouldLoadLocallyWithoutRuntimeBootstrap(sanitizedConfiguration) {
+        if shouldLoadWithoutAuthenticatedRuntimeBootstrap(sanitizedConfiguration) {
+            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
             await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
             updateLoadingStatus("Laster lokal konfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
             activeConfiguration = sanitizedConfiguration
@@ -2633,10 +2634,15 @@ struct ContentView: View {
             loadErrorMessage = nil
             return
         }
-        guard await waitForRuntimeBootstrapIfNeeded(
-            requestID: requestID,
-            configurationName: sanitizedConfiguration.name
-        ) else { return }
+        if requiresAuthenticatedRuntimeBootstrap(sanitizedConfiguration) {
+            guard await waitForRuntimeBootstrapIfNeeded(
+                requestID: requestID,
+                configurationName: sanitizedConfiguration.name
+            ) else { return }
+        } else {
+            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        }
 
         updateLoadingStatus("Normaliserer references for \(sanitizedConfiguration.name)…", requestID: requestID)
         var normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
@@ -2748,12 +2754,27 @@ struct ContentView: View {
         refreshDiagnosticsValidation()
     }
 
-    private func shouldLoadLocallyWithoutRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
+    private func shouldLoadWithoutAuthenticatedRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
         let normalizedName = configuration.name
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        return normalizedName == "conference demo launcher"
+        let localConferenceWorkbenchNames: Set<String> = [
+            "conference demo launcher",
+            "conference scaffold setup & identity link",
+            "conference participant portal dashboard",
+            "conference chat · oppfølging",
+            "conference control tower",
+            "conference nearby radar · full oversikt",
+            "valgt nearby-deltager · profilflate"
+        ]
+
+        return localConferenceWorkbenchNames.contains(normalizedName)
+            || normalizedName == "conference public surface"
+    }
+
+    func requiresAuthenticatedRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
+        !shouldLoadWithoutAuthenticatedRuntimeBootstrap(configuration)
     }
 
     private func shouldWarmConferenceRuntime(for configuration: CellConfiguration) -> Bool {
@@ -2779,18 +2800,24 @@ struct ContentView: View {
         requestID: UUID,
         allowConferencePreviewFallback: Bool = true
     ) async -> Bool {
+        let unauthenticatedConferenceLoad = shouldLoadWithoutAuthenticatedRuntimeBootstrap(configuration)
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
-              let portholeIdentity = await privateRequesterIdentity(),
+              let portholeIdentity = await (unauthenticatedConferenceLoad ? startupRequesterIdentity() : privateRequesterIdentity()),
               let porthole = try? await resolver.cellAtEndpoint(endpoint: Self.portholeEndpoint, requester: portholeIdentity) as? OrchestratorCell
         else {
             await viewModel.load(configuration: configuration)
             return true
         }
 
-        let loadRequester = await requesterIdentity(
-            for: preferredRequesterDescriptor(for: configuration),
-            fallback: portholeIdentity
-        ) ?? portholeIdentity
+        let loadRequester: Identity
+        if unauthenticatedConferenceLoad {
+            loadRequester = portholeIdentity
+        } else {
+            loadRequester = await requesterIdentity(
+                for: preferredRequesterDescriptor(for: configuration),
+                fallback: portholeIdentity
+            ) ?? portholeIdentity
+        }
         let intendedSkeleton = configuration.skeleton ?? viewModel.currentSkeleton
         let rootProbes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
 
@@ -3474,6 +3501,10 @@ struct ContentView: View {
 
     private func privateRequesterIdentity() async -> Identity? {
         await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
+    }
+
+    private func startupRequesterIdentity() async -> Identity? {
+        await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
     }
 
     private func requesterIdentity(

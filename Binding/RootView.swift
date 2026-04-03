@@ -15,32 +15,50 @@ struct RootView: View {
     @State private var initialized = false
 
     var body: some View {
-        ContentView()
-            .overlay(alignment: .top) {
-                NotificationConsentBanner()
-            }
-            .task {
-                if !initialized {
-                    await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-                    await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
-
-                    let resolver = CellResolver.sharedInstance
-#if canImport(DiMyCellProtocolCells)
-                    do {
-                        try await DiMyCellRuntimeRegistration.registerBindingCells(
-                            resolver: resolver,
-                            identityDomain: "private"
-                        )
-                    } catch {
-                        print("DiMy micropayment cell registration failed with error: \(error)")
+        Group {
+            if initialized {
+                ContentView()
+                    .overlay(alignment: .top) {
+                        NotificationConsentBanner()
                     }
-#endif
-
-                    await MainActor.run {
-                        NotificationEnrollmentManager.shared.bootstrapIfNeeded()
+            } else {
+                ZStack {
+                    Color(nsColor: .windowBackgroundColor)
+                        .ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Starter Binding-runtime…")
+                            .font(.headline)
+                        Text("Laster lokale celler og demooppsett før arbeidsflaten vises.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    initialized = true
+                    .padding(24)
                 }
             }
+        }
+        .task {
+            if !initialized {
+                await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+                let resolver = CellResolver.sharedInstance
+#if canImport(DiMyCellProtocolCells)
+                do {
+                    try await DiMyCellRuntimeRegistration.registerBindingCells(
+                        resolver: resolver,
+                        identityDomain: "private"
+                    )
+                } catch {
+                    print("DiMy micropayment cell registration failed with error: \(error)")
+                }
+#endif
+
+                await MainActor.run {
+                    NotificationEnrollmentManager.shared.bootstrapIfNeeded()
+                    initialized = true
+                }
+            } 
+        }
     }
 }

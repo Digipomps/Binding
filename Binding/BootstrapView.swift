@@ -66,8 +66,13 @@ actor BindingLocalCellRegistration {
         registrationTask = nil
     }
 
+    func ensureConferenceDemoRuntimeReady() async {
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await ensureLocallyRegistered()
+    }
+
     func warmConferenceRuntime(requester: Identity? = nil) async {
-        await ensureRegistered()
+        await ensureConferenceDemoRuntimeReady()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             return
@@ -77,7 +82,7 @@ actor BindingLocalCellRegistration {
         if let requester {
             effectiveRequester = requester
         } else {
-            effectiveRequester = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
+            effectiveRequester = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
         }
 
         guard let effectiveRequester else {
@@ -1348,7 +1353,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            await AppInitializer.initialize()
+            await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
             guard let resolver = CellBase.defaultCellResolver else {
                 self.lastError = "Cell resolver missing"
                 self.emitSnapshot(requester: requester)
@@ -3790,7 +3795,7 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let porthole = try? await resolver.cellAtEndpoint(
@@ -4673,7 +4678,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             cachedDiscoveryState = Self.discoveryStateWithStatus(
@@ -5494,7 +5499,7 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             cachedMatchmakingState = Self.matchmakingStateWithStatus(
@@ -6275,7 +6280,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let previewShell = try? await resolver.cellAtEndpoint(
@@ -6654,7 +6659,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         ])
 
         recentActionSummary = "Sender meldingen til \(focusedName)…"
-        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let previewShell = try? await resolver.cellAtEndpoint(
@@ -6732,7 +6737,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func ensureSharedThreadReady(requester: Identity) async -> Bool {
-        await AppInitializer.initialize()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let previewShell = try? await resolver.cellAtEndpoint(
