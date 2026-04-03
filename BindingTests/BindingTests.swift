@@ -351,6 +351,13 @@ struct BindingTests {
         }
     }
 
+    @Test func conferenceAutomationAIAssistantUsesLocalGatewayProxy() {
+        let configuration = ContentView.conferenceAIAssistantAutomationConfiguration()
+
+        #expect(configuration.name == "Conference AI Assistant")
+        #expect(configuration.cellReferences?.last?.endpoint == "cell:///ConferenceAIAssistantGatewayProxy")
+    }
+
     @Test func conferenceIdentityLinkWorkbenchSeedsLocalIntakeState() {
         let configuration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
 
@@ -391,6 +398,16 @@ struct BindingTests {
         #expect(review["confirmationStatus"] == .string("Lokal brukerbekreftelse mangler."))
 
         await store.clear()
+    }
+
+    @Test func conferenceAutomationHookParsesSupportedURLs() throws {
+        let portalURL = try #require(URL(string: "haven://conference-automation?action=open-participant-portal"))
+        let chatURL = try #require(URL(string: "haven://conference-automation?action=open-focused-chat-workbench"))
+        let identityLinkURL = try #require(URL(string: "haven://identity-link?requestId=REQ-123"))
+
+        #expect(ContentView.conferenceAutomationHook(from: portalURL) == .openParticipantPortal)
+        #expect(ContentView.conferenceAutomationHook(from: chatURL) == .openFocusedChatWorkbench)
+        #expect(ContentView.conferenceAutomationHook(from: identityLinkURL) == nil)
     }
 
     @Test func conferenceAdminPublicAndSponsorWorkbenchesSeedStateAndUseScrollSurfaces() {
@@ -711,6 +728,11 @@ struct BindingTests {
         let participantChatConfiguration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
             participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
         )
+        let namedParticipantChatConfiguration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
+            participantEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            displayName: "Conference Chat · Ane Solberg",
+            summary: "Delt conference-chat med Ane Solberg."
+        )
         let controlTowerConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
             endpoint: "cell:///ConferenceAdminPreviewShell"
         )
@@ -720,6 +742,7 @@ struct BindingTests {
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(identityLinkConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantPortalConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantChatConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(namedParticipantChatConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(controlTowerConfiguration) == false)
     }
 

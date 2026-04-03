@@ -199,6 +199,57 @@ struct ContentView: View {
         case skipPush
     }
 
+    enum ConferenceAutomationHook: String, Equatable {
+        case openLauncher = "open-launcher"
+        case openParticipantPortal = "open-participant-portal"
+        case openPublicSurface = "open-public-surface"
+        case openControlTower = "open-control-tower"
+        case openAIAssistant = "open-ai-assistant"
+        case openIdentityLink = "open-identity-link"
+        case focusAneSolberg = "focus-ane-solberg"
+        case startChatWithFocusedParticipant = "start-chat-with-focused-participant"
+        case openFocusedChatWorkbench = "open-focused-chat-workbench"
+#if canImport(AppKit)
+        case windowCompact = "window-compact"
+        case windowTall = "window-tall"
+        case windowWide = "window-wide"
+        case centerWindow = "center-window"
+#endif
+
+        var title: String {
+            switch self {
+            case .openLauncher:
+                return "Open Conference Demo Launcher"
+            case .openParticipantPortal:
+                return "Open Conference Participant Portal"
+            case .openPublicSurface:
+                return "Open Conference Public Surface"
+            case .openControlTower:
+                return "Open Conference Control Tower"
+            case .openAIAssistant:
+                return "Open Conference AI Assistant"
+            case .openIdentityLink:
+                return "Open Conference Scaffold Setup & Identity Link"
+            case .focusAneSolberg:
+                return "Focus Ane Solberg"
+            case .startChatWithFocusedParticipant:
+                return "Start chat with focused participant"
+            case .openFocusedChatWorkbench:
+                return "Open focused chat workbench"
+#if canImport(AppKit)
+            case .windowCompact:
+                return "Viewport: Compact 900 × 640"
+            case .windowTall:
+                return "Viewport: Tall 900 × 1100"
+            case .windowWide:
+                return "Viewport: Wide 1280 × 900"
+            case .centerWindow:
+                return "Center window"
+#endif
+            }
+        }
+    }
+
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "publishersws"
@@ -1602,6 +1653,14 @@ struct ContentView: View {
 
             runtimeIdentityBadge
 
+            if showsConferenceAutomationControls {
+                conferenceAutomationToolbarItem
+            }
+
+            if showsConferenceParticipantQuickActions {
+                conferenceParticipantQuickActions
+            }
+
             Spacer(minLength: 8)
 
             Menu {
@@ -1678,6 +1737,10 @@ struct ContentView: View {
             if isLoadingConfiguration {
                 ProgressView()
                     .controlSize(.small)
+            }
+
+            if showsConferenceAutomationControls {
+                conferenceAutomationToolbarItem
             }
 
             Picker("Mode", selection: $editorMode) {
@@ -1763,6 +1826,115 @@ struct ContentView: View {
         Button("Reset til Conference Demo Launcher") {
             resetToConferenceDemoLauncher()
         }
+    }
+
+    private var showsConferenceAutomationControls: Bool {
+        isConferenceNavigationEligible(activeConfiguration)
+    }
+
+    private var showsConferenceParticipantQuickActions: Bool {
+        normalizedActiveConferenceConfigurationName == "conference participant portal dashboard"
+    }
+
+    private var normalizedActiveConferenceConfigurationName: String? {
+        activeConfiguration?.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private var conferenceAutomationToolbarItem: some View {
+        Menu {
+            conferenceAutomationMenuContent
+        } label: {
+            Label("Automation", systemImage: "switch.2")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .accessibilityLabel("Conference automation")
+        .accessibilityIdentifier("conference-automation-menu")
+        .help("Native conference hooks for GUI automation, deep links, and deterministic demo navigation.")
+    }
+
+    private var conferenceParticipantQuickActions: some View {
+        HStack(spacing: 8) {
+            Button("Ane Solberg") {
+                runConferenceAutomation(.focusAneSolberg)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel("Focus Ane Solberg")
+            .accessibilityIdentifier("conference-focus-ane-solberg")
+            .help("Fokuser Ane Solberg uten å måtte scrolle til recommendation-kortene.")
+
+            Button("Start chat") {
+                runConferenceAutomation(.startChatWithFocusedParticipant)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel("Start chat with focused participant")
+            .accessibilityIdentifier("conference-start-chat")
+            .help("Starter chat med valgt conference-deltaker fra native toolbar.")
+
+            Button("Åpne chat") {
+                runConferenceAutomation(.openFocusedChatWorkbench)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .accessibilityLabel("Open focused chat workbench")
+            .accessibilityIdentifier("conference-open-chat")
+            .help("Åpner chatflaten for valgt deltaker uten å måtte finne knappen i scrollflaten.")
+        }
+    }
+
+    @ViewBuilder
+    private var conferenceAutomationMenuContent: some View {
+        Button(ConferenceAutomationHook.openLauncher.title) {
+            runConferenceAutomation(.openLauncher)
+        }
+        Button(ConferenceAutomationHook.openParticipantPortal.title) {
+            runConferenceAutomation(.openParticipantPortal)
+        }
+        Button(ConferenceAutomationHook.openPublicSurface.title) {
+            runConferenceAutomation(.openPublicSurface)
+        }
+        Button(ConferenceAutomationHook.openControlTower.title) {
+            runConferenceAutomation(.openControlTower)
+        }
+        Button(ConferenceAutomationHook.openAIAssistant.title) {
+            runConferenceAutomation(.openAIAssistant)
+        }
+        Button(ConferenceAutomationHook.openIdentityLink.title) {
+            runConferenceAutomation(.openIdentityLink)
+        }
+
+        Divider()
+
+        Button(ConferenceAutomationHook.focusAneSolberg.title) {
+            runConferenceAutomation(.focusAneSolberg)
+        }
+        Button(ConferenceAutomationHook.startChatWithFocusedParticipant.title) {
+            runConferenceAutomation(.startChatWithFocusedParticipant)
+        }
+        Button(ConferenceAutomationHook.openFocusedChatWorkbench.title) {
+            runConferenceAutomation(.openFocusedChatWorkbench)
+        }
+
+#if canImport(AppKit)
+        Divider()
+
+        Button(ConferenceAutomationHook.windowCompact.title) {
+            runConferenceAutomation(.windowCompact)
+        }
+        Button(ConferenceAutomationHook.windowTall.title) {
+            runConferenceAutomation(.windowTall)
+        }
+        Button(ConferenceAutomationHook.windowWide.title) {
+            runConferenceAutomation(.windowWide)
+        }
+        Button(ConferenceAutomationHook.centerWindow.title) {
+            runConferenceAutomation(.centerWindow)
+        }
+#endif
     }
 
     private var compactConvenienceTray: some View {
@@ -2412,6 +2584,10 @@ struct ContentView: View {
 
     private func handleIncomingURL(_ url: URL) {
         Task {
+            if let hook = Self.conferenceAutomationHook(from: url) {
+                await performConferenceAutomation(hook)
+                return
+            }
             let accepted = await ConferenceIdentityLinkInboxStore.shared.ingest(url: url)
             guard accepted else { return }
             await MainActor.run {
@@ -2428,6 +2604,229 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    private func runConferenceAutomation(_ hook: ConferenceAutomationHook) {
+        Task {
+            await performConferenceAutomation(hook)
+        }
+    }
+
+    private func performConferenceAutomation(_ hook: ConferenceAutomationHook) async {
+        await MainActor.run {
+            focusConferenceAutomationWindow()
+        }
+        switch hook {
+        case .openLauncher:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.defaultDemoStartConfiguration(),
+                    navigationMode: .reset
+                )
+            }
+        case .openParticipantPortal:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.conferenceParticipantPortalMenuSeedConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .openPublicSurface:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.conferencePublicAutomationConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .openControlTower:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.conferenceAdminMenuSeedConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .openAIAssistant:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.conferenceAIAssistantAutomationConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .openIdentityLink:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.conferenceIdentityLinkMenuSeedConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .focusAneSolberg:
+            let focused = await dispatchConferenceAutomationAction(
+                endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
+                actionKeypath: "matchmaking.focusPerson",
+                payload: .object([
+                    "displayName": .string("Ane Solberg"),
+                    "subtitle": .string("Public sector interoperability")
+                ])
+            )
+            guard focused else { return }
+            await MainActor.run {
+                if normalizedActiveConferenceConfigurationName != "conference participant portal dashboard" {
+                    loadConferenceAutomationConfiguration(
+                        Self.conferenceParticipantPortalMenuSeedConfiguration(),
+                        navigationMode: .automatic
+                    )
+                }
+            }
+        case .startChatWithFocusedParticipant:
+            let started = await dispatchConferenceAutomationAction(
+                endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
+                actionKeypath: "discovery.startChatWithFocusedPerson"
+            )
+            guard started else { return }
+            await MainActor.run {
+                let normalizedName = normalizedActiveConferenceConfigurationName
+                if normalizedName != "conference participant portal dashboard",
+                   normalizedName?.contains("conference chat") != true {
+                    loadConferenceAutomationConfiguration(
+                        Self.conferenceParticipantPortalMenuSeedConfiguration(),
+                        navigationMode: .automatic
+                    )
+                }
+            }
+        case .openFocusedChatWorkbench:
+            _ = await dispatchConferenceAutomationAction(
+                endpoint: "cell:///ConferenceParticipantChatSnapshot",
+                actionKeypath: "openChatWorkbenchForSelectedParticipant"
+            )
+#if canImport(AppKit)
+        case .windowCompact:
+            await MainActor.run {
+                applyConferenceAutomationWindowPreset(width: 900, height: 640)
+            }
+        case .windowTall:
+            await MainActor.run {
+                applyConferenceAutomationWindowPreset(width: 900, height: 1100)
+            }
+        case .windowWide:
+            await MainActor.run {
+                applyConferenceAutomationWindowPreset(width: 1280, height: 900)
+            }
+        case .centerWindow:
+            await MainActor.run {
+                centerConferenceAutomationWindow()
+            }
+#endif
+        }
+    }
+
+    @MainActor
+    private func loadConferenceAutomationConfiguration(
+        _ configuration: CellConfiguration,
+        navigationMode: ConferenceNavigationMode
+    ) {
+        diagnosticsStore.record(
+            domain: "binding.automation",
+            message: "Automation åpner \(configuration.name)."
+        )
+        if editorMode == .edit {
+            editorMode = .view
+        }
+        queueConfigurationLoad(configuration, navigationMode: navigationMode)
+    }
+
+    private func dispatchConferenceAutomationAction(
+        endpoint: String,
+        actionKeypath: String,
+        payload: ValueType = .null
+    ) async -> Bool {
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard let requester = await startupRequesterIdentity() else {
+            await MainActor.run {
+                loadErrorMessage = "Conference automation mangler startup-identitet."
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: "Startup-identitet mangler for conference automation."
+                )
+            }
+            return false
+        }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            await MainActor.run {
+                loadErrorMessage = "Conference automation mangler CellResolver."
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: "CellResolver mangler for conference automation."
+                )
+            }
+            return false
+        }
+        guard let cell = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle else {
+            await MainActor.run {
+                loadErrorMessage = "Conference automation fant ikke \(endpoint)."
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: "Fant ikke automation-endpoint \(endpoint)."
+                )
+            }
+            return false
+        }
+
+        let action: ValueType = .object([
+            "keypath": .string(actionKeypath),
+            "payload": payload
+        ])
+
+        do {
+            let result = try await cell.set(keypath: "dispatchAction", value: action, requester: requester) ?? .null
+            if let failure = conferenceAutomationFailureMessage(from: result) {
+                await MainActor.run {
+                    loadErrorMessage = failure
+                    diagnosticsStore.record(
+                        severity: .warning,
+                        domain: "binding.automation",
+                        message: failure
+                    )
+                }
+                return false
+            }
+            await MainActor.run {
+                diagnosticsStore.record(
+                    domain: "binding.automation",
+                    message: "Automation utførte \(actionKeypath) på \(endpoint)."
+                )
+                refreshLegacyPortholeBindings(reason: "conference automation \(actionKeypath)")
+            }
+            return true
+        } catch {
+            let message = "Conference automation feilet for \(actionKeypath) på \(endpoint): \(error)"
+            await MainActor.run {
+                loadErrorMessage = message
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: message
+                )
+            }
+            return false
+        }
+    }
+
+    private func conferenceAutomationFailureMessage(from value: ValueType) -> String? {
+        guard case let .object(object) = value else { return nil }
+        if let status = stringValue(from: object["status"]),
+           status == "error" || status == "denied" || status == "failure" {
+            if case let .object(state)? = object["state"] {
+                return stringValue(from: state["actionSummary"])
+                    ?? stringValue(from: state["status"])
+                    ?? stringValue(from: state["statusSummary"])
+                    ?? "Conference automation rapporterte \(status)."
+            }
+            return "Conference automation rapporterte \(status)."
+        }
+        return nil
     }
 
     private func isConferenceNavigationEligible(_ configuration: CellConfiguration?) -> Bool {
@@ -2770,6 +3169,8 @@ struct ContentView: View {
         ]
 
         return localConferenceWorkbenchNames.contains(normalizedName)
+            || normalizedName.contains("conference chat")
+            || normalizedName.contains("profilflate")
             || normalizedName == "conference public surface"
     }
 
@@ -3506,6 +3907,47 @@ struct ContentView: View {
     private func startupRequesterIdentity() async -> Identity? {
         await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
     }
+
+#if canImport(AppKit)
+    @MainActor
+    private func focusConferenceAutomationWindow() {
+        guard let window = conferenceAutomationWindow else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    @MainActor
+    private func applyConferenceAutomationWindowPreset(width: CGFloat, height: CGFloat) {
+        guard let window = conferenceAutomationWindow else { return }
+        let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? window.frame
+        let targetWidth = min(width, visibleFrame.width)
+        let targetHeight = min(height, visibleFrame.height)
+        var frame = window.frame
+        frame.size = CGSize(width: targetWidth, height: targetHeight)
+        frame.origin.x = visibleFrame.midX - (targetWidth / 2)
+        frame.origin.y = visibleFrame.midY - (targetHeight / 2)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.setFrame(frame.integral, display: true, animate: true)
+    }
+
+    @MainActor
+    private func centerConferenceAutomationWindow() {
+        guard let window = conferenceAutomationWindow else { return }
+        let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? window.frame
+        var frame = window.frame
+        frame.origin.x = visibleFrame.midX - (frame.width / 2)
+        frame.origin.y = visibleFrame.midY - (frame.height / 2)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.setFrame(frame.integral, display: true, animate: true)
+    }
+
+    @MainActor
+    private var conferenceAutomationWindow: NSWindow? {
+        NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible })
+    }
+#endif
 
     private func requesterIdentity(
         for descriptor: RemoteRequesterDescriptor?,
@@ -4519,6 +4961,56 @@ struct ContentView: View {
 
     static func conferenceIdentityLinkMenuSeedConfiguration() -> CellConfiguration {
         ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+    }
+
+    static func conferenceAIAssistantAutomationConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+            conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
+        )
+    }
+
+    static func conferencePublicAutomationConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: "cell://\(Self.stagingHost)/ConferencePublicShell"
+        )
+    }
+
+    static func conferenceAutomationHook(from url: URL) -> ConferenceAutomationHook? {
+        guard url.scheme?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "haven" else {
+            return nil
+        }
+
+        let normalizedHost = url.host?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedPath = url.path
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+
+        let isAutomationRoute = normalizedHost == "conference-automation"
+            || normalizedPath == "conference-automation"
+        guard isAutomationRoute else { return nil }
+
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let queryAction = components?.queryItems?.first(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "action"
+        })?.value
+
+        let pathComponents = normalizedPath
+            .split(separator: "/")
+            .map(String.init)
+        let fallbackAction = pathComponents.last.flatMap { last -> String? in
+            guard last != "conference-automation" else { return nil }
+            return last
+        }
+
+        let rawAction = (queryAction ?? fallbackAction)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard let rawAction, !rawAction.isEmpty else { return nil }
+        return ConferenceAutomationHook(rawValue: rawAction)
     }
 
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
