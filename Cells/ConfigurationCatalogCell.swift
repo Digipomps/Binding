@@ -5816,7 +5816,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             if descriptor.displayName == "Conference AI Assistant" {
                 return conferenceAIAssistantWorkbenchConfiguration(
                     conferenceEndpoint: descriptor.sourceCellEndpoint,
-                    aiEndpoint: "cell:///AIGateway",
+                    aiEndpoint: "cell:///ConferenceAIGatewayPreview",
                     displayName: descriptor.displayName,
                     summary: descriptor.summary
                 )
@@ -6331,7 +6331,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated static func conferenceAIAssistantWorkbenchConfiguration(
         conferenceEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-        aiEndpoint: String = "cell:///AIGateway"
+        aiEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
     ) -> CellConfiguration {
         conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: conferenceEndpoint,

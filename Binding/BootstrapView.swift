@@ -377,7 +377,7 @@ private enum ConferenceSnapshotRetrySupport {
 
 private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private static let localGatewayEndpoint = "cell:///AIGateway"
-    private static let stagingGatewayEndpoint = "cell://staging.haven.digipomps.org/AIGateway"
+    private static let stagingGatewayEndpoint = "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
     private static let resolveTimeoutNanoseconds: UInt64 = 4_000_000_000
     private static let stateReadTimeoutNanoseconds: UInt64 = 8_000_000_000
     private static let mutationTimeoutNanoseconds: UInt64 = 12_000_000_000
@@ -7781,7 +7781,7 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
         case "launcher.openAIAssistant":
             return ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
                 conferenceEndpoint: "cell://\(Self.stagingHost)/ConferenceParticipantPreviewShell",
-                aiEndpoint: "cell://\(Self.stagingHost)/AIGateway"
+                aiEndpoint: "cell://\(Self.stagingHost)/ConferenceAIGatewayPreview"
             )
         default:
             return nil

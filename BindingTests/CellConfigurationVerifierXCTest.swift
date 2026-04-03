@@ -192,7 +192,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     func testConferenceAIAssistantContract() async throws {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///AIGateway"
+            aiEndpoint: "cell:///ConferenceAIGatewayPreview"
         )
 
         let report = try await CellConfigurationVerifier.contractReport(
@@ -1530,7 +1530,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     func testConferenceAIAssistantButtonsUpdateDraftAndSessionKeyViaRendererExecutionPath() async throws {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///AIGateway"
+            aiEndpoint: "cell:///ConferenceAIGatewayPreview"
         )
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
         context.porthole.detachAll(requester: context.owner)
@@ -1775,7 +1775,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     func testConferenceAIAssistantRenderer() async throws {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///AIGateway"
+            aiEndpoint: "cell:///ConferenceAIGatewayPreview"
         )
 
         let report = try await CellConfigurationVerifier.renderReport(

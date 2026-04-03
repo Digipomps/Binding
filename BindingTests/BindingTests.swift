@@ -335,7 +335,7 @@ struct BindingTests {
     @Test func conferenceAIAssistantWorkbenchSeedsConferenceAndAIGatewayState() {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///AIGateway"
+            aiEndpoint: "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
         )
 
         #expect(configuration.name == "Conference AI Assistant")
@@ -586,7 +586,7 @@ struct BindingTests {
             ),
             ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
                 conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-                aiEndpoint: "cell:///AIGateway"
+                aiEndpoint: "cell:///ConferenceAIGatewayPreview"
             ),
             ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
                 endpoint: "cell:///ConferenceAdminPreviewShell"
@@ -809,7 +809,7 @@ struct BindingTests {
 
         let aiAssistantConfiguration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///AIGateway"
+            aiEndpoint: "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
         )
         let aiAssistantFallback = contentView.localConferencePreviewFallbackConfiguration(
             for: aiAssistantConfiguration,
@@ -897,7 +897,7 @@ struct BindingTests {
         let contentView = ContentView()
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///AIGateway"
+            aiEndpoint: "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
         )
 
         #expect(contentView.preferredRequesterDescriptor(for: configuration) == nil)

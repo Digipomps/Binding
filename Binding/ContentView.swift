@@ -5213,7 +5213,7 @@ struct ContentView: View {
         let conferenceParticipantPortal = Self.conferenceParticipantPortalMenuSeedConfiguration()
         let conferenceAIAssistant = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: stagingEndpoint("ConferenceParticipantPreviewShell"),
-            aiEndpoint: stagingEndpoint("AIGateway")
+            aiEndpoint: stagingEndpoint("ConferenceAIGatewayPreview")
         )
         let conferenceAdmin = Self.conferenceAdminMenuSeedConfiguration()
         let conferencePublic = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
