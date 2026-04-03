@@ -1721,7 +1721,7 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     private var runtimeBootstrapIsReady: Bool {
-        CellBase.defaultIdentityVault != nil && CellBase.defaultCellResolver is CellResolver
+        BindingRuntimeBootstrap.authenticatedRuntimeIsReady
     }
 
     private func ensureRuntimeBootstrapForLibrary() async -> Bool {

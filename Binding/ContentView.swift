@@ -272,7 +272,7 @@ struct ContentView: View {
     )
 
     @StateObject private var viewModel = PortholeBindingViewModel()
-    @StateObject private var legacyPortholeViewModel = PortholeViewModel()
+    @State private var legacyPortholeViewModel = PortholeViewModel()
     @StateObject private var editorState = EditorState()
     @StateObject private var bridgeStatusStore = BridgeConnectionStatusStore()
     @State private var floatingPanelsController = SkeletonEditorFloatingPanelsController()
@@ -287,7 +287,6 @@ struct ContentView: View {
     @State private var editorMode: EditorMode = .view
     @State private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
-    @State private var didAttemptCatalogMenuSync: Bool = false
     @State private var didApplyStoredDemoStart = false
     @State private var didRepairPersistedConferencePortal = false
     @State private var didRepairPersistedConferenceControlTower = false
@@ -733,22 +732,38 @@ struct ContentView: View {
         guard initialRuntimeBootstrapTask == nil else { return }
 
         initialRuntimeBootstrapTask = Task { @MainActor in
-            await AppInitializer.initialize()
-            await BindingLocalCellRegistration.shared.ensureRegistered()
             applyStoredDemoStartConfigurationIfNeeded()
-            await repairPersistedConferencePortalIfNeeded()
-            await repairPersistedConferenceControlTowerIfNeeded()
-            await viewModel.connectIfNeeded()
-            if !didAttemptCatalogMenuSync {
-                didAttemptCatalogMenuSync = true
-                await refreshMenusFromCatalogIfAvailable()
-            }
             editorState.captureViewerSnapshot(
                 currentEditorSeedConfiguration(),
                 fallbackSkeleton: viewModel.currentSkeleton
             )
             refreshDiagnosticsValidation()
             ensureDefaultDemoStartVisibleIfNeeded(reason: "post-bootstrap")
+
+            let startupConfiguration = activeConfiguration
+                ?? Self.effectiveDemoStartConfiguration(
+                    storedConfiguration: decodeStoredDemoStartConfiguration()
+                )
+
+            if shouldLoadLocallyWithoutRuntimeBootstrap(startupConfiguration) {
+                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+                diagnosticsStore.record(
+                    domain: "binding.demo",
+                    message: "Utsetter runtime-bootstrap til brukeren åpner en conference-flate som faktisk trenger identitet, resolver eller bridge."
+                )
+                return
+            }
+
+            await AppInitializer.initialize()
+            await BindingLocalCellRegistration.shared.ensureRegistered()
+            await repairPersistedConferencePortalIfNeeded()
+            await repairPersistedConferenceControlTowerIfNeeded()
+            await viewModel.connectIfNeeded()
+            editorState.captureViewerSnapshot(
+                currentEditorSeedConfiguration(),
+                fallbackSkeleton: viewModel.currentSkeleton
+            )
+            refreshDiagnosticsValidation()
 
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -958,6 +973,15 @@ struct ContentView: View {
     private func monitorPerspectiveDrivenMenus() async {
         guard usesPerspectiveDrivenEdgeMenus else { return }
         while !Task.isCancelled {
+            guard runtimeBootstrapIsReady else {
+                do {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                } catch {
+                    return
+                }
+                continue
+            }
+
             let profile = await fetchPerspectiveMenuProfile()
             if profile.signature != lastPerspectiveMenuSignature {
                 lastPerspectiveMenuSignature = profile.signature
@@ -2140,6 +2164,15 @@ struct ContentView: View {
     }
 
     @MainActor
+    private func rebuildLegacyPortholeViewModel(reason: String) {
+        legacyPortholeViewModel = PortholeViewModel()
+        diagnosticsStore.record(
+            domain: "binding.porthole",
+            message: "Kobler opp legacy Porthole-binder på nytt etter \(reason)."
+        )
+    }
+
+    @MainActor
     private func presentImmediatePreviewIfNeeded(for configuration: CellConfiguration) {
         guard shouldLoadLocallyWithoutRuntimeBootstrap(configuration) else { return }
         activeConfiguration = configuration
@@ -2429,7 +2462,7 @@ struct ContentView: View {
 
     @MainActor
     private var runtimeBootstrapIsReady: Bool {
-        CellBase.defaultIdentityVault != nil && CellBase.defaultCellResolver is CellResolver
+        BindingRuntimeBootstrap.authenticatedRuntimeIsReady
     }
 
     @MainActor
@@ -2587,10 +2620,15 @@ struct ContentView: View {
         diagnosticsStore.refreshValidation(for: sanitizedConfiguration)
         guard !Task.isCancelled else { return }
         if shouldLoadLocallyWithoutRuntimeBootstrap(sanitizedConfiguration) {
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
             updateLoadingStatus("Laster lokal konfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
             activeConfiguration = sanitizedConfiguration
-            await viewModel.load(configuration: sanitizedConfiguration)
-            legacyPortholeViewModel.markLocalMutation()
+            let didLoad = await loadConfigurationIntoPorthole(
+                sanitizedConfiguration,
+                requestID: requestID,
+                allowConferencePreviewFallback: false
+            )
+            guard didLoad else { return }
             refreshDiagnosticsValidation()
             loadErrorMessage = nil
             return
@@ -2801,8 +2839,8 @@ struct ContentView: View {
 
         guard !Task.isCancelled else { return false }
         viewModel.currentSkeleton = intendedSkeleton
-        legacyPortholeViewModel.markLocalMutation()
         guard !rootProbes.isEmpty else {
+            refreshLegacyPortholeBindings(reason: "absorbed \(configuration.name)")
             return true
         }
 
@@ -2854,6 +2892,7 @@ struct ContentView: View {
                     message: "Readable roots became available for \(configuration.name) after \(attempts) attempts."
                 )
             }
+            refreshLegacyPortholeBindings(reason: "readable roots ready for \(configuration.name)")
             return true
         case .failed(let failures):
             if allowConferencePreviewFallback,
@@ -2887,8 +2926,15 @@ struct ContentView: View {
                 message: message
             )
             loadErrorMessage = message
+            refreshLegacyPortholeBindings(reason: "best-effort readable roots for \(configuration.name)")
             return true
         }
+    }
+
+    @MainActor
+    private func refreshLegacyPortholeBindings(reason: String) {
+        rebuildLegacyPortholeViewModel(reason: reason)
+        legacyPortholeViewModel.markLocalMutation()
     }
 
     private func loadConfigurationIntoPortholeWithTimeout(
@@ -3497,6 +3543,10 @@ struct ContentView: View {
     }
 
     private func fetchPerspectiveMenuProfile() async -> PerspectiveMenuProfile {
+        guard BindingRuntimeBootstrap.authenticatedRuntimeIsReady else {
+            return .empty
+        }
+
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true),
               let perspective = try? await resolver.cellAtEndpoint(endpoint: "cell:///Perspective", requester: identity) as? Meddle

@@ -967,6 +967,47 @@ struct BindingTests {
         }) == true)
     }
 
+    @Test func localConferenceDemoLauncherLoadsThroughStartupPorthole() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver after local startup bootstrap")
+            return
+        }
+        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup vault identity for local conference launcher bootstrap")
+            return
+        }
+        guard let porthole = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///Porthole",
+            requester: owner
+        ) as? OrchestratorCell else {
+            Issue.record("Expected locally registered Porthole during startup bootstrap")
+            return
+        }
+
+        let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+        try await porthole.loadCellConfiguration(configuration, requester: owner)
+
+        let stateValue = try await porthole.get(
+            keypath: "conferenceDemoLauncher.state.statusSummary",
+            requester: owner
+        )
+
+        guard case let .string(text) = stateValue else {
+            Issue.record("Expected string statusSummary from conference demo launcher, got \(stateValue)")
+            return
+        }
+
+        #expect(!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(SkeletonBindingProbeSupport.failureDetail(from: stateValue) == nil)
+    }
+
     @Test func effectiveDemoStartConfigurationOverridesNonLauncherStoredConfiguration() {
         let effectiveWhenMissing = ContentView.effectiveDemoStartConfiguration(
             storedConfiguration: nil

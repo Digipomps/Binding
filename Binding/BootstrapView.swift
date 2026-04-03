@@ -22,8 +22,30 @@ actor BindingLocalCellRegistration {
         "cell:///ConferenceAIAssistantGatewayProxy",
     ]
 
+    private var isLocallyRegistered = false
     private var isRegistered = false
+    private var localRegistrationTask: Task<Void, Never>?
     private var registrationTask: Task<Void, Never>?
+
+    func ensureLocallyRegistered() async {
+        if isLocallyRegistered {
+            return
+        }
+        if let localRegistrationTask {
+            await localRegistrationTask.value
+            return
+        }
+
+        let task = Task {
+            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+            let resolver = CellResolver.sharedInstance
+            await Self.registerAll(on: resolver)
+        }
+        localRegistrationTask = task
+        await task.value
+        isLocallyRegistered = true
+        localRegistrationTask = nil
+    }
 
     func ensureRegistered() async {
         if isRegistered {
@@ -36,8 +58,7 @@ actor BindingLocalCellRegistration {
 
         let task = Task {
             await AppInitializer.initialize()
-            let resolver = CellResolver.sharedInstance
-            await Self.registerAll(on: resolver)
+            await ensureLocallyRegistered()
         }
         registrationTask = task
         await task.value
@@ -165,6 +186,14 @@ actor BindingLocalCellRegistration {
             persistency: .persistant,
             identityDomain: "private",
             type: ConfigurationCatalogCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "Porthole",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: OrchestratorCell.self,
             resolver: resolver
         )
         await register(
@@ -3017,7 +3046,7 @@ struct BootstrapView<Content: View>: View {
             }
         }
         .task {
-            await BindingLocalCellRegistration.shared.ensureRegistered()
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
             isReady = true
         }
     }

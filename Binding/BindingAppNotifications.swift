@@ -22,22 +22,17 @@ enum BindingIncomingURLBridge {
 
 enum BindingLaunchWarmup {
     static func preloadLocalRuntime() async {
-        await BindingRuntimeBootstrap.ensureBaseline()
-        await AppInitializer.initialize()
-        await BindingRuntimeBootstrap.ensureBaseline()
-        await BindingLocalCellRegistration.shared.warmConferenceRuntime()
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
     }
 }
 
 enum BindingRuntimeBootstrap {
     @MainActor
-    static func ensureBaseline() async {
+    static func ensureInfrastructureBaseline() async {
         CellBase.sendDataAsText = true
 
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
         if CellBase.defaultIdentityVault == nil {
-            CellBase.defaultIdentityVault = identityVault
+            CellBase.defaultIdentityVault = BindingStartupIdentityVault.shared
         }
 
         let resolver = CellResolver.sharedInstance
@@ -68,6 +63,21 @@ enum BindingRuntimeBootstrap {
                 route: RemoteCellHostRoute(websocketEndpoint: "publishersws", schemePreference: .automatic)
             )
         }
+    }
+
+    @MainActor
+    static func ensureBaseline() async {
+        await ensureInfrastructureBaseline()
+
+        let identityVault = IdentityVault.shared
+        _ = await identityVault.initialize()
+        CellBase.defaultIdentityVault = identityVault
+    }
+
+    @MainActor
+    static var authenticatedRuntimeIsReady: Bool {
+        CellBase.defaultIdentityVault is IdentityVault
+            && CellBase.defaultCellResolver is CellResolver
     }
 
     private static func documentsDirectoryPath() -> String {
