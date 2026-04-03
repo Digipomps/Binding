@@ -9,6 +9,8 @@ import OpenCombine
 
 actor BindingLocalCellRegistration {
     static let shared = BindingLocalCellRegistration()
+    private static let warmupEndpointTimeoutNanoseconds: UInt64 = 1_200_000_000
+    private static let warmupStateTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let safeConferenceWarmupEndpoints: [String] = [
         "cell:///ConferenceParticipantPreviewShell",
         "cell:///ConferenceParticipantAgendaSnapshot",
@@ -62,14 +64,67 @@ actor BindingLocalCellRegistration {
         }
 
         for endpoint in Self.safeConferenceWarmupEndpoints {
-            guard let meddle = try? await resolver.cellAtEndpoint(
+            guard let meddle = try? await Self.resolveWarmupMeddle(
                 endpoint: endpoint,
+                resolver: resolver,
                 requester: effectiveRequester
-            ) as? Meddle else {
+            ) else {
                 continue
             }
 
-            _ = try? await meddle.get(keypath: "state", requester: effectiveRequester)
+            _ = try? await Self.readStateForWarmup(
+                from: meddle,
+                requester: effectiveRequester
+            )
+        }
+    }
+
+    private static func resolveWarmupMeddle(
+        endpoint: String,
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws -> Meddle {
+        try await withThrowingTaskGroup(of: Meddle.self) { group in
+            group.addTask {
+                guard let meddle = try await resolver.cellAtEndpoint(
+                    endpoint: endpoint,
+                    requester: requester
+                ) as? Meddle else {
+                    throw WarmupEndpointResolutionError(endpoint: endpoint)
+                }
+                return meddle
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.warmupEndpointTimeoutNanoseconds)
+                throw WarmupEndpointTimeoutError(endpoint: endpoint)
+            }
+
+            guard let firstResult = try await group.next() else {
+                throw WarmupEndpointTimeoutError(endpoint: endpoint)
+            }
+            group.cancelAll()
+            return firstResult
+        }
+    }
+
+    private static func readStateForWarmup(
+        from meddle: Meddle,
+        requester: Identity
+    ) async throws -> ValueType {
+        try await withThrowingTaskGroup(of: ValueType.self) { group in
+            group.addTask {
+                try await meddle.get(keypath: "state", requester: requester)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.warmupStateTimeoutNanoseconds)
+                throw WarmupStateTimeoutError()
+            }
+
+            guard let firstResult = try await group.next() else {
+                throw WarmupStateTimeoutError()
+            }
+            group.cancelAll()
+            return firstResult
         }
     }
 
@@ -224,6 +279,28 @@ actor BindingLocalCellRegistration {
             }
             print("Binding local cell registration failed for \(name): \(error)")
         }
+    }
+}
+
+private struct WarmupStateTimeoutError: LocalizedError {
+    var errorDescription: String? {
+        "Conference runtime warmup timed out while reading state."
+    }
+}
+
+private struct WarmupEndpointTimeoutError: LocalizedError {
+    let endpoint: String
+
+    var errorDescription: String? {
+        "Conference runtime warmup timed out while resolving \(endpoint)."
+    }
+}
+
+private struct WarmupEndpointResolutionError: LocalizedError {
+    let endpoint: String
+
+    var errorDescription: String? {
+        "Conference runtime warmup could not resolve meddle at \(endpoint)."
     }
 }
 

@@ -717,6 +717,12 @@ struct ContentView: View {
             startInitialRuntimeBootstrapIfNeeded()
         }
         .task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await MainActor.run {
+                ensureDefaultDemoStartVisibleIfNeeded(reason: "independent startup watchdog")
+            }
+        }
+        .task {
             await monitorPerspectiveDrivenMenus()
         }
         .environmentObject(legacyPortholeViewModel)
@@ -729,6 +735,9 @@ struct ContentView: View {
         initialRuntimeBootstrapTask = Task { @MainActor in
             await AppInitializer.initialize()
             await BindingLocalCellRegistration.shared.ensureRegistered()
+            applyStoredDemoStartConfigurationIfNeeded()
+            await repairPersistedConferencePortalIfNeeded()
+            await repairPersistedConferenceControlTowerIfNeeded()
             await viewModel.connectIfNeeded()
             if !didAttemptCatalogMenuSync {
                 didAttemptCatalogMenuSync = true
@@ -739,9 +748,12 @@ struct ContentView: View {
                 fallbackSkeleton: viewModel.currentSkeleton
             )
             refreshDiagnosticsValidation()
-            applyStoredDemoStartConfigurationIfNeeded()
-            await repairPersistedConferencePortalIfNeeded()
-            await repairPersistedConferenceControlTowerIfNeeded()
+            ensureDefaultDemoStartVisibleIfNeeded(reason: "post-bootstrap")
+
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                ensureDefaultDemoStartVisibleIfNeeded(reason: "bootstrap watchdog")
+            }
         }
     }
 
@@ -2028,6 +2040,7 @@ struct ContentView: View {
         editorMode = .view
         presentingFullLibrary = false
         loadErrorMessage = nil
+        presentImmediatePreviewIfNeeded(for: demoLauncher)
         diagnosticsStore.record(
             domain: "binding.demo",
             message: "Resetter til Conference Demo Launcher fra \(runtimeIdentityTitle)."
@@ -2106,7 +2119,34 @@ struct ContentView: View {
             message: "Laster demo-start: \(storedConfiguration.name)"
         )
         editorMode = .view
+        presentImmediatePreviewIfNeeded(for: storedConfiguration)
         queueConfigurationLoad(storedConfiguration, navigationMode: .reset)
+    }
+
+    @MainActor
+    private func ensureDefaultDemoStartVisibleIfNeeded(reason: String) {
+        guard activeConfiguration == nil else { return }
+        let storedConfiguration = Self.effectiveDemoStartConfiguration(
+            storedConfiguration: decodeStoredDemoStartConfiguration()
+        )
+        diagnosticsStore.record(
+            severity: .warning,
+            domain: "binding.demo",
+            message: "Ingen aktiv konfig var synlig etter \(reason). Laster \(storedConfiguration.name) eksplisitt."
+        )
+        editorMode = .view
+        presentImmediatePreviewIfNeeded(for: storedConfiguration)
+        queueConfigurationLoad(storedConfiguration, navigationMode: .reset)
+    }
+
+    @MainActor
+    private func presentImmediatePreviewIfNeeded(for configuration: CellConfiguration) {
+        guard shouldLoadLocallyWithoutRuntimeBootstrap(configuration) else { return }
+        activeConfiguration = configuration
+        if let skeleton = configuration.skeleton {
+            viewModel.currentSkeleton = skeleton
+        }
+        viewModel.cellReferences = configuration.cellReferences ?? []
     }
 
     static func effectiveDemoStartConfiguration(
@@ -2546,6 +2586,15 @@ struct ContentView: View {
         loadErrorMessage = nil
         diagnosticsStore.refreshValidation(for: sanitizedConfiguration)
         guard !Task.isCancelled else { return }
+        if shouldLoadLocallyWithoutRuntimeBootstrap(sanitizedConfiguration) {
+            updateLoadingStatus("Laster lokal konfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
+            activeConfiguration = sanitizedConfiguration
+            await viewModel.load(configuration: sanitizedConfiguration)
+            legacyPortholeViewModel.markLocalMutation()
+            refreshDiagnosticsValidation()
+            loadErrorMessage = nil
+            return
+        }
         guard await waitForRuntimeBootstrapIfNeeded(
             requestID: requestID,
             configurationName: sanitizedConfiguration.name
@@ -2659,6 +2708,14 @@ struct ContentView: View {
             editorState.beginEditing(configuration: loadConfiguration, fallbackSkeleton: loadConfiguration.skeleton ?? viewModel.currentSkeleton)
         }
         refreshDiagnosticsValidation()
+    }
+
+    private func shouldLoadLocallyWithoutRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
+        let normalizedName = configuration.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        return normalizedName == "conference demo launcher"
     }
 
     private func shouldWarmConferenceRuntime(for configuration: CellConfiguration) -> Bool {
