@@ -13,6 +13,24 @@ import CellApple
 import UIKit
 #elseif canImport(AppKit)
 import AppKit
+
+private struct BindingHostingWindowReader: NSViewRepresentable {
+    let onResolve: @MainActor (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            onResolve(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            onResolve(nsView.window)
+        }
+    }
+}
 #endif
 
 enum ConfigurationPresentationSupport {
@@ -360,6 +378,7 @@ struct ContentView: View {
     @State private var configurationLoadTask: Task<Void, Never>?
     @State private var initialRuntimeBootstrapTask: Task<Void, Never>?
     @State private var conferenceNavigationStack: [CellConfiguration] = []
+    @State private var hostingWindowNumber: Int?
     @StateObject private var componentPlacementState = ComponentPlacementState()
     @StateObject private var diagnosticsStore = BindingRuntimeDiagnostics.shared
 
@@ -402,6 +421,16 @@ struct ContentView: View {
                     return inserted
                 }
             )
+#if canImport(AppKit)
+            .background(
+                BindingHostingWindowReader { window in
+                    let nextWindowNumber = window?.windowNumber
+                    if hostingWindowNumber != nextWindowNumber {
+                        hostingWindowNumber = nextWindowNumber
+                    }
+                }
+            )
+#endif
                 .environmentObject(viewModel)
                 .ignoresSafeArea(.container, edges: [.leading, .trailing, .bottom])
                 .dropDestination(for: CellConfiguration.self) { items, location in
@@ -670,11 +699,13 @@ struct ContentView: View {
             )
         }
         .onReceive(
-            NotificationCenter.default
-                .publisher(for: BindingIncomingURLBridge.notificationName)
-                .compactMap(BindingIncomingURLBridge.url)
-        ) { url in
-            handleIncomingURL(url)
+            NotificationCenter.default.publisher(for: BindingIncomingURLBridge.notificationName)
+        ) { notification in
+            guard let url = BindingIncomingURLBridge.url(from: notification) else { return }
+            handleIncomingURL(
+                url,
+                targetWindowNumber: BindingIncomingURLBridge.targetWindowNumber(from: notification)
+            )
         }
 #if os(iOS)
         .onReceive(
@@ -1841,6 +1872,7 @@ struct ContentView: View {
         Self.conferenceAutomationEnabled(
             debugPanelVisible: diagnosticsStore.panelVisible,
             environment: ProcessInfo.processInfo.environment,
+            launchArguments: ProcessInfo.processInfo.arguments,
             persistedOptIn: UserDefaults.standard.bool(forKey: Self.conferenceAutomationDefaultsKey)
         )
     }
@@ -2591,8 +2623,9 @@ struct ContentView: View {
         queueConfigurationLoad(fallbackConfiguration, navigationMode: .reset)
     }
 
-    private func handleIncomingURL(_ url: URL) {
+    private func handleIncomingURL(_ url: URL, targetWindowNumber: Int? = nil) {
         Task {
+            guard shouldHandleIncomingURL(targetWindowNumber: targetWindowNumber) else { return }
             if let hook = Self.conferenceAutomationHook(from: url) {
                 let automationEnabled = await MainActor.run {
                     conferenceAutomationOptInEnabled
@@ -2627,6 +2660,20 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    @MainActor
+    private func shouldHandleIncomingURL(targetWindowNumber: Int?) -> Bool {
+#if canImport(AppKit)
+        guard let targetWindowNumber else { return true }
+        return Self.matchesConferenceAutomationWindow(
+            targetWindowNumber: targetWindowNumber,
+            hostingWindowNumber: hostingWindowNumber
+        )
+#else
+        _ = targetWindowNumber
+        return true
+#endif
     }
 
     private func runConferenceAutomation(_ hook: ConferenceAutomationHook) {
@@ -3968,7 +4015,11 @@ struct ContentView: View {
 
     @MainActor
     private var conferenceAutomationWindow: NSWindow? {
-        NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible })
+        if let hostingWindowNumber,
+           let matchingWindow = NSApp.windows.first(where: { $0.windowNumber == hostingWindowNumber }) {
+            return matchingWindow
+        }
+        return NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible })
     }
 #endif
 
@@ -5004,10 +5055,15 @@ struct ContentView: View {
     static func conferenceAutomationEnabled(
         debugPanelVisible: Bool,
         environment: [String: String],
+        launchArguments: [String],
         persistedOptIn: Bool
     ) -> Bool {
 #if DEBUG
         if debugPanelVisible || persistedOptIn {
+            return true
+        }
+
+        if launchArguments.contains("--enable-conference-automation") {
             return true
         }
 
@@ -5018,9 +5074,18 @@ struct ContentView: View {
 #else
         _ = debugPanelVisible
         _ = environment
+        _ = launchArguments
         _ = persistedOptIn
         return false
 #endif
+    }
+
+    static func matchesConferenceAutomationWindow(
+        targetWindowNumber: Int,
+        hostingWindowNumber: Int?
+    ) -> Bool {
+        guard let hostingWindowNumber else { return false }
+        return hostingWindowNumber == targetWindowNumber
     }
 
     static func conferenceAutomationHook(from url: URL) -> ConferenceAutomationHook? {

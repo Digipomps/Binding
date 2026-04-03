@@ -39,8 +39,9 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        let targetWindowNumber = automationTargetWindowNumber(in: application)
         urls.forEach { url in
-            BindingIncomingURLBridge.post(url: url)
+            BindingIncomingURLBridge.post(url: url, targetWindowNumber: targetWindowNumber)
         }
     }
 
@@ -107,6 +108,12 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.sendAction(action, to: newWindowItem.target, from: newWindowItem)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
+    }
+
+    private func automationTargetWindowNumber(in application: NSApplication) -> Int? {
+        application.keyWindow?.windowNumber
+            ?? application.mainWindow?.windowNumber
+            ?? application.orderedWindows.first(where: \.isVisible)?.windowNumber
     }
 }
 #endif

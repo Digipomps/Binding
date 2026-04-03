@@ -415,6 +415,7 @@ struct BindingTests {
             ContentView.conferenceAutomationEnabled(
                 debugPanelVisible: false,
                 environment: [:],
+                launchArguments: [],
                 persistedOptIn: false
             ) == false
         )
@@ -423,6 +424,7 @@ struct BindingTests {
             ContentView.conferenceAutomationEnabled(
                 debugPanelVisible: true,
                 environment: [:],
+                launchArguments: [],
                 persistedOptIn: false
             ) == true
         )
@@ -431,6 +433,7 @@ struct BindingTests {
             ContentView.conferenceAutomationEnabled(
                 debugPanelVisible: false,
                 environment: ["BINDING_ENABLE_CONFERENCE_AUTOMATION": "1"],
+                launchArguments: [],
                 persistedOptIn: false
             ) == true
         )
@@ -439,9 +442,47 @@ struct BindingTests {
             ContentView.conferenceAutomationEnabled(
                 debugPanelVisible: false,
                 environment: [:],
+                launchArguments: [],
                 persistedOptIn: true
             ) == true
         )
+
+        #expect(
+            ContentView.conferenceAutomationEnabled(
+                debugPanelVisible: false,
+                environment: [:],
+                launchArguments: ["Binding", "--enable-conference-automation"],
+                persistedOptIn: false
+            ) == true
+        )
+    }
+
+    @Test func conferenceAutomationMatchesOnlyItsTargetWindow() {
+        #expect(ContentView.matchesConferenceAutomationWindow(targetWindowNumber: 42, hostingWindowNumber: 42))
+        #expect(!ContentView.matchesConferenceAutomationWindow(targetWindowNumber: 42, hostingWindowNumber: 7))
+        #expect(!ContentView.matchesConferenceAutomationWindow(targetWindowNumber: 42, hostingWindowNumber: nil))
+    }
+
+    @Test func incomingURLBridgeCarriesTargetWindowNumber() throws {
+        let center = NotificationCenter()
+        let url = try #require(URL(string: "haven://conference-automation?action=open-launcher"))
+        var receivedURL: URL?
+        var receivedTargetWindowNumber: Int?
+
+        let observer = center.addObserver(
+            forName: BindingIncomingURLBridge.notificationName,
+            object: nil,
+            queue: nil
+        ) { notification in
+            receivedURL = BindingIncomingURLBridge.url(from: notification)
+            receivedTargetWindowNumber = BindingIncomingURLBridge.targetWindowNumber(from: notification)
+        }
+
+        BindingIncomingURLBridge.post(url: url, targetWindowNumber: 314, notificationCenter: center)
+        center.removeObserver(observer)
+
+        #expect(receivedURL == url)
+        #expect(receivedTargetWindowNumber == 314)
     }
 
     @Test func conferenceAdminPublicAndSponsorWorkbenchesSeedStateAndUseScrollSurfaces() {

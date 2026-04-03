@@ -6,17 +6,30 @@ enum BindingIncomingURLBridge {
     nonisolated static let notificationName = Notification.Name("BindingIncomingURLBridge.received")
 
     nonisolated private static let urlKey = "url"
+    nonisolated private static let targetWindowNumberKey = "targetWindowNumber"
 
-    nonisolated static func post(url: URL, notificationCenter: NotificationCenter = .default) {
+    nonisolated static func post(
+        url: URL,
+        targetWindowNumber: Int? = nil,
+        notificationCenter: NotificationCenter = .default
+    ) {
+        var userInfo: [String: Any] = [urlKey: url]
+        if let targetWindowNumber {
+            userInfo[targetWindowNumberKey] = targetWindowNumber
+        }
         notificationCenter.post(
             name: notificationName,
             object: nil,
-            userInfo: [urlKey: url]
+            userInfo: userInfo
         )
     }
 
     nonisolated static func url(from notification: Notification) -> URL? {
         notification.userInfo?[urlKey] as? URL
+    }
+
+    nonisolated static func targetWindowNumber(from notification: Notification) -> Int? {
+        notification.userInfo?[targetWindowNumberKey] as? Int
     }
 }
 
