@@ -59,6 +59,9 @@ struct BindingConferenceAutomationCommands: Commands {
                 Button(ContentView.ConferenceAutomationHook.openAIAssistant.title) {
                     post(.openAIAssistant)
                 }
+                Button(ContentView.ConferenceAutomationHook.logAIAssistantState.title) {
+                    post(.logAIAssistantState)
+                }
                 Button(ContentView.ConferenceAutomationHook.openIdentityLink.title) {
                     post(.openIdentityLink)
                 }

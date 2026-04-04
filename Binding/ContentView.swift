@@ -223,6 +223,7 @@ struct ContentView: View {
         case openPublicSurface = "open-public-surface"
         case openControlTower = "open-control-tower"
         case openAIAssistant = "open-ai-assistant"
+        case logAIAssistantState = "log-ai-assistant-state"
         case openIdentityLink = "open-identity-link"
         case focusAneSolberg = "focus-ane-solberg"
         case startChatWithFocusedParticipant = "start-chat-with-focused-participant"
@@ -246,6 +247,8 @@ struct ContentView: View {
                 return "Open Conference Control Tower"
             case .openAIAssistant:
                 return "Open Conference AI Assistant"
+            case .logAIAssistantState:
+                return "Log Conference AI State"
             case .openIdentityLink:
                 return "Open Conference Scaffold Setup & Identity Link"
             case .focusAneSolberg:
@@ -1953,6 +1956,9 @@ struct ContentView: View {
         Button(ConferenceAutomationHook.openAIAssistant.title) {
             runConferenceAutomation(.openAIAssistant)
         }
+        Button(ConferenceAutomationHook.logAIAssistantState.title) {
+            runConferenceAutomation(.logAIAssistantState)
+        }
         Button(ConferenceAutomationHook.openIdentityLink.title) {
             runConferenceAutomation(.openIdentityLink)
         }
@@ -2759,6 +2765,8 @@ struct ContentView: View {
                     navigationMode: .automatic
                 )
             }
+        case .logAIAssistantState:
+            await logConferenceAIAssistantState()
         case .openIdentityLink:
             await MainActor.run {
                 loadConferenceAutomationConfiguration(
@@ -2824,6 +2832,103 @@ struct ContentView: View {
             }
 #endif
         }
+    }
+
+    private func logConferenceAIAssistantState() async {
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard let requester = await startupRequesterIdentity() else {
+            await MainActor.run {
+                let message = "Conference AI state-log mangler startup-identitet."
+                loadErrorMessage = message
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: message
+                )
+            }
+            return
+        }
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            await MainActor.run {
+                let message = "Conference AI state-log mangler CellResolver."
+                loadErrorMessage = message
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: message
+                )
+            }
+            return
+        }
+
+        do {
+            guard let proxy = try await resolver.cellAtEndpoint(
+                endpoint: "cell:///ConferenceAIAssistantGatewayProxy",
+                requester: requester
+            ) as? Meddle else {
+                throw ConferenceAutomationAIAccessError.proxyMissing
+            }
+
+            let value = try await proxy.get(keypath: "state", requester: requester)
+            let summary = conferenceAutomationAISummary(from: value)
+            print(summary)
+            await MainActor.run {
+                diagnosticsStore.record(
+                    domain: "binding.automation",
+                    message: summary
+                )
+            }
+        } catch {
+            let message = "Conference AI state-log feilet: \(error.localizedDescription)"
+            print(message)
+            await MainActor.run {
+                loadErrorMessage = message
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: message
+                )
+            }
+        }
+    }
+
+    private func conferenceAutomationAISummary(from value: ValueType) -> String {
+        func object(_ value: ValueType?) -> Object? {
+            guard case let .object(object)? = value else { return nil }
+            return object
+        }
+
+        func string(_ value: ValueType?) -> String? {
+            switch value {
+            case let .string(string):
+                return string
+            case let .integer(integer):
+                return String(integer)
+            case let .number(number):
+                return String(number)
+            case let .float(float):
+                return String(float)
+            case let .bool(bool):
+                return bool ? "true" : "false"
+            default:
+                return nil
+            }
+        }
+
+        guard case let .object(root) = value else {
+            return "Conference AI state log: uventet svar \(value)"
+        }
+
+        let setup = object(root["setup"])
+        let invocation = object(root["lastInvocation"])
+        let status = string(setup?["statusLabel"]) ?? "mangler status"
+        let provider = string(setup?["providerLabel"]) ?? "mangler provider"
+        let credential = string(setup?["credentialStatus"]) ?? "mangler credential-status"
+        let message = string(setup?["lastMessage"]) ?? "ingen lastMessage"
+        let output = string(invocation?["outputPreview"]) ?? "ingen outputPreview"
+
+        return "Conference AI state log: status=\(status) | provider=\(provider) | credential=\(credential) | lastMessage=\(message) | outputPreview=\(output)"
     }
 
     @MainActor
@@ -2944,6 +3049,17 @@ struct ContentView: View {
             return "Conference automation rapporterte \(status)."
         }
         return nil
+    }
+
+    private enum ConferenceAutomationAIAccessError: LocalizedError {
+        case proxyMissing
+
+        var errorDescription: String? {
+            switch self {
+            case .proxyMissing:
+                return "ConferenceAIAssistantGatewayProxy kunne ikke resolves lokalt."
+            }
+        }
     }
 
     private func isConferenceNavigationEligible(_ configuration: CellConfiguration?) -> Bool {

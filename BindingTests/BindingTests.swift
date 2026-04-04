@@ -403,10 +403,12 @@ struct BindingTests {
     @Test func conferenceAutomationHookParsesSupportedURLs() throws {
         let portalURL = try #require(URL(string: "haven://conference-automation?action=open-participant-portal"))
         let chatURL = try #require(URL(string: "haven://conference-automation?action=open-focused-chat-workbench"))
+        let aiLogURL = try #require(URL(string: "haven://conference-automation?action=log-ai-assistant-state"))
         let identityLinkURL = try #require(URL(string: "haven://identity-link?requestId=REQ-123"))
 
         #expect(ContentView.conferenceAutomationHook(from: portalURL) == .openParticipantPortal)
         #expect(ContentView.conferenceAutomationHook(from: chatURL) == .openFocusedChatWorkbench)
+        #expect(ContentView.conferenceAutomationHook(from: aiLogURL) == .logAIAssistantState)
         #expect(ContentView.conferenceAutomationHook(from: identityLinkURL) == nil)
     }
 
@@ -1058,6 +1060,33 @@ struct BindingTests {
 
         #expect(publishersRoute?.websocketEndpoint == "bridgehead")
         #expect(bridgeheadRoute?.websocketEndpoint == "bridgehead")
+    }
+
+    @Test func stagingAIGatewayRouteRegistrationRepairsStaleRemoteRoute() {
+        let resolver = CellResolver.sharedInstance
+        let stagingHost = "staging.haven.digipomps.org"
+        let previousRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        defer {
+            if let previousRoute {
+                resolver.registerRemoteCellHost(stagingHost, route: previousRoute)
+            } else {
+                resolver.unregisterRemoteCellHost(stagingHost)
+            }
+        }
+
+        resolver.registerRemoteCellHost(
+            stagingHost,
+            route: RemoteCellHostRoute(websocketEndpoint: "browserhead/wsce", schemePreference: .wss)
+        )
+
+        RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(
+            for: "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview",
+            resolver: resolver
+        )
+
+        let repairedRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        #expect(repairedRoute?.websocketEndpoint == "bridgehead")
+        #expect(repairedRoute?.schemePreference == .wss)
     }
 
     @Test func remoteEndpointAccessTreatsLoopbackBridgeheadAsLiveControlAgreement() {

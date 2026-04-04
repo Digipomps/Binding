@@ -378,12 +378,19 @@ private enum ConferenceSnapshotRetrySupport {
 private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private static let localGatewayEndpoint = "cell:///AIGateway"
     private static let stagingGatewayEndpoint = "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
-    private static let resolveTimeoutNanoseconds: UInt64 = 4_000_000_000
-    private static let stateReadTimeoutNanoseconds: UInt64 = 8_000_000_000
-    private static let mutationTimeoutNanoseconds: UInt64 = 12_000_000_000
+    private static let resolveTimeoutNanoseconds: UInt64 = 15_000_000_000
+    private static let remoteResolveRetryDelayNanoseconds: UInt64 = 2_000_000_000
+    private static let remoteResolveRetryAttempts = 8
+    private static let stateReadTimeoutNanoseconds: UInt64 = 20_000_000_000
+    private static let mutationTimeoutNanoseconds: UInt64 = 25_000_000_000
     private var pendingAPIKeyEntry = ""
     private var lastResolvedGatewayEndpoint: String?
     private var lastFailureMessage: String?
+    private var cachedGateway: Meddle?
+    private var cachedGatewayEndpoint: String?
+    private var cachedStateValue: ValueType?
+    private var cachedStateUpdatedAt: Date?
+    private var pendingStateLoadTask: Task<ValueType, Error>?
 
     private static let readableKeys = [
         "state",
@@ -413,6 +420,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         "ai.invoke",
         "invokeAI"
     ]
+    private static let stateCacheLifetime: TimeInterval = 3
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -450,19 +458,42 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             throw CellBaseError.noResolver
         }
 
+        if let cachedGateway, let cachedGatewayEndpoint {
+            return (cachedGatewayEndpoint, cachedGateway)
+        }
+
         var failureMessages: [String] = []
         for endpoint in [Self.stagingGatewayEndpoint, Self.localGatewayEndpoint] {
-            do {
-                let gateway = try await resolveGateway(
-                    at: endpoint,
-                    with: resolver,
-                    requester: requester
-                )
-                lastResolvedGatewayEndpoint = endpoint
-                lastFailureMessage = nil
-                return (endpoint, gateway)
-            } catch {
-                failureMessages.append("\(endpoint): \(error.localizedDescription)")
+            let maxAttempts = endpoint == Self.stagingGatewayEndpoint ? Self.remoteResolveRetryAttempts : 1
+            var lastError: Error?
+
+            for attempt in 1...maxAttempts {
+                do {
+                    let gateway = try await resolveGateway(
+                        at: endpoint,
+                        with: resolver,
+                        requester: requester
+                    )
+                    cachedGateway = gateway
+                    cachedGatewayEndpoint = endpoint
+                    lastResolvedGatewayEndpoint = endpoint
+                    lastFailureMessage = nil
+                    return (endpoint, gateway)
+                } catch {
+                    lastError = error
+                    let shouldRetry = endpoint == Self.stagingGatewayEndpoint
+                        && attempt < maxAttempts
+                        && shouldRetryRemoteGatewayResolution(after: error)
+                    if shouldRetry {
+                        try? await Task.sleep(nanoseconds: Self.remoteResolveRetryDelayNanoseconds)
+                        continue
+                    }
+                    break
+                }
+            }
+
+            if let lastError {
+                failureMessages.append("\(endpoint): \(lastError.localizedDescription)")
             }
         }
 
@@ -479,15 +510,12 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     ) async throws -> Meddle {
         try await withThrowingTaskGroup(of: Meddle.self) { group in
             group.addTask {
-                guard let gateway = try await resolver.cellAtEndpoint(
+                let gateway = try await RemoteEndpointAccessSupport.resolveMeddle(
                     endpoint: endpoint,
+                    resolver: resolver,
                     requester: requester,
-                ) as? Meddle else {
-                    throw ConferenceAIGatewayProxyResolutionError(
-                        endpoint: endpoint,
-                        details: []
-                    )
-                }
+                    accessLabel: "conferenceAIGatewayProxy"
+                )
                 return gateway
             }
             group.addTask {
@@ -507,6 +535,28 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             group.cancelAll()
             return firstResult
         }
+    }
+
+    private func shouldRetryRemoteGatewayResolution(after error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        if error is ConferenceAIGatewayProxyTimeoutError {
+            return true
+        }
+
+        if case let RemoteEndpointAccessSupport.AccessError.contractRejected(_, state) = error,
+           state == ConnectState.notConnected.rawValue {
+            return true
+        }
+
+        let description = error.localizedDescription.lowercased()
+        if description.contains("notconnected") || description.contains("timeout") {
+            return true
+        }
+
+        return false
     }
 
     private func gatewayGet(
@@ -566,26 +616,118 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         }
     }
 
+    private func cachedStateIfFresh() -> ValueType? {
+        guard let cachedStateValue,
+              let cachedStateUpdatedAt,
+              Date().timeIntervalSince(cachedStateUpdatedAt) <= Self.stateCacheLifetime else {
+            return nil
+        }
+        return cachedStateValue
+    }
+
+    private func storeCachedState(_ value: ValueType) {
+        cachedStateValue = value
+        cachedStateUpdatedAt = Date()
+    }
+
+    private func clearCachedState() {
+        cachedStateValue = nil
+        cachedStateUpdatedAt = nil
+    }
+
+    private func fetchGatewayState(requester: Identity) async throws -> ValueType {
+        let resolved = try await resolveGateway(requester: requester)
+        do {
+            return try await gatewayGet("state", from: resolved.gateway, requester: requester)
+        } catch {
+            cachedGateway = nil
+            cachedGatewayEndpoint = nil
+            if resolved.endpoint != Self.localGatewayEndpoint {
+                let retried = try await resolveGateway(requester: requester)
+                return try await gatewayGet("state", from: retried.gateway, requester: requester)
+            }
+            throw error
+        }
+    }
+
+    private func loadGatewayState(requester: Identity) async -> ValueType {
+        if let cached = cachedStateIfFresh() {
+            return augmentGatewayState(cached)
+        }
+
+        if let pendingStateLoadTask {
+            do {
+                let value = try await pendingStateLoadTask.value
+                return augmentGatewayState(value)
+            } catch {
+                let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
+                lastFailureMessage = message
+                print(message)
+                if let cachedStateValue {
+                    return augmentGatewayState(cachedStateValue)
+                }
+                return .object(gatewayFailureState(message: message))
+            }
+        }
+
+        let task = Task<ValueType, Error> { [weak self] in
+            guard let self else { throw CancellationError() }
+            return try await self.fetchGatewayState(requester: requester)
+        }
+        pendingStateLoadTask = task
+
+        defer {
+            pendingStateLoadTask = nil
+        }
+
+        do {
+            let value = try await task.value
+            storeCachedState(value)
+            lastFailureMessage = nil
+            return augmentGatewayState(value)
+        } catch {
+            let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
+            lastFailureMessage = message
+            print(message)
+            if let cachedStateValue {
+                return augmentGatewayState(cachedStateValue)
+            }
+            return .object(gatewayFailureState(message: message))
+        }
+    }
+
     private func forwardGet(keypath: String, requester: Identity) async -> ValueType {
+        if keypath == "state" {
+            return await loadGatewayState(requester: requester)
+        }
+
         do {
             let resolved = try await resolveGateway(requester: requester)
-            let value = try await gatewayGet(keypath, from: resolved.gateway, requester: requester)
-            if keypath == "state" {
-                return augmentGatewayState(value)
+            let value: ValueType
+            do {
+                value = try await gatewayGet(keypath, from: resolved.gateway, requester: requester)
+            } catch {
+                cachedGateway = nil
+                cachedGatewayEndpoint = nil
+                if resolved.endpoint != Self.localGatewayEndpoint {
+                    let retried = try await resolveGateway(requester: requester)
+                    value = try await gatewayGet(keypath, from: retried.gateway, requester: requester)
+                } else {
+                    throw error
+                }
             }
             return value
         } catch {
             let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
             lastFailureMessage = message
-            if keypath == "state" {
-                return .object(gatewayFailureState(message: message))
-            }
+            print(message)
             return .string(message)
         }
     }
 
     private func forwardSet(keypath: String, value: ValueType, requester: Identity) async -> ValueType {
         do {
+            clearCachedState()
             let resolved = try await resolveGateway(requester: requester)
             let gateway = resolved.gateway
 
@@ -593,6 +735,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             case "setDraftAPIKeyEntry":
                 pendingAPIKeyEntry = conferenceMutationString(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let state = try await gatewayGet("state", from: gateway, requester: requester)
+                storeCachedState(state)
                 return augmentGatewayState(state)
             case "commitDraftAPIKeyEntry":
                 let response = try await gatewaySet(
@@ -607,6 +750,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 } else {
                     stateValue = try await gatewayGet("state", from: gateway, requester: requester)
                 }
+                storeCachedState(stateValue)
                 return augmentGatewayState(stateValue)
             case "persistDraftAPIKey", "invokeDraft":
                 if pendingAPIKeyEntry.isEmpty == false {
@@ -631,14 +775,19 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 on: gateway,
                 requester: requester
             ) {
+                storeCachedState(response)
                 return augmentGatewayState(response)
             }
-            return augmentGatewayState(
-                try await gatewayGet("state", from: gateway, requester: requester)
-            )
+            let state = try await gatewayGet("state", from: gateway, requester: requester)
+            storeCachedState(state)
+            return augmentGatewayState(state)
         } catch {
             let message = "Conference AI gateway proxy set failed: \(error.localizedDescription)"
             lastFailureMessage = message
+            cachedGateway = nil
+            cachedGatewayEndpoint = nil
+            clearCachedState()
+            print(message)
             return .object([
                 "status": .string("error"),
                 "state": .object(gatewayFailureState(message: message))
