@@ -451,7 +451,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         }
 
         var failureMessages: [String] = []
-        for endpoint in [Self.localGatewayEndpoint, Self.stagingGatewayEndpoint] {
+        for endpoint in [Self.stagingGatewayEndpoint, Self.localGatewayEndpoint] {
             do {
                 let gateway = try await resolveGateway(
                     at: endpoint,
