@@ -12,11 +12,14 @@ actor BindingLocalCellRegistration {
     private static let warmupEndpointTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let warmupStateTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let safeConferenceWarmupEndpoints: [String] = [
+        "cell:///Perspective",
         "cell:///ConferenceParticipantPreviewShell",
         "cell:///ConferenceParticipantAgendaSnapshot",
         "cell:///ConferenceParticipantDiscoverySnapshot",
         "cell:///ConferenceParticipantMatchmakingSnapshot",
         "cell:///ConferenceNearbyRadar",
+        "cell:///EntityScanner",
+        "cell:///ConferenceChatLaunch",
         "cell:///ConferenceParticipantChatSnapshot",
         "cell:///ConferenceAdminPreviewShell",
     ]
@@ -36,7 +39,10 @@ actor BindingLocalCellRegistration {
         }
 
         let task = Task {
-            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+            // Keep the launch path free of LocalAuthentication and keychain
+            // prompts. Ask CellApple to prepare its core runtime using the
+            // existing startup vault instead of forcing IdentityVault.init.
+            await AppInitializer.prepareLocalRuntime()
             let resolver = CellResolver.sharedInstance
             await Self.registerAll(on: resolver)
         }
@@ -55,8 +61,16 @@ actor BindingLocalCellRegistration {
             return
         }
 
+        if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+            await ensureLocallyRegistered()
+            isRegistered = true
+            return
+        }
+
         let task = Task {
             await AppInitializer.initialize()
+            let resolver = CellResolver.sharedInstance
+            await Self.registerAll(on: resolver)
             await ensureLocallyRegistered()
         }
         registrationTask = task
@@ -66,7 +80,6 @@ actor BindingLocalCellRegistration {
     }
 
     func ensureConferenceDemoRuntimeReady() async {
-        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
         await ensureLocallyRegistered()
     }
 
@@ -201,6 +214,14 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "Perspective",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PerspectiveCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "ConferenceParticipantPreviewShell",
             cellScope: .identityUnique,
             identityDomain: "private",
@@ -244,6 +265,13 @@ actor BindingLocalCellRegistration {
         )
         await register(
             name: "ConferenceParticipantChatSnapshot",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceParticipantChatSnapshotLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "ConferenceChatLaunch",
             cellScope: .identityUnique,
             identityDomain: "private",
             type: ConferenceParticipantChatSnapshotLocalCell.self,
@@ -307,7 +335,8 @@ actor BindingLocalCellRegistration {
         } catch {
             let errorDescription = String(describing: error).lowercased()
             guard !errorDescription.contains("duplicatedendpointname"),
-                  !errorDescription.contains("registeratalreadytakenendpoint") else {
+                  !errorDescription.contains("registeratalreadytakenendpoint"),
+                  !errorDescription.contains("duplicatedcodingname") else {
                 return
             }
             print("Binding local cell registration failed for \(name): \(error)")
@@ -390,7 +419,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private var cachedGatewayEndpoint: String?
     private var cachedStateValue: ValueType?
     private var cachedStateUpdatedAt: Date?
-    private var pendingStateLoadTask: Task<ValueType, Error>?
+    private var pendingStateLoadTask: Task<(endpoint: String, value: ValueType), Error>?
 
     private static let readableKeys = [
         "state",
@@ -635,16 +664,37 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         cachedStateUpdatedAt = nil
     }
 
-    private func fetchGatewayState(requester: Identity) async throws -> ValueType {
+    private func persistedSnapshot(for keypath: String) async -> ValueType? {
+        let candidateEndpoints = [
+            lastResolvedGatewayEndpoint,
+            Self.stagingGatewayEndpoint,
+            Self.localGatewayEndpoint
+        ]
+        .compactMap { $0 }
+
+        for endpoint in candidateEndpoints {
+            if let snapshot = await PortableSurfaceCacheStore.shared.snapshot(
+                for: endpoint,
+                keypath: keypath
+            ) {
+                return snapshot
+            }
+        }
+        return nil
+    }
+
+    private func fetchGatewayState(requester: Identity) async throws -> (endpoint: String, value: ValueType) {
         let resolved = try await resolveGateway(requester: requester)
         do {
-            return try await gatewayGet("state", from: resolved.gateway, requester: requester)
+            let value = try await gatewayGet("state", from: resolved.gateway, requester: requester)
+            return (resolved.endpoint, value)
         } catch {
             cachedGateway = nil
             cachedGatewayEndpoint = nil
             if resolved.endpoint != Self.localGatewayEndpoint {
                 let retried = try await resolveGateway(requester: requester)
-                return try await gatewayGet("state", from: retried.gateway, requester: requester)
+                let value = try await gatewayGet("state", from: retried.gateway, requester: requester)
+                return (retried.endpoint, value)
             }
             throw error
         }
@@ -657,8 +707,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
 
         if let pendingStateLoadTask {
             do {
-                let value = try await pendingStateLoadTask.value
-                return augmentGatewayState(value)
+                let result = try await pendingStateLoadTask.value
+                return augmentGatewayState(result.value)
             } catch {
                 let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
                 lastFailureMessage = message
@@ -670,7 +720,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             }
         }
 
-        let task = Task<ValueType, Error> { [weak self] in
+        let task = Task<(endpoint: String, value: ValueType), Error> { [weak self] in
             guard let self else { throw CancellationError() }
             return try await self.fetchGatewayState(requester: requester)
         }
@@ -681,16 +731,25 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         }
 
         do {
-            let value = try await task.value
-            storeCachedState(value)
+            let result = try await task.value
+            storeCachedState(result.value)
+            await PortableSurfaceCacheStore.shared.storeSnapshot(
+                result.value,
+                endpoint: result.endpoint,
+                keypath: "state"
+            )
             lastFailureMessage = nil
-            return augmentGatewayState(value)
+            return augmentGatewayState(result.value)
         } catch {
             let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
             lastFailureMessage = message
             print(message)
             if let cachedStateValue {
                 return augmentGatewayState(cachedStateValue)
+            }
+            if let persisted = await persistedSnapshot(for: "state") {
+                storeCachedState(persisted)
+                return augmentGatewayState(persisted)
             }
             return .object(gatewayFailureState(message: message))
         }
@@ -716,11 +775,25 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                     throw error
                 }
             }
+            await PortableSurfaceCacheStore.shared.storeSnapshot(
+                value,
+                endpoint: lastResolvedGatewayEndpoint ?? resolved.endpoint,
+                keypath: keypath
+            )
+            if let recoveredConfiguration = PortableSurfaceContractSupport.extractConfiguration(from: value) {
+                await PortableSurfaceCacheStore.shared.storeConfiguration(
+                    recoveredConfiguration,
+                    endpoint: lastResolvedGatewayEndpoint ?? resolved.endpoint
+                )
+            }
             return value
         } catch {
             let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
             lastFailureMessage = message
             print(message)
+            if let persisted = await persistedSnapshot(for: keypath) {
+                return persisted
+            }
             return .string(message)
         }
     }
@@ -736,6 +809,11 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 pendingAPIKeyEntry = conferenceMutationString(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let state = try await gatewayGet("state", from: gateway, requester: requester)
                 storeCachedState(state)
+                await PortableSurfaceCacheStore.shared.storeSnapshot(
+                    state,
+                    endpoint: resolved.endpoint,
+                    keypath: "state"
+                )
                 return augmentGatewayState(state)
             case "commitDraftAPIKeyEntry":
                 let response = try await gatewaySet(
@@ -751,6 +829,11 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                     stateValue = try await gatewayGet("state", from: gateway, requester: requester)
                 }
                 storeCachedState(stateValue)
+                await PortableSurfaceCacheStore.shared.storeSnapshot(
+                    stateValue,
+                    endpoint: resolved.endpoint,
+                    keypath: "state"
+                )
                 return augmentGatewayState(stateValue)
             case "persistDraftAPIKey", "invokeDraft":
                 if pendingAPIKeyEntry.isEmpty == false {
@@ -776,10 +859,20 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 requester: requester
             ) {
                 storeCachedState(response)
+                await PortableSurfaceCacheStore.shared.storeSnapshot(
+                    response,
+                    endpoint: resolved.endpoint,
+                    keypath: "state"
+                )
                 return augmentGatewayState(response)
             }
             let state = try await gatewayGet("state", from: gateway, requester: requester)
             storeCachedState(state)
+            await PortableSurfaceCacheStore.shared.storeSnapshot(
+                state,
+                endpoint: resolved.endpoint,
+                keypath: "state"
+            )
             return augmentGatewayState(state)
         } catch {
             let message = "Conference AI gateway proxy set failed: \(error.localizedDescription)"
@@ -976,305 +1069,6 @@ private func conferenceActionPayload(from value: ValueType?) -> ValueType? {
     return object["payload"]
 }
 
-private struct ConferenceParticipantPreviewFallbackState {
-    var agendaView = "forYou"
-    var activeTrackID = "all"
-    var currentFilter = "All recommended people"
-    var pendingRequestCount = 0
-    var confirmedMeetingCount = 0
-    var exportPrepared = false
-    var searchQuery = "people"
-    var recentMessages: [ConferenceParticipantPreviewFallbackMessage] = []
-    var launchedDiscoveryChatNames: [String] = []
-    var focusedRecommendationName: String?
-    var followUpMarkedNames = Set<String>()
-    var recentActionSummary = "Participant preview is running locally in Binding because the staging preview was denied."
-}
-
-private struct ConferenceParticipantPreviewFallbackMessage: Equatable {
-    var title: String
-    var subtitle: String
-    var detail: String
-    var note: String
-
-    var value: ValueType {
-        .object([
-            "title": .string(title),
-            "subtitle": .string(subtitle),
-            "detail": .string(detail),
-            "note": .string(note)
-        ])
-    }
-}
-
-private struct ConferenceDemoPersona {
-    var name: String
-    var roleSummary: String
-    var publicProfileDetail: String
-    var fitContext: String
-    var conversationStyle: String
-    var suggestedOpening: String
-    var simulatedAgentSummary: String
-}
-
-private struct ConferenceDemoPersonaSeed {
-    var name: String?
-    var roleSummary: String?
-    var publicProfileDetail: String?
-    var fitContext: String?
-    var conversationStyle: String?
-    var suggestedOpening: String?
-    var simulatedAgentSummary: String?
-    var starterReply: String?
-}
-
-private struct ConferenceDemoPersonaProvider {
-    func persona(named rawName: String?, source sourceObject: Object? = nil) -> ConferenceDemoPersona {
-        let fallback = fallbackPersona(named: rawName)
-        guard let seed = seed(from: sourceObject) else {
-            return fallback
-        }
-
-        return ConferenceDemoPersona(
-            name: nonEmpty(seed.name) ?? fallback.name,
-            roleSummary: nonEmpty(seed.roleSummary) ?? fallback.roleSummary,
-            publicProfileDetail: nonEmpty(seed.publicProfileDetail) ?? fallback.publicProfileDetail,
-            fitContext: nonEmpty(seed.fitContext) ?? fallback.fitContext,
-            conversationStyle: nonEmpty(seed.conversationStyle) ?? fallback.conversationStyle,
-            suggestedOpening: nonEmpty(seed.suggestedOpening) ?? fallback.suggestedOpening,
-            simulatedAgentSummary: nonEmpty(seed.simulatedAgentSummary) ?? fallback.simulatedAgentSummary
-        )
-    }
-
-    func starterReply(named rawName: String?, source sourceObject: Object? = nil) -> String {
-        if let starterReply = nonEmpty(seed(from: sourceObject)?.starterReply) {
-            return starterReply
-        }
-        let persona = persona(named: rawName, source: sourceObject)
-        return "Ja, gjerne. \(persona.publicProfileDetail) Hvis du vil, kan vi ta et kort neste steg etter sesjonen."
-    }
-
-    func seedObject(named rawName: String?) -> Object {
-        let persona = fallbackPersona(named: rawName)
-        return [
-            "name": .string(persona.name),
-            "roleSummary": .string(persona.roleSummary),
-            "publicProfileDetail": .string(persona.publicProfileDetail),
-            "fitContext": .string(persona.fitContext),
-            "conversationStyle": .string(persona.conversationStyle),
-            "suggestedOpening": .string(persona.suggestedOpening),
-            "simulatedAgentSummary": .string(persona.simulatedAgentSummary),
-            "starterReply": .string("Ja, gjerne. \(persona.publicProfileDetail) Hvis du vil, kan vi ta et kort neste steg etter sesjonen.")
-        ]
-    }
-
-    private func seed(from sourceObject: Object?) -> ConferenceDemoPersonaSeed? {
-        let nested = object(from: sourceObject?["demoPersona"])
-        let raw = nested ?? sourceObject
-
-        let seed = ConferenceDemoPersonaSeed(
-            name: nonEmpty(string(from: raw?["name"])),
-            roleSummary: nonEmpty(string(from: raw?["roleSummary"])),
-            publicProfileDetail: nonEmpty(string(from: raw?["publicProfileDetail"])),
-            fitContext: nonEmpty(string(from: raw?["fitContext"])),
-            conversationStyle: nonEmpty(string(from: raw?["conversationStyle"])),
-            suggestedOpening: nonEmpty(string(from: raw?["suggestedOpening"])),
-            simulatedAgentSummary: nonEmpty(string(from: raw?["simulatedAgentSummary"])),
-            starterReply: nonEmpty(string(from: raw?["starterReply"]))
-        )
-
-        let hasSeedValues =
-            seed.name != nil ||
-            seed.roleSummary != nil ||
-            seed.publicProfileDetail != nil ||
-            seed.fitContext != nil ||
-            seed.conversationStyle != nil ||
-            seed.suggestedOpening != nil ||
-            seed.simulatedAgentSummary != nil ||
-            seed.starterReply != nil
-
-        return hasSeedValues ? seed : nil
-    }
-
-    private func fallbackPersona(named rawName: String?) -> ConferenceDemoPersona {
-        conferenceFallbackDemoPersona(named: rawName)
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              trimmed.isEmpty == false else {
-            return nil
-        }
-        return trimmed
-    }
-
-    private func string(from value: ValueType?) -> String? {
-        guard let value else { return nil }
-        switch value {
-        case let .string(string):
-            return string
-        case let .integer(integer):
-            return String(integer)
-        case let .number(number):
-            return String(number)
-        case let .float(float):
-            return String(float)
-        case let .bool(bool):
-            return bool ? "true" : "false"
-        default:
-            return nil
-        }
-    }
-
-    private func object(from value: ValueType?) -> Object? {
-        guard case let .object(object)? = value else { return nil }
-        return object
-    }
-}
-
-private let conferenceDemoPersonaProvider = ConferenceDemoPersonaProvider()
-
-private func conferenceFallbackDemoPersona(named rawName: String?) -> ConferenceDemoPersona {
-    let name = rawName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    switch name {
-    case "Ane Solberg":
-        return ConferenceDemoPersona(
-            name: "Ane Solberg",
-            roleSummary: "Public sector interoperability",
-            publicProfileDetail: "Jobber med offentlig samhandling, interoperabilitet og styring på tvers av virksomheter.",
-            fitContext: "Sterk på governance, leveranse og offentlig koordinering.",
-            conversationStyle: "Kort, konkret og opptatt av hva som faktisk kan følges opp etter sesjonen.",
-            suggestedOpening: "Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.",
-            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer offentlig samhandling og governance."
-        )
-    case "Mads Hovden":
-        return ConferenceDemoPersona(
-            name: "Mads Hovden",
-            roleSummary: "Policy and compliance",
-            publicProfileDetail: "Jobber med policy, etterlevelse og hvordan claims og tillit kan forankres organisatorisk.",
-            fitContext: "Sterk på policy, claims og operativ compliance.",
-            conversationStyle: "Svarene er strukturerte og dreier raskt inn mot ansvar, policy og beslutningsløp.",
-            suggestedOpening: "Hei Mads. Jeg vil gjerne høre hvordan du kobler policy og claims til konkrete driftsvalg.",
-            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer policy, claims og compliance."
-        )
-    case "Lea Heger":
-        return ConferenceDemoPersona(
-            name: "Lea Heger",
-            roleSummary: "Digital service design",
-            publicProfileDetail: "Kobler konferansens temaer til tjenestedesign, produktvalg og tydelige brukerforløp.",
-            fitContext: "Sterk på oversettelsen fra strategi til faktisk tjenesteopplevelse.",
-            conversationStyle: "Svarene er brukerorienterte og prøver å gjøre neste steg konkret og forståelig.",
-            suggestedOpening: "Hei Lea. Jeg vil gjerne høre hvordan du ville oversatt governance-sporet til konkrete tjenestevalg.",
-            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer tjenestedesign og produktnær oppfølging."
-        )
-    case "Nora Berg":
-        return ConferenceDemoPersona(
-            name: "Nora Berg",
-            roleSummary: "Trust infrastructure",
-            publicProfileDetail: "Jobber med tillit, relasjoner og hvordan identitet og oppfølging kan flyte mellom team.",
-            fitContext: "Sterk på tillit, samarbeid og relasjonell oppfølging.",
-            conversationStyle: "Svarene er varme og samarbeidsorienterte, men prøver raskt å lande neste steg.",
-            suggestedOpening: "Hei Nora. Jeg tror vi har overlapp på trust og oppfølging. Har du tid til en kort prat etter neste sesjon?",
-            simulatedAgentSummary: "Demo-svarene holder seg til en bounded persona som representerer tillit, relasjoner og oppfølging."
-        )
-    default:
-        let fallbackName = name.isEmpty ? "Konferansekontakt" : name
-        return ConferenceDemoPersona(
-            name: fallbackName,
-            roleSummary: "Conference follow-up",
-            publicProfileDetail: "Representerer en generell konferansedeltager med offentlig profil og tydelig oppfølgingskontekst.",
-            fitContext: "Relevant for videre conference-oppfølging.",
-            conversationStyle: "Svarene er korte og forsøker å lande et konkret neste steg.",
-            suggestedOpening: "Hei. Jeg tror vi har relevant overlapp og vil gjerne ta en kort oppfølgingsprat etter neste sesjon.",
-            simulatedAgentSummary: "Demo-svarene holder seg til en bounded konferansepersona, ikke fri generativ improvisasjon."
-        )
-    }
-}
-
-private func conferenceDemoPersona(named rawName: String?, source sourceObject: Object? = nil) -> ConferenceDemoPersona {
-    conferenceDemoPersonaProvider.persona(named: rawName, source: sourceObject)
-}
-
-private func conferenceDemoPersonaSeedObject(named rawName: String?) -> Object {
-    conferenceDemoPersonaProvider.seedObject(named: rawName)
-}
-
-private func conferenceDemoReply(
-    to message: String,
-    persona: ConferenceDemoPersona,
-    priorTurns: Int
-) -> String {
-    let lowered = message.lowercased()
-    if lowered.contains("governance") {
-        return priorTurns > 0
-            ? "Ja, governance er fortsatt mest relevant for meg. Hvis du vil, kan vi gjøre det konkret og se på neste steg rett etter sesjonen."
-            : "Ja, gjerne. Governance er også mitt hovedspor. Jeg kan ta 10 minutter etter neste sesjon."
-    }
-    if lowered.contains("interoperabilitet") || lowered.contains("interop") {
-        return "\(persona.name) her: det er også der jeg bruker mest tid nå. Jeg tror vi kan få en god prat hvis vi gjør det konkret rundt samhandling og ansvar."
-    }
-    if lowered.contains("sesjon") || lowered.contains("session") {
-        return "Det passer bra. Jeg blir igjen etter neste sesjon, så vi kan ta praten da."
-    }
-    if lowered.contains("møte") || lowered.contains("meeting") {
-        return "Ja, la oss gjøre det konkret. Jeg har et lite vindu etter lunsj om det passer."
-    }
-    return "Takk. Dette ser relevant ut for meg også, så vi kan gjerne følge opp videre. \(persona.conversationStyle)"
-}
-
-private func conferenceDemoStarterMessage(for persona: ConferenceDemoPersona) -> String {
-    persona.suggestedOpening
-}
-
-private func conferenceDemoStarterReply(for persona: ConferenceDemoPersona, source sourceObject: Object? = nil) -> String {
-    conferenceDemoPersonaProvider.starterReply(named: persona.name, source: sourceObject)
-}
-
-actor ConferenceParticipantPreviewFallbackStateStore {
-    static let shared = ConferenceParticipantPreviewFallbackStateStore()
-    private static let maximumRetainedOwners = 12
-    private static let memoryPressureRetainedOwners = 4
-
-    private var statesByOwnerUUID: [String: ConferenceParticipantPreviewFallbackState] = [:]
-    private var ownerRecency: [String] = []
-
-    fileprivate func load(for ownerUUID: String) -> ConferenceParticipantPreviewFallbackState? {
-        guard let state = statesByOwnerUUID[ownerUUID] else {
-            return nil
-        }
-        touch(ownerUUID)
-        return state
-    }
-
-    fileprivate func save(_ state: ConferenceParticipantPreviewFallbackState, for ownerUUID: String) {
-        statesByOwnerUUID[ownerUUID] = state
-        touch(ownerUUID)
-        trimIfNeeded(limit: Self.maximumRetainedOwners)
-    }
-
-    func reset(for ownerUUID: String) {
-        statesByOwnerUUID.removeValue(forKey: ownerUUID)
-        ownerRecency.removeAll { $0 == ownerUUID }
-    }
-
-    func handleMemoryPressure() {
-        trimIfNeeded(limit: Self.memoryPressureRetainedOwners)
-    }
-
-    private func touch(_ ownerUUID: String) {
-        ownerRecency.removeAll { $0 == ownerUUID }
-        ownerRecency.append(ownerUUID)
-    }
-
-    private func trimIfNeeded(limit: Int) {
-        guard ownerRecency.count > limit else { return }
-        let staleOwners = ownerRecency.prefix(ownerRecency.count - limit)
-        for ownerUUID in staleOwners {
-            statesByOwnerUUID.removeValue(forKey: ownerUUID)
-        }
-        ownerRecency = Array(ownerRecency.suffix(limit))
-    }
-}
 
 actor ConferenceParticipantSelectionStore {
     static let shared = ConferenceParticipantSelectionStore()
@@ -3402,588 +3196,6 @@ struct BootstrapView<Content: View>: View {
     }
 }
 
-private final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
-    private var storeKey = ""
-    private var agendaView = "forYou"
-    private var activeTrackID = "all"
-    private var currentFilter = "All recommended people"
-    private var pendingRequestCount = 0
-    private var confirmedMeetingCount = 0
-    private var exportPrepared = false
-    private var searchQuery = "people"
-    private var recentMessages: [ConferenceParticipantPreviewFallbackMessage] = []
-    private var launchedDiscoveryChatNames: [String] = []
-    private var focusedRecommendationName: String?
-    private var followUpMarkedNames = Set<String>()
-    private var recentActionSummary = "Participant preview is running locally in Binding because the staging preview was denied."
-
-    required init(owner: Identity) async {
-        await super.init(owner: owner)
-        storeKey = owner.uuid
-        await restoreStoredStateIfAvailable()
-        await configure(owner: owner)
-    }
-
-    nonisolated required init(from decoder: Decoder) throws {
-        try super.init(from: decoder)
-    }
-
-    nonisolated override func encode(to encoder: Encoder) throws {
-        try super.encode(to: encoder)
-    }
-
-    private func restoreStoredStateIfAvailable() async {
-        guard !storeKey.isEmpty,
-              let storedState = await ConferenceParticipantPreviewFallbackStateStore.shared.load(for: storeKey) else {
-            return
-        }
-
-        agendaView = storedState.agendaView
-        activeTrackID = storedState.activeTrackID
-        currentFilter = storedState.currentFilter
-        pendingRequestCount = storedState.pendingRequestCount
-        confirmedMeetingCount = storedState.confirmedMeetingCount
-        exportPrepared = storedState.exportPrepared
-        searchQuery = storedState.searchQuery
-        recentMessages = storedState.recentMessages
-        launchedDiscoveryChatNames = storedState.launchedDiscoveryChatNames
-        focusedRecommendationName = storedState.focusedRecommendationName
-        followUpMarkedNames = storedState.followUpMarkedNames
-        recentActionSummary = storedState.recentActionSummary
-    }
-
-    private func persistCurrentState() async {
-        guard !storeKey.isEmpty else {
-            return
-        }
-
-        await ConferenceParticipantPreviewFallbackStateStore.shared.save(
-            ConferenceParticipantPreviewFallbackState(
-                agendaView: agendaView,
-                activeTrackID: activeTrackID,
-                currentFilter: currentFilter,
-                pendingRequestCount: pendingRequestCount,
-                confirmedMeetingCount: confirmedMeetingCount,
-                exportPrepared: exportPrepared,
-                searchQuery: searchQuery,
-                recentMessages: recentMessages,
-                launchedDiscoveryChatNames: launchedDiscoveryChatNames,
-                focusedRecommendationName: focusedRecommendationName,
-                followUpMarkedNames: followUpMarkedNames,
-                recentActionSummary: recentActionSummary
-            ),
-            for: storeKey
-        )
-    }
-
-    private func configure(owner: Identity) async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
-        agreementTemplate.addGrant("rw--", for: "dispatchAction")
-
-        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, _ in
-            guard let self else { return .string("failure") }
-            return .object(self.makeStateObject())
-        })
-        await addInterceptForGet(requester: owner, key: "skeletonConfiguration", getValueIntercept: { _, _ in
-            .null
-        })
-        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, _ in
-            guard let self else { return .string("failure") }
-            return await self.handleDispatchAction(value)
-        })
-    }
-
-    private func handleDispatchAction(_ value: ValueType) async -> ValueType {
-        guard case let .object(object) = value,
-              case let .string(actionKeypath)? = object["keypath"] else {
-            return .string("error: invalid action payload")
-        }
-
-        let payload = object["payload"] ?? .null
-        switch actionKeypath {
-        case "agenda.setView":
-            if case let .object(viewObject) = payload,
-               case let .string(view)? = viewObject["view"] {
-                agendaView = view
-                recentActionSummary = "Switched agenda view to \(viewLabel(view))."
-            }
-        case "agenda.setTrackFocus":
-            if case let .object(trackObject) = payload,
-               case let .string(trackID)? = trackObject["trackId"] {
-                activeTrackID = trackID
-                recentActionSummary = "Track focus set to \(trackLabel(trackID))."
-            }
-        case "matchmaking.refreshRecommendations":
-            recentActionSummary = "Recommendations refreshed locally in preview."
-        case "matchmaking.setFilters":
-            currentFilter = currentFilter == "All recommended people" ? "Identity and trust" : "All recommended people"
-            recentActionSummary = "Matchmaking filter switched to \(currentFilter.lowercased())."
-        case "matchmaking.searchPeople":
-            if case let .object(searchObject) = payload,
-               case let .string(query)? = searchObject["query"],
-               !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                searchQuery = query
-                recentActionSummary = "Search updated to '\(query)'."
-            }
-        case "matchmaking.focusPerson":
-            if case let .object(personObject) = payload,
-               case let .string(displayName)? = personObject["displayName"],
-               displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                focusedRecommendationName = trimmed
-                recentActionSummary = "Opened profile focus for \(trimmed) in local preview."
-            }
-        case "matchmaking.toggleFollowUp":
-            if case let .object(personObject) = payload,
-               case let .string(displayName)? = personObject["displayName"],
-               displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if followUpMarkedNames.contains(trimmed) {
-                    followUpMarkedNames.remove(trimmed)
-                    recentActionSummary = "Removed \(trimmed) from follow-up in local preview."
-                } else {
-                    followUpMarkedNames.insert(trimmed)
-                    recentActionSummary = "Marked \(trimmed) for follow-up in local preview."
-                }
-            }
-        case "discovery.refresh":
-            recentActionSummary = "Discovery refreshed locally in preview."
-        case "scheduling.createMeetingRequest":
-            pendingRequestCount += 1
-            recentActionSummary = "Added a new meeting request to the local preview queue."
-        case "scheduling.exportICal":
-            exportPrepared = true
-            recentActionSummary = "iCal export is prepared in local preview."
-        case "scheduling.respondMeetingRequest":
-            if pendingRequestCount > 0 {
-                pendingRequestCount -= 1
-                confirmedMeetingCount += 1
-            }
-            recentActionSummary = "Updated meeting requests and confirmations."
-        case "connections.postSharedMessage":
-            if case let .object(messageObject) = payload,
-               case let .string(text)? = messageObject["text"],
-               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let focusedThreadName = launchedDiscoveryChatNames.first ?? focusedRecommendationName ?? "Konferansekontakt"
-                let persona = conferenceDemoPersona(named: focusedThreadName)
-                let priorTurns = recentMessages.filter { $0.title == persona.name }.count
-                prependRecentMessages([
-                    ConferenceParticipantPreviewFallbackMessage(
-                        title: persona.name,
-                        subtitle: "Simulert deltager · \(persona.roleSummary)",
-                        detail: conferenceDemoReply(to: text, persona: persona, priorTurns: priorTurns),
-                        note: "Siste melding i delt tråd · \(persona.conversationStyle)"
-                    ),
-                    ConferenceParticipantPreviewFallbackMessage(
-                        title: "Deg",
-                        subtitle: "Sendt fra chatflaten",
-                        detail: text,
-                        note: "Siste melding i delt tråd"
-                    )
-                ])
-                recentActionSummary = "La en oppfølgingsmelding i tråden med \(focusedThreadName). Simulert demosvar kom inn."
-            }
-        case "discovery.startChat":
-            let targetNames = discoveryTargetNames(from: payload)
-            if let firstTarget = targetNames.first {
-                let persona = conferenceDemoPersona(named: firstTarget)
-                launchedDiscoveryChatNames.removeAll { $0 == firstTarget }
-                launchedDiscoveryChatNames.insert(firstTarget, at: 0)
-                launchedDiscoveryChatNames = Array(launchedDiscoveryChatNames.prefix(4))
-                prependRecentMessages([
-                    ConferenceParticipantPreviewFallbackMessage(
-                        title: persona.name,
-                        subtitle: "Simulert deltager · \(persona.roleSummary)",
-                        detail: conferenceDemoStarterReply(for: persona),
-                        note: "Delt tråd er klar · \(persona.simulatedAgentSummary)"
-                    ),
-                    ConferenceParticipantPreviewFallbackMessage(
-                        title: "Deg",
-                        subtitle: "Startet fra deltagerportalen",
-                        detail: conferenceDemoStarterMessage(for: persona),
-                        note: "Chat startet i deltagerportalen"
-                    )
-                ])
-                recentActionSummary = "Started follow-up chat with \(firstTarget) in local preview."
-            } else {
-                recentActionSummary = "Started a discovery chat in local preview."
-            }
-        case "discovery.startGroupChat":
-            let targetNames = discoveryTargetNames(from: payload)
-            if targetNames.isEmpty == false {
-                let summary = targetNames.joined(separator: ", ")
-                prependRecentMessages([
-                    ConferenceParticipantPreviewFallbackMessage(
-                        title: "Gruppechat",
-                        subtitle: "Oppfølging klar",
-                        detail: "Nearby group follow-up is ready with \(summary).",
-                        note: "Siste melding i delt tråd"
-                    ),
-                    ConferenceParticipantPreviewFallbackMessage(
-                        title: "Deg",
-                        subtitle: "Neste steg",
-                        detail: "Start med en kort introduksjon og avklar hva gruppen vil følge opp sammen.",
-                        note: "Forslag til åpning"
-                    )
-                ])
-                recentActionSummary = "Started a group chat with \(summary) in local preview."
-            } else {
-                recentActionSummary = "Started a discovery group chat in local preview."
-            }
-        default:
-            recentActionSummary = "Utførte \(actionKeypath) i lokal conference-preview."
-        }
-
-        await persistCurrentState()
-
-        return .object([
-            "status": .string("ok"),
-            "state": .object(makeStateObject())
-        ])
-    }
-
-    private func prependRecentMessages(_ messages: [ConferenceParticipantPreviewFallbackMessage]) {
-        for message in messages.reversed() {
-            recentMessages.removeAll(where: { $0 == message })
-            recentMessages.insert(message, at: 0)
-        }
-        recentMessages = Array(recentMessages.prefix(6))
-    }
-
-    private func makeStateObject() -> Object {
-        let meetingSummary = "\(confirmedMeetingCount) shared meeting(s) visible."
-        let requestSummary = "\(pendingRequestCount) shared request(s) visible."
-        let trackSummary = activeTrackID == "all" ? "Track focus: all tracks visible." : "Track focus: \(trackLabel(activeTrackID))."
-        let timelineSummary = timelineSummaryText(for: agendaView)
-        let viewSummary = "Current view: \(viewLabel(agendaView))."
-        let recommendedSummary = agendaView == "forYou"
-            ? "Anbefalte sesjoner vises nå."
-            : "6 anbefalte sesjoner er klare når du går tilbake til For deg."
-        let savedSummary = agendaView == "saved"
-            ? "Lagrede sesjoner vises nå."
-            : "2 lagrede sesjoner er klare når du åpner Lagret."
-        let persistenceStatus = "Agenda-valg lagres lokalt i deltagerportalen."
-        let exportStatus = exportPrepared ? "iCal export is ready to share." : "No iCal export prepared yet."
-        let activeChatCount = recentMessages.count
-        let primaryChatName = launchedDiscoveryChatNames.first ?? "Conference follow-up"
-        let focusedRecommendationSummary = focusedRecommendationName.map {
-            "Focused recommendation: \($0). Open chat or mark follow-up when you are ready."
-        } ?? "3 recommended people with explainability."
-        let followUpSummary = followUpMarkedNames.isEmpty
-            ? "No people marked for follow-up yet."
-            : "\(followUpMarkedNames.count) person(s) marked for follow-up."
-        let matchStatus = focusedRecommendationName.map {
-            "Focused on \($0). The next natural step is to start chat or mark follow-up."
-        } ?? "Recommendations are derived from onboarding interests, purpose signals, and optional track focus."
-        let recentMessagesValue = recentMessages.map(\.value)
-        let dynamicNearbyConnections = launchedDiscoveryChatNames.map { name in
-            ValueType.object([
-                "title": .string(name),
-                "subtitle": .string("Nearby verified contact"),
-                "detail": .string("Verified nearby encounter opened a discovery follow-up chat with \(activeChatCount) message(s) ready."),
-                "note": .string("Scanner enriched · Chat klar"),
-                "demoPersona": .object(conferenceDemoPersonaSeedObject(named: name))
-            ])
-        }
-        let sharedIntro = activeChatCount > 0
-            ? "Delt tråd med \(primaryChatName) er klar. Vis samtalen her og send neste oppfølging når det passer."
-            : "Shared relation state is empty until a live thread or meeting is created."
-        let sharedAccessSummary = activeChatCount > 0
-            ? "Shared follow-up with \(primaryChatName) is available in local preview."
-            : "No shared meeting/chat projection loaded."
-        let agreementBoundary = activeChatCount > 0
-            ? "Local preview agreement boundary for participant follow-up."
-            : "No agreement boundary loaded."
-
-        return [
-            "workspace": .object([
-                "title": .string("Conference Participant Portal"),
-                "subtitle": .string("Profile, recommended people, and meetings in one low-friction flow."),
-                "conferenceBadge": .string("AI & Digital Independence 2026"),
-                "privacyBadge": .string("Private by default"),
-                "participantBadge": .string("Conference Participant · Attendee · Independent attendee"),
-                "programBadge": .string("2 saved sessions · 6 recommended sessions"),
-                "matchBadge": .string("3 recommended people ready for review"),
-                "meetingBadge": .string("\(pendingRequestCount) pending requests · \(confirmedMeetingCount) confirmed meetings · \(launchedDiscoveryChatNames.count) shared thread(s)"),
-                "nextStep": .string(recentActionSummary),
-                "previewNotice": .string("This shell is participant-only. Organizer insights and sponsor views live in separate conference shells.")
-            ]),
-            "program": .object([
-                "intro": .string("Participant agenda stays local while the shell projects the most relevant conference sessions."),
-                "agendaSummary": .string("2 saved session(s) · 6 recommended session(s)."),
-                "viewSummary": .string(viewSummary),
-                "trackSummary": .string(trackSummary),
-                "timelineSummary": .string(timelineSummary),
-                "status": .string("Agenda selections are ready for review."),
-                "storageSummary": .string("Agenda selections stay local to the participant shell."),
-                "persistenceStatus": .string(persistenceStatus),
-                "recommendedSummary": .string(recommendedSummary),
-                "savedSummary": .string(savedSummary),
-                "trackOptions": .list([
-                    sessionCard(title: "Applied AI", subtitle: "4 session(s)", detail: "Practical AI systems and tooling.", note: "Available for focus"),
-                    sessionCard(title: "Identity", subtitle: "4 session(s)", detail: "Trust, verification and claims.", note: "Available for focus"),
-                    sessionCard(title: "Governance", subtitle: "4 session(s)", detail: "Policy, regulation and coordination.", note: "Focused now")
-                ]),
-                "recommendedSessions": .list([
-                    sessionCard(title: "Identity Session 8", subtitle: "Identity · 09:30-10:00", detail: "Forum: identity, AI and digital independence.", note: "Matches interests"),
-                    sessionCard(title: "Governance Session 15", subtitle: "Governance · 10:00-10:30", detail: "Library: governance, AI and digital independence.", note: "Visible in current view"),
-                    sessionCard(title: "Infra Session 3", subtitle: "Infra · 13:00-13:30", detail: "Shared infrastructure and deployment patterns.", note: "Recommended next")
-                ]),
-                "savedSessions": .list([
-                    timelineCard(title: "Opening keynote", subtitle: "Main stage · 08:30", detail: "Framing digital independence across sectors.", note: "Saved"),
-                    timelineCard(title: "Shared relations roundtable", subtitle: "Studio 2 · 11:15", detail: "Operational follow-up between ecosystem teams.", note: "Saved")
-                ]),
-                "timelineSessions": .list([
-                    timelineCard(title: "Governance Session 3", subtitle: "Studio 2 · 08:00", detail: "Governance, AI and digital independence.", note: "Visible in timeline"),
-                    timelineCard(title: "Identity Session 2", subtitle: "Hall B · 08:30", detail: "Identity, AI and digital independence.", note: "Visible in timeline"),
-                    timelineCard(title: "Governance Session 9", subtitle: "Bridge · 09:00", detail: "Cross-team governance patterns.", note: "Visible in timeline")
-                ])
-            ]),
-            "matches": .object([
-                "intro": .string("These people match your current goals and conference interests."),
-                "filterSummary": .string("Filter: \(currentFilter)."),
-                "status": .string(matchStatus),
-                "recommendationSummary": .string(focusedRecommendationSummary),
-                "searchSummary": .string("Search broadening: \(searchQuery). \(followUpSummary)"),
-                "recommendations": .list([
-                    recommendationCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Strong match on governance and delivery.", note: "92% match"),
-                    recommendationCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Works with claims, trust, and organization.", note: "88% match"),
-                    recommendationCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Can connect the program to concrete product choices.", note: "84% match")
-                ]),
-                "searchResults": .list([
-                    followUpConnectionCard(title: "Governance Forum", subtitle: "Nearby people", detail: "Found people mentioning \(searchQuery.lowercased()).", note: "Local preview"),
-                    followUpConnectionCard(title: "Trust Infrastructure Lab", subtitle: "Shared interests", detail: "Shared focus on trust, claims, and operations.", note: "Suggested follow-up")
-                ])
-            ]),
-            "discovery": .object([
-                "intro": .string("Conference discovery combines portable participant discovery with local nearby enrichment."),
-                "status": .string("Discovery is ready for follow-up."),
-                "alignmentSummary": .string("Nearby and conference signals are aligned around \(currentFilter.lowercased())."),
-                "proofSummary": .string("Verified follow-up can unlock richer purpose and interest matching."),
-                "sourceSummary": .string("Portable conference candidates are merged with local nearby signals when available."),
-                "publicProfileSummary": .string("Only minimal profile data is shown until you explicitly request more."),
-                "chatSummary": .string("\(launchedDiscoveryChatNames.count) discovery chat(s) ready."),
-                "nextAction": .string("Refresh discovery, review promising people, and start a follow-up chat when it feels right."),
-                "refreshSummary": .string("Search focus is currently tuned for \(searchQuery.lowercased())."),
-                "candidates": .list([
-                    discoveryCandidateCard(title: "Ane Solberg", subtitle: "Public sector interoperability", detail: "Strong alignment on governance, delivery, and shared trust patterns.", note: "Recommended"),
-                    discoveryCandidateCard(title: "Mads Hovden", subtitle: "Policy and compliance", detail: "Good match for claims, compliance, and organizer follow-up.", note: "Nearby-capable"),
-                    discoveryCandidateCard(title: "Lea Heger", subtitle: "Digital service design", detail: "Connects participant needs to service and product design decisions.", note: "Suggested follow-up")
-                ]),
-                "proofCandidates": .list([
-                    discoveryCandidateCard(title: "Shared Relations Forum", subtitle: "Proof-backed discovery", detail: "Participants who can expose stronger matching once contact is verified.", note: "Proof ready"),
-                    discoveryCandidateCard(title: "Trust Infrastructure Lab", subtitle: "Policy and operations", detail: "Good candidate set for deeper follow-up if you want more precision.", note: "Consent gated")
-                ]),
-                "groupSuggestions": .list([
-                    groupSuggestionCard(title: "Identity and Governance Circle", subtitle: "3 people", detail: "A small group with overlapping agenda and meeting goals.", note: "Suggested group chat"),
-                    groupSuggestionCard(title: "Applied AI Follow-up", subtitle: "2 people", detail: "Focused on practical AI systems, trust, and delivery.", note: "Suggested nearby cluster")
-                ])
-            ]),
-            "meetings": .object([
-                "intro": .string("Keep availability local while requests, confirmed meetings, and follow-up chat live in shared relation records."),
-                "requestSummary": .string(requestSummary),
-                "slotSummary": .string("3 available slot(s) across Harbor Lounge, Hall B, Studio 2, Cafe, Garden, Library, AI Lab, Forum, Bridge."),
-                "meetingSummary": .string(meetingSummary),
-                "chatSummary": .string("\(activeChatCount) shared message(s) visible."),
-                "exportStatus": .string(exportStatus),
-                "requests": .list([]),
-                "confirmedMeetings": .list([])
-            ]),
-            "sharedConnections": .object([
-                "intro": .string(sharedIntro),
-                "accessSummary": .string(sharedAccessSummary),
-                "agreementBoundary": .string(agreementBoundary),
-                "connectionSummary": .string("\(launchedDiscoveryChatNames.count) shared relation(s) visible."),
-                "requestSummary": .string(requestSummary),
-                "meetingSummary": .string(meetingSummary),
-                "chatSummary": .string("\(activeChatCount) shared message(s) visible."),
-                "connections": .list(dynamicNearbyConnections.map { $0 }),
-                "confirmedMeetings": .list([]),
-                "recentMessages": .list(recentMessagesValue)
-            ])
-        ]
-    }
-
-    private func discoveryTargetNames(from payload: ValueType) -> [String] {
-        guard case let .object(payloadObject) = payload else { return [] }
-        if case let .list(targets)? = payloadObject["targets"] {
-            let names = targets.compactMap { target -> String? in
-                guard case let .object(targetObject) = target else { return nil }
-                if case let .string(displayName)? = targetObject["displayName"],
-                   displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                    return displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                if case let .string(participantId)? = targetObject["participantId"],
-                   participantId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                    return participantId.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                return nil
-            }
-            if names.isEmpty == false {
-                return names
-            }
-        }
-        if case let .list(participantIds)? = payloadObject["participantIds"] {
-            return participantIds.compactMap { value in
-                guard case let .string(raw) = value else { return nil }
-                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
-            }
-        }
-        return []
-    }
-
-    private func viewLabel(_ view: String) -> String {
-        switch view {
-        case "timeline": return "Timeline"
-        case "saved": return "Lagrede sesjoner"
-        default: return "For deg"
-        }
-    }
-
-    private func timelineSummaryText(for view: String) -> String {
-        switch view {
-        case "timeline":
-            return "8 session(s) visible in timeline view."
-        case "saved":
-            return "2 saved session(s) visible in saved view."
-        default:
-            return "8 session(s) visible in for you view."
-        }
-    }
-
-    private func trackLabel(_ trackID: String) -> String {
-        switch trackID {
-        case "all": return "all tracks visible"
-        case "track-governance": return "Governance"
-        case "track-identity": return "Identity"
-        default: return "conference track"
-        }
-    }
-
-    private func sessionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        .object([
-            "title": .string(title),
-            "subtitle": .string(subtitle),
-            "detail": .string(detail),
-            "note": .string(note)
-        ])
-    }
-
-    private func recommendationCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        let isFocused = focusedRecommendationName == title
-        let chatReady = launchedDiscoveryChatNames.contains(title)
-        let actionLabel = isFocused ? (chatReady ? "Åpne chat" : "Start chat") : "Åpne profil"
-        let actionPayload: ValueType = isFocused
-            ? discoveryChatPayload(for: title, subtitle: subtitle)
-            : .object([
-                "displayName": .string(title),
-                "subtitle": .string(subtitle)
-            ])
-
-        let actionKeypath = isFocused ? "discovery.startChat" : "matchmaking.focusPerson"
-        let updatedNote: String
-        if isFocused {
-            updatedNote = chatReady ? "\(note) · Chat klar." : "\(note) · Profil fokusert."
-        } else {
-            updatedNote = "\(note) · Åpne profil for neste steg."
-        }
-
-        return .object([
-            "title": .string(title),
-            "subtitle": .string(subtitle),
-            "detail": .string(detail),
-            "note": .string(updatedNote),
-            "demoPersona": .object(conferenceDemoPersonaSeedObject(named: title)),
-            "keypath": .string("conferenceParticipantShell.dispatchAction"),
-            "label": .string(actionLabel),
-            "payload": .object([
-                "keypath": .string(actionKeypath),
-                "payload": actionPayload
-            ])
-        ])
-    }
-
-    private func timelineCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        sessionCard(title: title, subtitle: subtitle, detail: detail, note: note)
-    }
-
-    private func connectionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        sessionCard(title: title, subtitle: subtitle, detail: detail, note: note)
-    }
-
-    private func discoveryCandidateCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        let chatReady = launchedDiscoveryChatNames.contains(title)
-        return .object([
-            "title": .string(title),
-            "subtitle": .string(subtitle),
-            "detail": .string(detail),
-            "note": .string(chatReady ? "\(note) · Chat klar." : "\(note) · Start chat når du er klar."),
-            "demoPersona": .object(conferenceDemoPersonaSeedObject(named: title)),
-            "keypath": .string("conferenceParticipantShell.dispatchAction"),
-            "label": .string(chatReady ? "Åpne chat" : "Start chat"),
-            "payload": .object([
-                "keypath": .string("discovery.startChat"),
-                "payload": discoveryChatPayload(for: title, subtitle: subtitle)
-            ])
-        ])
-    }
-
-    private func followUpConnectionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        let marked = followUpMarkedNames.contains(title)
-        return .object([
-            "title": .string(title),
-            "subtitle": .string(subtitle),
-            "detail": .string(detail),
-            "note": .string(marked ? "\(note) · Markert for oppfølging." : "\(note) · Kan markeres for oppfølging."),
-            "keypath": .string("conferenceParticipantShell.dispatchAction"),
-            "label": .string(marked ? "Fjern markering" : "Marker for oppfølging"),
-            "payload": .object([
-                "keypath": .string("matchmaking.toggleFollowUp"),
-                "payload": .object([
-                    "displayName": .string(title),
-                    "subtitle": .string(subtitle)
-                ])
-            ])
-        ])
-    }
-
-    private func groupSuggestionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        return .object([
-            "title": .string(title),
-            "subtitle": .string(subtitle),
-            "detail": .string(detail),
-            "note": .string("\(note) · Start group chat when the group is ready."),
-            "keypath": .string("conferenceParticipantShell.dispatchAction"),
-            "label": .string("Start group chat"),
-            "payload": .object([
-                "keypath": .string("discovery.startGroupChat"),
-                "payload": .object([
-                    "source": .string("participant-portal-group-suggestion"),
-                    "targets": .list([
-                        .object([
-                            "displayName": .string(title),
-                            "headline": .string(subtitle)
-                        ])
-                    ])
-                ])
-            ])
-        ])
-    }
-
-    private func discoveryChatPayload(for title: String, subtitle: String) -> ValueType {
-        .object([
-            "source": .string("participant-portal-recommendation"),
-            "targets": .list([
-                .object([
-                    "displayName": .string(title),
-                    "headline": .string(subtitle)
-                ])
-            ])
-        ])
-    }
-}
 
 @MainActor
 private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
@@ -6424,7 +5636,10 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         storeKey = owner.uuid
         await restoreSelectedParticipantIfAvailable()
         agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("r---", for: "editorDraft")
         agreementTemplate.addGrant("rw--", for: "refresh")
+        agreementTemplate.addGrant("rw--", for: "setDraft")
+        agreementTemplate.addGrant("rw--", for: "sendMessage")
         agreementTemplate.addGrant("rw--", for: "setDraftMessage")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 
@@ -6443,6 +5658,37 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                 "status": .string("ok"),
                 "state": .object(self.cachedChatState)
             ])
+        })
+
+        await addInterceptForGet(requester: owner, key: "editorDraft", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "editorDraft", for: requester) else { return .string("denied") }
+            await self.refreshSnapshotIfNeeded(force: false, forwardAction: nil, requester: requester)
+            return .string(self.draftMessage)
+        })
+
+        await addInterceptForSet(requester: owner, key: "setDraft", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "setDraft", for: requester) else { return .string("denied") }
+            self.draftMessage = self.draftText(from: value) ?? ""
+            self.recentActionSummary = self.draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Meldingsutkastet er tomt igjen."
+                : "Meldingsutkastet er oppdatert i Conference Participant Chat."
+            self.cachedChatState = self.mergedChatState(from: self.cachedChatState)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(self.cachedChatState)
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "sendMessage", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "sendMessage", for: requester) else { return .string("denied") }
+            if let directText = self.draftText(from: value),
+               directText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                self.draftMessage = directText
+            }
+            return await self.sendDraftMessage(requester: requester)
         })
 
         await addInterceptForSet(requester: owner, key: "setDraftMessage", setValueIntercept: { [weak self] _, value, requester in
@@ -6744,13 +5990,89 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         merged["focusedActions"] = .list(focusedActionCards(persona: focusedPersona).map(ValueType.object))
         merged["connections"] = .list(connectionRows.map { connectionCard(from: $0, focusedName: effectiveFocusedName) })
         merged["recentMessages"] = .list(transcriptRows.map(messageCard))
+        merged["headline"] = .string(effectiveFocusedName.map { "Chat with \($0)" } ?? "Conference Participant Chat")
+        merged["status"] = .string(string(from: merged["statusSummary"]) ?? "Ingen delt tråd er klar ennå.")
+        merged["launchSummary"] = .string(string(from: merged["selectionSummary"]) ?? "Start chat fra deltagerportalen for å gjøre en delt tråd klar her.")
+        merged["conversationSummary"] = .string(string(from: merged["threadSummary"]) ?? "0 delte tråder synlige.")
+        merged["messageSummary"] = .string(string(from: merged["recentMessagesSummary"]) ?? "0 delte meldinger synlige.")
+        merged["bridgeSummary"] = .string("Binding local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state.")
+        merged["nextAction"] = .string(string(from: merged["nextStepSummary"]) ?? "Start en chat i deltagerportalen først.")
+        merged["participantsSummary"] = .string(participantSummary(focusedName: effectiveFocusedName, connectionCount: connectionRows.count))
+        merged["participants"] = .list(participantRows(focusedName: effectiveFocusedName, persona: focusedPersona, connectionRows: connectionRows).map(ValueType.object))
+        merged["conversations"] = .list(connectionRows.map { ValueType.object(conversationRow(from: $0, focusedName: effectiveFocusedName)) })
+        merged["messages"] = .list(transcriptRows.map { ValueType.object(messageRow(from: $0)) })
+        merged["editorDraft"] = .string(draftMessage)
+        merged["editor"] = .object([
+            "draft": .string(draftMessage),
+            "placeholder": .string("Skriv en fri konferansemelding"),
+            "toolingHint": .string("Use conferenceChat.editorDraft, conferenceChat.setDraft and conferenceChat.sendMessage for the canonical participant-chat flow."),
+            "setDraftKeypath": .string("conferenceChat.setDraft"),
+            "submitKeypath": .string("conferenceChat.sendMessage")
+        ])
 
         return merged
     }
 
+    private func participantSummary(focusedName: String?, connectionCount: Int) -> String {
+        if let focusedName {
+            return "Delt tråd aktiv med \(focusedName)."
+        }
+        if connectionCount == 0 {
+            return "Ingen delte deltakere synlige ennå."
+        }
+        if connectionCount == 1 {
+            return "1 delt deltaker synlig i aktiv chat."
+        }
+        return "\(connectionCount) delte deltakere synlige i aktive chatter."
+    }
+
+    private func participantRows(
+        focusedName: String?,
+        persona: ConferenceDemoPersona?,
+        connectionRows: [Object]
+    ) -> [Object] {
+        var rows: [Object] = [[
+            "title": .string("Deg"),
+            "subtitle": .string("You"),
+            "detail": .string("Conference participant using Binding"),
+            "note": .string("Shared-relation safe sender")
+        ]]
+
+        rows.append(contentsOf: connectionRows.map { raw in
+            let title = cardTitle(from: raw)
+            return [
+                "title": .string(title),
+                "subtitle": .string(title == focusedName ? "Focused participant" : cardSubtitle(from: raw)),
+                "detail": .string(title == focusedName ? (persona?.publicProfileDetail ?? cardDetail(from: raw)) : cardDetail(from: raw)),
+                "note": .string(cardNote(from: raw))
+            ]
+        })
+
+        return rows
+    }
+
+    private func conversationRow(from raw: Object, focusedName: String?) -> Object {
+        let title = cardTitle(from: raw)
+        return [
+            "title": .string(title),
+            "subtitle": .string(title == focusedName ? "Focused conversation" : cardSubtitle(from: raw)),
+            "detail": .string(cardDetail(from: raw)),
+            "note": .string(cardNote(from: raw))
+        ]
+    }
+
+    private func messageRow(from raw: Object) -> Object {
+        return [
+            "title": .string(cardTitle(from: raw)),
+            "subtitle": .string(cardSubtitle(from: raw)),
+            "detail": .string(cardDetail(from: raw)),
+            "note": .string(cardNote(from: raw))
+        ]
+    }
+
     private func ensureFocusedChatName(in connectionRows: [Object]) -> String? {
         if let focusedChatName,
-           connectionRows.contains(where: { cardTitle(from: $0) == focusedChatName }) {
+           connectionRows.isEmpty || connectionRows.contains(where: { cardTitle(from: $0) == focusedChatName }) {
             return focusedChatName
         }
         let firstName = connectionRows.first.map { cardTitle(from: $0) }
@@ -6970,11 +6292,11 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func draftText(from value: ValueType) -> String? {
-        if let text = string(from: value) {
+        if case let .string(text) = value {
             return text
         }
         if case let .object(object) = value,
-           let text = string(from: object["text"]) {
+           case let .string(text)? = object["text"] {
             return text
         }
         return nil
@@ -7196,11 +6518,11 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func openChatWorkbench(requester: Identity) async -> ValueType {
-        let displayName = focusedChatName.map { "Conference Chat · \($0)" } ?? "Conference Chat · Oppfølging"
+        let displayName = focusedChatName.map { "Conference Participant Chat · \($0)" } ?? "Conference Participant Chat"
         let configuration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
             participantEndpoint: "cell:///ConferenceParticipantPreviewShell",
             displayName: displayName,
-            summary: "Delt conference-chat med oppfølging, meldinger og neste steg i egen arbeidsflate."
+            summary: "Conference participant chat aligned with ConferenceChatLaunch for shared messages, free-text follow-up and explicit next steps."
         )
         return await loadWorkbenchConfiguration(
             configuration,
@@ -7274,6 +6596,19 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         merged["draftMessage"] = .string(draftMessage)
         merged["draftSummary"] = .string(draftSummary(focusedName: normalizedFocusedName, connectionCount: connectionCount))
         merged["draftHint"] = .string(draftHint(persona: focusedPersona))
+        merged["status"] = .string(string(from: merged["statusSummary"]) ?? "Ingen delt tråd er klar ennå.")
+        merged["launchSummary"] = .string(string(from: merged["selectionSummary"]) ?? "Start chat fra deltagerportalen for å gjøre en delt tråd klar her.")
+        merged["conversationSummary"] = .string(string(from: merged["threadSummary"]) ?? "0 delte tråder synlige.")
+        merged["messageSummary"] = .string(string(from: merged["recentMessagesSummary"]) ?? "0 delte meldinger synlige.")
+        merged["nextAction"] = .string(string(from: merged["nextStepSummary"]) ?? "Start en chat i deltagerportalen først.")
+        merged["editorDraft"] = .string(draftMessage)
+        merged["editor"] = .object([
+            "draft": .string(draftMessage),
+            "placeholder": .string("Skriv en fri konferansemelding"),
+            "toolingHint": .string("Use conferenceChat.editorDraft, conferenceChat.setDraft and conferenceChat.sendMessage for the canonical participant-chat flow."),
+            "setDraftKeypath": .string("conferenceChat.setDraft"),
+            "submitKeypath": .string("conferenceChat.sendMessage")
+        ])
         return merged
     }
 
@@ -7376,26 +6711,36 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     ) -> Object {
         var updated = base
         updated["statusSummary"] = .string(status)
+        updated["status"] = .string(status)
         updated["actionSummary"] = .string(actionSummary)
         return updated
     }
 
     private static func defaultChatState() -> Object {
         [
+            "headline": .string("Conference Participant Chat"),
             "intro": .string("Denne flaten viser når en conference-chat faktisk er klar, og gjør det tydelig hvordan du fortsetter oppfølgingen."),
             "statusSummary": .string("Ingen delt tråd er klar ennå."),
+            "status": .string("Ingen delt tråd er klar ennå."),
             "selectionSummary": .string("Start chat fra deltagerportalen for å gjøre en delt tråd klar her."),
+            "launchSummary": .string("Start chat fra deltagerportalen for å gjøre en delt tråd klar her."),
             "nextStepSummary": .string("Når en delt tråd finnes, kan du sende oppfølging eller gå tilbake til portalen."),
+            "nextAction": .string("Når en delt tråd finnes, kan du sende oppfølging eller gå tilbake til portalen."),
             "actionSummary": .string("Start chat fra deltagerportalen for å gjøre en delt tråd klar her."),
             "threadSummary": .string("0 delte tråder synlige."),
+            "conversationSummary": .string("0 delte tråder synlige."),
             "recentMessagesSummary": .string("0 delte meldinger synlige."),
+            "messageSummary": .string("0 delte meldinger synlige."),
             "chatSummary": .string("0 delte meldinger synlige."),
+            "bridgeSummary": .string("Binding local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state."),
             "personaSummary": .string("Ingen demo-deltager er valgt ennå."),
             "personaDetail": .string("Når en tråd er valgt, viser vi offentlig profil og samtalestil for demo-deltageren her."),
             "simulationSummary": .string("Svarene i demoen er bounded og følger valgt deltagerprofil."),
             "draftMessage": .string(""),
+            "editorDraft": .string(""),
             "draftSummary": .string("Start en chat i deltagerportalen først, så kan du skrive en egen melding her."),
             "draftHint": .string("Når en tråd er valgt, kan du skrive en egen melding eller bruke forslagsteksten som utgangspunkt."),
+            "participantsSummary": .string("Ingen delte deltakere synlige ennå."),
             "focusedThread": .object([
                 "selectionBadge": .string("VALGT TRÅD"),
                 "title": .string("Ingen delt tråd valgt ennå"),
@@ -7405,7 +6750,17 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
                 "nextMessage": .string("Velg en delt tråd for å se forslag til neste melding."),
                 "nextMessageHint": .string("Når tråden er klar, kan du skrive en egen melding eller sende forslagsteksten herfra.")
             ]),
+            "editor": .object([
+                "draft": .string(""),
+                "placeholder": .string("Skriv en fri konferansemelding"),
+                "toolingHint": .string("Use conferenceChat.editorDraft, conferenceChat.setDraft and conferenceChat.sendMessage for the canonical participant-chat flow."),
+                "setDraftKeypath": .string("conferenceChat.setDraft"),
+                "submitKeypath": .string("conferenceChat.sendMessage")
+            ]),
             "focusedActions": .list([]),
+            "participants": .list([]),
+            "conversations": .list([]),
+            "messages": .list([]),
             "connections": .list([]),
             "recentMessages": .list([])
         ]
@@ -7426,12 +6781,13 @@ struct ConferenceIdentityLinkParsedChallenge {
     var expirySummary: String
     var proofSummary: String
     var rawPreview: String
+    var admission: BindingAdmissionChallengeSnapshot?
 }
 
-enum ConferenceIdentityLinkSupport {
+nonisolated enum ConferenceIdentityLinkSupport {
     private static let emptySummary = "Ingen challenge lastet ennå."
 
-    nonisolated static func parse(url: URL) -> ConferenceIdentityLinkParsedChallenge? {
+    static func parse(url: URL) -> ConferenceIdentityLinkParsedChallenge? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
         }
@@ -7472,7 +6828,7 @@ enum ConferenceIdentityLinkSupport {
         )
     }
 
-    nonisolated static func parse(raw: String, sourceSummary: String = "Innlimt challenge-data") -> ConferenceIdentityLinkParsedChallenge? {
+    static func parse(raw: String, sourceSummary: String = "Innlimt challenge-data") -> ConferenceIdentityLinkParsedChallenge? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
@@ -7490,11 +6846,13 @@ enum ConferenceIdentityLinkSupport {
         return parseJSONObjectString(trimmed, sourceSummary: sourceSummary)
     }
 
-    private nonisolated static func parseJSONObjectString(_ value: String, sourceSummary: String) -> ConferenceIdentityLinkParsedChallenge? {
+    private static func parseJSONObjectString(_ value: String, sourceSummary: String) -> ConferenceIdentityLinkParsedChallenge? {
         guard let data = value.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
+
+        let typedAdmission = BindingAdmissionChallengeSupport.decodePayload(from: value).map(BindingAdmissionChallengeSnapshot.init)
 
         return buildChallenge(
             sourceSummary: sourceSummary,
@@ -7511,11 +6869,12 @@ enum ConferenceIdentityLinkSupport {
             expiresAt: string(in: json, path: ["expiresAt"]),
             challenge: string(in: json, path: ["nonce"]),
             proofAlgorithm: string(in: json, path: ["proof", "algorithm"]),
+            admission: typedAdmission,
             rawPreview: value
         )
     }
 
-    private nonisolated static func buildChallenge(
+    private static func buildChallenge(
         sourceSummary: String,
         requestID: String?,
         purpose: String,
@@ -7530,6 +6889,7 @@ enum ConferenceIdentityLinkSupport {
         expiresAt: String?,
         challenge: String?,
         proofAlgorithm: String?,
+        admission: BindingAdmissionChallengeSnapshot? = nil,
         rawPreview: String
     ) -> ConferenceIdentityLinkParsedChallenge {
         let effectiveAudience = audience?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -7546,17 +6906,29 @@ enum ConferenceIdentityLinkSupport {
             challengeSummary = "Request \(effectiveRequestID)"
         } else if let effectiveChallenge, !effectiveChallenge.isEmpty {
             challengeSummary = "Challenge \(effectiveChallenge)"
+        } else if let admissionSessionID = admission?.sessionId,
+                  !admissionSessionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            challengeSummary = "Admission session \(admissionSessionID)"
         } else {
-            challengeSummary = emptySummary
+            challengeSummary = Self.emptySummary
         }
 
         let compactPreview = rawPreview
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let admissionStatusSummary: String?
+        if let admissionObject = admission?.asObject(),
+           case let .string(value)? = admissionObject["statusSummary"] {
+            admissionStatusSummary = value
+        } else {
+            admissionStatusSummary = nil
+        }
+
         return ConferenceIdentityLinkParsedChallenge(
             sourceSummary: sourceSummary,
-            statusSummary: "Incoming identity-link challenge klar for review. Binding viser challenge-data og lokal key-possession før scaffold/web fullfører approval.",
+            statusSummary: admissionStatusSummary
+                ?? "Incoming identity-link challenge klar for review. Binding viser challenge-data og lokal key-possession før scaffold/web fullfører approval.",
             challengeSummary: challengeSummary,
             audienceSummary: effectiveAudience.map { "Audience: \($0)" } ?? "Audience mangler i challenge-data.",
             originSummary: effectiveOrigin.map { "Origin: \($0)" } ?? "Origin mangler i challenge-data.",
@@ -7570,12 +6942,20 @@ enum ConferenceIdentityLinkSupport {
             contextSummary: requestedIdentityContexts.isEmpty ? "Ingen requested identity contexts oppgitt." : "Requested contexts: \(requestedIdentityContexts.joined(separator: ", "))",
             scopeSummary: requestedScopes.isEmpty ? "Ingen requested scopes oppgitt." : "Requested scopes: \(requestedScopes.joined(separator: ", "))",
             expirySummary: effectiveExpiresAt.map { "Expires: \($0)" } ?? "Expiry mangler i challenge-data.",
-            proofSummary: "Purpose: \(purpose) · Proof alg: \(proofAlgorithm ?? "ikke oppgitt")",
-            rawPreview: compactPreview.isEmpty ? emptySummary : compactPreview
+            proofSummary: {
+                var components = ["Purpose: \(purpose)", "Proof alg: \(proofAlgorithm ?? "ikke oppgitt")"]
+                if let requiredAction = admission?.requiredAction,
+                   !requiredAction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    components.append("Required action: \(requiredAction)")
+                }
+                return components.joined(separator: " · ")
+            }(),
+            rawPreview: compactPreview.isEmpty ? Self.emptySummary : compactPreview,
+            admission: admission
         )
     }
 
-    private nonisolated static func splitCSV(_ value: String?) -> [String] {
+    private static func splitCSV(_ value: String?) -> [String] {
         guard let value else { return [] }
         return value
             .split(separator: ",")
@@ -7583,7 +6963,7 @@ enum ConferenceIdentityLinkSupport {
             .filter { !$0.isEmpty }
     }
 
-    private nonisolated static func decodePotentialBase64URL(_ value: String) -> Data? {
+    private static func decodePotentialBase64URL(_ value: String) -> Data? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
@@ -7596,7 +6976,7 @@ enum ConferenceIdentityLinkSupport {
         return Data(base64Encoded: normalized)
     }
 
-    private nonisolated static func string(in object: [String: Any], path: [String]) -> String? {
+    private static func string(in object: [String: Any], path: [String]) -> String? {
         var current: Any = object
         for component in path {
             guard let dictionary = current as? [String: Any],
@@ -7608,7 +6988,7 @@ enum ConferenceIdentityLinkSupport {
         return current as? String
     }
 
-    private nonisolated static func strings(in object: [String: Any], path: [String]) -> [String] {
+    private static func strings(in object: [String: Any], path: [String]) -> [String] {
         var current: Any = object
         for component in path {
             guard let dictionary = current as? [String: Any],
@@ -7633,6 +7013,22 @@ actor ConferenceIdentityLinkInboxStore {
     private var lastIntakeSource = "Ingen challenge mottatt ennå."
     private var limitationSummary = "Binding gjør ekte challenge-intake og lokal key-review her. Endelig approval/fullføring i cross-vault identity-link-protokollen er fortsatt ikke koblet helt ferdig i denne flaten."
     private var nextStepSummary = "Når challenge-data er synlig, bekrefter du lokal nøkkelbesittelse og går deretter tilbake til Scaffold/web for approval eller completion."
+
+    private func defaultAdmissionState() -> Object {
+        [
+            "statusSummary": .string("Ingen typed admission challenge lest ennå."),
+            "state": .string("unknown"),
+            "connectState": .string("unknown"),
+            "issueCount": .integer(0),
+            "issueSummary": .string("0 challenge-issues registrert."),
+            "requiredActionSummary": .string("Ingen requiredAction oppgitt i challenge payload."),
+            "userMessage": .string("Ingen typed userMessage i challenge payload."),
+            "autoResolveSummary": .string("Challenge krever eksplisitt review eller remediation."),
+            "helperSummary": .string("Ingen helper-konfigurasjon fulgte med challenge payload."),
+            "retrySummary": .string("Ingen admission retry-request tilgjengelig."),
+            "sessionSummary": .string("Ingen admission-session eksponert i challenge payload.")
+        ]
+    }
 
     func ingest(url: URL) -> Bool {
         guard let parsed = ConferenceIdentityLinkSupport.parse(url: url) else {
@@ -7669,6 +7065,10 @@ actor ConferenceIdentityLinkInboxStore {
         actionSummary = "Åpne en haven://identity-link-lenke eller lim inn challenge-data for å starte review."
         lastIntakeSource = "Ingen challenge mottatt ennå."
         nextStepSummary = "Når challenge-data er synlig, bekrefter du lokal nøkkelbesittelse og går deretter tilbake til Scaffold/web for approval eller completion."
+    }
+
+    func helperConfiguration() -> CellConfiguration? {
+        incomingChallenge?.admission?.helperCellConfiguration
     }
 
     func confirmLocalReview(with identity: Identity?) {
@@ -7714,6 +7114,7 @@ actor ConferenceIdentityLinkInboxStore {
                 "proofSummary": .string(challenge?.proofSummary ?? "Proof metadata vises når challenge-data er lastet."),
                 "rawPreview": .string(challenge?.rawPreview ?? "Ingen raw preview tilgjengelig ennå.")
             ]),
+            "admission": .object(challenge?.admission?.asObject() ?? defaultAdmissionState()),
             "review": .object([
                 "localIdentitySummary": .string(localIdentitySummary),
                 "confirmationStatus": .string(confirmationStatus),
@@ -7785,8 +7186,7 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
             ])
         case "identityLink.confirmLocalReview":
-            await AppInitializer.initialize()
-            let localIdentity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) ?? requester
+            let localIdentity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) ?? requester
             await ConferenceIdentityLinkInboxStore.shared.confirmLocalReview(with: localIdentity)
             return .object([
                 "status": .string("ok"),
@@ -7797,6 +7197,20 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
                 BindingConferenceNavigationBridge.postPop(
                     fallbackConfiguration: ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
                 )
+            }
+            return .object([
+                "status": .string("ok"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        case "identityLink.openHelper":
+            guard let helperConfiguration = await ConferenceIdentityLinkInboxStore.shared.helperConfiguration() else {
+                return .object([
+                    "status": .string("error"),
+                    "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+                ])
+            }
+            await MainActor.run {
+                BindingPortholeLoadBridge.post(configuration: helperConfiguration)
             }
             return .object([
                 "status": .string("ok"),
@@ -7950,7 +7364,7 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
         case "launcher.openControlTower":
             return "Bytter til organizer-perspektivet i control tower."
         case "launcher.openAIAssistant":
-            return "Åpner conference-copiloten side om side med participant preview-state."
+            return "Åpner conference-copiloten fra scaffold-preview med samme contracts som staging."
         default:
             return "Åpner \(configurationName)."
         }
@@ -7980,199 +7394,5 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
             "participantActSummary": .string("Fortsett i participant-portalen og åpne chatflaten eksplisitt når samtalen er startet."),
             "organizerActSummary": .string("Bytt deretter til control tower eller AI assistant for organizer-/briefing-perspektivet.")
         ]
-    }
-}
-
-private final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
-    private var draftPublished = false
-    private var discardedDraft = false
-    private var lastEditSummary = "Redaktørutkastet er klart for gjennomgang."
-
-    required init(owner: Identity) async {
-        await super.init(owner: owner)
-        await configure(owner: owner)
-    }
-
-    nonisolated required init(from decoder: Decoder) throws {
-        try super.init(from: decoder)
-    }
-
-    nonisolated override func encode(to encoder: Encoder) throws {
-        try super.encode(to: encoder)
-    }
-
-    private func configure(owner: Identity) async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
-        agreementTemplate.addGrant("rw--", for: "dispatchAction")
-
-        await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { [weak self] _, _ in
-            guard let self else { return .string("failure") }
-            return .object(self.makeStateObject())
-        })
-        await addInterceptForGet(requester: owner, key: "skeletonConfiguration", getValueIntercept: { _, _ in
-            .null
-        })
-        await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, _ in
-            guard let self else { return .string("failure") }
-            return await self.handleDispatchAction(value)
-        })
-    }
-
-    private func handleDispatchAction(_ value: ValueType) async -> ValueType {
-        guard case let .object(object) = value,
-              case let .string(actionKeypath)? = object["keypath"] else {
-            return .string("error: invalid action payload")
-        }
-
-        switch actionKeypath {
-        case "contentPublishing.publishDraft":
-            draftPublished = true
-            discardedDraft = false
-            lastEditSummary = "Utkastet ble publisert i lokal organizer-preview."
-        case "contentPublishing.discardDraft":
-            draftPublished = false
-            discardedDraft = true
-            lastEditSummary = "Utkastet ble forkastet i lokal organizer-preview."
-        default:
-            lastEditSummary = "Utførte \(actionKeypath) i lokal organizer-preview."
-        }
-
-        return .object([
-            "status": .string("ok"),
-            "state": .object(makeStateObject())
-        ])
-    }
-
-    private func makeStateObject() -> Object {
-        let contentStatus: String
-        let draftWarning: String
-        let nextAction: String
-        let draftTracks: [ValueType]
-        let draftSessions: [ValueType]
-
-        if draftPublished {
-            contentStatus = "Draft publisert og klar for offentlig shell."
-            draftWarning = "Ingen ventende redaktøradvarsler."
-            nextAction = "Overvåk publisert innhold og oppdater run-of-show ved behov."
-            draftTracks = []
-            draftSessions = []
-        } else if discardedDraft {
-            contentStatus = "Draft forkastet. Ny redaksjonell runde kreves."
-            draftWarning = "Redaktørutkastet er fjernet fra publiseringskøen."
-            nextAction = "Opprett et nytt draft før du går videre."
-            draftTracks = []
-            draftSessions = []
-        } else {
-            contentStatus = "Draft klart for review og publisering."
-            draftWarning = "Utkastet må sjekkes mot run-of-show før publisering."
-            nextAction = "Publiser dagens draft når speaker- og facilities-noter er godkjent."
-            draftTracks = [
-                timelineCard(title: "Governance", subtitle: "Draft track", detail: "Klar for publisering med oppdatert ingress.", note: "Preview"),
-                timelineCard(title: "Identity", subtitle: "Draft track", detail: "Claims og trust-sporet er oppdatert.", note: "Preview")
-            ]
-            draftSessions = [
-                timelineCard(title: "Opening keynote", subtitle: "Draft session", detail: "Speaker-bio og ingress er klare.", note: "Pending publish"),
-                timelineCard(title: "Shared relations roundtable", subtitle: "Draft session", detail: "Room og moderator er oppdatert.", note: "Pending publish")
-            ]
-        }
-
-        return [
-            "workspace": .object([
-                "title": .string("Conference Control Tower"),
-                "subtitle": .string("Organizer-visning for eierskap, publisering, drift og innsikt."),
-                "conferenceBadge": .string("Conference owner"),
-                "opsBadge": .string("Ops ready"),
-                "nextAction": .string(nextAction),
-                "previewNotice": .string("Lokal organizer-preview brukes mens staging-preview er i flux. Contract og mørk UI holdes like.")
-            ]),
-            "access": .object([
-                "headline": .string("Organizer access og ansvar"),
-                "ownerScope": .string("Owner scope: conference entity og organizer VC."),
-                "readScope": .string("Read scope: admin-shell, public-shell og sponsor handoff."),
-                "writeScope": .string("Write scope: programdraft, alerts, ops og content publishing."),
-                "deliveryScope": .string("Delivery scope: preview shells og publiserte conference views."),
-                "storageScope": .string("Storage scope: organizer notes, publishing queue og metrics."),
-                "notes": .string("Access-kontrakten er den samme som i CellScaffold; denne previewen er bare lokal fallback."),
-                "keypathMatrix": .list([
-                    timelineCard(title: "conferenceAdminShell.state.*", subtitle: "Read/write", detail: "Organizer shell kontrakt", note: "Allowed"),
-                    timelineCard(title: "conferencePublicShell.state.*", subtitle: "Read + publish", detail: "Publisert view for attendees", note: "Allowed"),
-                    timelineCard(title: "conferenceSponsorShell.state.*", subtitle: "Read handoff", detail: "Sponsor view og leads", note: "Scoped")
-                ])
-            ]),
-            "content": .object([
-                "intro": .string("Control Tower samler redaksjonelle drafts og publiseringsstatus i én organizerflate."),
-                "editorScope": .string("Editor scope: tracks, sessions, people, facilities og articles."),
-                "lifecycleSummary": .string("Draft -> review -> publish -> public shell."),
-                "status": .string(contentStatus),
-                "lastEditSummary": .string(lastEditSummary),
-                "draftWarning": .string(draftWarning),
-                "preview": .object([
-                    "programSummary": .string("Program preview er konsistent med dagens run-of-show."),
-                    "trackSummary": .string("2 draft tracks er klare til review."),
-                    "sessionSummary": .string("2 draft sessions venter på siste godkjenning."),
-                    "facilitySummary": .string("Venue- og room-data er på plass."),
-                    "peopleSummary": .string("Speaker cards er klare for publisering."),
-                    "articleSummary": .string("Landing-artikkel og agenda-artikkel er synkronisert.")
-                ]),
-                "draftTracks": .list(draftTracks),
-                "draftSessions": .list(draftSessions)
-            ]),
-            "operations": .object([
-                "intro": .string("Driftsbildet viser run-of-show og eventuelle operative avvik."),
-                "runOfShow": .list([
-                    titleDetailCard(title: "Doors open", detail: "07:45 · crew ready"),
-                    titleDetailCard(title: "Opening keynote", detail: "08:30 · green room confirmed"),
-                    titleDetailCard(title: "Networking lunch", detail: "12:00 · facilities synced")
-                ]),
-                "alerts": .list([
-                    titleDetailCard(title: "Room B overlap", detail: "Session 2 and workshop share setup crew"),
-                    titleDetailCard(title: "Badge printer", detail: "One printer reports intermittent connectivity")
-                ])
-            ]),
-            "insights": .object([
-                "dashboardSummary": .string("Dashboarden viser attendance, consent og topic-trender."),
-                "consentSummary": .string("Consent coverage holder seg over demo-terskelen."),
-                "aggregateBoundary": .string("Aggregater er avgrenset til policy-godkjent organizer scope."),
-                "chartDirection": .string("Momentum peker oppover for governance og identity."),
-                "status": .string("Insights er oppdatert for denne preview-runden."),
-                "exportStatus": .string("Eksportpakke er klar til bruk når ønsket."),
-                "kpis": .list([
-                    titleDetailCard(title: "Registrations", detail: "412 confirmed"),
-                    titleDetailCard(title: "Meetings booked", detail: "87 across participant shell"),
-                    titleDetailCard(title: "Shared threads", detail: "26 active")
-                ]),
-                "topicTrends": .list([
-                    titleDetailCard(title: "Governance", detail: "Trending up"),
-                    titleDetailCard(title: "Identity", detail: "Stable high interest"),
-                    titleDetailCard(title: "Trust infrastructure", detail: "Strong cross-track pull")
-                ])
-            ]),
-            "sponsor": .object([
-                "dashboardSummary": .string("Sponsor handoff er klar og følger organizer-policy."),
-                "engagementSummary": .string("Lead engagement viser god overgang til sponsor-shell."),
-                "handoffSummary": .string("3 varme leads er klare for videre sponsor-oppfølging."),
-                "leadCandidates": .list([
-                    timelineCard(title: "Municipal platform team", subtitle: "Warm lead", detail: "Governance + identity overlap.", note: "Ready for sponsor handoff"),
-                    timelineCard(title: "Trust infrastructure lab", subtitle: "Warm lead", detail: "Shared interest in claims and verification.", note: "Ready for sponsor handoff")
-                ])
-            ])
-        ]
-    }
-
-    private func timelineCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
-        .object([
-            "title": .string(title),
-            "subtitle": .string(subtitle),
-            "detail": .string(detail),
-            "note": .string(note)
-        ])
-    }
-
-    private func titleDetailCard(title: String, detail: String) -> ValueType {
-        .object([
-            "title": .string(title),
-            "detail": .string(detail)
-        ])
     }
 }

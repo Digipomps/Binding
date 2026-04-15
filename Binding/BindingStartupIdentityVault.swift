@@ -90,7 +90,7 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         guard let stored = identitiesByUUID[identity.uuid] else {
             return
         }
-        var updatedIdentity = stored.identity
+        let updatedIdentity = stored.identity
         updatedIdentity.displayName = identity.displayName
         updatedIdentity.properties = identity.properties
         updatedIdentity.identityVault = self

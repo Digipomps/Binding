@@ -47,6 +47,23 @@ final class CatalogAbsorbXCTest: XCTestCase {
             return
         }
 
+        guard let catalog = try await resolver.cellAtEndpoint(endpoint: "cell:///ConfigurationCatalog", requester: identity) as? ConfigurationCatalogCell else {
+            XCTFail("Could not resolve ConfigurationCatalogCell")
+            return
+        }
+
+        let owner = try await catalog.getOwner(requester: identity)
+        XCTAssertEqual(owner.uuid, identity.uuid, "ConfigurationCatalog should resolve with the active private identity as owner")
+
+        let directState = try await catalog.get(keypath: "state", requester: identity)
+        if case .object = directState {
+            // verified
+        } else {
+            XCTFail("Expected object for direct catalog.state, got \(directState)")
+        }
+
+        _ = try await catalog.flow(requester: identity)
+
         porthole.detachAll(requester: identity)
 
         var config = CellConfiguration(name: "Catalog Absorb XCTest")

@@ -3,20 +3,20 @@ import Combine
 import CellBase
 import CellApple
 
-enum FullLibraryInsertionIntent: String {
+nonisolated enum FullLibraryInsertionIntent: String {
     case root
     case component
     case both
     case unknown
 }
 
-struct FullLibraryQueryContext {
+nonisolated struct FullLibraryQueryContext {
     var editMode: Bool
     var selectedNodeKind: String?
     var insertionIntent: FullLibraryInsertionIntent
 }
 
-enum LibraryPreviewSkeletonSupport {
+nonisolated enum LibraryPreviewSkeletonSupport {
     struct PreparedPreview {
         var element: SkeletonElement
         var usesPlaceholders: Bool
@@ -1621,7 +1621,7 @@ final class FullLibraryViewModel: ObservableObject {
 
             statusLine = "Henter katalogtreff..."
             let fallbackCatalogResults = try? await runCatalogOperation(
-                name: "catalogEntries",
+                name: "catalogContracts",
                 endpoint: endpoint
             ) {
                 try await self.directCatalogResults(from: catalog, requester: identity)
@@ -1734,7 +1734,9 @@ final class FullLibraryViewModel: ObservableObject {
 
         if bootstrapWatchTask == nil {
             bootstrapWatchTask = Task { [weak self] in
-                await AppInitializer.initialize()
+                if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+                    await AppInitializer.initialize()
+                }
                 await BindingLocalCellRegistration.shared.ensureRegistered()
                 await MainActor.run {
                     guard let self else { return }
@@ -1949,7 +1951,9 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     private func resolveCatalog() async throws -> ResolvedCatalog {
-        await AppInitializer.initialize()
+        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+            await AppInitializer.initialize()
+        }
         await BindingLocalCellRegistration.shared.ensureRegistered()
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw LibraryError.resolverUnavailable
@@ -2162,8 +2166,7 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     private func directCatalogResults(from catalog: Meddle, requester: Identity) async throws -> [SearchResult] {
-        let rawEntries = try await catalog.get(keypath: "catalogEntries", requester: requester)
-        guard case let .list(items) = rawEntries else { return [] }
+        let items = try await directCatalogItems(from: catalog, requester: requester)
 
         let queryCorpusTokens = directMatchTokens()
         let queryText = defaultQueryTextForTab().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2267,6 +2270,18 @@ final class FullLibraryViewModel: ObservableObject {
         }
 
         return Array(results.prefix(selectedTab == .sources ? 100 : 60))
+    }
+
+    private func directCatalogItems(from catalog: Meddle, requester: Identity) async throws -> [ValueType] {
+        if let contracts = try? await catalog.get(keypath: "catalogContracts", requester: requester),
+           case let .list(items) = contracts,
+           items.isEmpty == false {
+            return items
+        }
+
+        let rawEntries = try await catalog.get(keypath: "catalogEntries", requester: requester)
+        guard case let .list(items) = rawEntries else { return [] }
+        return items
     }
 
     private func offlineFallbackResults() -> [SearchResult] {

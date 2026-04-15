@@ -8,6 +8,7 @@
 import Foundation
 import Testing
 import SwiftUI
+import CryptoKit
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -94,6 +95,140 @@ struct BindingTests {
         #expect(report.unusedTopLevelLabels.isEmpty)
     }
 
+    @Test func tabStripLauncherContractCarriesSelectedCellConfigurationInActivationPayload() throws {
+        let agendaConfiguration = CellConfiguration(name: "Agenda Surface")
+        let chatConfiguration = CellConfiguration(name: "Chat Surface")
+
+        var tabStrip = SkeletonList(elements: [
+            .object([
+                "id": .string("agenda"),
+                "title": .string("Agenda"),
+                "badge": .string("3"),
+                "icon": .string("calendar"),
+                "configuration": .cellConfiguration(agendaConfiguration)
+            ]),
+            .object([
+                "id": .string("chat"),
+                "title": .string("Chat"),
+                "icon": .string("bubble.left.and.bubble.right"),
+                "configuration": .cellConfiguration(chatConfiguration)
+            ])
+        ])
+        tabStrip.selectionMode = .single
+        tabStrip.selectionStateKeypath = "tabs.selected"
+        tabStrip.activationActionKeypath = "tabs.loadSelectedConfiguration"
+        tabStrip.selectionPayloadMode = .item
+
+        var modifiers = SkeletonModifiers()
+        modifiers.styleRole = "tabstrip"
+        modifiers.styleClasses = ["top-pinned", "compact"]
+        tabStrip.modifiers = modifiers
+
+        let payload = try tabStrip.selectionPayload(
+            trigger: .activate,
+            rows: tabStrip.elements,
+            selectedIndices: [1]
+        )
+
+        guard case let .object(object) = payload,
+              case let .object(selected)? = object["selected"],
+              case let .cellConfiguration(configuration)? = selected["configuration"] else {
+            Issue.record("Forventet activation-payload med valgt CellConfiguration i selected.configuration")
+            return
+        }
+
+        #expect(object["trigger"] == .string("activate"))
+        #expect(object["selectionMode"] == .string("single"))
+        #expect(object["selectedIndex"] == .integer(1))
+        #expect(selected["title"] == .string("Chat"))
+        #expect(selected["icon"] == .string("bubble.left.and.bubble.right"))
+        #expect(configuration.name == "Chat Surface")
+    }
+
+    @Test func tabStripLauncherContractRoundTripsStyleMetadataInSkeletonJSON() throws {
+        let agendaConfiguration = CellConfiguration(name: "Agenda Surface")
+
+        var tabStrip = SkeletonList(elements: [
+            .object([
+                "id": .string("agenda"),
+                "title": .string("Agenda"),
+                "configuration": .cellConfiguration(agendaConfiguration)
+            ])
+        ])
+        tabStrip.selectionMode = .single
+        tabStrip.selectionStateKeypath = "tabs.selected"
+        tabStrip.activationActionKeypath = "tabs.loadSelectedConfiguration"
+        tabStrip.selectionPayloadMode = .item
+
+        var modifiers = SkeletonModifiers()
+        modifiers.styleRole = "tabstrip"
+        modifiers.styleClasses = ["bottom-pinned", "prominent"]
+        tabStrip.modifiers = modifiers
+
+        let data = try JSONEncoder().encode(SkeletonElement.List(tabStrip))
+        let decoded = try JSONDecoder().decode(SkeletonElement.self, from: data)
+
+        guard case let .List(decodedList) = decoded else {
+            Issue.record("Forventet List etter roundtrip av tabstrip-kontrakt")
+            return
+        }
+
+        #expect(decodedList.selectionMode == .single)
+        #expect(decodedList.selectionPayloadMode == .item)
+        #expect(decodedList.selectionStateKeypath == "tabs.selected")
+        #expect(decodedList.activationActionKeypath == "tabs.loadSelectedConfiguration")
+        #expect(decodedList.modifiers?.styleRole == "tabstrip")
+        #expect(decodedList.modifiers?.styleClasses == ["bottom-pinned", "prominent"])
+    }
+
+    @Test func tabStripV1UsesSkeletonCompositionForBottomPinning() {
+        let homeConfiguration = CellConfiguration(name: "Home Surface")
+        let settingsConfiguration = CellConfiguration(name: "Settings Surface")
+
+        var tabStrip = SkeletonList(elements: [
+            .object([
+                "id": .string("home"),
+                "title": .string("Home"),
+                "configuration": .cellConfiguration(homeConfiguration)
+            ]),
+            .object([
+                "id": .string("settings"),
+                "title": .string("Settings"),
+                "configuration": .cellConfiguration(settingsConfiguration)
+            ])
+        ])
+        tabStrip.selectionMode = .single
+        tabStrip.selectionStateKeypath = "tabs.selected"
+        tabStrip.activationActionKeypath = "tabs.loadSelectedConfiguration"
+        tabStrip.selectionPayloadMode = .item
+
+        var modifiers = SkeletonModifiers()
+        modifiers.styleRole = "tabstrip"
+        modifiers.styleClasses = ["bottom-pinned"]
+        tabStrip.modifiers = modifiers
+
+        let root = SkeletonElement.VStack(
+            SkeletonVStack(elements: [
+                .ScrollView(
+                    SkeletonScrollView(axis: "vertical", elements: [
+                        .Text(SkeletonText(text: "Panel content"))
+                    ])
+                ),
+                .List(tabStrip)
+            ])
+        )
+
+        guard case let .VStack(stack) = root,
+              case .ScrollView = stack.elements.first,
+              case let .List(bottomStrip)? = stack.elements.last else {
+            Issue.record("Forventet bottom-pinned komposisjon med ScrollView først og List sist")
+            return
+        }
+
+        #expect(bottomStrip.modifiers?.styleRole == "tabstrip")
+        #expect(bottomStrip.modifiers?.styleClasses == ["bottom-pinned"])
+    }
+
     @Test func componentPaletteOffersChatVaultAndAssistantWidgets() {
         let ids = Set(ComponentPaletteCatalog.defaultItems().map(\.id))
         #expect(ids.contains("chat.embedded.card"))
@@ -174,6 +309,66 @@ struct BindingTests {
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AIGateway") == "cell://staging.haven.digipomps.org/AIGateway")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferencePublicProfileEditorPreview") == "cell://staging.haven.digipomps.org/ConferencePublicProfileEditorPreview")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferencePublicProfilePreview") == "cell://staging.haven.digipomps.org/ConferencePublicProfilePreview")
+    }
+
+    @Test func configurationEndpointRetargetingRewritesNestedConfigurationLookupEndpoints() throws {
+        let contentView = ContentView()
+        var configuration = CellConfiguration(name: "Conference Public Profile Editor")
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferencePublicProfileEditorPreview",
+            sourceCellName: "ConferencePublicProfileEditorPreviewCell",
+            purpose: "Conference public profile editor",
+            purposeDescription: "Preview wrapper",
+            interests: ["conference", "profile"],
+            menuSlots: ["upperMid"]
+        )
+
+        var reference = CellReference(
+            endpoint: "cell:///ConferencePublicProfileEditorPreview",
+            label: "conferencePublicProfileEditor"
+        )
+        reference.setKeysAndValues = [
+            KeyValue(
+                key: "state",
+                value: nil,
+                target: "cell:///ConferencePublicProfilePreview"
+            )
+        ]
+        configuration.addReference(reference)
+        configuration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Button(
+                    SkeletonButton(
+                        keypath: "addConfiguration",
+                        label: "Open public profile",
+                        payload: .object([
+                            "configurationLookup": .object([
+                                "name": .string("Conference Public Profile"),
+                                "sourceCellEndpoint": .string("cell:///ConferencePublicProfilePreview")
+                            ])
+                        ])
+                    )
+                )
+            ])
+        )
+
+        let retargeted = CellConfigurationEndpointRetargeting.rewritingEndpoints(in: configuration) {
+            contentView.maybeRetargetLocalEndpointToStaging($0)
+        }
+
+        #expect(retargeted.discovery?.sourceCellEndpoint == "cell://staging.haven.digipomps.org/ConferencePublicProfileEditorPreview")
+        #expect(retargeted.cellReferences?.first?.endpoint == "cell://staging.haven.digipomps.org/ConferencePublicProfileEditorPreview")
+        #expect(retargeted.cellReferences?.first?.setKeysAndValues.first?.target == "cell://staging.haven.digipomps.org/ConferencePublicProfilePreview")
+
+        guard let data = try? JSONEncoder().encode(retargeted),
+              let json = String(data: data, encoding: .utf8) else {
+            Issue.record("Expected JSON-serializable retargeted configuration")
+            return
+        }
+
+        #expect(json.contains("\"sourceCellEndpoint\":\"cell://staging.haven.digipomps.org/ConferencePublicProfilePreview\""))
     }
 
     @Test func fullLibraryCanPreferRemoteCatalogEndpointsBeforeLocalFallback() {
@@ -343,7 +538,7 @@ struct BindingTests {
         #expect(configuration.cellReferences?.first?.label == "conferenceParticipantShell")
         #expect(configuration.cellReferences?.first?.setKeysAndValues.contains(where: { $0.key == "state" }) == true)
         #expect(configuration.cellReferences?.last?.label == "aiGateway")
-        #expect(configuration.cellReferences?.last?.endpoint == "cell:///ConferenceAIAssistantGatewayProxy")
+        #expect(configuration.cellReferences?.last?.endpoint == "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview")
 
         guard case .ScrollView? = configuration.skeleton else {
             Issue.record("Conference AI Assistant should use a designed scroll surface")
@@ -351,11 +546,12 @@ struct BindingTests {
         }
     }
 
-    @Test func conferenceAutomationAIAssistantUsesLocalGatewayProxy() {
+    @Test func conferenceAutomationAIAssistantUsesScaffoldHostedPreview() {
         let configuration = ContentView.conferenceAIAssistantAutomationConfiguration()
 
         #expect(configuration.name == "Conference AI Assistant")
-        #expect(configuration.cellReferences?.last?.endpoint == "cell:///ConferenceAIAssistantGatewayProxy")
+        #expect(configuration.cellReferences?.first?.endpoint == "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell")
+        #expect(configuration.cellReferences?.last?.endpoint == "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview")
     }
 
     @Test func conferenceIdentityLinkWorkbenchSeedsLocalIntakeState() {
@@ -398,6 +594,187 @@ struct BindingTests {
         #expect(review["confirmationStatus"] == .string("Lokal brukerbekreftelse mangler."))
 
         await store.clear()
+    }
+
+    @Test func bindingAdmissionChallengeSupportDecodesSharedPayload() throws {
+        let owner = Identity()
+        let agreement = Agreement(owner: owner)
+        agreement.name = "Binding Admission"
+
+        let helperConfiguration = CellConfiguration(name: "Helper Surface")
+        let issue = AdmissionChallengeIssueRecord(
+            conditionName: "sameEntityLink",
+            conditionType: "binding.same-entity",
+            state: .unmet,
+            reasonCode: "same_entity_link_review_required",
+            userMessage: "Review same-entity link request before continuing.",
+            requiredAction: "open_helper_configuration",
+            canAutoResolve: false,
+            helperCellConfiguration: helperConfiguration,
+            developerHint: "Helper should stay optional but portable."
+        )
+        let session = AdmissionSession(
+            label: "Same entity link",
+            requesterUUID: "requester-123",
+            targetCellUUID: "target-456",
+            agreementUUID: agreement.uuid,
+            agreementName: agreement.name,
+            connectState: .signContract,
+            primaryReasonCode: issue.reasonCode,
+            requiredAction: issue.requiredAction,
+            issueCount: 1
+        )
+        let payload = AdmissionChallengePayload(
+            state: .unmet,
+            connectState: .signContract,
+            agreement: agreement,
+            context: ConnectContext(source: nil, target: nil, identity: owner),
+            issues: [issue],
+            issueCount: 1,
+            sessionId: session.id,
+            session: session,
+            reasonCode: issue.reasonCode,
+            userMessage: issue.userMessage,
+            requiredAction: issue.requiredAction,
+            canAutoResolve: issue.canAutoResolve,
+            helperCellConfiguration: helperConfiguration,
+            developerHint: issue.developerHint
+        )
+
+        let encodedObject = try #require(BindingAdmissionChallengeSupport.encodeObject(payload))
+        let decoded = try #require(BindingAdmissionChallengeSupport.decodePayload(from: encodedObject))
+
+        #expect(decoded.state == .unmet)
+        #expect(decoded.connectState == .signContract)
+        #expect(decoded.sessionId == session.id)
+        #expect(decoded.primaryIssue?.reasonCode == issue.reasonCode)
+        #expect(decoded.helperCellConfiguration?.name == "Helper Surface")
+    }
+
+    @Test func conferenceIdentityLinkInboxExposesTypedAdmissionSessionAndRetryRequest() async throws {
+        let owner = Identity()
+        let agreement = Agreement(owner: owner)
+        agreement.name = "Binding Identity Link"
+
+        let helperConfiguration = CellConfiguration(name: "Identity Link Helper")
+        let issue = AdmissionChallengeIssueRecord(
+            conditionName: "sameEntityLink",
+            conditionType: "binding.same-entity",
+            state: .unmet,
+            reasonCode: "same_entity_link_review_required",
+            userMessage: "Review same-entity link request before continuing.",
+            requiredAction: "open_helper_configuration",
+            canAutoResolve: true,
+            helperCellConfiguration: helperConfiguration,
+            developerHint: "Prompt should surface session retry data."
+        )
+        let session = AdmissionSession(
+            label: "Identity link admission",
+            requesterUUID: "requester-abc",
+            targetCellUUID: "target-def",
+            agreementUUID: agreement.uuid,
+            agreementName: agreement.name,
+            connectState: .signContract,
+            primaryReasonCode: issue.reasonCode,
+            requiredAction: issue.requiredAction,
+            issueCount: 1
+        )
+        let payload = AdmissionChallengePayload(
+            state: .unmet,
+            connectState: .signContract,
+            agreement: agreement,
+            context: ConnectContext(source: nil, target: nil, identity: owner),
+            issues: [issue],
+            issueCount: 1,
+            sessionId: session.id,
+            session: session,
+            reasonCode: issue.reasonCode,
+            userMessage: issue.userMessage,
+            requiredAction: issue.requiredAction,
+            canAutoResolve: issue.canAutoResolve,
+            helperCellConfiguration: helperConfiguration,
+            developerHint: issue.developerHint
+        )
+        var payloadObject = try #require(BindingAdmissionChallengeSupport.encodeObject(payload))
+        payloadObject["requestId"] = .string("REQ-ADMISSION-1")
+        payloadObject["requestedDomains"] = .list([.string("private"), .string("scaffold")])
+        payloadObject["requestedIdentityContexts"] = .list([.string("private"), .string("scaffold")])
+        payloadObject["requestedScopes"] = .list([.string("entity-auth"), .string("personal-cells")])
+
+        let rawPayloadData = try #require(try? JSONEncoder().encode(payloadObject))
+        let rawPayload = try #require(String(data: rawPayloadData, encoding: .utf8))
+
+        let store = ConferenceIdentityLinkInboxStore.shared
+        await store.clear()
+        await store.setDraftInput(rawPayload)
+
+        #expect(await store.importDraft())
+
+        let state = await store.stateObject()
+        guard case let .object(admission)? = state["admission"] else {
+            Issue.record("Expected typed admission state object in identity-link inbox")
+            await store.clear()
+            return
+        }
+
+        #expect(admission["sessionSummary"] == .string("Session: \(session.id)"))
+        #expect(admission["requiredAction"] == .string("open_helper_configuration"))
+        #expect(admission["retrySummary"] == .string("Admission retry-request er klar fra delt session-id."))
+        #expect(await store.helperConfiguration()?.name == "Identity Link Helper")
+
+        guard case let .object(retryRequest)? = admission["retryRequest"] else {
+            Issue.record("Expected retryRequest object in typed admission state")
+            await store.clear()
+            return
+        }
+        #expect(retryRequest["sessionId"] == .string(session.id))
+        #expect(retryRequest["requesterUUID"] == .string("requester-abc"))
+
+        await store.clear()
+    }
+
+    @Test func portableSurfaceCacheStoreRoundTripsConfigurationAndSnapshotsFaithfully() async {
+        let endpoint = "cell://staging.haven.digipomps.org/ConferencePublicShell"
+        let configuration = CellConfiguration(name: "Conference Public Surface")
+        let snapshot: ValueType = .object([
+            "setup": .object([
+                "statusLabel": .string("Ready")
+            ]),
+            "draft": .object([
+                "cachePolicy": .string("useCache")
+            ])
+        ])
+
+        await PortableSurfaceCacheStore.shared.clearAll()
+        await PortableSurfaceCacheStore.shared.storeConfiguration(configuration, endpoint: endpoint)
+        await PortableSurfaceCacheStore.shared.storeSnapshot(snapshot, endpoint: endpoint, keypath: "state")
+
+        let restoredConfiguration = await PortableSurfaceCacheStore.shared.configuration(for: endpoint)
+        let restoredSnapshot = await PortableSurfaceCacheStore.shared.snapshot(for: endpoint, keypath: "state")
+        let metadata = await PortableSurfaceCacheStore.shared.metadata(for: endpoint)
+
+        #expect(restoredConfiguration?.name == "Conference Public Surface")
+        #expect(metadata?.hasConfiguration == true)
+        #expect(metadata?.cachedKeypaths == ["state"])
+        guard case let .object(restoredObject)? = restoredSnapshot else {
+            Issue.record("Expected cached snapshot object to roundtrip through the portable surface cache")
+            await PortableSurfaceCacheStore.shared.clearAll()
+            return
+        }
+        guard case let .object(restoredSetup)? = restoredObject["setup"] else {
+            Issue.record("Expected cached snapshot setup object to survive persistence")
+            await PortableSurfaceCacheStore.shared.clearAll()
+            return
+        }
+        guard case let .object(restoredDraft)? = restoredObject["draft"] else {
+            Issue.record("Expected cached snapshot draft object to survive persistence")
+            await PortableSurfaceCacheStore.shared.clearAll()
+            return
+        }
+        #expect(restoredSetup["statusLabel"] == .string("Ready"))
+        #expect(restoredDraft["cachePolicy"] == .string("useCache"))
+
+        await PortableSurfaceCacheStore.shared.clearAll()
     }
 
     @Test func conferenceAutomationHookParsesSupportedURLs() throws {
@@ -613,6 +990,46 @@ struct BindingTests {
 
         #expect(
             contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell"
+            ) == .init(
+                identityContext: "conference-participant-preview:preview-demo@staging.haven.digipomps.org",
+                displayName: "Conference Participant Preview"
+            )
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
+            ) == .init(
+                identityContext: "conference-participant-preview:preview-demo@staging.haven.digipomps.org",
+                displayName: "Conference Participant Preview"
+            )
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferencePublicProfilePreview"
+            ) == .init(
+                identityContext: "conference-participant-preview:preview-demo@staging.haven.digipomps.org",
+                displayName: "Conference Participant Preview"
+            )
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferencePublicProfileEditorPreview"
+            ) == .init(
+                identityContext: "conference-participant-preview:preview-demo@staging.haven.digipomps.org",
+                displayName: "Conference Participant Preview"
+            )
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
+                for: "cell://staging.haven.digipomps.org/ConferenceAdminPreviewShell"
+            ) == .init(
+                identityContext: "conference-admin-preview:preview-control-tower-v2@staging.haven.digipomps.org",
+                displayName: "Conference Admin Preview"
+            )
+        )
+        #expect(
+            contentView.preferredRequesterDescriptor(
                 for: "cell://staging.haven.digipomps.org/ConferenceAdminShell"
             ) == .init(
                 identityContext: "conference-organizer@staging.haven.digipomps.org",
@@ -649,16 +1066,16 @@ struct BindingTests {
         let contentView = ContentView()
 
         let stagingDescriptor = contentView.preferredRequesterDescriptor(
-            for: "cell://staging.haven.digipomps.org/ConferenceAdminShell"
+            for: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell"
         )
         let demoDescriptor = contentView.preferredRequesterDescriptor(
-            for: "cell://demo.haven.digipomps.org/ConferenceAdminShell"
+            for: "cell://demo.haven.digipomps.org/ConferenceParticipantPreviewShell"
         )
 
-        #expect(stagingDescriptor?.displayName == "Conference Organizer")
-        #expect(demoDescriptor?.displayName == "Conference Organizer")
-        #expect(stagingDescriptor?.identityContext == "conference-organizer@staging.haven.digipomps.org")
-        #expect(demoDescriptor?.identityContext == "conference-organizer@demo.haven.digipomps.org")
+        #expect(stagingDescriptor?.displayName == "Conference Participant Preview")
+        #expect(demoDescriptor?.displayName == "Conference Participant Preview")
+        #expect(stagingDescriptor?.identityContext == "conference-participant-preview:preview-demo@staging.haven.digipomps.org")
+        #expect(demoDescriptor?.identityContext == "conference-participant-preview:preview-demo@demo.haven.digipomps.org")
         #expect(stagingDescriptor != demoDescriptor)
     }
 
@@ -696,6 +1113,23 @@ struct BindingTests {
             requester: owner
         )
         #expect(adminTitle == .string("Conference Control Tower"))
+
+        guard let entityScanner = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///EntityScanner",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Could not resolve local EntityScanner")
+            return
+        }
+
+        let scannerState = try await entityScanner.get(
+            keypath: "state",
+            requester: owner
+        )
+        guard case .object = scannerState else {
+            Issue.record("Expected object state from local EntityScanner, got \(scannerState)")
+            return
+        }
     }
 
     @Test func conferenceAIAssistantGatewayProxyReturnsStateForPresetWrites() async throws {
@@ -817,9 +1251,7 @@ struct BindingTests {
             for: aiAssistantConfiguration,
             failureDetails: ["denied: preview owner required"]
         )
-        #expect(aiAssistantFallback?.cellReferences?.first?.endpoint == "cell:///ConferenceParticipantPreviewShell")
-        #expect(aiAssistantFallback?.cellReferences?.contains(where: { $0.label == "aiGateway" && $0.endpoint == "cell:///ConferenceAIAssistantGatewayProxy" }) == true)
-        #expect(aiAssistantFallback?.discovery?.sourceCellEndpoint == "cell:///ConferenceParticipantPreviewShell")
+        #expect(aiAssistantFallback == nil)
 
         #expect(
             contentView.localConferencePreviewFallbackConfiguration(
@@ -867,8 +1299,8 @@ struct BindingTests {
         )
         let namedParticipantChatConfiguration = ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
             participantEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            displayName: "Conference Chat · Ane Solberg",
-            summary: "Delt conference-chat med Ane Solberg."
+            displayName: "Conference Participant Chat · Ane Solberg",
+            summary: "Conference participant chat with Ane Solberg."
         )
         let controlTowerConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
             endpoint: "cell:///ConferenceAdminPreviewShell"
@@ -1089,6 +1521,81 @@ struct BindingTests {
         #expect(repairedRoute?.schemePreference == .wss)
     }
 
+    @Test func conferencePublicConfigurationRegistersRouteFromDiscoveryEndpoint() {
+        let contentView = ContentView()
+        let resolver = CellResolver.sharedInstance
+        let stagingHost = "staging.haven.digipomps.org"
+        let previousRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        defer {
+            if let previousRoute {
+                resolver.registerRemoteCellHost(stagingHost, route: previousRoute)
+            } else {
+                resolver.unregisterRemoteCellHost(stagingHost)
+            }
+        }
+
+        resolver.unregisterRemoteCellHost(stagingHost)
+
+        var configuration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: "cell://staging.haven.digipomps.org/ConferencePublicShell"
+        )
+        configuration.cellReferences = []
+
+        contentView.registerRemoteRoutesIfNeeded(for: configuration, resolver: resolver)
+
+        let repairedRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        #expect(repairedRoute?.websocketEndpoint == "bridgehead")
+        #expect(repairedRoute?.schemePreference == .wss)
+    }
+
+    @Test func conferencePublicSurfaceUsesCurrentSectionShape() {
+        let configuration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: "cell:///ConferencePublicShellFixture"
+        )
+
+        let references = configuration.cellReferences ?? []
+        #expect(references.contains(where: {
+            $0.label == "conferencePublicShell" && $0.endpoint == "cell:///ConferencePublicShellFixture" && $0.subscribeFeed
+        }))
+
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Conference public surface mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.workspace.title", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.workspace.ctaTitle", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.access.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.tracksIntro", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.sessionsIntro", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.peopleIntro", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.articlesIntro", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferencePublicShell.state.facilitiesIntro", in: skeleton))
+    }
+
+    @Test func conferenceControlTowerUsesCurrentSectionShape() {
+        let configuration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+            endpoint: "cell:///ConferenceAdminPreviewShell"
+        )
+
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Conference control tower mangler skeleton")
+            return
+        }
+
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.followUpStory.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.insightStory.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.access.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.audienceDiscovery.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.accessRequests.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.sessionThread.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.sessionPolling.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.simulation.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.system.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.sponsor.dashboardSummary", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "conferenceAdminShell.dispatchAction", in: skeleton))
+    }
+
     @Test func remoteEndpointAccessTreatsLoopbackBridgeheadAsLiveControlAgreement() {
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://127.0.0.1:43110/bridgehead/agent/identity") == .liveControlAgreement)
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://localhost:43110/bridgehead") == .liveControlAgreement)
@@ -1131,7 +1638,7 @@ struct BindingTests {
             $0.label == "discoverySnapshot" && $0.endpoint == "cell:///ConferenceParticipantDiscoverySnapshot"
         }))
         #expect(references.contains(where: { $0.label == "nearbyRadar" && $0.endpoint == "cell:///ConferenceNearbyRadar" }))
-        #expect(references.contains(where: { $0.label == "chatSnapshot" && $0.endpoint == "cell:///ConferenceParticipantChatSnapshot" }))
+        #expect(references.contains(where: { $0.label == "conferenceChat" && $0.endpoint == "cell:///ConferenceChatLaunch" }))
 
         guard let skeleton = configuration.skeleton else {
             Issue.record("Conference participant portal mangler skeleton")
@@ -1140,9 +1647,17 @@ struct BindingTests {
 
         #expect(skeletonContainsTextKeypath("agendaSnapshot.state.statusSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("agendaSnapshot.state.selectionSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.viewSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.navigationSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.trackSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.recommendedSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("agendaSnapshot.state.savedSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("agendaSnapshot.state.focusedActions", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.modeChoices", in: skeleton))
         #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.trackChoices", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.trackOptions", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.recommendedSessions", in: skeleton))
+        #expect(skeletonContainsGrid(keypath: "agendaSnapshot.state.timelineSessions", in: skeleton))
         #expect(skeletonContainsButton(keypath: "agendaSnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.statusSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("matchmakingSnapshot.state.selectionSummary", in: skeleton))
@@ -1160,13 +1675,21 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectionSummary", in: skeleton))
         #expect(skeletonContainsTextKeypath("nearbyRadar.state.actionSummary", in: skeleton))
-        #expect(skeletonContainsTextKeypath("chatSnapshot.state.statusSummary", in: skeleton))
-        #expect(skeletonContainsTextKeypath("chatSnapshot.state.selectionSummary", in: skeleton))
-        #expect(skeletonContainsTextKeypath("chatSnapshot.state.focusedThread.title", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "chatSnapshot.dispatchAction", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectedEntity.relevanceBadge", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectedEntity.purposeSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectedEntity.followUpSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectedEntity.title", in: skeleton))
+        #expect(skeletonContainsTextKeypath("nearbyRadar.state.selectedEntity.note", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceChat.state.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceChat.state.status", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceChat.state.conversationSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceChat.state.editor.toolingHint", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "conferenceChat.sendMessage", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "conferenceChat.dispatchAction", in: skeleton))
         #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "dispatchAction", in: skeleton))
         #expect(skeletonContainsButton(keypath: "discoverySnapshot.dispatchAction", in: skeleton))
-        #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+        #expect(!skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
         #expect(configuration.discovery?.sourceCellEndpoint == "cell:///ConferenceParticipantPreviewShell")
         #expect(configuration.discovery?.sourceCellName == "ConferenceParticipantPreviewShellLocalFallbackCell")
         #expect(configuration.description?.contains("lokal preview-wrapper") == true)
@@ -1232,6 +1755,311 @@ struct BindingTests {
         #expect(SkeletonBindingProbeSupport.failureDetail(from: stateValue) == nil)
     }
 
+    @Test func localBootstrapRegistersPerspectiveCell() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver after local startup bootstrap")
+            return
+        }
+        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup vault identity for local Perspective bootstrap")
+            return
+        }
+        guard let perspective = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///Perspective",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Expected locally registered Perspective during startup bootstrap")
+            return
+        }
+
+        let stateValue = try await perspective.get(
+            keypath: "perspective.state",
+            requester: owner
+        )
+
+        guard case .object = stateValue else {
+            Issue.record("Expected object perspective.state from local Perspective bootstrap, got \(stateValue)")
+            return
+        }
+    }
+
+    @Test func localBootstrapRegistersEntityScannerCell() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver after local startup bootstrap")
+            return
+        }
+        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup vault identity for local EntityScanner bootstrap")
+            return
+        }
+        guard let scanner = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///EntityScanner",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Expected locally registered EntityScanner during startup bootstrap")
+            return
+        }
+
+        let stateValue = try await scanner.get(
+            keypath: "state",
+            requester: owner
+        )
+
+        guard case .object = stateValue else {
+            Issue.record("Expected object EntityScanner state from local bootstrap, got \(stateValue)")
+            return
+        }
+    }
+
+    @Test func localBootstrapPathDoesNotBlockLaterEntityScannerRegistration() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver after local conference bootstrap path")
+            return
+        }
+        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup vault identity after local conference bootstrap path")
+            return
+        }
+        guard let scanner = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///EntityScanner",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Expected EntityScanner after local-first bootstrap path")
+            return
+        }
+
+        let stateValue = try await scanner.get(
+            keypath: "state",
+            requester: owner
+        )
+
+        guard case .object = stateValue else {
+            Issue.record("Expected object EntityScanner state after local-first bootstrap path, got \(stateValue)")
+            return
+        }
+    }
+
+    @Test func conferenceDemoRuntimeReadyKeepsStartupVaultAsDefault() async {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+
+        #expect(CellBase.defaultIdentityVault is BindingStartupIdentityVault)
+        #expect(!(CellBase.defaultIdentityVault is IdentityVault))
+    }
+
+    @Test func bindingStartupVaultRetainsPreviewIdentityAcrossAuthenticatedBootstrap() async {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        let startupIdentityBefore = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
+
+        await BindingRuntimeBootstrap.ensureBaseline()
+        let startupIdentityAfter = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
+
+        #expect(startupIdentityBefore?.uuid == startupIdentityAfter?.uuid)
+        #expect(CellBase.defaultIdentityVault is IdentityVault)
+    }
+
+    @Test func cellConfigurationVerifierDefaultsToStartupIdentityMode() {
+        #expect(CellConfigurationVerifier.verifierIdentityMode(environment: [:]) == .startup)
+    }
+
+    @Test func cellConfigurationVerifierReadsStartupIdentityModeFromEnvironment() {
+        #expect(
+            CellConfigurationVerifier.verifierIdentityMode(
+                environment: ["BINDING_VERIFIER_IDENTITY_MODE": "startup"]
+            ) == .startup
+        )
+    }
+
+    @Test func cellConfigurationVerifierReadsAppleIdentityModeFromEnvironment() {
+        #expect(
+            CellConfigurationVerifier.verifierIdentityMode(
+                environment: ["BINDING_VERIFIER_IDENTITY_MODE": "apple"]
+            ) == .apple
+        )
+    }
+
+    @Test func localConferenceAdminPreviewProvidesExtendedStateContract() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver for local conference admin preview")
+            return
+        }
+        guard let owner = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup identity for local conference admin preview")
+            return
+        }
+        guard let adminShell = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceAdminPreviewShell",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Expected ConferenceAdminPreviewShell to resolve locally")
+            return
+        }
+
+        let followUpHeadline = try await adminShell.get(
+            keypath: "state.followUpStory.headline",
+            requester: owner
+        )
+        let insightHeadline = try await adminShell.get(
+            keypath: "state.insightStory.headline",
+            requester: owner
+        )
+        let accessRequestsHeadline = try await adminShell.get(
+            keypath: "state.accessRequests.headline",
+            requester: owner
+        )
+        let simulationHeadline = try await adminShell.get(
+            keypath: "state.simulation.headline",
+            requester: owner
+        )
+        let systemHeadline = try await adminShell.get(
+            keypath: "state.system.headline",
+            requester: owner
+        )
+
+        #expect(followUpHeadline != .string("Innholdet er ikke tilgjengelig akkurat nå."))
+        #expect(insightHeadline != .string("Innholdet er ikke tilgjengelig akkurat nå."))
+        #expect(accessRequestsHeadline != .string("Innholdet er ikke tilgjengelig akkurat nå."))
+        #expect(simulationHeadline != .string("Innholdet er ikke tilgjengelig akkurat nå."))
+        #expect(systemHeadline != .string("Innholdet er ikke tilgjengelig akkurat nå."))
+    }
+
+    @Test func localConferenceAdminPreviewSupportsDraftFieldWrites() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver for admin draft write test")
+            return
+        }
+        guard let owner = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup identity for admin draft write test")
+            return
+        }
+        guard let adminShell = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceAdminPreviewShell",
+            requester: owner
+        ) as? Meddle else {
+            Issue.record("Expected ConferenceAdminPreviewShell to resolve locally")
+            return
+        }
+
+        _ = try await adminShell.set(
+            keypath: "contentPublishing.setDraftTitle",
+            value: .string("Updated from test"),
+            requester: owner
+        )
+
+        let updatedTitle = try await adminShell.get(
+            keypath: "state.content.draft.title",
+            requester: owner
+        )
+
+        #expect(updatedTitle == .string("Updated from test"))
+    }
+
+    @Test func localConferenceParticipantPreviewFallbackRestoresAfterCodableRoundTrip() async throws {
+        let owner = Identity()
+        let original = await ConferenceParticipantPreviewShellLocalFallbackCell(owner: owner)
+
+        _ = try await original.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.searchPeople"),
+                "payload": .object([
+                    "query": .string("governance")
+                ])
+            ]),
+            requester: owner
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ConferenceParticipantPreviewShellLocalFallbackCell.self, from: data)
+
+        var searchSummary: ValueType = .null
+        for _ in 0..<40 {
+            searchSummary = try await decoded.get(
+                keypath: "state.matches.searchSummary",
+                requester: owner
+            )
+            if searchSummary == .string("Search broadening: governance. No people marked for follow-up yet.") {
+                break
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        #expect(searchSummary == .string("Search broadening: governance. No people marked for follow-up yet."))
+    }
+
+    @Test func localConferenceAdminPreviewFallbackRestoresAfterCodableRoundTrip() async throws {
+        let owner = Identity()
+        let original = await ConferenceAdminPreviewShellLocalFallbackCell(owner: owner)
+
+        _ = try await original.set(
+            keypath: "contentPublishing.setDraftTitle",
+            value: .string("Roundtrip title"),
+            requester: owner
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ConferenceAdminPreviewShellLocalFallbackCell.self, from: data)
+
+        var restoredTitle: ValueType = .null
+        for _ in 0..<40 {
+            restoredTitle = try await decoded.get(
+                keypath: "state.content.draft.title",
+                requester: owner
+            )
+            if restoredTitle == .string("Roundtrip title") {
+                break
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        #expect(restoredTitle == .string("Roundtrip title"))
+    }
+
     @Test func effectiveDemoStartConfigurationOverridesNonLauncherStoredConfiguration() {
         let effectiveWhenMissing = ContentView.effectiveDemoStartConfiguration(
             storedConfiguration: nil
@@ -1289,7 +2117,7 @@ struct BindingTests {
         #expect(skeletonContainsButton(keypath: "matchmakingSnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsButton(keypath: "discoverySnapshot.dispatchAction", in: skeleton))
         #expect(skeletonContainsButton(keypath: "nearbyRadar.dispatchAction", in: skeleton))
-        #expect(skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
+        #expect(!skeletonContainsReference(keypath: "nearbyRadar", topic: "nearbyRadar.snapshot", in: skeleton))
     }
 
     @Test func conferenceParticipantPortalUsesReferenceLabelsForLocalConferenceActions() {
@@ -1336,9 +2164,10 @@ struct BindingTests {
         }
 
         #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.workspace.title", in: skeleton))
-        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.content.intro", in: skeleton))
-        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.operations.intro", in: skeleton))
-        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.insights.dashboardSummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.followUpStory.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.insightStory.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.audienceDiscovery.headline", in: skeleton))
+        #expect(skeletonContainsTextKeypath("conferenceAdminShell.state.system.headline", in: skeleton))
         #expect(skeletonContainsButton(keypath: "conferenceAdminShell.dispatchAction", in: skeleton))
     }
 
@@ -1486,7 +2315,7 @@ struct BindingTests {
 
         let expectedWorkbenchLoad = Task {
             await CellConfigurationVerifier.waitForPortholeLoadBridgeConfiguration(
-                containingName: "Conference Chat"
+                containingName: "Conference Participant Chat"
             )
         }
         let openChatResponse = try await context.porthole.set(
@@ -1515,13 +2344,13 @@ struct BindingTests {
                 requester: context.owner
             )
             Issue.record(
-                "Expected BindingPortholeLoadBridge request for Conference Chat. actionSummary=\(String(describing: actionSummary)) statusSummary=\(String(describing: statusSummary))"
+                "Expected BindingPortholeLoadBridge request for Conference Participant Chat. actionSummary=\(String(describing: actionSummary)) statusSummary=\(String(describing: statusSummary))"
             )
             return
         }
 
-        #expect(configuration.name.contains("Conference Chat"))
-        #expect(configuration.cellReferences?.contains(where: { $0.label == "chatSnapshot" }) == true)
+        #expect(configuration.name.contains("Conference Participant Chat"))
+        #expect(configuration.cellReferences?.contains(where: { $0.label == "conferenceChat" }) == true)
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceParticipantAgendaSnapshotReadable() async throws {
@@ -2947,6 +3776,7 @@ struct BindingTests {
         #expect(configurationString.contains("conferenceAdminShell.state.content.intro"))
     }
 
+    @MainActor
     @Test func conferenceAdminPreviewShellUsesOrganizerRequesterDescriptor() async throws {
         let subject = ContentView()
         let descriptor = subject.preferredRequesterDescriptor(
@@ -3587,6 +4417,73 @@ struct BindingTests {
         #expect(skeletonContainsTextKeypath("activitySummary", in: skeleton))
     }
 
+    @Test func configurationCatalogPublishesCatalogContractsForScaffoldParityFixtures() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        _ = try await cell.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
+        let contractsValue = try await cell.get(keypath: "catalogContracts", requester: owner)
+        guard case let .list(items) = contractsValue else {
+            Issue.record("Forventet liste fra catalogContracts")
+            return
+        }
+
+        let parityObject = items.compactMap { value -> Object? in
+            guard case let .object(object) = value else { return nil }
+            return bindingTestValueString(object["displayName"]) == "Skeleton Parity Text Fixture" ? object : nil
+        }.first
+
+        guard let parityObject else {
+            Issue.record("Fant ikke scaffold parity-kontrakt i catalogContracts")
+            return
+        }
+
+        #expect(bindingTestValueString(parityObject["sourceCellEndpoint"]) == "cell:///SkeletonParityTextFixture")
+        #expect(bindingTestValueStrings(parityObject["recommendedContexts"]).contains("binding"))
+        #expect(bindingTestValueStrings(parityObject["policyHints"]).contains("deterministic_fixture"))
+        #expect(bindingTestValueStrings(parityObject["categoryPath"]).contains("skeleton-parity"))
+
+        guard case let .object(ioSignature)? = parityObject["ioSignature"] else {
+            Issue.record("Forventet ioSignature i scaffold parity-kontrakten")
+            return
+        }
+        #expect(bindingTestValueStrings(ioSignature["getKeys"]).contains("purposeGoal"))
+    }
+
+    @Test func configurationCatalogPublishesCatalogWorkbenchContractIOKeys() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        let contractsValue = try await cell.get(keypath: "catalogContracts", requester: owner)
+        guard case let .list(items) = contractsValue else {
+            Issue.record("Forventet liste fra catalogContracts")
+            return
+        }
+
+        let workbenchObject = items.compactMap { value -> Object? in
+            guard case let .object(object) = value else { return nil }
+            return bindingTestValueString(object["displayName"]) == "Catalog Workbench" ? object : nil
+        }.first
+
+        guard let workbenchObject else {
+            Issue.record("Fant ikke Catalog Workbench i catalogContracts")
+            return
+        }
+
+        #expect(bindingTestValueStrings(workbenchObject["recommendedContexts"]).contains("catalog-curation"))
+        #expect(bindingTestValueStrings(workbenchObject["supportedTargetKinds"]).contains("tool"))
+
+        guard case let .object(ioSignature)? = workbenchObject["ioSignature"] else {
+            Issue.record("Forventet ioSignature i Catalog Workbench-kontrakten")
+            return
+        }
+
+        let getKeys = bindingTestValueStrings(ioSignature["getKeys"])
+        #expect(getKeys.contains("catalogContracts"))
+        #expect(getKeys.contains("catalogEntries"))
+        #expect(getKeys.contains("configurations"))
+    }
+
     private func makeOwnerIdentity() async -> Identity {
         CellBase.defaultIdentityVault = Self.testIdentityVault
         return await Self.testIdentityVault.identity(for: "private", makeNewIfNotFound: true)!
@@ -4168,7 +5065,13 @@ struct BindingTests {
 }
 
 private actor BindingTestIdentityVault: IdentityVaultProtocol {
-    private var identitiesByContext: [String: Identity] = [:]
+    private struct StoredIdentity {
+        var identity: Identity
+        let signingPrivateKey: P256.Signing.PrivateKey
+    }
+
+    private var identitiesByContext: [String: String] = [:]
+    private var identitiesByUUID: [String: StoredIdentity] = [:]
     private var idCounter = 1
 
     func initialize() async -> IdentityVaultProtocol {
@@ -4176,35 +5079,72 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
     }
 
     func addIdentity(identity: inout Identity, for identityContext: String) async {
+        let signingPrivateKey = P256.Signing.PrivateKey()
         identity.identityVault = self
-        identitiesByContext[identityContext] = identity
+        identity.publicSecureKey = SecureKey(
+            date: Date(),
+            privateKey: false,
+            use: .signature,
+            algorithm: .ECDSA,
+            size: 256,
+            curveType: .P256,
+            x: nil,
+            y: nil,
+            compressedKey: signingPrivateKey.publicKey.x963Representation
+        )
+
+        identitiesByContext[identityContext] = identity.uuid
+        identitiesByUUID[identity.uuid] = StoredIdentity(
+            identity: identity,
+            signingPrivateKey: signingPrivateKey
+        )
     }
 
     func identity(for identityContext: String, makeNewIfNotFound: Bool) async -> Identity? {
-        if let existing = identitiesByContext[identityContext] {
-            return existing
+        if let uuid = identitiesByContext[identityContext],
+           let stored = identitiesByUUID[uuid] {
+            let identity = stored.identity
+            identity.identityVault = self
+            return identity
         }
         guard makeNewIfNotFound else { return nil }
 
         let suffix = String(format: "%012d", idCounter)
         idCounter += 1
         let uuidString = "00000000-0000-0000-0000-\(suffix)"
-        let identity = Identity(uuidString, displayName: identityContext, identityVault: self)
-        identitiesByContext[identityContext] = identity
-        return identity
+        var identity = Identity(uuidString, displayName: identityContext, identityVault: self)
+        await addIdentity(identity: &identity, for: identityContext)
+        return await self.identity(for: identityContext, makeNewIfNotFound: false)
     }
 
     func saveIdentity(_ identity: Identity) async {
-        identitiesByContext[identity.displayName] = identity
+        guard let stored = identitiesByUUID[identity.uuid] else {
+            return
+        }
+        let updatedIdentity = identity
+        updatedIdentity.identityVault = self
+        identitiesByContext[updatedIdentity.displayName] = updatedIdentity.uuid
+        identitiesByUUID[updatedIdentity.uuid] = StoredIdentity(
+            identity: updatedIdentity,
+            signingPrivateKey: stored.signingPrivateKey
+        )
     }
 
     func signMessageForIdentity(messageData: Data, identity: Identity) async throws -> Data {
-        messageData + identity.uuid.data(using: .utf8, allowLossyConversion: false)!
+        guard let stored = identitiesByUUID[identity.uuid] else {
+            throw ScopedSecretProviderError.unavailable
+        }
+        let signature = try stored.signingPrivateKey.signature(for: messageData)
+        return signature.derRepresentation
     }
 
     func verifySignature(signature: Data, messageData: Data, for identity: Identity) async throws -> Bool {
-        let expected = messageData + identity.uuid.data(using: .utf8, allowLossyConversion: false)!
-        return signature == expected
+        guard let compressedKey = identity.publicSecureKey?.compressedKey else {
+            return false
+        }
+        let publicKey = try P256.Signing.PublicKey(x963Representation: compressedKey)
+        let ecdsaSignature = try P256.Signing.ECDSASignature(derRepresentation: signature)
+        return publicKey.isValidSignature(ecdsaSignature, for: messageData)
     }
 
     func randomBytes64() async -> Data? {
@@ -4261,6 +5201,7 @@ enum ConferenceVerifierFixtureSupport {
         await register(
             name: "ConferencePublicShellFixture",
             type: ConferencePublicShellFixtureCell.self,
+            scope: .identityUnique,
             on: resolver
         )
         await register(
@@ -4273,12 +5214,13 @@ enum ConferenceVerifierFixtureSupport {
     private static func register<CellType: Emit & OwnerInstantiable>(
         name: String,
         type: CellType.Type,
+        scope: CellUsageScope = .scaffoldUnique,
         on resolver: CellResolver
     ) async {
         do {
             try await resolver.addCellResolve(
                 name: name,
-                cellScope: .scaffoldUnique,
+                cellScope: scope,
                 persistency: .persistant,
                 identityDomain: "private",
                 type: type
@@ -4434,6 +5376,7 @@ private final class ConferencePublicShellFixtureCell: GeneralCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
         agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("r---", for: "feed")
         agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 
@@ -4628,7 +5571,8 @@ struct CellConfigurationVerifierTests {
             ]
         )
 
-        #expect(report.validation.errorCount == 0)
+        let validationErrorCount = await report.validation.errorCount
+        #expect(validationErrorCount == 0)
         #expect(report.unresolvedReferences.isEmpty)
         #expect(report.unreadableRootProbes.isEmpty)
         #expect(report.failedActions.isEmpty)
@@ -4670,7 +5614,8 @@ struct CellConfigurationVerifierTests {
             ]
         )
 
-        #expect(report.validation.errorCount == 0)
+        let validationErrorCount = await report.validation.errorCount
+        #expect(validationErrorCount == 0)
         #expect(report.unresolvedReferences.isEmpty)
         #expect(report.unreadableRootProbes.isEmpty)
         #expect(report.failedActions.isEmpty)
@@ -4687,7 +5632,8 @@ struct CellConfigurationVerifierTests {
             ]
         )
 
-        #expect(report.validation.errorCount == 0)
+        let validationErrorCount = await report.validation.errorCount
+        #expect(validationErrorCount == 0)
         #expect(report.unresolvedReferences.isEmpty)
         #expect(report.unreadableRootProbes.isEmpty)
         #expect(report.failedActions.isEmpty)
@@ -4702,11 +5648,12 @@ struct CellConfigurationVerifierTests {
                 "Tilbake til portalen"
             ],
             rootProbes: [
-                .init(label: "chatSnapshot", rootKeypath: "state")
+                .init(label: "conferenceChat", rootKeypath: "state")
             ]
         )
 
-        #expect(report.validation.errorCount == 0)
+        let validationErrorCount = await report.validation.errorCount
+        #expect(validationErrorCount == 0)
         #expect(report.unresolvedReferences.isEmpty)
         #expect(report.unreadableRootProbes.isEmpty)
         #expect(report.failedActions.isEmpty)
@@ -4784,14 +5731,12 @@ struct CellConfigurationVerifierTests {
         let report = try await CellConfigurationVerifier.renderReport(
             for: configuration,
             expectedVisibleStrings: [
-                "Conference Chat · Oppfølging",
-                "Conference chat · oppfølging",
-                "Delte tråder",
-                "Demo-deltager",
-                "Samtalen nå",
-                "Skriv melding",
-                "Send melding",
-                "Meldinger i tråden",
+                "Conference Participant Chat",
+                "Participants & Conversations",
+                "Recent Messages",
+                "Free-text Composer",
+                "Send fri melding",
+                "Tøm utkast",
                 "Tilbake til portalen"
             ]
         )
@@ -4804,7 +5749,13 @@ struct CellConfigurationVerifierTests {
 }
 
 enum CellConfigurationVerifier {
-    struct ReferenceResolution: Hashable {
+    enum VerifierIdentityMode: String {
+        case test
+        case startup
+        case apple
+    }
+
+    nonisolated struct ReferenceResolution: Hashable {
         let label: String
         let endpoint: String
         let durationMilliseconds: Double
@@ -4813,7 +5764,7 @@ enum CellConfigurationVerifier {
         var resolved: Bool { outcome == "ok" }
     }
 
-    struct RootProbeResolution: Hashable {
+    nonisolated struct RootProbeResolution: Hashable {
         let probe: SkeletonBindingProbeSupport.RootProbe
         let durationMilliseconds: Double
         let outcome: String
@@ -4821,7 +5772,7 @@ enum CellConfigurationVerifier {
         var readable: Bool { outcome == "ok" }
     }
 
-    struct ActionExecution: Hashable {
+    nonisolated struct ActionExecution: Hashable {
         let label: String
         let keypath: String
         let url: String?
@@ -4831,7 +5782,7 @@ enum CellConfigurationVerifier {
         var succeeded: Bool { outcome == "ok" }
     }
 
-    struct ContractReport {
+    nonisolated struct ContractReport {
         let configuration: CellConfiguration
         let validation: CellConfigurationValidationReport
         let referenceResolutions: [ReferenceResolution]
@@ -4909,11 +5860,12 @@ enum CellConfigurationVerifier {
     static func contractReport(
         for configuration: CellConfiguration,
         buttonsToExecute: Set<String> = [],
-        rootProbes: [SkeletonBindingProbeSupport.RootProbe]? = nil
+        rootProbes: [SkeletonBindingProbeSupport.RootProbe]? = nil,
+        identityMode: VerifierIdentityMode? = nil
     ) async throws -> ContractReport {
         let clock = ContinuousClock()
         let overallStart = clock.now
-        let context = try await makeRuntimeContext(for: configuration)
+        let context = try await makeRuntimeContext(for: configuration, identityMode: identityMode)
         let directBindingCandidates = directReadableBindings(for: context.configuration)
         let probes = rootProbes ?? SkeletonBindingProbeSupport.rootProbes(for: context.configuration)
 
@@ -4926,6 +5878,11 @@ enum CellConfigurationVerifier {
         let loadStart = clock.now
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+        try await waitForAttachedReferenceLabels(
+            in: context.configuration.cellReferences ?? [],
+            porthole: context.porthole,
+            requester: context.owner
+        )
         let loadMilliseconds = milliseconds(since: loadStart, clock: clock)
 
         let probeResolutions = try await readRootProbes(
@@ -4954,10 +5911,51 @@ enum CellConfigurationVerifier {
         )
     }
 
+    private static func waitForAttachedReferenceLabels(
+        in references: [CellReference],
+        porthole: OrchestratorCell,
+        requester: Identity
+    ) async throws {
+        let labels = references
+            .map { $0.label.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !labels.isEmpty else { return }
+
+        let maxAttempts = 12
+        let retryDelayNanoseconds: UInt64 = 120_000_000
+
+        for attempt in 1...maxAttempts {
+            var pendingLabels: [String] = []
+            for label in labels {
+                do {
+                    let status = try await withTimeout(
+                        seconds: 0.5,
+                        operation: "attachedStatus:\(label)"
+                    ) {
+                        try await porthole.attachedStatus(for: label, requester: requester)
+                    }
+                    if !status.active {
+                        pendingLabels.append(label)
+                    }
+                } catch {
+                    pendingLabels.append(label)
+                }
+            }
+
+            if pendingLabels.isEmpty || attempt == maxAttempts {
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
+        }
+    }
+
     static func nearbyFollowUpReport(
         for configuration: CellConfiguration,
         remoteUUID: String = "nearby-verified-001",
-        displayName: String = "Nora Berg"
+        displayName: String = "Nora Berg",
+        identityMode: VerifierIdentityMode? = nil
     ) async throws -> NearbyFollowUpReport {
         typealias NearbySnapshot = (
             status: String?,
@@ -4968,7 +5966,7 @@ enum CellConfigurationVerifier {
         )
 
         let clock = ContinuousClock()
-        let context = try await makeRuntimeContext(for: configuration)
+        let context = try await makeRuntimeContext(for: configuration, identityMode: identityMode)
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
         guard let nearbyRadar = try await context.resolver.cellAtEndpoint(
@@ -4982,6 +5980,7 @@ enum CellConfigurationVerifier {
             )
         }
 
+        @Sendable
         func nearbyStateSnapshot(
             from value: ValueType
         ) -> NearbySnapshot {
@@ -4998,8 +5997,8 @@ enum CellConfigurationVerifier {
                 object = rawObject
             }
 
-            let status = valueString(object["statusBadge"]) ?? valueString(object["status"])
-            let actionSummary = valueString(object["actionSummary"])
+            let status = bindingTestValueString(object["statusBadge"]) ?? bindingTestValueString(object["status"])
+            let actionSummary = bindingTestValueString(object["actionSummary"])
             let selectedEntity: Object?
             if case let .object(value)? = object["selectedEntity"] {
                 selectedEntity = value
@@ -5017,8 +6016,8 @@ enum CellConfigurationVerifier {
                 guard case let .object(value) = action else {
                     return nil
                 }
-                let title = valueString(value["title"])?.lowercased()
-                let label = valueString(value["label"])?.lowercased()
+                let title = bindingTestValueString(value["title"])?.lowercased()
+                let label = bindingTestValueString(value["label"])?.lowercased()
                 if title == "kontakt" || title == "chat" {
                     return value
                 }
@@ -5040,9 +6039,9 @@ enum CellConfigurationVerifier {
             return (
                 status,
                 actionSummary,
-                valueString(selectedPrimaryAction?["label"]),
-                valueString(selectedEntity?["purposeSummary"]),
-                valueString(selectedEntity?["note"])
+                bindingTestValueString(selectedPrimaryAction?["label"]),
+                bindingTestValueString(selectedEntity?["purposeSummary"]),
+                bindingTestValueString(selectedEntity?["note"])
             )
         }
 
@@ -5063,6 +6062,7 @@ enum CellConfigurationVerifier {
             from response: ValueType?,
             readOperation: String
         ) async throws -> String? {
+            @Sendable
             func actionSummaryImpliesExpectedStatus(_ snapshot: NearbySnapshot?) -> Bool {
                 guard let actionSummary = snapshot?.actionSummary?.lowercased() else {
                     return false
@@ -5352,11 +6352,11 @@ enum CellConfigurationVerifier {
                 sharedConnections = nil
             }
 
-            workspaceNextStep = valueString(workspace?["nextStep"])
-            sharedChatSummary = valueString(sharedConnections?["chatSummary"])
+            workspaceNextStep = bindingTestValueString(workspace?["nextStep"])
+            sharedChatSummary = bindingTestValueString(sharedConnections?["chatSummary"])
             if case let .list(messages)? = sharedConnections?["recentMessages"],
                case let .object(firstMessage)? = messages.first {
-                firstRecentMessage = valueString(firstMessage["detail"])
+                firstRecentMessage = bindingTestValueString(firstMessage["detail"])
             } else {
                 firstRecentMessage = nil
             }
@@ -5418,9 +6418,10 @@ enum CellConfigurationVerifier {
     @MainActor
     static func renderReport(
         for configuration: CellConfiguration,
-        expectedVisibleStrings: Set<String>
+        expectedVisibleStrings: Set<String>,
+        identityMode: VerifierIdentityMode? = nil
     ) async throws -> RenderReport {
-        let context = try await makeRuntimeContext(for: configuration)
+        let context = try await makeRuntimeContext(for: configuration, identityMode: identityMode)
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
 
@@ -5515,9 +6516,46 @@ enum CellConfigurationVerifier {
         }
     }
 
-    static func makeRuntimeContext(for configuration: CellConfiguration) async throws -> RuntimeContext {
-        let identityVault = BindingTests.testIdentityVault
-        _ = await identityVault.initialize()
+    static func verifierIdentityMode(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> VerifierIdentityMode {
+        guard let rawValue = environment["BINDING_VERIFIER_IDENTITY_MODE"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !rawValue.isEmpty else {
+            return .startup
+        }
+
+        switch rawValue {
+        case "startup", "local":
+            return .startup
+        case "apple", "signed-apple", "keychain":
+            return .apple
+        case "test", "deterministic":
+            return .test
+        default:
+            return .startup
+        }
+    }
+
+    static func makeRuntimeContext(
+        for configuration: CellConfiguration,
+        identityMode explicitIdentityMode: VerifierIdentityMode? = nil
+    ) async throws -> RuntimeContext {
+        let identityMode = explicitIdentityMode ?? verifierIdentityMode()
+        let identityVault: any IdentityVaultProtocol
+
+        switch identityMode {
+        case .test:
+            let vault = BindingTests.testIdentityVault
+            _ = await vault.initialize()
+            identityVault = vault
+        case .startup:
+            identityVault = await BindingStartupIdentityVault.shared.initialize()
+        case .apple:
+            identityVault = await IdentityVault.shared.initialize()
+        }
+
         CellBase.defaultIdentityVault = identityVault
         await BindingLaunchWarmup.preloadLocalRuntime()
         await BindingLocalCellRegistration.shared.ensureRegistered()
@@ -5543,9 +6581,10 @@ enum CellConfigurationVerifier {
         }
 
         let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(configuration) ?? configuration
+        let validation = await CellConfigurationValidationService.validate(repaired)
         return RuntimeContext(
             configuration: repaired,
-            validation: CellConfigurationValidationService.validate(repaired),
+            validation: validation,
             resolver: resolver,
             owner: owner,
             porthole: porthole
@@ -6043,7 +7082,7 @@ enum CellConfigurationVerifier {
                 (section.footer.map(collectButtons) ?? [])
         case .Reference(let reference):
             return reference.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
-        case .List(let list):
+        case .List:
             return []
         case .Grid(let grid):
             return grid.elements.flatMap(collectButtons)
@@ -6078,13 +7117,6 @@ enum CellConfigurationVerifier {
         let duration = clock.now - start
         let components = duration.components
         return (Double(components.seconds) * 1_000.0) + (Double(components.attoseconds) / 1_000_000_000_000_000.0)
-    }
-
-    private static func valueString(_ value: ValueType?) -> String? {
-        guard case let .string(string)? = value else {
-            return nil
-        }
-        return string
     }
 
 #if canImport(AppKit)
@@ -6136,4 +7168,23 @@ enum CellConfigurationVerifier {
         }
     }
 #endif
+}
+
+private func bindingTestValueString(_ value: ValueType?) -> String? {
+    guard case let .string(string)? = value else {
+        return nil
+    }
+    return string
+}
+
+private func bindingTestValueStrings(_ value: ValueType?) -> [String] {
+    guard case let .list(values)? = value else {
+        return []
+    }
+    return values.compactMap { entry in
+        guard case let .string(string) = entry else {
+            return nil
+        }
+        return string
+    }
 }

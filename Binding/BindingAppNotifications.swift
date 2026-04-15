@@ -72,6 +72,8 @@ enum BindingLaunchWarmup {
 }
 
 enum BindingRuntimeBootstrap {
+    nonisolated private static let localRuntimeOnlyVerifierFlagPath = "/tmp/binding-verifier-local-runtime.flag"
+
     @MainActor
     static func ensureInfrastructureBaseline() async {
         CellBase.sendDataAsText = true
@@ -112,17 +114,41 @@ enum BindingRuntimeBootstrap {
 
     @MainActor
     static func ensureBaseline() async {
+        if shouldUseLocalRuntimeOnlyForVerifier() {
+            await ensureInfrastructureBaseline()
+            return
+        }
+
         await ensureInfrastructureBaseline()
 
         let identityVault = IdentityVault.shared
         _ = await identityVault.initialize()
         CellBase.defaultIdentityVault = identityVault
+        await CellResolver.sharedInstance.refreshNamedResolveOwnersFromCurrentVault()
     }
 
     @MainActor
     static var authenticatedRuntimeIsReady: Bool {
-        CellBase.defaultIdentityVault is IdentityVault
+        if shouldUseLocalRuntimeOnlyForVerifier() {
+            return CellBase.defaultIdentityVault != nil
+                && CellBase.defaultCellResolver is CellResolver
+        }
+
+        return CellBase.defaultIdentityVault is IdentityVault
             && CellBase.defaultCellResolver is CellResolver
+    }
+
+    nonisolated static func shouldUseLocalRuntimeOnlyForVerifier(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        if let mode = environment["BINDING_VERIFIER_IDENTITY_MODE"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+           ["startup", "local", "test", "deterministic"].contains(mode) {
+            return true
+        }
+
+        return FileManager.default.fileExists(atPath: localRuntimeOnlyVerifierFlagPath)
     }
 
     private static func documentsDirectoryPath() -> String {

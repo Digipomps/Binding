@@ -1,7 +1,9 @@
 import Foundation
 import CellBase
 
-enum BindingConferenceConfigurationRepair {
+nonisolated enum BindingConferenceConfigurationRepair {
+    // Legacy support for stale menu-seeded configs. This should only lift old
+    // Binding-local configurations forward to the current workbench shape.
     private static let participantPortalName = "conference participant portal dashboard"
     private static let controlTowerName = "conference control tower"
 
@@ -95,11 +97,20 @@ enum BindingConferenceConfigurationRepair {
         })
         let skeletonJSON = serializedSkeleton(configuration.skeleton)
         let hasCurrentBindings = skeletonJSON.contains("\"conferenceAdminShell.state.workspace.title\"")
-            && skeletonJSON.contains("\"conferenceAdminShell.state.content.intro\"")
-            && skeletonJSON.contains("\"conferenceAdminShell.state.operations.intro\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.followUpStory.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.insightStory.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.access.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.audienceDiscovery.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.accessRequests.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.sessionThread.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.sessionPolling.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.simulation.headline\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.system.headline\"")
             && skeletonJSON.contains("\"conferenceAdminShell.state.insights.dashboardSummary\"")
+            && skeletonJSON.contains("\"conferenceAdminShell.state.sponsor.dashboardSummary\"")
             && skeletonJSON.contains("\"contentPublishing.publishDraft\"")
-            && skeletonJSON.contains("\"contentPublishing.discardDraft\"")
+            && skeletonJSON.contains("\"accessRequests.createRequest\"")
+            && skeletonJSON.contains("\"simulation.start\"")
 
         return !(hasAdminReference && hasCurrentBindings)
     }

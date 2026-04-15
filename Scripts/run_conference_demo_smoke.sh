@@ -5,8 +5,11 @@ APP_BINARY="${BINDING_APP_BINARY:-/Users/kjetil/Library/Developer/Xcode/DerivedD
 OUT_DIR="${1:-/tmp/binding-conference-smoke-$(date +%Y%m%d-%H%M%S)}"
 APP_NAME="Binding"
 AUTOMATION_MENU="Conference Automation"
+MODULE_CACHE_DIR="${BINDING_MODULE_CACHE_DIR:-$OUT_DIR/clang-module-cache}"
 
 mkdir -p "$OUT_DIR"
+mkdir -p "$MODULE_CACHE_DIR"
+export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR"
 
 if [[ ! -x "$APP_BINARY" ]]; then
   echo "Binding binary not found or not executable: $APP_BINARY" >&2

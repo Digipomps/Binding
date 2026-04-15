@@ -15,28 +15,7 @@ struct RootView: View {
     @State private var initialized = false
 
     var body: some View {
-        Group {
-            if initialized {
-                ContentView()
-                    .overlay(alignment: .top) {
-                        NotificationConsentBanner()
-                    }
-            } else {
-                ZStack {
-                    Color(nsColor: .windowBackgroundColor)
-                        .ignoresSafeArea()
-                    VStack(spacing: 12) {
-                        ProgressView()
-                        Text("Starter Binding-runtime…")
-                            .font(.headline)
-                        Text("Laster lokale celler og demooppsett før arbeidsflaten vises.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(24)
-                }
-            }
-        }
+        rootContent
         .task {
             if !initialized {
                 await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
@@ -60,5 +39,37 @@ struct RootView: View {
                 }
             } 
         }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        if initialized {
+            ContentView()
+                .overlay(alignment: .top) {
+                    NotificationConsentBanner()
+                }
+        } else {
+            ZStack {
+                launchBackgroundColor
+                    .ignoresSafeArea()
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Starter Binding-runtime…")
+                        .font(.headline)
+                    Text("Laster lokale celler og demooppsett før arbeidsflaten vises.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(24)
+            }
+        }
+    }
+
+    private var launchBackgroundColor: Color {
+#if os(iOS)
+        Color(uiColor: .systemBackground)
+#else
+        Color(nsColor: .windowBackgroundColor)
+#endif
     }
 }

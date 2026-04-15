@@ -4,19 +4,70 @@ set -euo pipefail
 PROJECT="/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj"
 SCHEME="Binding"
 DESTINATION="platform=macOS"
+
+surface="${1:-all}"
+layer="${2:-all}"
+identity_mode_arg="${3:-${BINDING_VERIFIER_IDENTITY_MODE:-startup}}"
+signing_mode_arg="${4:-${BINDING_VERIFIER_SIGNED:-unsigned}}"
+local_runtime_only_flag="/tmp/binding-verifier-local-runtime.flag"
+
+typeset -a tests
+typeset -a COMMON_ARGS
+
+case "${identity_mode_arg:l}" in
+  startup|local)
+    verifier_identity_mode="startup"
+    ;;
+  test|deterministic)
+    verifier_identity_mode="test"
+    ;;
+  apple|signed-apple|keychain)
+    verifier_identity_mode="apple"
+    ;;
+  *)
+    echo "Unknown verifier identity mode: $identity_mode_arg" >&2
+    echo "Expected one of: startup, test, apple" >&2
+    exit 64
+    ;;
+esac
+
+case "${signing_mode_arg:l}" in
+  signed|1|yes|true)
+    verifier_signed_mode=1
+    ;;
+  unsigned|0|no|false)
+    verifier_signed_mode=0
+    ;;
+  *)
+    echo "Unknown verifier signing mode: $signing_mode_arg" >&2
+    echo "Expected one of: unsigned, signed" >&2
+    exit 64
+    ;;
+esac
+
 COMMON_ARGS=(
   -project "$PROJECT"
   -scheme "$SCHEME"
   -destination "$DESTINATION"
   -disableAutomaticPackageResolution
-  CODE_SIGNING_ALLOWED=NO
-  test
 )
 
-surface="${1:-all}"
-layer="${2:-all}"
+if [[ "$verifier_signed_mode" -eq 0 ]]; then
+  COMMON_ARGS+=(CODE_SIGNING_ALLOWED=NO)
+fi
 
-typeset -a tests
+COMMON_ARGS+=(test)
+
+cleanup() {
+  rm -f "$local_runtime_only_flag"
+}
+trap cleanup EXIT
+
+if [[ "$verifier_identity_mode" == "startup" || "$verifier_identity_mode" == "test" ]]; then
+  touch "$local_runtime_only_flag"
+else
+  rm -f "$local_runtime_only_flag"
+fi
 
 add_test() {
   tests+=("$1")
@@ -118,7 +169,7 @@ case "$surface" in
     }
     ;;
   *)
-    echo "Usage: $0 [demo|launcher|identity|setup|ai|assistant|public|sponsor|participant|chat|nearby|profile|admin|all] [contract|render|all]" >&2
+    echo "Usage: $0 [demo|launcher|identity|setup|ai|assistant|public|sponsor|participant|chat|nearby|profile|admin|all] [contract|render|all] [startup|test|apple] [unsigned|signed]" >&2
     exit 64
     ;;
 esac
@@ -130,9 +181,16 @@ fi
 
 echo "Running conference configuration verifier:"
 printf '  %s\n' "${tests[@]}"
+echo "Verifier identity mode: $verifier_identity_mode"
+if [[ "$verifier_signed_mode" -eq 1 ]]; then
+  echo "Code signing: enabled"
+else
+  echo "Code signing: disabled"
+fi
 
 for test_name in "${tests[@]}"; do
   echo
   echo "==> $test_name"
-  xcodebuild "${COMMON_ARGS[@]}" -only-testing:"$test_name"
+  BINDING_VERIFIER_IDENTITY_MODE="$verifier_identity_mode" \
+    xcodebuild "${COMMON_ARGS[@]}" -only-testing:"$test_name"
 done

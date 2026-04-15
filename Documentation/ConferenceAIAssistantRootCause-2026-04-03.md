@@ -2,6 +2,15 @@
 
 Date checked: 2026-04-03
 
+Historical note on 2026-04-13:
+
+- this document describes the old failure mode where Binding effectively leaned on a local gateway proxy path
+- the current product/menu path is being moved back to the intended architecture: scaffold-hosted `ConferenceAIGatewayPreview` over ordinary bridge resolution
+- keep this note as root-cause history, not as the current ownership boundary
+- the old bridge timeout was retired after two general fixes:
+  - `CellScaffold` bridgehead now binds inbound preview bridges to the logical bridge reference
+  - Binding verifier identities now publish a real signing key so bridge admission can verify origin
+
 ## Summary
 
 `Conference AI Assistant` fails in Binding for a narrow reason:
@@ -118,4 +127,3 @@ What should **not** be done:
 - pretend the current bridge timeout is just a UI issue
 - hide the failure behind generic "content unavailable" copy
 - claim the embedded AI route is local when it is not
-

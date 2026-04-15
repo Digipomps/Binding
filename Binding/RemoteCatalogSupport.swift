@@ -1,7 +1,7 @@
 import Foundation
 @preconcurrency import CellBase
 
-enum RemoteEndpointAuthorizationKind: Equatable {
+nonisolated enum RemoteEndpointAuthorizationKind: Equatable {
     case none
     case scaffoldAdmission
     case liveControlAgreement
@@ -17,7 +17,8 @@ enum RemoteEndpointAccessSupport {
     )
     private static let stagingRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: "bridgehead",
-        schemePreference: .wss
+        schemePreference: .wss,
+        pathLayout: .publisherUUIDThenEndpoint
     )
 
     enum AccessError: Error, LocalizedError {
@@ -199,7 +200,10 @@ enum RemoteEndpointAccessSupport {
         let lhsPath = lhs.websocketEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         let rhsPath = rhs.websocketEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         guard lhsPath == rhsPath else { return false }
-        return schemePreferenceLabel(lhs.schemePreference) == schemePreferenceLabel(rhs.schemePreference)
+        guard schemePreferenceLabel(lhs.schemePreference) == schemePreferenceLabel(rhs.schemePreference) else {
+            return false
+        }
+        return pathLayoutLabel(lhs.pathLayout) == pathLayoutLabel(rhs.pathLayout)
     }
 
     private static func schemePreferenceLabel(_ preference: RemoteCellHostRoute.SchemePreference) -> String {
@@ -207,6 +211,15 @@ enum RemoteEndpointAccessSupport {
         case .automatic: return "automatic"
         case .ws: return "ws"
         case .wss: return "wss"
+        }
+    }
+
+    private static func pathLayoutLabel(_ layout: RemoteCellHostRoute.PathLayout) -> String {
+        switch layout {
+        case .endpointThenPublisherUUID:
+            return "endpoint-then-publisher"
+        case .publisherUUIDThenEndpoint:
+            return "publisher-then-endpoint"
         }
     }
 
@@ -252,7 +265,7 @@ final class RemoteEndpointAccessAuthorizer {
                 throw RemoteEndpointAccessSupport.AccessError.contractRejected(endpoint, connectState.rawValue)
             }
 
-            stateQueue.sync {
+            _ = stateQueue.sync {
                 scaffoldAdmissionKeys.insert(cacheKey)
             }
         case .liveControlAgreement:
@@ -263,7 +276,7 @@ final class RemoteEndpointAccessAuthorizer {
 
             try await LiveControlBridgeAuthorization.authorizeIfNeeded(emit, requester: requester)
 
-            stateQueue.sync {
+            _ = stateQueue.sync {
                 liveControlKeys.insert(cacheKey)
             }
         }

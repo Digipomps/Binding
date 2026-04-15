@@ -2,6 +2,10 @@
 
 This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 
+## Architecture notes
+- [SkeletonPortabilityRequirement.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonPortabilityRequirement.md)
+- [SkeletonParitySuite.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonParitySuite.md)
+
 ## Overview
 - Binding (app): Hosts a porthole canvas and edge menus to quickly load `CellConfiguration`s.
 - CellProtocol: A modular ecosystem comprising:
@@ -338,6 +342,7 @@ Projects importing CellProtocol must include:
 - Conference demo story: [Documentation/ConferenceDemoStory.md](Documentation/ConferenceDemoStory.md)
 - CellScaffold prompt for staged conference demo personas: [Documentation/CellScaffoldConferenceDemoPersonasPrompt.md](Documentation/CellScaffoldConferenceDemoPersonasPrompt.md)
 - CellScaffold parity prompt for conference demo flows: [Documentation/CellScaffoldConferenceParityPrompt.md](Documentation/CellScaffoldConferenceParityPrompt.md)
+- CellScaffold parity prompt for shared skeleton rendering: [Documentation/CellScaffoldSkeletonParityPrompt.md](Documentation/CellScaffoldSkeletonParityPrompt.md)
 - CellScaffold Playwright prompt for conference demo smoke tests: [Documentation/CellScaffoldPlaywrightPrompt.md](Documentation/CellScaffoldPlaywrightPrompt.md)
 - Cross-vault identity enrollment: [Documentation/CrossVaultIdentityEnrollment.md](Documentation/CrossVaultIdentityEnrollment.md)
 - VC profile for identity linking: [Documentation/IdentityLinkVCProfile.md](Documentation/IdentityLinkVCProfile.md)

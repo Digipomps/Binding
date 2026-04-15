@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 import CellBase
 import CellApple
 @testable import Binding
@@ -9,6 +10,39 @@ import AppKit
 
 @MainActor
 final class CellConfigurationVerifierXCTest: XCTestCase {
+    private static let remoteParitySentinelPath = "/tmp/binding-enable-remote-parity.flag"
+    private static let cellScaffoldRoot = "/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold"
+
+    private func makeLocalConferenceRuntimeContext() async throws -> (resolver: CellResolver, identity: Identity) {
+        CellBase.defaultIdentityVault = BindingStartupIdentityVault.shared
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            throw NSError(
+                domain: "CellConfigurationVerifierXCTest",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Expected shared CellResolver after local startup bootstrap"]
+            )
+        }
+
+        let identityVault = await BindingStartupIdentityVault.shared.initialize()
+        CellBase.defaultIdentityVault = identityVault
+
+        let identityContext = "conference-local-\(UUID().uuidString)"
+        guard let identity = await identityVault.identity(for: identityContext, makeNewIfNotFound: true) else {
+            throw NSError(
+                domain: "CellConfigurationVerifierXCTest",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Missing startup identity for local conference runtime"]
+            )
+        }
+
+        await ConferenceParticipantPreviewFallbackStateStore.shared.reset(for: identity.uuid)
+        return (resolver, identity)
+    }
+
     func testLocalConferenceDemoLauncherLoadsThroughStartupPorthole() async throws {
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
@@ -192,7 +226,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     func testConferenceAIAssistantContract() async throws {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///ConferenceAIGatewayPreview"
+            aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
         )
 
         let report = try await CellConfigurationVerifier.contractReport(
@@ -384,7 +418,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Tilbake til portalen"
             ],
             rootProbes: [
-                .init(label: "chatSnapshot", rootKeypath: "state")
+                .init(label: "conferenceChat", rootKeypath: "state")
             ]
         )
 
@@ -419,20 +453,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     }
 
     func testConferenceParticipantPreviewRecommendationFocusAndFollowUpActions() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
-        await AppInitializer.initialize()
-        await BindingLocalCellRegistration.shared.ensureRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            XCTFail("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            XCTFail("Missing private identity")
-            return
-        }
+        let (resolver, identity) = try await makeLocalConferenceRuntimeContext()
         guard let preview = try await resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceParticipantPreviewShell",
             requester: identity
@@ -534,20 +555,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     }
 
     func testConferenceParticipantMatchmakingSnapshotSupportsInlineSelectionAndActions() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
-        await AppInitializer.initialize()
-        await BindingLocalCellRegistration.shared.ensureRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            XCTFail("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            XCTFail("Missing private identity")
-            return
-        }
+        let (resolver, identity) = try await makeLocalConferenceRuntimeContext()
         guard let snapshot = try await resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
             requester: identity
@@ -618,7 +626,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(focusedProfile["publicProfileSummary"], ValueType.string("Offentlig profil: Public sector interoperability."))
         XCTAssertEqual(
             focusedProfile["nextStep"],
-            ValueType.string("Bruk Start chat, Marker for oppfølging eller Be om møte med Ane Solberg.")
+            ValueType.string("Åpne chatflaten eller be om møte med Ane Solberg.")
         )
         XCTAssertEqual(firstRecommendation["label"], ValueType.string("Valgt i siden"))
 
@@ -681,16 +689,14 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
 
-        let button = SkeletonButton(
+        let response = try await context.porthole.set(
             keypath: "matchmakingSnapshot.dispatchAction",
-            label: "Finn governance-matcher",
-            payload: .object([
+            value: .object([
                 "keypath": .string("matchmaking.searchPeople"),
                 "payload": .object(["query": .string("governance")])
-            ])
+            ]),
+            requester: context.owner
         )
-
-        let response = await button.execute()
         XCTAssertNotNil(response, "Renderer button path returned nil for Finn governance-matcher")
         if let response {
             XCTAssertNil(
@@ -720,20 +726,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     }
 
     func testConferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
-        await AppInitializer.initialize()
-        await BindingLocalCellRegistration.shared.ensureRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            XCTFail("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            XCTFail("Missing private identity")
-            return
-        }
+        let (resolver, identity) = try await makeLocalConferenceRuntimeContext()
         guard let snapshot = try await resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceParticipantDiscoverySnapshot",
             requester: identity
@@ -816,20 +809,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     }
 
     func testConferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
-        await AppInitializer.initialize()
-        await BindingLocalCellRegistration.shared.ensureRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            XCTFail("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            XCTFail("Missing private identity")
-            return
-        }
+        let (resolver, identity) = try await makeLocalConferenceRuntimeContext()
         guard let snapshot = try await resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceParticipantAgendaSnapshot",
             requester: identity
@@ -949,7 +929,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
 
         let expectedWorkbenchLoad = Task {
-            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Chat")
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Chat")
         }
         let openChatResponse = try await context.porthole.set(
             keypath: "chatSnapshot.dispatchAction",
@@ -980,15 +960,15 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
             XCTFail(
                 """
-                Expected BindingPortholeLoadBridge request for Conference Chat.
+                Expected BindingPortholeLoadBridge request for Conference Participant Chat.
                 actionSummary=\(String(describing: actionSummaryValue))
                 statusSummary=\(String(describing: statusSummaryValue))
                 """
             )
             return
         }
-        XCTAssertTrue(configuration.name.contains("Conference Chat"))
-        XCTAssertTrue(configuration.cellReferences?.contains(where: { $0.label == "chatSnapshot" }) == true)
+        XCTAssertTrue(configuration.name.contains("Conference Participant Chat"))
+        XCTAssertTrue(configuration.cellReferences?.contains(where: { $0.label == "conferenceChat" }) == true)
 
         guard let preview = try await context.resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceParticipantPreviewShell",
@@ -997,11 +977,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             XCTFail("ConferenceParticipantPreviewShell did not resolve after opening chat workbench")
             return
         }
-        guard let chatSnapshot = try await context.resolver.cellAtEndpoint(
-            endpoint: "cell:///ConferenceParticipantChatSnapshot",
+        guard let conferenceChat = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceChatLaunch",
             requester: context.owner
         ) as? Meddle else {
-            XCTFail("ConferenceParticipantChatSnapshot did not resolve after opening chat workbench")
+            XCTFail("ConferenceChatLaunch did not resolve after opening chat workbench")
             return
         }
 
@@ -1015,54 +995,47 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(sharedConnections["connectionSummary"], ValueType.string("1 shared relation(s) visible."))
         XCTAssertEqual(sharedConnections["chatSummary"], ValueType.string("2 shared message(s) visible."))
 
-        let chatState = try await chatSnapshot.get(keypath: "state", requester: context.owner)
+        let chatState = try await conferenceChat.get(keypath: "state", requester: context.owner)
         guard case let .object(chatObject) = chatState,
-              case let .object(focusedThread)? = chatObject["focusedThread"],
-              case let .list(recentMessages)? = chatObject["recentMessages"],
-              case let .object(firstRecentMessage)? = recentMessages.first else {
+              case let .list(participants)? = chatObject["participants"],
+              case let .list(conversations)? = chatObject["conversations"],
+              case let .list(messages)? = chatObject["messages"],
+              case let .object(firstParticipant)? = participants.first,
+              case let .object(firstConversation)? = conversations.first,
+              case let .object(firstMessage)? = messages.first else {
             XCTFail("Expected populated chat snapshot after opening chat workbench")
             return
         }
 
-        XCTAssertEqual(chatObject["selectionSummary"], ValueType.string("Viser den delte tråden med Ane Solberg."))
-        XCTAssertEqual(chatObject["personaSummary"], ValueType.string("Ane Solberg · Public sector interoperability"))
-        XCTAssertEqual(
-            chatObject["simulationSummary"],
-            ValueType.string("Demo-svarene holder seg til en bounded persona som representerer offentlig samhandling og governance.")
-        )
-        XCTAssertEqual(focusedThread["title"], ValueType.string("Ane Solberg"))
-        XCTAssertEqual(
-            focusedThread["nextMessage"],
-            ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.")
-        )
-        XCTAssertEqual(
-            chatObject["draftMessage"],
-            ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis.")
-        )
-        XCTAssertEqual(firstRecentMessage["title"], ValueType.string("Deg"))
+        XCTAssertEqual(chatObject["headline"], ValueType.string("Chat with Ane Solberg"))
+        XCTAssertEqual(chatObject["conversationSummary"], ValueType.string("1 shared relation(s) visible."))
+        XCTAssertEqual(chatObject["participantsSummary"], ValueType.string("Delt tråd aktiv med Ane Solberg."))
+        XCTAssertEqual(chatObject["messageSummary"], ValueType.string("2 meldinger synlige i tråden med Ane Solberg, eldste først."))
+        XCTAssertEqual(chatObject["bridgeSummary"], ValueType.string("Binding local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state."))
+        XCTAssertEqual(chatObject["editorDraft"], ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis."))
+        XCTAssertEqual(firstParticipant["title"], ValueType.string("Deg"))
+        XCTAssertEqual(firstConversation["title"], ValueType.string("Ane Solberg"))
+        XCTAssertEqual(firstMessage["title"], ValueType.string("Deg"))
 
-        _ = try await chatSnapshot.set(
-            keypath: "setDraftMessage",
-            value: .string("Hei Ane.  Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.  "),
+        _ = try await conferenceChat.set(
+            keypath: "setDraft",
+            value: .object(["text": .string("Hei Ane.  Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.  ")]),
             requester: context.owner
         )
 
-        let draftAfterTyping = try await chatSnapshot.get(keypath: "state", requester: context.owner)
+        let draftAfterTyping = try await conferenceChat.get(keypath: "state", requester: context.owner)
         guard case let .object(draftStateObject) = draftAfterTyping else {
             XCTFail("Expected chat snapshot state after updating draft")
             return
         }
         XCTAssertEqual(
-            draftStateObject["draftMessage"],
+            draftStateObject["editorDraft"],
             ValueType.string("Hei Ane.  Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.  ")
         )
 
-        let sendResponse = try await chatSnapshot.set(
-            keypath: "dispatchAction",
-            value: .object([
-                "keypath": .string("chat.sendDraftMessage"),
-                "payload": .bool(true)
-            ]),
+        let sendResponse = try await conferenceChat.set(
+            keypath: "sendMessage",
+            value: .bool(true),
             requester: context.owner
         )
         guard let sendResponse else {
@@ -1096,21 +1069,21 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             ValueType.string("Hei Ane.  Jeg vil gjerne snakke mer om governance-sporet etter neste sesjon.")
         )
 
-        let updatedChatState = try await chatSnapshot.get(keypath: "state", requester: context.owner)
+        let updatedChatState = try await conferenceChat.get(keypath: "state", requester: context.owner)
         guard case let .object(updatedChatObject) = updatedChatState else {
             XCTFail("Expected updated chat snapshot state after sending custom draft")
             return
         }
-        XCTAssertEqual(updatedChatObject["draftMessage"], ValueType.string(""))
+        XCTAssertEqual(updatedChatObject["editorDraft"], ValueType.string(""))
         XCTAssertEqual(
-            updatedChatObject["chatSummary"],
+            updatedChatObject["messageSummary"],
             ValueType.string("4 meldinger synlige i tråden med Ane Solberg, eldste først.")
         )
 
         let expectedPortalPop = Task {
             await waitForConferenceNavigationPopFallbackConfiguration(containingName: "Conference Participant Portal")
         }
-        let returnResponse = try await chatSnapshot.set(
+        let returnResponse = try await conferenceChat.set(
             keypath: "dispatchAction",
             value: .object([
                 "keypath": .string("openParticipantPortalWorkbench"),
@@ -1161,7 +1134,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
 
         let expectedWorkbenchLoad = Task {
-            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Chat")
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Chat")
         }
         let openChatResponse = try await context.porthole.set(
             keypath: "chatSnapshot.dispatchAction",
@@ -1194,14 +1167,15 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             )
             XCTFail(
                 """
-                Expected BindingPortholeLoadBridge request for Conference Chat after warming thread.
+                Expected BindingPortholeLoadBridge request for Conference Participant Chat after warming thread.
                 actionSummary=\(String(describing: actionSummaryValue))
                 statusSummary=\(String(describing: statusSummaryValue))
                 """
             )
             return
         }
-        XCTAssertTrue(workbenchConfiguration.name.contains("Conference Chat"))
+        XCTAssertTrue(workbenchConfiguration.name.contains("Conference Participant Chat"))
+        XCTAssertTrue(workbenchConfiguration.cellReferences?.contains(where: { $0.label == "conferenceChat" }) == true)
 
         guard let preview = try await context.resolver.cellAtEndpoint(
             endpoint: "cell:///ConferenceParticipantPreviewShell",
@@ -1220,11 +1194,19 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(sharedConnections["connectionSummary"], ValueType.string("1 shared relation(s) visible."))
         XCTAssertEqual(sharedConnections["chatSummary"], ValueType.string("2 shared message(s) visible."))
 
-        let selectionSummary = try await context.porthole.get(
-            keypath: "chatSnapshot.state.selectionSummary",
+        guard let conferenceChat = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///ConferenceChatLaunch",
             requester: context.owner
-        )
-        XCTAssertEqual(selectionSummary, ValueType.string("Viser den delte tråden med Ane Solberg."))
+        ) as? Meddle else {
+            XCTFail("ConferenceChatLaunch did not resolve after warming chat workbench")
+            return
+        }
+        let chatState = try await conferenceChat.get(keypath: "state", requester: context.owner)
+        guard case let .object(chatObject) = chatState else {
+            XCTFail("Expected chat state after warming chat workbench")
+            return
+        }
+        XCTAssertEqual(chatObject["launchSummary"], ValueType.string("Viser den delte tråden med Ane Solberg."))
     }
 
     func testConferenceDemoLauncherCanOpenIdentityLinkSetup() async throws {
@@ -1356,7 +1338,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertTrue(participantConfiguration.cellReferences?.contains(where: { $0.label == "matchmakingSnapshot" }) == true)
 
         let expectedChatLoad = Task {
-            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Chat")
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Chat")
         }
         let openChatResponse = try await context.porthole.set(
             keypath: "conferenceDemoLauncher.dispatchAction",
@@ -1376,11 +1358,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertNil(openChatFailure)
 
         guard let chatConfiguration = await expectedChatLoad.value else {
-            XCTFail("Expected BindingPortholeLoadBridge request for Conference Chat")
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Participant Chat")
             return
         }
-        XCTAssertTrue(chatConfiguration.name.contains("Conference Chat"))
-        XCTAssertTrue(chatConfiguration.cellReferences?.contains(where: { $0.label == "chatSnapshot" }) == true)
+        XCTAssertTrue(chatConfiguration.name.contains("Conference Participant Chat"))
+        XCTAssertTrue(chatConfiguration.cellReferences?.contains(where: { $0.label == "conferenceChat" }) == true)
 
         let expectedAIAssistantLoad = Task {
             await waitForPortholeLoadBridgeConfiguration(containingName: "Conference AI Assistant")
@@ -1530,7 +1512,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     func testConferenceAIAssistantButtonsUpdateDraftAndSessionKeyViaRendererExecutionPath() async throws {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///ConferenceAIGatewayPreview"
+            aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
         )
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
         context.porthole.detachAll(requester: context.owner)
@@ -1775,7 +1757,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     func testConferenceAIAssistantRenderer() async throws {
         let configuration = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///ConferenceAIGatewayPreview"
+            aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
         )
 
         let report = try await CellConfigurationVerifier.renderReport(
@@ -1882,8 +1864,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             for: configuration,
             expectedVisibleStrings: [
                 "Conference Control Tower",
-                "Publish content",
-                "Operations & Insights"
+                "Same Conference Reality",
+                "Organizer Insight Story",
+                "Simulation Studio",
+                "System Load & Storage",
+                "Sponsor / Exhibitor"
             ]
         )
 
@@ -1940,14 +1925,12 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let report = try await CellConfigurationVerifier.renderReport(
             for: configuration,
             expectedVisibleStrings: [
-                "Conference Chat · Oppfølging",
-                "Conference chat · oppfølging",
-                "Delte tråder",
-                "Demo-deltager",
-                "Samtalen nå",
-                "Skriv melding",
-                "Send melding",
-                "Meldinger i tråden",
+                "Conference Participant Chat",
+                "Participants & Conversations",
+                "Recent Messages",
+                "Free-text Composer",
+                "Send fri melding",
+                "Tøm utkast",
                 "Tilbake til portalen"
             ]
         )
@@ -1956,5 +1939,129 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
         XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
     }
+
+    func testConferencePublicProfileEditorExportedCellConfigurationLoadsRemotely() async throws {
+        try skipUnlessRemoteParityEnabled()
+
+        let configuration = try retargetedCellScaffoldExportedConfiguration(
+            at: "Documentation/ConfigurationCatalog/CellConfiguration.conference.public-profile.editor.json"
+        )
+
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        registerRemoteRoutes(for: context.configuration, resolver: context.resolver)
+
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let workspaceTitle = try await context.porthole.get(
+            keypath: "conferencePublicProfileEditor.state.workspace.title",
+            requester: context.owner
+        )
+        guard case let .string(title) = workspaceTitle else {
+            XCTFail("Expected workspace title string from exported public-profile editor configuration, got \(workspaceTitle)")
+            return
+        }
+
+        XCTAssertFalse(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        XCTAssertNil(SkeletonBindingProbeSupport.failureDetail(from: workspaceTitle))
+
+        let mutationResponse = try await context.porthole.set(
+            keypath: "conferencePublicProfileEditor.setHeadline",
+            value: .string("Binding verifier headline"),
+            requester: context.owner
+        )
+        XCTAssertNotNil(mutationResponse)
+        if let mutationResponse {
+            XCTAssertNil(SkeletonBindingProbeSupport.failureDetail(from: mutationResponse))
+        }
+    }
+
+    func testConferencePublicProfileViewerExportedCellConfigurationLoadsRemotely() async throws {
+        try skipUnlessRemoteParityEnabled()
+
+        let configuration = try retargetedCellScaffoldExportedConfiguration(
+            at: "Documentation/ConfigurationCatalog/CellConfiguration.conference.public-profile.json"
+        )
+
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        registerRemoteRoutes(for: context.configuration, resolver: context.resolver)
+
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let workspaceTitle = try await context.porthole.get(
+            keypath: "conferencePublicProfileViewer.state.workspace.title",
+            requester: context.owner
+        )
+        guard case let .string(title) = workspaceTitle else {
+            XCTFail("Expected workspace title string from exported public-profile viewer configuration, got \(workspaceTitle)")
+            return
+        }
+
+        XCTAssertFalse(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        XCTAssertNil(SkeletonBindingProbeSupport.failureDetail(from: workspaceTitle))
+
+        let profileState = try await context.porthole.get(
+            keypath: "conferencePublicProfileViewer.state.profile",
+            requester: context.owner
+        )
+        XCTAssertNil(SkeletonBindingProbeSupport.failureDetail(from: profileState))
+    }
 #endif
+
+    private func skipUnlessRemoteParityEnabled() throws {
+        let enabledInEnvironment = ProcessInfo.processInfo.environment["BINDING_ENABLE_REMOTE_PARITY"] == "1"
+        let sentinelExists = FileManager.default.fileExists(atPath: Self.remoteParitySentinelPath)
+        if !(enabledInEnvironment || sentinelExists) {
+            throw XCTSkip("Remote public-profile verifier krever BINDING_ENABLE_REMOTE_PARITY=1 eller \(Self.remoteParitySentinelPath)")
+        }
+    }
+
+    private func retargetedCellScaffoldExportedConfiguration(at relativePath: String) throws -> CellConfiguration {
+        let absolutePath = "\(Self.cellScaffoldRoot)/\(relativePath)"
+        let data = try Data(contentsOf: URL(fileURLWithPath: absolutePath))
+        let decoded = try JSONDecoder().decode(CellConfiguration.self, from: data)
+        let contentView = ContentView()
+        return CellConfigurationEndpointRetargeting.rewritingEndpoints(in: decoded) {
+            contentView.maybeRetargetLocalEndpointToStaging($0)
+        }
+    }
+
+    private func registerRemoteRoutes(for configuration: CellConfiguration, resolver: CellResolver) {
+        for endpoint in remoteEndpoints(in: configuration) {
+            RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
+        }
+    }
+
+    private func remoteEndpoints(in configuration: CellConfiguration) -> Set<String> {
+        var endpoints: Set<String> = []
+
+        if let endpoint = configuration.discovery?.sourceCellEndpoint,
+           endpoint.contains("://staging.haven.digipomps.org/") {
+            endpoints.insert(endpoint)
+        }
+
+        for reference in configuration.cellReferences ?? [] {
+            collectRemoteEndpoints(from: reference, into: &endpoints)
+        }
+
+        return endpoints
+    }
+
+    private func collectRemoteEndpoints(from reference: CellReference, into endpoints: inout Set<String>) {
+        if reference.endpoint.contains("://staging.haven.digipomps.org/") {
+            endpoints.insert(reference.endpoint)
+        }
+
+        for item in reference.setKeysAndValues {
+            if let target = item.target,
+               target.contains("://staging.haven.digipomps.org/") {
+                endpoints.insert(target)
+            }
+        }
+
+        for subscription in reference.subscriptions {
+            collectRemoteEndpoints(from: subscription, into: &endpoints)
+        }
+    }
 }

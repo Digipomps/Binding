@@ -26,6 +26,62 @@ The verifier gives us two explicit layers:
 
 This is not a replacement for live staging auth/bridge debugging. It is a local regression net above the config/skeleton/runtime contract.
 
+## Identity modes
+
+The verifier now has explicit identity modes instead of implicitly mixing keychain auth into every run:
+
+- `startup`
+  - uses `BindingStartupIdentityVault`
+  - suitable for deterministic renderer/bridge verification
+  - still produces real signatures and key agreement keys
+  - avoids pulling Apple keychain auth into runs that are not trying to test Apple auth
+- `test`
+  - uses `BindingTests.testIdentityVault`
+  - keeps older deterministic unit-test behavior for direct in-process test helpers
+- `apple`
+  - uses `IdentityVault.shared`
+  - intended for signed macOS runs that explicitly verify Apple keychain-backed auth
+
+The runner script defaults to `startup` for conference verifier runs. To verify Apple auth explicitly, run the verifier signed:
+
+```sh
+./Scripts/run_conference_configuration_verifier.sh identity render apple signed
+```
+
+## 2026-04-13 bridge verification outcome
+
+What now works:
+
+- the scaffold-hosted `ConferenceAIGatewayPreview` path renders through ordinary bridge resolution from Binding
+- the live staging bridgehead at `https://staging.haven.digipomps.org` is verified on app revision `328bb465dfd47a22e470baa6603458cca1c93970`
+- `./Scripts/run_conference_configuration_verifier.sh ai render` passed twice in a row after the bridgehead deploy and verifier identity fix
+
+What those successful runs depend on:
+
+- `CellScaffold` bridgehead must target the logical bridge reference (`bridgeId`) as the inbound publisher reference
+- the verifier requester identity must carry a real `publicSecureKey` and be able to produce verifiable signatures
+- no special skeleton path is involved; the same `CellConfiguration` loads through the same bridge/renderer stack as other remote cells
+
+What we learned:
+
+- the earlier timeout was two separate contract failures stacked together:
+  - bridgehead route semantics on the scaffold server
+  - verifier identities that were not cryptographically valid bridge identities
+- once both were corrected, the AI assistant path became a normal remote-cell render instead of a conference-specific exception
+
+## 2026-04-13 signed auth outcome
+
+What now works:
+
+- a signed macOS run of `testConferenceAIAssistantRenderer` passed with the Apple vault active
+- a signed macOS run of `testConferenceIdentityLinkRenderer` also passed with the Apple vault active
+- in those signed runs, the verifier used the Binding app container paths under `~/Library/Containers/com.digipomps.Binding/...`, which is the expected sandboxed app context
+
+What this supports:
+
+- the earlier `Authenticate failed ... -34018` was a verifier-runner mismatch, not evidence that Binding-on-macOS cannot use Apple keychain auth
+- ordinary renderer/bridge verification should stay on `startup` mode unless the purpose of the run is explicitly to verify Apple auth behavior
+
 ## Files
 
 - Verifier core: [BindingTests.swift](/Users/kjetil/Build/Digipomps/HAVEN/Binding/BindingTests/BindingTests.swift)
@@ -86,7 +142,8 @@ Current identity-link assertions:
 
 Current AI assistant assertions:
 
-- the AI assistant resolves participant context plus the local `ConferenceAIAssistantGatewayProxy`
+- the production/menu path for the AI assistant resolves participant context plus scaffold-hosted `ConferenceAIGatewayPreview`
+- the deterministic local verifier still uses an explicit local AI endpoint only for renderer/contract isolation, not as app-path truth
 - setup and prompt controls stay reachable through the renderer path:
   - `Load copilot system prompt`
   - `Fill request: Daily brief`
@@ -201,6 +258,31 @@ Current nearby radar assertions:
   - `Åpne profilflate` opens the dedicated participant profile workbench
 
 Current nearby radar state assertions:
+
+## 2026-04-15 local verifier outcome
+
+What now works locally:
+
+- `./Scripts/run_conference_configuration_verifier.sh nearby contract startup unsigned` passed
+- `./Scripts/run_conference_configuration_verifier.sh participant contract startup unsigned` passed
+- `CatalogAbsorbXCTest/testPortholeAbsorbsConfigurationCatalogAsCatalogLabel` passed in a separate macOS run
+
+What these successful runs depend on:
+
+- Binding verifier runs use the same `startup` identity mode consistently instead of mixing in Apple-auth implicitly
+- attached `CellReference` labels are allowed to become active before root probes and action execution are judged
+- conference contract helpers that are pure value/build logic are treated as non-UI seams instead of inheriting `MainActor` unnecessarily
+
+What we learned:
+
+- the nearby/profile flake was not a skeleton-schema defect and not a special-case conference bug
+- it was a deterministic attach timing issue between `loadCellConfiguration` and later root-probe/action assertions
+- waiting for attached labels after load aligns the verifier with the same attach semantics the renderer already depends on
+
+Remaining noise boundary:
+
+- local Binding-owned verifier noise from duplicate local registration is reduced by treating duplicate coding-name registration as harmless
+- remote parity still has separate staging-backed timeouts and should not be confused with local conference contract health
 
 - `selectionSummary` points at the currently focused participant
 - `matchSummary` explains how strong the currently focused or strongest nearby match looks

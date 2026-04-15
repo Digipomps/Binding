@@ -33,7 +33,7 @@ private struct BindingHostingWindowReader: NSViewRepresentable {
 }
 #endif
 
-enum ConfigurationPresentationSupport {
+nonisolated enum ConfigurationPresentationSupport {
     private static let viewportBoundConfigurationNames: Set<String> = [
         "conference participant portal dashboard"
     ]
@@ -58,7 +58,7 @@ enum ConfigurationPresentationSupport {
     }
 }
 
-enum SkeletonBindingProbeSupport {
+nonisolated enum SkeletonBindingProbeSupport {
     struct RootProbe: Hashable {
         let label: String
         let rootKeypath: String
@@ -277,6 +277,8 @@ struct ContentView: View {
     private static let stagingRemoteWebSocketPath = "bridgehead"
     private static let portholeEndpoint = "cell:///Porthole"
     private static let defaultConferenceSponsorOrganizationID = "sponsor-ai-digital-independence"
+    private static let defaultConferenceParticipantPreviewID = "preview-demo"
+    private static let defaultConferenceAdminPreviewID = "preview-control-tower-v2"
     private static let blockedLoadedReferenceNames: Set<String> = [
         "eventemitter",
         "entitieswrapper",
@@ -291,6 +293,8 @@ struct ContentView: View {
         "conferenceuirouter",
         "conferenceadminshell",
         "conferenceparticipantshell",
+        "conferencepublicprofileeditorpreview",
+        "conferencepublicprofilepreview",
         "conferencepublicshell",
         "conferencesponsorshell",
         "vault",
@@ -329,7 +333,7 @@ struct ContentView: View {
         let useDirectWebSocketForLocalReferences: Bool
     }
 
-    struct RemoteRequesterDescriptor: Hashable {
+    nonisolated struct RemoteRequesterDescriptor: Hashable {
         let identityContext: String
         let displayName: String
     }
@@ -360,6 +364,7 @@ struct ContentView: View {
     @State private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
     @State private var didApplyStoredDemoStart = false
+    @State private var didRepairPersistedConferenceLauncher = false
     @State private var didRepairPersistedConferencePortal = false
     @State private var didRepairPersistedConferenceControlTower = false
     @State private var activeConfiguration: CellConfiguration?
@@ -391,7 +396,8 @@ struct ContentView: View {
     )
     private static let stagingRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.stagingRemoteWebSocketPath,
-        schemePreference: .wss
+        schemePreference: .wss,
+        pathLayout: .publisherUUIDThenEndpoint
     )
 
     var body: some View {
@@ -841,6 +847,9 @@ struct ContentView: View {
 
             if shouldLoadWithoutAuthenticatedRuntimeBootstrap(startupConfiguration) {
                 await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+                await repairPersistedConferenceLauncherIfNeeded()
+                await repairPersistedConferencePortalIfNeeded()
+                await repairPersistedConferenceControlTowerIfNeeded()
                 diagnosticsStore.record(
                     domain: "binding.demo",
                     message: "Utsetter runtime-bootstrap til brukeren åpner en conference-flate som faktisk trenger identitet, resolver eller bridge."
@@ -848,7 +857,11 @@ struct ContentView: View {
                 return
             }
 
-            await AppInitializer.initialize()
+            if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            } else {
+                await AppInitializer.initialize()
+            }
             await BindingLocalCellRegistration.shared.ensureRegistered()
             await repairPersistedConferencePortalIfNeeded()
             await repairPersistedConferenceControlTowerIfNeeded()
@@ -1186,13 +1199,29 @@ struct ContentView: View {
 
     private func normalizeConfigurationForResolver(_ configuration: CellConfiguration, origin: CatalogOrigin?, resolver: CellResolver) -> CellConfiguration {
         var normalized = BindingConferenceConfigurationRepair.reconcile(configuration)
+        if var discovery = normalized.discovery,
+           let sourceCellEndpoint = discovery.sourceCellEndpoint {
+            discovery.sourceCellEndpoint = normalizeEndpointForResolver(
+                sourceCellEndpoint,
+                origin: origin,
+                resolver: resolver
+            )
+            normalized.discovery = discovery
+        }
         if let references = normalized.cellReferences {
             normalized.cellReferences = references.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
         }
         normalized = ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
         normalized = canonicalizeSkeletonReferencesIfNeeded(in: normalized)
         normalized = stabilizeKnownConferenceConfigurationIfNeeded(normalized)
+        registerRemoteRoutesIfNeeded(for: normalized, resolver: resolver)
         return ConfigurationPresentationSupport.viewportSafeConfiguration(normalized)
+    }
+
+    func registerRemoteRoutesIfNeeded(for configuration: CellConfiguration, resolver: CellResolver) {
+        for endpoint in remoteRegistrationEndpoints(in: configuration) {
+            RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
+        }
     }
 
     private func ensureCatalogReferenceBindingIfNeeded(
@@ -1633,15 +1662,18 @@ struct ContentView: View {
     }
 
     private var appToolbar: some View {
-        Group {
-            if usesCompactEditorChrome {
-                compactAppToolbar
-            } else {
-                regularAppToolbar
-            }
-        }
+        appToolbarContent
         .padding(10)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var appToolbarContent: some View {
+        if usesCompactEditorChrome {
+            compactAppToolbar
+        } else {
+            regularAppToolbar
+        }
     }
 
     private var regularAppToolbar: some View {
@@ -2426,12 +2458,77 @@ struct ContentView: View {
     }
 
     @MainActor
+    private func repairPersistedConferenceLauncherIfNeeded() async {
+        guard !didRepairPersistedConferenceLauncher else { return }
+        didRepairPersistedConferenceLauncher = true
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let identity = await startupRequesterIdentity(),
+              let porthole = try? await resolver.cellAtEndpoint(
+                endpoint: Self.portholeEndpoint,
+                requester: identity
+              ) as? OrchestratorCell
+        else {
+            return
+        }
+
+        let statusValue = try? await porthole.get(
+            keypath: "conferenceDemoLauncher.state.statusSummary",
+            requester: identity
+        )
+        let skeletonValue = try? await porthole.get(
+            keypath: "skeleton",
+            requester: identity
+        )
+        let skeletonText: String?
+        if case let .string(text)? = skeletonValue {
+            skeletonText = text
+        } else {
+            skeletonText = nil
+        }
+
+        let currentlyLooksLikeLauncher =
+            activeConfiguration?.name == "Conference Demo Launcher"
+            || skeletonText?.contains("Conference Demo Launcher") == true
+
+        guard currentlyLooksLikeLauncher else {
+            return
+        }
+
+        if let statusValue,
+           SkeletonBindingProbeSupport.failureDetail(from: statusValue) == nil {
+            return
+        }
+
+        diagnosticsStore.record(
+            severity: .warning,
+            domain: "binding.demo",
+            message: "Fant ustabil eller persisted Conference Demo Launcher i Porthole. Laster launcheren pa nytt med aktiv local requester."
+        )
+
+        let repairedConfiguration = Self.defaultDemoStartConfiguration()
+        do {
+            try await porthole.loadCellConfiguration(repairedConfiguration, requester: identity)
+            activeConfiguration = repairedConfiguration
+            loadErrorMessage = nil
+            diagnosticsStore.refreshValidation(for: repairedConfiguration)
+        } catch {
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.demo",
+                message: "Direkte reparasjon av Conference Demo Launcher feilet. Prover vanlig last: \(error)"
+            )
+            queueConfigurationLoad(repairedConfiguration, navigationMode: .reset)
+        }
+    }
+
+    @MainActor
     private func repairPersistedConferencePortalIfNeeded() async {
         guard !didRepairPersistedConferencePortal else { return }
         didRepairPersistedConferencePortal = true
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
-              let identity = await privateRequesterIdentity(),
+              let identity = await startupRequesterIdentity(),
               let porthole = try? await resolver.cellAtEndpoint(
                 endpoint: Self.portholeEndpoint,
                 requester: identity
@@ -2512,7 +2609,7 @@ struct ContentView: View {
         didRepairPersistedConferenceControlTower = true
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
-              let identity = await privateRequesterIdentity(),
+              let identity = await startupRequesterIdentity(),
               let porthole = try? await resolver.cellAtEndpoint(
                 endpoint: Self.portholeEndpoint,
                 requester: identity
@@ -2545,6 +2642,17 @@ struct ContentView: View {
             return
         }
 
+        func hasReadableBindingValue(_ value: ValueType?) -> Bool {
+            guard let value else { return false }
+            if SkeletonBindingProbeSupport.failureDetail(from: value) != nil {
+                return false
+            }
+            if case let .string(text) = value {
+                return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            }
+            return true
+        }
+
         let contentIntro = try? await porthole.get(
             keypath: "conferenceAdminShell.state.content.intro",
             requester: identity
@@ -2558,12 +2666,9 @@ struct ContentView: View {
             requester: identity
         )
 
-        if let contentIntro,
-           SkeletonBindingProbeSupport.failureDetail(from: contentIntro) == nil,
-           let operationsIntro,
-           SkeletonBindingProbeSupport.failureDetail(from: operationsIntro) == nil,
-           let insightsSummary,
-           SkeletonBindingProbeSupport.failureDetail(from: insightsSummary) == nil {
+        if hasReadableBindingValue(contentIntro),
+           hasReadableBindingValue(operationsIntro),
+           hasReadableBindingValue(insightsSummary) {
             return
         }
 
@@ -2810,7 +2915,7 @@ struct ContentView: View {
             }
         case .openFocusedChatWorkbench:
             _ = await dispatchConferenceAutomationAction(
-                endpoint: "cell:///ConferenceParticipantChatSnapshot",
+                endpoint: "cell:///ConferenceChatLaunch",
                 actionKeypath: "openChatWorkbenchForSelectedParticipant"
             )
 #if canImport(AppKit)
@@ -2863,14 +2968,14 @@ struct ContentView: View {
         }
 
         do {
-            guard let proxy = try await resolver.cellAtEndpoint(
-                endpoint: "cell:///ConferenceAIAssistantGatewayProxy",
+            guard let gatewayPreview = try await resolver.cellAtEndpoint(
+                endpoint: "cell://\(Self.stagingHost)/ConferenceAIGatewayPreview",
                 requester: requester
             ) as? Meddle else {
                 throw ConferenceAutomationAIAccessError.proxyMissing
             }
 
-            let value = try await proxy.get(keypath: "state", requester: requester)
+            let value = try await gatewayPreview.get(keypath: "state", requester: requester)
             let summary = conferenceAutomationAISummary(from: value)
             print(summary)
             await MainActor.run {
@@ -3057,7 +3162,7 @@ struct ContentView: View {
         var errorDescription: String? {
             switch self {
             case .proxyMissing:
-                return "ConferenceAIAssistantGatewayProxy kunne ikke resolves lokalt."
+                return "ConferenceAIGatewayPreview kunne ikke resolves fra scaffold-runtime."
             }
         }
     }
@@ -3107,12 +3212,19 @@ struct ContentView: View {
             return true
         }
 
+        if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            return true
+        }
+
         updateLoadingStatus(
             "Venter på autentisering og runtime-bootstrap for \(configurationName)…",
             requestID: requestID
         )
         await BindingRuntimeBootstrap.ensureBaseline()
-        await AppInitializer.initialize()
+        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+            await AppInitializer.initialize()
+        }
         await BindingRuntimeBootstrap.ensureBaseline()
         await BindingLocalCellRegistration.shared.ensureRegistered()
         if runtimeBootstrapIsReady {
@@ -3746,12 +3858,6 @@ struct ContentView: View {
 
         switch remoteCellName(from: primaryReference.endpoint) {
         case "conferenceparticipantpreviewshell":
-            if configuration.name == "Conference AI Assistant" {
-                return ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
-                    conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-                    aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
-                )
-            }
             return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
                 endpoint: "cell:///ConferenceParticipantPreviewShell"
             )
@@ -3837,12 +3943,12 @@ struct ContentView: View {
         return .ScrollView(scroll)
     }
 
-    private enum RootBindingAvailability {
+    nonisolated private enum RootBindingAvailability {
         case ready(attempts: Int)
         case failed([SkeletonBindingProbeSupport.RootProbe: String])
     }
 
-    private struct BindingProbeTimeoutError: LocalizedError {
+    nonisolated private struct BindingProbeTimeoutError: LocalizedError {
         let keypath: String
 
         var errorDescription: String? {
@@ -3850,7 +3956,7 @@ struct ContentView: View {
         }
     }
 
-    private struct ConfigurationLoadTimeoutError: LocalizedError {
+    nonisolated private struct ConfigurationLoadTimeoutError: LocalizedError {
         let configurationName: String
 
         var errorDescription: String? {
@@ -4093,7 +4199,22 @@ struct ContentView: View {
         )
 
         switch cellName {
-        case "conferenceadminshell", "conferenceadminpreviewshell", "conferenceuirouter":
+        case "conferenceparticipantpreviewshell",
+             "conferenceaigatewaypreview",
+             "conferencepublicprofilepreview",
+             "conferencepublicprofileeditorpreview":
+            return previewRequesterDescriptor(
+                baseContext: "conference-participant-preview:\(Self.defaultConferenceParticipantPreviewID)",
+                displayName: "Conference Participant Preview",
+                endpoint: endpoint
+            )
+        case "conferenceadminpreviewshell":
+            return previewRequesterDescriptor(
+                baseContext: "conference-admin-preview:\(Self.defaultConferenceAdminPreviewID)",
+                displayName: "Conference Admin Preview",
+                endpoint: endpoint
+            )
+        case "conferenceadminshell", "conferenceuirouter":
             return RemoteRequesterDescriptor(
                 identityContext: organizerContext,
                 displayName: "Conference Organizer"
@@ -4115,6 +4236,20 @@ struct ContentView: View {
         default:
             return nil
         }
+    }
+
+    private func previewRequesterDescriptor(
+        baseContext: String,
+        displayName: String,
+        endpoint: String
+    ) -> RemoteRequesterDescriptor {
+        RemoteRequesterDescriptor(
+            identityContext: remoteScopedIdentityContext(
+                baseContext: baseContext,
+                endpoint: endpoint
+            ),
+            displayName: displayName
+        )
     }
 
     private func remoteScopedIdentityContext(baseContext: String, endpoint: String) -> String {
@@ -4155,6 +4290,13 @@ struct ContentView: View {
     private func startupRequesterIdentity() async -> Identity? {
         await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
     }
+
+#if !canImport(AppKit)
+    @MainActor
+    private func focusConferenceAutomationWindow() {
+        // iOS has no top-level app window automation to focus.
+    }
+#endif
 
 #if canImport(AppKit)
     @MainActor
@@ -4227,7 +4369,10 @@ struct ContentView: View {
         let lhsPath = lhs.websocketEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         let rhsPath = rhs.websocketEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         guard lhsPath == rhsPath else { return false }
-        return schemePreferenceLabel(lhs.schemePreference) == schemePreferenceLabel(rhs.schemePreference)
+        guard schemePreferenceLabel(lhs.schemePreference) == schemePreferenceLabel(rhs.schemePreference) else {
+            return false
+        }
+        return pathLayoutLabel(lhs.pathLayout) == pathLayoutLabel(rhs.pathLayout)
     }
 
     private func schemePreferenceLabel(_ preference: RemoteCellHostRoute.SchemePreference) -> String {
@@ -4235,6 +4380,15 @@ struct ContentView: View {
         case .automatic: return "automatic"
         case .ws: return "ws"
         case .wss: return "wss"
+        }
+    }
+
+    private func pathLayoutLabel(_ layout: RemoteCellHostRoute.PathLayout) -> String {
+        switch layout {
+        case .endpointThenPublisherUUID:
+            return "endpoint-then-publisher"
+        case .publisherUUIDThenEndpoint:
+            return "publisher-then-endpoint"
         }
     }
 
@@ -4813,7 +4967,8 @@ struct ContentView: View {
 
         let canonicalRoute = RemoteCellHostRoute(
             websocketEndpoint: Self.stagingRemoteWebSocketPath,
-            schemePreference: .wss
+            schemePreference: .wss,
+            pathLayout: .publisherUUIDThenEndpoint
         )
         registerRemoteHostIfNeeded(host, route: canonicalRoute, resolver: resolver)
         do {
@@ -4978,16 +5133,23 @@ struct ContentView: View {
             accessLabel: "binding.recoverConfiguration"
         )
         else {
-            return nil
+            return await cachedRecoveredConfiguration(
+                for: endpoint,
+                resolver: resolver
+            )
         }
 
         for keypath in ["skeletonConfiguration", "purposeGoal", "configuration"] {
             guard let value = try? await cell.get(keypath: keypath, requester: requester),
-                  let recoveredConfiguration = extractConfigurationFromRecoveredValue(value)
+                  let recoveredConfiguration = PortableSurfaceContractSupport.extractConfiguration(from: value)
             else {
                 continue
             }
 
+            await PortableSurfaceCacheStore.shared.storeConfiguration(
+                recoveredConfiguration,
+                endpoint: endpoint
+            )
             let origin = catalogOrigin(from: endpoint)
             let normalized = normalizeConfigurationForResolver(
                 recoveredConfiguration,
@@ -5002,36 +5164,67 @@ struct ContentView: View {
             return sanitized
         }
 
-        return nil
+        return await cachedRecoveredConfiguration(
+            for: endpoint,
+            resolver: resolver
+        )
     }
 
     private func extractConfigurationFromRecoveredValue(_ value: ValueType) -> CellConfiguration? {
-        if let direct = decodeCellConfiguration(from: value) {
-            return direct
-        }
-        guard case let .object(object) = value else { return nil }
-        if let configuration = decodeCellConfiguration(from: object["configuration"]) {
-            return configuration
-        }
-        if let configuration = decodeCellConfiguration(from: object["goal"]) {
-            return configuration
-        }
-        if let configuration = decodeCellConfiguration(from: object["skeletonConfiguration"]) {
-            return configuration
-        }
-        return nil
+        PortableSurfaceContractSupport.extractConfiguration(from: value)
     }
 
     private func decodeCellConfiguration(from value: ValueType?) -> CellConfiguration? {
-        guard let value else { return nil }
-        switch value {
-        case .cellConfiguration(let configuration):
-            return configuration
-        case .object(let object):
-            guard let data = try? JSONEncoder().encode(object) else { return nil }
-            return try? JSONDecoder().decode(CellConfiguration.self, from: data)
-        default:
+        PortableSurfaceContractSupport.decodeCellConfiguration(from: value)
+    }
+
+    private func cachedRecoveredConfiguration(
+        for endpoint: String,
+        resolver: CellResolver
+    ) async -> CellConfiguration? {
+        guard let recoveredConfiguration = await PortableSurfaceCacheStore.shared.configuration(for: endpoint) else {
             return nil
+        }
+
+        let origin = catalogOrigin(from: endpoint)
+        let normalized = normalizeConfigurationForResolver(
+            recoveredConfiguration,
+            origin: origin,
+            resolver: resolver
+        )
+        return sanitizedLoadedConfiguration(normalized, allowReferenceFree: false)
+    }
+
+    private func remoteRegistrationEndpoints(in configuration: CellConfiguration) -> Set<String> {
+        var endpoints: Set<String> = []
+        if let discoveryEndpoint = configuration.discovery?.sourceCellEndpoint?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !discoveryEndpoint.isEmpty {
+            endpoints.insert(discoveryEndpoint)
+        }
+
+        for reference in configuration.cellReferences ?? [] {
+            collectEndpointStrings(from: reference, into: &endpoints)
+        }
+        return endpoints
+    }
+
+    private func collectEndpointStrings(from reference: CellReference, into endpoints: inout Set<String>) {
+        let endpoint = reference.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !endpoint.isEmpty {
+            endpoints.insert(endpoint)
+        }
+
+        for subscription in reference.subscriptions {
+            collectEndpointStrings(from: subscription, into: &endpoints)
+        }
+
+        for keyValue in reference.setKeysAndValues {
+            guard let target = keyValue.target?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !target.isEmpty
+            else {
+                continue
+            }
+            endpoints.insert(target)
         }
     }
 
@@ -5217,8 +5410,8 @@ struct ContentView: View {
 
     static func conferenceAIAssistantAutomationConfiguration() -> CellConfiguration {
         ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
-            conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
+            conferenceEndpoint: "cell://\(Self.stagingHost)/ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell://\(Self.stagingHost)/ConferenceAIGatewayPreview"
         )
     }
 
@@ -5398,10 +5591,9 @@ struct ContentView: View {
     }
 
     private func retargetConfigurationToStagingIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration {
-        var updated = configuration
-        guard let references = configuration.cellReferences, !references.isEmpty else { return updated }
-        updated.cellReferences = references.map { retargetReferenceToStagingIfNeeded($0) }
-        return updated
+        CellConfigurationEndpointRetargeting.rewritingEndpoints(in: configuration) {
+            maybeRetargetLocalEndpointToStaging($0)
+        }
     }
 
     private func retargetReferenceToStagingIfNeeded(_ reference: CellReference) -> CellReference {
@@ -5482,19 +5674,7 @@ private struct PortholeCanvas: View {
             Color(.white)
 #endif
             GeometryReader { proxy in
-                Group {
-                    if isEditing {
-                        EditorSelectableSkeletonView(
-                            element: skeleton,
-                            path: .root,
-                            selectedPath: selectedNodePath,
-                            highlightedDropTargetPaths: Set(highlightedDropTargets.map(\.path)),
-                            onSelect: onSelectPath
-                        )
-                    } else {
-                        SkeletonView(element: skeleton)
-                    }
-                }
+                canvasContent
                     .environmentObject(viewModel)
                     .padding()
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
@@ -5543,6 +5723,21 @@ private struct PortholeCanvas: View {
                         }
                     }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var canvasContent: some View {
+        if isEditing {
+            EditorSelectableSkeletonView(
+                element: skeleton,
+                path: .root,
+                selectedPath: selectedNodePath,
+                highlightedDropTargetPaths: Set(highlightedDropTargets.map(\.path)),
+                onSelect: onSelectPath
+            )
+        } else {
+            SkeletonView(element: skeleton)
         }
     }
 
