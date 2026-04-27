@@ -34,6 +34,7 @@ Binding already contains two useful pieces:
 3. remote staging smoke
    - `Scripts/run_conference_demo_smoke.sh`
    - opens the real app and drives staging-backed conference surfaces through the same menu automation the demo uses
+   - now records which capture mode succeeded per step (`window`, `region`, or `fullscreen`) so a flaky macOS window capture no longer kills the whole smoke pass
 
 That gives us a good base, but it is not yet a full parity suite.
 
@@ -102,14 +103,51 @@ The script `Scripts/run_skeleton_parity_suite.sh` is now the first practical gat
 
 - `local`
   - runs the deterministic local configuration verifier
+- `remote-http`
+  - runs the staging-hosted HTTP fixture contract suite
+  - skips only the live bridge command-response canary
+- `remote-bridge`
+  - runs the live staging bridge canary only
+- `remote-contract`
+  - runs the full staging-hosted contract suite, including the bridge canary
 - `remote`
-  - runs the staging-hosted skeleton fixture contract suite
+  - runs the full staging-hosted skeleton fixture contract suite
   - then runs the staging-backed conference smoke
 - `all`
   - runs both
 
 Remote fixture tests are opt-in for direct `xcodebuild` runs and are enabled in the script via `BINDING_ENABLE_REMOTE_PARITY=1`.
 This is still phase 1, not the end state.
+
+## 2026-04-22 status
+
+The remote HTTP fixture contract is now broad enough to be useful as a real Binding gate:
+
+- catalog
+- text
+- list
+- grid
+- form
+- markdown
+- relative-keypath
+- nested-reference
+- remote-bridge metadata
+- unavailable
+- invalid fixture diagnostics
+
+Last observed `remote-http` result:
+
+- 11 of 11 staging HTTP contract tests passed
+- the catalog advertised all expected fixture routes
+- public skeleton parity fixtures are now treated as open contracts in Binding, so Binding does not try scaffold admission before reading them
+
+The remaining red check is intentionally isolated:
+
+- `remote-bridge`
+  - `testBridgeBackedFixtureResolvesThroughBindingAndExecutesAction`
+  - direct bridge `get(state)` to `cell://staging.haven.digipomps.org/SkeletonParityTextFixture` times out
+
+That means the remaining failure is earlier than skeleton rendering. Binding can reach the staging bridge route far enough to issue the command, but the fixture does not return the bridge `get` response. Until CellScaffold/staging exposes that command-response path reliably, the bridge canary must stay red and cannot be counted as an App Store release gate for "renders all supported skeletons".
 
 ## 2026-04-15 status
 
@@ -136,12 +174,14 @@ So the current practical boundary is:
 
 - local Binding contract/render parity is strong enough to gate normal conference work
 - staging parity is still valuable, but not yet reliable enough to be treated as a fully hard release gate on its own
+- the native smoke evidence is now more trustworthy because the run completes even if `screencapture -l` temporarily fails on one step
 
 ## Phase 2
 
 The next required implementation step across Binding and CellScaffold is broader coverage:
 
 - expand Binding from the first fixture slice to the full suite (`markdown`, `relative-keypath`, `nested-reference`, `remote-bridge`, `unavailable`)
+- keep the Personal Co-Pilot style-role allowlist small and verify curated local surfaces stay inside it
 - add cross-host screenshot evidence for the same fixture set
 - fail CI when local and remote parity diverge
 

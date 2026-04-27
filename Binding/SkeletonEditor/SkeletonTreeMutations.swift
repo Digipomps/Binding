@@ -184,6 +184,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             text.modifiers = modifiers
             return .Text(text)
+        case .AttachmentField(var attachmentField):
+            var modifiers = attachmentField.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            attachmentField.modifiers = modifiers
+            return .AttachmentField(attachmentField)
         case .TextField(var textField):
             var modifiers = textField.modifiers ?? SkeletonModifiers()
             mutate(&modifiers)

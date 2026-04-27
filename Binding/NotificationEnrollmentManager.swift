@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CellBase
 
 #if os(iOS)
 import UIKit
@@ -21,7 +22,6 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let termsAcceptedAtKey = "binding.notifications.termsAcceptedAt"
     private let apnsTokenKey = "binding.notifications.apnsToken"
     private let participantIDKey = "binding.notifications.participantId"
-
     private var participantID: String?
     private var deviceID: String?
 
@@ -50,8 +50,19 @@ final class NotificationEnrollmentManager: ObservableObject {
             }
         }
 
+        configureRemoteBridgePresenceProvider()
+
         let currentTermsVersion = termsVersion()
         needsTermsAcceptance = defaults.string(forKey: termsVersionKey) != currentTermsVersion || defaults.double(forKey: termsAcceptedAtKey) <= 0
+
+        Task { @MainActor in
+            #if os(iOS)
+            await refreshPushAuthorizationStatus()
+            #else
+            pushPermissionGranted = false
+            #endif
+            await registerCurrentDeviceIfReady()
+        }
     }
 
     func currentParticipantID() -> String? {
@@ -102,15 +113,16 @@ final class NotificationEnrollmentManager: ObservableObject {
             return
         }
 
-        let payload: [String: JSONValue] = [
-            "participantId": .string(participantID),
-            "deviceId": .string(deviceID),
-            "platform": .string("ios"),
-            "pushToken": .string(token),
-            "termsVersion": .string(termsVersion()),
-            "termsAccepted": .bool(true),
-            "callbackCapabilities": .array([.string("http"), .string("background")])
-        ]
+        let payload = Self.registrationPayload(
+            participantID: participantID,
+            deviceID: deviceID,
+            pushToken: token,
+            platform: "ios",
+            termsVersion: termsVersion(),
+            conferenceID: conferenceID(),
+            subscriptionTopics: subscriptionTopics(),
+            mutedEventTypes: mutedEventTypes()
+        )
 
         do {
             _ = try await NotificationCallbackClient.shared.registerDevice(payload: payload)
@@ -124,7 +136,128 @@ final class NotificationEnrollmentManager: ObservableObject {
         ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"] ?? "v1"
     }
 
+    private func conferenceID() -> String? {
+        normalize(ProcessInfo.processInfo.environment["BINDING_CONFERENCE_ID"])
+    }
+
+    private func subscriptionTopics() -> [String] {
+        parseCSVEnvironment(
+            "BINDING_NOTIFICATION_SUBSCRIPTION_TOPICS",
+            defaultValue: WorkflowNotificationPreferences.defaultSubscriptionTopics
+        )
+    }
+
+    private func mutedEventTypes() -> [String] {
+        parseCSVEnvironment("BINDING_NOTIFICATION_MUTED_EVENT_TYPES", defaultValue: [])
+    }
+
+    private func parseCSVEnvironment(_ key: String, defaultValue: [String]) -> [String] {
+        parseCSV(ProcessInfo.processInfo.environment[key], defaultValue: defaultValue)
+    }
+
+    private func parseCSV(_ value: String?, defaultValue: [String]) -> [String] {
+        let values = Self.normalizeTopics(
+            (value ?? "")
+                .split(separator: ",")
+                .compactMap { normalize(String($0)) }
+        )
+        return values.isEmpty ? Self.normalizeTopics(defaultValue) : values
+    }
+
+    private func normalize(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private func configureRemoteBridgePresenceProvider() {
+        let participantID = self.participantID
+        let deviceID = self.deviceID
+        let topics = WorkflowNotificationPreferences.activeBridgeTopics
+        CellBase.remoteWebSocketQueryItemsProvider = { _ in
+            Self.bridgePresenceQueryItems(
+                participantID: participantID,
+                deviceID: deviceID,
+                topics: topics
+            )
+        }
+    }
+
+    nonisolated static func registrationPayload(
+        participantID: String,
+        deviceID: String,
+        pushToken: String,
+        platform: String,
+        termsVersion: String,
+        conferenceID: String?,
+        subscriptionTopics: [String],
+        mutedEventTypes: [String]
+    ) -> [String: JSONValue] {
+        [
+            "participantId": .string(participantID),
+            "deviceId": .string(deviceID),
+            "platform": .string(platform),
+            "pushToken": .string(pushToken),
+            "termsVersion": .string(termsVersion),
+            "termsAccepted": .bool(true),
+            "callbackCapabilities": .array(defaultCallbackCapabilities().map(JSONValue.string)),
+            "conferenceId": conferenceID.map(JSONValue.string) ?? .null,
+            "subscriptionTopics": .array(normalizeTopics(subscriptionTopics).map(JSONValue.string)),
+            "mutedEventTypes": .array(normalizeTopics(mutedEventTypes).map(JSONValue.string))
+        ]
+    }
+
+    nonisolated static func bridgePresenceQueryItems(
+        participantID: String?,
+        deviceID: String?,
+        topics: [String]
+    ) -> [URLQueryItem] {
+        guard let participantID = normalizedIdentifier(participantID),
+              let deviceID = normalizedIdentifier(deviceID) else {
+            return []
+        }
+
+        return [
+            URLQueryItem(name: "participantId", value: participantID),
+            URLQueryItem(name: "deviceId", value: deviceID)
+        ] + normalizeTopics(topics).map { topic in
+            URLQueryItem(name: "bridgeTopic", value: topic)
+        }
+    }
+
+    nonisolated static func defaultCallbackCapabilities() -> [String] {
+        normalizeTopics(["http", "background", "notification-response", "bridge"])
+    }
+
+    nonisolated static func normalizeTopics(_ topics: [String]) -> [String] {
+        var ordered: [String] = []
+        var seen = Set<String>()
+        for topic in topics {
+            let normalized = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard normalized.isEmpty == false else { continue }
+            let dedupeKey = normalized.lowercased()
+            guard seen.insert(dedupeKey).inserted else { continue }
+            ordered.append(normalized)
+        }
+        return ordered
+    }
+
+    private nonisolated static func normalizedIdentifier(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              trimmed.isEmpty == false else {
+            return nil
+        }
+        return trimmed
+    }
+
     #if os(iOS)
+    private func refreshPushAuthorizationStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        pushPermissionGranted = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+    }
+
     private func requestPushAuthorization() async throws -> Bool {
         try await withCheckedThrowingContinuation { continuation in
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in

@@ -84,6 +84,82 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertNil(SkeletonBindingProbeSupport.failureDetail(from: stateValue))
     }
 
+    func testPersonalCopilotLocalSurfacesLoadWithoutReferenceFailures() async throws {
+        for configuration in [
+            ConfigurationCatalogCell.personalHomeMenuConfiguration(),
+            ConfigurationCatalogCell.personalProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        ] {
+            let report = try await CellConfigurationVerifier.contractReport(
+                for: configuration,
+                identityMode: .startup
+            )
+
+            XCTAssertEqual(
+                report.validation.errorCount,
+                0,
+                "Validation issues for \(configuration.name): \(report.validation.issues)"
+            )
+            XCTAssertTrue(
+                report.unresolvedReferences.isEmpty,
+                "Unresolved references for \(configuration.name): \(report.unresolvedReferences)"
+            )
+            XCTAssertTrue(
+                report.unreadableRootProbes.isEmpty,
+                "Unreadable root probes for \(configuration.name): \(report.unreadableRootProbes)"
+            )
+            XCTAssertTrue(
+                report.failedActions.isEmpty,
+                "Failed actions for \(configuration.name): \(report.failedActions)"
+            )
+        }
+    }
+
+    func testPersonalCopilotInviteChatMatchesStagingAssistantAndPollContract() throws {
+        let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        let references = Set((configuration.cellReferences ?? []).map(\.endpoint))
+
+        XCTAssertTrue(references.contains("cell://staging.haven.digipomps.org/PersonalChatHub"))
+        XCTAssertTrue(references.contains("cell:///PersonalChatClient"))
+        XCTAssertEqual(
+            CellConfigurationValidationService.validate(configuration).errorCount,
+            0
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
+        let data = try encoder.encode(configuration)
+        guard let json = String(data: data, encoding: .utf8) else {
+            XCTFail("Expected Invite Chat configuration JSON")
+            return
+        }
+
+        for expected in [
+            "\"keypath\":\"chatHub.assistant.analyzeDraft\"",
+            "\"keypath\":\"chatHub.assistant.acceptSuggestion\"",
+            "\"keypath\":\"chatHub.assistant.dismissSuggestion\"",
+            "\"targetKeypath\":\"chatHub.assistant.setCandidateQuery\"",
+            "\"selectionActionKeypath\":\"chatHub.assistant.selectCandidate\"",
+            "\"selectionPayloadMode\":\"item_id\"",
+            "\"targetKeypath\":\"chatHub.poll.setQuestion\"",
+            "\"targetKeypath\":\"chatHub.poll.setOptions\"",
+            "\"keypath\":\"chatHub.poll.create\"",
+            "\"keypath\":\"chatHub.poll.vote\"",
+            "\"keypath\":\"chatHub.poll.close\"",
+            "\"keypath\":\"chatHub.unblockUser\"",
+            "\"targetKeypath\":\"chatHub.setComposer\""
+        ] {
+            XCTAssertTrue(json.contains(expected), "Invite Chat JSON missing \(expected)")
+        }
+
+        XCTAssertFalse(
+            json.contains("\"selectionPayloadMode\":\"itemID\""),
+            "Selection payload mode must use the CellProtocol wire value item_id, not the Swift case name itemID."
+        )
+    }
+
     @MainActor
     func testConferencePreviewCellsStayLocalWhenRetargeting() {
         let contentView = ContentView()
@@ -1528,7 +1604,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             label: "Load copilot system prompt",
             payload: .string(conferenceSystemPrompt)
         )
-        let loadSystemPromptResponse = await loadSystemPromptButton.execute()
+        let loadSystemPromptResponse = await loadSystemPromptButton.execute(requester: context.owner)
         XCTAssertNotNil(loadSystemPromptResponse, "Renderer button path returned nil for Load copilot system prompt")
         if let loadSystemPromptResponse {
             XCTAssertNil(
@@ -1542,7 +1618,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             label: "Fill request: Who should I meet?",
             payload: .string(whoShouldIMeetPrompt)
         )
-        let fillRequestResponse = await fillRequestButton.execute()
+        let fillRequestResponse = await fillRequestButton.execute(requester: context.owner)
         XCTAssertNotNil(fillRequestResponse, "Renderer button path returned nil for Fill request: Who should I meet?")
         if let fillRequestResponse {
             XCTAssertNil(
@@ -1567,9 +1643,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
         let loadSessionKeyButton = SkeletonButton(
             keypath: "aiGateway.commitDraftAPIKeyEntry",
-            label: "Load session key"
+            label: "Load session key",
+            payload: .bool(true)
         )
-        let loadSessionKeyResponse = await loadSessionKeyButton.execute()
+        let loadSessionKeyResponse = await loadSessionKeyButton.execute(requester: context.owner)
         XCTAssertNotNil(loadSessionKeyResponse, "Renderer button path returned nil for Load session key")
         if let loadSessionKeyResponse {
             XCTAssertNil(

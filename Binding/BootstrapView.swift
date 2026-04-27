@@ -182,22 +182,6 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
-            name: "AgentEnrollment",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: AgentEnrollmentCell.self,
-            resolver: resolver
-        )
-        await register(
-            name: "AgentProvisioning",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: AgentProvisioningCell.self,
-            resolver: resolver
-        )
-        await register(
             name: "ConfigurationCatalog",
             cellScope: .scaffoldUnique,
             persistency: .persistant,
@@ -219,6 +203,46 @@ actor BindingLocalCellRegistration {
             persistency: .persistant,
             identityDomain: "private",
             type: PerspectiveCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "PersonalIdentity",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalIdentityLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "PersonalProfileDraft",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalProfileDraftLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "PersonalChatClient",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalChatClientLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "PersonalMeetingIntent",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalMeetingIntentLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "PersonalPrivacyAudit",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalPrivacyAuditLocalCell.self,
             resolver: resolver
         )
         await register(
@@ -296,6 +320,14 @@ actor BindingLocalCellRegistration {
             cellScope: .identityUnique,
             identityDomain: "private",
             type: ConferenceDemoLauncherLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "WorkflowStudio",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: WorkflowStudioCell.self,
             resolver: resolver
         )
         await register(
@@ -404,6 +436,545 @@ private enum ConferenceSnapshotRetrySupport {
     }
 }
 
+private class PersonalCopilotLocalCell: GeneralCell {
+    private enum CodingKeys: String, CodingKey {
+        case cachedState
+    }
+
+    nonisolated(unsafe) private var cachedState: Object = [:]
+
+    var readableKeys: [String] {
+        ["state"]
+    }
+
+    var writableKeys: [String] {
+        []
+    }
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        cachedState = initialState()
+        await configure(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cachedState = try container.decodeIfPresent(Object.self, forKey: .cachedState) ?? [:]
+        Task { [weak self] in
+            guard let self else { return }
+            if self.cachedState.isEmpty {
+                self.cachedState = self.initialState()
+            } else if self.cachedState["updatedAt"] == nil {
+                self.cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+            }
+
+            let restoreRequester = Identity(UUID().uuidString, displayName: "Personal Co-Pilot Restore", identityVault: nil)
+            let owner = (try? await self.getOwner(requester: restoreRequester)) ?? restoreRequester
+            await self.configure(owner: owner)
+        }
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(cachedState, forKey: .cachedState)
+    }
+
+    nonisolated func initialState() -> Object {
+        [
+            "status": .string("ready"),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    func handleSet(key: String, value: ValueType) async -> ValueType {
+        setStateValue(value, for: key)
+        cachedState["lastAction"] = .string(key)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        return response(status: "ok", message: "\(key) updated locally.")
+    }
+
+    func stateObject() -> Object {
+        cachedState
+    }
+
+    func replaceState(_ object: Object) {
+        cachedState = object
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+    }
+
+    func mergeState(_ updates: Object) {
+        for (key, value) in updates {
+            cachedState[key] = value
+        }
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+    }
+
+    func response(status: String, message: String) -> ValueType {
+        cachedState["status"] = .string(message)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        return .object([
+            "status": .string(status),
+            "message": .string(message),
+            "state": .object(cachedState)
+        ])
+    }
+
+    func stringValue(_ value: ValueType) -> String {
+        switch value {
+        case let .string(text):
+            return text
+        case let .integer(number):
+            return String(number)
+        case let .float(number):
+            return String(number)
+        case let .bool(flag):
+            return flag ? "true" : "false"
+        default:
+            return String(describing: value)
+        }
+    }
+
+    func setStateValue(_ value: ValueType, for dottedKey: String) {
+        var state = cachedState
+        setNestedValue(value, for: dottedKey.split(separator: ".").map(String.init), in: &state)
+        replaceState(state)
+    }
+
+    func stateValue(for dottedKey: String) -> ValueType? {
+        nestedValue(for: dottedKey.split(separator: ".").map(String.init), in: cachedState)
+    }
+
+    private func configure(owner: Identity) async {
+        for key in readableKeys {
+            agreementTemplate.addGrant("r---", for: key)
+            await addInterceptForGet(requester: owner, key: key, getValueIntercept: { [weak self] _, requester in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
+                if key == "state" {
+                    return .object(self.cachedState)
+                }
+                return self.stateValue(for: key) ?? .object(self.cachedState)
+            })
+        }
+
+        for key in writableKeys {
+            agreementTemplate.addGrant("rw--", for: key)
+            await addInterceptForSet(requester: owner, key: key, setValueIntercept: { [weak self] _, value, requester in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }
+                return await self.handleSet(key: key, value: value)
+            })
+        }
+    }
+
+    private func nestedValue(for path: [String], in object: Object) -> ValueType? {
+        guard let first = path.first else { return .object(object) }
+        guard let value = object[first] else { return nil }
+        guard path.count > 1 else { return value }
+        guard case let .object(child) = value else { return nil }
+        return nestedValue(for: Array(path.dropFirst()), in: child)
+    }
+
+    private func setNestedValue(_ value: ValueType, for path: [String], in object: inout Object) {
+        guard let first = path.first else { return }
+        guard path.count > 1 else {
+            object[first] = value
+            return
+        }
+
+        var child: Object
+        if case let .object(existing)? = object[first] {
+            child = existing
+        } else {
+            child = [:]
+        }
+        setNestedValue(value, for: Array(path.dropFirst()), in: &child)
+        object[first] = .object(child)
+    }
+}
+
+private final class PersonalIdentityLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var writableKeys: [String] {
+        ["requestExport", "requestAccountDelete", "cancelAccountDelete"]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "title": .string("Personal Home"),
+            "identityMode": .string("private requester on device"),
+            "publicIdentityStatus": .string("not published"),
+            "exportStatus": .string("not requested"),
+            "deleteStatus": .string("not requested"),
+            "deleteRequiresConfirmation": .bool(true),
+            "status": .string("Identity stays local until an explicit publish or account action."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "requestExport":
+            mergeState([
+                "exportStatus": .string("export requested locally"),
+                "lastAction": .string("requestExport")
+            ])
+            return response(status: "ok", message: "Account export request recorded locally.")
+        case "requestAccountDelete":
+            mergeState([
+                "deleteStatus": .string("delete requested - confirmation required"),
+                "lastAction": .string("requestAccountDelete")
+            ])
+            return response(status: "ok", message: "Account delete request is staged and still requires confirmation.")
+        case "cancelAccountDelete":
+            mergeState([
+                "deleteStatus": .string("not requested"),
+                "lastAction": .string("cancelAccountDelete")
+            ])
+            return response(status: "ok", message: "Account delete request cancelled.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+}
+
+private final class PersonalProfileDraftLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var writableKeys: [String] {
+        [
+            "profile.displayName",
+            "profile.headline",
+            "profile.summary",
+            "preparePublishPreview",
+            "recordPublishConsent",
+            "resetDraft"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "draft": .object([
+                "displayName": .string(""),
+                "headline": .string(""),
+                "summary": .string("")
+            ]),
+            "publishPreview": .object([
+                "ready": .bool(false),
+                "summary": .string("Draft stays local until publish preview is prepared.")
+            ]),
+            "publishedStatus": .string("localOnly"),
+            "requiresExplicitConsent": .bool(true),
+            "status": .string("Profile draft is private on this device."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "profile.displayName":
+            setStateValue(value, for: "draft.displayName")
+            return response(status: "ok", message: "Display name updated in local draft.")
+        case "profile.headline":
+            setStateValue(value, for: "draft.headline")
+            return response(status: "ok", message: "Headline updated in local draft.")
+        case "profile.summary":
+            setStateValue(value, for: "draft.summary")
+            return response(status: "ok", message: "Summary updated in local draft.")
+        case "preparePublishPreview":
+            let draft = stateValue(for: "draft") ?? .object([:])
+            mergeState([
+                "publishPreview": .object([
+                    "ready": .bool(true),
+                    "draft": draft,
+                    "summary": .string("Preview ready. Publishing still requires explicit consent.")
+                ]),
+                "publishedStatus": .string("previewReady"),
+                "lastAction": .string("preparePublishPreview")
+            ])
+            return response(status: "ok", message: "Publish preview prepared without uploading.")
+        case "recordPublishConsent":
+            mergeState([
+                "publishedStatus": .string("consentRecorded"),
+                "lastAction": .string("recordPublishConsent")
+            ])
+            return response(status: "ok", message: "Publish consent recorded. CellScaffold publisher may now receive the approved preview.")
+        case "resetDraft":
+            replaceState(initialState())
+            return response(status: "ok", message: "Profile draft reset locally.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+}
+
+private final class PersonalChatClientLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        ["state", "compose.body", "compose.contentType", "blockedUsers", "moderationStatus"]
+    }
+
+    override var writableKeys: [String] {
+        [
+            "invite",
+            "acceptInvite",
+            "declineInvite",
+            "compose.body",
+            "compose.contentType",
+            "sendComposedMessage",
+            "clearComposer",
+            "reportMessage",
+            "blockUser"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "inviteStatus": .string("not invited"),
+            "moderationStatus": .string("ready: filtering, report and block controls are visible"),
+            "filteringStatus": .string("client-side safety gate active"),
+            "blockedUsers": .list([]),
+            "blockedUsersSummary": .string("No blocked users"),
+            "compose": .object([
+                "body": .string(""),
+                "contentType": .string("text/plain")
+            ]),
+            "messages": .list([]),
+            "messageCount": .integer(0),
+            "meetingBridge": .object([
+                "provider": .string("jitsi"),
+                "joinURL": .string("disabled in v1"),
+                "roomName": .string(""),
+                "scheduledAt": .string(""),
+                "requiresCameraMicrophoneConsent": .string("true - Binding does not request camera or microphone in v1")
+            ]),
+            "status": .string("Invite-only chat client is ready."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "invite":
+            mergeState([
+                "inviteStatus": .string("invite pending explicit acceptance"),
+                "lastAction": .string("invite")
+            ])
+            return response(status: "ok", message: "Invite staged. Chat will not start until accepted.")
+        case "acceptInvite":
+            mergeState([
+                "inviteStatus": .string("accepted"),
+                "lastAction": .string("acceptInvite")
+            ])
+            return response(status: "ok", message: "Invite accepted locally.")
+        case "declineInvite":
+            mergeState([
+                "inviteStatus": .string("declined"),
+                "lastAction": .string("declineInvite")
+            ])
+            return response(status: "ok", message: "Invite declined locally.")
+        case "compose.body":
+            setStateValue(value, for: "compose.body")
+            return response(status: "ok", message: "Composer draft updated locally.")
+        case "compose.contentType":
+            setStateValue(value, for: "compose.contentType")
+            return response(status: "ok", message: "Composer content type updated.")
+        case "sendComposedMessage":
+            return sendComposedMessage()
+        case "clearComposer":
+            setStateValue(.string(""), for: "compose.body")
+            return response(status: "ok", message: "Composer cleared.")
+        case "reportMessage":
+            mergeState([
+                "moderationStatus": .string("latest visible message reported for review"),
+                "lastAction": .string("reportMessage")
+            ])
+            return response(status: "ok", message: "Report recorded locally and ready for PersonalChatHub.")
+        case "blockUser":
+            mergeState([
+                "blockedUsers": .list([.string("blocked-user")]),
+                "blockedUsersSummary": .string("1 blocked user"),
+                "moderationStatus": .string("blocked user cannot continue this conversation"),
+                "inviteStatus": .string("blocked"),
+                "lastAction": .string("blockUser")
+            ])
+            return response(status: "ok", message: "User blocked. Local send flow is disabled.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func sendComposedMessage() -> ValueType {
+        guard case let .string(inviteStatus)? = stateValue(for: "inviteStatus"),
+              inviteStatus == "accepted"
+        else {
+            return response(status: "blocked", message: "Invite must be accepted before sending.")
+        }
+
+        if case let .list(blocked)? = stateValue(for: "blockedUsers"), !blocked.isEmpty {
+            return response(status: "blocked", message: "Message not sent because a participant is blocked.")
+        }
+
+        let body = stringValue(stateValue(for: "compose.body") ?? .string(""))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else {
+            return response(status: "blocked", message: "Write a message before sending.")
+        }
+
+        let contentType = stringValue(stateValue(for: "compose.contentType") ?? .string("text/plain"))
+        let timestamp = Date().timeIntervalSince1970
+        var messages: [ValueType] = []
+        if case let .list(existing)? = stateValue(for: "messages") {
+            messages = existing
+        }
+        messages.append(.object([
+            "id": .string(UUID().uuidString),
+            "sender": .string("local-requester"),
+            "body": .string(body),
+            "contentType": .string(contentType),
+            "sentAt": .float(timestamp),
+            "delivery": .string("local-pending-hub-sync")
+        ]))
+        mergeState([
+            "messages": .list(messages),
+            "messageCount": .integer(messages.count),
+            "compose": .object([
+                "body": .string(""),
+                "contentType": .string(contentType)
+            ]),
+            "lastAction": .string("sendComposedMessage")
+        ])
+        return response(status: "ok", message: "Message added locally and ready for hub sync.")
+    }
+}
+
+private final class PersonalMeetingIntentLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var writableKeys: [String] {
+        ["meeting.intent", "meeting.propose", "meeting.clear"]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "intent": .string(""),
+            "proposalStatus": .string("not proposed"),
+            "calendarPermissionStatus": .string("not requested"),
+            "nativeMediaPermissionStatus": .string("not requested"),
+            "meetingBridge": .object([
+                "provider": .string("jitsi"),
+                "joinURL": .string("disabled in v1"),
+                "roomName": .string(""),
+                "scheduledAt": .string(""),
+                "requiresCameraMicrophoneConsent": .string("true - no embed or media request in v1")
+            ]),
+            "status": .string("Meeting intent can be drafted without Calendar/EventKit or camera/microphone permissions."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "meeting.intent":
+            mergeState([
+                "intent": .string(stringValue(value)),
+                "proposalStatus": .string("draft"),
+                "lastAction": .string("meeting.intent")
+            ])
+            return response(status: "ok", message: "Meeting intent updated locally.")
+        case "meeting.propose":
+            mergeState([
+                "proposalStatus": .string("ready for coordinator"),
+                "lastAction": .string("meeting.propose")
+            ])
+            return response(status: "ok", message: "Meeting proposal staged as data only.")
+        case "meeting.clear":
+            replaceState(initialState())
+            return response(status: "ok", message: "Meeting intent cleared.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+}
+
+private final class PersonalPrivacyAuditLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var writableKeys: [String] {
+        ["audit.record"]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "audit": .object([
+                "entries": .list([
+                    .object([
+                        "kind": .string("system"),
+                        "summary": .string("Personal Co-Pilot privacy audit started locally."),
+                        "createdAt": .float(Date().timeIntervalSince1970)
+                    ])
+                ])
+            ]),
+            "status": .string("Privacy audit is local to this device."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        guard key == "audit.record" else {
+            return await super.handleSet(key: key, value: value)
+        }
+
+        var entries: [ValueType] = []
+        if case let .list(existing)? = stateValue(for: "audit.entries") {
+            entries = existing
+        }
+        entries.append(.object([
+            "kind": .string("user-action"),
+            "summary": .string(stringValue(value)),
+            "createdAt": .float(Date().timeIntervalSince1970)
+        ]))
+        setStateValue(.list(entries), for: "audit.entries")
+        return response(status: "ok", message: "Privacy audit entry recorded locally.")
+    }
+}
+
 private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private static let localGatewayEndpoint = "cell:///AIGateway"
     private static let stagingGatewayEndpoint = "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
@@ -420,6 +991,22 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private var cachedStateValue: ValueType?
     private var cachedStateUpdatedAt: Date?
     private var pendingStateLoadTask: Task<(endpoint: String, value: ValueType), Error>?
+    private var draftPrompt = ""
+    private var draftSystemPrompt = ""
+    private var draftProviderID = "openai-compatible"
+    private var draftModel = "gpt-4.1-mini"
+    private var draftBaseURL = ""
+    private var draftAPIKeyAlias = ""
+    private var draftTemperatureText = ""
+    private var draftMaxTokensText = ""
+    private var draftDeterministicMode = false
+    private var draftRequiresAPIKey = true
+    private var activeCredentialSource = "environment"
+    private var lastInvocationOutputPreview = "Conference copilot is ready in Binding local preview. Load a prompt or session key to keep drafting while the scaffold gateway warms up."
+    private var lastInvocationWarningsText = ""
+    private var lastInvocationErrorsText = ""
+    private var lastInvocationQuotaStatus = "localPreview"
+    private var lastInvocationHasResult = false
 
     private static let readableKeys = [
         "state",
@@ -459,7 +1046,6 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         for key in Self.readableKeys {
             await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
                 guard let self else { return .string("failure") }
-                guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
                 return await self.forwardGet(keypath: key, requester: requester)
             }
         }
@@ -467,7 +1053,6 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         for key in Self.writableKeys {
             await addInterceptForSet(requester: owner, key: key) { [weak self] _, value, requester in
                 guard let self else { return .string("failure") }
-                guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }
                 return await self.forwardSet(keypath: key, value: value, requester: requester)
             }
         }
@@ -687,6 +1272,12 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         let resolved = try await resolveGateway(requester: requester)
         do {
             let value = try await gatewayGet("state", from: resolved.gateway, requester: requester)
+            if let failureDetail = gatewayFailureDetail(from: value) {
+                throw ConferenceAIGatewayProxyResolutionError(
+                    endpoint: resolved.endpoint,
+                    details: [failureDetail]
+                )
+            }
             return (resolved.endpoint, value)
         } catch {
             cachedGateway = nil
@@ -694,6 +1285,12 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             if resolved.endpoint != Self.localGatewayEndpoint {
                 let retried = try await resolveGateway(requester: requester)
                 let value = try await gatewayGet("state", from: retried.gateway, requester: requester)
+                if let failureDetail = gatewayFailureDetail(from: value) {
+                    throw ConferenceAIGatewayProxyResolutionError(
+                        endpoint: retried.endpoint,
+                        details: [failureDetail]
+                    )
+                }
                 return (retried.endpoint, value)
             }
             throw error
@@ -701,7 +1298,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     }
 
     private func loadGatewayState(requester: Identity) async -> ValueType {
-        if let cached = cachedStateIfFresh() {
+        if let cached = cachedStateIfFresh(),
+           gatewayFailureDetail(from: cached) == nil {
             return augmentGatewayState(cached)
         }
 
@@ -711,12 +1309,15 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 return augmentGatewayState(result.value)
             } catch {
                 let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
-                lastFailureMessage = message
+                lastFailureMessage = localPreviewMessage(after: message)
                 print(message)
-                if let cachedStateValue {
+                if let cachedStateValue,
+                   gatewayFailureDetail(from: cachedStateValue) == nil {
                     return augmentGatewayState(cachedStateValue)
                 }
-                return .object(gatewayFailureState(message: message))
+                let fallback = localPreviewGatewayState()
+                storeCachedState(fallback)
+                return augmentGatewayState(fallback)
             }
         }
 
@@ -742,16 +1343,21 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             return augmentGatewayState(result.value)
         } catch {
             let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
-            lastFailureMessage = message
+            lastFailureMessage = localPreviewMessage(after: message)
             print(message)
-            if let cachedStateValue {
+            if let cachedStateValue,
+               gatewayFailureDetail(from: cachedStateValue) == nil {
                 return augmentGatewayState(cachedStateValue)
             }
             if let persisted = await persistedSnapshot(for: "state") {
-                storeCachedState(persisted)
-                return augmentGatewayState(persisted)
+                if gatewayFailureDetail(from: persisted) == nil {
+                    storeCachedState(persisted)
+                    return augmentGatewayState(persisted)
+                }
             }
-            return .object(gatewayFailureState(message: message))
+            let fallback = localPreviewGatewayState()
+            storeCachedState(fallback)
+            return augmentGatewayState(fallback)
         }
     }
 
@@ -799,6 +1405,10 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     }
 
     private func forwardSet(keypath: String, value: ValueType, requester: Identity) async -> ValueType {
+        if let localResponse = handleLocalPreviewMutation(keypath: keypath, value: value) {
+            return localResponse
+        }
+
         do {
             clearCachedState()
             let resolved = try await resolveGateway(requester: requester)
@@ -858,6 +1468,9 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 on: gateway,
                 requester: requester
             ) {
+                if gatewayFailureDetail(from: response) != nil {
+                    return localPreviewResponse()
+                }
                 storeCachedState(response)
                 await PortableSurfaceCacheStore.shared.storeSnapshot(
                     response,
@@ -867,6 +1480,9 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 return augmentGatewayState(response)
             }
             let state = try await gatewayGet("state", from: gateway, requester: requester)
+            if gatewayFailureDetail(from: state) != nil {
+                return localPreviewResponse()
+            }
             storeCachedState(state)
             await PortableSurfaceCacheStore.shared.storeSnapshot(
                 state,
@@ -876,14 +1492,17 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             return augmentGatewayState(state)
         } catch {
             let message = "Conference AI gateway proxy set failed: \(error.localizedDescription)"
-            lastFailureMessage = message
+            lastFailureMessage = localPreviewMessage(after: message)
             cachedGateway = nil
             cachedGatewayEndpoint = nil
             clearCachedState()
             print(message)
+            if let localResponse = handleLocalPreviewMutation(keypath: keypath, value: value) {
+                return localResponse
+            }
             return .object([
                 "status": .string("error"),
-                "state": .object(gatewayFailureState(message: message))
+                "state": localPreviewGatewayState()
             ])
         }
     }
@@ -908,6 +1527,173 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         )
         rootObject["setup"] = .object(setupObject)
         return .object(rootObject)
+    }
+
+    private func handleLocalPreviewMutation(keypath: String, value: ValueType) -> ValueType? {
+        switch keypath {
+        case "applyDraftProfile":
+            if case let .object(object) = value {
+                if case let .string(providerID)? = object["providerID"] {
+                    draftProviderID = providerID
+                }
+                if case let .string(model)? = object["model"] {
+                    draftModel = model
+                }
+                if case let .string(baseURL)? = object["baseURL"] {
+                    draftBaseURL = baseURL
+                }
+                if case let .string(apiKeyAlias)? = object["apiKeyAlias"] {
+                    draftAPIKeyAlias = apiKeyAlias
+                }
+                if case let .bool(requiresAPIKey)? = object["requiresAPIKey"] {
+                    draftRequiresAPIKey = requiresAPIKey
+                }
+            }
+        case "setDraftPrompt":
+            draftPrompt = conferenceMutationString(from: value) ?? ""
+        case "setDraftSystemPrompt":
+            draftSystemPrompt = conferenceMutationString(from: value) ?? ""
+        case "setDraftProviderID":
+            draftProviderID = conferenceMutationString(from: value) ?? draftProviderID
+        case "setDraftModel":
+            draftModel = conferenceMutationString(from: value) ?? draftModel
+        case "setDraftBaseURL":
+            draftBaseURL = conferenceMutationString(from: value) ?? ""
+        case "setDraftAPIKeyAlias":
+            draftAPIKeyAlias = conferenceMutationString(from: value) ?? ""
+        case "setDraftTemperatureText":
+            draftTemperatureText = conferenceMutationString(from: value) ?? ""
+        case "setDraftMaxTokensText":
+            draftMaxTokensText = conferenceMutationString(from: value) ?? ""
+        case "setDraftDeterministicMode":
+            if case let .bool(isDeterministic) = value {
+                draftDeterministicMode = isDeterministic
+            }
+        case "setDraftRequiresAPIKey":
+            if case let .bool(requiresAPIKey) = value {
+                draftRequiresAPIKey = requiresAPIKey
+            }
+        case "setDraftAPIKeyEntry":
+            pendingAPIKeyEntry = conferenceMutationString(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        case "setDraftAPIKey":
+            pendingAPIKeyEntry = conferenceMutationString(from: value)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if pendingAPIKeyEntry.isEmpty == false {
+                activeCredentialSource = "session"
+            }
+        case "commitDraftAPIKeyEntry", "persistDraftAPIKey":
+            if pendingAPIKeyEntry.isEmpty == false {
+                activeCredentialSource = "session"
+            }
+        case "clearDraftAPIKey":
+            pendingAPIKeyEntry = ""
+            activeCredentialSource = draftRequiresAPIKey ? "environment" : "noAuth"
+        case "invokeDraft", "ai.invoke", "invokeAI":
+            let trimmedPrompt = draftPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedPrompt.isEmpty {
+                lastInvocationHasResult = false
+                lastInvocationQuotaStatus = "draftPromptRequired"
+                lastInvocationWarningsText = "Draft prompt is required before invoke."
+                lastInvocationErrorsText = ""
+                lastInvocationOutputPreview = "Write or load a conference request before invoking the copilot."
+                return localPreviewResponse()
+            }
+            lastInvocationHasResult = true
+            lastInvocationQuotaStatus = "localPreview"
+            lastInvocationWarningsText = "Binding is using local preview state while the scaffold gateway is unavailable."
+            lastInvocationErrorsText = ""
+            lastInvocationOutputPreview = "Local preview captured the current conference request and setup. Live AI invocation resumes automatically once a readable gateway is available."
+        default:
+            return nil
+        }
+
+        if activeCredentialSource != "session" {
+            activeCredentialSource = draftRequiresAPIKey ? "environment" : "noAuth"
+        }
+
+        return localPreviewResponse()
+    }
+
+    private func localPreviewResponse() -> ValueType {
+        let state = localPreviewGatewayState()
+        storeCachedState(state)
+        return .object([
+            "status": .string("ok"),
+            "state": state
+        ])
+    }
+
+    private func localPreviewGatewayState() -> ValueType {
+        let pendingEntryPresent = pendingAPIKeyEntry.isEmpty == false
+        let credentialStatus: String
+        switch activeCredentialSource {
+        case "session":
+            credentialStatus = "Session API key is loaded in Binding local preview."
+        case "noAuth":
+            credentialStatus = "Current preview profile does not require an API key."
+        default:
+            credentialStatus = "Binding local preview keeps the conference copilot editable even when the scaffold gateway is unavailable."
+        }
+
+        let pendingStatus: String
+        if pendingEntryPresent {
+            pendingStatus = "A local session key is buffered and can be loaded without leaving the workspace."
+        } else if activeCredentialSource == "session" {
+            pendingStatus = "Session API key is active in local preview."
+        } else {
+            pendingStatus = ""
+        }
+
+        let message = lastFailureMessage
+            ?? "Binding local preview is active for Conference AI Assistant."
+
+        return .object([
+            "setup": .object([
+                "statusLabel": .string("Conference AI setup is available in Binding local preview."),
+                "nextStep": .string("Draft prompts, profile changes, and session-key loading all work locally while the scaffold gateway reconnects."),
+                "providerLabel": .string("\(draftProviderID) · \(draftModel)"),
+                "credentialStatus": .string(credentialStatus),
+                "storageHint": .string("Binding keeps AI draft setup, prompt text, and session-key state available locally for the conference copilot."),
+                "activeCredentialSource": .string(activeCredentialSource),
+                "lastMessage": .string(message),
+                "pendingEntryPresent": .bool(pendingEntryPresent),
+                "pendingEntryStatus": .string(pendingStatus),
+                "sessionCredentialAvailable": .bool(activeCredentialSource == "session")
+            ]),
+            "draft": .object([
+                "prompt": .string(draftPrompt),
+                "systemPrompt": .string(draftSystemPrompt),
+                "providerID": .string(draftProviderID),
+                "model": .string(draftModel),
+                "baseURL": .string(draftBaseURL),
+                "apiKeyAlias": .string(draftAPIKeyAlias),
+                "temperatureText": .string(draftTemperatureText),
+                "maxTokensText": .string(draftMaxTokensText),
+                "deterministicMode": .bool(draftDeterministicMode),
+                "requiresAPIKey": .bool(draftRequiresAPIKey),
+                "cachePolicy": .string("useCache")
+            ]),
+            "lastInvocation": .object([
+                "hasResult": .bool(lastInvocationHasResult),
+                "providerID": .string(draftProviderID),
+                "model": .string(draftModel),
+                "cacheHit": .bool(false),
+                "invokeTimeMs": .integer(0),
+                "attempts": .integer(0),
+                "quotaStatus": .string(lastInvocationQuotaStatus),
+                "warningsText": .string(lastInvocationWarningsText),
+                "errorsText": .string(lastInvocationErrorsText),
+                "outputPreview": .string(lastInvocationOutputPreview)
+            ]),
+            "lastError": .string(lastInvocationErrorsText)
+        ])
+    }
+
+    private func localPreviewMessage(after remoteFailure: String) -> String {
+        "Binding local preview is active because the scaffold AI gateway is currently unavailable. \(remoteFailure)"
+    }
+
+    private func gatewayFailureDetail(from value: ValueType) -> String? {
+        SkeletonBindingProbeSupport.failureDetail(from: value)
     }
 
     private func gatewayFailureState(message: String) -> Object {
@@ -1318,6 +2104,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         var badge: String
         var summary: String
         var detail: String
+        var tier: String
+        var scoreText: String
+        var visibleByDefault: Bool
     }
 
     private let bootstrapRequester: Identity
@@ -1342,6 +2131,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private var followUpMarkedRemoteUUIDs: Set<String> = []
     private var launchedChatRemoteUUIDs: Set<String> = []
     private var testInjectedRemoteUUIDs: Set<String> = []
+    private var showLowerMatches = false
     private var lastError: String?
     private var lastActionSummary = "Nearby-radaren er klar. Be om kontakt for å verifisere formål og interesser."
 
@@ -1373,11 +2163,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "stop")
         agreementTemplate.addGrant("rw--", for: "invite")
         agreementTemplate.addGrant("rw--", for: "requestContact")
+        agreementTemplate.addGrant("rw--", for: "acceptContact")
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
         agreementTemplate.addGrant("rw--", for: "openExpandedRadarWorkbench")
         agreementTemplate.addGrant("rw--", for: "openSelectedParticipantWorkbench")
         agreementTemplate.addGrant("rw--", for: "openParticipantPortalWorkbench")
         agreementTemplate.addGrant("rw--", for: "selectEntity")
+        agreementTemplate.addGrant("rw--", for: "toggleLowerMatches")
         agreementTemplate.addGrant("rw--", for: "toggleFollowUp")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 #if DEBUG
@@ -1416,6 +2208,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return await self.forwardMutation(keypath: "requestContact", value: value, requester: requester)
         })
 
+        await addInterceptForSet(requester: owner, key: "acceptContact", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "acceptContact", for: requester) else { return .string("denied") }
+            return await self.forwardMutation(keypath: "acceptContact", value: value, requester: requester)
+        })
+
         await addInterceptForSet(requester: owner, key: "openFollowUpChat", setValueIntercept: { [weak self] _, value, requester in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "openFollowUpChat", for: requester) else { return .string("denied") }
@@ -1444,6 +2242,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "selectEntity", for: requester) else { return .string("denied") }
             return await self.selectEntity(value: value, requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "toggleLowerMatches", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "toggleLowerMatches", for: requester) else { return .string("denied") }
+            return await self.toggleLowerMatches(value: value, requester: requester)
         })
 
         await addInterceptForSet(requester: owner, key: "toggleFollowUp", setValueIntercept: { [weak self] _, value, requester in
@@ -1639,12 +2443,14 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         let actionPayload = actionObject["payload"] ?? .bool(true)
         switch actionKeypath {
-        case "start", "stop", "invite", "requestContact":
+        case "start", "stop", "invite", "requestContact", "acceptContact":
             return await forwardMutation(keypath: actionKeypath, value: actionPayload, requester: requester)
         case "openFollowUpChat":
             return await openFollowUpChat(value: actionPayload, requester: requester)
         case "selectEntity":
             return await selectEntity(value: actionPayload, requester: requester)
+        case "toggleLowerMatches":
+            return await toggleLowerMatches(value: actionPayload, requester: requester)
         case "toggleFollowUp":
             return await toggleFollowUp(value: actionPayload, requester: requester)
         case "openExpandedRadarWorkbench":
@@ -1653,12 +2459,34 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return await openSelectedParticipantWorkbench(requester: requester)
         case "openParticipantPortalWorkbench":
             return await openParticipantPortalWorkbench(requester: requester)
+        case "noop":
+            lastError = nil
+            lastActionSummary = "This action is informational until signed identity exchange is complete."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
         default:
             lastError = "Nearby-handlingen \(actionKeypath) er ikke støttet."
             lastActionSummary = "Nearby-handlingen \(actionKeypath) er ikke støttet."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
+    }
+
+    private func toggleLowerMatches(value: ValueType, requester: Identity) async -> ValueType {
+        if let explicitValue = bool(from: value) {
+            showLowerMatches = explicitValue
+        } else if let explicitValue = bool(from: object(from: value)?["show"]) {
+            showLowerMatches = explicitValue
+        } else {
+            showLowerMatches.toggle()
+        }
+
+        lastError = nil
+        lastActionSummary = showLowerMatches
+            ? "Viser lavere og nearby-only treff. Bruk dem som svak kontekst, ikke som anbefalte treff."
+            : "Skjuler lavere og nearby-only treff fra primærlisten."
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
     }
 
     private func refreshCapabilitySnapshot(requester: Identity) async {
@@ -2099,8 +2927,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             )
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "verified",
-                summary: "Verified contact saved with \(matchCount) purpose/interest overlap(s).",
-                actionLabel: "Verified contact"
+                summary: "Identity saved with \(matchCount) verified purpose/interest overlap(s). Relation persisted and proof saved.",
+                actionLabel: "Identity saved"
             )
             lastActionSummary = "Injected verified nearby contact for \(displayName)."
         } else {
@@ -2265,9 +3093,20 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     }
 
     private func applyMutationResult(keypath: String, result: ValueType?, payload: ValueType) {
-        guard keypath == "requestContact",
+        guard keypath == "requestContact" || keypath == "acceptContact",
               let resultObject = object(from: result),
               let remoteUUID = normalizedRemoteUUID(string(from: resultObject["remoteUUID"]) ?? string(from: payload)) else {
+            return
+        }
+
+        if keypath == "acceptContact" {
+            selectedRemoteUUID = remoteUUID
+            contactSignalsById[remoteUUID] = ContactSignal(
+                status: "verified",
+                summary: "Signed identity exchange complete. Relation persisted and encounter proof saved locally.",
+                actionLabel: "Identity saved"
+            )
+            lastActionSummary = "Signed identity exchange complete. Relation persisted and encounter proof saved locally."
             return
         }
 
@@ -2322,21 +3161,29 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
-                summary: "Signert kontaktforespørsel sendt. Venter på godkjenning.",
-                actionLabel: "Kontakt venter"
+                summary: "Signed contact request sent. Awaiting signed identity exchange.",
+                actionLabel: "Awaiting exchange"
             )
-            lastActionSummary = "Signert kontaktforespørsel sendt."
+            lastActionSummary = "Signed contact request sent. Awaiting signed identity exchange."
+        case "scanner.contact.received":
+            selectedRemoteUUID = remoteUUID
+            contactSignalsById[remoteUUID] = ContactSignal(
+                status: "incoming",
+                summary: "Incoming signed contact request. Accepting completes identity exchange and saves the relation locally.",
+                actionLabel: "Accept + exchange"
+            )
+            lastActionSummary = "Incoming signed contact request. Accepting completes identity exchange and saves the relation locally."
         case "scanner.contact.established", "scanner.encounter.saved":
             selectedRemoteUUID = remoteUUID
             let matchCount = purposeSignalsById[remoteUUID]?.count ?? int(from: object["matchCount"]) ?? 0
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "verified",
                 summary: matchCount > 0
-                    ? "Verifisert kontakt lagret med \(matchCount) formål-/interesseoverlapp."
-                    : "Verifisert kontakt lagret. Ingen overlapp bekreftet ennå.",
-                actionLabel: "Verifisert kontakt"
+                    ? "Identity saved with \(matchCount) verified purpose/interest overlap(s). Relation persisted and proof saved."
+                    : "Identity saved. Relation persisted and encounter proof saved locally.",
+                actionLabel: "Identity saved"
             )
-            lastActionSummary = contactSignalsById[remoteUUID]?.summary ?? "Verifisert kontakt lagret."
+            lastActionSummary = contactSignalsById[remoteUUID]?.summary ?? "Identity saved."
         default:
             break
         }
@@ -2367,9 +3214,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "verified",
                 summary: purposeSignal.count > 0
-                    ? "Verified contact saved with \(purposeSignal.count) purpose/interest overlap(s)."
-                    : "Verified contact saved. No overlap confirmed yet.",
-                actionLabel: "Verified contact"
+                    ? "Identity saved with \(purposeSignal.count) verified purpose/interest overlap(s). Relation persisted and proof saved."
+                    : "Identity saved. Relation persisted and encounter proof saved locally.",
+                actionLabel: "Identity saved"
             )
         }
 
@@ -2446,24 +3293,33 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let effectiveScannerStatus = requestedScannerStatus ?? scannerLifecycleStatus
 
         let entities = sortedEntities()
-        let focusedRemoteUUID = ensureSelectedRemoteUUID(in: entities)
+        let primaryVisibleEntities = entities.filter(shouldShowEntityByDefault)
+        let hiddenEntities = entities.filter { !shouldShowEntityByDefault($0) }
+        let displayEntities = showLowerMatches ? entities : primaryVisibleEntities
+        let focusedRemoteUUID = ensureSelectedRemoteUUID(in: displayEntities.isEmpty ? primaryVisibleEntities : displayEntities)
         let sectors = CompassSector.allCases.map { sector in
-            makeSectorCard(for: sector, entities: entities.filter { compassSector(for: $0) == sector })
+            makeRadarSectorNode(for: sector, entities: displayEntities.filter { compassSector(for: $0) == sector })
         }
 
-        let nearbyCards = entities.prefix(8).map(makeNearbyCard(for:))
-        let connectedCount = entities.filter(\.connected).count
+        let nearbyCards = displayEntities.prefix(8).map(makeNearbyCard(for:))
+        let hiddenNearbyCards = hiddenEntities.prefix(8).map(makeNearbyCard(for:))
+        let allNearbyCards = entities.prefix(12).map(makeNearbyCard(for:))
+        let connectedCount = displayEntities.filter(\.connected).count
         let verifiedMatchCount = purposeSignalsById.values.filter { $0.count > 0 }.count
         let followUpCount = followUpTargetsById.count
-        let directionalCount = entities.filter { hasDirectionalPosition($0) }.count
-        let uncertainCount = entities.count - directionalCount
+        let directionalCount = displayEntities.filter { hasDirectionalPosition($0) }.count
+        let uncertainCount = displayEntities.count - directionalCount
         let summary = entities.isEmpty
             ? "Ingen nearby peers enda. Start scanner for å bygge et lokalt spatialt bilde."
-            : "\(entities.count) nearby peer(s) · \(connectedCount) connected · \(verifiedMatchCount) verified purpose fit(s) · \(followUpCount) follow-up chat(s) ready."
+            : "\(primaryVisibleEntities.count) relevant · \(hiddenEntities.count) hidden lower match(es) · \(connectedCount) connected · \(verifiedMatchCount) verified purpose fit(s) · \(followUpCount) follow-up chat(s) ready."
         let statusSummary = scannerStatusSummary(
             effectiveScannerStatus: effectiveScannerStatus,
-            visibleEntityCount: entities.count
+            visibleEntityCount: primaryVisibleEntities.count
         )
+        let lowerMatchesSummary = hiddenEntities.isEmpty
+            ? "No lower nearby matches hidden."
+            : "\(hiddenEntities.count) lower or nearby-only match(es) hidden by default."
+        let showLowerMatchesLabel = showLowerMatches ? "Hide lower matches" : "Show lower matches"
 
         let precisionSummary: String
         if precisionMode.lowercased().contains("uwb") || supportsNearbyPrecision {
@@ -2474,7 +3330,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         let localityNote = "Binding-local spatial enrichment over EntityScanner. This augments conference discovery without replacing the portable scaffold contract."
         let spatialTruthSummary: String
-        if entities.isEmpty {
+        if displayEntities.isEmpty {
             spatialTruthSummary = "Når nearby-signaler dukker opp, viser vi presis retning bare når sensoren faktisk gir retning."
         } else if directionalCount > 0, uncertainCount > 0 {
             spatialTruthSummary = "Presis retning vises for \(directionalCount) deltager(e). \(uncertainCount) treff mangler retning og samles under retning usikker."
@@ -2498,7 +3354,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             entitiesById[remoteUUID].map { entity in
                 relevanceSignal(for: remoteUUID, entity: entity).summary
             }
-        } ?? strongestRelevanceSummary(in: entities)
+        } ?? strongestRelevanceSummary(in: displayEntities)
         let navigationSummary = focusedRemoteUUID == nil
             ? "Første klikk skjer i denne siden. Full radar og profilflate åpnes bare når du ber om en egen arbeidsflate."
             : "Du ser nå valgt deltager i denne siden. Åpne profilflate og full radar når du vil fordype deg i egne arbeidsflater."
@@ -2509,6 +3365,18 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 "subtitle": .string("Velg en nearby deltager fra listen under."),
                 "detail": .string("Når en deltager er valgt, viser vi avstand, retning og neste steg her."),
                 "relevanceBadge": .string("AVVENTER VALG"),
+                "tierLabel": .string("none"),
+                "scoreText": .string(""),
+                "proximitySummary": .string("No local proximity target selected."),
+                "directionConfidence": .string("unknown"),
+                "publicSectionLabel": .string("OPENLY PUBLISHED"),
+                "publicHeadline": .string("Select an entity to load openly published information."),
+                "publicInterests": .string(""),
+                "publicLookingFor": .string(""),
+                "publicOverlap": .string(""),
+                "relationBadge": .string("Not established"),
+                "identityPersistenceSummary": .string("Signed identity exchange has not completed."),
+                "chatAvailability": .string("Chat available after signed identity exchange."),
                 "relevanceSummary": .string("Velg en deltager for å se hvor sterk matchen ser ut akkurat nå."),
                 "purposeSummary": .string("Ingen valgt deltager ennå"),
                 "purposeDetail": .string("Verifisert purpose/interest-match vises først etter signert kontakt."),
@@ -2518,7 +3386,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             ]
         let selectedEntityActions = focusedRemoteUUID.map { selectedEntityActionCards(for: $0) } ?? []
         let radarLayout = makeRadarLayout(
-            entities: entities,
+            entities: displayEntities,
             focusedRemoteUUID: focusedRemoteUUID,
             effectiveScannerStatus: effectiveScannerStatus
         )
@@ -2526,6 +3394,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         return [
             "headline": .string("Nearby Participants"),
             "summary": .string(summary),
+            "visibleEntityCount": .integer(primaryVisibleEntities.count),
+            "detectedEntityCount": .integer(entities.count),
+            "hiddenEntityCount": .integer(hiddenEntities.count),
+            "showingLowerMatches": .bool(showLowerMatches),
+            "lowerMatchesSummary": .string(lowerMatchesSummary),
+            "showLowerMatchesLabel": .string(showLowerMatchesLabel),
             "statusSummary": .string(statusSummary),
             "precisionSummary": .string(precisionSummary),
             "actionSummary": .string(lastActionSummary),
@@ -2544,7 +3418,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "selectedEntityActions": .list(selectedEntityActions.map(ValueType.object)),
             "sectors": .list(sectors.map(ValueType.object)),
             "nearby": .list(nearbyCards.map(ValueType.object)),
-            "emptyState": .string(entities.isEmpty ? "No nearby participants visible yet." : ""),
+            "hiddenNearby": .list(hiddenNearbyCards.map(ValueType.object)),
+            "allNearby": .list(allNearbyCards.map(ValueType.object)),
+            "emptyState": .string(primaryVisibleEntities.isEmpty ? "No relevant entities nearby." : ""),
             "lastError": .string(lastError ?? "")
         ]
     }
@@ -2704,6 +3580,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let followUpMarked = followUpMarkedRemoteUUIDs.contains(entity.remoteUUID)
         let selected = entity.remoteUUID == selectedRemoteUUID
         let relevance = relevanceSignal(for: entity.remoteUUID, entity: entity)
+        let distanceText = entity.distanceMeters.map { String(format: "%.1f m", $0) } ?? "distance pending"
+        let relationBadge = contactSignal?.actionLabel ?? ""
+        let directionConfidence = directionIsPrecise ? "precise direction" : "direction uncertain"
         let noteParts = [
             selected ? "Valgt i fokus." : nil,
             followUpMarked ? "Markert for oppfølging." : nil,
@@ -2715,9 +3594,15 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "subtitle": .string(directionSubtitle(for: entity, directionIsPrecise: directionIsPrecise)),
             "detail": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
             "relevanceBadge": .string(relevance.badge),
+            "tierLabel": .string(relevance.tier),
+            "scoreText": .string(relevance.scoreText),
+            "distanceText": .string(distanceText),
+            "directionConfidence": .string(directionConfidence),
+            "relationBadge": .string(relationBadge),
             "relevanceSummary": .string(relevance.summary),
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
+            "publicPreviewSummary": .string(purposeSignal?.summary ?? "Openly published profile preview loads only after selection."),
             "note": .string(noteParts.joined(separator: " ")),
             "keypath": .string("nearbyRadar.dispatchAction"),
             "label": .string(selected ? "Valgt i siden" : "Vis i siden"),
@@ -2817,6 +3702,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let hasLaunchedChat = launchedChatRemoteUUIDs.contains(remoteUUID)
         let relevance = relevanceSignal(for: remoteUUID, entity: entity)
         let selectionBadge = markedForFollowUp ? "VALGT · MARKERT FOR OPPFØLGING" : "VALGT DELTAGER"
+        let directionIsPrecise = hasDirectionalPosition(entity)
         let subtitleParts = [target?.company, target?.role].compactMap { value -> String? in
             guard let value, value.isEmpty == false else { return nil }
             return value
@@ -2829,9 +3715,25 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         return [
             "selectionBadge": .string(selectionBadge),
             "title": .string(entity.displayName),
-            "subtitle": .string(subtitleParts.isEmpty ? directionSubtitle(for: entity, directionIsPrecise: hasDirectionalPosition(entity)) : subtitleParts.joined(separator: " · ")),
-            "detail": .string(positionDetail(for: entity, directionIsPrecise: hasDirectionalPosition(entity))),
+            "subtitle": .string(subtitleParts.isEmpty ? directionSubtitle(for: entity, directionIsPrecise: directionIsPrecise) : subtitleParts.joined(separator: " · ")),
+            "detail": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
             "relevanceBadge": .string(relevance.badge),
+            "tierLabel": .string(relevance.tier),
+            "scoreText": .string(relevance.scoreText),
+            "proximitySummary": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
+            "directionConfidence": .string(directionIsPrecise ? "precise direction" : "direction uncertain"),
+            "publicSectionLabel": .string("OPENLY PUBLISHED"),
+            "publicHeadline": .string(target?.role ?? "No public headline available yet."),
+            "publicInterests": .string(purposeSignal?.summary ?? "No public interests loaded yet."),
+            "publicLookingFor": .string("No public looking-for field loaded yet."),
+            "publicOverlap": .string(purposeSignal?.detail ?? "Overlap remains local until a public profile reference is selected."),
+            "relationBadge": .string(contactSignal?.actionLabel ?? "Not established"),
+            "identityPersistenceSummary": .string(hasVerifiedContact
+                ? "Signed identity exchange complete · relation persisted · proof saved"
+                : "Signed identity exchange not complete. Chat stays locked."),
+            "chatAvailability": .string(hasVerifiedContact
+                ? (hasLaunchedChat ? "Open chat" : "Chat ready after identity save")
+                : "Chat available after signed identity exchange."),
             "relevanceSummary": .string(relevance.summary),
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Verifisert purpose/interest-fit kommer først etter signert kontakt."),
@@ -2870,6 +3772,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             ])
         ]
 
+        let contactStatus = contactSignalsById[remoteUUID]?.status
         let primaryAction: Object
         if followUpTargetsById[remoteUUID] != nil,
            contactSignalsById[remoteUUID]?.status == "verified" {
@@ -2896,19 +3799,49 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                     ])
             ]
         } else {
+            let isIncoming = contactStatus == "incoming"
+            let isWaiting = contactStatus == "sent" || contactStatus == "pendingConnection"
             primaryAction = [
                 "title": .string("Kontakt"),
-                "subtitle": .string("Be om signert kontakt"),
-                "detail": .string("Etabler kontakt først. Når den er verifisert, kan du starte chat med høyere presisjon i match-signalet."),
+                "subtitle": .string(isIncoming ? "Fullfør signert identitetsutveksling" : "Be om signert kontakt"),
+                "detail": .string(isIncoming
+                    ? "Accepting completes signed identity exchange, persists the relation and saves encounter proof locally."
+                    : "Etabler kontakt først. Når identiteten er lagret, kan du starte chat med høyere presisjon i match-signalet."),
                 "note": .string(contactSignalsById[remoteUUID]?.summary ?? "Kontaktbeviset er første steg før verifisert purpose/interest-match."),
                 "keypath": .string("nearbyRadar.dispatchAction"),
-                "label": .string(contactSignalsById[remoteUUID]?.actionLabel ?? "Be om kontakt"),
+                "label": .string(isIncoming ? "Accept + exchange" : (isWaiting ? "Awaiting exchange" : "Request contact")),
                 "payload": .object([
-                    "keypath": .string("requestContact"),
+                    "keypath": .string(isIncoming ? "acceptContact" : "requestContact"),
                     "payload": .string(remoteUUID)
                 ])
             ]
         }
+
+        let inviteAction: Object = [
+            "title": .string("Invite"),
+            "subtitle": .string("Low-friction invitation"),
+            "detail": .string("Send invite is separate from signed contact. It never implies automatic chat or profile access."),
+            "note": .string(contactStatus == nil ? "Available for relevant nearby entities." : "Contact state already exists for this entity."),
+            "keypath": .string("nearbyRadar.dispatchAction"),
+            "label": .string("Send invite"),
+            "payload": .object([
+                "keypath": .string("invite"),
+                "payload": .string(remoteUUID)
+            ])
+        ]
+
+        let chatLockedAction: Object = [
+            "title": .string("Chat"),
+            "subtitle": .string("Visible but locked"),
+            "detail": .string("Chat available after signed identity exchange."),
+            "note": .string("The skeleton renderer has no true disabled-button semantic yet, so this appears as an explanatory card rather than an active chat button."),
+            "keypath": .string("nearbyRadar.dispatchAction"),
+            "label": .string("Chat locked"),
+            "payload": .object([
+                "keypath": .string("noop"),
+                "payload": .string(remoteUUID)
+            ])
+        ]
 
         let markedForFollowUp = followUpMarkedRemoteUUIDs.contains(remoteUUID)
         let followUpAction: Object = [
@@ -2928,7 +3861,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             ])
         ]
 
-        return [profileAction, primaryAction, followUpAction]
+        if contactStatus == "verified" {
+            return [profileAction, primaryAction, followUpAction]
+        }
+        return [profileAction, inviteAction, primaryAction, chatLockedAction, followUpAction]
     }
 
     private func scannerStatusSummary(
@@ -2991,7 +3927,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return RelevanceSignal(
                 badge: "NÆRHET FØRST",
                 summary: "Nearby-signal oppdaget, men matchen må verifiseres videre.",
-                detail: "Be om kontakt for å gå fra nearby-nærhet til en mer presis vurdering."
+                detail: "Be om kontakt for å gå fra nearby-nærhet til en mer presis vurdering.",
+                tier: "nearby",
+                scoreText: "",
+                visibleByDefault: false
             )
         }
 
@@ -2999,42 +3938,77 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return RelevanceSignal(
                 badge: "GRØNN MATCH",
                 summary: "Sterk verifisert match. Denne personen er klar for oppfølging nå.",
-                detail: "Formål og interesser overlapper tydelig etter signert kontakt."
+                detail: "Formål og interesser overlapper tydelig etter signert kontakt.",
+                tier: "strong",
+                scoreText: String(format: "%.2f", score),
+                visibleByDefault: true
             )
         }
         if hasVerifiedContact, score >= 0.55 {
             return RelevanceSignal(
                 badge: "GUL MATCH",
                 summary: "God verifisert match. Det er verdt å følge opp videre.",
-                detail: "Kontakten er verifisert, men relevansen er mer moderat enn toppmatchene."
+                detail: "Kontakten er verifisert, men relevansen er mer moderat enn toppmatchene.",
+                tier: "good",
+                scoreText: String(format: "%.2f", score),
+                visibleByDefault: true
             )
         }
         if hasVerifiedContact {
             return RelevanceSignal(
                 badge: "RØD MATCH",
                 summary: "Svakt verifisert treff. Vurder om denne personen bør følges opp videre.",
-                detail: "Kontakten er verifisert, men formål og interesser overlapper svakt."
+                detail: "Kontakten er verifisert, men formål og interesser overlapper svakt.",
+                tier: "low",
+                scoreText: String(format: "%.2f", score),
+                visibleByDefault: false
             )
         }
         if score >= 0.65 {
             return RelevanceSignal(
                 badge: "LOVENDE MATCH",
                 summary: "Lovende nearby-match. Det neste naturlige steget er å be om kontakt.",
-                detail: "Scanneren ser høy relevans, men den er ikke verifisert ennå."
+                detail: "Scanneren ser høy relevans, men den er ikke verifisert ennå.",
+                tier: "promising",
+                scoreText: String(format: "%.2f", score),
+                visibleByDefault: true
             )
         }
         if score >= 0.35 {
             return RelevanceSignal(
                 badge: "GUL MATCH",
                 summary: "Moderat nearby-match. Bruk dette som en kandidat, ikke som en bekreftet prioritet.",
-                detail: "Det kan være verdt å be om kontakt hvis samtalen virker relevant."
+                detail: "Det kan være verdt å be om kontakt hvis samtalen virker relevant.",
+                tier: "moderate",
+                scoreText: String(format: "%.2f", score),
+                visibleByDefault: true
             )
         }
         return RelevanceSignal(
             badge: "RØD MATCH",
             summary: "Lav nearby-relevans akkurat nå. Se gjerne videre før du følger opp.",
-            detail: "Dette treffet er nærme, men scorer lavt på nåværende matchsignal."
+            detail: "Dette treffet er nærme, men scorer lavt på nåværende matchsignal.",
+            tier: "low",
+            scoreText: String(format: "%.2f", score),
+            visibleByDefault: false
         )
+    }
+
+    private func shouldShowEntityByDefault(_ entity: NearbyEntity) -> Bool {
+        if entity.remoteUUID == selectedRemoteUUID {
+            return true
+        }
+        if followUpMarkedRemoteUUIDs.contains(entity.remoteUUID) {
+            return true
+        }
+        if launchedChatRemoteUUIDs.contains(entity.remoteUUID) {
+            return true
+        }
+        if let contactStatus = contactSignalsById[entity.remoteUUID]?.status,
+           ["verified", "sent", "incoming", "pendingConnection"].contains(contactStatus) {
+            return true
+        }
+        return relevanceSignal(for: entity.remoteUUID, entity: entity).visibleByDefault
     }
 
     private func followUpSummary(
@@ -3054,10 +4028,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return "\(displayName) er markert for oppfølging senere."
         }
         if hasVerifiedContact {
-            return "Kontakten er verifisert. Nå kan du starte chat eller markere for oppfølging."
+            return "Identity saved. Nå kan du starte chat eller markere for oppfølging."
         }
         if contactSignalsById[remoteUUID]?.status == "sent" || contactSignalsById[remoteUUID]?.status == "pendingConnection" {
-            return "Kontaktforespørselen er sendt. Vent på verifisering før du starter chat."
+            return "Kontaktforespørselen er sendt. Vent på signert identitetsutveksling før du starter chat."
         }
         return "Ingen oppfølging startet ennå. Be om kontakt eller marker deltakeren for senere."
     }
@@ -3072,12 +4046,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return "Åpne chatten for å fortsette samtalen med \(displayName)."
         }
         if hasVerifiedContact {
-            return "Chat er ikke startet ennå. Neste steg er å trykke Start chat."
+            return "Chat er ikke startet ennå. Identity saved gjør at du kan trykke Start chat."
         }
         if contactSignalsById[remoteUUID]?.status == "sent" || contactSignalsById[remoteUUID]?.status == "pendingConnection" {
-            return "Chat blir tilgjengelig når kontakten er verifisert."
+            return "Chat blir tilgjengelig når signert identitetsutveksling er fullført."
         }
-        return "Chat er låst til verifisert kontakt i denne nearby-flyten."
+        return "Chat er låst til fullført signert identitetsutveksling i denne nearby-flyten."
     }
 
     private func directionSubtitle(for entity: NearbyEntity, directionIsPrecise: Bool) -> String {
@@ -7343,8 +8317,8 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
             )
         case "launcher.openAIAssistant":
             return ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
-                conferenceEndpoint: "cell://\(Self.stagingHost)/ConferenceParticipantPreviewShell",
-                aiEndpoint: "cell://\(Self.stagingHost)/ConferenceAIGatewayPreview"
+                conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
             )
         default:
             return nil

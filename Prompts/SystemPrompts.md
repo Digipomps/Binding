@@ -9,6 +9,7 @@ This file is now an index to avoid prompt drift across assistants.
 - `Prompts/Architecture.md` (authoritative architecture policy)
 - `Prompts/CONTRIBUTING.md` (contribution conventions)
 - `Prompts/AgreementTemplateEditorPlan.md` (approved draft plan for agreement template editor)
+- `Prompts/AttachmentSurface_Binding_ThreadPrompt.md` (Binding renderer plan for shared attachment fields)
 
 ## Assistant Wrappers
 - `Prompts/SystemPrompt-Codex.md`

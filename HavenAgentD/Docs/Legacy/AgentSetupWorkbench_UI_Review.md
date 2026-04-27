@@ -1,5 +1,11 @@
 # Agent Setup Workbench: Felt, Knapper og UX-vurdering
 
+Legacy note:
+
+- denne noten beskriver den gamle Binding-embedded workbenchen
+- workbenchen er ikke lenger del av hovedproduktet `Binding`
+- behold dokumentet kun som historisk UX-/implementasjonskontekst for agentarbeid under `HavenAgentD`
+
 Denne noten beskriver hva `Agent Setup Workbench` i `Binding` faktisk inneholder per i dag, hva hvert tekstfelt og hver knapp gjør, og hva som bør strammes inn UX-messig.
 
 Kildene for vurderingen er:

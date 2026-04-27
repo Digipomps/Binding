@@ -5,6 +5,14 @@ private enum GeneralCellDecodeCodingKeys: String, CodingKey {
     case owner
 }
 
+private enum ConferenceAdminPreviewCodingKeys: String, CodingKey {
+    case discardedDraft
+    case draftPublished
+    case draftSubtitle
+    case draftTitle
+    case lastEditSummary
+}
+
 final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
     private var storeKey = ""
     private var agendaView = "forYou"
@@ -709,6 +717,12 @@ final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
     nonisolated required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: GeneralCellDecodeCodingKeys.self)
         let decodedOwner = try? container.decodeIfPresent(Identity.self, forKey: .owner)
+        let stateContainer = try? decoder.container(keyedBy: ConferenceAdminPreviewCodingKeys.self)
+        let decodedDiscardedDraft = try? stateContainer?.decodeIfPresent(Bool.self, forKey: .discardedDraft)
+        let decodedDraftPublished = try? stateContainer?.decodeIfPresent(Bool.self, forKey: .draftPublished)
+        let decodedDraftSubtitle = try? stateContainer?.decodeIfPresent(String.self, forKey: .draftSubtitle)
+        let decodedDraftTitle = try? stateContainer?.decodeIfPresent(String.self, forKey: .draftTitle)
+        let decodedLastEditSummary = try? stateContainer?.decodeIfPresent(String.self, forKey: .lastEditSummary)
         try super.init(from: decoder)
         conferenceRunRestoreSetupSynchronously { [weak self] in
             guard let self else { return }
@@ -718,11 +732,32 @@ final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
                 fallbackDisplayName: "conference-admin-preview-fallback"
             )
             await self.configure(owner: restoredOwner)
+            if let decodedDiscardedDraft {
+                self.discardedDraft = decodedDiscardedDraft
+            }
+            if let decodedDraftPublished {
+                self.draftPublished = decodedDraftPublished
+            }
+            if let decodedDraftSubtitle, decodedDraftSubtitle.isEmpty == false {
+                self.draftSubtitle = decodedDraftSubtitle
+            }
+            if let decodedDraftTitle, decodedDraftTitle.isEmpty == false {
+                self.draftTitle = decodedDraftTitle
+            }
+            if let decodedLastEditSummary, decodedLastEditSummary.isEmpty == false {
+                self.lastEditSummary = decodedLastEditSummary
+            }
         }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
         try super.encode(to: encoder)
+        var container = encoder.container(keyedBy: ConferenceAdminPreviewCodingKeys.self)
+        try container.encode(discardedDraft, forKey: .discardedDraft)
+        try container.encode(draftPublished, forKey: .draftPublished)
+        try container.encode(draftSubtitle, forKey: .draftSubtitle)
+        try container.encode(draftTitle, forKey: .draftTitle)
+        try container.encode(lastEditSummary, forKey: .lastEditSummary)
     }
 
     private func configure(owner: Identity) async {

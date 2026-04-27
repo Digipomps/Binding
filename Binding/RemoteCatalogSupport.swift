@@ -47,6 +47,7 @@ enum RemoteEndpointAccessSupport {
 
     static func shouldAttemptScaffoldAdmission(for endpoint: String) -> Bool {
         guard !RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) else { return false }
+        guard !isPublicSkeletonParityFixtureEndpoint(endpoint) else { return false }
         guard let origin = remoteOrigin(from: endpoint) else { return false }
         return !isLoopbackHost(origin.host)
     }
@@ -142,6 +143,21 @@ enum RemoteEndpointAccessSupport {
     private static func isLoopbackHost(_ host: String) -> Bool {
         let normalized = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return normalized == "localhost" || normalized == "127.0.0.1"
+    }
+
+    private static func isPublicSkeletonParityFixtureEndpoint(_ endpoint: String) -> Bool {
+        guard let components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell",
+              let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              host == stagingHost
+        else {
+            return false
+        }
+
+        let cellName = components.path
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        return cellName.hasPrefix("skeletonparity") && cellName.hasSuffix("fixture")
     }
 
     private static func routeRegistrationOrigin(from endpoint: String) -> RemoteOrigin? {

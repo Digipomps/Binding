@@ -106,4 +106,32 @@ public struct RuntimePaths: Equatable, Sendable {
             pairingArtifactFile: outputDirectory.appendingPathComponent("agent-enrollment-pairing.json")
         )
     }
+
+    public static func forConfigFile(_ configFile: URL) -> RuntimePaths {
+        let configFile = configFile.standardizedFileURL
+        let agentDirectory = configFile.deletingLastPathComponent()
+        let stateDirectory = agentDirectory.appendingPathComponent("State", isDirectory: true)
+        let cellDocumentDirectory = agentDirectory.appendingPathComponent("CellDocuments", isDirectory: true)
+        let logsDirectory = agentDirectory.appendingPathComponent("Logs", isDirectory: true)
+        let inboxDirectory = agentDirectory.appendingPathComponent("Inbox", isDirectory: true)
+        let outputDirectory = agentDirectory.appendingPathComponent("Out", isDirectory: true)
+        let baseDirectory = agentDirectory.deletingLastPathComponent()
+
+        return RuntimePaths(
+            homeDirectory: baseDirectory,
+            applicationSupportDirectory: baseDirectory,
+            agentDirectory: agentDirectory,
+            stateDirectory: stateDirectory,
+            cellDocumentDirectory: cellDocumentDirectory,
+            logsDirectory: logsDirectory,
+            inboxDirectory: inboxDirectory,
+            outputDirectory: outputDirectory,
+            configFile: configFile,
+            stateFile: stateDirectory.appendingPathComponent("agent-state.json"),
+            cellRuntimeFile: stateDirectory.appendingPathComponent("cell-runtime.json"),
+            remoteIntentStateFile: stateDirectory.appendingPathComponent("remote-intent-state.json"),
+            agentIdentityFile: stateDirectory.appendingPathComponent("agent-identity.json"),
+            pairingArtifactFile: outputDirectory.appendingPathComponent("agent-enrollment-pairing.json")
+        )
+    }
 }

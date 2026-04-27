@@ -5,9 +5,25 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 ## Architecture notes
 - [SkeletonPortabilityRequirement.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonPortabilityRequirement.md)
 - [SkeletonParitySuite.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonParitySuite.md)
+- [BindingStandaloneSeparationPlan-2026-04-16.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneSeparationPlan-2026-04-16.md)
+- [BindingStandaloneStatus.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneStatus.md)
+
+## Personal Co-Pilot App Store track
+- [PersonalCopilotV1AppStoreImplementation.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotV1AppStoreImplementation.md)
+- [AppStoreReviewNotes_PersonalCopilotV1.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/AppStoreReviewNotes_PersonalCopilotV1.md)
+- [PersonalCopilotV1_DataAndPermissionMap.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotV1_DataAndPermissionMap.md)
+- [PersonalCopilotV1_CellContracts.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotV1_CellContracts.md)
+- [PersonalCopilotV1_UGCModerationRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotV1_UGCModerationRunbook.md)
+- [PersonalCopilotV1_ReleaseChecklist.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotV1_ReleaseChecklist.md)
+- [BindingPersonalCopilot_DesignPrompt.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingPersonalCopilot_DesignPrompt.md)
+- [Claude_EntityScannerDesignPrompt.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/Claude_EntityScannerDesignPrompt.md)
+- [Claude_EntityScannerDesignPrompt_v2.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/Claude_EntityScannerDesignPrompt_v2.md)
+- [EntityScanner_JudgedProximityUX.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/EntityScanner_JudgedProximityUX.md)
+- [PersonalCopilotDesignSystem.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotDesignSystem.md)
 
 ## Overview
 - Binding (app): Hosts a porthole canvas and edge menus to quickly load `CellConfiguration`s.
+- Binding is being normalized as a standalone app that can connect to remote `CellScaffold`, but does not depend on a local HAVEN agent.
 - CellProtocol: A modular ecosystem comprising:
   - CellBase: platform-agnostic core (protocols, ValueType, CellConfiguration, Perspective, etc.).
   - CellApple: platform-specific integrations and views (SwiftUI, SkeletonView, EdgeMenus, Apple Intelligence under `CellApple/Intelligence`).
@@ -53,22 +69,15 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `xcodebuild ... build` succeeded for Binding.
   - `xcodebuild ... build-for-testing` succeeded for Binding + BindingTests.
 
-## Latest successful changes (March 14, 2026)
-- Added [AgentProvisioningCell](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/AgentProvisioningCell.swift) as a local `GeneralCell` that models install/start/connect/stop for `haven-agentd` through CellProtocol actions rather than direct UI-only orchestration.
-- Added [AgentEnrollmentCell](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/AgentEnrollmentCell.swift) so Binding can verify a stable agent identity attestation over the loopback CellProtocol bridge, establish a normal CellProtocol agreement on that bridge, write a purpose-bound pairing artifact, materialize a verified `starter-auth.json` signed by the agent identity for `sprout`, and emit a mutually signed `agent-operator-entity-link.json` for `sprout bootstrap join`.
-- Added an `Agent Setup Workbench` to [ConfigurationCatalogCell](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/ConfigurationCatalogCell.swift) with a purpose-driven skeleton for draft purpose, install/runtime/bridge stages, Binding<->agent pairing, live review queue + audit visibility, topology guidance, and activity/audit-oriented feedback.
-- Registered both `cell:///AgentProvisioning` and `cell:///AgentEnrollment` in [BootstrapView](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/BootstrapView.swift) and surfaced the workbench in curated menus from [ContentView](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/ContentView.swift).
-- Added a live localhost CellProtocol control bridge in `HavenAgentD` so Binding can read supervisor/inbox/review state and submit review decisions over actual CellProtocol instead of only polling persisted files.
-- The local control bridge is loopback-only and token-gated from the agent config; Binding reuses that token for live operator calls, performs an explicit CellProtocol `addAgreement` before live `get/set`, and keeps the CLI review commands as fallback.
-- The current operator topology is explicit: use one local control porthole when a human needs setup/review UX, but keep remote peers headless over CellProtocol instead of creating a porthole per connection.
-- The current identity topology is also explicit: Binding keeps an operator identity, HavenAgentD keeps a separate stable device identity, and pairing happens over CellProtocol instead of by sharing one vault.
-- The bootstrap identity path is now explicit too: the agent signs `starter-auth` over CellProtocol, Binding verifies it locally, and `sprout` consumes that artifact instead of minting a separate starter identity for the same flow.
-- There is now an explicit staging/dev bootstrap test path too: `haven-agentd bootstrap-probe` verifies the local pairing artifacts and can then run a real `sprout bootstrap`, while `Scripts/test_haven_agentd_bootstrap.sh` gives the Binding workspace a one-command entrypoint for that probe.
-- The remaining secure scaffold-admission step is also explicit: `sprout-admin entity-anchor accept-entity-link` can now re-sign an existing anchor snapshot with the paired contract ID, instead of relying on manual snapshot edits when staging must admit a newly paired agent key.
-- Validation status:
-  - `./Scripts/build_binding.sh` succeeded.
-  - `swift test` in `HavenAgentD` now passes again after the identity/pairing + bridge-agreement work, including the reconnect/renewal, local control bridge and bootstrap-probe suites.
-  - `./Scripts/test_binding.sh -only-testing:BindingTests` succeeded with the pairing workbench included.
+## Historical note (March 14, 2026)
+
+Binding briefly carried a local agent provisioning surface during early `HavenAgentD` exploration.
+
+That material is now archived out of the main Binding docs surface:
+
+- agent boundary note: [../HavenAgentD/Docs/BindingBoundary.md](../HavenAgentD/Docs/BindingBoundary.md)
+- legacy provisioning runbook: [../HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md](../HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md)
+- legacy workbench review: [../HavenAgentD/Docs/Legacy/AgentSetupWorkbench_UI_Review.md](../HavenAgentD/Docs/Legacy/AgentSetupWorkbench_UI_Review.md)
 
 ## Latest successful changes (March 22, 2026)
 - `CellProtocol` now models explicit signing vs key-agreement roles through `IdentityKeyRoleProviderProtocol` in [IdentityKeyRoleProviderProtocol.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Crypto/IdentityKeyRoleProviderProtocol.swift).
@@ -352,9 +361,7 @@ Projects importing CellProtocol must include:
 - Chat crypto recipient side: [Documentation/ChatCryptoRecipientSide.md](Documentation/ChatCryptoRecipientSide.md)
 - Next step prompt: [Documentation/NextStepPrompt.md](Documentation/NextStepPrompt.md)
 - Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
-- HavenAgentD integration note: [Documentation/HavenAgentD.md](Documentation/HavenAgentD.md)
-- Agent Setup Workbench UI review: [Documentation/AgentSetupWorkbench_UI_Review.md](Documentation/AgentSetupWorkbench_UI_Review.md)
-- HavenAgentD setup/test runbook: [Documentation/HavenAgentD_Setup_Test_Runbook.md](Documentation/HavenAgentD_Setup_Test_Runbook.md)
+- HavenAgentD docs index: [../HavenAgentD/Docs/README.md](../HavenAgentD/Docs/README.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
 - Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
 - Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)

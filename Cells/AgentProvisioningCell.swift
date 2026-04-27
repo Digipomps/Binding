@@ -73,6 +73,17 @@ final class AgentProvisioningCell: GeneralCell {
         }
     }
 
+    private struct SignedTestIntentPayload: Encodable {
+        var issuerID: String
+        var nonce: String
+        var topic: String
+        var origin: String
+        var actionID: String
+        var arguments: [String: String]
+        var issuedAt: String
+        var expiresAt: String?
+    }
+
     private struct MutableState: Codable {
         var purposeName: String
         var purposeRef: String
@@ -191,6 +202,8 @@ final class AgentProvisioningCell: GeneralCell {
         case perspectiveUnavailable
         case noActivePurpose
         case noSelectedReviewIntent
+        case identityVaultUnavailable
+        case operatorIdentityUnavailable
 
         var errorDescription: String? {
             switch self {
@@ -218,6 +231,10 @@ final class AgentProvisioningCell: GeneralCell {
                 return "Perspective did not return any active purposes."
             case .noSelectedReviewIntent:
                 return "Select a pending intent before approving or rejecting review."
+            case .identityVaultUnavailable:
+                return "Identity vault is unavailable."
+            case .operatorIdentityUnavailable:
+                return "Operator identity is unavailable."
             }
         }
     }
@@ -234,6 +251,8 @@ final class AgentProvisioningCell: GeneralCell {
     nonisolated private static let defaultPurposeRef = "purpose://operate-local-haven-agent"
     nonisolated private static let defaultGoal = "Install, start and connect a local HAVEN agent without bypassing CellProtocol review boundaries."
     nonisolated private static let defaultInterests = "cellprotocol, agent, automation, review"
+    nonisolated private static let defaultTestAppleScriptID = "binding-test-open-url-in-safari"
+    nonisolated private static let defaultTestIssuerPrefix = "binding-operator"
     nonisolated private static let defaultControlBridge = LiveControlBridgeConfiguration(
         enabled: true,
         host: "127.0.0.1",
@@ -407,6 +426,7 @@ final class AgentProvisioningCell: GeneralCell {
         "agent.setup.connect",
         "agent.setup.stop",
         "agent.setup.review.selection",
+        "agent.setup.review.queueSafariTest",
         "agent.setup.review.approveSelected",
         "agent.setup.review.rejectSelected"
     ]
@@ -500,6 +520,13 @@ final class AgentProvisioningCell: GeneralCell {
             } catch {
                 await self.recordFailure(action: "Updated review focus", error: error, requester: requester)
                 return .string("error: \(error.localizedDescription)")
+            }
+        }
+
+        await registerAction(key: "agent.setup.review.queueSafariTest", owner: owner) { [weak self] _, requester in
+            guard let self = self else { return .string("failure") }
+            return await self.performAction(title: "Queued Safari review test", requester: requester) {
+                try await self.queueSafariReviewTestIntent(requester: requester)
             }
         }
 
@@ -887,7 +914,64 @@ final class AgentProvisioningCell: GeneralCell {
         }
     }
 
-    private func prepareInstallArtifacts() throws -> AgentPaths {
+    private func queueSafariReviewTestIntent(requester: Identity) async throws {
+        guard Self.supportsLocalAgentRuntime else {
+            throw ProvisioningError.unsupportedPlatform("Queueing a local HAVEN agent review test")
+        }
+
+        let operatorIdentity = try await resolveOperatorIdentity(requester: requester)
+        let paths = try prepareInstallArtifacts(requester: operatorIdentity)
+        let configJSON = Self.readJSONObject(at: paths.configFile)
+        let controlBridge = Self.liveControlBridgeConfiguration(configJSON: configJSON)
+        guard controlBridge.enabled,
+              let inbox = try await remoteAgentCell(
+                targetCellReference: "agent/intents/inbox",
+                configuration: controlBridge,
+                requester: requester
+              ) else {
+            throw ProvisioningError.commandFailed("Agent intent inbox is not reachable over the local control bridge.")
+        }
+
+        let envelope = try await Self.makeSignedTestIntentEnvelope(
+            requester: operatorIdentity,
+            domain: sanitizedBaseURL(for: stateQueue.sync { mutableState.domain })
+        )
+
+        let response = try await inbox.set(
+            keypath: "enqueueSigned",
+            value: .object([
+                "remoteIntentEnvelope": Self.signedEnvelopeValue(envelope)
+            ]),
+            requester: requester
+        )
+
+        if case let .string(errorText) = response,
+           errorText.hasPrefix("error:") {
+            throw ProvisioningError.commandFailed(errorText)
+        }
+
+        stateQueue.sync {
+            mutableState.reviewSelectedIntentID = envelope.payload.nonce
+            if mutableState.reviewNoteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                mutableState.reviewNoteDraft = "Approved from Binding Safari smoke test."
+            }
+        }
+    }
+
+    private func resolveOperatorIdentity(requester: Identity) async throws -> Identity {
+        if requester.displayName.isEmpty == false {
+            return requester
+        }
+        guard let vault = CellBase.defaultIdentityVault else {
+            throw ProvisioningError.identityVaultUnavailable
+        }
+        guard let operatorIdentity = await vault.identity(for: "private", makeNewIfNotFound: true) else {
+            throw ProvisioningError.operatorIdentityUnavailable
+        }
+        return operatorIdentity
+    }
+
+    private func prepareInstallArtifacts(requester: Identity? = nil) throws -> AgentPaths {
         let paths = try currentPaths()
         let fileManager = FileManager.default
 
@@ -904,7 +988,7 @@ final class AgentProvisioningCell: GeneralCell {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
         }
 
-        let configObject = makeAgentConfigObject(paths: paths)
+        let configObject = makeAgentConfigObject(paths: paths, requester: requester)
         let configData = try JSONSerialization.data(withJSONObject: configObject, options: [.prettyPrinted, .sortedKeys])
         try configData.write(to: paths.configFile, options: [.atomic])
 
@@ -1398,12 +1482,18 @@ final class AgentProvisioningCell: GeneralCell {
         return current
     }
 
-    private func makeAgentConfigObject(paths: AgentPaths) -> [String: Any] {
+    private func makeAgentConfigObject(paths: AgentPaths, requester: Identity?) -> [String: Any] {
         let snapshot = stateQueue.sync { mutableState }
         let interests = parsedInterests(from: snapshot.interestsText)
         let baseURL = sanitizedBaseURL(for: snapshot.domain)
         let existingConfig = Self.readJSONObject(at: paths.configFile)
         let accessToken = Self.existingControlBridgeAccessToken(configJSON: existingConfig) ?? Self.generatedControlBridgeAccessToken()
+        let automationPolicy = Self.mergedAutomationPolicy(existingConfig: existingConfig, defaultDomain: baseURL)
+        let remoteIntentPolicy = Self.mergedRemoteIntentPolicy(
+            existingConfig: existingConfig,
+            trustedOperatorIssuer: Self.trustedOperatorIssuer(from: requester)
+        )
+        let watchFolders = (existingConfig["watchFolders"] as? [Any]) ?? []
 
         return [
             "instanceName": "haven-agentd",
@@ -1462,17 +1552,9 @@ final class AgentProvisioningCell: GeneralCell {
                     ]
                 ]
             ],
-            "watchFolders": [],
-            "automationPolicy": [
-                "shortcuts": [],
-                "appleScripts": []
-            ],
-            "remoteIntentPolicy": [
-                "issuers": [],
-                "requireExpiry": true,
-                "maxClockSkewSeconds": 300,
-                "maxArgumentCount": 16
-            ]
+            "watchFolders": watchFolders,
+            "automationPolicy": automationPolicy,
+            "remoteIntentPolicy": remoteIntentPolicy
         ]
     }
 
@@ -1600,6 +1682,133 @@ final class AgentProvisioningCell: GeneralCell {
 
     private static func generatedControlBridgeAccessToken() -> String {
         "haven-control-\(UUID().uuidString.lowercased())"
+    }
+
+    private static func trustedOperatorIssuer(from requester: Identity?) -> [String: Any]? {
+        guard let requester,
+              let publicKey = requester.publicSecureKey?.compressedKey else {
+            return nil
+        }
+        return [
+            "issuerID": "\(defaultTestIssuerPrefix).\(requester.uuid.lowercased())",
+            "publicSigningKeyBase64": publicKey.base64EncodedString(),
+            "allowedTopics": ["intent.inbox"],
+            "allowedActionIDs": [defaultTestAppleScriptID]
+        ]
+    }
+
+    private static func mergedAutomationPolicy(
+        existingConfig: [String: Any],
+        defaultDomain: String
+    ) -> [String: Any] {
+        let existingPolicy = existingConfig["automationPolicy"] as? [String: Any] ?? [:]
+        let shortcuts = (existingPolicy["shortcuts"] as? [Any]) ?? []
+        var appleScripts = (existingPolicy["appleScripts"] as? [[String: Any]]) ?? []
+        if !appleScripts.contains(where: { stringValue(fromAny: $0["id"]) == defaultTestAppleScriptID }) {
+            appleScripts.append(defaultSafariTestAppleScriptDefinition(defaultDomain: defaultDomain))
+        }
+        return [
+            "shortcuts": shortcuts,
+            "appleScripts": appleScripts
+        ]
+    }
+
+    private static func mergedRemoteIntentPolicy(
+        existingConfig: [String: Any],
+        trustedOperatorIssuer: [String: Any]?
+    ) -> [String: Any] {
+        let existingPolicy = existingConfig["remoteIntentPolicy"] as? [String: Any] ?? [:]
+        var issuers = (existingPolicy["issuers"] as? [[String: Any]]) ?? []
+        if let trustedOperatorIssuer,
+           let issuerID = stringValue(fromAny: trustedOperatorIssuer["issuerID"]),
+           !issuers.contains(where: { stringValue(fromAny: $0["issuerID"]) == issuerID }) {
+            issuers.append(trustedOperatorIssuer)
+        }
+        return [
+            "issuers": issuers,
+            "requireExpiry": (existingPolicy["requireExpiry"] as? Bool) ?? true,
+            "maxClockSkewSeconds": (existingPolicy["maxClockSkewSeconds"] as? NSNumber)?.intValue ?? 300,
+            "maxArgumentCount": (existingPolicy["maxArgumentCount"] as? NSNumber)?.intValue ?? 16
+        ]
+    }
+
+    private static func defaultSafariTestAppleScriptDefinition(defaultDomain: String) -> [String: Any] {
+        let script = """
+        on run argv
+            if (count of argv) is less than 1 then error "Expected a URL argument"
+            set targetURL to item 1 of argv
+            tell application "Safari"
+                activate
+                open location targetURL
+            end tell
+        end run
+        """
+        return [
+            "id": defaultTestAppleScriptID,
+            "description": "Open a validated URL in Safari from the Binding review smoke test.",
+            "source": script,
+            "argumentOrder": ["url"],
+            "argumentConstraints": [
+                "url": [
+                    "required": true,
+                    "maxLength": 1024,
+                    "allowedValues": [],
+                    "pattern": #"https://[A-Za-z0-9\.\-/_~:%\?#\[\]@!\$&'\(\)\*\+,;=]+"#
+                ]
+            ],
+            "allowedForRemoteExecution": true,
+            "requiresUserSession": true,
+            "defaultPreviewURL": defaultDomain
+        ]
+    }
+
+    private static func makeSignedTestIntentEnvelope(
+        requester: Identity,
+        domain: String
+    ) async throws -> (payload: SignedTestIntentPayload, signatureBase64: String) {
+        guard requester.publicSecureKey?.compressedKey != nil else {
+            throw ProvisioningError.commandFailed("Operator identity is missing a public signing key.")
+        }
+
+        let issuedAt = Date()
+        let issuerID = "\(defaultTestIssuerPrefix).\(requester.uuid.lowercased())"
+        let payload = SignedTestIntentPayload(
+            issuerID: issuerID,
+            nonce: "binding-safari-test-\(UUID().uuidString.lowercased())",
+            topic: "intent.inbox",
+            origin: issuerID,
+            actionID: defaultTestAppleScriptID,
+            arguments: ["url": domain],
+            issuedAt: iso8601String(issuedAt),
+            expiresAt: iso8601String(issuedAt.addingTimeInterval(300))
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let payloadData = try encoder.encode(payload)
+        guard let signature = try await requester.sign(data: payloadData) else {
+            throw ProvisioningError.commandFailed("Operator identity failed to sign the review test intent.")
+        }
+
+        return (payload: payload, signatureBase64: signature.base64EncodedString())
+    }
+
+    private static func signedEnvelopeValue(
+        _ envelope: (payload: SignedTestIntentPayload, signatureBase64: String)
+    ) -> ValueType {
+        .object([
+            "payload": .object([
+                "issuerID": .string(envelope.payload.issuerID),
+                "nonce": .string(envelope.payload.nonce),
+                "topic": .string(envelope.payload.topic),
+                "origin": .string(envelope.payload.origin),
+                "actionID": .string(envelope.payload.actionID),
+                "arguments": .object(envelope.payload.arguments.mapValues(ValueType.string)),
+                "issuedAt": .string(envelope.payload.issuedAt),
+                "expiresAt": envelope.payload.expiresAt.map(ValueType.string) ?? .null
+            ]),
+            "signatureBase64": .string(envelope.signatureBase64)
+        ])
     }
 
     private static func parsePendingReviewIntents(fromValue value: ValueType?) -> [ReviewIntentEntry] {

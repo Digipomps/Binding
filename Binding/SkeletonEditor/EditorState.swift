@@ -19,10 +19,17 @@ final class EditorState: ObservableObject {
     var workingCopy: SkeletonElement? { workingDocument?.skeleton }
     var viewerConfiguration: CellConfiguration? { viewerDocument?.configuration }
     var workingConfiguration: CellConfiguration? { workingDocument?.configuration }
+    var currentWorkingDocument: EditorDocument? { workingDocument }
+    var currentSourceBackedContext: EditorSourceBackedContext? { workingDocument?.sourceBackedContext ?? viewerDocument?.sourceBackedContext }
 
     var isEditing: Bool { workingDocument != nil }
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
+    var isDirty: Bool {
+        guard let workingDocument else { return false }
+        guard let viewerDocument else { return true }
+        return documentSignature(workingDocument) != documentSignature(viewerDocument)
+    }
 
     var selectionSummary: String {
         selectedNodePath?.description ?? "no selection"
@@ -34,8 +41,16 @@ final class EditorState: ObservableObject {
         captureViewerSnapshot(fallback)
     }
 
-    func captureViewerSnapshot(_ configuration: CellConfiguration, fallbackSkeleton: SkeletonElement? = nil) {
-        viewerDocument = EditorDocument(configuration: configuration, fallbackSkeleton: fallbackSkeleton)
+    func captureViewerSnapshot(
+        _ configuration: CellConfiguration,
+        sourceBackedContext: EditorSourceBackedContext? = nil,
+        fallbackSkeleton: SkeletonElement? = nil
+    ) {
+        viewerDocument = EditorDocument(
+            configuration: configuration,
+            sourceBackedContext: sourceBackedContext,
+            fallbackSkeleton: fallbackSkeleton
+        )
     }
 
     func beginEditing(from skeleton: SkeletonElement) {
@@ -44,8 +59,16 @@ final class EditorState: ObservableObject {
         beginEditing(configuration: fallback, fallbackSkeleton: skeleton)
     }
 
-    func beginEditing(configuration: CellConfiguration, fallbackSkeleton: SkeletonElement? = nil) {
-        let document = EditorDocument(configuration: configuration, fallbackSkeleton: fallbackSkeleton)
+    func beginEditing(
+        configuration: CellConfiguration,
+        sourceBackedContext: EditorSourceBackedContext? = nil,
+        fallbackSkeleton: SkeletonElement? = nil
+    ) {
+        let document = EditorDocument(
+            configuration: configuration,
+            sourceBackedContext: sourceBackedContext,
+            fallbackSkeleton: fallbackSkeleton
+        )
         viewerDocument = document
         workingDocument = document
         selectedNodePath = document.skeleton == nil ? nil : .root
@@ -192,6 +215,16 @@ final class EditorState: ObservableObject {
     var selectedModifiers: SkeletonModifiers? {
         guard let selectedElement else { return nil }
         return SkeletonTreeQueries.modifiers(on: selectedElement)
+    }
+
+    private func documentSignature(_ document: EditorDocument) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(document.configuration),
+              let signature = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return signature
     }
 
     func dropTargets(for recipe: ComponentInsertionRecipe) -> [DropTargetDescriptor] {

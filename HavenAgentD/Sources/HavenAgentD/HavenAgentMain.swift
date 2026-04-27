@@ -26,7 +26,7 @@ struct HavenAgentMain {
 
             switch command {
             case .printExampleConfig(let rootPath):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: nil)
                 let config = AgentConfig.example(paths: paths)
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -34,7 +34,7 @@ struct HavenAgentMain {
                 print(String(decoding: data, as: UTF8.self))
 
             case .printLaunchAgent(let rootPath):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: nil)
                 let executablePath = paths.agentDirectory.appendingPathComponent("haven-agentd").path
                 let plist = LaunchAgentTemplate.render(
                     executablePath: executablePath,
@@ -44,14 +44,14 @@ struct HavenAgentMain {
                 print(plist)
 
             case .validateConfig(let configPath, let rootPath):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
                 let runtime = AgentRuntime(paths: paths)
                 _ = try await runtime.validate(configURL: configURL)
                 print("Config OK: \(configURL.path)")
 
             case .bootstrapProbe(let configPath, let rootPath, let runBootstrap):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
                 let report = await BootstrapProbeService(paths: paths).probe(
                     configURL: configURL,
@@ -64,7 +64,7 @@ struct HavenAgentMain {
                 }
 
             case .run(let configPath, let once, let rootPath):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
                 let config = try AgentConfig.load(from: configURL)
                 let cellRuntimeHost = AgentCellRuntimeHost(paths: paths)
@@ -86,20 +86,20 @@ struct HavenAgentMain {
                 }
 
             case .reviewState(let configPath, let rootPath):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
                 let summary = try await ReviewCommandService(paths: paths, configURL: configURL).state()
                 try printJSON(summary)
 
             case .reviewApprove(let configPath, let intentID, let reviewer, let note, let rootPath):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
                 let summary = try await ReviewCommandService(paths: paths, configURL: configURL)
                     .approve(intentID: intentID, reviewer: reviewer ?? "binding-operator", note: note)
                 try printJSON(summary)
 
             case .reviewReject(let configPath, let intentID, let reviewer, let note, let rootPath):
-                let paths = try resolvePaths(rootPath)
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
                 let summary = try await ReviewCommandService(paths: paths, configURL: configURL)
                     .reject(intentID: intentID, reviewer: reviewer ?? "binding-operator", note: note)
@@ -207,8 +207,12 @@ struct HavenAgentMain {
         return URL(fileURLWithPath: expanded)
     }
 
-    private static func resolvePaths(_ rootPath: String?) throws -> RuntimePaths {
+    private static func resolvePaths(rootPath: String?, configPath: String?) throws -> RuntimePaths {
         guard let rootPath, !rootPath.isEmpty else {
+            if let configPath, !configPath.isEmpty {
+                let expandedConfigPath = NSString(string: configPath).expandingTildeInPath
+                return RuntimePaths.forConfigFile(URL(fileURLWithPath: expandedConfigPath))
+            }
             return try RuntimePaths.default()
         }
         let expanded = NSString(string: rootPath).expandingTildeInPath

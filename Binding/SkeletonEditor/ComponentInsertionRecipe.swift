@@ -415,7 +415,7 @@ enum ComponentPaletteCatalog {
             $0.fontSize = 11
             $0.foregroundColor = "#6B7280"
         }
-        var noteCount = SkeletonText(keypath: "\(referenceLabel).vault.state.note_count")
+        var noteCount = SkeletonText(text: "Se state")
         noteCount.modifiers = makeModifier {
             $0.fontStyle = "title3"
             $0.fontWeight = "semibold"
@@ -427,14 +427,14 @@ enum ComponentPaletteCatalog {
             $0.fontSize = 11
             $0.foregroundColor = "#6B7280"
         }
-        var linkCount = SkeletonText(keypath: "\(referenceLabel).vault.state.link_count")
+        var linkCount = SkeletonText(text: "Se state")
         linkCount.modifiers = makeModifier {
             $0.fontStyle = "title3"
             $0.fontWeight = "semibold"
             $0.foregroundColor = "#9333EA"
         }
 
-        var statusText = SkeletonText(keypath: "\(referenceLabel).vault.state.status")
+        var statusText = SkeletonText(keypath: "\(referenceLabel).vault.state")
         statusText.modifiers = makeModifier {
             $0.fontSize = 12
             $0.foregroundColor = "#4B5563"
@@ -578,7 +578,7 @@ enum ComponentPaletteCatalog {
 
         let promptField = SkeletonTextField(
             text: nil,
-            sourceKeypath: "\(referenceLabel).matching.runPromptInput",
+            sourceKeypath: "\(referenceLabel).matching.promptText",
             targetKeypath: "\(referenceLabel).matching.runPromptInput",
             placeholder: "Beskriv hva du vil oppnaa",
             modifiers: inputModifier
@@ -586,8 +586,7 @@ enum ComponentPaletteCatalog {
 
         var runPrompt = SkeletonButton(
             keypath: "\(referenceLabel).matching.runPromptInput",
-            label: "Kjor prompt",
-            payload: .string("")
+            label: "Kjor prompt"
         )
         runPrompt.modifiers = primaryButton
 

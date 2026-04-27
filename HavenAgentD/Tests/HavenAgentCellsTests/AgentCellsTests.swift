@@ -184,8 +184,9 @@ struct AgentCellsTests {
             return
         }
 
+        let canonicalAgentDid = (try? owner.did()) ?? owner.uuid
         #expect(object["agentIdentityUUID"] == .string(descriptor.identityUUID))
-        #expect(object["agentDid"] == .string(descriptor.didKey))
+        #expect(object["agentDid"] == .string(canonicalAgentDid))
         #expect(object["purposeRef"] == .string("purpose://operate-local-haven-agent"))
 
         guard case let .string(signatureBase64URL)? = object["signatureBase64URL"] else {

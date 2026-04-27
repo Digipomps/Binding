@@ -21,6 +21,7 @@ enum SkeletonTreeQueries {
         case .Spacer(let spacer): return spacer.modifiers
         case .Image(let image): return image.modifiers
         case .Text(let text): return text.modifiers
+        case .AttachmentField(let attachmentField): return attachmentField.modifiers
         case .TextField(let textField): return textField.modifiers
         case .TextArea(let textArea): return textArea.modifiers
         case .HStack(let stack): return stack.modifiers
@@ -50,6 +51,7 @@ enum SkeletonTreeQueries {
         case .Spacer: return "Spacer"
         case .Image: return "Image"
         case .Text: return "Text"
+        case .AttachmentField: return "AttachmentField"
         case .TextField: return "TextField"
         case .TextArea: return "TextArea"
         case .HStack: return "HStack"

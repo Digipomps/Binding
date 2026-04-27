@@ -20,24 +20,40 @@ final class NotificationCallbackClient {
 
     #if os(iOS)
     func handleRemoteNotification(userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-        guard let ticketId = userInfo["ticketId"] as? String, !ticketId.isEmpty else {
-            return .noData
-        }
         guard let participantId = NotificationEnrollmentManager.shared.currentParticipantID(),
               let deviceId = NotificationEnrollmentManager.shared.currentDeviceID() else {
             return .failed
         }
 
-        do {
-            _ = try await resolveTicket(participantId: participantId, deviceId: deviceId, ticketId: ticketId)
+        let outcome = await resolveOrStageAction(
+            participantId: participantId,
+            deviceId: deviceId,
+            userInfo: userInfo
+        )
+        switch outcome {
+        case .resolved, .stagedFromPush:
             return .newData
-        } catch {
-            print("Notification callback resolve failed: \(error)")
+        case .noTicket:
+            return .noData
+        case .failed:
             return .failed
         }
     }
+
+    func handleNotificationResponse(userInfo: [AnyHashable: Any]) async {
+        guard let participantId = NotificationEnrollmentManager.shared.currentParticipantID(),
+              let deviceId = NotificationEnrollmentManager.shared.currentDeviceID() else {
+            return
+        }
+        _ = await resolveOrStageAction(
+            participantId: participantId,
+            deviceId: deviceId,
+            userInfo: userInfo
+        )
+    }
     #else
     func handleRemoteNotification(userInfo: [AnyHashable: Any]) async {}
+    func handleNotificationResponse(userInfo: [AnyHashable: Any]) async {}
     #endif
 
     @discardableResult
@@ -111,5 +127,129 @@ final class NotificationCallbackClient {
         }
         let decoded = try JSONDecoder().decode([String: JSONValue].self, from: data)
         return decoded
+    }
+
+    private enum NotificationResolutionOutcome {
+        case resolved
+        case stagedFromPush
+        case noTicket
+        case failed
+    }
+
+    private func resolveOrStageAction(
+        participantId: String,
+        deviceId: String,
+        userInfo: [AnyHashable: Any]
+    ) async -> NotificationResolutionOutcome {
+        guard let ticketId = stringValue(userInfo["ticketId"]) else {
+            if let fallbackAction = pendingAction(from: userInfo, participantId: participantId, deviceId: deviceId) {
+                await MainActor.run {
+                    PendingActionInboxViewModel.shared.upsert(fallbackAction)
+                }
+                return .stagedFromPush
+            }
+            return .noTicket
+        }
+
+        do {
+            _ = try await resolveTicket(participantId: participantId, deviceId: deviceId, ticketId: ticketId)
+            return .resolved
+        } catch {
+            if let fallbackAction = pendingAction(from: userInfo, participantId: participantId, deviceId: deviceId, ticketIdOverride: ticketId) {
+                await MainActor.run {
+                    PendingActionInboxViewModel.shared.upsert(fallbackAction)
+                }
+                print("Notification callback resolve failed, staged local fallback action instead: \(error)")
+                return .stagedFromPush
+            }
+            print("Notification callback resolve failed: \(error)")
+            return .failed
+        }
+    }
+
+    private func pendingAction(
+        from userInfo: [AnyHashable: Any],
+        participantId: String,
+        deviceId: String,
+        ticketIdOverride: String? = nil
+    ) -> PendingDeviceAction? {
+        guard let ticketId = ticketIdOverride ?? stringValue(userInfo["ticketId"]) else {
+            return nil
+        }
+
+        let requiredActionKey = stringValue(userInfo["requiredActionKey"]) ?? "conference.inbox.review"
+        var payload = objectValue(userInfo["payload"]) ?? [:]
+
+        if let title = stringValue(userInfo["title"]) {
+            payload["title"] = .string(title)
+        }
+        if let message = stringValue(userInfo["message"]) {
+            payload["message"] = .string(message)
+        }
+        if let triggerEvent = stringValue(userInfo["triggerEvent"]) {
+            payload["triggerEvent"] = .string(triggerEvent)
+        }
+        if let conferenceId = stringValue(userInfo["conferenceId"]) {
+            payload["conferenceId"] = .string(conferenceId)
+        }
+
+        return PendingDeviceAction(
+            id: ticketId,
+            participantId: participantId,
+            deviceId: deviceId,
+            ticketId: ticketId,
+            requiredActionKey: requiredActionKey,
+            payload: payload,
+            receivedAt: Date()
+        )
+    }
+
+    private func stringValue(_ value: Any?) -> String? {
+        if let string = value as? String {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return nil
+    }
+
+    private func objectValue(_ value: Any?) -> [String: JSONValue]? {
+        guard let dictionary = value as? [AnyHashable: Any] else {
+            return nil
+        }
+        return dictionary.reduce(into: [:]) { partialResult, entry in
+            guard let key = entry.key as? String,
+                  let converted = jsonValue(entry.value) else {
+                return
+            }
+            partialResult[key] = converted
+        }
+    }
+
+    private func jsonValue(_ value: Any) -> JSONValue? {
+        switch value {
+        case let string as String:
+            return .string(string)
+        case let bool as Bool:
+            return .bool(bool)
+        case let int as Int:
+            return .number(Double(int))
+        case let double as Double:
+            return .number(double)
+        case let float as Float:
+            return .number(Double(float))
+        case let dictionary as [AnyHashable: Any]:
+            let converted = dictionary.reduce(into: [String: JSONValue]()) { partialResult, entry in
+                guard let key = entry.key as? String,
+                      let value = jsonValue(entry.value) else {
+                    return
+                }
+                partialResult[key] = value
+            }
+            return .object(converted)
+        case let array as [Any]:
+            return .array(array.compactMap(jsonValue))
+        default:
+            return nil
+        }
     }
 }

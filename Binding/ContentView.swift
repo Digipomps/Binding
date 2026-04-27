@@ -210,6 +210,182 @@ private func contentViewModifier(_ configure: (inout SkeletonModifiers) -> Void)
     return modifiers
 }
 
+private extension Color {
+    init?(bindingHex: String) {
+        var value = bindingHex
+        if value.hasPrefix("#") {
+            value.removeFirst()
+        }
+
+        var rgba: UInt64 = 0
+        guard Scanner(string: value).scanHexInt64(&rgba) else {
+            return nil
+        }
+
+        switch value.count {
+        case 6:
+            let red = Double((rgba & 0xFF0000) >> 16) / 255.0
+            let green = Double((rgba & 0x00FF00) >> 8) / 255.0
+            let blue = Double(rgba & 0x0000FF) / 255.0
+            self = Color(red: red, green: green, blue: blue)
+        case 8:
+            let red = Double((rgba & 0xFF000000) >> 24) / 255.0
+            let green = Double((rgba & 0x00FF0000) >> 16) / 255.0
+            let blue = Double((rgba & 0x0000FF00) >> 8) / 255.0
+            let alpha = Double(rgba & 0x000000FF) / 255.0
+            self = Color(red: red, green: green, blue: blue).opacity(alpha)
+        default:
+            return nil
+        }
+    }
+}
+
+enum BindingPersonalCopilotPhoneTab: String, CaseIterable, Identifiable {
+    case home
+    case matches
+    case chat
+    case vault
+    case profile
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .home:
+            return "Home"
+        case .matches:
+            return "Matches"
+        case .chat:
+            return "Chat"
+        case .vault:
+            return "Vault"
+        case .profile:
+            return "Profile"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .home:
+            return "house.fill"
+        case .matches:
+            return "person.2.fill"
+        case .chat:
+            return "bubble.left.and.bubble.right.fill"
+        case .vault:
+            return "rectangle.stack.fill"
+        case .profile:
+            return "person.crop.circle.fill"
+        }
+    }
+}
+
+enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
+    case personalHome = "Personal Home"
+    case myProfile = "My Profile"
+    case publishPublicProfile = "Publish Public Profile"
+    case publicProfileDirectory = "Public Profile Directory"
+    case matches = "Matches"
+    case inviteChat = "Invite Chat"
+    case vaultIdeas = "Vault / Ideas"
+    case meetingIntent = "Meeting Intent"
+    case privacyAudit = "Privacy Audit"
+    case personalCopilotCatalog = "Personal Co-Pilot Catalog"
+    case appleIntelligence = "Apple Intelligence"
+    case entityScanner = "Entity Scanner"
+    case workflowStudio = "Workflow Studio"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+
+    var phoneTab: BindingPersonalCopilotPhoneTab {
+        switch self {
+        case .personalHome, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
+            return .home
+        case .publicProfileDirectory, .matches:
+            return .matches
+        case .inviteChat:
+            return .chat
+        case .vaultIdeas, .personalCopilotCatalog:
+            return .vault
+        case .myProfile, .publishPublicProfile, .privacyAudit:
+            return .profile
+        }
+    }
+
+    var sidebarSectionTitle: String {
+        switch self {
+        case .personalHome, .myProfile, .publishPublicProfile, .privacyAudit:
+            return "Personal"
+        case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent:
+            return "Network"
+        case .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
+            return "Workspace"
+        }
+    }
+
+    var systemImage: String {
+        configuration.skeletonIconName
+    }
+
+    var configuration: CellConfiguration {
+        switch self {
+        case .personalHome:
+            return ConfigurationCatalogCell.personalHomeMenuConfiguration()
+        case .myProfile:
+            return ConfigurationCatalogCell.personalProfileMenuConfiguration()
+        case .publishPublicProfile:
+            return ConfigurationCatalogCell.personalPublicProfileMenuConfiguration()
+        case .publicProfileDirectory:
+            return ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration()
+        case .matches:
+            return ConfigurationCatalogCell.personalMatchesMenuConfiguration()
+        case .inviteChat:
+            return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        case .vaultIdeas:
+            return ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+        case .meetingIntent:
+            return ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration()
+        case .privacyAudit:
+            return ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        case .personalCopilotCatalog:
+            return ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration()
+        case .appleIntelligence:
+            return ConfigurationCatalogCell.appleIntelligenceLandingForPersonalCopilotConfiguration()
+        case .entityScanner:
+            return ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
+        case .workflowStudio:
+            return ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
+        }
+    }
+
+    static var phonePrimaryTabs: [BindingPersonalCopilotPhoneTab] {
+        BindingPersonalCopilotPhoneTab.allCases
+    }
+
+    static var sidebarSections: [(title: String, destinations: [BindingPersonalCopilotDestination])] {
+        [
+            ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit]),
+            ("Network", [.matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
+            ("Workspace", [.vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
+        ]
+    }
+
+    static func matching(configurationName: String?) -> BindingPersonalCopilotDestination? {
+        guard let configurationName else { return nil }
+        let normalized = configurationName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return allCases.first { $0.rawValue.lowercased() == normalized }
+    }
+
+    static func destinations(for tab: BindingPersonalCopilotPhoneTab) -> [BindingPersonalCopilotDestination] {
+        allCases.filter { $0.phoneTab == tab }
+    }
+
+    static func defaultDestination(for tab: BindingPersonalCopilotPhoneTab) -> BindingPersonalCopilotDestination {
+        destinations(for: tab).first ?? .personalHome
+    }
+}
+
 struct ContentView: View {
     private enum ConferenceNavigationMode {
         case automatic
@@ -368,6 +544,7 @@ struct ContentView: View {
     @State private var didRepairPersistedConferencePortal = false
     @State private var didRepairPersistedConferenceControlTower = false
     @State private var activeConfiguration: CellConfiguration?
+    @State private var activeSourceBackedContext: EditorSourceBackedContext?
     @State private var presentingFullLibrary: Bool = false
     @State private var loadErrorMessage: String?
     @State private var isLoadingConfiguration = false
@@ -389,6 +566,8 @@ struct ContentView: View {
     @State private var hostingWindowNumber: Int?
     @StateObject private var componentPlacementState = ComponentPlacementState()
     @StateObject private var diagnosticsStore = BindingRuntimeDiagnostics.shared
+    @State private var personalCopilotDestination: BindingPersonalCopilotDestination = .personalHome
+    @State private var personalCopilotPhoneTab: BindingPersonalCopilotPhoneTab = .home
 
     private static let defaultRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.defaultRemoteWebSocketPath,
@@ -401,99 +580,7 @@ struct ContentView: View {
     )
 
     var body: some View {
-        ZStack {
-            // Full-screen porthole canvas rendering current skeleton
-            PortholeCanvas(
-                skeleton: renderedSkeleton,
-                isEditing: editorMode == .edit,
-                selectedNodePath: editorState.selectedNodePath,
-                highlightedDropTargets: activeComponentDropTargets,
-                activeComponent: activeComponentInsertionItem,
-                isPlacementArmed: isComponentPlacementArmed,
-                onSelectPath: { selectedPath in
-                    editorState.selectNode(selectedPath)
-                    if usesCompactEditorChrome, editorMode == .edit {
-                        compactInspectorExpanded = true
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            compactEditorDrawerVisible = true
-                        }
-                    }
-                },
-                onCancelComponentPlacement: {
-                    componentPlacementState.armedItem = nil
-                },
-                onApplyComponentDrop: { item, placement in
-                    let inserted = applyComponentPaletteItem(item, placement: placement)
-                    if !inserted {
-                        loadErrorMessage = "Kunne ikke sette inn \(item.title.lowercased()) på valgt punkt."
-                    }
-                    return inserted
-                }
-            )
-#if canImport(AppKit)
-            .background(
-                BindingHostingWindowReader { window in
-                    let nextWindowNumber = window?.windowNumber
-                    if hostingWindowNumber != nextWindowNumber {
-                        hostingWindowNumber = nextWindowNumber
-                    }
-                }
-            )
-#endif
-                .environmentObject(viewModel)
-                .ignoresSafeArea(.container, edges: [.leading, .trailing, .bottom])
-                .dropDestination(for: CellConfiguration.self) { items, location in
-                    // On drop, load the configuration into the porthole
-                    queueConfigurationLoad(items.first)
-                    return !items.isEmpty
-                }
-                .dropDestination(for: ComponentPaletteItem.self) { items, _ in
-                    guard editorMode == .edit else { return false }
-                    guard let item = items.first else { return false }
-                    let inserted = applyComponentPaletteItem(item)
-                    if !inserted {
-                        loadErrorMessage = "Ingen gyldig drop-target for \(item.title.lowercased()) i valgt kontekst."
-                    }
-                    return inserted
-                } isTargeted: { isTargeted in
-                    componentCanvasDropTargeted = isTargeted
-                }
-                .overlay {
-                    if editorMode == .edit && componentCanvasDropTargeted {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [10, 8]))
-                            .padding(10)
-                            .allowsHitTesting(false)
-                    }
-                }
-
-            if !usesCompactConvenienceMenus && !menusHidden {
-                // Edge menus overlay
-                EdgeMenusOverlay(
-                    upperLeft: menuItems(from: viewModel.upperLeftMenu),
-                    upperMid: menuItems(from: viewModel.upperMidMenu),
-                    upperRight: menuItems(from: viewModel.upperRightMenu),
-                    lowerLeft: menuItems(from: viewModel.lowerLeftMenu),
-                    lowerMid: menuItems(from: viewModel.lowerMidMenu),
-                    lowerRight: menuItems(from: viewModel.lowerRightMenu),
-                    reservedTopInset: max(0, topSafeAreaInset + topChromeHeight + 2),
-                    topExpansionStyle: edgeMenuTopExpansionStyle,
-                    bottomExpansionStyle: edgeMenuBottomExpansionStyle,
-                    labelMode: edgeMenuLabelMode,
-                    onPrimaryAction: { position in
-                        guard position == .upperMid else { return false }
-                        presentingFullLibrary = true
-                        return true
-                    },
-                    onSelect: { config in
-                        queueConfigurationLoad(config)
-                    }
-                )
-                .allowsHitTesting(true)
-                .ignoresSafeArea(.container, edges: [.top, .leading, .trailing, .bottom])
-                .transition(.opacity.combined(with: .move(edge: .leading)))
-            }
-        }
+        shellRoot
         .gesture(rotationHideShowGesture)
         .background(
             GeometryReader { proxy in
@@ -501,56 +588,7 @@ struct ContentView: View {
             }
         )
         .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 6) {
-                appToolbar
-                if isLoadingConfiguration, let loadingStatusMessage {
-                    LoadingStatusBanner(message: loadingStatusMessage)
-                }
-                if let loadErrorMessage {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text(loadErrorMessage)
-                            .font(.caption)
-                            .foregroundColor(.primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
-                        Button("Dismiss") {
-                            self.loadErrorMessage = nil
-                        }
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                if let bridgeStatus = bridgeStatusStore.primaryStatus {
-                    BridgeStatusBanner(
-                        status: bridgeStatus,
-                        additionalCount: max(0, bridgeStatusStore.visibleStatuses.count - 1)
-                    )
-                }
-                if let copyStatusMessage {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text(copyStatusMessage)
-                            .font(.caption)
-                            .foregroundColor(.primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                if usesCompactConvenienceMenus {
-                    compactConvenienceTray
-                }
-            }
+            topChrome
                 .padding(.horizontal, 12)
                 .padding(.top, 6)
                 .background(
@@ -627,13 +665,28 @@ struct ContentView: View {
         .onChange(of: editorMode) { _, mode in
             switch mode {
             case .view:
+                if let context = editorState.currentSourceBackedContext,
+                   editorState.isDirty {
+                    loadErrorMessage = context.canEdit
+                        ? "Bruk \(editorApplyButtonTitle) for å lagre draften, eller Discard for å forkaste den, før du går tilbake til view-modus."
+                        : context.readOnlyMessage
+                    editorMode = .edit
+                    return
+                }
                 applyWorkingCopyToViewer()
                 editorState.endEditing()
                 compactEditorDrawerVisible = false
                 componentPlacementState.clear()
             case .edit:
+                if let context = activeSourceBackedContext,
+                   !context.canEdit {
+                    loadErrorMessage = context.readOnlyMessage
+                    editorMode = .view
+                    return
+                }
                 editorState.beginEditing(
                     configuration: currentEditorSeedConfiguration(),
+                    sourceBackedContext: currentEditorSeedSourceBackedContext(),
                     fallbackSkeleton: viewModel.currentSkeleton
                 )
                 compactComponentsExpanded = true
@@ -669,7 +722,11 @@ struct ContentView: View {
         }
         .onReceive(viewModel.$currentSkeleton) { next in
             if !editorState.isEditing {
-                editorState.captureViewerSnapshot(currentEditorSeedConfiguration(), fallbackSkeleton: next)
+                editorState.captureViewerSnapshot(
+                    currentEditorSeedConfiguration(),
+                    sourceBackedContext: currentEditorSeedSourceBackedContext(),
+                    fallbackSkeleton: next
+                )
             }
         }
         .onChange(of: editorState.revision) { _, _ in
@@ -677,6 +734,13 @@ struct ContentView: View {
         }
         .onChange(of: activeConfiguration?.uuid) { _, _ in
             refreshDiagnosticsValidation()
+        }
+        .onChange(of: activeConfiguration?.name) { _, nextName in
+            guard let destination = BindingPersonalCopilotDestination.matching(configurationName: nextName) else {
+                return
+            }
+            personalCopilotDestination = destination
+            personalCopilotPhoneTab = destination.phoneTab
         }
         .onChange(of: editorMode) { _, _ in
             refreshDiagnosticsValidation()
@@ -811,7 +875,11 @@ struct ContentView: View {
             } else {
                 applyFixedMenuPlacement(fallbackMenus)
             }
-            editorState.captureViewerSnapshot(currentEditorSeedConfiguration(), fallbackSkeleton: viewModel.currentSkeleton)
+            editorState.captureViewerSnapshot(
+                currentEditorSeedConfiguration(),
+                sourceBackedContext: currentEditorSeedSourceBackedContext(),
+                fallbackSkeleton: viewModel.currentSkeleton
+            )
             refreshDiagnosticsValidation()
             startInitialRuntimeBootstrapIfNeeded()
         }
@@ -827,6 +895,598 @@ struct ContentView: View {
         .environmentObject(legacyPortholeViewModel)
     }
 
+    @ViewBuilder
+    private var shellRoot: some View {
+        if usesPersonalCopilotShell {
+            personalCopilotShell
+        } else {
+            legacyShell
+        }
+    }
+
+    private var usesPersonalCopilotShell: Bool {
+        guard BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled,
+              editorMode == .view else {
+            return false
+        }
+        guard let activeConfiguration else { return true }
+        return BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(activeConfiguration)
+    }
+
+    private var showsPersonalCopilotInspector: Bool {
+#if os(iOS)
+        horizontalSizeClass != .compact
+#else
+        true
+#endif
+    }
+
+    private var portholeCanvas: some View {
+        PortholeCanvas(
+            skeleton: renderedSkeleton,
+            isEditing: editorMode == .edit,
+            selectedNodePath: editorState.selectedNodePath,
+            highlightedDropTargets: activeComponentDropTargets,
+            activeComponent: activeComponentInsertionItem,
+            isPlacementArmed: isComponentPlacementArmed,
+            onSelectPath: { selectedPath in
+                editorState.selectNode(selectedPath)
+                if usesCompactEditorChrome, editorMode == .edit {
+                    compactInspectorExpanded = true
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        compactEditorDrawerVisible = true
+                    }
+                }
+            },
+            onCancelComponentPlacement: {
+                componentPlacementState.armedItem = nil
+            },
+            onApplyComponentDrop: { item, placement in
+                let inserted = applyComponentPaletteItem(item, placement: placement)
+                if !inserted {
+                    loadErrorMessage = "Kunne ikke sette inn \(item.title.lowercased()) på valgt punkt."
+                }
+                return inserted
+            }
+        )
+#if canImport(AppKit)
+        .background(
+            BindingHostingWindowReader { window in
+                let nextWindowNumber = window?.windowNumber
+                if hostingWindowNumber != nextWindowNumber {
+                    hostingWindowNumber = nextWindowNumber
+                }
+            }
+        )
+#endif
+        .environmentObject(viewModel)
+        .dropDestination(for: CellConfiguration.self) { items, location in
+            queueConfigurationLoad(items.first)
+            return !items.isEmpty
+        }
+        .dropDestination(for: ComponentPaletteItem.self) { items, _ in
+            guard editorMode == .edit else { return false }
+            guard let item = items.first else { return false }
+            let inserted = applyComponentPaletteItem(item)
+            if !inserted {
+                loadErrorMessage = "Ingen gyldig drop-target for \(item.title.lowercased()) i valgt kontekst."
+            }
+            return inserted
+        } isTargeted: { isTargeted in
+            componentCanvasDropTargeted = isTargeted
+        }
+        .overlay {
+            if editorMode == .edit && componentCanvasDropTargeted {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [10, 8]))
+                    .padding(10)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var legacyShell: some View {
+        ZStack {
+            portholeCanvas
+                .ignoresSafeArea(.container, edges: [.leading, .trailing, .bottom])
+
+            if !usesCompactConvenienceMenus && !menusHidden {
+                EdgeMenusOverlay(
+                    upperLeft: menuItems(from: viewModel.upperLeftMenu),
+                    upperMid: menuItems(from: viewModel.upperMidMenu),
+                    upperRight: menuItems(from: viewModel.upperRightMenu),
+                    lowerLeft: menuItems(from: viewModel.lowerLeftMenu),
+                    lowerMid: menuItems(from: viewModel.lowerMidMenu),
+                    lowerRight: menuItems(from: viewModel.lowerRightMenu),
+                    reservedTopInset: max(0, topSafeAreaInset + topChromeHeight + 2),
+                    topExpansionStyle: edgeMenuTopExpansionStyle,
+                    bottomExpansionStyle: edgeMenuBottomExpansionStyle,
+                    labelMode: edgeMenuLabelMode,
+                    onPrimaryAction: { position in
+                        guard position == .upperMid else { return false }
+                        presentingFullLibrary = true
+                        return true
+                    },
+                    onSelect: { config in
+                        queueConfigurationLoad(config)
+                    }
+                )
+                .allowsHitTesting(true)
+                .ignoresSafeArea(.container, edges: [.top, .leading, .trailing, .bottom])
+                .transition(.opacity.combined(with: .move(edge: .leading)))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var personalCopilotShell: some View {
+#if os(iOS)
+        if usesCompactEditorChrome {
+            personalCopilotPhoneShell
+        } else {
+            personalCopilotSplitShell
+        }
+#else
+        personalCopilotSplitShell
+#endif
+    }
+
+    private var personalCopilotPhoneShell: some View {
+        TabView(
+            selection: Binding(
+                get: { personalCopilotPhoneTab },
+                set: { selectPersonalCopilotPhoneTab($0) }
+            )
+        ) {
+            ForEach(BindingPersonalCopilotDestination.phonePrimaryTabs) { tab in
+                personalCopilotDetailContainer(
+                    for: personalCopilotDestination.phoneTab == tab ? personalCopilotDestination : .defaultDestination(for: tab),
+                    showInspector: false,
+                    isActive: personalCopilotPhoneTab == tab
+                )
+                .tag(tab)
+                .tabItem {
+                    Label(tab.title, systemImage: tab.systemImage)
+                }
+            }
+        }
+        .padding(.top, personalCopilotShellTopPadding)
+        .background(personalCopilotShellBackground)
+    }
+
+    private var personalCopilotSplitShell: some View {
+        NavigationSplitView {
+            personalCopilotSidebar
+        } detail: {
+            personalCopilotDetailContainer(
+                for: personalCopilotDestination,
+                showInspector: showsPersonalCopilotInspector,
+                isActive: true
+            )
+        }
+        .padding(.top, personalCopilotShellTopPadding)
+        .background(personalCopilotShellBackground)
+    }
+
+    private var personalCopilotSidebar: some View {
+        List {
+            ForEach(BindingPersonalCopilotDestination.sidebarSections, id: \.title) { section in
+                personalCopilotSidebarSection(section)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(personalCopilotPlatformSurfaceColor)
+        .navigationTitle("Binding")
+    }
+
+    private func personalCopilotSidebarSection(
+        _ section: (title: String, destinations: [BindingPersonalCopilotDestination])
+    ) -> some View {
+        Section(section.title) {
+            ForEach(section.destinations) { destination in
+                personalCopilotSidebarRow(for: destination)
+            }
+        }
+    }
+
+    private func personalCopilotSidebarRow(for destination: BindingPersonalCopilotDestination) -> some View {
+        let isSelected = personalCopilotDestination == destination
+        let iconTint = isSelected
+            ? (Color(bindingHex: BindingPersonalCopilotDesignSystem.brandPrimary) ?? .accentColor)
+            : .primary
+
+        return Button {
+            selectPersonalCopilotDestination(destination)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: destination.systemImage)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(iconTint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(destination.title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.primary)
+                    Text(destination.configuration.description ?? "")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var personalCopilotShellBackground: some View {
+        ZStack {
+            Color(bindingHex: BindingPersonalCopilotDesignSystem.canvas) ?? personalCopilotPlatformCanvasColor
+            LinearGradient(
+                colors: [
+                    (Color(bindingHex: BindingPersonalCopilotDesignSystem.brandSubtle) ?? .clear).opacity(0.45),
+                    .clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Circle()
+                .fill((Color(bindingHex: BindingPersonalCopilotDesignSystem.brandSubtle) ?? .clear).opacity(0.35))
+                .frame(width: 220, height: 220)
+                .offset(x: 160, y: -120)
+        }
+        .ignoresSafeArea()
+    }
+
+    private func personalCopilotDetailContainer(
+        for destination: BindingPersonalCopilotDestination,
+        showInspector: Bool,
+        isActive: Bool
+    ) -> some View {
+        let configuration = activeConfiguration?.name == destination.title
+            ? activeConfiguration ?? destination.configuration
+            : destination.configuration
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+
+        return ZStack {
+            personalCopilotShellBackground
+            HStack(alignment: .top, spacing: 18) {
+                VStack(alignment: .leading, spacing: 18) {
+                    personalCopilotSurfaceHeader(configuration: configuration, metadata: metadata)
+                    portholeCanvas
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .background(Color(bindingHex: BindingPersonalCopilotDesignSystem.surface) ?? .white)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(
+                                    Color(bindingHex: BindingPersonalCopilotDesignSystem.border) ?? .gray.opacity(0.2),
+                                    lineWidth: 1
+                                )
+                        )
+                }
+                .frame(maxWidth: personalCopilotContentMaxWidth(for: metadata), maxHeight: .infinity, alignment: .top)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                if showInspector {
+                    personalCopilotInspector(metadata: metadata)
+                        .frame(width: 220)
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 18)
+        }
+        .task(id: destination.id) {
+            guard isActive else { return }
+            guard activeConfiguration?.name != destination.title else { return }
+            queueConfigurationLoad(destination.configuration, navigationMode: .reset)
+        }
+    }
+
+    private func personalCopilotSurfaceHeader(
+        configuration: CellConfiguration,
+        metadata: BindingPersonalCopilotSurfaceMetadata
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(configuration.name)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
+                    Text(configuration.discovery?.purposeDescription ?? configuration.description ?? "")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textSecondary) ?? .secondary)
+                        .lineLimit(3)
+                }
+                Spacer(minLength: 12)
+                personalCopilotBadge(metadata.sourceKind.badgeTitle, tint: badgeTint(for: metadata.sourceKind))
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if let surfaceFamily = metadata.surfaceFamily {
+                        personalCopilotBadge(surfaceFamily.uppercased(), tint: Color(bindingHex: BindingPersonalCopilotDesignSystem.brandPrimary) ?? .accentColor)
+                    }
+                    if let presentationClass = metadata.presentationClass {
+                        personalCopilotBadge(presentationClass.uppercased(), tint: Color(bindingHex: BindingPersonalCopilotDesignSystem.borderStrong) ?? .gray)
+                    }
+                    if metadata.requiresModeration {
+                        personalCopilotBadge("MODERATED", tint: Color(bindingHex: BindingPersonalCopilotDesignSystem.warning) ?? .orange)
+                    }
+                    if let gate = metadata.permissionGateSummary, !gate.isEmpty {
+                        personalCopilotBadge("GATED", tint: Color(bindingHex: BindingPersonalCopilotDesignSystem.success) ?? .green)
+                    }
+                }
+            }
+
+            if let reviewSummary = metadata.reviewSummary, !reviewSummary.isEmpty {
+                Text(reviewSummary)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textTertiary) ?? .secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(16)
+        .background(Color(bindingHex: BindingPersonalCopilotDesignSystem.brandSubtle) ?? .secondary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color(bindingHex: BindingPersonalCopilotDesignSystem.brandPrimary) ?? .accentColor, lineWidth: 1)
+        )
+    }
+
+    private func personalCopilotInspector(metadata: BindingPersonalCopilotSurfaceMetadata) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Context")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
+
+            personalCopilotInspectorRow(title: "Policy", value: metadata.policyCategory ?? "Undeclared")
+            personalCopilotInspectorRow(title: "Source", value: metadata.sourceEndpoint ?? "No source endpoint")
+            personalCopilotInspectorRow(title: "Login", value: metadata.requiresLogin ? "Required" : "Optional")
+            personalCopilotInspectorRow(title: "Moderation", value: metadata.requiresModeration ? "Required" : "Not declared")
+            personalCopilotInspectorRow(
+                title: "Permissions",
+                value: metadata.nativePermissionRequests.isEmpty
+                    ? "No native permissions by default"
+                    : metadata.nativePermissionRequests.joined(separator: ", ")
+            )
+            if let universalLink = metadata.universalLink {
+                personalCopilotInspectorRow(title: "Universal link", value: universalLink)
+            }
+        }
+        .padding(16)
+        .background(Color(bindingHex: BindingPersonalCopilotDesignSystem.surfaceElevated) ?? .white)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color(bindingHex: BindingPersonalCopilotDesignSystem.border) ?? .gray.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    private func personalCopilotInspectorRow(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textTertiary) ?? .secondary)
+            Text(value)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
+                .lineLimit(3)
+        }
+    }
+
+    private func personalCopilotBadge(_ title: String, tint: Color) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(tint.opacity(0.14), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(tint.opacity(0.55), lineWidth: 1)
+            )
+    }
+
+    private func badgeTint(for sourceKind: BindingPersonalCopilotSurfaceMetadata.SourceKind) -> Color {
+        switch sourceKind {
+        case .local:
+            return Color(bindingHex: BindingPersonalCopilotDesignSystem.success) ?? .green
+        case .remoteTrusted:
+            return Color(bindingHex: BindingPersonalCopilotDesignSystem.brandPrimary) ?? .accentColor
+        case .remoteUnapproved:
+            return Color(bindingHex: BindingPersonalCopilotDesignSystem.danger) ?? .red
+        }
+    }
+
+    private func personalCopilotContentMaxWidth(for metadata: BindingPersonalCopilotSurfaceMetadata) -> CGFloat {
+        switch metadata.presentationClass {
+        case "grid":
+            return 980
+        case "list":
+            return 860
+        case "hero":
+            return 760
+        case "form":
+            return 760
+        default:
+            return 720
+        }
+    }
+
+    private var personalCopilotPlatformCanvasColor: Color {
+#if os(iOS)
+        Color(uiColor: .systemGroupedBackground)
+#else
+        Color(nsColor: .windowBackgroundColor)
+#endif
+    }
+
+    private var personalCopilotPlatformSurfaceColor: Color {
+#if os(iOS)
+        Color(uiColor: .systemBackground)
+#else
+        Color(nsColor: .controlBackgroundColor)
+#endif
+    }
+
+    private var personalCopilotShellTopPadding: CGFloat {
+#if os(iOS)
+        horizontalSizeClass == .compact ? 8 : 12
+#else
+        12
+#endif
+    }
+
+    private func selectPersonalCopilotDestination(_ destination: BindingPersonalCopilotDestination) {
+        personalCopilotDestination = destination
+        personalCopilotPhoneTab = destination.phoneTab
+        guard activeConfiguration?.name != destination.title else { return }
+        queueConfigurationLoad(destination.configuration, navigationMode: .reset)
+    }
+
+    private func selectPersonalCopilotPhoneTab(_ tab: BindingPersonalCopilotPhoneTab) {
+        personalCopilotPhoneTab = tab
+        guard personalCopilotDestination.phoneTab != tab else { return }
+        selectPersonalCopilotDestination(.defaultDestination(for: tab))
+    }
+
+    @ViewBuilder
+    private var topChrome: some View {
+        VStack(spacing: 6) {
+            if usesPersonalCopilotShell {
+                personalCopilotTopChrome
+            } else {
+                appToolbar
+            }
+            if isLoadingConfiguration, let loadingStatusMessage {
+                LoadingStatusBanner(message: loadingStatusMessage)
+            }
+            if let loadErrorMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(loadErrorMessage)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 0)
+                    Button("Dismiss") {
+                        self.loadErrorMessage = nil
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            if let sourceBackedStatus = sourceBackedStatusMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: sourceBackedStatus.systemImage)
+                        .foregroundColor(sourceBackedStatus.tint)
+                    Text(sourceBackedStatus.message)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            if let bridgeStatus = bridgeStatusStore.primaryStatus, !usesPersonalCopilotShell {
+                BridgeStatusBanner(
+                    status: bridgeStatus,
+                    additionalCount: max(0, bridgeStatusStore.visibleStatuses.count - 1)
+                )
+            }
+            if let copyStatusMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text(copyStatusMessage)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            if !usesPersonalCopilotShell && usesCompactConvenienceMenus {
+                compactConvenienceTray
+            }
+        }
+    }
+
+    private var personalCopilotTopChrome: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Binding")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
+                Text(personalCopilotDestination.title)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textSecondary) ?? .secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Menu {
+                ForEach(BindingPersonalCopilotDestination.destinations(for: personalCopilotPhoneTab)) { destination in
+                    Button {
+                        selectPersonalCopilotDestination(destination)
+                    } label: {
+                        Label(destination.title, systemImage: destination.systemImage)
+                    }
+                }
+            } label: {
+                Label("Surfaces", systemImage: "square.grid.2x2")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button {
+                presentingFullLibrary = true
+            } label: {
+                Label("Library", systemImage: "books.vertical")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Menu {
+                Button {
+                    copyLoadedConfigurationJSONToClipboard()
+                } label: {
+                    Label("Copy JSON", systemImage: "doc.on.doc")
+                }
+
+                Button {
+                    editorMode = .edit
+                } label: {
+                    Label("Edit", systemImage: "square.and.pencil")
+                }
+
+                Button {
+                    diagnosticsStore.panelVisible.toggle()
+                } label: {
+                    Label("Debug", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
     @MainActor
     private func startInitialRuntimeBootstrapIfNeeded() {
         guard initialRuntimeBootstrapTask == nil else { return }
@@ -835,6 +1495,7 @@ struct ContentView: View {
             applyStoredDemoStartConfigurationIfNeeded()
             editorState.captureViewerSnapshot(
                 currentEditorSeedConfiguration(),
+                sourceBackedContext: currentEditorSeedSourceBackedContext(),
                 fallbackSkeleton: viewModel.currentSkeleton
             )
             refreshDiagnosticsValidation()
@@ -868,6 +1529,7 @@ struct ContentView: View {
             await viewModel.connectIfNeeded()
             editorState.captureViewerSnapshot(
                 currentEditorSeedConfiguration(),
+                sourceBackedContext: currentEditorSeedSourceBackedContext(),
                 fallbackSkeleton: viewModel.currentSkeleton
             )
             refreshDiagnosticsValidation()
@@ -1628,6 +2290,58 @@ struct ContentView: View {
         return viewModel.currentSkeleton
     }
 
+    private var displayedSourceBackedContext: EditorSourceBackedContext? {
+        if editorMode == .edit {
+            return editorState.currentSourceBackedContext ?? activeSourceBackedContext
+        }
+        return activeSourceBackedContext
+    }
+
+    private var editorApplyButtonTitle: String {
+        guard let context = editorState.currentSourceBackedContext else {
+            return "Apply"
+        }
+        return context.canEdit ? "Apply to source" : "Read-only"
+    }
+
+    private var editorApplyButtonDisabled: Bool {
+        guard editorState.workingCopy != nil else { return true }
+        if let context = editorState.currentSourceBackedContext {
+            return !context.canEdit
+        }
+        return false
+    }
+
+    private var sourceBackedStatusMessage: (systemImage: String, tint: Color, message: String)? {
+        guard let context = displayedSourceBackedContext else { return nil }
+
+        if !context.canEdit {
+            return (
+                systemImage: "lock.fill",
+                tint: .orange,
+                message: context.readOnlyMessage
+            )
+        }
+
+        let sourceLabel = context.sourceCellName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? context.sourceCellEndpoint
+            : context.sourceCellName
+
+        if editorMode == .edit {
+            return (
+                systemImage: "square.and.pencil",
+                tint: .accentColor,
+                message: "Source-backed konfigurasjon. Endringer ligger som lokal draft i Porthole til du trykker \(editorApplyButtonTitle) for å skrive tilbake til \(sourceLabel)."
+            )
+        }
+
+        return (
+            systemImage: "square.and.pencil",
+            tint: .accentColor,
+            message: "Source-backed konfigurasjon. Gå til Edit for å lage en lokal draft; \(editorApplyButtonTitle) skriver tilbake til \(sourceLabel)."
+        )
+    }
+
     private var usesCompactEditorChrome: Bool {
 #if os(iOS)
         horizontalSizeClass == .compact
@@ -1767,10 +2481,10 @@ struct ContentView: View {
                     Button("Discard") {
                         editorState.discardChanges()
                     }
-                    Button("Apply") {
+                    Button(editorApplyButtonTitle) {
                         applyWorkingCopyToViewer()
                     }
-                    .disabled(editorState.workingCopy == nil)
+                    .disabled(editorApplyButtonDisabled)
                 }
                 .font(.caption)
             }
@@ -1864,10 +2578,10 @@ struct ContentView: View {
                     Button("Discard") {
                         editorState.discardChanges()
                     }
-                    Button("Apply") {
+                    Button(editorApplyButtonTitle) {
                         applyWorkingCopyToViewer()
                     }
-                    .disabled(editorState.workingCopy == nil)
+                    .disabled(editorApplyButtonDisabled)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -2289,6 +3003,24 @@ struct ContentView: View {
     }
 
     private func applyWorkingCopyToViewer() {
+        guard let workingDocument = editorState.currentWorkingDocument else { return }
+        let workingConfiguration = canonicalizeSkeletonReferencesIfNeeded(in: workingDocument.configuration)
+
+        if let sourceBackedContext = workingDocument.sourceBackedContext {
+            guard sourceBackedContext.canEdit else {
+                loadErrorMessage = sourceBackedContext.readOnlyMessage
+                return
+            }
+
+            Task {
+                await applyWorkingCopyToSource(
+                    workingConfiguration,
+                    sourceBackedContext: sourceBackedContext
+                )
+            }
+            return
+        }
+
         guard let committedDocument = editorState.commitDocumentChanges() else { return }
         let committedConfiguration = canonicalizeSkeletonReferencesIfNeeded(in: committedDocument.configuration)
         activeConfiguration = committedConfiguration
@@ -2296,7 +3028,54 @@ struct ContentView: View {
             domain: "binding.load",
             message: "Apply working copy: \(committedConfiguration.name)"
         )
-        queueConfigurationLoad(committedConfiguration)
+        queueConfigurationLoad(committedConfiguration, navigationMode: .skipPush)
+    }
+
+    @MainActor
+    private func applyWorkingCopyToSource(
+        _ configuration: CellConfiguration,
+        sourceBackedContext: EditorSourceBackedContext
+    ) async {
+        let fallbackIdentity = await privateRequesterIdentity()
+        guard let requester = await requesterIdentity(
+            for: preferredRequesterDescriptor(for: configuration),
+            fallback: fallbackIdentity
+        ) ?? fallbackIdentity else {
+            loadErrorMessage = "Kunne ikke finne requester-identitet for å skrive tilbake til source-cellen."
+            return
+        }
+
+        do {
+            let appliedState = try await BindingSourceBackedConfigurationEditingSupport.apply(
+                configuration,
+                expectedRevision: sourceBackedContext.committedSourceRevision,
+                toSourceEndpoint: sourceBackedContext.sourceCellEndpoint,
+                requester: requester
+            )
+            let prepared = prepareEditableConfiguration(
+                appliedState.configuration,
+                fallback: configuration
+            )
+            activeSourceBackedContext = makeSourceBackedContext(from: appliedState)
+            activeConfiguration = prepared
+            loadErrorMessage = nil
+            diagnosticsStore.record(
+                domain: "binding.load",
+                message: "Applied source-backed working copy: \(prepared.name)"
+            )
+            queueConfigurationLoad(prepared, navigationMode: .skipPush)
+        } catch let error as BindingEditableCellConfigurationError {
+            switch error {
+            case .missingSourceEndpoint:
+                loadErrorMessage = "Source-backed konfigurasjon mangler sourceCellEndpoint."
+            case .sourceCellNotMeddle(let endpoint):
+                loadErrorMessage = "Kunne ikke nå source-cellen på \(endpoint)."
+            case .invalidStatePayload:
+                loadErrorMessage = "Source-cellen svarte med en ugyldig editable-state under apply."
+            }
+        } catch {
+            loadErrorMessage = "Kunne ikke skrive tilbake til source-cellen: \(error)"
+        }
     }
 
     private func storeDemoStartConfiguration(_ configuration: CellConfiguration) {
@@ -3367,9 +4146,26 @@ struct ContentView: View {
             await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
             await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
             updateLoadingStatus("Laster lokal konfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
-            activeConfiguration = sanitizedConfiguration
-            let didLoad = await loadConfigurationIntoPorthole(
+            let startupRequester = await startupRequesterIdentity()
+            let localRequester: Identity?
+            if let startupRequester {
+                localRequester = startupRequester
+            } else {
+                localRequester = await privateRequesterIdentity()
+            }
+            if let localRequester,
+               let editableResolution = await resolveEditableConfigurationForCurrentRequester(
                 sanitizedConfiguration,
+                requester: localRequester
+               ) {
+                activeConfiguration = editableResolution.configuration
+                activeSourceBackedContext = editableResolution.context
+            } else {
+                activeConfiguration = sanitizedConfiguration
+                activeSourceBackedContext = nil
+            }
+            let didLoad = await loadConfigurationIntoPorthole(
+                activeConfiguration ?? sanitizedConfiguration,
                 requestID: requestID,
                 allowConferencePreviewFallback: false
             )
@@ -3390,13 +4186,13 @@ struct ContentView: View {
 
         updateLoadingStatus("Normaliserer references for \(sanitizedConfiguration.name)…", requestID: requestID)
         var normalizedConfiguration = retargetConfigurationToStagingIfNeeded(sanitizedConfiguration)
+        let fallbackIdentity = await privateRequesterIdentity()
+        let loadRequester = await requesterIdentity(
+            for: preferredRequesterDescriptor(for: normalizedConfiguration),
+            fallback: fallbackIdentity
+        ) ?? fallbackIdentity
         if let resolver = CellBase.defaultCellResolver as? CellResolver {
-            let loadRequesterDescriptor = preferredRequesterDescriptor(for: normalizedConfiguration)
-            let fallbackIdentity = await privateRequesterIdentity()
-            if let identity = await requesterIdentity(
-                for: loadRequesterDescriptor,
-                fallback: fallbackIdentity
-            ) {
+            if let identity = loadRequester {
                 if shouldWarmConferenceRuntime(for: normalizedConfiguration) {
                     updateLoadingStatus("Varmer opp lokal conference-runtime for \(sanitizedConfiguration.name)…", requestID: requestID)
                     await BindingLocalCellRegistration.shared.warmConferenceRuntime(requester: identity)
@@ -3421,19 +4217,38 @@ struct ContentView: View {
                 origin: nil,
                 resolver: resolver
             )
+            if let editableResolution = await resolveEditableConfigurationForCurrentRequester(
+                normalizedConfiguration,
+                requester: loadRequester,
+                timeoutNanoseconds: editorMode == .edit ? nil : 700_000_000
+            ) {
+                normalizedConfiguration = normalizeConfigurationForResolver(
+                    editableResolution.configuration,
+                    origin: nil,
+                    resolver: resolver
+                )
+                activeSourceBackedContext = editableResolution.context
+            } else {
+                activeSourceBackedContext = nil
+            }
+        } else {
+            activeSourceBackedContext = nil
         }
         activeConfiguration = normalizedConfiguration
         diagnosticsStore.refreshValidation(for: normalizedConfiguration)
         guard !Task.isCancelled else { return }
 
         var loadConfiguration = normalizedConfiguration
-        if let references = normalizedConfiguration.cellReferences, !references.isEmpty {
+        if activeSourceBackedContext == nil,
+           let references = normalizedConfiguration.cellReferences,
+           !references.isEmpty {
             updateLoadingStatus("Sjekker tilgjengelige bridge-references…", requestID: requestID)
             let probeResult = await probeFailingTopLevelReferences(in: normalizedConfiguration)
             if let fallbackConfiguration = localConferencePreviewFallbackConfiguration(
                 for: loadConfiguration,
                 failureDetails: [probeResult.firstFailureMessage].compactMap { $0 }
             ) {
+                activeSourceBackedContext = nil
                 diagnosticsStore.record(
                     severity: .warning,
                     domain: "binding.load",
@@ -3493,7 +4308,11 @@ struct ContentView: View {
             message: "Loaded configuration \(loadConfiguration.name) [\(requestID.uuidString.prefix(6))]"
         )
         if editorMode == .edit {
-            editorState.beginEditing(configuration: loadConfiguration, fallbackSkeleton: loadConfiguration.skeleton ?? viewModel.currentSkeleton)
+            editorState.beginEditing(
+                configuration: loadConfiguration,
+                sourceBackedContext: activeSourceBackedContext,
+                fallbackSkeleton: loadConfiguration.skeleton ?? viewModel.currentSkeleton
+            )
         }
         refreshDiagnosticsValidation()
     }
@@ -3568,6 +4387,9 @@ struct ContentView: View {
         let intendedSkeleton = configuration.skeleton ?? viewModel.currentSkeleton
         let rootProbes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
 
+        await MainActor.run {
+            legacyPortholeViewModel.rememberRequesterIdentity(loadRequester)
+        }
         viewModel.cellReferences = configuration.cellReferences ?? []
         viewModel.currentSkeleton = loadingPlaceholderSkeleton(for: configuration)
 
@@ -3765,22 +4587,12 @@ struct ContentView: View {
                 return .failed(failures)
             }
 
-            failures.removeAll(keepingCapacity: true)
-            for probe in probes {
-                do {
-                    let value = try await readBindingProbeValue(
-                        probe,
-                        on: porthole,
-                        requester: requester,
-                        timeoutNanoseconds: perProbeTimeoutNanoseconds
-                    )
-                    if let detail = SkeletonBindingProbeSupport.failureDetail(from: value) {
-                        failures[probe] = detail
-                    }
-                } catch {
-                    failures[probe] = String(describing: error)
-                }
-            }
+            failures = await readBindingProbeFailures(
+                probes,
+                on: porthole,
+                requester: requester,
+                timeoutNanoseconds: perProbeTimeoutNanoseconds
+            )
 
             if failures.isEmpty {
                 return .ready(attempts: attempt)
@@ -3796,6 +4608,39 @@ struct ContentView: View {
         }
 
         return .failed(failures)
+    }
+
+    private func readBindingProbeFailures(
+        _ probes: [SkeletonBindingProbeSupport.RootProbe],
+        on porthole: Meddle,
+        requester: Identity,
+        timeoutNanoseconds: UInt64
+    ) async -> [SkeletonBindingProbeSupport.RootProbe: String] {
+        await withTaskGroup(of: (SkeletonBindingProbeSupport.RootProbe, String?).self) { group in
+            for probe in probes {
+                group.addTask {
+                    do {
+                        let value = try await readBindingProbeValue(
+                            probe,
+                            on: porthole,
+                            requester: requester,
+                            timeoutNanoseconds: timeoutNanoseconds
+                        )
+                        return (probe, SkeletonBindingProbeSupport.failureDetail(from: value))
+                    } catch {
+                        return (probe, String(describing: error))
+                    }
+                }
+            }
+
+            var failures: [SkeletonBindingProbeSupport.RootProbe: String] = [:]
+            for await (probe, failure) in group {
+                if let failure {
+                    failures[probe] = failure
+                }
+            }
+            return failures
+        }
     }
 
     private func readBindingProbeValue(
@@ -3844,6 +4689,16 @@ struct ContentView: View {
         }
         guard let references = configuration.cellReferences else {
             return nil
+        }
+
+        let normalizedName = configuration.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalizedName == "conference ai assistant" {
+            return ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+                conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
+            )
         }
 
         let remoteReferences = references.filter { reference in
@@ -4030,6 +4885,99 @@ struct ContentView: View {
         var fallback = CellConfiguration(name: "Edited Skeleton")
         fallback.skeleton = viewModel.currentSkeleton
         return fallback
+    }
+
+    private func currentEditorSeedSourceBackedContext() -> EditorSourceBackedContext? {
+        if let context = activeSourceBackedContext {
+            return context
+        }
+        return editorState.currentSourceBackedContext
+    }
+
+    private func makeSourceBackedContext(
+        from editableState: BindingEditableCellConfigurationContract.State
+    ) -> EditorSourceBackedContext {
+        EditorSourceBackedContext(
+            committedSourceRevision: editableState.revision,
+            canEdit: editableState.canEdit,
+            sourceCellEndpoint: editableState.sourceCellEndpoint,
+            sourceCellName: editableState.sourceCellName,
+            accessSummary: editableState.accessSummary
+        )
+    }
+
+    private func prepareEditableConfiguration(
+        _ configuration: CellConfiguration,
+        fallback: CellConfiguration
+    ) -> CellConfiguration {
+        var prepared = configuration
+        if prepared.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            prepared.name = fallback.name
+        }
+        if prepared.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+            prepared.description = fallback.description
+        }
+        if prepared.discovery == nil {
+            prepared.discovery = fallback.discovery
+        }
+        if prepared.skeleton == nil {
+            prepared.skeleton = fallback.skeleton ?? viewModel.currentSkeleton
+        }
+        return canonicalizeSkeletonReferencesIfNeeded(in: prepared)
+    }
+
+    private func resolveEditableConfigurationForCurrentRequester(
+        _ configuration: CellConfiguration,
+        requester: Identity?,
+        timeoutNanoseconds: UInt64? = nil
+    ) async -> (configuration: CellConfiguration, context: EditorSourceBackedContext)? {
+        guard let requester,
+              let editableState = await editableStateForCurrentRequester(
+                configuration,
+                requester: requester,
+                timeoutNanoseconds: timeoutNanoseconds
+              ) else {
+            return nil
+        }
+
+        let prepared = prepareEditableConfiguration(
+            editableState.configuration,
+            fallback: editableState.fallbackConfiguration
+        )
+        return (
+            configuration: prepared,
+            context: makeSourceBackedContext(from: editableState)
+        )
+    }
+
+    private func editableStateForCurrentRequester(
+        _ configuration: CellConfiguration,
+        requester: Identity,
+        timeoutNanoseconds: UInt64?
+    ) async -> BindingEditableCellConfigurationContract.State? {
+        guard let timeoutNanoseconds else {
+            return await BindingSourceBackedConfigurationEditingSupport.editableState(
+                for: configuration,
+                requester: requester
+            )
+        }
+
+        return await withTaskGroup(of: BindingEditableCellConfigurationContract.State?.self) { group in
+            group.addTask {
+                await BindingSourceBackedConfigurationEditingSupport.editableState(
+                    for: configuration,
+                    requester: requester
+                )
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                return nil
+            }
+
+            let state = await group.next() ?? nil
+            group.cancelAll()
+            return state
+        }
     }
 
     @discardableResult
@@ -4838,23 +5786,38 @@ struct ContentView: View {
             )
         }
 
+        let outcomes = await withTaskGroup(of: (endpoint: String, failure: String?).self) { group in
+            for reference in references {
+                group.addTask {
+                    let failure = await probeReferenceTree(
+                        reference,
+                        resolver: resolver,
+                        identity: identity,
+                        probeDirectEndpoint: true
+                    )
+                    return (reference.endpoint, failure)
+                }
+            }
+
+            var outcomes: [(endpoint: String, failure: String?)] = []
+            for await outcome in group {
+                outcomes.append(outcome)
+            }
+            return outcomes
+        }
+
         var failures = Set<String>()
         var firstMessage: String?
-        for reference in references {
-            if let failure = await probeReferenceTree(
-                reference,
-                resolver: resolver,
-                identity: identity,
-                probeDirectEndpoint: true
-            ) {
+        for outcome in outcomes {
+            if let failure = outcome.failure {
                 if isNonBlockingProbeFailure(failure) {
                     diagnosticsStore.record(
                         severity: .warning,
                         domain: "binding.probe",
-                        message: "Non-blocking bridge preflight issue for \(reference.endpoint): \(failure)"
+                        message: "Non-blocking bridge preflight issue for \(outcome.endpoint): \(failure)"
                     )
                 } else {
-                    failures.insert(endpointIdentity(reference.endpoint))
+                    failures.insert(endpointIdentity(outcome.endpoint))
                     if firstMessage == nil {
                         firstMessage = failure
                     }
@@ -5126,11 +6089,10 @@ struct ContentView: View {
             fallback: identity
         ) ?? identity
 
-        guard let cell = try? await RemoteEndpointAccessSupport.resolveMeddle(
+        guard let cell = try? await resolveRemoteConfigurationCell(
             endpoint: endpoint,
             resolver: resolver,
-            requester: requester,
-            accessLabel: "binding.recoverConfiguration"
+            requester: requester
         )
         else {
             return await cachedRecoveredConfiguration(
@@ -5139,8 +6101,15 @@ struct ContentView: View {
             )
         }
 
-        for keypath in ["skeletonConfiguration", "purposeGoal", "configuration"] {
-            guard let value = try? await cell.get(keypath: keypath, requester: requester),
+        let recoveryKeypaths = ["skeletonConfiguration", "purposeGoal", "configuration"]
+        let recoveredValues = await recoveredConfigurationValues(
+            from: cell,
+            requester: requester,
+            keypaths: recoveryKeypaths
+        )
+
+        for keypath in recoveryKeypaths {
+            guard let value = recoveredValues[keypath],
                   let recoveredConfiguration = PortableSurfaceContractSupport.extractConfiguration(from: value)
             else {
                 continue
@@ -5168,6 +6137,92 @@ struct ContentView: View {
             for: endpoint,
             resolver: resolver
         )
+    }
+
+    private func resolveRemoteConfigurationCell(
+        endpoint: String,
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws -> Meddle {
+        guard RemoteCatalogSupport.isRemoteEndpoint(endpoint) else {
+            return try await RemoteEndpointAccessSupport.resolveMeddle(
+                endpoint: endpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: "binding.recoverConfiguration"
+            )
+        }
+
+        let timeoutNanoseconds: UInt64 = 4_000_000_000
+        return try await withThrowingTaskGroup(of: Meddle.self) { group in
+            group.addTask {
+                try await RemoteEndpointAccessSupport.resolveMeddle(
+                    endpoint: endpoint,
+                    resolver: resolver,
+                    requester: requester,
+                    accessLabel: "binding.recoverConfiguration"
+                )
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw BindingProbeTimeoutError(keypath: endpoint)
+            }
+
+            guard let cell = try await group.next() else {
+                throw BindingProbeTimeoutError(keypath: endpoint)
+            }
+            group.cancelAll()
+            return cell
+        }
+    }
+
+    private func recoveredConfigurationValues(
+        from cell: Meddle,
+        requester: Identity,
+        keypaths: [String]
+    ) async -> [String: ValueType] {
+        await withTaskGroup(of: (String, ValueType?).self) { group in
+            for keypath in keypaths {
+                group.addTask {
+                    let value = await readRecoveredConfigurationValue(
+                        keypath,
+                        from: cell,
+                        requester: requester,
+                        timeoutNanoseconds: 2_000_000_000
+                    )
+                    return (keypath, value)
+                }
+            }
+
+            var values: [String: ValueType] = [:]
+            for await (keypath, value) in group {
+                if let value {
+                    values[keypath] = value
+                }
+            }
+            return values
+        }
+    }
+
+    private func readRecoveredConfigurationValue(
+        _ keypath: String,
+        from cell: Meddle,
+        requester: Identity,
+        timeoutNanoseconds: UInt64
+    ) async -> ValueType? {
+        await withTaskGroup(of: ValueType?.self) { group in
+            group.addTask {
+                try? await cell.get(keypath: keypath, requester: requester)
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                return nil
+            }
+
+            let value = await group.next() ?? nil
+            group.cancelAll()
+            return value
+        }
     }
 
     private func extractConfigurationFromRecoveredValue(_ value: ValueType) -> CellConfiguration? {
@@ -5401,7 +6456,10 @@ struct ContentView: View {
     }
 
     static func defaultDemoStartConfiguration() -> CellConfiguration {
-        conferenceDemoLauncherMenuSeedConfiguration()
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            return ConfigurationCatalogCell.personalHomeMenuConfiguration()
+        }
+        return conferenceDemoLauncherMenuSeedConfiguration()
     }
 
     static func conferenceIdentityLinkMenuSeedConfiguration() -> CellConfiguration {
@@ -5410,8 +6468,8 @@ struct ContentView: View {
 
     static func conferenceAIAssistantAutomationConfiguration() -> CellConfiguration {
         ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
-            conferenceEndpoint: "cell://\(Self.stagingHost)/ConferenceParticipantPreviewShell",
-            aiEndpoint: "cell://\(Self.stagingHost)/ConferenceAIGatewayPreview"
+            conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
         )
     }
 
@@ -5510,6 +6568,33 @@ struct ContentView: View {
     }
 
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
+        guard !BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled else {
+            return conferenceDemoMenuSeedConfigurations()
+        }
+
+        let personalHome = ConfigurationCatalogCell.personalHomeMenuConfiguration()
+        let myProfile = ConfigurationCatalogCell.personalProfileMenuConfiguration()
+        let publishProfile = ConfigurationCatalogCell.personalPublicProfileMenuConfiguration()
+        let matches = ConfigurationCatalogCell.personalMatchesMenuConfiguration()
+        let inviteChat = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        let vaultIdeas = ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+        let meetingIntent = ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration()
+        let privacyAudit = ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        let appleIntelligence = ConfigurationCatalogCell.appleIntelligenceLandingForPersonalCopilotConfiguration()
+        let entityScanner = ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
+        let workflowStudio = ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
+
+        return (
+            upperLeft: [personalHome, inviteChat, matches],
+            upperMid: [myProfile, publishProfile, appleIntelligence, workflowStudio],
+            upperRight: [vaultIdeas, meetingIntent],
+            lowerLeft: [entityScanner, privacyAudit],
+            lowerMid: [workflowStudio, inviteChat, matches],
+            lowerRight: [vaultIdeas, meetingIntent, privacyAudit]
+        )
+    }
+
+    private func conferenceDemoMenuSeedConfigurations() -> MenuConfigurationBuckets {
         func stagingEndpoint(_ cellName: String) -> String {
             "cell://\(Self.stagingHost)/\(cellName)"
         }
@@ -5521,8 +6606,8 @@ struct ContentView: View {
         let conferenceIdentityLink = Self.conferenceIdentityLinkMenuSeedConfiguration()
         let conferenceParticipantPortal = Self.conferenceParticipantPortalMenuSeedConfiguration()
         let conferenceAIAssistant = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
-            conferenceEndpoint: stagingEndpoint("ConferenceParticipantPreviewShell"),
-            aiEndpoint: stagingEndpoint("ConferenceAIGatewayPreview")
+            conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+            aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
         )
         let conferenceAdmin = Self.conferenceAdminMenuSeedConfiguration()
         let conferencePublic = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
@@ -5545,24 +6630,25 @@ struct ContentView: View {
         let appleIntelligence = ConfigurationCatalogCell.appleIntelligenceLandingConfiguration()
         let catalogWorkbench = ConfigurationCatalogCell.catalogWorkbenchMenuConfiguration()
         let perspectiveWorkbench = ConfigurationCatalogCell.perspectiveWorkbenchMenuConfiguration()
-        let agentSetupWorkbench = ConfigurationCatalogCell.agentSetupWorkbenchMenuConfiguration()
         let entityAnchorWorkbench = ConfigurationCatalogCell.entityAnchorWorkbenchMenuConfiguration()
         let vaultWorkbench = ConfigurationCatalogCell.vaultWorkbenchMenuConfiguration()
         let trustedIssuersWorkbench = ConfigurationCatalogCell.trustedIssuersWorkbenchMenuConfiguration()
         let portholeWorkbench = ConfigurationCatalogCell.portholeWorkbenchMenuConfiguration()
         let folderWatchWorkbench = ConfigurationCatalogCell.folderWatchWorkbenchMenuConfiguration()
         let graphIndexWorkbench = ConfigurationCatalogCell.graphIndexWorkbenchMenuConfiguration()
+        let workflowStudioWorkbench = ConfigurationCatalogCell.workflowStudioWorkbenchMenuConfiguration()
+        let workflowStudioPortable = ConfigurationCatalogCell.workflowStudioPortableMenuConfiguration()
         let localEntityScanner = ConfigurationCatalogCell.entityScannerWorkbenchConfiguration()
         let localEntityScannerHelper = ConfigurationCatalogCell.entityScannerTestHelperConfiguration()
         let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
 
         return (
             upperLeft: [conferenceDemoLauncher, conferencePublic, chat, todo],
-            upperMid: [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, catalogWorkbench, perspectiveWorkbench, agentSetupWorkbench, portholeWorkbench],
-            upperRight: [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceIdentityLink, obsidian, portholeWorkbench],
-            lowerLeft: [localEntityScanner, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
-            lowerMid: [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, todo, catalogWorkbench, agentSetupWorkbench, folderWatchWorkbench, graphIndexWorkbench],
-            lowerRight: [obsidian, vaultWorkbench, graphIndexWorkbench, trustedIssuersWorkbench]
+            upperMid: [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, portholeWorkbench],
+            upperRight: [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceIdentityLink, workflowStudioPortable, obsidian, portholeWorkbench],
+            lowerLeft: [localEntityScanner, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
+            lowerMid: [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, todo, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, folderWatchWorkbench, graphIndexWorkbench],
+            lowerRight: [obsidian, vaultWorkbench, workflowStudioWorkbench, workflowStudioPortable, graphIndexWorkbench, trustedIssuersWorkbench]
         )
     }
 

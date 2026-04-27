@@ -189,15 +189,6 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
         print("APNS registration failed: \(error)")
     }
 
-    func application(
-        _ application: UIApplication,
-        open url: URL,
-        options: [UIApplication.OpenURLOptionsKey : Any] = [:]
-    ) -> Bool {
-        BindingIncomingURLBridge.post(url: url)
-        return true
-    }
-
     func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable : Any],
                      fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
@@ -211,6 +202,16 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let userInfo = response.notification.request.content.userInfo
+        Task {
+            await NotificationCallbackClient.shared.handleNotificationResponse(userInfo: userInfo)
+            completionHandler()
+        }
     }
 }
 #endif

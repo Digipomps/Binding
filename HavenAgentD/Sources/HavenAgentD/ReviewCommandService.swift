@@ -1,5 +1,6 @@
 import Foundation
 import CellBase
+import HavenAgentCellRuntime
 import HavenAgentCells
 import HavenAgentRuntime
 import HavenRuntimeBootstrap
@@ -32,6 +33,17 @@ struct ReviewCommandSummary: Codable, Sendable {
 }
 
 struct ReviewCommandService {
+    enum ReviewCommandError: Error, LocalizedError {
+        case requesterUnavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .requesterUnavailable:
+                return "Could not create a local operator identity for review commands."
+            }
+        }
+    }
+
     let paths: RuntimePaths
     let configURL: URL
 
@@ -62,8 +74,9 @@ struct ReviewCommandService {
         operation: (RemoteIntentReviewCell, Identity) async throws -> T
     ) async throws -> T {
         let remoteIntentStateStore = RemoteIntentStateStore(fileURL: paths.remoteIntentStateFile)
-        await AgentRuntimeBridge.shared.configure(remoteIntentStateStore: remoteIntentStateStore)
+        await AgentRuntimeBridge.shared.configure(remoteIntentStateStore: nil)
         await AgentRuntimeBridge.shared.resetRemoteIntentState()
+        await AgentRuntimeBridge.shared.configure(remoteIntentStateStore: remoteIntentStateStore)
         await AgentRuntimeBridge.shared.update(remoteIntentPolicy: nil)
         await AgentRuntimeBridge.shared.update(remoteIntentExecutor: nil)
         await RemoteIntentExecutionBridge.shared.update(policy: nil)
@@ -80,9 +93,18 @@ struct ReviewCommandService {
             }
         }
 
-        let requester = Identity(displayName: "haven-agent-cli", identityVault: nil)
+        let vault = LocalIdentityVault()
+        guard let requester = await vault.identity(for: "haven-agent-cli", makeNewIfNotFound: true) else {
+            throw ReviewCommandError.requesterUnavailable
+        }
         let cell = await RemoteIntentReviewCell(owner: requester)
-        return try await operation(cell, requester)
+        let agreement = cell.agreementTemplate
+        agreement.signatories.append(requester)
+        _ = await cell.addAgreement(agreement, for: requester)
+        let result = try await operation(cell, requester)
+        let snapshot = await AgentRuntimeBridge.shared.persistedRemoteIntentStateSnapshot()
+        try await remoteIntentStateStore.write(snapshot)
+        return result
     }
 
     private func summarize(requester: Identity) async throws -> ReviewCommandSummary {

@@ -2,6 +2,8 @@
 
 `HavenAgentD` is a headless macOS agent package intended to sit between a HAVEN entity in the cloud and local macOS automation boundaries.
 
+Binding is now treated as a standalone app product, so agent-specific operator/admin documentation lives under [Docs/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/README.md) instead of the main Binding documentation surface.
+
 ## What this package does now
 
 - establishes a standalone executable, `haven-agentd`
@@ -54,6 +56,15 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - `Sources/HavenAgentCellRuntime`: local identity vault, `CellBase` host installation, resolver registration, runtime snapshotting
 - `Sources/HavenAgentCellRuntime/AgentControlBridgeServer.swift`: loopback-only websocket bridge that exposes allowlisted operator cells over CellProtocol
 - `Docs/SecurityModel.md`: security constraints and follow-up requirements
+
+## Docs
+
+- [Docs/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/README.md): agent doc index
+- [Docs/OperatorRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/OperatorRunbook.md): step-by-step operator guide for setup, install, bootstrap, review, and launchd
+- [Docs/BindingBoundary.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/BindingBoundary.md): current Binding vs agent boundary
+- [Docs/SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md): security model
+- [Docs/Legacy/BindingProvisioningRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md): archived Binding-embedded provisioning flow
+- [Docs/Legacy/AgentSetupWorkbench_UI_Review.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/AgentSetupWorkbench_UI_Review.md): archived workbench UX review
 
 ## Security model
 
@@ -135,7 +146,7 @@ During `run`, the executable now also creates:
 - `~/Library/Application Support/HAVENAgent/State/remote-intent-state.json` for queued intents, review audit and nonce replay window
 - `~/Library/Application Support/HAVENAgent/State/agent-identity.json` for the stable local agent signing identity used by `AgentIdentityCell`
 
-When `localControlBridge.accessToken` is configured, the bridge only accepts websocket and health requests that present the matching `token` query item. The example config ships with a placeholder token and Binding writes a generated local token when it provisions the agent, so the operator workbench can use the live CellProtocol path without opening the bridge to arbitrary local processes.
+When `localControlBridge.accessToken` is configured, the bridge only accepts websocket and health requests that present the matching `token` query item. The example config ships with a placeholder token, and any future operator tool should supply its own explicit local token instead of relying on ambient localhost authority.
 
 `config.json` now also supports a `remoteIntentPolicy` section with:
 
@@ -157,12 +168,12 @@ The current local identity-pairing flow is:
 
 1. `AgentCellRuntimeHost` loads or creates a stable agent identity and registers it into the local runtime vault.
 2. `AgentIdentityCell` exposes that identity on the loopback control bridge, signs an explicit enrollment attestation, and can sign a purpose-bound starter-auth payload for the same identity.
-3. Binding's `AgentEnrollmentCell` verifies the attestation locally, writes a pairing artifact under `~/Library/Application Support/HAVENAgent/Out/agent-enrollment-pairing.json`, requests and verifies a signed starter-auth payload from the agent over CellProtocol, and materializes a mutually signed entity-link contract under `~/Library/Application Support/HAVENAgent/Out/agent-operator-entity-link.json`.
+3. Operator tooling can verify the attestation locally, write a pairing artifact under `~/Library/Application Support/HAVENAgent/Out/agent-enrollment-pairing.json`, request and verify a signed starter-auth payload from the agent over CellProtocol, and materialize a mutually signed entity-link contract under `~/Library/Application Support/HAVENAgent/Out/agent-operator-entity-link.json`.
 4. The agent now re-loads and verifies that persisted pairing artifact before treating an operator as paired.
-5. Binding writes the verified starter-auth payload to `~/Library/Application Support/HAVENAgent/starter-auth.json`, which is the same path already referenced from the generated agent config.
-6. `sprout bootstrap join` now receives the paired agent identity through `--starter` and the Binding<->agent relationship through `--entity-link` instead of silently generating a third starter identity.
+5. Operator tooling writes the verified starter-auth payload to `~/Library/Application Support/HAVENAgent/starter-auth.json`, which is the same path already referenced from the generated agent config.
+6. `sprout bootstrap join` now receives the paired agent identity through `--starter` and the operator<->agent relationship through `--entity-link` instead of silently generating a third starter identity.
 
-`review-state`, `review-approve` and `review-reject` now reuse that same review path in a one-shot CLI context, so local operator tooling can inspect or decide on queued intents without inventing a second review mechanism outside CellProtocol. Binding prefers the live loopback control bridge for state + review when it is available, establishes a normal CellProtocol agreement on that bridge before `get/set`, and falls back to the CLI path only when the local bridge is unavailable.
+`review-state`, `review-approve` and `review-reject` now reuse that same review path in a one-shot CLI context, so local operator tooling can inspect or decide on queued intents without inventing a second review mechanism outside CellProtocol.
 
 Render a launch agent plist:
 

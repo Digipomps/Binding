@@ -37,7 +37,7 @@ struct RootView: View {
                     NotificationEnrollmentManager.shared.bootstrapIfNeeded()
                     initialized = true
                 }
-            } 
+            }
         }
     }
 
@@ -47,6 +47,9 @@ struct RootView: View {
             ContentView()
                 .overlay(alignment: .top) {
                     NotificationConsentBanner()
+                }
+                .overlay(alignment: .bottom) {
+                    PendingAgentActionOverlay()
                 }
         } else {
             ZStack {

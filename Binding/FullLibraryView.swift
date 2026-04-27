@@ -44,6 +44,13 @@ nonisolated enum LibraryPreviewSkeletonSupport {
             text.url = nil
             return PreparedPreview(element: .Text(text), usesPlaceholders: usedPlaceholder)
 
+        case .AttachmentField(let attachment):
+            return placeholderCollection(
+                title: attachment.title ?? attachment.emptyTitle ?? "Attachment field",
+                detail: attachment.emptyMessage ?? attachment.helperText ?? "Native attach/drop surface preview.",
+                modifiers: attachment.modifiers
+            )
+
         case .TextField(let field):
             let previewText = previewFieldText(
                 text: field.text,
@@ -1456,6 +1463,15 @@ final class FullLibraryViewModel: ObservableObject {
         let resolutionWarnings: [String]
     }
 
+    private struct CachedQuerySnapshot {
+        var endpoint: String
+        var results: [SearchResult]
+        var facetSections: [FacetSection]
+        var connectivity: ConnectivitySnapshot
+        var catalogMode: CatalogMode
+        var storedAt: Date
+    }
+
     @Published var selectedTab: LibraryTab = .allConfigs
     @Published var queryText: String = ""
     @Published var tokenDraft: String = ""
@@ -1484,6 +1500,12 @@ final class FullLibraryViewModel: ObservableObject {
     private let queryContext: FullLibraryQueryContext
     private var refreshTask: Task<Void, Never>?
     private var bootstrapWatchTask: Task<Void, Never>?
+    private var facetRefreshTask: Task<Void, Never>?
+    private var catalogSyncTask: Task<Void, Never>?
+    private var refreshGeneration = 0
+    private var lastGoodCatalogEndpoint: String?
+    private var queryCapableCatalogEndpoints: Set<String> = []
+    private var queryResultCache: [String: CachedQuerySnapshot] = [:]
     private var rawWarnings: [String] = []
 
     init(
@@ -1501,6 +1523,8 @@ final class FullLibraryViewModel: ObservableObject {
     deinit {
         refreshTask?.cancel()
         bootstrapWatchTask?.cancel()
+        facetRefreshTask?.cancel()
+        catalogSyncTask?.cancel()
     }
 
     var selectedResult: SearchResult? {
@@ -1570,6 +1594,7 @@ final class FullLibraryViewModel: ObservableObject {
 
     func scheduleRefresh() {
         refreshTask?.cancel()
+        facetRefreshTask?.cancel()
         refreshTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 280_000_000)
             guard !Task.isCancelled else { return }
@@ -1585,6 +1610,16 @@ final class FullLibraryViewModel: ObservableObject {
 
         statusLine = "Laster ConfigurationCatalog..."
         isLoading = true
+        facetRefreshTask?.cancel()
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        let querySignature = currentQuerySignature()
+        if let cachedSnapshot = queryResultCache[querySignature],
+           !cachedSnapshot.results.isEmpty {
+            applyCachedQuerySnapshot(cachedSnapshot)
+            let age = max(0, Int(Date().timeIntervalSince(cachedSnapshot.storedAt)))
+            statusLine = "Viser siste treff fra cache (\(age)s) · oppdaterer..."
+        }
         defer { isLoading = false }
 
         do {
@@ -1599,80 +1634,83 @@ final class FullLibraryViewModel: ObservableObject {
             let endpoint = resolved.endpoint
             replaceWarnings(with: resolved.resolutionWarnings)
             catalogMode = .unknown
-            if RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: endpoint) {
-                statusLine = "Oppdaterer lokal katalog..."
-                do {
-                    _ = try await runCatalogOperation(
-                        name: "sync",
-                        endpoint: endpoint
-                    ) {
-                        try await catalog.set(
-                            keypath: "syncScaffoldPurposeGoals",
-                            value: .object([:]),
-                            requester: identity
-                        )
-                    }
-                } catch {
-                    appendWarning(syncWarning(for: endpoint, error: error))
-                }
-            }
             let queryPayload = buildQueryPayload()
             let startedAt = Date()
 
             statusLine = "Henter katalogtreff..."
-            let fallbackCatalogResults = try? await runCatalogOperation(
-                name: "catalogContracts",
-                endpoint: endpoint
-            ) {
-                try await self.directCatalogResults(from: catalog, requester: identity)
-            }
+            let queryFastPath = shouldUseQueryFastPath(for: endpoint)
+            let fallbackCatalogResultsTask: Task<[SearchResult]?, Never>? = queryFastPath
+                ? nil
+                : Task<[SearchResult]?, Never> {
+                    await self.optionalCatalogOperation(
+                        name: "catalogContracts",
+                        endpoint: endpoint
+                    ) {
+                        try await self.directCatalogResults(from: catalog, requester: identity)
+                    }
+                }
 
-            var usedDirectCatalogFallback = false
-            let queryResponse = try? await runCatalogOperation(
+            var usedQueryResponse = false
+            let queryResponse: ValueType? = await optionalCatalogOperation(
                 name: "query",
                 endpoint: endpoint
             ) {
-                try await catalog.set(
+                guard let response = try await catalog.set(
                     keypath: "query",
                     value: .object(queryPayload),
                     requester: identity
-                )
+                ) else {
+                    throw LibraryError.catalogUnavailable
+                }
+                return response
             }
             if let queryResponse {
+                usedQueryResponse = true
                 parseQueryResponse(queryResponse)
+                markQueryCapable(endpoint)
                 catalogMode = .fullQuery
-            } else if let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
+                availability = .available(endpoint: endpoint)
+                lastGoodCatalogEndpoint = endpoint
+                if !results.isEmpty {
+                    storeQuerySnapshot(signature: querySignature, endpoint: endpoint)
+                    fallbackCatalogResultsTask?.cancel()
+                }
+                let elapsed = Int(Date().timeIntervalSince(startedAt) * 1000.0)
+                statusLine = "Kilde: \(endpoint) · \(results.count) treff · query \(elapsed)ms"
+                scheduleFacetRefreshIfNeeded(
+                    catalog: catalog,
+                    identity: identity,
+                    endpoint: endpoint,
+                    queryPayload: queryPayload,
+                    querySignature: querySignature,
+                    generation: generation
+                )
+                scheduleCatalogSyncIfNeeded(catalog: catalog, identity: identity, endpoint: endpoint, generation: generation)
+            } else if let fallbackCatalogResults = await directCatalogFallbackResults(
+                from: fallbackCatalogResultsTask,
+                catalog: catalog,
+                requester: identity,
+                endpoint: endpoint
+            ), !fallbackCatalogResults.isEmpty {
                 results = fallbackCatalogResults
                 facetSections = deriveFacetSections(from: fallbackCatalogResults)
                 appendWarning("Kilden støtter ikke katalog-query. Viser direkte katalogentries i stedet.")
                 selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
-                usedDirectCatalogFallback = true
                 catalogMode = .directEntriesFallback
+                availability = .available(endpoint: endpoint)
+                lastGoodCatalogEndpoint = endpoint
             } else {
                 throw LibraryError.catalogUnavailable
             }
 
-            if !usedDirectCatalogFallback {
-                let facetPayload = buildFacetPayload(baseQuery: queryPayload)
-                let facetResponse = try? await runCatalogOperation(
-                    name: "facetCounts",
-                    endpoint: endpoint
-                ) {
-                    try await catalog.set(
-                        keypath: "facetCounts",
-                        value: .object(facetPayload),
-                        requester: identity
-                    )
-                }
-                if let facetResponse {
-                    parseFacetResponse(facetResponse)
-                } else {
-                    facetSections = deriveFacetSections(from: results)
-                    appendWarning("Kilden støtter ikke facetCounts. Viser lokale fasetter for treffene.")
-                }
-            }
-
             let elapsed = Int(Date().timeIntervalSince(startedAt) * 1000.0)
+            let fallbackCatalogResults: [SearchResult]?
+            if !queryFastPath, results.isEmpty {
+                fallbackCatalogResults = await fallbackCatalogResultsTask?.value
+            } else {
+                fallbackCatalogResultsTask?.cancel()
+                fallbackCatalogResults = nil
+            }
             if results.isEmpty, let fallbackCatalogResults, !fallbackCatalogResults.isEmpty {
                 results = fallbackCatalogResults
                 facetSections = deriveFacetSections(from: fallbackCatalogResults)
@@ -1683,7 +1721,7 @@ final class FullLibraryViewModel: ObservableObject {
                 connectivity = ConnectivitySnapshot(onlineSources: 1, degradedSources: 0, offlineSources: 0)
                 statusLine = "Kilde: \(endpoint) · \(results.count) entries · direkte katalogvisning"
                 catalogMode = .directEntriesFallback
-            } else if results.isEmpty {
+            } else if !usedQueryResponse && results.isEmpty {
                 let offlineResults = offlineFallbackResults()
                 if !offlineResults.isEmpty {
                     results = offlineResults
@@ -1704,6 +1742,14 @@ final class FullLibraryViewModel: ObservableObject {
             }
             availability = .available(endpoint: endpoint)
         } catch {
+            if let cachedSnapshot = queryResultCache[querySignature],
+               !cachedSnapshot.results.isEmpty {
+                applyCachedQuerySnapshot(cachedSnapshot)
+                availability = .unavailable(reason: "Kunne ikke nå ConfigurationCatalog. Viser siste query-cache.")
+                statusLine = "Staging er utilgjengelig. Viser siste query-cache fra \(cachedSnapshot.endpoint)."
+                appendWarning("Staging-katalogen svarte ikke. Viser siste query-cache i stedet.")
+                return
+            }
             let offlineResults = offlineFallbackResults()
             results = offlineResults
             facetSections = deriveFacetSections(from: offlineResults)
@@ -1795,6 +1841,192 @@ final class FullLibraryViewModel: ObservableObject {
             group.cancelAll()
             return value
         }
+    }
+
+    private func optionalCatalogOperation<T: Sendable>(
+        name: String,
+        endpoint: String,
+        operation: @escaping @Sendable () async throws -> T
+    ) async -> T? {
+        do {
+            return try await runCatalogOperation(
+                name: name,
+                endpoint: endpoint,
+                operation: operation
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private func directCatalogFallbackResults(
+        from existingTask: Task<[SearchResult]?, Never>?,
+        catalog: Meddle,
+        requester: Identity,
+        endpoint: String
+    ) async -> [SearchResult]? {
+        if let existingTask {
+            return await existingTask.value
+        }
+
+        return await optionalCatalogOperation(
+            name: "catalogContracts",
+            endpoint: endpoint
+        ) {
+            try await self.directCatalogResults(from: catalog, requester: requester)
+        }
+    }
+
+    private func scheduleFacetRefreshIfNeeded(
+        catalog: Meddle,
+        identity: Identity,
+        endpoint: String,
+        queryPayload: Object,
+        querySignature: String,
+        generation: Int
+    ) {
+        guard !results.isEmpty else {
+            facetSections = []
+            return
+        }
+
+        if facetSections.isEmpty {
+            facetSections = deriveFacetSections(from: results)
+        }
+
+        facetRefreshTask?.cancel()
+        facetRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let facetPayload = self.buildFacetPayload(baseQuery: queryPayload)
+            let facetResponse = await self.optionalCatalogOperation(
+                name: "facetCounts",
+                endpoint: endpoint
+            ) {
+                guard let response = try await catalog.set(
+                    keypath: "facetCounts",
+                    value: .object(facetPayload),
+                    requester: identity
+                ) else {
+                    throw LibraryError.catalogUnavailable
+                }
+                return response
+            }
+            guard !Task.isCancelled, self.refreshGeneration == generation else { return }
+            if let facetResponse {
+                self.parseFacetResponse(facetResponse)
+            } else {
+                self.facetSections = self.deriveFacetSections(from: self.results)
+                self.appendWarning("Kilden støtter ikke facetCounts. Viser lokale fasetter for treffene.")
+            }
+            self.storeQuerySnapshot(signature: querySignature, endpoint: endpoint)
+        }
+    }
+
+    private func scheduleCatalogSyncIfNeeded(
+        catalog: Meddle,
+        identity: Identity,
+        endpoint: String,
+        generation: Int
+    ) {
+        guard RemoteCatalogSupport.shouldSyncCatalogBeforeQuery(for: endpoint) else { return }
+
+        catalogSyncTask?.cancel()
+        catalogSyncTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let syncResult: ValueType? = await self.optionalCatalogOperation(
+                name: "sync",
+                endpoint: endpoint
+            ) {
+                guard let response = try await catalog.set(
+                    keypath: "syncScaffoldPurposeGoals",
+                    value: .object([:]),
+                    requester: identity
+                ) else {
+                    throw LibraryError.catalogUnavailable
+                }
+                return response
+            }
+            guard !Task.isCancelled, self.refreshGeneration == generation else { return }
+            if syncResult == nil {
+                self.appendWarning(self.syncWarning(for: endpoint, error: LibraryError.catalogOperationTimedOut(endpoint, "sync")))
+            }
+        }
+    }
+
+    private func storeQuerySnapshot(signature: String, endpoint: String) {
+        guard !results.isEmpty else { return }
+        queryResultCache[signature] = CachedQuerySnapshot(
+            endpoint: endpoint,
+            results: results,
+            facetSections: facetSections,
+            connectivity: connectivity,
+            catalogMode: catalogMode,
+            storedAt: Date()
+        )
+    }
+
+    private func applyCachedQuerySnapshot(_ snapshot: CachedQuerySnapshot) {
+        results = snapshot.results
+        facetSections = snapshot.facetSections
+        connectivity = snapshot.connectivity
+        catalogMode = snapshot.catalogMode
+        selectedResultID = preferredSelectionID(in: snapshot.results, currentSelectionID: selectedResultID)
+    }
+
+    private func shouldUseQueryFastPath(for endpoint: String) -> Bool {
+        let key = normalizedEndpointKey(endpoint)
+        return queryCapableCatalogEndpoints.contains(key)
+            || normalizedEndpointKey(lastGoodCatalogEndpoint) == key
+            || endpointLooksQueryCapable(endpoint)
+    }
+
+    private func markQueryCapable(_ endpoint: String) {
+        queryCapableCatalogEndpoints.insert(normalizedEndpointKey(endpoint))
+    }
+
+    private func endpointLooksQueryCapable(_ endpoint: String) -> Bool {
+        if RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
+            return true
+        }
+        guard let components = URLComponents(string: endpoint) else {
+            return false
+        }
+        let path = components.path
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        return path.split(separator: "/").last.map(String.init) == "configurationcatalog"
+    }
+
+    private func normalizedEndpointKey(_ endpoint: String?) -> String {
+        endpoint?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+    }
+
+    private func currentQuerySignature() -> String {
+        let tokenSignature = tokensForRequest()
+            .map { "\($0.kind.rawValue)=\($0.value.lowercased())" }
+            .sorted()
+            .joined(separator: ",")
+        let facetSignature = selectedFacets
+            .map { key, values in
+                "\(key)=\(values.map { $0.lowercased() }.sorted().joined(separator: ","))"
+            }
+            .sorted()
+            .joined(separator: "|")
+        return [
+            "tab=\(selectedTab.rawValue)",
+            "q=\(defaultQueryTextForTab().lowercased())",
+            "tokens=\(tokenSignature)",
+            "facets=\(facetSignature)",
+            "edit=\(queryContext.editMode)",
+            "node=\(queryContext.selectedNodeKind ?? "")",
+            "intent=\(queryContext.insertionIntent.rawValue)",
+            "budget=\(resourceBudget.rawValue)",
+            "policy=\(networkPolicy.rawValue)",
+            "degraded=\(allowDegradedSources)",
+            "max=\(maxSources)"
+        ].joined(separator: ";;")
     }
 
     private func runRefreshPhase<T: Sendable>(
@@ -1950,6 +2182,21 @@ final class FullLibraryViewModel: ObservableObject {
         )
     }
 
+    private func stickyCatalogCandidates(_ candidates: [String]) -> [String] {
+        guard networkPolicy != .cacheOnly,
+              let lastGoodCatalogEndpoint,
+              !lastGoodCatalogEndpoint.isEmpty else {
+            return candidates
+        }
+
+        let lastGoodKey = normalizedEndpointKey(lastGoodCatalogEndpoint)
+        guard candidates.contains(where: { normalizedEndpointKey($0) == lastGoodKey }) else {
+            return candidates
+        }
+
+        return [lastGoodCatalogEndpoint] + candidates.filter { normalizedEndpointKey($0) != lastGoodKey }
+    }
+
     private func resolveCatalog() async throws -> ResolvedCatalog {
         if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
             await AppInitializer.initialize()
@@ -1969,9 +2216,11 @@ final class FullLibraryViewModel: ObservableObject {
             .preferLocal
         }
 
-        let candidates = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(
-            from: catalogEndpoints,
-            preference: preference
+        let candidates = stickyCatalogCandidates(
+            RemoteCatalogSupport.orderedCatalogCandidateEndpoints(
+                from: catalogEndpoints,
+                preference: preference
+            )
         )
         var resolutionWarnings: [String] = []
         for endpoint in candidates {

@@ -1,5 +1,11 @@
 # HavenAgentD Setup And Test Runbook
 
+Legacy note:
+
+- this document describes the older Binding-embedded provisioning flow
+- `Binding` no longer ships `Agent Setup Workbench` as part of the main app boundary
+- keep this only as implementation history until a new dedicated operator flow exists under `HavenAgentD`
+
 This runbook describes the exact order for setting up, pairing, admitting and testing `HavenAgentD` from the `Binding` workspace.
 
 It covers:

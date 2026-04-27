@@ -201,10 +201,7 @@ public final class AgentIdentityCell: GeneralCell {
     }
 
     private func descriptorValue(owner: Identity) async -> ValueType {
-        if let descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot() {
-            return descriptor.asValue()
-        }
-        return makeFallbackDescriptor(owner: owner).asValue()
+        return await effectiveDescriptor(owner: owner).asValue()
     }
 
     private func makeFallbackDescriptor(owner: Identity) -> AgentIdentityDescriptor {
@@ -218,6 +215,31 @@ public final class AgentIdentityCell: GeneralCell {
             createdAt: "unknown",
             storageKind: "runtime-only"
         )
+    }
+
+    private func effectiveDescriptor(owner: Identity) async -> AgentIdentityDescriptor {
+        let fallback = makeFallbackDescriptor(owner: owner)
+        guard let descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot() else {
+            return fallback
+        }
+        guard !fallback.publicKeyBase64URL.isEmpty else {
+            return descriptor
+        }
+        if descriptor.publicKeyBase64URL == fallback.publicKeyBase64URL || descriptor.identityUUID == owner.uuid {
+            return mergedDescriptor(descriptor, withCanonicalIdentityFrom: fallback)
+        }
+        return fallback
+    }
+
+    private func mergedDescriptor(
+        _ descriptor: AgentIdentityDescriptor,
+        withCanonicalIdentityFrom fallback: AgentIdentityDescriptor
+    ) -> AgentIdentityDescriptor {
+        var merged = descriptor
+        merged.identityUUID = fallback.identityUUID
+        merged.publicKeyBase64URL = fallback.publicKeyBase64URL
+        merged.didKey = fallback.didKey
+        return merged
     }
 
     private func issueEnrollmentAttestation(
@@ -251,7 +273,7 @@ public final class AgentIdentityCell: GeneralCell {
             return .string("error: requester identity does not match the claimed operator public key")
         }
 
-        let descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot() ?? makeFallbackDescriptor(owner: owner)
+        let descriptor = await effectiveDescriptor(owner: owner)
         var attestation = AgentEnrollmentAttestation(
             payload: .init(
                 version: "1.0",
@@ -302,7 +324,7 @@ public final class AgentIdentityCell: GeneralCell {
     ) async -> ValueType {
         do {
             let request = try parseStarterAuthRequest(from: value)
-            let descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot() ?? makeFallbackDescriptor(owner: owner)
+            let descriptor = await effectiveDescriptor(owner: owner)
             let issuedAt = Date()
             let expiresAt = issuedAt.addingTimeInterval(TimeInterval(request.ttlSeconds))
 
@@ -352,7 +374,7 @@ public final class AgentIdentityCell: GeneralCell {
     ) async -> ValueType {
         do {
             let contract = try parseEntityLinkContract(from: value)
-            let descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot() ?? makeFallbackDescriptor(owner: owner)
+            let descriptor = await effectiveDescriptor(owner: owner)
             let requesterPublicKey = requester.publicSecureKey?.compressedKey.map(LocalBase64URL.encode)
 
             guard let requesterPublicKey else {

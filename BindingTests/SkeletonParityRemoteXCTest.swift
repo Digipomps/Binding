@@ -21,12 +21,13 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         let payload: ValueType?
     }
 
-    private enum RemoteParityError: LocalizedError {
+    private enum RemoteParityError: LocalizedError, CustomStringConvertible {
         case missingFixture(String)
         case unexpectedStatus(Int, expected: Int, path: String)
         case invalidResponse(String)
         case invalidValueShape(String)
         case missingConfiguration(String)
+        case bridgeOperationFailed(endpoint: String, operation: String, underlying: String)
 
         var errorDescription: String? {
             switch self {
@@ -40,7 +41,15 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
                 return "Uventet ValueType-shape for \(context)"
             case .missingConfiguration(let context):
                 return "Kunne ikke dekode CellConfiguration for \(context)"
+            case .bridgeOperationFailed(let endpoint, let operation, let underlying):
+                return """
+                Remote bridge-fixturen svarte ikke på \(operation) for \(endpoint): \(underlying). HTTP-fixturene er oppe, så dette peker på staging bridge command-response eller fixture exposure, ikke på Binding sin skeleton-renderer.
+                """
             }
+        }
+
+        var description: String {
+            errorDescription ?? "Remote skeleton parity error"
         }
     }
 
@@ -333,6 +342,11 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
     @MainActor
     func testBridgeBackedFixtureResolvesThroughBindingAndExecutesAction() async throws {
+        try XCTSkipIf(
+            Self.shouldSkipBridgeCanary,
+            "Remote HTTP parity kjører uten bridge-canary. Kjør remote-bridge eller fjern BINDING_REMOTE_PARITY_SKIP_BRIDGE for å verifisere staging bridge command-response."
+        )
+
         let endpoint = "cell://staging.haven.digipomps.org/SkeletonParityTextFixture"
         var configuration = CellConfiguration(name: "Skeleton Parity Remote Bridge")
         configuration.description = "Binding-side remote bridge verification for CellScaffold skeleton parity."
@@ -363,25 +377,40 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
         RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: context.resolver)
-        _ = try await RemoteEndpointAccessSupport.resolveMeddle(
+        let bridgeMeddle = try await RemoteEndpointAccessSupport.resolveMeddle(
             endpoint: endpoint,
             resolver: context.resolver,
             requester: context.owner,
             accessLabel: "Skeleton parity bridge fixture"
         )
 
+        let directBridgeState = try await readBridgeValue(
+            bridgeMeddle,
+            endpoint: endpoint,
+            operation: "get(state)",
+            keypath: "state",
+            requester: context.owner
+        )
+        assertContainsStrings(directBridgeState, ["Basic structure"], context: "bridge.direct.state.before")
+
         XCTAssertEqual(context.validation.errorCount, 0, "Validation issues: \(context.validation.issues)")
 
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
 
-        let stateBeforeAction = try await context.porthole.get(
+        let stateBeforeAction = try await readBridgeValue(
+            context.porthole,
+            endpoint: endpoint,
+            operation: "Porthole get(fixture.state)",
             keypath: "fixture.state",
             requester: context.owner
         )
         assertContainsStrings(stateBeforeAction, ["Basic structure"], context: "bridge.state.before")
 
-        let actionResponse = try await context.porthole.set(
+        let actionResponse = try await writeBridgeValue(
+            context.porthole,
+            endpoint: endpoint,
+            operation: "Porthole set(fixture.dispatchAction)",
             keypath: "fixture.dispatchAction",
             value: .object([
                 "keypath": .string("acknowledge"),
@@ -396,11 +425,65 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             XCTFail("Expected bridge action response from remote fixture")
         }
 
-        let stateAfterAction = try await context.porthole.get(
+        let stateAfterAction = try await readBridgeValue(
+            context.porthole,
+            endpoint: endpoint,
+            operation: "Porthole get(fixture.state) after action",
             keypath: "fixture.state",
             requester: context.owner
         )
         assertContainsStrings(stateAfterAction, ["Ack mottatt"], context: "bridge.state.after")
+    }
+
+    func testPersonalChatHubConfigurationPublishesAssistantAndPollContractQuickly() async throws {
+        let startedAt = Date()
+        let configuration = try await fetchConfiguration(route: "/personal-copilot-v1/chat/api/configuration")
+        let elapsed = Date().timeIntervalSince(startedAt)
+
+        XCTAssertLessThan(
+            elapsed,
+            1.5,
+            "PersonalChatHub configuration should be fast enough for first-load UX on staging."
+        )
+        XCTAssertEqual(configuration.name, "Invite Chat")
+        XCTAssertEqual(configuration.discovery?.sourceCellName, "PersonalChatHubCell")
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
+        let data = try encoder.encode(configuration)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw RemoteParityError.invalidResponse("personal-copilot chat configuration JSON")
+        }
+
+        for expected in [
+            "\"keypath\":\"chatHub.assistant.analyzeDraft\"",
+            "\"keypath\":\"chatHub.assistant.acceptSuggestion\"",
+            "\"keypath\":\"chatHub.assistant.dismissSuggestion\"",
+            "\"targetKeypath\":\"chatHub.assistant.setCandidateQuery\"",
+            "\"selectionActionKeypath\":\"chatHub.assistant.selectCandidate\"",
+            "\"selectionPayloadMode\":\"item_id\"",
+            "\"targetKeypath\":\"chatHub.poll.setQuestion\"",
+            "\"targetKeypath\":\"chatHub.poll.setOptions\"",
+            "\"keypath\":\"chatHub.poll.create\"",
+            "\"keypath\":\"chatHub.poll.vote\"",
+            "\"keypath\":\"chatHub.poll.close\"",
+            "purposeRef=personal.chat.assist.invite",
+            "purposeRef=personal.chat.assist.poll"
+        ] {
+            XCTAssertTrue(json.contains(expected), "Staging PersonalChatHub config missing \(expected)")
+        }
+
+        XCTAssertFalse(
+            json.contains("\"selectionPayloadMode\":\"itemID\""),
+            "Staging must publish the CellProtocol wire value item_id, not the Swift case name itemID."
+        )
+    }
+
+    private static var shouldSkipBridgeCanary: Bool {
+        let flag = ProcessInfo.processInfo.environment["BINDING_REMOTE_PARITY_SKIP_BRIDGE"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return flag == "1" || flag == "true" || flag == "yes"
     }
 
     private func skipUnlessRemoteParityEnabled() throws {
@@ -495,6 +578,43 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             throw RemoteParityError.unexpectedStatus(http.statusCode, expected: 200, path: route)
         }
         return try JSONDecoder().decode(ValueType.self, from: data)
+    }
+
+    private func readBridgeValue(
+        _ meddle: Meddle,
+        endpoint: String,
+        operation: String,
+        keypath: String,
+        requester: Identity
+    ) async throws -> ValueType {
+        do {
+            return try await meddle.get(keypath: keypath, requester: requester)
+        } catch {
+            throw RemoteParityError.bridgeOperationFailed(
+                endpoint: endpoint,
+                operation: operation,
+                underlying: String(describing: error)
+            )
+        }
+    }
+
+    private func writeBridgeValue(
+        _ meddle: Meddle,
+        endpoint: String,
+        operation: String,
+        keypath: String,
+        value: ValueType,
+        requester: Identity
+    ) async throws -> ValueType? {
+        do {
+            return try await meddle.set(keypath: keypath, value: value, requester: requester)
+        } catch {
+            throw RemoteParityError.bridgeOperationFailed(
+                endpoint: endpoint,
+                operation: operation,
+                underlying: String(describing: error)
+            )
+        }
     }
 
     private func makeURL(route: String) throws -> URL {
