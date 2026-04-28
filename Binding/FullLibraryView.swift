@@ -146,6 +146,41 @@ nonisolated enum LibraryPreviewSkeletonSupport {
                     content.contains(where: \.usesPlaceholders)
             )
 
+        case .Tabs(let tabs):
+            let tabHeaders = tabs.panels.map { panel in
+                SkeletonElement.Text(
+                    previewText(
+                        panel.id,
+                        modifiers: previewDetailModifiers()
+                    )
+                )
+            }
+            let panelContent = sanitize(tabs.panels.flatMap(\.content))
+            return PreparedPreview(
+                element: .VStack(
+                    SkeletonVStack(
+                        elements: [
+                            .Text(
+                                previewText(
+                                    "Preview tabs",
+                                    subtitle: previewLabel(from: tabs.tabsKeypath) ?? previewLabel(from: tabs.activeTabStateKeypath),
+                                    modifiers: previewTitleModifiers()
+                                )
+                            ),
+                            .HStack(
+                                SkeletonHStack(
+                                    elements: tabHeaders,
+                                    spacing: 8
+                                )
+                            )
+                        ] + panelContent.map(\.element),
+                        spacing: 8,
+                        modifiers: tabs.modifiers
+                    )
+                ),
+                usesPlaceholders: true || panelContent.contains(where: \.usesPlaceholders)
+            )
+
         case .ZStack(let stack):
             let sanitizedChildren = sanitize(stack.elements)
             return PreparedPreview(
