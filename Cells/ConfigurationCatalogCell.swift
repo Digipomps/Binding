@@ -135,7 +135,7 @@ enum BindingPersonalCopilotV1Policy {
         switch policyCategory {
         case "identity-and-account", "profile-draft", "profile-publish", "privacy-audit":
             return "identity"
-        case "matching", "invite-only-chat", "public-profile-directory", "public-directory":
+        case "matching", "invite-only-chat", "public-profile-directory", "public-directory", "nearby-signal":
             return "relationship"
         case "local-vault", "catalog", "catalog-policy":
             return "content"
@@ -150,7 +150,7 @@ enum BindingPersonalCopilotV1Policy {
         switch policyCategory {
         case "identity-and-account", "profile-draft", "profile-publish", "privacy-audit":
             return "detail"
-        case "matching", "public-profile-directory", "public-directory", "catalog", "catalog-policy":
+        case "matching", "public-profile-directory", "public-directory", "nearby-signal", "catalog", "catalog-policy":
             return "list"
         case "invite-only-chat":
             return "detail"
@@ -5686,6 +5686,30 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ioSetKeys: ["query", "searchProfiles", "profileDetail", "reportProfile", "hideProfile", "blockProfile"]
             ),
             StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///NearbySignalDirectory",
+                sourceCellName: "NearbySignalDirectoryCell",
+                displayName: "Nearby Signals",
+                purpose: "Ephemeral nearby signal discovery",
+                purposeDescription: "Publiser og finn tidsbegrensede nearby-signaler med grov posisjon, eksplisitt samtykke og UGC-kontroller.",
+                interests: scopedInterests(["nearby", "signals", "location", "purpose", "interests", "ephemeral", "report", "hide", "block"], policyCategory: "nearby-signal"),
+                summary: "Tidsbegrensede funn i naerheten, rangert etter radius og purpose/interest-overlapp.",
+                categoryPath: ["personal-copilot", "nearby", "signals"],
+                tags: ["nearby", "signals", "location", "purpose", "interests", "moderation"],
+                menuSlots: [.upperLeft, .lowerMid],
+                chip: "LOCAL PREVIEW",
+                borderColor: "#0F766E",
+                policyHints: hints(
+                    "nearby-signal",
+                    requiresUserGeneratedContentModeration: true,
+                    nativePermissionRequests: ["location-on-explicit-action", "photo-picker-on-explicit-action"],
+                    universalLinkPath: "personal/nearby-signals"
+                ),
+                flowDriven: true,
+                recommendedContexts: ["personal-copilot", "nearby", "discovery"],
+                ioGetKeys: ["state", "lastSearch", "directoryModerationStatus", "selectedSignal", "skeletonConfiguration"],
+                ioSetKeys: ["query", "searchPurposeRefsText", "searchInterestRefsText", "searchNearbySignals", "signalDetail", "reportSignal", "hideSignal", "blockPublisher"]
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell://staging.haven.digipomps.org/PersonalMatchmaking",
                 sourceCellName: "PersonalMatchmakingCell",
                 displayName: "Matches",
@@ -6583,6 +6607,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             return personalPublicProfileMenuConfiguration()
         case "cell://staging.haven.digipomps.org/publicprofiledirectory":
             return personalPublicProfileDirectoryMenuConfiguration()
+        case "cell:///nearbysignaldirectory", "cell://staging.haven.digipomps.org/nearbysignaldirectory":
+            return personalNearbySignalsMenuConfiguration()
         case "cell://staging.haven.digipomps.org/personalmatchmaking":
             return personalMatchesMenuConfiguration()
         case "cell:///personalchatclient":
@@ -7237,6 +7263,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             personalProfileMenuConfiguration(),
             personalPublicProfileMenuConfiguration(),
             personalPublicProfileDirectoryMenuConfiguration(),
+            personalNearbySignalsMenuConfiguration(),
             personalMatchesMenuConfiguration(),
             personalInviteChatMenuConfiguration(),
             personalVaultIdeasMenuConfiguration(),
@@ -7335,6 +7362,33 @@ final class ConfigurationCatalogCell: GeneralCell {
             universalLinkPath: "personal/directory"
         )
         configuration.skeleton = personalPublicProfileDirectorySurfaceSkeleton()
+        return configuration
+    }
+
+    nonisolated static func personalNearbySignalsMenuConfiguration() -> CellConfiguration {
+        var configuration = personalReferenceCardConfiguration(
+            name: "Nearby Signals",
+            endpoint: "cell:///NearbySignalDirectory",
+            label: "signalDirectory",
+            title: "Nearby Signals",
+            subtitle: "Publiser og finn tidsbegrensede nearby-signaler med grov posisjon, purpose/interests og tydelige UGC-kontroller.",
+            chip: "EPHEMERAL",
+            borderColor: "#0F766E",
+            sourceCellName: "NearbySignalDirectoryCell",
+            purpose: "Ephemeral nearby signal discovery",
+            purposeDescription: "Opprett lokalt signalutkast, publiser med eksplisitt samtykke, og sok etter aktive openly published signaler i naerheten.",
+            interests: ["nearby", "signals", "location", "purpose", "interests", "ephemeral", "report", "hide", "block"],
+            menuSlots: [.upperLeft, .lowerMid],
+            policyCategory: "nearby-signal",
+            requiresUserGeneratedContentModeration: true,
+            nativePermissionRequests: ["location-on-explicit-action", "photo-picker-on-explicit-action"],
+            universalLinkPath: "personal/nearby-signals"
+        )
+        configuration.addReference(CellReference(endpoint: "cell:///NearbySignalDraft", subscribeFeed: false, label: "signalDraft"))
+        configuration.addReference(CellReference(endpoint: "cell:///NearbySignalPublisher", subscribeFeed: false, label: "signalPublisher"))
+        configuration.addReference(CellReference(endpoint: "cell:///PersonalPrivacyAudit", subscribeFeed: false, label: "privacyAudit"))
+        configuration.addReference(CellReference(endpoint: "cell:///Perspective", subscribeFeed: false, label: "perspective"))
+        configuration.skeleton = personalNearbySignalsSurfaceSkeleton()
         return configuration
     }
 
@@ -8062,6 +8116,322 @@ final class ConfigurationCatalogCell: GeneralCell {
                     content: [
                         .List(results),
                         personalKeyValueRow("Blocked", keypath: "directory.state.blockedProfileCount", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        .HStack(SkeletonHStack(elements: [
+                            .Button(reportButton),
+                            .Button(hideButton),
+                            .Button(blockButton)
+                        ], spacing: 8))
+                    ]
+                )
+            ]
+        )
+    }
+
+    nonisolated private static func personalNearbySignalsSurfaceSkeleton() -> SkeletonElement {
+        let signalTextField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "signalDraft.state.draft.text",
+            targetKeypath: "signalDraft.draft.text",
+            placeholder: "What is interesting here? Text is public only after preview and consent.",
+            minLines: 3,
+            maxLines: 7,
+            submitOnEnter: false,
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let imageField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDraft.state.draft.imageAsset",
+            targetKeypath: "signalDraft.draft.imageAsset",
+            placeholder: "Optional image asset reference",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let purposeField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDraft.state.draft.purposeRefsText",
+            targetKeypath: "signalDraft.draft.purposeRefsText",
+            placeholder: "purpose://collaboration, purpose://resource-sharing",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let interestField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDraft.state.draft.interestRefsText",
+            targetKeypath: "signalDraft.draft.interestRefsText",
+            placeholder: "interest://ideas, interest://local",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let latitudeField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDraft.state.draft.manualLatitudeText",
+            targetKeypath: "signalDraft.draft.manualLatitudeText",
+            placeholder: "Coarse latitude",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let longitudeField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDraft.state.draft.manualLongitudeText",
+            targetKeypath: "signalDraft.draft.manualLongitudeText",
+            placeholder: "Coarse longitude",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let radiusField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDraft.state.draft.radiusMetersText",
+            targetKeypath: "signalDraft.draft.radiusMetersText",
+            placeholder: "Radius meters, minimum 250",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let directoryQueryField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDirectory.state.query",
+            targetKeypath: "signalDirectory.query",
+            placeholder: "Search active nearby signals",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let directoryPurposeField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDirectory.state.searchPurposeRefsText",
+            targetKeypath: "signalDirectory.searchPurposeRefsText",
+            placeholder: "Search purpose refs",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let directoryInterestField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDirectory.state.searchInterestRefsText",
+            targetKeypath: "signalDirectory.searchInterestRefsText",
+            placeholder: "Search interest refs",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+        let directoryRadiusField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "signalDirectory.state.searchRadiusMetersText",
+            targetKeypath: "signalDirectory.searchRadiusMetersText",
+            placeholder: "Search radius meters",
+            modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
+        )
+
+        let locationButton = personalActionButton(
+            keypath: "signalDraft.requestLocation",
+            label: "Use current position",
+            payload: .object(["explicitUserAction": .bool(true)]),
+            style: .secondary
+        )
+        let stripImageButton = personalActionButton(
+            keypath: "signalDraft.stripImageMetadata",
+            label: "Strip image metadata",
+            payload: .bool(true),
+            style: .secondary
+        )
+        let previewButton = personalActionButton(
+            keypath: "signalDraft.preparePublishPreview",
+            label: "Prepare preview",
+            payload: .bool(true)
+        )
+        let consentButton = personalActionButton(
+            keypath: "signalDraft.recordPublishConsent",
+            label: "Record consent",
+            payload: .bool(true),
+            style: .secondary
+        )
+        let resetButton = personalActionButton(
+            keypath: "signalDraft.resetDraft",
+            label: "Reset draft",
+            payload: .bool(true),
+            style: .warning
+        )
+        let publishButton = personalActionButton(
+            keypath: "signalPublisher.publishSignal",
+            label: "Publish 2h signal",
+            payload: .object(["explicitPublishIntent": .bool(true)])
+        )
+        let renewButton = personalActionButton(
+            keypath: "signalPublisher.renewSignal",
+            label: "Renew 2h",
+            payload: .object([:]),
+            style: .secondary
+        )
+        let unpublishButton = personalActionButton(
+            keypath: "signalPublisher.unpublishSignal",
+            label: "Unpublish",
+            payload: .object([:]),
+            style: .secondary
+        )
+        let deleteButton = personalActionButton(
+            keypath: "signalPublisher.deleteSignal",
+            label: "Delete",
+            payload: .object([:]),
+            style: .warning
+        )
+        let searchButton = personalActionButton(
+            keypath: "signalDirectory.searchNearbySignals",
+            label: "Search nearby",
+            payload: .object([:])
+        )
+        let detailButton = personalActionButton(
+            keypath: "signalDirectory.signalDetail",
+            label: "Inspect result",
+            payload: .object([:]),
+            style: .secondary
+        )
+        let reportButton = personalActionButton(
+            keypath: "signalDirectory.reportSignal",
+            label: "Report",
+            payload: .object(["reason": .string("user_reported_from_nearby_signal_directory")]),
+            style: .warning
+        )
+        let hideButton = personalActionButton(
+            keypath: "signalDirectory.hideSignal",
+            label: "Hide",
+            payload: .object([:]),
+            style: .secondary
+        )
+        let blockButton = personalActionButton(
+            keypath: "signalDirectory.blockPublisher",
+            label: "Block publisher",
+            payload: .object([:]),
+            style: .warning
+        )
+        let auditButton = personalActionButton(
+            keypath: "privacyAudit.audit.record",
+            label: "Record signal audit",
+            payload: .string("Nearby signal publish/search consent reviewed."),
+            style: .secondary
+        )
+
+        var activeRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("statusBadge", lineLimit: 1)),
+            .Text(personalBoundText("text", lineLimit: 2)),
+            .Text(personalBoundText("radiusSummary", lineLimit: 1)),
+            .Text(personalBoundText("expiresInSummary", lineLimit: 1)),
+            .Text(personalBoundText("moderationStatus", lineLimit: 1))
+        ], spacing: 4)
+        activeRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+
+        var activeList = SkeletonList(
+            topic: nil,
+            keypath: "signalPublisher.state.myActiveSignals",
+            flowElementSkeleton: activeRow
+        )
+        activeList.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
+
+        var resultRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("statusBadge", lineLimit: 1)),
+            .Text(personalBoundText("text", lineLimit: 2)),
+            .Text(personalBoundText("distanceText", lineLimit: 1)),
+            .Text(personalBoundText("radiusSummary", lineLimit: 1)),
+            .Text(personalBoundText("expiresInSummary", lineLimit: 1)),
+            .Text(personalBoundText("rankingExplanation", lineLimit: 3)),
+            .Text(personalBoundText("moderationStatus", lineLimit: 1))
+        ], spacing: 4)
+        resultRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+
+        var results = SkeletonList(
+            topic: nil,
+            keypath: "signalDirectory.state.lastSearch.results",
+            flowElementSkeleton: resultRow
+        )
+        results.selectionMode = .single
+        results.selectionValueKeypath = "signalID"
+        results.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 260, role: "personal-list-row")
+
+        return personalSurfacePage(
+            title: "Nearby Signals",
+            subtitle: "Lag et lokalt utkast, publiser et grovt og tidsbegrenset signal, og sok etter openly published signaler i naerheten.",
+            chip: "2H NEARBY",
+            content: [
+                personalSection(
+                    "Compose local draft",
+                    role: "personal-draft-composer",
+                    content: [
+                        .Text(personalBodyText("Nearby Signals uses your location to show signals close to you. Only a coarse area is ever published - your exact position stays on your device.")),
+                        .Text(personalLabelText("PUBLIC TEXT")),
+                        .TextArea(signalTextField),
+                        .Text(personalLabelText("OPTIONAL IMAGE")),
+                        .TextField(imageField),
+                        .HStack(SkeletonHStack(elements: [
+                            .Button(locationButton),
+                            .Button(stripImageButton)
+                        ], spacing: 8)),
+                        personalKeyValueRow("Location", keypath: "signalDraft.state.locationPermissionStatus", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("Image metadata", keypath: "signalDraft.state.draft.imageMetadataStatus", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Draft type", keypath: "signalDraft.state.draft.draftKind", accent: BindingPersonalCopilotDesignSystem.textTertiary)
+                    ]
+                ),
+                personalSection(
+                    "Purpose and coarse area",
+                    role: "personal-inline-field",
+                    content: [
+                        .Text(personalLabelText("PURPOSE REFS")),
+                        .TextField(purposeField),
+                        .Text(personalLabelText("INTEREST REFS")),
+                        .TextField(interestField),
+                        .Grid(SkeletonGrid(columns: [.adaptive(min: 160, max: 220)], spacing: 8, elements: [
+                            .TextField(latitudeField),
+                            .TextField(longitudeField),
+                            .TextField(radiusField)
+                        ])),
+                        personalKeyValueRow("Minimum radius", keypath: "signalDraft.state.privacy.minimumRadiusMeters", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                        personalKeyValueRow("TTL seconds", keypath: "signalDraft.state.privacy.defaultTTLSeconds", accent: BindingPersonalCopilotDesignSystem.success),
+                        personalKeyValueRow("Native boundary", keypath: "signalDraft.state.privacy.nativeCaptureBoundary", accent: BindingPersonalCopilotDesignSystem.textTertiary)
+                    ]
+                ),
+                personalSection(
+                    "Preview and publish",
+                    role: "personal-publish-confirmation",
+                    content: [
+                        .Text(personalBodyText("When you publish, your signal text, optional photo, and purpose are openly visible to anyone searching this area. Your exact location is never shared - only a general area of about 250 metres. This signal expires automatically in 2 hours. You can renew or delete it at any time.")),
+                        personalKeyValueRow("Preview", keypath: "signalDraft.state.publishPreview.summary", accent: BindingPersonalCopilotDesignSystem.success),
+                        personalKeyValueRow("Consent copy", keypath: "signalDraft.state.publishPreview.consentCopy", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Consent", keypath: "signalDraft.state.consentStatus", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("Exact GPS shared", keypath: "signalDraft.state.privacy.exactLocationShared", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("EXIF shared", keypath: "signalDraft.state.privacy.imageEXIFShared", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("Publisher", keypath: "signalPublisher.state.publishStatus", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                        .HStack(SkeletonHStack(elements: [
+                            .Button(previewButton),
+                            .Button(consentButton),
+                            .Button(publishButton),
+                            .Button(resetButton)
+                        ], spacing: 8)),
+                        .HStack(SkeletonHStack(elements: [
+                            .Button(renewButton),
+                            .Button(unpublishButton),
+                            .Button(deleteButton),
+                            .Button(auditButton)
+                        ], spacing: 8)),
+                        .List(activeList)
+                    ]
+                ),
+                personalSection(
+                    "Discover nearby",
+                    role: "personal-list-row",
+                    content: [
+                        .TextField(directoryQueryField),
+                        .TextField(directoryPurposeField),
+                        .TextField(directoryInterestField),
+                        .TextField(directoryRadiusField),
+                        .HStack(SkeletonHStack(elements: [
+                            .Button(searchButton),
+                            .Button(detailButton)
+                        ], spacing: 8)),
+                        personalKeyValueRow("Search", keypath: "signalDirectory.state.lastSearch.summary", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                        personalKeyValueRow("Empty", keypath: "signalDirectory.state.lastSearch.emptyStateTitle", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Denied", keypath: "signalDirectory.state.lastSearch.deniedLocationMessage", accent: BindingPersonalCopilotDesignSystem.warning),
+                        .List(results)
+                    ]
+                ),
+                personalSection(
+                    "Selected signal and moderation",
+                    role: "personal-consent-prompt",
+                    content: [
+                        personalKeyValueRow("Text", keypath: "signalDirectory.state.selectedSignal.text", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                        personalKeyValueRow("Badge", keypath: "signalDirectory.state.selectedSignal.statusBadge", accent: BindingPersonalCopilotDesignSystem.success),
+                        personalKeyValueRow("Distance", keypath: "signalDirectory.state.selectedSignal.distanceText", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Radius", keypath: "signalDirectory.state.selectedSignal.radiusSummary", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Expiry", keypath: "signalDirectory.state.selectedSignal.expiresInSummary", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("Visibility", keypath: "signalDirectory.state.selectedSignal.visibility", accent: BindingPersonalCopilotDesignSystem.success),
+                        personalKeyValueRow("Notice", keypath: "signalDirectory.state.selectedSignal.openlyPublishedNotice", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Moderation", keypath: "signalDirectory.state.directoryModerationStatus", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("Hidden", keypath: "signalDirectory.state.hiddenSignalCount", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Blocked", keypath: "signalDirectory.state.blockedPublisherCount", accent: BindingPersonalCopilotDesignSystem.textTertiary),
                         .HStack(SkeletonHStack(elements: [
                             .Button(reportButton),
                             .Button(hideButton),

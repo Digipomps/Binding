@@ -125,6 +125,132 @@ Required behavior:
 - Reported profiles remain visible or hidden according to moderation policy, but the requester gets clear feedback.
 - Directory entries must not expose private draft fields.
 
+## Nearby Signals Contract Boundary
+
+Nearby Signals must keep a strict three-object boundary:
+
+- `NearbySignalDraft`: Binding-owned mutable local draft. It may include native permission state, manual location fallback, local image picker state and publish preview, and must never be read directly by CellScaffold.
+- `NearbySignalPublishRequest`: immutable consent payload sent only when the user explicitly publishes. It contains coarse location, sanitized image reference, purpose/interests, TTL and visibility.
+- `NearbySignalSummary`: flat public nearby read model returned by directory search/detail. It contains no private draft state, exact GPS, EXIF metadata, private profile fields, chat state or relation data.
+
+Native capture remains Binding-owned. CellScaffold receives only the publish request and returns summary/read models.
+
+## NearbySignalPublisherCell
+
+Purpose: accept an explicitly consented short-lived nearby signal payload and maintain the public nearby read model.
+
+Minimum state:
+
+- `myActiveSignals`
+- `signalStatus`
+- `publishStatus`
+- `visibility`
+
+Minimum actions:
+
+- `publishSignal`
+- `renewSignal`
+- `unpublishSignal`
+- `deleteSignal`
+- `signalStatus`
+
+Publish request:
+
+```json
+{
+  "explicitPublishIntent": true,
+  "signal": {
+    "publishRequestKind": "NearbySignalPublishRequest",
+    "signalID": "nearby-signal-uuid",
+    "publisherRef": "requester-or-public-profile-ref",
+    "text": "Interesting thing nearby",
+    "imageAsset": "optional-sanitized-asset-ref",
+    "imageMetadataStatus": "stripped before publish",
+    "purposeRefs": ["purpose://collaboration"],
+    "interestRefs": ["interest://ideas"],
+    "coarseLocation": {
+      "latitude": 59.913,
+      "longitude": 10.752,
+      "radiusMeters": 250,
+      "precision": "manual-coarse",
+      "coarseCell": "lat:59.913/lon:10.752/r:250"
+    },
+    "radiusMeters": 250,
+    "createdAt": 1777399200,
+    "expiresAt": 1777406400,
+    "visibility": "publicNearby",
+    "moderationStatus": "pending-safe-default",
+    "explicitConsentRequired": true
+  }
+}
+```
+
+Required behavior:
+
+- Reject publish without `explicitPublishIntent=true`.
+- Reject exact/private location data; accept only coarse location and radius.
+- Enforce a minimum radius of 250 meters and default expiry of 2 hours.
+- Never read Binding-local drafts, photo metadata, chat state or relation state directly.
+- `renewSignal` extends an active signal by another 2 hours.
+- `unpublishSignal` removes directory visibility without deleting local audit history.
+- `deleteSignal` removes public nearby state and discoverability records.
+
+Published read model fields:
+
+- `readModelKind="NearbySignalSummary"`
+- `statusBadge` such as `Live`, `Reported` or `Unpublished`
+- `distanceBucket`, `distanceText` and `radiusSummary`
+- `expiresInSummary`, `expirySummary`, `createdAt`, `publishedAt`, `updatedAt`, `expiresAt`
+- `openlyPublishedNotice`
+- `rankingExplanation`
+
+## NearbySignalDirectoryCell
+
+Purpose: expose active openly published nearby signals with report/hide/block hooks.
+
+Minimum state:
+
+- `lastSearch`
+- `selectedSignal`
+- `directoryModerationStatus`
+- `hiddenSignalCount`
+- `blockedPublisherCount`
+- `reportedSignalCount`
+
+Minimum actions:
+
+- `searchNearbySignals`
+- `signalDetail`
+- `reportSignal`
+- `hideSignal`
+- `blockPublisher`
+
+Search request:
+
+```json
+{
+  "query": "coffee",
+  "center": {
+    "latitude": 59.913,
+    "longitude": 10.752,
+    "radiusMeters": 1000,
+    "precision": "manual-coarse"
+  },
+  "purposeRefs": ["purpose://collaboration"],
+  "interestRefs": ["interest://ideas"]
+}
+```
+
+Required behavior:
+
+- Return only active `visibility="publicNearby"` signals that have not expired.
+- Do not expose private drafts, exact GPS, EXIF metadata, private profiles, chat state or relation records.
+- Ranking must be explainable from active expiry, coarse distance bucket and declared purpose/interest overlap.
+- Hidden signals and blocked publishers must not reappear for that requester.
+- Reported signals must return clear feedback and moderation status.
+
+Directory result rows are `NearbySignalSummary` objects. Result cards should show text, optional sanitized image, purpose/interest refs, `statusBadge`, `distanceText`, `radiusSummary`, expiry and a short `rankingExplanation`.
+
 ## PersonalMatchmakingCell
 
 Purpose: produce consent-based match suggestions without starting chat.
@@ -267,6 +393,9 @@ CellScaffold should provide tests for:
 - conference entries are hidden
 - profile publish requires consent
 - unpublish/delete removes public directory presence
+- nearby signal publish requires explicit consent
+- nearby signal search returns only active unexpired publicNearby signals
+- nearby signal report/hide/block affects later search visibility
 - matching cannot create chat without mutual approval
 - chat invite/accept/decline/send/report/block works
 - blocked user cannot continue chat

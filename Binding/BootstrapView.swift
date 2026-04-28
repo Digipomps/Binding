@@ -222,6 +222,30 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "NearbySignalDraft",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: NearbySignalDraftLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "NearbySignalPublisher",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: NearbySignalPublisherLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "NearbySignalDirectory",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: NearbySignalDirectoryLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "PersonalChatClient",
             cellScope: .identityUnique,
             persistency: .persistant,
@@ -433,6 +457,309 @@ private enum ConferenceSnapshotRetrySupport {
         }
 
         return retryableFragments.contains(where: normalized.contains)
+    }
+}
+
+private actor NearbySignalLocalStore {
+    static let shared = NearbySignalLocalStore()
+    private static let minimumRadiusMeters = 250.0
+    private static let defaultRadiusMeters = 250.0
+    private static let defaultTTLSeconds: TimeInterval = 2 * 60 * 60
+    private static let maximumTextLength = 280
+
+    private var signals: [Object] = []
+    private var latestDraftPreview: Object?
+    private var hiddenSignalIDs: Set<String> = []
+    private var blockedPublisherRefs: Set<String> = []
+    private var reportedSignalIDs: Set<String> = []
+
+    func saveDraftPreview(_ preview: Object) {
+        latestDraftPreview = preview
+    }
+
+    func publishSignal(from payload: ValueType?) -> (status: String, message: String, signal: Object?) {
+        let payloadObject = Self.object(from: payload) ?? [:]
+        let explicitPublishIntent = Self.bool(from: payloadObject["explicitPublishIntent"]) ?? false
+        guard explicitPublishIntent else {
+            return ("requiresConsent", "Explicit publish intent is required before a nearby signal leaves local draft.", nil)
+        }
+
+        let source = Self.object(from: payloadObject["signal"]) ?? latestDraftPreview
+        guard let source else {
+            return ("blocked", "Prepare a publish preview before publishing a nearby signal.", nil)
+        }
+
+        let draftObject = Self.object(from: source["draft"])
+        let text = Self.string(from: source["text"]) ?? Self.string(from: draftObject?["text"]) ?? ""
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            return ("blocked", "Nearby signal text is required.", nil)
+        }
+        guard trimmedText.count <= Self.maximumTextLength else {
+            return ("blocked", "Nearby signal text must be \(Self.maximumTextLength) characters or less.", nil)
+        }
+
+        let now = Date().timeIntervalSince1970
+        let signalID = Self.string(from: source["signalID"]) ?? "nearby-signal-\(UUID().uuidString)"
+        let radiusMeters = max(Self.double(from: source["radiusMeters"]) ?? Self.defaultRadiusMeters, Self.minimumRadiusMeters)
+        let coarseLocation = Self.object(from: source["coarseLocation"]) ?? Self.defaultCoarseLocation(radiusMeters: radiusMeters)
+        let publisherRef = Self.string(from: source["publisherRef"]) ?? "local-requester"
+        let expiresAt = now + Self.defaultTTLSeconds
+        var signal: Object = [
+            "signalID": .string(signalID),
+            "publisherRef": .string(publisherRef),
+            "text": .string(trimmedText),
+            "imageAsset": source["imageAsset"] ?? .string(""),
+            "imageMetadataStatus": source["imageMetadataStatus"] ?? .string("stripped before publish"),
+            "purposeRefs": .list(Self.stringList(from: source["purposeRefs"]).map(ValueType.string)),
+            "interestRefs": .list(Self.stringList(from: source["interestRefs"]).map(ValueType.string)),
+            "coarseLocation": .object(coarseLocation),
+            "radiusMeters": .float(radiusMeters),
+            "createdAt": .float(now),
+            "publishedAt": .float(now),
+            "updatedAt": .float(now),
+            "expiresAt": .float(expiresAt),
+            "expiresInSummary": .string("Expires in 2 hours"),
+            "expirySummary": .string("This signal expires automatically in 2 hours."),
+            "visibility": .string("publicNearby"),
+            "moderationStatus": .string("pending-safe-default"),
+            "statusBadge": .string("Live"),
+            "distanceBucket": .string(radiusMeters <= 500 ? "near" : "area"),
+            "distanceText": .string("inside coarse \(Int(radiusMeters)) m area"),
+            "radiusSummary": .string("\(Int(radiusMeters)) m radius"),
+            "readModelKind": .string("NearbySignalSummary"),
+            "openlyPublishedNotice": .string("This signal is openly published by another user. No personal information is shared with you."),
+            "rankingExplanation": .string("Visible nearby because it is active, explicitly published, and inside the coarse search radius.")
+        ]
+        signal["title"] = .string(trimmedText)
+        signal["summary"] = .string(Self.summaryText(for: signal))
+        signals.removeAll { Self.string(from: $0["signalID"]) == signalID }
+        signals.append(signal)
+        latestDraftPreview = nil
+        return ("ok", "Nearby signal published with coarse location and 2 hour expiry.", signal)
+    }
+
+    func renewSignal(signalID requestedSignalID: String?) -> Object? {
+        guard let index = firstMutableSignalIndex(signalID: requestedSignalID) else {
+            return nil
+        }
+        let expiresAt = Date().timeIntervalSince1970 + Self.defaultTTLSeconds
+        signals[index]["expiresAt"] = .float(expiresAt)
+        signals[index]["updatedAt"] = .float(Date().timeIntervalSince1970)
+        signals[index]["expiresInSummary"] = .string("Expires in 2 hours")
+        signals[index]["expirySummary"] = .string("Renewed for 2 hours.")
+        signals[index]["statusBadge"] = .string("Live")
+        signals[index]["moderationStatus"] = .string("active")
+        signals[index]["summary"] = .string(Self.summaryText(for: signals[index]))
+        return signals[index]
+    }
+
+    func unpublishSignal(signalID requestedSignalID: String?) -> Object? {
+        guard let index = firstMutableSignalIndex(signalID: requestedSignalID) else {
+            return nil
+        }
+        signals[index]["visibility"] = .string("unpublished")
+        signals[index]["moderationStatus"] = .string("unpublished-by-user")
+        signals[index]["statusBadge"] = .string("Unpublished")
+        signals[index]["updatedAt"] = .float(Date().timeIntervalSince1970)
+        signals[index]["summary"] = .string(Self.summaryText(for: signals[index]))
+        return signals[index]
+    }
+
+    func deleteSignal(signalID requestedSignalID: String?) -> Object? {
+        guard let index = firstMutableSignalIndex(signalID: requestedSignalID) else {
+            return nil
+        }
+        return signals.remove(at: index)
+    }
+
+    func activeSignals() -> [Object] {
+        activeSignals(now: Date().timeIntervalSince1970)
+    }
+
+    func searchSignals(query: String, purposeRefs: [String], interestRefs: [String], radiusMeters: Double) -> [Object] {
+        let active = activeSignals()
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let minRadius = max(radiusMeters, Self.minimumRadiusMeters)
+
+        return active
+            .filter { signal in
+                guard let signalID = Self.string(from: signal["signalID"]),
+                      !hiddenSignalIDs.contains(signalID),
+                      let publisherRef = Self.string(from: signal["publisherRef"]),
+                      !blockedPublisherRefs.contains(publisherRef) else {
+                    return false
+                }
+
+                let textMatches: Bool
+                if normalizedQuery.isEmpty {
+                    textMatches = true
+                } else {
+                    textMatches = (Self.string(from: signal["text"]) ?? "").lowercased().contains(normalizedQuery)
+                        || Self.stringList(from: signal["purposeRefs"]).contains { $0.lowercased().contains(normalizedQuery) }
+                        || Self.stringList(from: signal["interestRefs"]).contains { $0.lowercased().contains(normalizedQuery) }
+                }
+                guard textMatches else { return false }
+
+                let signalRadius = Self.double(from: signal["radiusMeters"]) ?? Self.defaultRadiusMeters
+                return signalRadius <= max(minRadius, signalRadius)
+            }
+            .map { signal in
+                var ranked = signal
+                let purposeOverlap = Set(Self.stringList(from: signal["purposeRefs"])).intersection(Set(purposeRefs)).count
+                let interestOverlap = Set(Self.stringList(from: signal["interestRefs"])).intersection(Set(interestRefs)).count
+                let score = purposeOverlap * 2 + interestOverlap
+                ranked["matchScore"] = .integer(score)
+                ranked["distanceBucket"] = .string((Self.double(from: signal["radiusMeters"]) ?? Self.defaultRadiusMeters) <= 500 ? "near" : "area")
+                ranked["readModelKind"] = .string("NearbySignalSummary")
+                ranked["rankingExplanation"] = .string(score > 0
+                    ? "Ranked by active expiry, nearby radius, and purpose/interest overlap."
+                    : "Shown because it is active and nearby; no declared purpose/interest overlap yet.")
+                ranked["reported"] = .bool(Self.string(from: signal["signalID"]).map(reportedSignalIDs.contains) ?? false)
+                return ranked
+            }
+            .sorted { lhs, rhs in
+                let lhsScore = Self.int(from: lhs["matchScore"]) ?? 0
+                let rhsScore = Self.int(from: rhs["matchScore"]) ?? 0
+                if lhsScore != rhsScore { return lhsScore > rhsScore }
+                let lhsExpires = Self.double(from: lhs["expiresAt"]) ?? 0
+                let rhsExpires = Self.double(from: rhs["expiresAt"]) ?? 0
+                return lhsExpires > rhsExpires
+            }
+    }
+
+    func signalDetail(signalID requestedSignalID: String?) -> Object? {
+        let candidates = activeSignals()
+        if let requestedSignalID,
+           let found = candidates.first(where: { Self.string(from: $0["signalID"]) == requestedSignalID }) {
+            return found
+        }
+        return candidates.first
+    }
+
+    func reportSignal(signalID requestedSignalID: String?) -> Object? {
+        guard let signal = signalDetail(signalID: requestedSignalID),
+              let signalID = Self.string(from: signal["signalID"]) else {
+            return nil
+        }
+        reportedSignalIDs.insert(signalID)
+        var reported = signal
+        reported["moderationStatus"] = .string("reported-by-requester")
+        reported["statusBadge"] = .string("Reported")
+        reported["reported"] = .bool(true)
+        return reported
+    }
+
+    func hideSignal(signalID requestedSignalID: String?) -> Object? {
+        guard let signal = signalDetail(signalID: requestedSignalID),
+              let signalID = Self.string(from: signal["signalID"]) else {
+            return nil
+        }
+        hiddenSignalIDs.insert(signalID)
+        return signal
+    }
+
+    func blockPublisher(signalID requestedSignalID: String?) -> Object? {
+        guard let signal = signalDetail(signalID: requestedSignalID),
+              let publisherRef = Self.string(from: signal["publisherRef"]) else {
+            return nil
+        }
+        blockedPublisherRefs.insert(publisherRef)
+        return signal
+    }
+
+    func moderationState() -> Object {
+        [
+            "hiddenSignalCount": .integer(hiddenSignalIDs.count),
+            "blockedPublisherCount": .integer(blockedPublisherRefs.count),
+            "reportedSignalCount": .integer(reportedSignalIDs.count)
+        ]
+    }
+
+    private func activeSignals(now: TimeInterval) -> [Object] {
+        signals.filter { signal in
+            (Self.string(from: signal["visibility"]) ?? "") == "publicNearby"
+                && (Self.double(from: signal["expiresAt"]) ?? 0) > now
+        }
+    }
+
+    private func firstMutableSignalIndex(signalID requestedSignalID: String?) -> Int? {
+        if let requestedSignalID {
+            return signals.firstIndex { Self.string(from: $0["signalID"]) == requestedSignalID }
+        }
+        return signals.firstIndex { (Self.string(from: $0["visibility"]) ?? "") == "publicNearby" }
+    }
+
+    private static func defaultCoarseLocation(radiusMeters: Double) -> Object {
+        [
+            "latitude": .float(59.913),
+            "longitude": .float(10.752),
+            "radiusMeters": .float(max(radiusMeters, minimumRadiusMeters)),
+            "precision": .string("manual-coarse"),
+            "coarseCell": .string("lat:59.913/lon:10.752/r:\(Int(max(radiusMeters, minimumRadiusMeters)))")
+        ]
+    }
+
+    private static func summaryText(for signal: Object) -> String {
+        let text = string(from: signal["text"]) ?? "Nearby signal"
+        let radius = Int(double(from: signal["radiusMeters"]) ?? defaultRadiusMeters)
+        let visibility = string(from: signal["visibility"]) ?? "publicNearby"
+        return "\(text) · \(radius) m coarse radius · \(visibility)"
+    }
+
+    private static func object(from value: ValueType?) -> Object? {
+        guard case let .object(object)? = value else { return nil }
+        return object
+    }
+
+    private static func string(from value: ValueType?) -> String? {
+        guard case let .string(text)? = value else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func bool(from value: ValueType?) -> Bool? {
+        guard case let .bool(flag)? = value else { return nil }
+        return flag
+    }
+
+    private static func int(from value: ValueType?) -> Int? {
+        switch value {
+        case let .integer(number):
+            return number
+        case let .float(number):
+            return Int(number)
+        case let .string(text):
+            return Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
+    }
+
+    private static func double(from value: ValueType?) -> Double? {
+        switch value {
+        case let .float(number):
+            return number
+        case let .integer(number):
+            return Double(number)
+        case let .string(text):
+            return Double(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
+    }
+
+    private static func stringList(from value: ValueType?) -> [String] {
+        switch value {
+        case let .list(values):
+            return values.compactMap(string(from:))
+        case let .string(text):
+            return text.split(separator: ",").map { item in
+                item.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty }
+        default:
+            return []
+        }
     }
 }
 
@@ -721,6 +1048,511 @@ private final class PersonalProfileDraftLocalCell: PersonalCopilotLocalCell {
             return response(status: "ok", message: "Profile draft reset locally.")
         default:
             return await super.handleSet(key: key, value: value)
+        }
+    }
+}
+
+private final class NearbySignalDraftLocalCell: PersonalCopilotLocalCell {
+    private static let minimumRadiusMeters = 250.0
+    private static let defaultTTLSeconds: TimeInterval = 2 * 60 * 60
+    private static let maximumTextLength = 280
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        ["state", "draft", "publishPreview", "privacy", "consentStatus"]
+    }
+
+    override var writableKeys: [String] {
+        [
+            "draft.text",
+            "draft.imageAsset",
+            "draft.purposeRefsText",
+            "draft.interestRefsText",
+            "draft.manualLatitudeText",
+            "draft.manualLongitudeText",
+            "draft.radiusMetersText",
+            "requestLocation",
+            "stripImageMetadata",
+            "preparePublishPreview",
+            "recordPublishConsent",
+            "resetDraft"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "draft": .object([
+                "draftKind": .string("NearbySignalDraft"),
+                "text": .string(""),
+                "imageAsset": .string(""),
+                "imageMetadataStatus": .string("no image attached"),
+                "purposeRefsText": .string("purpose://collaboration"),
+                "interestRefsText": .string("interest://ideas, interest://local"),
+                "manualLatitudeText": .string("59.913"),
+                "manualLongitudeText": .string("10.752"),
+                "radiusMetersText": .string("250")
+            ]),
+            "publishPreview": .object([
+                "ready": .bool(false),
+                "summary": .string("Draft stays local until preview and explicit publish consent are recorded."),
+                "consentCopy": .string("When you publish, your signal text, optional photo, and purpose are openly visible to anyone searching this area. Your exact location is never shared - only a general area of about 250 metres. This signal expires automatically in 2 hours. You can renew or delete it at any time."),
+                "payload": .object([:])
+            ]),
+            "privacy": .object([
+                "locationPrecision": .string("coarse only"),
+                "minimumRadiusMeters": .float(250.0),
+                "defaultTTLSeconds": .integer(7200),
+                "exactLocationShared": .bool(false),
+                "imageEXIFShared": .bool(false),
+                "backgroundPublishing": .bool(false),
+                "nativeCaptureBoundary": .string("CoreLocation, PhotosUI and MapKit stay in Binding; CellScaffold receives only an explicit coarse publish request.")
+            ]),
+            "consentStatus": .string("not recorded"),
+            "locationPermissionStatus": .string("manual fallback ready"),
+            "status": .string("Nearby signal draft is private on this device."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "draft.text":
+            let text = stringValue(value)
+            if text.count > Self.maximumTextLength {
+                return response(status: "blocked", message: "Nearby signal text must be \(Self.maximumTextLength) characters or less.")
+            }
+            setStateValue(.string(text), for: "draft.text")
+            setStateValue(.string("draft"), for: "consentStatus")
+            return response(status: "ok", message: "Nearby signal text updated locally.")
+        case "draft.imageAsset":
+            setStateValue(.string(stringValue(value)), for: "draft.imageAsset")
+            setStateValue(.string("metadata pending local strip"), for: "draft.imageMetadataStatus")
+            setStateValue(.string("draft"), for: "consentStatus")
+            return response(status: "ok", message: "Image asset reference staged locally. Metadata is not published.")
+        case "draft.purposeRefsText":
+            setStateValue(.string(stringValue(value)), for: "draft.purposeRefsText")
+            setStateValue(.string("draft"), for: "consentStatus")
+            return response(status: "ok", message: "Purpose refs updated locally.")
+        case "draft.interestRefsText":
+            setStateValue(.string(stringValue(value)), for: "draft.interestRefsText")
+            setStateValue(.string("draft"), for: "consentStatus")
+            return response(status: "ok", message: "Interest refs updated locally.")
+        case "draft.manualLatitudeText":
+            setStateValue(.string(stringValue(value)), for: "draft.manualLatitudeText")
+            setStateValue(.string("manual coarse position"), for: "locationPermissionStatus")
+            setStateValue(.string("draft"), for: "consentStatus")
+            return response(status: "ok", message: "Manual latitude updated.")
+        case "draft.manualLongitudeText":
+            setStateValue(.string(stringValue(value)), for: "draft.manualLongitudeText")
+            setStateValue(.string("manual coarse position"), for: "locationPermissionStatus")
+            setStateValue(.string("draft"), for: "consentStatus")
+            return response(status: "ok", message: "Manual longitude updated.")
+        case "draft.radiusMetersText":
+            let radius = max(double(from: value) ?? Self.minimumRadiusMeters, Self.minimumRadiusMeters)
+            setStateValue(.string(String(Int(radius))), for: "draft.radiusMetersText")
+            setStateValue(.string("draft"), for: "consentStatus")
+            return response(status: "ok", message: "Radius updated with \(Int(Self.minimumRadiusMeters))m minimum.")
+        case "requestLocation":
+            mergeState([
+                "locationPermissionStatus": .string("manual fallback active - native location capture is mediated by Binding UI before publish"),
+                "lastAction": .string("requestLocation")
+            ])
+            return response(status: "ok", message: "Nearby Signals uses your location only after explicit action. Exact position stays local; use manual coarse position if native permission is unavailable.")
+        case "stripImageMetadata":
+            setStateValue(.string("stripped before publish preview"), for: "draft.imageMetadataStatus")
+            setStateValue(.bool(false), for: "privacy.imageEXIFShared")
+            return response(status: "ok", message: "Photo added. Location and camera metadata have been removed.")
+        case "preparePublishPreview":
+            return await preparePublishPreview()
+        case "recordPublishConsent":
+            guard case let .object(preview)? = stateValue(for: "publishPreview"),
+                  case let .bool(ready)? = preview["ready"],
+                  ready else {
+                return response(status: "blocked", message: "Prepare preview before recording publish consent.")
+            }
+            setStateValue(.string("recorded"), for: "consentStatus")
+            return response(status: "ok", message: "Explicit nearby signal publish consent recorded locally.")
+        case "resetDraft":
+            replaceState(initialState())
+            return response(status: "ok", message: "Nearby signal draft reset locally.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func preparePublishPreview() async -> ValueType {
+        let text = (string(from: stateValue(for: "draft.text")) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            return response(status: "blocked", message: "Write text before preparing a nearby signal preview.")
+        }
+        guard text.count <= Self.maximumTextLength else {
+            return response(status: "blocked", message: "Nearby signal text must be \(Self.maximumTextLength) characters or less.")
+        }
+
+        let radiusMeters = max(double(from: stateValue(for: "draft.radiusMetersText")) ?? Self.minimumRadiusMeters, Self.minimumRadiusMeters)
+        let latitude = roundedCoordinate(double(from: stateValue(for: "draft.manualLatitudeText")) ?? 59.913)
+        let longitude = roundedCoordinate(double(from: stateValue(for: "draft.manualLongitudeText")) ?? 10.752)
+        let purposeRefs = normalizedRefs(from: stateValue(for: "draft.purposeRefsText"), fallbackPrefix: "purpose")
+        let interestRefs = normalizedRefs(from: stateValue(for: "draft.interestRefsText"), fallbackPrefix: "interest")
+        let imageAsset = string(from: stateValue(for: "draft.imageAsset")) ?? ""
+        let now = Date().timeIntervalSince1970
+        let expiresAt = now + Self.defaultTTLSeconds
+        let coarseLocation: Object = [
+            "latitude": .float(latitude),
+            "longitude": .float(longitude),
+            "radiusMeters": .float(radiusMeters),
+            "precision": .string("manual-coarse"),
+            "coarseCell": .string("lat:\(latitude)/lon:\(longitude)/r:\(Int(radiusMeters))")
+        ]
+        let preview: Object = [
+            "publishRequestKind": .string("NearbySignalPublishRequest"),
+            "signalID": .string("nearby-signal-\(UUID().uuidString)"),
+            "publisherRef": .string("local-requester"),
+            "text": .string(text),
+            "imageAsset": .string(imageAsset),
+            "imageMetadataStatus": .string("stripped before publish"),
+            "purposeRefs": .list(purposeRefs.map(ValueType.string)),
+            "interestRefs": .list(interestRefs.map(ValueType.string)),
+            "coarseLocation": .object(coarseLocation),
+            "radiusMeters": .float(radiusMeters),
+            "createdAt": .float(now),
+            "expiresAt": .float(expiresAt),
+            "visibility": .string("publicNearby"),
+            "moderationStatus": .string("pending-safe-default"),
+            "explicitConsentRequired": .bool(true)
+        ]
+        await NearbySignalLocalStore.shared.saveDraftPreview(preview)
+        mergeState([
+            "publishPreview": .object([
+                "ready": .bool(true),
+                "summary": .string("Preview ready: coarse \(Int(radiusMeters)) m radius, 2 hour expiry, EXIF stripped, openly published only after consent."),
+                "consentCopy": .string("When you publish, your signal text, optional photo, and purpose are openly visible to anyone searching this area. Your exact location is never shared - only a general area of about \(Int(radiusMeters)) metres. This signal expires automatically in 2 hours. You can renew or delete it at any time."),
+                "payload": .object(preview)
+            ]),
+            "consentStatus": .string("previewReady"),
+            "lastAction": .string("preparePublishPreview")
+        ])
+        return response(status: "ok", message: "Nearby signal preview prepared locally.")
+    }
+
+    private func normalizedRefs(from value: ValueType?, fallbackPrefix: String) -> [String] {
+        let values = string(from: value)?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        return values.map { raw in
+            raw.contains("://") ? raw : "\(fallbackPrefix)://\(raw.lowercased())"
+        }
+    }
+
+    private func roundedCoordinate(_ value: Double) -> Double {
+        (value * 1000).rounded() / 1000
+    }
+
+    private func string(from value: ValueType?) -> String? {
+        guard case let .string(text)? = value else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func double(from value: ValueType?) -> Double? {
+        switch value {
+        case let .float(number):
+            return number
+        case let .integer(number):
+            return Double(number)
+        case let .string(text):
+            return Double(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
+    }
+}
+
+private final class NearbySignalPublisherLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        ["state", "myActiveSignals", "signalStatus"]
+    }
+
+    override var writableKeys: [String] {
+        ["publishSignal", "renewSignal", "unpublishSignal", "deleteSignal", "signalStatus"]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "publishStatus": .string("not published"),
+            "visibility": .string("none"),
+            "myActiveSignals": .list([]),
+            "signalStatus": .object([
+                "status": .string("idle"),
+                "userMessage": .string("Prepare a local preview and explicit consent before publishing.")
+            ]),
+            "defaultTTLSeconds": .integer(7200),
+            "minimumRadiusMeters": .integer(250),
+            "status": .string("Nearby signal publisher local fallback is ready."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "publishSignal":
+            let result = await NearbySignalLocalStore.shared.publishSignal(from: value)
+            await refreshActiveSignals()
+            if let signal = result.signal {
+                mergeState([
+                    "publishStatus": .string("published"),
+                    "visibility": .string("publicNearby"),
+                    "signalStatus": .object(signal),
+                    "lastAction": .string("publishSignal")
+                ])
+            } else {
+                mergeState([
+                    "publishStatus": .string(result.status),
+                    "signalStatus": .object([
+                        "status": .string(result.status),
+                        "userMessage": .string(result.message)
+                    ]),
+                    "lastAction": .string("publishSignal")
+                ])
+            }
+            return response(status: result.status, message: result.message)
+        case "renewSignal":
+            let signal = await NearbySignalLocalStore.shared.renewSignal(signalID: requestedSignalID(from: value))
+            await refreshActiveSignals()
+            guard let signal else {
+                return response(status: "notFound", message: "No active nearby signal to renew.")
+            }
+            setStateValue(.object(signal), for: "signalStatus")
+            return response(status: "ok", message: "Nearby signal renewed for 2 hours.")
+        case "unpublishSignal":
+            let signal = await NearbySignalLocalStore.shared.unpublishSignal(signalID: requestedSignalID(from: value))
+            await refreshActiveSignals()
+            guard let signal else {
+                return response(status: "notFound", message: "No nearby signal to unpublish.")
+            }
+            mergeState([
+                "publishStatus": .string("unpublished"),
+                "visibility": .string("unpublished"),
+                "signalStatus": .object(signal),
+                "lastAction": .string("unpublishSignal")
+            ])
+            return response(status: "ok", message: "Nearby signal unpublished and removed from directory visibility.")
+        case "deleteSignal":
+            let signal = await NearbySignalLocalStore.shared.deleteSignal(signalID: requestedSignalID(from: value))
+            await refreshActiveSignals()
+            guard let signal else {
+                return response(status: "notFound", message: "No nearby signal to delete.")
+            }
+            mergeState([
+                "publishStatus": .string("deleted"),
+                "visibility": .string("deleted"),
+                "signalStatus": .object(signal),
+                "lastAction": .string("deleteSignal")
+            ])
+            return response(status: "ok", message: "Nearby signal deleted locally.")
+        case "signalStatus":
+            await refreshActiveSignals()
+            return response(status: "ok", message: "Nearby signal status refreshed.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func refreshActiveSignals() async {
+        let active = await NearbySignalLocalStore.shared.activeSignals()
+        setStateValue(.list(active.map { .object($0) }), for: "myActiveSignals")
+    }
+
+    private func requestedSignalID(from value: ValueType) -> String? {
+        if case let .string(signalID) = value {
+            return signalID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : signalID
+        }
+        if case let .object(object) = value,
+           case let .string(signalID)? = object["signalID"] {
+            let trimmed = signalID.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return nil
+    }
+}
+
+private final class NearbySignalDirectoryLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        ["state", "lastSearch", "directoryModerationStatus", "selectedSignal"]
+    }
+
+    override var writableKeys: [String] {
+        [
+            "query",
+            "searchPurposeRefsText",
+            "searchInterestRefsText",
+            "centerLatitudeText",
+            "centerLongitudeText",
+            "searchRadiusMetersText",
+            "searchNearbySignals",
+            "signalDetail",
+            "reportSignal",
+            "hideSignal",
+            "blockPublisher"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "query": .string(""),
+            "searchPurposeRefsText": .string("purpose://collaboration"),
+            "searchInterestRefsText": .string("interest://ideas, interest://local"),
+            "centerLatitudeText": .string("59.913"),
+            "centerLongitudeText": .string("10.752"),
+            "searchRadiusMetersText": .string("1000"),
+            "lastSearch": .object([
+                "status": .string("idle"),
+                "results": .list([]),
+                "resultCount": .integer(0),
+                "summary": .string("Search returns only active openly published nearby signals."),
+                "emptyStateTitle": .string("No signals nearby"),
+                "emptyStateMessage": .string("Be the first - publish yours"),
+                "deniedLocationMessage": .string("Location access denied. Enable in settings or enter manually."),
+                "unavailableMessage": .string("This signal is no longer available.")
+            ]),
+            "selectedSignal": .object([:]),
+            "directoryModerationStatus": .string("report, hide and block controls ready"),
+            "hiddenSignalCount": .integer(0),
+            "blockedPublisherCount": .integer(0),
+            "reportedSignalCount": .integer(0),
+            "status": .string("Nearby signal directory local fallback is ready."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "query", "searchPurposeRefsText", "searchInterestRefsText", "centerLatitudeText", "centerLongitudeText", "searchRadiusMetersText":
+            setStateValue(.string(stringValue(value)), for: key)
+            return response(status: "ok", message: "\(key) updated.")
+        case "searchNearbySignals":
+            let results = await NearbySignalLocalStore.shared.searchSignals(
+                query: stringValue(stateValue(for: "query") ?? .string("")),
+                purposeRefs: normalizedRefs(from: stateValue(for: "searchPurposeRefsText")),
+                interestRefs: normalizedRefs(from: stateValue(for: "searchInterestRefsText")),
+                radiusMeters: double(from: stateValue(for: "searchRadiusMetersText")) ?? 1000
+            )
+            mergeState([
+                "lastSearch": .object([
+                    "status": .string("ok"),
+                    "results": .list(results.map { .object($0) }),
+                    "resultCount": .integer(results.count),
+                    "summary": .string(results.isEmpty
+                        ? "No signals nearby. Be the first - publish yours."
+                        : "\(results.count) active nearby signal(s), ranked by expiry, radius and purpose/interest overlap."),
+                    "emptyStateTitle": .string("No signals nearby"),
+                    "emptyStateMessage": .string("Be the first - publish yours"),
+                    "deniedLocationMessage": .string("Location access denied. Enable in settings or enter manually."),
+                    "unavailableMessage": .string("This signal is no longer available.")
+                ]),
+                "selectedSignal": results.first.map(ValueType.object) ?? .object([:]),
+                "lastAction": .string("searchNearbySignals")
+            ])
+            await refreshModerationCounts()
+            return response(status: "ok", message: "Nearby signal search refreshed.")
+        case "signalDetail":
+            guard let signal = await NearbySignalLocalStore.shared.signalDetail(signalID: requestedSignalID(from: value)) else {
+                return response(status: "notFound", message: "No active nearby signal detail is available.")
+            }
+            setStateValue(.object(signal), for: "selectedSignal")
+            return response(status: "ok", message: "Nearby signal detail loaded.")
+        case "reportSignal":
+            guard let signal = await NearbySignalLocalStore.shared.reportSignal(signalID: requestedSignalID(from: value)) else {
+                return response(status: "notFound", message: "No active nearby signal to report.")
+            }
+            setStateValue(.object(signal), for: "selectedSignal")
+            await refreshModerationCounts()
+            return response(status: "ok", message: "Nearby signal reported for moderation.")
+        case "hideSignal":
+            guard let signal = await NearbySignalLocalStore.shared.hideSignal(signalID: requestedSignalID(from: value)) else {
+                return response(status: "notFound", message: "No active nearby signal to hide.")
+            }
+            setStateValue(.object(signal), for: "selectedSignal")
+            await refreshModerationCounts()
+            return response(status: "ok", message: "Nearby signal hidden for this requester.")
+        case "blockPublisher":
+            guard let signal = await NearbySignalLocalStore.shared.blockPublisher(signalID: requestedSignalID(from: value)) else {
+                return response(status: "notFound", message: "No publisher to block.")
+            }
+            setStateValue(.object(signal), for: "selectedSignal")
+            await refreshModerationCounts()
+            return response(status: "ok", message: "Nearby signal publisher blocked for this requester.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func refreshModerationCounts() async {
+        let state = await NearbySignalLocalStore.shared.moderationState()
+        for (key, value) in state {
+            setStateValue(value, for: key)
+        }
+    }
+
+    private func normalizedRefs(from value: ValueType?) -> [String] {
+        guard case let .string(text)? = value else { return [] }
+        return text.split(separator: ",").map { item in
+            item.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+    }
+
+    private func requestedSignalID(from value: ValueType) -> String? {
+        if case let .string(signalID) = value {
+            return signalID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : signalID
+        }
+        if case let .object(object) = value,
+           case let .string(signalID)? = object["signalID"] {
+            let trimmed = signalID.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if case let .object(selected)? = stateValue(for: "selectedSignal"),
+           case let .string(signalID)? = selected["signalID"] {
+            let trimmed = signalID.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return nil
+    }
+
+    private func double(from value: ValueType?) -> Double? {
+        switch value {
+        case let .float(number):
+            return number
+        case let .integer(number):
+            return Double(number)
+        case let .string(text):
+            return Double(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
         }
     }
 }
@@ -2362,11 +3194,11 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
-                summary: "Signert kontaktforespørsel sendt. Venter på godkjenning.",
-                actionLabel: "Kontakt venter"
+                summary: "Signed contact request sent. Awaiting signed identity exchange.",
+                actionLabel: "Awaiting exchange"
             )
             lastError = nil
-            lastActionSummary = "Signert kontaktforespørsel sendt. Venter på godkjenning."
+            lastActionSummary = "Signed contact request sent. Awaiting signed identity exchange."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
@@ -3123,10 +3955,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
                 status: "sent",
-                summary: "Signert kontaktforespørsel sendt. Venter på at den andre siden godkjenner.",
-                actionLabel: "Kontakt venter"
+                summary: "Signed contact request sent. Awaiting signed identity exchange.",
+                actionLabel: "Awaiting exchange"
             )
-            lastActionSummary = "Signert kontaktforespørsel sendt. Venter på at den andre siden godkjenner."
+            lastActionSummary = "Signed contact request sent. Awaiting signed identity exchange."
         case "error":
             let message = string(from: resultObject["message"]) ?? "Nearby contact request failed."
             lastError = message

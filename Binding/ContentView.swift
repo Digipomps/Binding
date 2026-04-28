@@ -285,6 +285,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case myProfile = "My Profile"
     case publishPublicProfile = "Publish Public Profile"
     case publicProfileDirectory = "Public Profile Directory"
+    case nearbySignals = "Nearby Signals"
     case matches = "Matches"
     case inviteChat = "Invite Chat"
     case vaultIdeas = "Vault / Ideas"
@@ -302,7 +303,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         switch self {
         case .personalHome, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
             return .home
-        case .publicProfileDirectory, .matches:
+        case .publicProfileDirectory, .nearbySignals, .matches:
             return .matches
         case .inviteChat:
             return .chat
@@ -317,7 +318,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         switch self {
         case .personalHome, .myProfile, .publishPublicProfile, .privacyAudit:
             return "Personal"
-        case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent:
+        case .publicProfileDirectory, .nearbySignals, .matches, .inviteChat, .meetingIntent:
             return "Network"
         case .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
             return "Workspace"
@@ -338,6 +339,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return ConfigurationCatalogCell.personalPublicProfileMenuConfiguration()
         case .publicProfileDirectory:
             return ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration()
+        case .nearbySignals:
+            return ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration()
         case .matches:
             return ConfigurationCatalogCell.personalMatchesMenuConfiguration()
         case .inviteChat:
@@ -366,7 +369,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     static var sidebarSections: [(title: String, destinations: [BindingPersonalCopilotDestination])] {
         [
             ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit]),
-            ("Network", [.matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
+            ("Network", [.nearbySignals, .matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
             ("Workspace", [.vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
         ]
     }
@@ -382,7 +385,18 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     }
 
     static func defaultDestination(for tab: BindingPersonalCopilotPhoneTab) -> BindingPersonalCopilotDestination {
-        destinations(for: tab).first ?? .personalHome
+        switch tab {
+        case .home:
+            return .personalHome
+        case .matches:
+            return .nearbySignals
+        case .chat:
+            return .inviteChat
+        case .vault:
+            return .vaultIdeas
+        case .profile:
+            return .myProfile
+        }
     }
 }
 
@@ -6575,6 +6589,7 @@ struct ContentView: View {
         let personalHome = ConfigurationCatalogCell.personalHomeMenuConfiguration()
         let myProfile = ConfigurationCatalogCell.personalProfileMenuConfiguration()
         let publishProfile = ConfigurationCatalogCell.personalPublicProfileMenuConfiguration()
+        let nearbySignals = ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration()
         let matches = ConfigurationCatalogCell.personalMatchesMenuConfiguration()
         let inviteChat = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         let vaultIdeas = ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
@@ -6585,11 +6600,11 @@ struct ContentView: View {
         let workflowStudio = ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
 
         return (
-            upperLeft: [personalHome, inviteChat, matches],
+            upperLeft: [personalHome, nearbySignals, inviteChat],
             upperMid: [myProfile, publishProfile, appleIntelligence, workflowStudio],
-            upperRight: [vaultIdeas, meetingIntent],
+            upperRight: [vaultIdeas, matches, meetingIntent],
             lowerLeft: [entityScanner, privacyAudit],
-            lowerMid: [workflowStudio, inviteChat, matches],
+            lowerMid: [workflowStudio, nearbySignals, matches],
             lowerRight: [vaultIdeas, meetingIntent, privacyAudit]
         )
     }

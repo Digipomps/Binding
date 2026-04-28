@@ -89,7 +89,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             ConfigurationCatalogCell.personalHomeMenuConfiguration(),
             ConfigurationCatalogCell.personalProfileMenuConfiguration(),
             ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
-            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration(),
             ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
         ] {
             let report = try await CellConfigurationVerifier.contractReport(
