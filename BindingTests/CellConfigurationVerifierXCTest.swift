@@ -117,6 +117,62 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
     }
 
+    func testPersonalVaultIdeasSeedButtonsExecuteLocally() async throws {
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            buttonsToExecute: ["Seed idea", "Seed project"],
+            identityMode: .startup
+        )
+
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Expected local Vault / Ideas buttons to execute without denied responses: \(report.failedActions)"
+        )
+    }
+
+    func testPersonalCoreLocalSurfacesSkipAuthenticatedRuntimeBootstrap() {
+        let localConfigurations = [
+            ConfigurationCatalogCell.personalHomeMenuConfiguration(),
+            ConfigurationCatalogCell.personalProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration(),
+            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        ]
+        let authenticatedConfigurations = [
+            ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
+            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        ]
+
+        for configuration in localConfigurations {
+            XCTAssertFalse(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration),
+                "\(configuration.name) should stay on startup runtime."
+            )
+        }
+
+        for configuration in authenticatedConfigurations {
+            XCTAssertTrue(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration),
+                "\(configuration.name) should still require authenticated runtime."
+            )
+        }
+    }
+
+    func testVaultBindingCandidatesIncludeFullReadableStateBinding() {
+        let candidates = SkeletonBindingProbeSupport.bindingCandidates(
+            for: ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+        )
+        let rootProbe = SkeletonBindingProbeSupport.RootProbe(label: "vault", rootKeypath: "vault")
+
+        XCTAssertTrue(
+            candidates[rootProbe]?.contains("vault.vault.state") == true,
+            "Expected Vault probe candidates to retain the full readable state binding."
+        )
+    }
+
     func testPersonalCopilotInviteChatMatchesStagingAssistantAndPollContract() throws {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         let references = Set((configuration.cellReferences ?? []).map(\.endpoint))

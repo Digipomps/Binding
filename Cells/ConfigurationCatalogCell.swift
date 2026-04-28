@@ -8128,11 +8128,45 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     nonisolated private static func personalNearbySignalsSurfaceSkeleton() -> SkeletonElement {
+        func nearbyChip(
+            _ text: String,
+            background: String = BindingPersonalCopilotDesignSystem.surfaceMuted,
+            border: String = BindingPersonalCopilotDesignSystem.borderStrong,
+            foreground: String = BindingPersonalCopilotDesignSystem.textPrimary
+        ) -> SkeletonElement {
+            var chip = SkeletonText(text: text)
+            chip.modifiers = BindingPersonalCopilotDesignSystem.badgeModifier(
+                background: background,
+                borderColor: border,
+                foregroundColor: foreground
+            )
+            return .Text(chip)
+        }
+
+        func nearbyNote(
+            _ text: String,
+            role: String = "personal-key-value-block",
+            border: String = BindingPersonalCopilotDesignSystem.border
+        ) -> SkeletonElement {
+            var note = SkeletonVStack(elements: [
+                .Text(personalBodyText(text, lineLimit: 5))
+            ], spacing: 4)
+            note.modifiers = modifier {
+                $0.padding = 10
+                $0.background = BindingPersonalCopilotDesignSystem.surfaceMuted
+                $0.cornerRadius = 12
+                $0.borderWidth = 1
+                $0.borderColor = border
+                $0.styleRole = role
+            }
+            return .VStack(note)
+        }
+
         let signalTextField = SkeletonTextArea(
             text: nil,
             sourceKeypath: "signalDraft.state.draft.text",
             targetKeypath: "signalDraft.draft.text",
-            placeholder: "What is interesting here? Text is public only after preview and consent.",
+            placeholder: "What is interesting here? This text stays private until preview and explicit publish consent.",
             minLines: 3,
             maxLines: 7,
             submitOnEnter: false,
@@ -8142,7 +8176,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             text: nil,
             sourceKeypath: "signalDraft.state.draft.imageAsset",
             targetKeypath: "signalDraft.draft.imageAsset",
-            placeholder: "Optional image asset reference",
+            placeholder: "Optional photo reference. Binding strips metadata before publish.",
             modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
         )
         let purposeField = SkeletonTextField(
@@ -8184,7 +8218,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             text: nil,
             sourceKeypath: "signalDirectory.state.query",
             targetKeypath: "signalDirectory.query",
-            placeholder: "Search active nearby signals",
+            placeholder: "Search active openly published nearby signals",
             modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
         )
         let directoryPurposeField = SkeletonTextField(
@@ -8298,12 +8332,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
 
         var activeRow = SkeletonVStack(elements: [
-            .Text(personalBoundText("statusBadge", lineLimit: 1)),
-            .Text(personalBoundText("text", lineLimit: 2)),
-            .Text(personalBoundText("radiusSummary", lineLimit: 1)),
-            .Text(personalBoundText("expiresInSummary", lineLimit: 1)),
+            .HStack(SkeletonHStack(elements: [
+                .Text(personalBoundText("statusBadge", lineLimit: 1)),
+                .Text(personalBoundText("expiresInSummary", lineLimit: 1)),
+                .Spacer(SkeletonSpacer())
+            ], spacing: 8)),
+            .Text(personalBoundText("text", lineLimit: 3)),
+            .HStack(SkeletonHStack(elements: [
+                .Text(personalBoundText("radiusSummary", lineLimit: 1)),
+                .Text(personalBoundText("visibility", lineLimit: 1))
+            ], spacing: 8)),
             .Text(personalBoundText("moderationStatus", lineLimit: 1))
-        ], spacing: 4)
+        ], spacing: 6)
         activeRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
 
         var activeList = SkeletonList(
@@ -8314,14 +8354,20 @@ final class ConfigurationCatalogCell: GeneralCell {
         activeList.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
 
         var resultRow = SkeletonVStack(elements: [
-            .Text(personalBoundText("statusBadge", lineLimit: 1)),
-            .Text(personalBoundText("text", lineLimit: 2)),
-            .Text(personalBoundText("distanceText", lineLimit: 1)),
-            .Text(personalBoundText("radiusSummary", lineLimit: 1)),
-            .Text(personalBoundText("expiresInSummary", lineLimit: 1)),
+            .HStack(SkeletonHStack(elements: [
+                .Text(personalBoundText("statusBadge", lineLimit: 1)),
+                .Text(personalBoundText("distanceText", lineLimit: 1)),
+                .Text(personalBoundText("expiresInSummary", lineLimit: 1)),
+                .Spacer(SkeletonSpacer())
+            ], spacing: 8)),
+            .Text(personalBoundText("text", lineLimit: 3)),
+            .HStack(SkeletonHStack(elements: [
+                .Text(personalBoundText("radiusSummary", lineLimit: 1)),
+                .Text(personalBoundText("moderationStatus", lineLimit: 1))
+            ], spacing: 8)),
             .Text(personalBoundText("rankingExplanation", lineLimit: 3)),
-            .Text(personalBoundText("moderationStatus", lineLimit: 1))
-        ], spacing: 4)
+            .Text(personalBoundText("openlyPublishedNotice", lineLimit: 3))
+        ], spacing: 6)
         resultRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
 
         var results = SkeletonList(
@@ -8333,112 +8379,146 @@ final class ConfigurationCatalogCell: GeneralCell {
         results.selectionValueKeypath = "signalID"
         results.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 260, role: "personal-list-row")
 
+        let trustStrip = SkeletonHStack(elements: [
+            nearbyChip("local draft", background: BindingPersonalCopilotDesignSystem.successSoft, border: BindingPersonalCopilotDesignSystem.success),
+            nearbyChip("250 m+ coarse area"),
+            nearbyChip("2 h expiry", background: BindingPersonalCopilotDesignSystem.warningSoft, border: BindingPersonalCopilotDesignSystem.warning),
+            nearbyChip("EXIF stripped")
+        ], spacing: 8)
+
+        let composer = personalSection(
+            "Create signal",
+            role: "personal-draft-composer",
+            content: [
+                .HStack(trustStrip),
+                .Text(personalBodyText("Write one short local signal, attach at most one optional photo, then review exactly what becomes openly visible nearby.", lineLimit: 4)),
+                .Text(personalLabelText("PUBLIC TEXT")),
+                .TextArea(signalTextField),
+                .Text(personalLabelText("OPTIONAL IMAGE")),
+                .TextField(imageField),
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 170, max: 260)], spacing: 8, elements: [
+                    .Button(stripImageButton),
+                    personalKeyValueRow("Image metadata", keypath: "signalDraft.state.draft.imageMetadataStatus", accent: BindingPersonalCopilotDesignSystem.success)
+                ])),
+                .Text(personalLabelText("PURPOSE AND INTERESTS")),
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 220, max: 360)], spacing: 8, elements: [
+                    .TextField(purposeField),
+                    .TextField(interestField)
+                ]))
+            ]
+        )
+
+        let locationAndPrivacy = personalSection(
+            "Location and radius",
+            role: "personal-inline-field",
+            content: [
+                nearbyNote("Native Binding owns CoreLocation, PhotosUI and MapKit. This portable surface only mirrors the coarse publish request that is allowed to leave the device."),
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 150, max: 220)], spacing: 8, elements: [
+                    .TextField(latitudeField),
+                    .TextField(longitudeField),
+                    .TextField(radiusField)
+                ])),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(locationButton),
+                    nearbyChip("manual fallback ready", background: BindingPersonalCopilotDesignSystem.warningSoft, border: BindingPersonalCopilotDesignSystem.warning)
+                ], spacing: 8)),
+                personalKeyValueRow("Location", keypath: "signalDraft.state.locationPermissionStatus", accent: BindingPersonalCopilotDesignSystem.warning),
+                personalKeyValueRow("Minimum radius", keypath: "signalDraft.state.privacy.minimumRadiusMeters", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                personalKeyValueRow("TTL seconds", keypath: "signalDraft.state.privacy.defaultTTLSeconds", accent: BindingPersonalCopilotDesignSystem.success),
+                personalKeyValueRow("Exact GPS shared", keypath: "signalDraft.state.privacy.exactLocationShared", accent: BindingPersonalCopilotDesignSystem.success),
+                personalKeyValueRow("EXIF shared", keypath: "signalDraft.state.privacy.imageEXIFShared", accent: BindingPersonalCopilotDesignSystem.success),
+                personalKeyValueRow("Native boundary", keypath: "signalDraft.state.privacy.nativeCaptureBoundary", accent: BindingPersonalCopilotDesignSystem.textTertiary)
+            ]
+        )
+
+        let publishPreview = personalSection(
+            "Preview and publish",
+            role: "personal-publish-confirmation",
+            content: [
+                nearbyNote("When you publish, your signal text, optional photo, purpose and interests are openly visible to anyone searching this area. Your exact location is never shared. The signal expires automatically in 2 hours.", border: BindingPersonalCopilotDesignSystem.warning),
+                personalKeyValueRow("Preview", keypath: "signalDraft.state.publishPreview.summary", accent: BindingPersonalCopilotDesignSystem.success),
+                personalKeyValueRow("Consent copy", keypath: "signalDraft.state.publishPreview.consentCopy", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                personalKeyValueRow("Consent", keypath: "signalDraft.state.consentStatus", accent: BindingPersonalCopilotDesignSystem.warning),
+                personalKeyValueRow("Publisher", keypath: "signalPublisher.state.publishStatus", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 150, max: 220)], spacing: 8, elements: [
+                    .Button(previewButton),
+                    .Button(consentButton),
+                    .Button(publishButton),
+                    .Button(resetButton)
+                ])),
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 150, max: 220)], spacing: 8, elements: [
+                    .Button(renewButton),
+                    .Button(unpublishButton),
+                    .Button(deleteButton),
+                    .Button(auditButton)
+                ])),
+                .List(activeList)
+            ]
+        )
+
+        let discover = personalSection(
+            "Discover nearby",
+            role: "personal-list-row",
+            content: [
+                .Text(personalBodyText("Search returns only active openly published signals, ranked by distance bucket, declared purpose/interests and recency.", lineLimit: 4)),
+                .TextField(directoryQueryField),
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 180, max: 280)], spacing: 8, elements: [
+                    .TextField(directoryPurposeField),
+                    .TextField(directoryInterestField),
+                    .TextField(directoryRadiusField)
+                ])),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(searchButton),
+                    .Button(detailButton)
+                ], spacing: 8)),
+                personalKeyValueRow("Search", keypath: "signalDirectory.state.lastSearch.summary", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                personalKeyValueRow("Empty", keypath: "signalDirectory.state.lastSearch.emptyStateTitle", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                personalKeyValueRow("Denied", keypath: "signalDirectory.state.lastSearch.deniedLocationMessage", accent: BindingPersonalCopilotDesignSystem.warning),
+                .List(results)
+            ]
+        )
+
+        let detailAndModeration = personalSection(
+            "Signal detail",
+            role: "personal-consent-prompt",
+            content: [
+                .HStack(SkeletonHStack(elements: [
+                    nearbyChip("report", background: BindingPersonalCopilotDesignSystem.warningSoft, border: BindingPersonalCopilotDesignSystem.warning),
+                    nearbyChip("hide"),
+                    nearbyChip("block publisher")
+                ], spacing: 8)),
+                personalKeyValueRow("Text", keypath: "signalDirectory.state.selectedSignal.text", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                personalKeyValueRow("Badge", keypath: "signalDirectory.state.selectedSignal.statusBadge", accent: BindingPersonalCopilotDesignSystem.success),
+                personalKeyValueRow("Distance", keypath: "signalDirectory.state.selectedSignal.distanceText", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                personalKeyValueRow("Radius", keypath: "signalDirectory.state.selectedSignal.radiusSummary", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                personalKeyValueRow("Expiry", keypath: "signalDirectory.state.selectedSignal.expiresInSummary", accent: BindingPersonalCopilotDesignSystem.warning),
+                personalKeyValueRow("Visibility", keypath: "signalDirectory.state.selectedSignal.visibility", accent: BindingPersonalCopilotDesignSystem.success),
+                personalKeyValueRow("Notice", keypath: "signalDirectory.state.selectedSignal.openlyPublishedNotice", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                personalKeyValueRow("Moderation", keypath: "signalDirectory.state.directoryModerationStatus", accent: BindingPersonalCopilotDesignSystem.warning),
+                personalKeyValueRow("Hidden", keypath: "signalDirectory.state.hiddenSignalCount", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                personalKeyValueRow("Blocked", keypath: "signalDirectory.state.blockedPublisherCount", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 150, max: 220)], spacing: 8, elements: [
+                    .Button(reportButton),
+                    .Button(hideButton),
+                    .Button(blockButton)
+                ]))
+            ]
+        )
+
         return personalSurfacePage(
             title: "Nearby Signals",
-            subtitle: "Lag et lokalt utkast, publiser et grovt og tidsbegrenset signal, og sok etter openly published signaler i naerheten.",
+            subtitle: "A calm local board for short-lived things around you: explicit publish, coarse area, purpose/interests, and visible moderation controls.",
             chip: "2H NEARBY",
             content: [
-                personalSection(
-                    "Compose local draft",
-                    role: "personal-draft-composer",
-                    content: [
-                        .Text(personalBodyText("Nearby Signals uses your location to show signals close to you. Only a coarse area is ever published - your exact position stays on your device.")),
-                        .Text(personalLabelText("PUBLIC TEXT")),
-                        .TextArea(signalTextField),
-                        .Text(personalLabelText("OPTIONAL IMAGE")),
-                        .TextField(imageField),
-                        .HStack(SkeletonHStack(elements: [
-                            .Button(locationButton),
-                            .Button(stripImageButton)
-                        ], spacing: 8)),
-                        personalKeyValueRow("Location", keypath: "signalDraft.state.locationPermissionStatus", accent: BindingPersonalCopilotDesignSystem.warning),
-                        personalKeyValueRow("Image metadata", keypath: "signalDraft.state.draft.imageMetadataStatus", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Draft type", keypath: "signalDraft.state.draft.draftKind", accent: BindingPersonalCopilotDesignSystem.textTertiary)
-                    ]
-                ),
-                personalSection(
-                    "Purpose and coarse area",
-                    role: "personal-inline-field",
-                    content: [
-                        .Text(personalLabelText("PURPOSE REFS")),
-                        .TextField(purposeField),
-                        .Text(personalLabelText("INTEREST REFS")),
-                        .TextField(interestField),
-                        .Grid(SkeletonGrid(columns: [.adaptive(min: 160, max: 220)], spacing: 8, elements: [
-                            .TextField(latitudeField),
-                            .TextField(longitudeField),
-                            .TextField(radiusField)
-                        ])),
-                        personalKeyValueRow("Minimum radius", keypath: "signalDraft.state.privacy.minimumRadiusMeters", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
-                        personalKeyValueRow("TTL seconds", keypath: "signalDraft.state.privacy.defaultTTLSeconds", accent: BindingPersonalCopilotDesignSystem.success),
-                        personalKeyValueRow("Native boundary", keypath: "signalDraft.state.privacy.nativeCaptureBoundary", accent: BindingPersonalCopilotDesignSystem.textTertiary)
-                    ]
-                ),
-                personalSection(
-                    "Preview and publish",
-                    role: "personal-publish-confirmation",
-                    content: [
-                        .Text(personalBodyText("When you publish, your signal text, optional photo, and purpose are openly visible to anyone searching this area. Your exact location is never shared - only a general area of about 250 metres. This signal expires automatically in 2 hours. You can renew or delete it at any time.")),
-                        personalKeyValueRow("Preview", keypath: "signalDraft.state.publishPreview.summary", accent: BindingPersonalCopilotDesignSystem.success),
-                        personalKeyValueRow("Consent copy", keypath: "signalDraft.state.publishPreview.consentCopy", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Consent", keypath: "signalDraft.state.consentStatus", accent: BindingPersonalCopilotDesignSystem.warning),
-                        personalKeyValueRow("Exact GPS shared", keypath: "signalDraft.state.privacy.exactLocationShared", accent: BindingPersonalCopilotDesignSystem.warning),
-                        personalKeyValueRow("EXIF shared", keypath: "signalDraft.state.privacy.imageEXIFShared", accent: BindingPersonalCopilotDesignSystem.warning),
-                        personalKeyValueRow("Publisher", keypath: "signalPublisher.state.publishStatus", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
-                        .HStack(SkeletonHStack(elements: [
-                            .Button(previewButton),
-                            .Button(consentButton),
-                            .Button(publishButton),
-                            .Button(resetButton)
-                        ], spacing: 8)),
-                        .HStack(SkeletonHStack(elements: [
-                            .Button(renewButton),
-                            .Button(unpublishButton),
-                            .Button(deleteButton),
-                            .Button(auditButton)
-                        ], spacing: 8)),
-                        .List(activeList)
-                    ]
-                ),
-                personalSection(
-                    "Discover nearby",
-                    role: "personal-list-row",
-                    content: [
-                        .TextField(directoryQueryField),
-                        .TextField(directoryPurposeField),
-                        .TextField(directoryInterestField),
-                        .TextField(directoryRadiusField),
-                        .HStack(SkeletonHStack(elements: [
-                            .Button(searchButton),
-                            .Button(detailButton)
-                        ], spacing: 8)),
-                        personalKeyValueRow("Search", keypath: "signalDirectory.state.lastSearch.summary", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
-                        personalKeyValueRow("Empty", keypath: "signalDirectory.state.lastSearch.emptyStateTitle", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Denied", keypath: "signalDirectory.state.lastSearch.deniedLocationMessage", accent: BindingPersonalCopilotDesignSystem.warning),
-                        .List(results)
-                    ]
-                ),
-                personalSection(
-                    "Selected signal and moderation",
-                    role: "personal-consent-prompt",
-                    content: [
-                        personalKeyValueRow("Text", keypath: "signalDirectory.state.selectedSignal.text", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
-                        personalKeyValueRow("Badge", keypath: "signalDirectory.state.selectedSignal.statusBadge", accent: BindingPersonalCopilotDesignSystem.success),
-                        personalKeyValueRow("Distance", keypath: "signalDirectory.state.selectedSignal.distanceText", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Radius", keypath: "signalDirectory.state.selectedSignal.radiusSummary", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Expiry", keypath: "signalDirectory.state.selectedSignal.expiresInSummary", accent: BindingPersonalCopilotDesignSystem.warning),
-                        personalKeyValueRow("Visibility", keypath: "signalDirectory.state.selectedSignal.visibility", accent: BindingPersonalCopilotDesignSystem.success),
-                        personalKeyValueRow("Notice", keypath: "signalDirectory.state.selectedSignal.openlyPublishedNotice", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Moderation", keypath: "signalDirectory.state.directoryModerationStatus", accent: BindingPersonalCopilotDesignSystem.warning),
-                        personalKeyValueRow("Hidden", keypath: "signalDirectory.state.hiddenSignalCount", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Blocked", keypath: "signalDirectory.state.blockedPublisherCount", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        .HStack(SkeletonHStack(elements: [
-                            .Button(reportButton),
-                            .Button(hideButton),
-                            .Button(blockButton)
-                        ], spacing: 8))
-                    ]
-                )
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 320, max: 520)], spacing: 12, elements: [
+                    composer,
+                    locationAndPrivacy
+                ])),
+                publishPreview,
+                .Grid(SkeletonGrid(columns: [.adaptive(min: 320, max: 520)], spacing: 12, elements: [
+                    discover,
+                    detailAndModeration
+                ]))
             ]
         )
     }

@@ -1704,6 +1704,37 @@ struct BindingTests {
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(controlTowerConfiguration) == false)
     }
 
+    @Test func personalCoreLocalSurfacesDoNotRequireAuthenticatedRuntimeBootstrap() {
+        let localConfigurations = [
+            ConfigurationCatalogCell.personalHomeMenuConfiguration(),
+            ConfigurationCatalogCell.personalProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration(),
+            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        ]
+        let remoteOrHybridConfigurations = [
+            ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
+            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        ]
+
+        for configuration in localConfigurations {
+            #expect(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration) == false,
+                "\(configuration.name) should stay on startup runtime."
+            )
+        }
+
+        for configuration in remoteOrHybridConfigurations {
+            #expect(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration) == true,
+                "\(configuration.name) should still require authenticated runtime."
+            )
+        }
+    }
+
     @Test func conferenceBridgeHeavySurfacesUseExtendedLoadTimeouts() {
         let contentView = ContentView()
         let aiAssistantConfiguration = ContentView.conferenceAIAssistantAutomationConfiguration()
@@ -1868,6 +1899,14 @@ struct BindingTests {
         #expect(!probes.contains(where: {
             $0.label == "chat" && $0.rootKeypath == "dispatchAction"
         }))
+    }
+
+    @Test func skeletonBindingProbeSupportRetainsFullReadableBindingCandidatesForVaultRoots() {
+        let configuration = ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+        let candidates = SkeletonBindingProbeSupport.bindingCandidates(for: configuration)
+        let rootProbe = SkeletonBindingProbeSupport.RootProbe(label: "vault", rootKeypath: "vault")
+
+        #expect(candidates[rootProbe]?.contains("vault.vault.state") == true)
     }
 
     @Test func remoteEndpointAccessTreatsStagingCellsAsScaffoldAdmissions() {
@@ -7785,6 +7824,7 @@ enum CellConfigurationVerifier {
         let skeletonElementKinds: Set<String> = [
             "Text", "TextField", "TextArea", "List", "Object", "Reference",
             "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
+            "Tabs",
             "ScrollView", "Section", "ZStack", "Grid", "Divider"
         ]
         let readableBindingKeys: Set<String> = ["keypath", "sourceKeypath"]

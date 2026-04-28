@@ -71,6 +71,7 @@ nonisolated enum SkeletonBindingProbeSupport {
     private static let skeletonElementKinds: Set<String> = [
         "Text", "TextField", "TextArea", "List", "Object", "Reference",
         "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
+        "Tabs",
         "ScrollView", "Section", "ZStack", "Grid", "Divider"
     ]
     private static let readableBindingKeys: Set<String> = [
@@ -79,10 +80,14 @@ nonisolated enum SkeletonBindingProbeSupport {
     ]
 
     static func rootProbes(for configuration: CellConfiguration) -> [RootProbe] {
+        Array(bindingCandidates(for: configuration).keys)
+    }
+
+    static func bindingCandidates(for configuration: CellConfiguration) -> [RootProbe: [String]] {
         guard let skeleton = configuration.skeleton,
               let rawObject = rawObject(from: skeleton)
         else {
-            return []
+            return [:]
         }
 
         let labels = Set(
@@ -90,9 +95,9 @@ nonisolated enum SkeletonBindingProbeSupport {
                 .map { $0.label.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         )
-        guard !labels.isEmpty else { return [] }
+        guard !labels.isEmpty else { return [:] }
 
-        var collected: [RootProbe] = []
+        var collected: [RootProbe: [String]] = [:]
         collectRootProbes(from: rawObject, currentElementKind: nil, labels: labels, into: &collected)
         return collected
     }
@@ -125,7 +130,7 @@ nonisolated enum SkeletonBindingProbeSupport {
         from value: Any,
         currentElementKind: String?,
         labels: Set<String>,
-        into collected: inout [RootProbe]
+        into collected: inout [RootProbe: [String]]
     ) {
         switch value {
         case let dictionary as [String: Any]:
@@ -146,9 +151,13 @@ nonisolated enum SkeletonBindingProbeSupport {
                 if readableBindingKeys.contains(key),
                    currentElementKind != "Button",
                    let bindingValue = child as? String,
-                   let probe = rootProbe(from: bindingValue, labels: labels),
-                   !collected.contains(probe) {
-                    collected.append(probe)
+                   let normalizedBinding = normalizedReadableBinding(bindingValue, labels: labels),
+                   let probe = rootProbe(for: normalizedBinding) {
+                    var currentBindings = collected[probe] ?? []
+                    if !currentBindings.contains(normalizedBinding) {
+                        currentBindings.append(normalizedBinding)
+                        collected[probe] = currentBindings
+                    }
                 }
 
                 collectRootProbes(
@@ -172,7 +181,7 @@ nonisolated enum SkeletonBindingProbeSupport {
         }
     }
 
-    private static func rootProbe(from bindingValue: String, labels: Set<String>) -> RootProbe? {
+    private static func normalizedReadableBinding(_ bindingValue: String, labels: Set<String>) -> String? {
         let trimmed = bindingValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
@@ -191,7 +200,15 @@ nonisolated enum SkeletonBindingProbeSupport {
 
         let label = String(normalizedBinding[..<separatorIndex])
         guard labels.contains(label) else { return nil }
+        return normalizedBinding
+    }
 
+    private static func rootProbe(for normalizedBinding: String) -> RootProbe? {
+        guard let separatorIndex = normalizedBinding.firstIndex(of: ".") else {
+            return nil
+        }
+
+        let label = String(normalizedBinding[..<separatorIndex])
         let remainder = String(normalizedBinding[normalizedBinding.index(after: separatorIndex)...])
         guard let rootSeparator = remainder.firstIndex(where: { $0 == "." || $0 == "[" }) else {
             guard !remainder.isEmpty else { return nil }
@@ -469,6 +486,16 @@ struct ContentView: View {
     private static let defaultConferenceSponsorOrganizationID = "sponsor-ai-digital-independence"
     private static let defaultConferenceParticipantPreviewID = "preview-demo"
     private static let defaultConferenceAdminPreviewID = "preview-control-tower-v2"
+    private static let localPersonalStartupPolicyCategories: Set<String> = [
+        "identity-and-account",
+        "profile-draft",
+        "local-vault",
+        "privacy-audit",
+        "nearby-signal",
+        "apple-intelligence",
+        "hardware-scanner",
+        "workflow-studio"
+    ]
     private static let blockedLoadedReferenceNames: Set<String> = [
         "eventemitter",
         "entitieswrapper",
@@ -4332,6 +4359,10 @@ struct ContentView: View {
     }
 
     private func shouldLoadWithoutAuthenticatedRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
+        Self.shouldLoadWithoutAuthenticatedRuntimeBootstrap(for: configuration)
+    }
+
+    private static func shouldLoadWithoutAuthenticatedRuntimeBootstrap(for configuration: CellConfiguration) -> Bool {
         let normalizedName = configuration.name
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -4351,10 +4382,30 @@ struct ContentView: View {
             || normalizedName.contains("conference chat")
             || normalizedName.contains("profilflate")
             || normalizedName == "conference public surface"
+            || shouldLoadOnStartupRuntimeForPersonalCopilot(configuration)
+    }
+
+    private static func shouldLoadOnStartupRuntimeForPersonalCopilot(_ configuration: CellConfiguration) -> Bool {
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+        guard metadata.sourceKind == .local,
+              let policyCategory = metadata.policyCategory?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+              Self.localPersonalStartupPolicyCategories.contains(policyCategory) else {
+            return false
+        }
+
+        let endpoints = (configuration.cellReferences ?? []).map(\.endpoint)
+            + (configuration.discovery?.sourceCellEndpoint.map { [$0] } ?? [])
+        return !endpoints.contains { RemoteCatalogSupport.isRemoteEndpoint($0) }
     }
 
     func requiresAuthenticatedRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
-        !shouldLoadWithoutAuthenticatedRuntimeBootstrap(configuration)
+        Self.requiresAuthenticatedRuntimeBootstrap(for: configuration)
+    }
+
+    static func requiresAuthenticatedRuntimeBootstrap(for configuration: CellConfiguration) -> Bool {
+        !shouldLoadWithoutAuthenticatedRuntimeBootstrap(for: configuration)
     }
 
     private func shouldWarmConferenceRuntime(for configuration: CellConfiguration) -> Bool {
@@ -4399,7 +4450,8 @@ struct ContentView: View {
             ) ?? portholeIdentity
         }
         let intendedSkeleton = configuration.skeleton ?? viewModel.currentSkeleton
-        let rootProbes = SkeletonBindingProbeSupport.rootProbes(for: configuration)
+        let rootBindingCandidates = SkeletonBindingProbeSupport.bindingCandidates(for: configuration)
+        let rootProbes = Array(rootBindingCandidates.keys)
 
         await MainActor.run {
             legacyPortholeViewModel.rememberRequesterIdentity(loadRequester)
@@ -4456,6 +4508,7 @@ struct ContentView: View {
 
         let availability = await waitForReadableBindingRoots(
             rootProbes,
+            bindingCandidates: rootBindingCandidates,
             on: porthole,
             requester: loadRequester,
             configurationName: configuration.name,
@@ -4477,6 +4530,7 @@ struct ContentView: View {
             await BindingLocalCellRegistration.shared.warmConferenceRuntime(requester: loadRequester)
             resolvedAvailability = await waitForReadableBindingRoots(
                 rootProbes,
+                bindingCandidates: rootBindingCandidates,
                 on: porthole,
                 requester: loadRequester,
                 configurationName: configuration.name,
@@ -4586,6 +4640,7 @@ struct ContentView: View {
 
     private func waitForReadableBindingRoots(
         _ probes: [SkeletonBindingProbeSupport.RootProbe],
+        bindingCandidates: [SkeletonBindingProbeSupport.RootProbe: [String]],
         on porthole: Meddle,
         requester: Identity,
         configurationName: String,
@@ -4603,6 +4658,7 @@ struct ContentView: View {
 
             failures = await readBindingProbeFailures(
                 probes,
+                bindingCandidates: bindingCandidates,
                 on: porthole,
                 requester: requester,
                 timeoutNanoseconds: perProbeTimeoutNanoseconds
@@ -4626,6 +4682,7 @@ struct ContentView: View {
 
     private func readBindingProbeFailures(
         _ probes: [SkeletonBindingProbeSupport.RootProbe],
+        bindingCandidates: [SkeletonBindingProbeSupport.RootProbe: [String]],
         on porthole: Meddle,
         requester: Identity,
         timeoutNanoseconds: UInt64
@@ -4633,6 +4690,7 @@ struct ContentView: View {
         await withTaskGroup(of: (SkeletonBindingProbeSupport.RootProbe, String?).self) { group in
             for probe in probes {
                 group.addTask {
+                    let candidates = bindingCandidates[probe] ?? []
                     do {
                         let value = try await readBindingProbeValue(
                             probe,
@@ -4640,9 +4698,27 @@ struct ContentView: View {
                             requester: requester,
                             timeoutNanoseconds: timeoutNanoseconds
                         )
-                        return (probe, SkeletonBindingProbeSupport.failureDetail(from: value))
+                        return (
+                            probe,
+                            await firstReadableBindingFailure(
+                                initialFailure: SkeletonBindingProbeSupport.failureDetail(from: value),
+                                candidates: candidates,
+                                on: porthole,
+                                requester: requester,
+                                timeoutNanoseconds: timeoutNanoseconds
+                            )
+                        )
                     } catch {
-                        return (probe, String(describing: error))
+                        return (
+                            probe,
+                            await firstReadableBindingFailure(
+                                initialFailure: String(describing: error),
+                                candidates: candidates,
+                                on: porthole,
+                                requester: requester,
+                                timeoutNanoseconds: timeoutNanoseconds
+                            )
+                        )
                     }
                 }
             }
@@ -4657,23 +4733,72 @@ struct ContentView: View {
         }
     }
 
+    private func firstReadableBindingFailure(
+        initialFailure: String?,
+        candidates: [String],
+        on porthole: Meddle,
+        requester: Identity,
+        timeoutNanoseconds: UInt64
+    ) async -> String? {
+        guard let initialFailure else {
+            return nil
+        }
+
+        let fallbackCandidates = candidates.prefix(6)
+        guard !fallbackCandidates.isEmpty else {
+            return initialFailure
+        }
+
+        for candidate in fallbackCandidates {
+            do {
+                let value = try await readBindingValue(
+                    keypath: candidate,
+                    on: porthole,
+                    requester: requester,
+                    timeoutNanoseconds: timeoutNanoseconds
+                )
+                if SkeletonBindingProbeSupport.failureDetail(from: value) == nil {
+                    return nil
+                }
+            } catch {
+                continue
+            }
+        }
+
+        return initialFailure
+    }
+
     private func readBindingProbeValue(
         _ probe: SkeletonBindingProbeSupport.RootProbe,
         on porthole: Meddle,
         requester: Identity,
         timeoutNanoseconds: UInt64
     ) async throws -> ValueType {
+        try await readBindingValue(
+            keypath: probe.qualifiedKeypath,
+            on: porthole,
+            requester: requester,
+            timeoutNanoseconds: timeoutNanoseconds
+        )
+    }
+
+    private func readBindingValue(
+        keypath: String,
+        on porthole: Meddle,
+        requester: Identity,
+        timeoutNanoseconds: UInt64
+    ) async throws -> ValueType {
         try await withThrowingTaskGroup(of: ValueType.self) { group in
             group.addTask {
-                try await porthole.get(keypath: probe.qualifiedKeypath, requester: requester)
+                try await porthole.get(keypath: keypath, requester: requester)
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: timeoutNanoseconds)
-                throw BindingProbeTimeoutError(keypath: probe.qualifiedKeypath)
+                throw BindingProbeTimeoutError(keypath: keypath)
             }
 
             guard let firstResult = try await group.next() else {
-                throw BindingProbeTimeoutError(keypath: probe.qualifiedKeypath)
+                throw BindingProbeTimeoutError(keypath: keypath)
             }
             group.cancelAll()
             return firstResult
