@@ -5613,6 +5613,12 @@ struct BindingTests {
             if let footer = section.footer {
                 roles.append(contentsOf: skeletonStyleRoles(in: footer))
             }
+        case .Tabs(let tabs):
+            append(tabs.modifiers)
+            tabs.panels.forEach { panel in
+                append(panel.modifiers)
+                panel.content.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            }
         case .List(let list):
             append(list.modifiers)
             if let flowElementSkeleton = list.flowElementSkeleton {
