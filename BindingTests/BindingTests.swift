@@ -43,6 +43,7 @@ struct BindingTests {
             "My Profile",
             "Publish Public Profile",
             "Public Profile Directory",
+            "Nearby Signals",
             "Matches",
             "Invite Chat",
             "Vault / Ideas",
@@ -56,7 +57,7 @@ struct BindingTests {
             #expect(names.contains(requiredName))
         }
 
-        #expect(configurations.count == 13)
+        #expect(configurations.count == 14)
         #expect(configurations.allSatisfy(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1))
 
         let visibleText = configurations.flatMap { configuration in
@@ -209,6 +210,44 @@ struct BindingTests {
             Issue.record("Public Profile Directory should expose the staging directory contract")
         }
 
+        let nearbySignals = ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration()
+        let nearbyEndpoints = BindingPersonalCopilotV1Policy.referencedEndpoints(in: nearbySignals)
+        #expect(nearbyEndpoints.contains("cell:///NearbySignalDraft"))
+        #expect(nearbyEndpoints.contains("cell:///NearbySignalPublisher"))
+        #expect(nearbyEndpoints.contains("cell:///NearbySignalDirectory"))
+        #expect(nearbyEndpoints.contains("cell:///PersonalPrivacyAudit"))
+        if let skeleton = nearbySignals.skeleton {
+            for keypath in [
+                "signalDraft.preparePublishPreview",
+                "signalDraft.recordPublishConsent",
+                "signalDraft.stripImageMetadata",
+                "signalPublisher.publishSignal",
+                "signalPublisher.renewSignal",
+                "signalPublisher.unpublishSignal",
+                "signalPublisher.deleteSignal",
+                "signalDirectory.searchNearbySignals",
+                "signalDirectory.signalDetail",
+                "signalDirectory.reportSignal",
+                "signalDirectory.hideSignal",
+                "signalDirectory.blockPublisher"
+            ] {
+                #expect(skeletonContainsButton(keypath: keypath, in: skeleton))
+            }
+            #expect(skeletonContainsTextArea(targetKeypath: "signalDraft.draft.text", in: skeleton))
+            #expect(skeletonContainsTextField(targetKeypath: "signalDraft.draft.radiusMetersText", in: skeleton))
+            #expect(skeletonContainsTextField(targetKeypath: "signalDirectory.query", in: skeleton))
+            #expect(skeletonContainsList(keypath: "signalDirectory.state.lastSearch.results", topic: nil, in: skeleton))
+            #expect(skeletonContainsList(keypath: "signalPublisher.state.myActiveSignals", topic: nil, in: skeleton))
+            #expect(skeletonContainsTextKeypath("signalDraft.state.privacy.minimumRadiusMeters", in: skeleton))
+            #expect(skeletonContainsTextKeypath("signalDraft.state.privacy.defaultTTLSeconds", in: skeleton))
+            #expect(skeletonContainsTextKeypath("signalDraft.state.privacy.nativeCaptureBoundary", in: skeleton))
+            #expect(skeletonContainsTextKeypath("signalDraft.state.publishPreview.consentCopy", in: skeleton))
+            #expect(skeletonContainsTextKeypath("signalDirectory.state.lastSearch.deniedLocationMessage", in: skeleton))
+            #expect(skeletonContainsTextKeypath("signalDirectory.state.selectedSignal.statusBadge", in: skeleton))
+        } else {
+            Issue.record("Nearby Signals should expose draft, publish and directory contracts")
+        }
+
         let meeting = ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration()
         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: meeting).contains("cell://staging.haven.digipomps.org/PersonalMeetingCoordinator"))
         if let skeleton = meeting.skeleton {
@@ -230,6 +269,103 @@ struct BindingTests {
         } else {
             Issue.record("Personal Co-Pilot Catalog should expose the staging catalog contract")
         }
+    }
+
+    @Test func nearbySignalLocalWorkflowRequiresConsentAndSupportsSearch() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver after local startup bootstrap")
+            return
+        }
+        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup identity")
+            return
+        }
+        guard let draft = try await resolver.cellAtEndpoint(endpoint: "cell:///NearbySignalDraft", requester: owner) as? Meddle,
+              let publisher = try await resolver.cellAtEndpoint(endpoint: "cell:///NearbySignalPublisher", requester: owner) as? Meddle,
+              let directory = try await resolver.cellAtEndpoint(endpoint: "cell:///NearbySignalDirectory", requester: owner) as? Meddle else {
+            Issue.record("Expected local nearby signal cells to resolve")
+            return
+        }
+
+        let blockedPublish = try await publisher.set(
+            keypath: "publishSignal",
+            value: .object(["explicitPublishIntent": .bool(false)]),
+            requester: owner
+        )
+        guard case let .object(blockedResponse)? = blockedPublish else {
+            Issue.record("Expected object response for blocked publish")
+            return
+        }
+        #expect(blockedResponse["status"] == .string("requiresConsent"))
+
+        _ = try await draft.set(keypath: "draft.text", value: .string("Open table for local project ideas"), requester: owner)
+        _ = try await draft.set(keypath: "draft.radiusMetersText", value: .string("10"), requester: owner)
+        _ = try await draft.set(keypath: "draft.purposeRefsText", value: .string("purpose://collaboration"), requester: owner)
+        _ = try await draft.set(keypath: "draft.interestRefsText", value: .string("interest://ideas"), requester: owner)
+        _ = try await draft.set(keypath: "stripImageMetadata", value: .bool(true), requester: owner)
+        _ = try await draft.set(keypath: "preparePublishPreview", value: .bool(true), requester: owner)
+        _ = try await draft.set(keypath: "recordPublishConsent", value: .bool(true), requester: owner)
+
+        let publishResponse = try await publisher.set(
+            keypath: "publishSignal",
+            value: .object(["explicitPublishIntent": .bool(true)]),
+            requester: owner
+        )
+        guard case let .object(publishedResponse)? = publishResponse,
+              case let .object(publisherState)? = publishedResponse["state"],
+              case let .list(activeSignals)? = publisherState["myActiveSignals"],
+              case let .object(firstSignal)? = activeSignals.first else {
+            Issue.record("Expected published signal in publisher state")
+            return
+        }
+
+        #expect(publishedResponse["status"] == .string("ok"))
+        #expect(firstSignal["visibility"] == .string("publicNearby"))
+        #expect(firstSignal["readModelKind"] == .string("NearbySignalSummary"))
+        #expect(firstSignal["statusBadge"] == .string("Live"))
+        #expect(firstSignal["radiusSummary"] == .string("250 m radius"))
+        #expect(firstSignal["expiresInSummary"] == .string("Expires in 2 hours"))
+        #expect(firstSignal["imageMetadataStatus"] == .string("stripped before publish"))
+        #expect(firstSignal["openlyPublishedNotice"] == .string("This signal is openly published by another user. No personal information is shared with you."))
+        #expect(firstSignal["publishedAt"] != nil)
+        if case let .float(radius)? = firstSignal["radiusMeters"] {
+            #expect(radius >= 250)
+        } else {
+            Issue.record("Expected radiusMeters on published signal")
+        }
+
+        _ = try await directory.set(keypath: "searchNearbySignals", value: .object([:]), requester: owner)
+        guard case let .object(directoryState) = try await directory.get(keypath: "state", requester: owner),
+              case let .object(lastSearch)? = directoryState["lastSearch"],
+              case let .list(results)? = lastSearch["results"] else {
+            Issue.record("Expected nearby directory search results")
+            return
+        }
+        #expect(!results.isEmpty)
+        if case let .object(firstResult)? = results.first {
+            #expect(firstResult["readModelKind"] == .string("NearbySignalSummary"))
+            #expect(firstResult["statusBadge"] == .string("Live"))
+            #expect(firstResult["distanceText"] == .string("inside coarse 250 m area"))
+        } else {
+            Issue.record("Expected nearby result summary object")
+        }
+
+        _ = try await directory.set(keypath: "hideSignal", value: .object([:]), requester: owner)
+        _ = try await directory.set(keypath: "searchNearbySignals", value: .object([:]), requester: owner)
+        guard case let .object(hiddenDirectoryState) = try await directory.get(keypath: "state", requester: owner),
+              case let .object(hiddenSearch)? = hiddenDirectoryState["lastSearch"],
+              case let .list(hiddenResults)? = hiddenSearch["results"] else {
+            Issue.record("Expected nearby directory search results after hide")
+            return
+        }
+        #expect(hiddenResults.isEmpty)
     }
 
     @Test func personalCopilotMetadataAddsSurfaceFamilyAndPresentationClass() {
@@ -254,9 +390,10 @@ struct BindingTests {
         #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Personal", "Network", "Workspace"])
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .home) == .personalHome)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
+        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .nearbySignals)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Invite Chat") == .inviteChat)
+        #expect(BindingPersonalCopilotDestination.matching(configurationName: "Nearby Signals") == .nearbySignals)
     }
 
     @Test func personalCopilotStyleRolesStayWithinAllowlist() {
@@ -265,6 +402,7 @@ struct BindingTests {
             ConfigurationCatalogCell.personalProfileMenuConfiguration(),
             ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
             ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration(),
             ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
             ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
             ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
@@ -1534,7 +1672,6 @@ struct BindingTests {
     }
 
     @Test func conferencePublicSurfaceDoesNotRequireAuthenticatedRuntimeBootstrap() {
-        let contentView = ContentView()
         let publicConfiguration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
             endpoint: "cell://staging.haven.digipomps.org/ConferencePublicShell"
         )
@@ -1556,14 +1693,45 @@ struct BindingTests {
             endpoint: "cell:///ConferenceAdminPreviewShell"
         )
 
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(publicConfiguration) == false)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(aiAssistantConfiguration) == false)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(launcherConfiguration) == false)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(identityLinkConfiguration) == false)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantPortalConfiguration) == false)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantChatConfiguration) == true)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(namedParticipantChatConfiguration) == true)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(controlTowerConfiguration) == false)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: publicConfiguration) == false)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: aiAssistantConfiguration) == false)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: launcherConfiguration) == false)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: identityLinkConfiguration) == false)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: participantPortalConfiguration) == false)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: participantChatConfiguration) == true)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: namedParticipantChatConfiguration) == true)
+        #expect(ContentView.requiresAuthenticatedRuntimeBootstrap(for: controlTowerConfiguration) == false)
+    }
+
+    @Test func personalCoreLocalSurfacesDoNotRequireAuthenticatedRuntimeBootstrap() {
+        let localConfigurations = [
+            ConfigurationCatalogCell.personalHomeMenuConfiguration(),
+            ConfigurationCatalogCell.personalProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration(),
+            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        ]
+        let remoteOrHybridConfigurations = [
+            ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
+            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        ]
+
+        for configuration in localConfigurations {
+            #expect(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration) == false,
+                "\(configuration.name) should stay on startup runtime."
+            )
+        }
+
+        for configuration in remoteOrHybridConfigurations {
+            #expect(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration) == true,
+                "\(configuration.name) should still require authenticated runtime."
+            )
+        }
     }
 
     @Test func conferenceBridgeHeavySurfacesUseExtendedLoadTimeouts() {
@@ -1730,6 +1898,14 @@ struct BindingTests {
         #expect(!probes.contains(where: {
             $0.label == "chat" && $0.rootKeypath == "dispatchAction"
         }))
+    }
+
+    @Test func skeletonBindingProbeSupportRetainsFullReadableBindingCandidatesForVaultRoots() {
+        let configuration = ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+        let candidates = SkeletonBindingProbeSupport.bindingCandidates(for: configuration)
+        let rootProbe = SkeletonBindingProbeSupport.RootProbe(label: "vault", rootKeypath: "vault")
+
+        #expect(candidates[rootProbe]?.contains("vault.vault.state") == true)
     }
 
     @Test func remoteEndpointAccessTreatsStagingCellsAsScaffoldAdmissions() {
@@ -5124,6 +5300,12 @@ struct BindingTests {
         return configuration
     }
 
+    private func flattenedTabsElement(from tabs: SkeletonTabs) -> SkeletonElement? {
+        let elements = tabs.panels.flatMap(\.content)
+        guard !elements.isEmpty else { return nil }
+        return .VStack(SkeletonVStack(elements: elements))
+    }
+
     private func skeletonContainsButton(keypath: String, url: String? = nil, in element: SkeletonElement) -> Bool {
         switch element {
         case .Button(let button):
@@ -5612,6 +5794,12 @@ struct BindingTests {
             section.content.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
             if let footer = section.footer {
                 roles.append(contentsOf: skeletonStyleRoles(in: footer))
+            }
+        case .Tabs(let tabs):
+            append(tabs.modifiers)
+            tabs.panels.forEach { panel in
+                append(panel.modifiers)
+                panel.content.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
             }
         case .List(let list):
             append(list.modifiers)
@@ -6250,9 +6438,9 @@ struct CellConfigurationVerifierTests {
         #expect(report.startSucceeded)
         #expect(report.statusAfterStart == "started")
         #expect(report.requestContactSucceeded)
-        #expect(report.requestContactLabel == "Kontakt venter")
-        #expect(report.requestContactSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
-        #expect(report.requestContactActionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
+        #expect(report.requestContactLabel == "Awaiting exchange")
+        #expect(report.requestContactSummary == "Signed contact request sent. Awaiting signed identity exchange.")
+        #expect(report.requestContactActionSummary == "Signed contact request sent. Awaiting signed identity exchange.")
         #expect(report.chatOpened)
         #expect(report.nearbyCardLabel == "Åpne chatflate")
         #expect(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
@@ -6869,15 +7057,15 @@ enum CellConfigurationVerifier {
         let immediateRequestContactSnapshot = requestContactResponse.map(nearbyStateSnapshot(from:))
         let requestContactSnapshot: NearbySnapshot
         if let immediateRequestContactSnapshot,
-           immediateRequestContactSnapshot.cardLabel == "Kontakt venter" ||
-           immediateRequestContactSnapshot.actionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning." {
+           immediateRequestContactSnapshot.cardLabel == "Awaiting exchange" ||
+           immediateRequestContactSnapshot.actionSummary == "Signed contact request sent. Awaiting signed identity exchange." {
             requestContactSnapshot = immediateRequestContactSnapshot
         } else {
             requestContactSnapshot = try await waitForNearbySnapshot(
                 operation: "waitForNearbyStateAfterRequestContact"
             ) { snapshot in
-                snapshot.cardLabel == "Kontakt venter" ||
-                snapshot.actionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning."
+                snapshot.cardLabel == "Awaiting exchange" ||
+                snapshot.actionSummary == "Signed contact request sent. Awaiting signed identity exchange."
             }
         }
         let requestContactLabel = requestContactSnapshot.cardLabel
@@ -7641,6 +7829,7 @@ enum CellConfigurationVerifier {
         let skeletonElementKinds: Set<String> = [
             "Text", "TextField", "TextArea", "List", "Object", "Reference",
             "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
+            "Tabs",
             "ScrollView", "Section", "ZStack", "Grid", "Divider"
         ]
         let readableBindingKeys: Set<String> = ["keypath", "sourceKeypath"]

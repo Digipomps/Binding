@@ -89,7 +89,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             ConfigurationCatalogCell.personalHomeMenuConfiguration(),
             ConfigurationCatalogCell.personalProfileMenuConfiguration(),
             ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
-            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration(),
             ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
         ] {
             let report = try await CellConfigurationVerifier.contractReport(
@@ -115,6 +115,62 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Failed actions for \(configuration.name): \(report.failedActions)"
             )
         }
+    }
+
+    func testPersonalVaultIdeasSeedButtonsExecuteLocally() async throws {
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            buttonsToExecute: ["Seed idea", "Seed project"],
+            identityMode: .startup
+        )
+
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Expected local Vault / Ideas buttons to execute without denied responses: \(report.failedActions)"
+        )
+    }
+
+    func testPersonalCoreLocalSurfacesSkipAuthenticatedRuntimeBootstrap() {
+        let localConfigurations = [
+            ConfigurationCatalogCell.personalHomeMenuConfiguration(),
+            ConfigurationCatalogCell.personalProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            ConfigurationCatalogCell.personalNearbySignalsMenuConfiguration(),
+            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        ]
+        let authenticatedConfigurations = [
+            ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
+            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        ]
+
+        for configuration in localConfigurations {
+            XCTAssertFalse(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration),
+                "\(configuration.name) should stay on startup runtime."
+            )
+        }
+
+        for configuration in authenticatedConfigurations {
+            XCTAssertTrue(
+                ContentView.requiresAuthenticatedRuntimeBootstrap(for: configuration),
+                "\(configuration.name) should still require authenticated runtime."
+            )
+        }
+    }
+
+    func testVaultBindingCandidatesIncludeFullReadableStateBinding() {
+        let candidates = SkeletonBindingProbeSupport.bindingCandidates(
+            for: ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+        )
+        let rootProbe = SkeletonBindingProbeSupport.RootProbe(label: "vault", rootKeypath: "vault")
+
+        XCTAssertTrue(
+            candidates[rootProbe]?.contains("vault.vault.state") == true,
+            "Expected Vault probe candidates to retain the full readable state binding."
+        )
     }
 
     func testPersonalCopilotInviteChatMatchesStagingAssistantAndPollContract() throws {
@@ -514,9 +570,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(report.startOutcome, "ok")
         XCTAssertEqual(report.statusAfterStart, "started")
         XCTAssertEqual(report.requestContactOutcome, "ok")
-        XCTAssertEqual(report.requestContactLabel, "Kontakt venter")
-        XCTAssertEqual(report.requestContactSummary, "Signert kontaktforespørsel sendt. Venter på godkjenning.")
-        XCTAssertEqual(report.requestContactActionSummary, "Signert kontaktforespørsel sendt. Venter på godkjenning.")
+        XCTAssertEqual(report.requestContactLabel, "Awaiting exchange")
+        XCTAssertEqual(report.requestContactSummary, "Signed contact request sent. Awaiting signed identity exchange.")
+        XCTAssertEqual(report.requestContactActionSummary, "Signed contact request sent. Awaiting signed identity exchange.")
         XCTAssertEqual(report.openChatOutcome, "ok")
         XCTAssertEqual(report.nearbyCardLabel, "Åpne chatflate")
         XCTAssertTrue(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)

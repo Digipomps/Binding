@@ -19,6 +19,9 @@ This map defines what Binding Personal Co-Pilot V1 may read, write, publish and 
 | `PersonalProfileDraft` | Binding | private profile draft, publish preview, publish consent state | Local until publish | None by default | Draft editing remains local; publish disabled if remote account/backend unavailable | Binding local cell registered |
 | `PersonalProfilePublisherCell` | CellScaffold | explicitly published profile payload, public profile read model | Cloud | None; receives only explicit publish payload | Publish fails with recoverable error; local draft remains intact | Must be implemented in CellScaffold |
 | `PublicProfileDirectoryCell` | CellScaffold | searchable public profile index, report/hide/block state | Cloud | None | Directory can be unavailable without affecting local draft/vault | Must be implemented in CellScaffold |
+| `NearbySignalDraft` | Binding | local `NearbySignalDraft`, manual/coarse position, optional sanitized image reference, purpose/interests, publish preview and consent | Local/device | Location/photo picker only after explicit user action | Manual coarse position remains usable; publish disabled until preview/consent | Binding local cell registered |
+| `NearbySignalPublisherCell` | CellScaffold | explicit `NearbySignalPublishRequest`, short-lived publicNearby state and `NearbySignalSummary` read model | Cloud | None; receives only explicit coarse publish payload | Publish fails recoverably; local draft and audit remain intact | Binding local fallback registered; CellScaffold contract required |
+| `NearbySignalDirectoryCell` | CellScaffold | active `NearbySignalSummary` search/detail plus report/hide/block state | Cloud | None | Directory can be unavailable without affecting local draft/scanner | Binding local fallback registered; CellScaffold contract required |
 | `PersonalMatchmakingCell` | CellScaffold | match preferences, published-profile-derived suggestions, mutual consent state | Cloud | None | Matching unavailable; no chat is created | Must be implemented in CellScaffold |
 | `PersonalChatClient` | Binding | local composer draft, selected invite, report/block UI state, Jitsi placeholder metadata | Local client state plus cloud chat handoff | Notifications optional later; no camera/mic in V1 | Composer remains usable only for accepted invites; denied notifications do not block chat | Binding local cell registered |
 | `PersonalChatHubCell` | CellScaffold | invite-only conversation state, messages, moderation status, report/block records | Cloud | None; uses CellProtocol chat contract | Chat unavailable or read-only if backend unavailable; blocked users cannot continue | Must be implemented in CellScaffold |
@@ -37,6 +40,8 @@ This map defines what Binding Personal Co-Pilot V1 may read, write, publish and 
 | Capability | Allowed trigger | Remote config access | Required UX |
 | --- | --- | --- | --- |
 | Camera / scanning | User taps scanner/start scan in local scanner surface | Never direct; Binding adapter mediates | Purpose string, denied state, no silent retry |
+| Location for nearby signals | User taps current position or edits manual coarse position in Nearby Signals | Never direct; Binding sends only coarse approved publish payload | Minimum 250 m radius, explicit consent, manual fallback |
+| Photos for nearby signals | User picks one image for a nearby signal draft | Never direct; Binding strips metadata before publish preview | Optional image, EXIF stripped, publish preview required |
 | Microphone | Out of V1 except future meeting/video surfaces | Never in V1 | No request in V1 meetingBridge placeholder |
 | Calendar/EventKit | User explicitly adds/saves a meeting intent to calendar | Never direct; Binding adapter mediates | Purpose string, fallback to local meeting intent |
 | Contacts | Out of V1 unless later invite flow explicitly needs picker | Never direct | Use picker/individual selection; no contact database |
@@ -50,6 +55,10 @@ This map defines what Binding Personal Co-Pilot V1 may read, write, publish and 
 - Profile drafts are private until `publishProfile` is invoked after explicit consent.
 - `unpublishProfile` must remove the public read model from directory/search.
 - `deleteProfile` must remove public profile state and associated discoverability records.
+- Nearby signal drafts are private until `publishSignal` is invoked with explicit consent.
+- Nearby signals must use coarse location, radius >= 250 m, `visibility="publicNearby"` and default expiry of 2 hours.
+- Nearby search/detail may expose only `NearbySignalSummary`; it must not expose `NearbySignalDraft`, exact GPS, EXIF, private profile, chat or relation data.
+- `unpublishSignal` and `deleteSignal` must remove nearby directory visibility.
 - Account deletion, when accounts are enabled, must invoke local delete/export hooks and CellScaffold deletion routes.
 - Audit entries should record publish, unpublish, delete, match consent, chat invite, report/block and permission grant/deny.
 

@@ -31,6 +31,7 @@ enum SkeletonTreeQueries {
         case .Divider(let divider): return divider.modifiers
         case .ScrollView(let scrollView): return scrollView.modifiers
         case .Section(let section): return section.modifiers
+        case .Tabs(let tabs): return tabs.modifiers
         case .ZStack(let zStack): return zStack.modifiers
         case .Grid(let grid): return grid.modifiers
         case .Toggle(let toggle): return toggle.modifiers
@@ -61,6 +62,7 @@ enum SkeletonTreeQueries {
         case .Divider: return "Divider"
         case .ScrollView: return "ScrollView"
         case .Section: return "Section"
+        case .Tabs: return "Tabs"
         case .ZStack: return "ZStack"
         case .Grid: return "Grid"
         case .Toggle: return "Toggle"
@@ -74,7 +76,7 @@ enum SkeletonTreeQueries {
 
     static func canContainChildren(_ element: SkeletonElement) -> Bool {
         switch element {
-        case .HStack, .VStack, .ScrollView, .Section, .ZStack, .Grid:
+        case .HStack, .VStack, .ScrollView, .Section, .Tabs, .ZStack, .Grid:
             return true
         default:
             return false
@@ -120,6 +122,8 @@ enum SkeletonTreeQueries {
             return scrollView.elements
         case .Section(let section):
             return section.content
+        case .Tabs(let tabs):
+            return tabs.panels.flatMap(\.content)
         case .ZStack(let zStack):
             return zStack.elements
         case .Grid(let grid):

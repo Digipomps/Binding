@@ -234,6 +234,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             section.modifiers = modifiers
             return .Section(section)
+        case .Tabs(var tabs):
+            var modifiers = tabs.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            tabs.modifiers = modifiers
+            return .Tabs(tabs)
         case .ZStack(var zStack):
             var modifiers = zStack.modifiers ?? SkeletonModifiers()
             mutate(&modifiers)
@@ -275,6 +280,8 @@ enum SkeletonTreeMutations {
         case .Section(let section):
             guard index < section.content.count else { return nil }
             return section.content[index]
+        case .Tabs(let tabs):
+            return tabsPanelChild(at: index, in: tabs)
         case .ZStack(let zStack):
             guard index < zStack.elements.count else { return nil }
             return zStack.elements[index]
@@ -310,6 +317,8 @@ enum SkeletonTreeMutations {
             guard index < section.content.count else { return nil }
             section.content[index] = replacement
             return .Section(section)
+        case .Tabs(var tabs):
+            return replacingTabsPanelChild(at: index, with: replacement, in: &tabs).map { .Tabs($0) }
         case .ZStack(var zStack):
             guard index < zStack.elements.count else { return nil }
             zStack.elements[index] = replacement
@@ -343,6 +352,8 @@ enum SkeletonTreeMutations {
             guard index < section.content.count else { return nil }
             section.content.remove(at: index)
             return .Section(section)
+        case .Tabs(var tabs):
+            return deletingTabsPanelChild(at: index, in: &tabs).map { .Tabs($0) }
         case .ZStack(var zStack):
             guard index < zStack.elements.count else { return nil }
             zStack.elements.remove(at: index)
@@ -378,6 +389,8 @@ enum SkeletonTreeMutations {
             let insertIndex = clamp(index, count: section.content.count)
             section.content.insert(newChild, at: insertIndex)
             return .Section(section)
+        case .Tabs(var tabs):
+            return insertingTabsPanelChild(newChild, at: index, in: &tabs).map { .Tabs($0) }
         case .ZStack(var zStack):
             let insertIndex = clamp(index, count: zStack.elements.count)
             zStack.elements.insert(newChild, at: insertIndex)
@@ -394,5 +407,69 @@ enum SkeletonTreeMutations {
     private static func clamp(_ index: Int?, count: Int) -> Int {
         guard let index else { return count }
         return max(0, min(index, count))
+    }
+
+    private static func tabsPanelChild(at index: Int, in tabs: SkeletonTabs) -> SkeletonElement? {
+        var remaining = index
+        for panel in tabs.panels {
+            if remaining < panel.content.count {
+                return panel.content[remaining]
+            }
+            remaining -= panel.content.count
+        }
+        return nil
+    }
+
+    private static func replacingTabsPanelChild(
+        at index: Int,
+        with replacement: SkeletonElement,
+        in tabs: inout SkeletonTabs
+    ) -> SkeletonTabs? {
+        var remaining = index
+        for panelIndex in tabs.panels.indices {
+            if remaining < tabs.panels[panelIndex].content.count {
+                tabs.panels[panelIndex].content[remaining] = replacement
+                return tabs
+            }
+            remaining -= tabs.panels[panelIndex].content.count
+        }
+        return nil
+    }
+
+    private static func deletingTabsPanelChild(at index: Int, in tabs: inout SkeletonTabs) -> SkeletonTabs? {
+        var remaining = index
+        for panelIndex in tabs.panels.indices {
+            if remaining < tabs.panels[panelIndex].content.count {
+                tabs.panels[panelIndex].content.remove(at: remaining)
+                return tabs
+            }
+            remaining -= tabs.panels[panelIndex].content.count
+        }
+        return nil
+    }
+
+    private static func insertingTabsPanelChild(
+        _ newChild: SkeletonElement,
+        at index: Int?,
+        in tabs: inout SkeletonTabs
+    ) -> SkeletonTabs? {
+        guard tabs.panels.isEmpty == false else { return nil }
+        guard let index else {
+            tabs.panels[0].content.append(newChild)
+            return tabs
+        }
+
+        var remaining = max(index, 0)
+        for panelIndex in tabs.panels.indices {
+            let count = tabs.panels[panelIndex].content.count
+            if remaining <= count {
+                tabs.panels[panelIndex].content.insert(newChild, at: remaining)
+                return tabs
+            }
+            remaining -= count
+        }
+
+        tabs.panels[tabs.panels.count - 1].content.append(newChild)
+        return tabs
     }
 }

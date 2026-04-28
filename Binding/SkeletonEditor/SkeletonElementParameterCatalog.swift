@@ -1040,7 +1040,7 @@ enum SkeletonElementParameterCatalog {
                 .selectionPayloadMode,
                 .allowsEmptySelection
             ]
-        case .AttachmentField, .Object, .HStack, .VStack, .Divider, .Section, .ZStack:
+        case .AttachmentField, .Object, .HStack, .VStack, .Divider, .Section, .Tabs, .ZStack:
             return []
         }
     }
