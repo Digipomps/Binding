@@ -1,5 +1,7 @@
 import Foundation
+import CellBase
 import HavenAgentCellRuntime
+import HavenAgentCells
 import HavenAgentRuntime
 import HavenMacAutomation
 import HavenRuntimeBootstrap
@@ -24,6 +26,10 @@ struct SmokeTestSummary: Codable, Sendable {
     var bootstrapArtifactPath: String?
     var queuedIntentCount: Int
     var lastAcceptedIntentID: String?
+    var reviewAuditCount: Int
+    var lastReviewOutcome: String?
+    var lastExecutedActionID: String?
+    var lastExecutedActionKind: String?
 }
 
 private enum SmokeTestHarnessError: Error, LocalizedError {
@@ -47,6 +53,7 @@ private actor SmokeTestProcessRunner: ProcessRunning {
     enum Outcome: Sendable {
         case fail(String)
         case success(contractID: String, expiresAt: Date)
+        case commandSuccess(String)
     }
 
     private static let resolverSeed = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
@@ -103,6 +110,14 @@ private actor SmokeTestProcessRunner: ProcessRunning {
                 command: command,
                 terminationStatus: 0,
                 standardOutput: #"{"final_state":"joined","contract_id":"\#(contractID)"}"#,
+                standardError: ""
+            )
+
+        case .commandSuccess(let output):
+            return SubprocessResult(
+                command: command,
+                terminationStatus: 0,
+                standardOutput: output,
                 standardError: ""
             )
         }
@@ -227,6 +242,8 @@ private actor SmokeTestPortholeIngress: PortholeIngressControlling {
 
 enum SmokeTestHarness {
     private static let timeoutSeconds: TimeInterval = 12
+    private static let finderCloseActionID = "mac.finder.close-all-windows"
+    private static let smokeIntentID = "finder-close-windows-smoke-1"
 
     static func run(rootPath: String?) async throws -> SmokeTestSummary {
         let runtimeRoot: URL = {
@@ -261,7 +278,8 @@ enum SmokeTestHarness {
                 .success(
                     contractID: "pac_smoke_0003",
                     expiresAt: Date().addingTimeInterval(120)
-                )
+                ),
+                .commandSuccess("Finder windows close requested through smoke executor.")
             ]
         )
         let ingress = SmokeTestPortholeIngress(envelope: envelope)
@@ -280,9 +298,16 @@ enum SmokeTestHarness {
                 fileURL: paths.stateFile,
                 expectedContractID: "pac_smoke_0003"
             )
-            let remoteIntentState = try await waitForRemoteIntentState(fileURL: paths.remoteIntentStateFile)
+            _ = try await waitForRemoteIntentState(fileURL: paths.remoteIntentStateFile)
+            let finalRemoteIntentState = try await approveVerifiedRemoteIntent(
+                paths: paths,
+                config: config,
+                processRunner: processRunner,
+                intentID: Self.smokeIntentID
+            )
             try await runtime.stop()
             await cellRuntimeHost.stop()
+            let lastReview = finalRemoteIntentState.auditTrail.last
 
             let summary = SmokeTestSummary(
                 runtimeRoot: runtimeRoot.path,
@@ -292,8 +317,12 @@ enum SmokeTestHarness {
                 finalPhase: finalState.portholeIngress?.phase.rawValue ?? "unavailable",
                 finalContractID: finalState.portholeIngress?.contractID,
                 bootstrapArtifactPath: finalState.lastSproutBootstrap?.artifactPath,
-                queuedIntentCount: remoteIntentState.queuedIntents.count,
-                lastAcceptedIntentID: finalState.portholeIngress?.lastAcceptedIntentID
+                queuedIntentCount: finalRemoteIntentState.queuedIntents.count,
+                lastAcceptedIntentID: finalState.portholeIngress?.lastAcceptedIntentID,
+                reviewAuditCount: finalRemoteIntentState.auditTrail.count,
+                lastReviewOutcome: lastReview?.outcome.rawValue,
+                lastExecutedActionID: lastReview?.executedAction?.id,
+                lastExecutedActionKind: lastReview?.executedAction?.kind.rawValue
             )
             try writeSummary(summary, to: paths.stateDirectory.appendingPathComponent("smoke-test-summary.json"))
             return summary
@@ -334,14 +363,28 @@ enum SmokeTestHarness {
                 portholeRetryMaxDelaySeconds: 1
             ),
             watchFolders: [],
-            automationPolicy: AutomationPolicy(),
+            automationPolicy: AutomationPolicy(
+                appleScripts: [
+                    AppleScriptDefinition(
+                        id: Self.finderCloseActionID,
+                        description: "Close all Finder windows after signed remote intent review. Smoke tests inject a stubbed process runner so no user windows are closed.",
+                        source: """
+                        tell application "Finder"
+                            close every window
+                        end tell
+                        """,
+                        allowedForRemoteExecution: true,
+                        requiresUserSession: true
+                    )
+                ]
+            ),
             remoteIntentPolicy: RemoteIntentPolicy(
                 issuers: [
                     TrustedRemoteIntentIssuer(
                         issuerID: "scaffold-entity.smoke",
                         publicSigningKeyBase64: issuerPublicKeyBase64,
                         allowedTopics: ["intent.inbox"],
-                        allowedActionIDs: ["smoke-action"]
+                        allowedActionIDs: [Self.finderCloseActionID]
                     )
                 ],
                 requireExpiry: true,
@@ -358,11 +401,11 @@ enum SmokeTestHarness {
         let expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(120))
         let payload = SignedRemoteIntentPayload(
             issuerID: "scaffold-entity.smoke",
-            nonce: "smoke-intent-1",
+            nonce: Self.smokeIntentID,
             topic: "intent.inbox",
             origin: "scaffold-entity.smoke",
-            actionID: "smoke-action",
-            arguments: ["url": "https://example.com"],
+            actionID: Self.finderCloseActionID,
+            arguments: [:],
             issuedAt: issuedAt,
             expiresAt: expiresAt
         )
@@ -417,13 +460,51 @@ enum SmokeTestHarness {
         while Date().timeIntervalSince(start) < timeoutSeconds {
             if let data = try? Data(contentsOf: fileURL),
                let state = try? decoder.decode(PersistedRemoteIntentState.self, from: data),
-               state.queuedIntents.contains(where: { $0.id == "smoke-intent-1" && $0.verificationStatus == "verified" }) {
+               state.queuedIntents.contains(where: { $0.id == Self.smokeIntentID && $0.verificationStatus == "verified" }) {
                 return state
             }
             try? await Task.sleep(nanoseconds: 200_000_000)
         }
 
         throw SmokeTestHarnessError.timedOut("verified queued smoke intent")
+    }
+
+    private static func approveVerifiedRemoteIntent(
+        paths: RuntimePaths,
+        config: AgentConfig,
+        processRunner: SmokeTestProcessRunner,
+        intentID: String
+    ) async throws -> PersistedRemoteIntentState {
+        let executor = RemoteIntentExecutionBridge(processRunner: processRunner)
+        await executor.update(policy: config.automationPolicy)
+        await AgentRuntimeBridge.shared.update(remoteIntentExecutor: executor)
+
+        let vault = LocalIdentityVault()
+        guard let requester = await vault.identity(for: "haven-agentd-smoke-reviewer", makeNewIfNotFound: true) else {
+            throw SmokeTestHarnessError.timedOut("create local smoke reviewer identity")
+        }
+        let cell = await RemoteIntentReviewCell(owner: requester)
+        let agreement = cell.agreementTemplate
+        agreement.signatories.append(requester)
+        _ = await cell.addAgreement(agreement, for: requester)
+        let payload: Object = [
+            "intentID": .string(intentID),
+            "reviewer": .string("HAVENAgentD smoke test"),
+            "note": .string("Approve the signed Finder close-windows smoke action through a stubbed local executor.")
+        ]
+        _ = try await cell.set(keypath: "approve", value: .object(payload), requester: requester)
+
+        let finalState = await AgentRuntimeBridge.shared.persistedRemoteIntentStateSnapshot()
+        try await RemoteIntentStateStore(fileURL: paths.remoteIntentStateFile).write(finalState)
+        guard finalState.auditTrail.contains(where: { record in
+            record.intentID == intentID
+                && record.actionID == Self.finderCloseActionID
+                && record.outcome == .approvedDispatched
+                && record.executedAction?.id == Self.finderCloseActionID
+        }) else {
+            throw SmokeTestHarnessError.timedOut("approved dispatched audit for \(Self.finderCloseActionID)")
+        }
+        return finalState
     }
 
     private static func writeSummary(_ summary: SmokeTestSummary, to fileURL: URL) throws {
