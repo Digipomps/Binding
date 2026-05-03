@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="${BINDING_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 AGENT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_BINARY:-$REPO_ROOT/HavenAgentD/.build/debug/haven-agentd}"
 AGENT_ALT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_ALT_BINARY:-$REPO_ROOT/HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd}"
-AGENT_STAGING_DIR="${BINDING_AGENT_STAGING_DIR:-$HOME/Library/Containers/com.digipomps.Binding/Data/Library/Application Support/HAVENAgent/Staging}"
+AGENT_STAGING_DIR="${BINDING_AGENT_STAGING_DIR:-$HOME/Library/Application Support/HAVENAgent/Staging}"
 AGENT_STAGING_BINARY="$AGENT_STAGING_DIR/haven-agentd"
 
 mkdir -p "$OUT_DIR"

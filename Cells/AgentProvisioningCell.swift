@@ -1064,18 +1064,17 @@ final class AgentProvisioningCell: GeneralCell {
     private func currentPaths() throws -> AgentPaths {
         let snapshot = stateQueue.sync { mutableState }
         let sourceRoot = URL(fileURLWithPath: NSString(string: snapshot.sourceRootPath).expandingTildeInPath)
-        let homeDirectory = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-        let applicationSupportDirectory = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
+        let homeDirectory = Self.userHomeDirectory()
+        let applicationSupportDirectory = homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
         let agentDirectory = applicationSupportDirectory.appendingPathComponent("HAVENAgent", isDirectory: true)
         let stagingDirectory = agentDirectory.appendingPathComponent("Staging", isDirectory: true)
         let launchAgentsDirectory: URL = {
 #if os(macOS)
-            homeDirectory.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
+            homeDirectory
+                .appendingPathComponent("Library", isDirectory: true)
+                .appendingPathComponent("LaunchAgents", isDirectory: true)
 #else
             agentDirectory.appendingPathComponent("LaunchAgents", isDirectory: true)
 #endif
@@ -1104,6 +1103,17 @@ final class AgentProvisioningCell: GeneralCell {
             launchAgentsDirectory: launchAgentsDirectory,
             launchAgentPlist: launchAgentsDirectory.appendingPathComponent("\(Self.launchAgentLabel).plist")
         )
+    }
+
+    nonisolated private static func userHomeDirectory() -> URL {
+        if let entry = getpwuid(getuid()),
+           let directory = entry.pointee.pw_dir,
+           let resolvedHome = String(validatingUTF8: directory),
+           !resolvedHome.isEmpty {
+            return URL(fileURLWithPath: resolvedHome, isDirectory: true)
+        }
+
+        return FileManager.default.homeDirectoryForCurrentUser
     }
 
     private func refreshState(requester: Identity) async {

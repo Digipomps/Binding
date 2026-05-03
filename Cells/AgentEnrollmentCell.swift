@@ -1,6 +1,7 @@
 import Foundation
 import CellBase
 import CoreFoundation
+import Darwin
 
 #if canImport(CryptoKit)
 import CryptoKit
@@ -997,12 +998,10 @@ final class AgentEnrollmentCell: GeneralCell {
     }
 
     private func currentPaths() throws -> AgentPaths {
-        let applicationSupportDirectory = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
+        let homeDirectory = Self.userHomeDirectory()
+        let applicationSupportDirectory = homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
         let agentDirectory = applicationSupportDirectory.appendingPathComponent("HAVENAgent", isDirectory: true)
         let outputDirectory = agentDirectory.appendingPathComponent("Out", isDirectory: true)
         return AgentPaths(
@@ -1014,6 +1013,17 @@ final class AgentEnrollmentCell: GeneralCell {
             starterAuthFile: agentDirectory.appendingPathComponent("starter-auth.json"),
             entityLinkFile: outputDirectory.appendingPathComponent("agent-operator-entity-link.json")
         )
+    }
+
+    nonisolated private static func userHomeDirectory() -> URL {
+        if let entry = getpwuid(getuid()),
+           let directory = entry.pointee.pw_dir,
+           let resolvedHome = String(validatingUTF8: directory),
+           !resolvedHome.isEmpty {
+            return URL(fileURLWithPath: resolvedHome, isDirectory: true)
+        }
+
+        return FileManager.default.homeDirectoryForCurrentUser
     }
 
     private func value(forReadableKey key: String) -> ValueType {
