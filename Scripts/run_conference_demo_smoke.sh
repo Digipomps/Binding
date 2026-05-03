@@ -124,12 +124,14 @@ run_menu_action() {
     -e "delay $delay_seconds" >/dev/null
 }
 
-run_hook_action() {
-  local action="$1"
-  local delay_seconds="${2:-1.2}"
+run_menu_action_async() {
+  local target_pid="$1"
+  local item="$2"
   osascript \
-    -e "open location \"haven://conference-automation?action=$action\"" \
-    -e "delay $delay_seconds" >/dev/null
+    -e "tell application \"$APP_NAME\" to activate" \
+    -e "tell application \"System Events\" to tell (first process whose unix id is $target_pid) to click menu bar item \"$AUTOMATION_MENU\" of menu bar 1" \
+    -e 'delay 0.2' \
+    -e "tell application \"System Events\" to tell (first process whose unix id is $target_pid) to click menu item \"$item\" of menu 1 of menu bar item \"$AUTOMATION_MENU\" of menu bar 1" >/dev/null &
 }
 
 approve_runtime_access_if_needed() {
@@ -272,17 +274,18 @@ capture_step "$APP_PID" "identity-link" 10
 run_menu_action "$APP_PID" "Open Agent Setup Workbench" 4.0
 capture_step "$APP_PID" "agent-setup" 11
 
-run_hook_action "install-agent" 2.0
+run_menu_action_async "$APP_PID" "Install HAVENAgentD"
+sleep 1
 approve_runtime_access_if_needed "$APP_PID" 12
 sleep 23
 capture_step "$APP_PID" "agent-installed" 12
 
-run_hook_action "start-agent" 8.0
-run_hook_action "connect-agent" 10.0
+run_menu_action "$APP_PID" "Start HAVENAgentD" 8.0
+run_menu_action "$APP_PID" "Run HAVENAgentD Once" 10.0
 capture_step "$APP_PID" "agent-connected" 13
 
-run_hook_action "queue-agent-safari-review" 5.0
-run_hook_action "approve-agent-review" 5.0
+run_menu_action "$APP_PID" "Queue Agent Safari Review" 5.0
+run_menu_action "$APP_PID" "Approve Agent Review" 5.0
 capture_step "$APP_PID" "agent-review-approved" 14
 
 echo >> "$OUT_DIR/report.md"
