@@ -3,6 +3,10 @@ import CellBase
 import CoreFoundation
 import Darwin
 
+#if os(macOS)
+import AppKit
+#endif
+
 #if canImport(CryptoKit)
 import CryptoKit
 #else
@@ -246,6 +250,10 @@ final class AgentEnrollmentCell: GeneralCell {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
     }()
+    private static let runtimeAccessBookmarkKey = "Binding.AgentRuntimeAccess.userHomeBookmark"
+    private static let runtimeAccessLock = NSLock()
+    private static var runtimeAccessURL: URL?
+    private static var runtimeAccessStarted = false
     nonisolated private static let defaultControlBridge = LiveControlBridgeConfiguration(
         enabled: true,
         host: "127.0.0.1",
@@ -506,7 +514,7 @@ final class AgentEnrollmentCell: GeneralCell {
             attributes: [.posixPermissions: 0o700]
         )
         try data.write(to: paths.pairingArtifactFile, options: [.atomic])
-        try FileManager.default.setAttributes(
+        try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600],
             ofItemAtPath: paths.pairingArtifactFile.path
         )
@@ -881,7 +889,7 @@ final class AgentEnrollmentCell: GeneralCell {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(payload)
         try data.write(to: fileURL, options: [.atomic])
-        try FileManager.default.setAttributes(
+        try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600],
             ofItemAtPath: fileURL.path
         )
@@ -991,7 +999,7 @@ final class AgentEnrollmentCell: GeneralCell {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(contract)
         try data.write(to: fileURL, options: [.atomic])
-        try FileManager.default.setAttributes(
+        try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600],
             ofItemAtPath: fileURL.path
         )
@@ -999,6 +1007,7 @@ final class AgentEnrollmentCell: GeneralCell {
 
     private func currentPaths() throws -> AgentPaths {
         let homeDirectory = Self.userHomeDirectory()
+        Self.activatePersistedExternalRuntimeAccess(forHomeDirectory: homeDirectory)
         let applicationSupportDirectory = homeDirectory
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
@@ -1024,6 +1033,49 @@ final class AgentEnrollmentCell: GeneralCell {
         }
 
         return FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    private static func activatePersistedExternalRuntimeAccess(forHomeDirectory homeDirectory: URL) {
+#if os(macOS)
+        runtimeAccessLock.lock()
+        defer { runtimeAccessLock.unlock() }
+        if runtimeAccessStarted,
+           runtimeAccessURL?.standardizedFileURL == homeDirectory.standardizedFileURL {
+            return
+        }
+
+        guard let bookmarkData = UserDefaults.standard.data(forKey: runtimeAccessBookmarkKey) else {
+            return
+        }
+
+        var bookmarkIsStale = false
+        guard let resolvedURL = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &bookmarkIsStale
+        ) else {
+            return
+        }
+
+        guard resolvedURL.standardizedFileURL == homeDirectory.standardizedFileURL else {
+            return
+        }
+
+        if bookmarkIsStale,
+           let refreshedBookmarkData = try? resolvedURL.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+           ) {
+            UserDefaults.standard.set(refreshedBookmarkData, forKey: runtimeAccessBookmarkKey)
+        }
+
+        runtimeAccessURL = resolvedURL
+        runtimeAccessStarted = resolvedURL.startAccessingSecurityScopedResource()
+#else
+        _ = homeDirectory
+#endif
     }
 
     private func value(forReadableKey key: String) -> ValueType {

@@ -2,6 +2,10 @@ import Foundation
 import CellBase
 import Darwin
 
+#if os(macOS)
+import AppKit
+#endif
+
 final class AgentProvisioningCell: GeneralCell {
     private struct ActivityEntry: Codable {
         var title: String
@@ -256,6 +260,10 @@ final class AgentProvisioningCell: GeneralCell {
     nonisolated private static let defaultInterests = "cellprotocol, agent, automation, review"
     nonisolated private static let defaultTestAppleScriptID = "binding-test-open-url-in-safari"
     nonisolated private static let defaultTestIssuerPrefix = "binding-operator"
+    private static let runtimeAccessBookmarkKey = "Binding.AgentRuntimeAccess.userHomeBookmark"
+    private static let runtimeAccessLock = NSLock()
+    private static var runtimeAccessURL: URL?
+    private static var runtimeAccessStarted = false
     nonisolated private static let defaultControlBridge = LiveControlBridgeConfiguration(
         enabled: true,
         host: "127.0.0.1",
@@ -753,7 +761,6 @@ final class AgentProvisioningCell: GeneralCell {
             try fileManager.createSymbolicLink(at: paths.installedBinary, withDestinationURL: builtBinary)
         } else {
             try fileManager.copyItem(at: builtBinary, to: paths.installedBinary)
-            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: paths.installedBinary.path)
             Self.removeQuarantineAttribute(at: paths.installedBinary)
         }
     }
@@ -777,6 +784,9 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private static func shouldInstallAsSymlink(sourceBinary: URL, paths: AgentPaths) -> Bool {
+        guard paths.applicationSupportDirectory.path.contains("/Library/Containers/com.digipomps.Binding/") else {
+            return false
+        }
         if sourceBinary.standardizedFileURL == paths.stagedBinary.standardizedFileURL {
             return true
         }
@@ -1031,6 +1041,7 @@ final class AgentProvisioningCell: GeneralCell {
 
     private func prepareInstallArtifacts(requester: Identity? = nil) throws -> AgentPaths {
         let paths = try currentPaths()
+        try Self.ensureExternalRuntimeAccess(forHomeDirectory: paths.homeDirectory)
         let fileManager = FileManager.default
 
         for directory in [
@@ -1065,6 +1076,7 @@ final class AgentProvisioningCell: GeneralCell {
         let snapshot = stateQueue.sync { mutableState }
         let sourceRoot = URL(fileURLWithPath: NSString(string: snapshot.sourceRootPath).expandingTildeInPath)
         let homeDirectory = Self.userHomeDirectory()
+        Self.activatePersistedExternalRuntimeAccess(forHomeDirectory: homeDirectory)
         let applicationSupportDirectory = homeDirectory
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
@@ -1115,6 +1127,124 @@ final class AgentProvisioningCell: GeneralCell {
 
         return FileManager.default.homeDirectoryForCurrentUser
     }
+
+    private static func activatePersistedExternalRuntimeAccess(forHomeDirectory homeDirectory: URL) {
+#if os(macOS)
+        runtimeAccessLock.lock()
+        defer { runtimeAccessLock.unlock() }
+        _ = activatePersistedExternalRuntimeAccessLocked(forHomeDirectory: homeDirectory)
+#else
+        _ = homeDirectory
+#endif
+    }
+
+    private static func ensureExternalRuntimeAccess(forHomeDirectory homeDirectory: URL) throws {
+#if os(macOS)
+        runtimeAccessLock.lock()
+        let alreadyActive = activatePersistedExternalRuntimeAccessLocked(forHomeDirectory: homeDirectory)
+        runtimeAccessLock.unlock()
+        if alreadyActive {
+            return
+        }
+
+        let selectedHomeDirectory = try requestExternalRuntimeAccessFromUser(expectedHomeDirectory: homeDirectory)
+        let bookmarkData = try selectedHomeDirectory.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        UserDefaults.standard.set(bookmarkData, forKey: runtimeAccessBookmarkKey)
+
+        runtimeAccessLock.lock()
+        defer { runtimeAccessLock.unlock() }
+        guard activatePersistedExternalRuntimeAccessLocked(forHomeDirectory: homeDirectory) else {
+            throw ProvisioningError.commandFailed(
+                "Binding could not activate external runtime access for \(homeDirectory.path)."
+            )
+        }
+#else
+        _ = homeDirectory
+#endif
+    }
+
+#if os(macOS)
+    private static func activatePersistedExternalRuntimeAccessLocked(forHomeDirectory homeDirectory: URL) -> Bool {
+        if runtimeAccessStarted,
+           runtimeAccessURL?.standardizedFileURL == homeDirectory.standardizedFileURL {
+            return true
+        }
+
+        guard let bookmarkData = UserDefaults.standard.data(forKey: runtimeAccessBookmarkKey) else {
+            return false
+        }
+
+        var bookmarkIsStale = false
+        guard let resolvedURL = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &bookmarkIsStale
+        ) else {
+            return false
+        }
+
+        guard resolvedURL.standardizedFileURL == homeDirectory.standardizedFileURL else {
+            return false
+        }
+
+        if bookmarkIsStale,
+           let refreshedBookmarkData = try? resolvedURL.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+           ) {
+            UserDefaults.standard.set(refreshedBookmarkData, forKey: runtimeAccessBookmarkKey)
+        }
+
+        runtimeAccessURL = resolvedURL
+        runtimeAccessStarted = resolvedURL.startAccessingSecurityScopedResource()
+        return runtimeAccessStarted
+    }
+
+    private static func requestExternalRuntimeAccessFromUser(expectedHomeDirectory: URL) throws -> URL {
+        if Thread.isMainThread {
+            return try showExternalRuntimeAccessPanel(expectedHomeDirectory: expectedHomeDirectory)
+        }
+
+        return try DispatchQueue.main.sync {
+            try showExternalRuntimeAccessPanel(expectedHomeDirectory: expectedHomeDirectory)
+        }
+    }
+
+    private static func showExternalRuntimeAccessPanel(expectedHomeDirectory: URL) throws -> URL {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let panel = NSOpenPanel()
+        panel.title = "Grant HAVENAgent Runtime Access"
+        panel.message = "Binding needs access to your home folder to manage ~/Library/Application Support/HAVENAgent and ~/Library/LaunchAgents outside the app container."
+        panel.prompt = "Grant Access"
+        panel.directoryURL = expectedHomeDirectory
+        panel.showsHiddenFiles = true
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+            throw ProvisioningError.commandFailed(
+                "Grant access to your home folder to install HAVENAgentD outside the app container."
+            )
+        }
+
+        guard selectedURL.standardizedFileURL == expectedHomeDirectory.standardizedFileURL else {
+            throw ProvisioningError.commandFailed(
+                "Select \(expectedHomeDirectory.path) to grant Binding access to the external HAVENAgent runtime."
+            )
+        }
+
+        return selectedURL
+    }
+#endif
 
     private func refreshState(requester: Identity) async {
         let snapshot = stateQueue.sync { mutableState }
