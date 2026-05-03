@@ -15,8 +15,12 @@ struct AgentConversationFlowSubscriberTests {
                 "participantId": .string("participant-phone"),
                 "deviceId": .string("device-phone"),
                 "ticketId": .string("ticket-1"),
+                "requiredActionKey": .string("haven.agent.followup.approval"),
                 "title": .string("HAVENAgent trenger neste prompt"),
                 "message": .string("Jobben er ferdig."),
+                "responseKind": .string("decision"),
+                "decision": .string("approved"),
+                "note": .string("Looks good"),
                 "prompt": .string("Fortsett med neste steg"),
                 "updatedAt": .string("2026-04-20T12:00:00Z")
             ]),
@@ -33,6 +37,10 @@ struct AgentConversationFlowSubscriberTests {
         #expect(prompt?.participantId == "participant-phone")
         #expect(prompt?.deviceId == "device-phone")
         #expect(prompt?.ticketId == "ticket-1")
+        #expect(prompt?.requiredActionKey == "haven.agent.followup.approval")
+        #expect(prompt?.responseKind == "decision")
+        #expect(prompt?.decision == "approved")
+        #expect(prompt?.note == "Looks good")
         #expect(prompt?.prompt == "Fortsett med neste steg")
         #expect(prompt?.receivedAt == "2026-04-20T12:00:00Z")
     }

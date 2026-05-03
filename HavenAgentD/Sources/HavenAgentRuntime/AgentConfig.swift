@@ -261,6 +261,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
     public var scaffold: ScaffoldConnectionConfig
     public var localControlBridge: LocalControlBridgeConfig
     public var watchFolders: [WatchFolderConfig]
+    public var deviceActionRelay: DeviceActionRelayConfig?
     public var automationPolicy: AutomationPolicy
     public var remoteIntentPolicy: RemoteIntentPolicy
 
@@ -270,6 +271,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         scaffold: ScaffoldConnectionConfig,
         localControlBridge: LocalControlBridgeConfig = .init(),
         watchFolders: [WatchFolderConfig],
+        deviceActionRelay: DeviceActionRelayConfig? = nil,
         automationPolicy: AutomationPolicy,
         remoteIntentPolicy: RemoteIntentPolicy = .init()
     ) {
@@ -278,6 +280,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         self.scaffold = scaffold
         self.localControlBridge = localControlBridge
         self.watchFolders = watchFolders
+        self.deviceActionRelay = deviceActionRelay
         self.automationPolicy = automationPolicy
         self.remoteIntentPolicy = remoteIntentPolicy
     }
@@ -375,6 +378,12 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     ]
                 )
             ],
+            deviceActionRelay: DeviceActionRelayConfig(
+                enabled: false,
+                notificationOutboxEndpoint: "cell://staging.haven.example/NotificationOutbox",
+                defaultParticipantID: "replace-with-binding-participant-id",
+                defaultDeviceID: "replace-with-binding-device-id"
+            ),
             automationPolicy: AutomationPolicy(
                 shortcuts: [
                     ShortcutDefinition(

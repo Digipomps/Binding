@@ -22,6 +22,7 @@ enum SkeletonTreeQueries {
         case .Image(let image): return image.modifiers
         case .Text(let text): return text.modifiers
         case .AttachmentField(let attachmentField): return attachmentField.modifiers
+        case .FileUpload(let fileUpload): return fileUpload.modifiers
         case .TextField(let textField): return textField.modifiers
         case .TextArea(let textArea): return textArea.modifiers
         case .HStack(let stack): return stack.modifiers
@@ -35,6 +36,7 @@ enum SkeletonTreeQueries {
         case .Grid(let grid): return grid.modifiers
         case .Toggle(let toggle): return toggle.modifiers
         case .Picker(let picker): return picker.modifiers
+        case .Tabs(let tabs): return tabs.modifiers
         }
     }
 
@@ -52,6 +54,7 @@ enum SkeletonTreeQueries {
         case .Image: return "Image"
         case .Text: return "Text"
         case .AttachmentField: return "AttachmentField"
+        case .FileUpload: return "FileUpload"
         case .TextField: return "TextField"
         case .TextArea: return "TextArea"
         case .HStack: return "HStack"
@@ -65,6 +68,7 @@ enum SkeletonTreeQueries {
         case .Grid: return "Grid"
         case .Toggle: return "Toggle"
         case .Picker: return "Picker"
+        case .Tabs: return "Tabs"
         }
     }
 
@@ -74,7 +78,7 @@ enum SkeletonTreeQueries {
 
     static func canContainChildren(_ element: SkeletonElement) -> Bool {
         switch element {
-        case .HStack, .VStack, .ScrollView, .Section, .ZStack, .Grid:
+        case .HStack, .VStack, .ScrollView, .Section, .ZStack, .Grid, .Tabs:
             return true
         default:
             return false
@@ -124,6 +128,8 @@ enum SkeletonTreeQueries {
             return zStack.elements
         case .Grid(let grid):
             return grid.elements
+        case .Tabs(let tabs):
+            return tabs.panels.flatMap(\.content)
         default:
             return []
         }

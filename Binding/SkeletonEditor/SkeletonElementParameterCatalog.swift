@@ -16,6 +16,11 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
     case resizable
     case scaledToFit
     case width
+    case valueKeypath
+    case stateKeypath
+    case actionKeypath
+    case helperText
+    case acceptedContentTypes
     case sourceKeypath
     case targetKeypath
     case placeholder
@@ -34,13 +39,16 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
     case spacing
     case padding
     case isOn
+    case allowsMultiple
+    case supportsDrop
+    case uploadMode
 
     var id: String { rawValue }
     var title: String { rawValue }
 
     var valueKind: SkeletonElementParameterValueKind {
         switch self {
-        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
+        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn, .allowsMultiple, .supportsDrop:
             return .bool
         case .width, .spacing, .padding:
             return .double
@@ -92,6 +100,21 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             }
         case .width:
             if case .Spacer(let spacer) = element { return spacer.width != nil }
+            return false
+        case .valueKeypath:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.valueKeypath != nil }
+            return false
+        case .stateKeypath:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.stateKeypath != nil }
+            return false
+        case .actionKeypath:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.actionKeypath != nil }
+            return false
+        case .helperText:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.helperText != nil }
+            return false
+        case .acceptedContentTypes:
+            if case .FileUpload(let fileUpload) = element { return !(fileUpload.acceptedContentTypes ?? []).isEmpty }
             return false
         case .sourceKeypath:
             switch element {
@@ -169,6 +192,8 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 return true
             case .Picker(let picker):
                 return picker.label != nil
+            case .FileUpload(let fileUpload):
+                return fileUpload.title != nil
             default:
                 return false
             }
@@ -186,6 +211,15 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             }
         case .isOn:
             if case .Toggle(let toggle) = element { return toggle.isOn }
+            return false
+        case .allowsMultiple:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.allowsMultiple == true }
+            return false
+        case .supportsDrop:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.supportsDrop == true }
+            return false
+        case .uploadMode:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.uploadMode != nil }
             return false
         }
     }
@@ -238,6 +272,12 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Picker(let picker): return picker.allowsEmptySelection
             default: return nil
             }
+        case .allowsMultiple:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.allowsMultiple }
+            return nil
+        case .supportsDrop:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.supportsDrop }
+            return nil
         default:
             return nil
         }
@@ -277,6 +317,21 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             return nil
         case .width:
             if case .Spacer(let spacer) = element { return spacer.width.map { "\($0)" } }
+            return nil
+        case .valueKeypath:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.valueKeypath }
+            return nil
+        case .stateKeypath:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.stateKeypath }
+            return nil
+        case .actionKeypath:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.actionKeypath }
+            return nil
+        case .helperText:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.helperText }
+            return nil
+        case .acceptedContentTypes:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.acceptedContentTypes?.joined(separator: ", ") }
             return nil
         case .sourceKeypath:
             switch element {
@@ -347,8 +402,12 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Button(let button): return button.label
             case .Toggle(let toggle): return toggle.label
             case .Picker(let picker): return picker.label
+            case .FileUpload(let fileUpload): return fileUpload.title
             default: return nil
             }
+        case .uploadMode:
+            if case .FileUpload(let fileUpload) = element { return fileUpload.uploadMode }
+            return nil
         case .axis:
             if case .ScrollView(let scrollView) = element { return scrollView.axis }
             return nil
@@ -361,7 +420,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Reference(let reference): return reference.padding.map { "\($0)" }
             default: return nil
             }
-        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
+        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn, .allowsMultiple, .supportsDrop:
             return nil
         }
     }
@@ -408,12 +467,24 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             _ = set(string: "vertical", on: &element)
         case .width:
             set(double: 16, on: &element)
+        case .valueKeypath:
+            _ = set(string: "attachments.current", on: &element)
+        case .stateKeypath:
+            _ = set(string: "attachments.state", on: &element)
+        case .actionKeypath:
+            _ = set(string: "attachments.upload", on: &element)
+        case .helperText:
+            _ = set(string: "Selected files are sent to the target cell action.", on: &element)
+        case .acceptedContentTypes:
+            _ = set(string: "public.item", on: &element)
         case .spacing:
             set(double: 8, on: &element)
         case .padding:
             set(double: 0, on: &element)
-        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
+        case .resizable, .scaledToFit, .allowsEmptySelection, .isOn, .allowsMultiple, .supportsDrop:
             set(bool: true, on: &element)
+        case .uploadMode:
+            _ = set(string: "base64", on: &element)
         }
     }
 
@@ -479,6 +550,31 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             if case .Spacer(var spacer) = element {
                 spacer.width = nil
                 element = .Spacer(spacer)
+            }
+        case .valueKeypath:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.valueKeypath = nil
+                element = .FileUpload(fileUpload)
+            }
+        case .stateKeypath:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.stateKeypath = nil
+                element = .FileUpload(fileUpload)
+            }
+        case .actionKeypath:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.actionKeypath = nil
+                element = .FileUpload(fileUpload)
+            }
+        case .helperText:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.helperText = nil
+                element = .FileUpload(fileUpload)
+            }
+        case .acceptedContentTypes:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.acceptedContentTypes = nil
+                element = .FileUpload(fileUpload)
             }
         case .sourceKeypath:
             switch element {
@@ -627,6 +723,13 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             }
         case .isOn:
             set(bool: false, on: &element)
+        case .allowsMultiple, .supportsDrop:
+            set(bool: false, on: &element)
+        case .uploadMode:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.uploadMode = nil
+                element = .FileUpload(fileUpload)
+            }
         }
     }
 
@@ -663,6 +766,16 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 element = .Picker(picker)
             default:
                 break
+            }
+        case .allowsMultiple:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.allowsMultiple = value
+                element = .FileUpload(fileUpload)
+            }
+        case .supportsDrop:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.supportsDrop = value
+                element = .FileUpload(fileUpload)
             }
         default:
             break
@@ -788,6 +901,42 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             if case .Image(var image) = element {
                 image.type = trimmed.isEmpty ? nil : trimmed
                 element = .Image(image)
+                return true
+            }
+            return false
+        case .valueKeypath:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.valueKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .FileUpload(fileUpload)
+                return true
+            }
+            return false
+        case .stateKeypath:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.stateKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .FileUpload(fileUpload)
+                return true
+            }
+            return false
+        case .actionKeypath:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.actionKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .FileUpload(fileUpload)
+                return true
+            }
+            return false
+        case .helperText:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.helperText = trimmed.isEmpty ? nil : trimmed
+                element = .FileUpload(fileUpload)
+                return true
+            }
+            return false
+        case .acceptedContentTypes:
+            if case .FileUpload(var fileUpload) = element {
+                let types = Self.parseList(trimmed)
+                fileUpload.acceptedContentTypes = types.isEmpty ? nil : types
+                element = .FileUpload(fileUpload)
                 return true
             }
             return false
@@ -967,9 +1116,20 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 picker.label = trimmed.isEmpty ? nil : trimmed
                 element = .Picker(picker)
                 return true
+            case .FileUpload(var fileUpload):
+                fileUpload.title = trimmed.isEmpty ? nil : trimmed
+                element = .FileUpload(fileUpload)
+                return true
             default:
                 return false
             }
+        case .uploadMode:
+            if case .FileUpload(var fileUpload) = element {
+                fileUpload.uploadMode = trimmed.isEmpty ? nil : trimmed
+                element = .FileUpload(fileUpload)
+                return true
+            }
+            return false
         case .axis:
             if case .ScrollView(var scrollView) = element {
                 scrollView.axis = trimmed.isEmpty ? nil : trimmed
@@ -977,7 +1137,7 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 return true
             }
             return false
-        case .width, .spacing, .padding, .resizable, .scaledToFit, .allowsEmptySelection, .isOn:
+        case .width, .spacing, .padding, .resizable, .scaledToFit, .allowsEmptySelection, .isOn, .allowsMultiple, .supportsDrop:
             return false
         }
     }
@@ -1040,7 +1200,19 @@ enum SkeletonElementParameterCatalog {
                 .selectionPayloadMode,
                 .allowsEmptySelection
             ]
-        case .AttachmentField, .Object, .HStack, .VStack, .Divider, .Section, .ZStack:
+        case .FileUpload:
+            return [
+                .label,
+                .helperText,
+                .valueKeypath,
+                .stateKeypath,
+                .actionKeypath,
+                .acceptedContentTypes,
+                .allowsMultiple,
+                .supportsDrop,
+                .uploadMode
+            ]
+        case .AttachmentField, .Object, .HStack, .VStack, .Divider, .Section, .ZStack, .Tabs:
             return []
         }
     }

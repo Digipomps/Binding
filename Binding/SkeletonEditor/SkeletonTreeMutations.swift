@@ -189,6 +189,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             attachmentField.modifiers = modifiers
             return .AttachmentField(attachmentField)
+        case .FileUpload(var fileUpload):
+            var modifiers = fileUpload.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            fileUpload.modifiers = modifiers
+            return .FileUpload(fileUpload)
         case .TextField(var textField):
             var modifiers = textField.modifiers ?? SkeletonModifiers()
             mutate(&modifiers)
@@ -254,6 +259,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             picker.modifiers = modifiers
             return .Picker(picker)
+        case .Tabs(var tabs):
+            var modifiers = tabs.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            tabs.modifiers = modifiers
+            return .Tabs(tabs)
         }
     }
 
@@ -281,6 +291,9 @@ enum SkeletonTreeMutations {
         case .Grid(let grid):
             guard index < grid.elements.count else { return nil }
             return grid.elements[index]
+        case .Tabs(let tabs):
+            guard let position = tabPanelPosition(forFlattenedChildIndex: index, in: tabs.panels) else { return nil }
+            return tabs.panels[position.panelIndex].content[position.childIndex]
         default:
             return nil
         }
@@ -318,6 +331,10 @@ enum SkeletonTreeMutations {
             guard index < grid.elements.count else { return nil }
             grid.elements[index] = replacement
             return .Grid(grid)
+        case .Tabs(var tabs):
+            guard let position = tabPanelPosition(forFlattenedChildIndex: index, in: tabs.panels) else { return nil }
+            tabs.panels[position.panelIndex].content[position.childIndex] = replacement
+            return .Tabs(tabs)
         default:
             return nil
         }
@@ -351,6 +368,10 @@ enum SkeletonTreeMutations {
             guard index < grid.elements.count else { return nil }
             grid.elements.remove(at: index)
             return .Grid(grid)
+        case .Tabs(var tabs):
+            guard let position = tabPanelPosition(forFlattenedChildIndex: index, in: tabs.panels) else { return nil }
+            tabs.panels[position.panelIndex].content.remove(at: position.childIndex)
+            return .Tabs(tabs)
         default:
             return nil
         }
@@ -386,9 +407,45 @@ enum SkeletonTreeMutations {
             let insertIndex = clamp(index, count: grid.elements.count)
             grid.elements.insert(newChild, at: insertIndex)
             return .Grid(grid)
+        case .Tabs(var tabs):
+            guard let insertion = tabPanelInsertionPosition(forFlattenedChildIndex: index, in: tabs.panels) else { return nil }
+            tabs.panels[insertion.panelIndex].content.insert(newChild, at: insertion.childIndex)
+            return .Tabs(tabs)
         default:
             return nil
         }
+    }
+
+    private static func tabPanelPosition(
+        forFlattenedChildIndex index: Int,
+        in panels: [SkeletonTabPanel]
+    ) -> (panelIndex: Int, childIndex: Int)? {
+        guard index >= 0 else { return nil }
+        var remaining = index
+        for panelIndex in panels.indices {
+            let count = panels[panelIndex].content.count
+            if remaining < count {
+                return (panelIndex, remaining)
+            }
+            remaining -= count
+        }
+        return nil
+    }
+
+    private static func tabPanelInsertionPosition(
+        forFlattenedChildIndex index: Int?,
+        in panels: [SkeletonTabPanel]
+    ) -> (panelIndex: Int, childIndex: Int)? {
+        guard !panels.isEmpty else { return nil }
+        guard let index else {
+            let panelIndex = panels.index(before: panels.endIndex)
+            return (panelIndex, panels[panelIndex].content.count)
+        }
+        if let position = tabPanelPosition(forFlattenedChildIndex: index, in: panels) {
+            return position
+        }
+        let panelIndex = panels.index(before: panels.endIndex)
+        return (panelIndex, panels[panelIndex].content.count)
     }
 
     private static func clamp(_ index: Int?, count: Int) -> Int {

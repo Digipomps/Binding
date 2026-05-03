@@ -64,3 +64,42 @@ The main flow is:
 2. Add renderer support for disabled skeleton buttons if the app should express locked chat as a real disabled control.
 3. Add a selected-entity public-profile lookup adapter once the public profile contract has a stable lookup key from nearby entity identity.
 4. Add iPad and desktop layouts as native surfaces if the generic skeleton layout is not expressive enough for multi-pane behavior.
+
+## Handoff context for next agent
+
+Last updated: 2026-04-28.
+
+Treat this document and files on disk as ground truth. Do not re-import the earlier design sketches as a broader redesign brief unless the user explicitly asks for a new direction. The intended scanner direction is already chosen: calm judged proximity, not a radar/game metaphor.
+
+Important code anchors:
+
+- `Binding/BootstrapView.swift`: `ConferenceNearbyRadarLocalCell` is the local adapter that normalizes `EntityScanner` flow/state into the scanner UX contract. Despite the class name, this is currently the practical Binding-local scanner adapter for judged proximity.
+- `Binding/Cells/ConfigurationCatalogCell.swift`: `entityScannerWorkbenchConfiguration()` and `entityScannerToolConfiguration(...)` compose the workbench skeleton, references, selected-entity detail, filtered list, and action-card surface.
+- `Binding/BindingTests/BindingTests.swift`: scanner/radar behavior is covered by focused tests for filtering, hidden lower matches, selected entity state, and Personal Co-Pilot catalog scope.
+- `Binding/Documentation/EntityScanner_JudgedProximityUX.md`: this handoff and UX discipline note.
+
+Known verified checks from the implementation round:
+
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSupportsVariableEntityCountsWithDistanceDirectionAndRelevance`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/personalCopilotV1MenuConfigurationsAreScopedAndConferenceFree -only-testing:BindingTests/BindingTests/entityScannerWorkbenchConfigurationsStayLocalToBinding`
+- `git diff --check -- Binding/BootstrapView.swift Cells/ConfigurationCatalogCell.swift BindingTests/BindingTests.swift Documentation/README.md`
+
+Do not blur these layers:
+
+- `EntityScanner` owns discovery, proximity, contact exchange, encounter proofs, and exported encounter data.
+- Binding's local adapter owns relevance filtering, selected entity presentation, lower-match visibility, and scanner UX state.
+- Public profile data must come from a public profile/directory reference.
+- Chat must come from a chat hub/reference after signed identity exchange; scanner must not store chat state.
+- Vault export is a handoff/reference, not scanner-owned durable content storage.
+
+Current behavior to preserve:
+
+- `nearbyRadar.state.nearby` is the primary visible list, not the raw feed.
+- `nearbyRadar.state.hiddenNearby` and `nearbyRadar.state.allNearby` exist for audit/debug and lower-match reveal.
+- Low or nearby-only entities are hidden by default, but relationship-state entities remain visible to avoid dead ends.
+- Direction must not be faked. If direction is absent or only BT/MPC precision is available, UI must show uncertain/unknown direction rather than a fabricated bearing.
+- `Accept + exchange` means signed identity exchange. `Identity saved` means relation persistence and encounter proof storage have completed locally.
+
+Smallest sensible next step:
+
+Add native SwiftUI rendering for the direction/distance indicator before broadening the scanner architecture. The data contract already exposes enough state for this: distance, direction confidence, precision/capability mode, and relation/relevance fields. Avoid a new `PublicProfileCell` contract or iPad/desktop-specific native layout until the ring/indicator communicates precision honestly.

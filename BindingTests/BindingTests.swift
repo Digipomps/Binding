@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import XCTest
 import Testing
 import SwiftUI
 import CryptoKit
@@ -15,6 +16,192 @@ import AppKit
 import CellBase
 @testable import CellApple
 @testable import Binding
+
+private enum AgreementOrderingBridgeTransportError: Error {
+    case missingDelegate
+}
+
+private actor AgreementOrderingBridgeTransportScript {
+    static let shared = AgreementOrderingBridgeTransportScript()
+
+    private var descriptionAttempts = 0
+    private var commands: [String] = []
+    private var signedAgreementGrantKeypaths: [String] = []
+
+    func reset() {
+        descriptionAttempts = 0
+        commands = []
+        signedAgreementGrantKeypaths = []
+    }
+
+    func record(command: String) {
+        commands.append(command)
+    }
+
+    func nextDescriptionAttempt() -> Int {
+        descriptionAttempts += 1
+        return descriptionAttempts
+    }
+
+    func recordSignedAgreement(_ agreement: Agreement) {
+        signedAgreementGrantKeypaths = agreement.grants.map(\.keypath)
+    }
+
+    func snapshot() -> (commands: [String], signedAgreementGrantKeypaths: [String]) {
+        (commands, signedAgreementGrantKeypaths)
+    }
+}
+
+private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
+    private var delegate: BridgeDelegateProtocol?
+
+    static func new() -> BridgeTransportProtocol {
+        AgreementOrderingBridgeTransport()
+    }
+
+    func setDelegate(_ delegate: BridgeDelegateProtocol) {
+        self.delegate = delegate
+    }
+
+    func setup(_ endpointURL: URL, identity: Identity) async throws {
+        try await delegate?.consumeCommand(
+            command: BridgeCommand(
+                cmd: Command.ready.rawValue,
+                identity: identity,
+                payload: nil,
+                cid: 0
+            )
+        )
+    }
+
+    func sendData(_ data: Data) async throws {
+        let command = try JSONDecoder().decode(BridgeCommand.self, from: data)
+        await AgreementOrderingBridgeTransportScript.shared.record(command: command.cmd)
+
+        switch command.command {
+        case .description:
+            let attempt = await AgreementOrderingBridgeTransportScript.shared.nextDescriptionAttempt()
+            let description = attempt == 1 ? initialDescription() : remoteDescription()
+            try await respond(to: command, payload: .description(description))
+        case .admit:
+            try await respond(to: command, payload: .connectState(.signContract))
+        case .agreement:
+            if case let .agreementPayload(agreement)? = command.payload {
+                await AgreementOrderingBridgeTransportScript.shared.recordSignedAgreement(agreement)
+            }
+            try await respond(to: command, payload: .contractState(.signed))
+        default:
+            try await respond(to: command, payload: .string("ok"))
+        }
+    }
+
+    func identityVault(for: Identity?) async -> IdentityVaultProtocol {
+        CellBase.defaultIdentityVault!
+    }
+
+    private func respond(to command: BridgeCommand, payload: ValueType) async throws {
+        guard let delegate else {
+            throw AgreementOrderingBridgeTransportError.missingDelegate
+        }
+        let response = BridgeCommand(
+            cmd: Command.response.rawValue,
+            identity: command.identity,
+            payload: payload,
+            cid: command.cid
+        )
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000)
+            try? await delegate.consumeResponse(command: response)
+        }
+    }
+
+    private func initialDescription() -> AnyCell {
+        let remoteOwner = Identity(
+            "remote-agreement-owner",
+            displayName: "Remote Agreement Owner",
+            identityVault: nil
+        )
+        let agreement = Agreement(owner: remoteOwner)
+        agreement.name = "Incomplete Initial Agreement"
+        agreement.addGrant("r---", for: "initialOnly")
+        return AnyCell(
+            uuid: "remote-agreement-cell",
+            name: "RemoteAgreementCell",
+            contractTemplate: agreement,
+            owner: remoteOwner,
+            identityDomain: "remote-agreement-test"
+        )
+    }
+
+    private func remoteDescription() -> AnyCell {
+        let remoteOwner = Identity(
+            "remote-agreement-owner",
+            displayName: "Remote Agreement Owner",
+            identityVault: nil
+        )
+        let agreement = Agreement(owner: remoteOwner)
+        agreement.name = "Remote Agreement For Binding Test"
+        agreement.addGrant("r---", for: "state")
+        agreement.addGrant("r---", for: "skeletonConfiguration")
+        agreement.addGrant("rw--", for: "approveRequest")
+        return AnyCell(
+            uuid: "remote-agreement-cell",
+            name: "RemoteAgreementCell",
+            contractTemplate: agreement,
+            owner: remoteOwner,
+            identityDomain: "remote-agreement-test"
+        )
+    }
+}
+
+private func remoteEndpointAccessAgreementOrderingSnapshot() async throws -> (commands: [String], signedAgreementGrantKeypaths: [String]) {
+    await BindingRuntimeBootstrap.ensureBaseline()
+    let resolver = CellResolver.sharedInstance
+    try await resolver.registerTransport(
+        AgreementOrderingBridgeTransport.self,
+        for: "ws"
+    )
+
+    let endpoint = "ws://agreement-order-\(UUID().uuidString).test/RemoteAgreementCell"
+    let requester = await CellBase.defaultIdentityVault?.identity(
+        for: "binding-test-remote-agreement-order",
+        makeNewIfNotFound: true
+    ) ?? Identity(UUID().uuidString, displayName: "Binding Test", identityVault: CellBase.defaultIdentityVault)
+    await AgreementOrderingBridgeTransportScript.shared.reset()
+
+    do {
+        _ = try await RemoteEndpointAccessSupport.resolveEmit(
+            endpoint: endpoint,
+            resolver: resolver,
+            requester: requester,
+            accessLabel: "agreement-order"
+        )
+    } catch {
+        try? await resolver.registerTransport(LightweightBridgeTransport.self, for: "ws")
+        throw error
+    }
+
+    try await resolver.registerTransport(LightweightBridgeTransport.self, for: "ws")
+    return await AgreementOrderingBridgeTransportScript.shared.snapshot()
+}
+
+final class RemoteEndpointAccessAgreementXCTest: XCTestCase {
+    func testUsesBridgeAgreementBeforeAdmission() async throws {
+        let snapshot = try await remoteEndpointAccessAgreementOrderingSnapshot()
+        let firstAdmit = snapshot.commands.firstIndex(of: Command.admit.rawValue)
+        let firstAgreement = snapshot.commands.firstIndex(of: Command.agreement.rawValue)
+        let secondDescription = snapshot.commands.dropFirst().firstIndex(of: Command.description.rawValue)
+
+        XCTAssertNotNil(secondDescription)
+        XCTAssertNotNil(firstAdmit)
+        XCTAssertNotNil(firstAgreement)
+        if let secondDescription, let firstAdmit {
+            XCTAssertLessThan(secondDescription, firstAdmit)
+        }
+        XCTAssertTrue(snapshot.signedAgreementGrantKeypaths.contains("state"))
+        XCTAssertTrue(snapshot.signedAgreementGrantKeypaths.contains("skeletonConfiguration"))
+    }
+}
 
 @Suite(.serialized)
 struct BindingTests {
@@ -823,9 +1010,11 @@ struct BindingTests {
     @Test func conferenceIdentityLinkInboxParsesDeepLinkChallenge() async throws {
         let store = ConferenceIdentityLinkInboxStore.shared
         await store.clear()
+        let futureExpiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+        let challengeNonce = "aWRlbnRpdHktbGluay1jaGFsbGVuZ2UtcmFuZG9tLTIwMjY"
 
         let url = try #require(
-            URL(string: "haven://identity-link?requestId=REQ-123&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=nonce-123&expiresAt=2026-04-02T12:00:00Z&algorithm=P256-ES256")
+            URL(string: "haven://identity-link?requestId=REQ-123&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=\(challengeNonce)&expiresAt=\(futureExpiry)&algorithm=P256-ES256")
         )
 
         #expect(await store.ingest(url: url))
@@ -843,6 +1032,32 @@ struct BindingTests {
         #expect(incoming["domainSummary"] == .string("Requested domains: private, scaffold"))
         #expect(incoming["scopeSummary"] == .string("Requested scopes: entity-auth, personal-cells"))
         #expect(review["confirmationStatus"] == .string("Lokal brukerbekreftelse mangler."))
+
+        await store.clear()
+    }
+
+    @Test func conferenceIdentityLinkInboxRefusesExpiredChallengeSigning() async throws {
+        let store = ConferenceIdentityLinkInboxStore.shared
+        await store.clear()
+
+        let url = try #require(
+            URL(string: "haven://identity-link?requestId=REQ-EXPIRED&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=nonce-expired&expiresAt=2026-04-02T12:00:00Z&algorithm=P256-ES256")
+        )
+
+        #expect(await store.ingest(url: url))
+
+        let identity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
+        await store.confirmLocalReview(with: identity)
+
+        let state = await store.stateObject()
+        guard case let .object(review)? = state["review"] else {
+            Issue.record("Expected review identity-link state object")
+            await store.clear()
+            return
+        }
+
+        #expect(review["confirmationStatus"] == .string("Challenge er utløpt. Binding nekter å signere enrollment request."))
+        #expect(review["enrollmentRequest"] == .null)
 
         await store.clear()
     }
@@ -1084,6 +1299,29 @@ struct BindingTests {
                 launchArguments: ["Binding", "--enable-conference-automation"],
                 persistedOptIn: false
             ) == true
+        )
+    }
+
+    @Test func conferenceAutomationUsesStartupRuntimeBootstrap() {
+        #expect(
+            BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier(
+                environment: [:],
+                launchArguments: ["Binding", "--enable-conference-automation"]
+            )
+        )
+
+        #expect(
+            BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier(
+                environment: ["BINDING_ENABLE_CONFERENCE_AUTOMATION": "true"],
+                launchArguments: ["Binding"]
+            )
+        )
+
+        #expect(
+            !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier(
+                environment: [:],
+                launchArguments: ["Binding"]
+            )
         )
     }
 
@@ -1541,6 +1779,7 @@ struct BindingTests {
         let aiAssistantConfiguration = ContentView.conferenceAIAssistantAutomationConfiguration()
         let launcherConfiguration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
         let identityLinkConfiguration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+        let agentSetupConfiguration = ConfigurationCatalogCell.agentSetupWorkbenchConfiguration()
         let participantPortalConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
         )
@@ -1560,10 +1799,23 @@ struct BindingTests {
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(aiAssistantConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(launcherConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(identityLinkConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(agentSetupConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantPortalConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantChatConfiguration) == true)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(namedParticipantChatConfiguration) == true)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(controlTowerConfiguration) == false)
+    }
+
+    @Test func agentSetupWorkbenchUsesProvisioningStateBindings() throws {
+        let configuration = ConfigurationCatalogCell.agentSetupWorkbenchConfiguration()
+        let data = try JSONEncoder().encode(configuration)
+        let json = String(decoding: data, as: UTF8.self)
+
+        #expect(json.contains("agentSetup.state.agent.setup.status.installStage"))
+        #expect(json.contains("agentSetup.state.agent.setup.review.queueState"))
+        #expect(json.contains("agentSetup.state.agent.setup.activity"))
+        #expect(json.contains("agentSetup.state.status.installStage") == false)
+        #expect(json.contains("agentSetup.state.review.queueState") == false)
     }
 
     @Test func conferenceBridgeHeavySurfacesUseExtendedLoadTimeouts() {
@@ -1781,6 +2033,22 @@ struct BindingTests {
         let repairedRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
         #expect(repairedRoute?.websocketEndpoint == "bridgehead")
         #expect(repairedRoute?.schemePreference == .wss)
+    }
+
+    @Test func remoteEndpointAccessUsesBridgeAgreementBeforeAdmission() async throws {
+        let snapshot = try await remoteEndpointAccessAgreementOrderingSnapshot()
+        let firstAdmit = snapshot.commands.firstIndex(of: Command.admit.rawValue)
+        let firstAgreement = snapshot.commands.firstIndex(of: Command.agreement.rawValue)
+        let secondDescription = snapshot.commands.dropFirst().firstIndex(of: Command.description.rawValue)
+
+        #expect(secondDescription != nil)
+        #expect(firstAdmit != nil)
+        #expect(firstAgreement != nil)
+        if let secondDescription, let firstAdmit {
+            #expect(secondDescription < firstAdmit)
+        }
+        #expect(snapshot.signedAgreementGrantKeypaths.contains("state"))
+        #expect(snapshot.signedAgreementGrantKeypaths.contains("skeletonConfiguration"))
     }
 
     @Test func conferencePublicConfigurationRegistersRouteFromDiscoveryEndpoint() {
@@ -2154,6 +2422,30 @@ struct BindingTests {
         }
 
         #expect(provisioningResolved == false)
+    }
+
+    @Test func localStartupPortholeExposesAgentSetupWorkbenchWhenOptedIn() async throws {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey) }
+
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver after local startup bootstrap")
+            return
+        }
+        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup vault identity for local startup bootstrap")
+            return
+        }
+
+        let provisioning = try? await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
+        #expect(provisioning != nil)
     }
 
     @Test func localBootstrapRegistersPerspectiveCell() async throws {
@@ -4135,6 +4427,27 @@ struct BindingTests {
         #expect(configurationNames.contains("Agent Setup Workbench") == false)
     }
 
+    @Test func configurationCatalogExposesAgentSetupWorkbenchWhenOptedIn() async throws {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey) }
+
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        let configurations = try await cell.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = configurations else {
+            Issue.record("Forventet liste fra configurations")
+            return
+        }
+
+        let configurationNames = items.compactMap { value -> String? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name
+        }
+
+        #expect(configurationNames.contains("Agent Setup Workbench"))
+    }
+
     @Test func bindingLocalRegistrationDoesNotRegisterAgentAdminCells() async throws {
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
@@ -4170,6 +4483,33 @@ struct BindingTests {
 
         #expect(provisioningResolved == false)
         #expect(enrollmentResolved == false)
+    }
+
+    @Test func bindingLocalRegistrationRegistersAgentAdminCellsWhenOptedIn() async throws {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey) }
+
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected shared resolver after local registration.")
+            return
+        }
+        guard let owner = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup identity for local registration.")
+            return
+        }
+
+        let provisioning = try? await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
+        let enrollment = try? await resolver.cellAtEndpoint(endpoint: "cell:///AgentEnrollment", requester: owner)
+
+        #expect(provisioning != nil)
+        #expect(enrollment != nil)
     }
 
     @Test func configurationCatalogQueryReturnsRankedResults() async throws {
@@ -5148,6 +5488,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
+            }
         default:
             return false
         }
@@ -5177,6 +5521,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsButtonWithNilPayload(keypath: keypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsButtonWithNilPayload(keypath: keypath, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsButtonWithNilPayload(keypath: keypath, in: $0) }
+            }
         default:
             return false
         }
@@ -5206,6 +5554,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsTextArea(targetKeypath: targetKeypath, in: $0) }
+            }
         default:
             return false
         }
@@ -5235,6 +5587,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsTextField(targetKeypath: targetKeypath, in: $0) }
+            }
         default:
             return false
         }
@@ -5348,6 +5704,17 @@ struct BindingTests {
                     in: $0
                 )
             }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains {
+                    skeletonContainsPicker(
+                        keypath: keypath,
+                        selectionStateKeypath: selectionStateKeypath,
+                        selectionActionKeypath: selectionActionKeypath,
+                        in: $0
+                    )
+                }
+            }
         default:
             return false
         }
@@ -5378,6 +5745,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsList(keypath: keypath, topic: topic, in: $0) }
+            }
         default:
             return false
         }
@@ -5534,6 +5905,20 @@ struct BindingTests {
                     in: $0
                 )
             }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains {
+                    skeletonContainsSelectableList(
+                        keypath: keypath,
+                        topic: topic,
+                        selectionStateKeypath: selectionStateKeypath,
+                        selectionActionKeypath: selectionActionKeypath,
+                        selectionValueKeypath: selectionValueKeypath,
+                        activationActionKeypath: activationActionKeypath,
+                        in: $0
+                    )
+                }
+            }
         default:
             return false
         }
@@ -5563,6 +5948,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsTextKeypath(keypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsTextKeypath(keypath, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsTextKeypath(keypath, in: $0) }
+            }
         default:
             return false
         }
@@ -5584,6 +5973,8 @@ struct BindingTests {
             append(text.modifiers)
         case .AttachmentField(let attachmentField):
             append(attachmentField.modifiers)
+        case .FileUpload(let fileUpload):
+            append(fileUpload.modifiers)
         case .TextField(let textField):
             append(textField.modifiers)
         case .TextArea(let textArea):
@@ -5652,6 +6043,12 @@ struct BindingTests {
         case .Object(let object):
             append(object.modifiers)
             object.elements.values.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+        case .Tabs(let tabs):
+            append(tabs.modifiers)
+            tabs.panels.forEach { panel in
+                append(panel.modifiers)
+                panel.content.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            }
         }
 
         return roles
@@ -5685,6 +6082,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsGrid(keypath: keypath, in: $0) }
+            }
         default:
             return false
         }
@@ -5718,6 +6119,10 @@ struct BindingTests {
             return stack.elements.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
         case .Object(let object):
             return object.elements.values.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsReference(keypath: keypath, topic: topic, in: $0) }
+            }
         default:
             return false
         }
@@ -7639,7 +8044,7 @@ enum CellConfigurationVerifier {
         into collected: inout [SkeletonBindingProbeSupport.RootProbe: [String]]
     ) {
         let skeletonElementKinds: Set<String> = [
-            "Text", "TextField", "TextArea", "List", "Object", "Reference",
+            "Text", "AttachmentField", "FileUpload", "TextField", "TextArea", "List", "Object", "Reference",
             "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
             "ScrollView", "Section", "ZStack", "Grid", "Divider"
         ]
@@ -7757,6 +8162,8 @@ enum CellConfigurationVerifier {
             return stack.elements.flatMap(collectButtons)
         case .Object(let object):
             return object.elements.values.flatMap(collectButtons)
+        case .Tabs(let tabs):
+            return tabs.panels.flatMap { $0.content.flatMap(collectButtons) }
         default:
             return []
         }

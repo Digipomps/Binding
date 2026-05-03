@@ -125,8 +125,11 @@ final class AgentProvisioningCell: GeneralCell {
     private struct AgentPaths {
         var sourceRoot: URL
         var packageDirectory: URL
+        var stagingDirectory: URL
+        var stagedBinary: URL
         var buildBinary: URL
         var alternateBuildBinary: URL
+        var bundledBinary: URL?
         var homeDirectory: URL
         var applicationSupportDirectory: URL
         var agentDirectory: URL
@@ -720,33 +723,88 @@ final class AgentProvisioningCell: GeneralCell {
         }
         let paths = try prepareInstallArtifacts()
         let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: paths.sourceRoot.path) else {
-            throw ProvisioningError.missingSourceRoot(paths.sourceRoot.path)
-        }
-        guard fileManager.fileExists(atPath: paths.packageDirectory.appendingPathComponent("Package.swift").path) else {
-            throw ProvisioningError.missingAgentPackage(paths.packageDirectory.path)
+        if Self.preferredBuiltBinary(paths: paths, fileManager: fileManager) == nil {
+            guard fileManager.fileExists(atPath: paths.sourceRoot.path) else {
+                throw ProvisioningError.missingSourceRoot(paths.sourceRoot.path)
+            }
+            guard fileManager.fileExists(atPath: paths.packageDirectory.appendingPathComponent("Package.swift").path) else {
+                throw ProvisioningError.missingAgentPackage(paths.packageDirectory.path)
+            }
+
+            let build = try Self.runCommand(
+                "/usr/bin/swift",
+                arguments: ["build", "--product", "haven-agentd"],
+                currentDirectory: paths.packageDirectory
+            )
+            guard build.succeeded else {
+                let guidance = "Prebuild HavenAgentD from Terminal with `swift build --package-path \(paths.packageDirectory.path) --product haven-agentd` and retry install."
+                throw ProvisioningError.buildFailed("\(Self.trimmedOutput(from: build)) \(guidance)")
+            }
         }
 
-        let build = try Self.runCommand(
-            "/usr/bin/xcrun",
-            arguments: ["swift", "build", "--product", "haven-agentd"],
-            currentDirectory: paths.packageDirectory
-        )
-        guard build.succeeded else {
-            throw ProvisioningError.buildFailed(Self.trimmedOutput(from: build))
-        }
-
-        let builtBinary = fileManager.isExecutableFile(atPath: paths.buildBinary.path) ? paths.buildBinary :
-            (fileManager.isExecutableFile(atPath: paths.alternateBuildBinary.path) ? paths.alternateBuildBinary : paths.buildBinary)
-        guard fileManager.isExecutableFile(atPath: builtBinary.path) else {
-            throw ProvisioningError.missingBuiltBinary(builtBinary.path)
+        guard let builtBinary = Self.preferredBuiltBinary(paths: paths, fileManager: fileManager) else {
+            throw ProvisioningError.missingBuiltBinary(paths.buildBinary.path)
         }
 
         if fileManager.fileExists(atPath: paths.installedBinary.path) {
             try fileManager.removeItem(at: paths.installedBinary)
         }
-        try fileManager.copyItem(at: builtBinary, to: paths.installedBinary)
-        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: paths.installedBinary.path)
+        if Self.shouldInstallAsSymlink(sourceBinary: builtBinary, paths: paths) {
+            try fileManager.createSymbolicLink(at: paths.installedBinary, withDestinationURL: builtBinary)
+        } else {
+            try fileManager.copyItem(at: builtBinary, to: paths.installedBinary)
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: paths.installedBinary.path)
+            Self.removeQuarantineAttribute(at: paths.installedBinary)
+        }
+    }
+
+    private static func regularFileExists(
+        at fileURL: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        var isDirectory = ObjCBool(false)
+        let exists = fileManager.fileExists(atPath: fileURL.path, isDirectory: &isDirectory)
+        return exists && !isDirectory.boolValue
+    }
+
+    private static func removeQuarantineAttribute(at fileURL: URL) {
+#if os(macOS)
+        fileURL.withUnsafeFileSystemRepresentation { fileSystemPath in
+            guard let fileSystemPath else { return }
+            removexattr(fileSystemPath, "com.apple.quarantine", 0)
+        }
+#endif
+    }
+
+    private static func shouldInstallAsSymlink(sourceBinary: URL, paths: AgentPaths) -> Bool {
+        if sourceBinary.standardizedFileURL == paths.stagedBinary.standardizedFileURL {
+            return true
+        }
+        if let bundledBinary = paths.bundledBinary,
+           sourceBinary.standardizedFileURL == bundledBinary.standardizedFileURL {
+            return true
+        }
+        return false
+    }
+
+    private static func preferredBuiltBinary(
+        paths: AgentPaths,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        if regularFileExists(at: paths.stagedBinary, fileManager: fileManager) {
+            return paths.stagedBinary
+        }
+        if let bundledBinary = paths.bundledBinary,
+           regularFileExists(at: bundledBinary, fileManager: fileManager) {
+            return bundledBinary
+        }
+        if regularFileExists(at: paths.buildBinary, fileManager: fileManager) {
+            return paths.buildBinary
+        }
+        if regularFileExists(at: paths.alternateBuildBinary, fileManager: fileManager) {
+            return paths.alternateBuildBinary
+        }
+        return nil
     }
 
     private func startLaunchAgent() throws {
@@ -754,7 +812,7 @@ final class AgentProvisioningCell: GeneralCell {
             throw ProvisioningError.unsupportedPlatform("Starting the local HAVEN agent")
         }
         let paths = try prepareInstallArtifacts()
-        guard FileManager.default.isExecutableFile(atPath: paths.installedBinary.path) else {
+        guard Self.regularFileExists(at: paths.installedBinary) else {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
         }
 
@@ -799,7 +857,7 @@ final class AgentProvisioningCell: GeneralCell {
             throw ProvisioningError.unsupportedPlatform("Connecting the local HAVEN agent")
         }
         let paths = try prepareInstallArtifacts()
-        guard FileManager.default.isExecutableFile(atPath: paths.installedBinary.path) else {
+        guard Self.regularFileExists(at: paths.installedBinary) else {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
         }
 
@@ -882,7 +940,7 @@ final class AgentProvisioningCell: GeneralCell {
             throw ProvisioningError.unsupportedPlatform("Running local review commands")
         }
         let paths = try prepareInstallArtifacts()
-        guard FileManager.default.isExecutableFile(atPath: paths.installedBinary.path) else {
+        guard Self.regularFileExists(at: paths.installedBinary) else {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
         }
 
@@ -978,6 +1036,7 @@ final class AgentProvisioningCell: GeneralCell {
         for directory in [
             paths.agentDirectory,
             paths.binDirectory,
+            paths.stagingDirectory,
             paths.logsDirectory,
             paths.stateDirectory,
             paths.cellDocumentsDirectory,
@@ -1013,6 +1072,7 @@ final class AgentProvisioningCell: GeneralCell {
             create: true
         )
         let agentDirectory = applicationSupportDirectory.appendingPathComponent("HAVENAgent", isDirectory: true)
+        let stagingDirectory = agentDirectory.appendingPathComponent("Staging", isDirectory: true)
         let launchAgentsDirectory: URL = {
 #if os(macOS)
             homeDirectory.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
@@ -1020,12 +1080,16 @@ final class AgentProvisioningCell: GeneralCell {
             agentDirectory.appendingPathComponent("LaunchAgents", isDirectory: true)
 #endif
         }()
+        let bundledBinary = Bundle.main.resourceURL?.appendingPathComponent("HAVENAgent/haven-agentd")
 
         return AgentPaths(
             sourceRoot: sourceRoot,
             packageDirectory: sourceRoot.appendingPathComponent("HavenAgentD", isDirectory: true),
+            stagingDirectory: stagingDirectory,
+            stagedBinary: stagingDirectory.appendingPathComponent("haven-agentd"),
             buildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/debug/haven-agentd"),
             alternateBuildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd"),
+            bundledBinary: bundledBinary,
             homeDirectory: homeDirectory,
             applicationSupportDirectory: applicationSupportDirectory,
             agentDirectory: agentDirectory,
@@ -1047,8 +1111,10 @@ final class AgentProvisioningCell: GeneralCell {
         guard let paths = try? currentPaths() else { return }
 
         let fileManager = FileManager.default
-        let buildBinaryExists = fileManager.isExecutableFile(atPath: paths.buildBinary.path) || fileManager.isExecutableFile(atPath: paths.alternateBuildBinary.path)
-        let installedBinaryExists = fileManager.isExecutableFile(atPath: paths.installedBinary.path)
+        let stagedBinaryExists = Self.regularFileExists(at: paths.stagedBinary, fileManager: fileManager)
+        let bundledBinaryExists = paths.bundledBinary.map { Self.regularFileExists(at: $0, fileManager: fileManager) } ?? false
+        let repoBuildBinaryExists = Self.regularFileExists(at: paths.buildBinary, fileManager: fileManager) || Self.regularFileExists(at: paths.alternateBuildBinary, fileManager: fileManager)
+        let installedBinaryExists = Self.regularFileExists(at: paths.installedBinary, fileManager: fileManager)
         let configExists = fileManager.fileExists(atPath: paths.configFile.path)
         let starterAuthFile = paths.agentDirectory.appendingPathComponent("starter-auth.json")
         let starterAuthExists = fileManager.fileExists(atPath: starterAuthFile.path)
@@ -1148,7 +1214,9 @@ final class AgentProvisioningCell: GeneralCell {
                 return "Local HAVEN agent install is only available on macOS"
             }
             if installedBinaryExists { return "Installed in Application Support" }
-            if buildBinaryExists { return "Build output ready to install" }
+            if stagedBinaryExists { return "Staged binary ready to install" }
+            if bundledBinaryExists { return "Bundled binary ready to install" }
+            if repoBuildBinaryExists { return "Build output ready to install" }
             if fileManager.fileExists(atPath: paths.packageDirectory.appendingPathComponent("Package.swift").path) {
                 return "Ready to build from source"
             }
@@ -1167,7 +1235,11 @@ final class AgentProvisioningCell: GeneralCell {
 
         let binaryState = installedBinaryExists
             ? "Installed binary: \(paths.installedBinary.path)"
-            : (buildBinaryExists ? "Build available in \(paths.packageDirectory.path)" : "No built agent binary detected.")
+            : (
+                stagedBinaryExists ? "Staged binary: \(paths.stagedBinary.path)"
+                : (bundledBinaryExists ? "Bundled binary: \(paths.bundledBinary?.path ?? "")"
+                : (repoBuildBinaryExists ? "Build available in \(paths.packageDirectory.path)" : "No built agent binary detected."))
+            )
         let configState: String = {
             if configExists && starterAuthExists && entityLinkExists {
                 return "Config written to \(paths.configFile.path) with starter auth and entity-link evidence."

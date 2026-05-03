@@ -6,6 +6,12 @@ OUT_DIR="${1:-/tmp/binding-conference-smoke-$(date +%Y%m%d-%H%M%S)}"
 APP_NAME="Binding"
 AUTOMATION_MENU="Conference Automation"
 MODULE_CACHE_DIR="${BINDING_MODULE_CACHE_DIR:-$OUT_DIR/clang-module-cache}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="${BINDING_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+AGENT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_BINARY:-$REPO_ROOT/HavenAgentD/.build/debug/haven-agentd}"
+AGENT_ALT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_ALT_BINARY:-$REPO_ROOT/HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd}"
+AGENT_STAGING_DIR="${BINDING_AGENT_STAGING_DIR:-$HOME/Library/Containers/com.digipomps.Binding/Data/Library/Application Support/HAVENAgent/Staging}"
+AGENT_STAGING_BINARY="$AGENT_STAGING_DIR/haven-agentd"
 
 mkdir -p "$OUT_DIR"
 mkdir -p "$MODULE_CACHE_DIR"
@@ -118,11 +124,64 @@ run_menu_action() {
     -e "delay $delay_seconds" >/dev/null
 }
 
+validate_capture_hashes() {
+  typeset -A seen_hashes=()
+  local capture_count=0
+  local image hash
+
+  for image in "$OUT_DIR"/*.png; do
+    [[ -e "$image" ]] || continue
+    hash="$(md5 -q "$image")"
+    seen_hashes["$hash"]=1
+    (( capture_count += 1 ))
+  done
+
+  if (( capture_count == 0 )); then
+    echo "- Screenshot validation: failed (no captures produced)." >> "$OUT_DIR/report.md"
+    echo "Smoke capture validation failed: no screenshots were produced." >&2
+    return 1
+  fi
+
+  local unique_hash_count="${#seen_hashes}"
+  echo "- Screenshot validation: ${unique_hash_count} unique hash(es) across ${capture_count} capture(s)." >> "$OUT_DIR/report.md"
+
+  if (( unique_hash_count <= 1 )); then
+    echo "Smoke capture validation failed: all screenshots were identical. Screen capture likely returned blank or blocked frames." >&2
+    return 1
+  fi
+}
+
+stage_agent_binary() {
+  local source_binary=""
+
+  if [[ -x "$AGENT_BUILD_BINARY" ]]; then
+    source_binary="$AGENT_BUILD_BINARY"
+  elif [[ -x "$AGENT_ALT_BUILD_BINARY" ]]; then
+    source_binary="$AGENT_ALT_BUILD_BINARY"
+  fi
+
+  if [[ -n "$source_binary" ]]; then
+    mkdir -p "$AGENT_STAGING_DIR"
+    cp -f "$source_binary" "$AGENT_STAGING_BINARY"
+    chmod 755 "$AGENT_STAGING_BINARY"
+    echo "- Agent staging binary: \`$AGENT_STAGING_BINARY\` (from \`$source_binary\`)" >> "$OUT_DIR/report.md"
+    return 0
+  fi
+
+  if [[ -x "$AGENT_STAGING_BINARY" ]]; then
+    echo "- Agent staging binary: reusing existing \`$AGENT_STAGING_BINARY\`" >> "$OUT_DIR/report.md"
+    return 0
+  fi
+
+  echo "- Agent staging binary: unavailable (no built haven-agentd found)." >> "$OUT_DIR/report.md"
+}
+
 echo "# Conference Demo Smoke Report" > "$OUT_DIR/report.md"
 echo >> "$OUT_DIR/report.md"
 echo "- Date: $(date '+%Y-%m-%d %H:%M:%S %Z')" >> "$OUT_DIR/report.md"
 echo "- App binary: \`$APP_BINARY\`" >> "$OUT_DIR/report.md"
 echo "- Output dir: \`$OUT_DIR\`" >> "$OUT_DIR/report.md"
+stage_agent_binary
 
 osascript -e "tell application \"$APP_NAME\" to quit" >/dev/null 2>&1 || true
 pkill -f "$APP_BINARY" 2>/dev/null || true
@@ -157,14 +216,36 @@ capture_step "$APP_PID" "public-surface" 5
 run_menu_action "$APP_PID" "Open Conference Control Tower"
 capture_step "$APP_PID" "control-tower" 6
 
+run_menu_action "$APP_PID" "Open Conference Sponsor Follow-up" 20.0
+capture_step "$APP_PID" "sponsor-follow-up" 7
+
+run_menu_action "$APP_PID" "Open Conference MVP" 20.0
+capture_step "$APP_PID" "conference-mvp" 8
+
 run_menu_action "$APP_PID" "Open Conference AI Assistant" 30.0
-capture_step "$APP_PID" "ai-assistant" 7
+capture_step "$APP_PID" "ai-assistant" 9
 
 run_menu_action "$APP_PID" "Open Conference Scaffold Setup & Identity Link"
-capture_step "$APP_PID" "identity-link" 8
+capture_step "$APP_PID" "identity-link" 10
+
+run_menu_action "$APP_PID" "Open Agent Setup Workbench" 4.0
+capture_step "$APP_PID" "agent-setup" 11
+
+run_menu_action "$APP_PID" "Install HAVENAgentD" 25.0
+capture_step "$APP_PID" "agent-installed" 12
+
+run_menu_action "$APP_PID" "Start HAVENAgentD" 8.0
+run_menu_action "$APP_PID" "Run HAVENAgentD Once" 10.0
+capture_step "$APP_PID" "agent-connected" 13
+
+run_menu_action "$APP_PID" "Queue Agent Safari Review" 5.0
+run_menu_action "$APP_PID" "Approve Agent Review" 5.0
+capture_step "$APP_PID" "agent-review-approved" 14
 
 echo >> "$OUT_DIR/report.md"
 echo "- Binding log: \`$OUT_DIR/binding.log\`" >> "$OUT_DIR/report.md"
+
+validate_capture_hashes
 
 echo "Conference demo smoke run complete."
 echo "Report: $OUT_DIR/report.md"

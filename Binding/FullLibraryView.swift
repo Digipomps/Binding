@@ -51,6 +51,13 @@ nonisolated enum LibraryPreviewSkeletonSupport {
                 modifiers: attachment.modifiers
             )
 
+        case .FileUpload(let fileUpload):
+            return placeholderCollection(
+                title: fileUpload.title ?? fileUpload.emptyTitle ?? "File upload",
+                detail: fileUpload.emptyMessage ?? fileUpload.helperText ?? "Native file picker/drop surface preview.",
+                modifiers: fileUpload.modifiers
+            )
+
         case .TextField(let field):
             let previewText = previewFieldText(
                 text: field.text,
@@ -229,6 +236,36 @@ nonisolated enum LibraryPreviewSkeletonSupport {
                 title: picker.label ?? picker.placeholder ?? "Preview picker",
                 detail: previewLabel(from: picker.keypath) ?? "Statisk valgpreview i biblioteket.",
                 modifiers: picker.modifiers
+            )
+
+        case .Tabs(let tabs):
+            var usesPlaceholders = false
+            let sanitizedPanels = tabs.panels.map { panel in
+                let sanitizedContent = sanitize(panel.content)
+                usesPlaceholders = usesPlaceholders || sanitizedContent.contains(where: \.usesPlaceholders)
+                return SkeletonTabPanel(
+                    id: panel.id,
+                    content: sanitizedContent.map(\.element),
+                    modifiers: panel.modifiers
+                )
+            }
+            return PreparedPreview(
+                element: .Tabs(
+                    SkeletonTabs(
+                        id: tabs.id,
+                        tabsKeypath: nil,
+                        activeTabStateKeypath: tabs.activeTabStateKeypath,
+                        selectionActionKeypath: nil,
+                        idKeypath: tabs.idKeypath,
+                        labelKeypath: tabs.labelKeypath,
+                        panels: sanitizedPanels,
+                        modifiers: tabs.modifiers
+                    )
+                ),
+                usesPlaceholders:
+                    usesPlaceholders ||
+                    tabs.tabsKeypath != nil ||
+                    tabs.selectionActionKeypath != nil
             )
 
         case .Image(var image):

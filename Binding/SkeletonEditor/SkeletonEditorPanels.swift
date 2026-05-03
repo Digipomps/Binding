@@ -853,6 +853,7 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
     case text
     case textField
     case textArea
+    case fileUpload
     case image
     case spacer
     case button
@@ -876,6 +877,7 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
         case .text: return "Text"
         case .textField: return "TextField"
         case .textArea: return "TextArea"
+        case .fileUpload: return "FileUpload"
         case .image: return "Image"
         case .spacer: return "Spacer"
         case .button: return "Button"
@@ -914,6 +916,20 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
                     sourceKeypath: "input.body",
                     targetKeypath: "input.body",
                     placeholder: "Write here"
+                )
+            )
+        case .fileUpload:
+            return .FileUpload(
+                SkeletonFileUpload(
+                    title: "Upload file",
+                    helperText: "Files are sent to the target cell action.",
+                    valueKeypath: "attachments.current",
+                    stateKeypath: "attachments.state",
+                    actionKeypath: "attachments.upload",
+                    acceptedContentTypes: ["public.item"],
+                    allowsMultiple: false,
+                    supportsDrop: true,
+                    uploadMode: "base64"
                 )
             )
         case .image:

@@ -248,6 +248,7 @@ public actor AgentRuntime {
     private let sleep: PortholeLifecycleController.SleepFunction
     private var portholeLifecycleController: PortholeLifecycleController?
     private var monitors: [FolderMonitor] = []
+    private var deviceActionRelay: DeviceActionRelay?
     private var state: AgentRuntimeState?
 
     public init(
@@ -301,6 +302,10 @@ public actor AgentRuntime {
     public func stop() async throws {
         await sessionSupervisor.stop()
         await stopPortholeLifecycle()
+        if let deviceActionRelay {
+            await deviceActionRelay.stop()
+            self.deviceActionRelay = nil
+        }
         stopMonitors()
         state?.status = "stopped"
         try await persistState()
@@ -347,6 +352,33 @@ public actor AgentRuntime {
             state?.lastSproutBootstrap = bootstrapRecord
             state?.lastError = nil
             try await persistState()
+        }
+
+        if let relayConfig = config.deviceActionRelay, relayConfig.enabled {
+            let relay = DeviceActionRelay(paths: paths, config: relayConfig)
+            deviceActionRelay = relay
+            do {
+                try await relay.bootstrap()
+                let relayMonitor = FolderMonitor(
+                    configuration: WatchFolderConfig(
+                        id: "device-action-requests",
+                        path: relay.requestsDirectoryURL().path,
+                        topic: "device.action.requests",
+                        events: [.write, .rename],
+                        actions: []
+                    )
+                ) { [weak self] _ in
+                    Task {
+                        await self?.scanPendingDeviceActions()
+                    }
+                }
+                try relayMonitor.start()
+                monitors.append(relayMonitor)
+                _ = try await relay.scanPendingRequests()
+                try await relay.connectConversationReplies()
+            } catch {
+                await recordDeviceActionRelayError(error)
+            }
         }
 
         for watchFolder in config.watchFolders {
@@ -458,6 +490,28 @@ public actor AgentRuntime {
     private func stopMonitors() {
         monitors.forEach { $0.stop() }
         monitors.removeAll()
+    }
+
+    private func scanPendingDeviceActions() async {
+        guard let deviceActionRelay else {
+            return
+        }
+
+        do {
+            let records = try await deviceActionRelay.scanPendingRequests()
+            if let lastRecord = records.last {
+                state?.lastEventSummary = "Device action published for \(lastRecord.action.participantId) (\(lastRecord.receipt.ticketId))"
+                state?.lastError = nil
+                try await persistState()
+            }
+        } catch {
+            await recordDeviceActionRelayError(error)
+        }
+    }
+
+    private func recordDeviceActionRelayError(_ error: Error) async {
+        state?.lastError = error.localizedDescription
+        try? await persistState()
     }
 
     private static func iso8601String(_ date: Date) -> String {

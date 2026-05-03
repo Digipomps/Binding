@@ -73,6 +73,7 @@ enum BindingLaunchWarmup {
 
 enum BindingRuntimeBootstrap {
     nonisolated private static let localRuntimeOnlyVerifierFlagPath = "/tmp/binding-verifier-local-runtime.flag"
+    nonisolated private static let conferenceAutomationLaunchArgument = "--enable-conference-automation"
 
     @MainActor
     static func ensureInfrastructureBaseline() async {
@@ -139,12 +140,24 @@ enum BindingRuntimeBootstrap {
     }
 
     nonisolated static func shouldUseLocalRuntimeOnlyForVerifier(
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments
     ) -> Bool {
         if let mode = environment["BINDING_VERIFIER_IDENTITY_MODE"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased(),
            ["startup", "local", "test", "deterministic"].contains(mode) {
+            return true
+        }
+
+        if launchArguments.contains(Self.conferenceAutomationLaunchArgument) {
+            return true
+        }
+
+        if let rawValue = environment["BINDING_ENABLE_CONFERENCE_AUTOMATION"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+           ["1", "true", "yes"].contains(rawValue) {
             return true
         }
 

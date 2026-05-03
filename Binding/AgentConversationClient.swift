@@ -16,6 +16,43 @@ final class AgentConversationClient {
             throw AgentConversationClientError.emptyPrompt
         }
 
+        try await postResponse(
+            action: action,
+            prompt: trimmedPrompt,
+            responseKind: "prompt",
+            decision: nil,
+            note: nil
+        )
+    }
+
+    func postDecision(
+        action: PendingDeviceAction,
+        decision: AgentConversationDecision,
+        note: String? = nil
+    ) async throws {
+        let normalizedNote = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = Self.decisionPrompt(decision: decision, note: normalizedNote)
+        try await postResponse(
+            action: action,
+            prompt: prompt,
+            responseKind: "decision",
+            decision: decision.rawValue,
+            note: normalizedNote
+        )
+    }
+
+    private func postResponse(
+        action: PendingDeviceAction,
+        prompt: String,
+        responseKind: String,
+        decision: String?,
+        note: String?
+    ) async throws {
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedPrompt.isEmpty == false else {
+            throw AgentConversationClientError.emptyPrompt
+        }
+
         let endpoint = Self.endpoint()
         registerRemoteHostIfNeeded(for: endpoint)
         guard let resolver = CellBase.defaultCellResolver else {
@@ -31,7 +68,15 @@ final class AgentConversationClient {
 
         let response = try await meddle.set(
             keypath: "postPrompt",
-            value: .object(Self.postPromptPayload(action: action, prompt: trimmedPrompt).mapValues(\.valueType)),
+            value: .object(
+                Self.postPromptPayload(
+                    action: action,
+                    prompt: trimmedPrompt,
+                    responseKind: responseKind,
+                    decision: decision,
+                    note: note
+                ).mapValues(\.valueType)
+            ),
             requester: requester
         )
         if case let .string(message)? = response,
@@ -50,15 +95,26 @@ final class AgentConversationClient {
 
     nonisolated static func postPromptPayload(
         action: PendingDeviceAction,
-        prompt: String
+        prompt: String,
+        responseKind: String = "prompt",
+        decision: String? = nil,
+        note: String? = nil
     ) -> [String: JSONValue] {
         var payload: [String: JSONValue] = [
             "participantId": .string(action.participantId),
             "deviceId": .string(action.deviceId),
             "ticketId": .string(action.ticketId),
             "requiredActionKey": .string(action.requiredActionKey),
-            "prompt": .string(prompt)
+            "prompt": .string(prompt),
+            "responseKind": .string(responseKind)
         ]
+
+        if let decision {
+            payload["decision"] = .string(decision)
+        }
+        if let note, note.isEmpty == false {
+            payload["note"] = .string(note)
+        }
 
         if let conversationId = stringValue(action.payload["conversationId"]) {
             payload["conversationId"] = .string(conversationId)
@@ -76,6 +132,21 @@ final class AgentConversationClient {
             payload["sourceCellEndpoint"] = .string(sourceCellEndpoint)
         }
         return payload
+    }
+
+    nonisolated static func postDecisionPayload(
+        action: PendingDeviceAction,
+        decision: AgentConversationDecision,
+        note: String? = nil
+    ) -> [String: JSONValue] {
+        let normalizedNote = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return postPromptPayload(
+            action: action,
+            prompt: decisionPrompt(decision: decision, note: normalizedNote),
+            responseKind: "decision",
+            decision: decision.rawValue,
+            note: normalizedNote
+        )
     }
 
     private func registerRemoteHostIfNeeded(for endpoint: String) {
@@ -107,6 +178,21 @@ final class AgentConversationClient {
         throw AgentConversationClientError.missingIdentity
     }
 
+    private nonisolated static func decisionPrompt(
+        decision: AgentConversationDecision,
+        note: String?
+    ) -> String {
+        if let note, note.isEmpty == false {
+            return note
+        }
+        switch decision {
+        case .approved:
+            return "Approved"
+        case .rejected:
+            return "Rejected"
+        }
+    }
+
     private nonisolated static func stringValue(_ value: JSONValue?) -> String? {
         guard case let .string(string)? = value else {
             return nil
@@ -114,6 +200,11 @@ final class AgentConversationClient {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+}
+
+enum AgentConversationDecision: String {
+    case approved
+    case rejected
 }
 
 enum AgentConversationClientError: Error, LocalizedError {

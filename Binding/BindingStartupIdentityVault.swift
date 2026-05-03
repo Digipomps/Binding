@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import CellBase
+import Security
 
 actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderProtocol, IdentityKeyRoleProviderProtocol {
     static let shared = BindingStartupIdentityVault()
@@ -119,7 +120,12 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     }
 
     func randomBytes64() async -> Data? {
-        Data((0..<64).map { _ in UInt8.random(in: 0...255) })
+        var bytes = [UInt8](repeating: 0, count: 64)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard status == errSecSuccess else {
+            return nil
+        }
+        return Data(bytes)
     }
 
     func aquireKeyForTag(tag: String) async throws -> (key: String, iv: String) {

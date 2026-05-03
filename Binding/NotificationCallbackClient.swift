@@ -6,16 +6,23 @@ import UIKit
 
 final class NotificationCallbackClient {
     static let shared = NotificationCallbackClient()
+    nonisolated static let defaultBaseURLString = "https://staging.haven.digipomps.org/conference-mvp/api/device"
 
     private init() {}
 
     private var baseURL: URL? {
-        if let configured = ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_API_BASE"],
-           let url = URL(string: configured),
-           !configured.isEmpty {
-            return url
+        URL(string: Self.baseURLString())
+    }
+
+    nonisolated static func baseURLString(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String {
+        if let configured = environment["BINDING_NOTIFICATION_API_BASE"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           configured.isEmpty == false {
+            return configured
         }
-        return URL(string: "http://localhost:9089/conference-mvp/api/device")
+        return defaultBaseURLString
     }
 
     #if os(iOS)

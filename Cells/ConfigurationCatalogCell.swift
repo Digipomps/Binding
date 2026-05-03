@@ -93,6 +93,50 @@ enum BindingPersonalCopilotV1Policy {
         #endif
     }
 
+    nonisolated static let agentSetupWorkbenchDefaultsKey = "Binding.EnableAgentSetupWorkbench"
+
+    nonisolated static var agentSetupWorkbenchEnabled: Bool {
+        agentSetupWorkbenchEnabled(
+            environment: ProcessInfo.processInfo.environment,
+            launchArguments: ProcessInfo.processInfo.arguments,
+            persistedOptIn: UserDefaults.standard.bool(forKey: agentSetupWorkbenchDefaultsKey)
+        )
+    }
+
+    nonisolated static func agentSetupWorkbenchEnabled(
+        environment: [String: String],
+        launchArguments: [String],
+        persistedOptIn: Bool
+    ) -> Bool {
+        #if DEBUG
+        if persistedOptIn {
+            return true
+        }
+
+        if launchArguments.contains("--enable-agent-setup-workbench")
+            || launchArguments.contains("--enable-conference-automation")
+            || launchArguments.contains("--conference-demo-menus") {
+            return true
+        }
+
+        return isTruthyFlag(environment["BINDING_ENABLE_AGENT_SETUP_WORKBENCH"])
+            || isTruthyFlag(environment["BINDING_ENABLE_AGENT_SETUP"])
+            || isTruthyFlag(environment["BINDING_ENABLE_CONFERENCE_AUTOMATION"])
+            || isTruthyFlag(environment["BINDING_ENABLE_CONFERENCE_DEMO_MENUS"])
+        #else
+        _ = environment
+        _ = launchArguments
+        _ = persistedOptIn
+        return false
+        #endif
+    }
+
+    nonisolated private static func isTruthyFlag(_ value: String?) -> Bool {
+        guard let value else { return false }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "1" || normalized == "true" || normalized == "yes"
+    }
+
     nonisolated static func metadataHints(
         policyCategory: String,
         ageRatingHint: String = "12+",
@@ -5294,6 +5338,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             )
         ]
 
+        let optInTemplates = staticCatalogTemplates(from: optInLocalCatalogDescriptors())
+
         templates.append(contentsOf: staticCatalogTemplates(from: personalCopilotV1CatalogDescriptors()))
         if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
             templates.append(contentsOf: staticCatalogTemplates(from: userFacingRemoteCatalogDescriptors()))
@@ -5302,6 +5348,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         } else {
             templates = templates.filter(isPersonalCopilotV1Template)
         }
+        templates.append(contentsOf: optInTemplates)
         let knownEndpoints = Set(templates.map { $0.sourceCellEndpoint.lowercased() })
         if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
             templates.append(contentsOf: await resolverSnapshotCatalogTemplates(excluding: knownEndpoints))
@@ -6510,6 +6557,31 @@ final class ConfigurationCatalogCell: GeneralCell {
         ]
     }
 
+    nonisolated private static func optInLocalCatalogDescriptors() -> [StaticCatalogDescriptor] {
+        guard BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled else {
+            return []
+        }
+
+        return [
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///AgentProvisioning",
+                sourceCellName: "AgentProvisioningCell",
+                displayName: "Agent Setup Workbench",
+                purpose: "Local HAVEN agent install and review boundary",
+                purposeDescription: "Install, start, connect and review `haven-agentd` from Binding without bypassing CellProtocol review boundaries.",
+                interests: ["agent", "haven-agentd", "automation", "review", "cellprotocol", "launchd"],
+                summary: "Operatorflate for lokal HAVEN-agent, control bridge og review queue i Binding.",
+                categoryPath: ["operations", "agent"],
+                tags: ["agent", "automation", "review", "launchd"],
+                menuSlots: [.upperMid, .lowerRight],
+                chip: "LOCAL OPERATOR",
+                borderColor: "#0F766E",
+                flowDriven: true,
+                recommendedContexts: ["agent", "operator", "automation", "review"]
+            )
+        ]
+    }
+
     nonisolated private static func staticCatalogTemplates(from descriptors: [StaticCatalogDescriptor]) -> [ScaffoldPurposeTemplate] {
         descriptors.map(staticCatalogTemplate(from:))
     }
@@ -6637,6 +6709,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         case "cell:///conferencesponsorshell", "cell://staging.haven.digipomps.org/conferencesponsorshell":
             return conferenceSponsorWorkbenchConfiguration(
                 endpoint: descriptor.sourceCellEndpoint,
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
+        case "cell:///agentprovisioning":
+            return agentSetupWorkbenchConfiguration(
                 displayName: descriptor.displayName,
                 summary: descriptor.summary
             )
@@ -7159,6 +7236,17 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
+    nonisolated static func agentSetupWorkbenchMenuConfiguration() -> CellConfiguration {
+        agentSetupWorkbenchConfiguration(
+            displayName: "Agent Setup Workbench",
+            summary: "Install, start, connect and review the local HAVEN agent directly from Binding."
+        )
+    }
+
+    nonisolated static func agentSetupWorkbenchConfiguration() -> CellConfiguration {
+        agentSetupWorkbenchMenuConfiguration()
+    }
+
     nonisolated static func catalogWorkbenchMenuConfiguration() -> CellConfiguration {
         var configuration = catalogWorkbenchConfiguration()
         configuration.name = "Catalog"
@@ -7232,7 +7320,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     nonisolated static func personalCopilotV1MenuConfigurations() -> [CellConfiguration] {
-        [
+        var configurations = [
             personalHomeMenuConfiguration(),
             personalProfileMenuConfiguration(),
             personalPublicProfileMenuConfiguration(),
@@ -7247,6 +7335,12 @@ final class ConfigurationCatalogCell: GeneralCell {
             entityScannerForPersonalCopilotConfiguration(),
             workflowStudioForPersonalCopilotConfiguration()
         ]
+
+        if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
+            configurations.append(agentSetupWorkbenchMenuConfiguration())
+        }
+
+        return configurations
     }
 
     nonisolated static func personalHomeMenuConfiguration() -> CellConfiguration {
@@ -10038,6 +10132,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 content: [
                     bindingConferencePortalKeyText("identityLink.state.review.localIdentitySummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
                     bindingConferencePortalKeyText("identityLink.state.review.confirmationStatus", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
+                    bindingConferencePortalKeyText("identityLink.state.review.localProofSummary", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 4),
+                    bindingConferencePortalKeyText("identityLink.state.review.enrollmentRequestPreview", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 5),
                     bindingConferencePortalKeyText("identityLink.state.review.limitationSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 4),
                     bindingConferencePortalKeyText("identityLink.state.review.nextStepSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
                     .HStack(
@@ -10054,6 +10150,32 @@ final class ConfigurationCatalogCell: GeneralCell {
                             )
                         ])
                     )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Complete same-Entity link",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Lim inn completion envelope fra staging etter approval. Binding sender payloaden direkte til `identity.identityLinks.completeEnrollment`; ingen lokal mock, ingen antatt godkjenning.",
+                        fontSize: 12,
+                        foregroundColor: "#D7E7F2",
+                        lineLimit: 5
+                    ),
+                    bindingConferencePortalKeyText("identityLink.state.completion.status", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
+                    bindingConferencePortalKeyText("identityLink.state.completion.summary", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 5),
+                    bindingConferencePortalTextArea(
+                        sourceKeypath: "identityLink.state.completion.packageInput",
+                        targetKeypath: "identityLink.setCompletionPackageInput",
+                        placeholder: "Lim inn IdentityLinkCompletionEnvelope JSON fra staging",
+                        minLines: 5,
+                        maxLines: 12
+                    ),
+                    bindingConferencePortalPrimaryActionButton(
+                        "identityLink",
+                        actionKeypath: "identityLink.completeApprovedLink",
+                        label: "Complete via EntityAnchor"
+                    ),
+                    bindingConferencePortalKeyText("identityLink.state.completion.recordPreview", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 8)
                 ]
             )
         ])
@@ -12986,6 +13108,124 @@ final class ConfigurationCatalogCell: GeneralCell {
             )
         ])
         root.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func agentSetupWorkbenchConfiguration(
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///AgentProvisioning",
+            sourceCellName: "AgentProvisioningCell",
+            purpose: "Local HAVEN agent install and review boundary",
+            purposeDescription: "Install, start, connect and review `haven-agentd` from Binding without bypassing CellProtocol review boundaries.",
+            interests: ["agent", "haven-agentd", "automation", "review", "cellprotocol", "launchd"],
+            menuSlots: ["upperMid", "lowerRight"]
+        )
+
+        var reference = CellReference(endpoint: "cell:///AgentProvisioning", subscribeFeed: true, label: "agentSetup")
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(reference)
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "HAVEN Agent",
+                content: [
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.installStage", fontSize: 18, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.runtimeStage"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.connectStage"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.controlBridgeState"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.portholePhase"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.connectedContractID"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.lastHeartbeatAt"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.lastEventSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.lastError", fontSize: 12, foregroundColor: "#F4D58D", lineLimit: 3)
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Purpose & Policy",
+                content: [
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.purpose.name", fontSize: 16, fontWeight: "bold", foregroundColor: "#B9E6FF"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.purpose.goal", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.purpose.source"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.purpose.interests", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 3),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.domain"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.discoveryURL"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.status.portholeStrategy", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 4)
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Pipeline",
+                content: [
+                    bindingConferencePortalCollectionGrid(
+                        keypath: "agentSetup.state.agent.setup.pipeline",
+                        itemSkeleton: bindingConferencePortalTitleDetailCardSkeleton()
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Install & Connect",
+                content: [
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.environment.sourceRoot", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.environment.sproutBinaryPath", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.environment.configPath", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.environment.installBinaryPath", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 2),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.environment.launchAgentPlistPath", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 2),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(keypath: "agentSetup.agent.setup.install", label: "Install agent"),
+                            bindingConferenceDirectActionButton(keypath: "agentSetup.agent.setup.start", label: "Start agent"),
+                            bindingConferenceDirectActionButton(keypath: "agentSetup.agent.setup.connect", label: "Run once")
+                        ])
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(keypath: "agentSetup.agent.setup.stop", label: "Stop agent")
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Review Boundary",
+                content: [
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.review.queueState"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.review.selectedSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.review.auditState", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 3),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.review.lastOutcome"),
+                    bindingConferencePortalKeyText("agentSetup.state.agent.setup.review.lastRecordedAt"),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            bindingConferenceDirectActionButton(keypath: "agentSetup.agent.setup.review.queueSafariTest", label: "Queue Safari review"),
+                            bindingConferenceDirectActionButton(keypath: "agentSetup.agent.setup.review.approveSelected", label: "Approve selected"),
+                            bindingConferenceDirectActionButton(keypath: "agentSetup.agent.setup.review.rejectSelected", label: "Reject selected")
+                        ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Recent Activity",
+                content: [
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "agentSetup.state.agent.setup.activity",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    )
+                ]
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
 
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
         scroll.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }

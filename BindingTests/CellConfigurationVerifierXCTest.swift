@@ -1469,12 +1469,22 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     }
 
     func testConferenceIdentityLinkImportAndReviewFlow() async throws {
+        await ConferenceIdentityLinkInboxStore.shared.clear()
+
         let configuration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
 
-        let challengeURL = "haven://identity-link?requestId=REQ-123&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=nonce-123&expiresAt=2026-04-02T12:00:00Z&algorithm=P256-ES256"
+        let initialCompletionStatus = try await context.porthole.get(
+            keypath: "identityLink.state.completion.status",
+            requester: context.owner
+        )
+        XCTAssertEqual(initialCompletionStatus, .string("Ingen completion package er importert ennå."))
+
+        let futureExpiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+        let challengeNonce = "aWRlbnRpdHktbGluay1jaGFsbGVuZ2UtcmFuZG9tLTIwMjY"
+        let challengeURL = "haven://identity-link?requestId=REQ-123&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=\(challengeNonce)&expiresAt=\(futureExpiry)&algorithm=P256-ES256"
 
         let setDraftResponse = try await context.porthole.set(
             keypath: "identityLink.setDraftInput",
@@ -1542,7 +1552,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
         XCTAssertEqual(
             confirmationAfterReview,
-            .string("Lokal brukerbekreftelse registrert. Binding er klar for neste proof-/approval-steg når Scaffold/web tilbyr det.")
+            .string("Signert enrollment request klar. Dette er lokal proof-of-possession, ikke ferdig same-entity approval.")
         )
 
         let localIdentitySummary = try await context.porthole.get(
@@ -1557,6 +1567,29 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         } else {
             XCTFail("Expected string localIdentitySummary after confirming identity-link review")
         }
+
+        let localProofSummary = try await context.porthole.get(
+            keypath: "identityLink.state.review.localProofSummary",
+            requester: context.owner
+        )
+        if case let .string(localProofSummaryText) = localProofSummary {
+            XCTAssertTrue(localProofSummaryText.contains("Request hash"))
+            XCTAssertTrue(localProofSummaryText.contains("signature"))
+        } else {
+            XCTFail("Expected string localProofSummary after signing identity-link request")
+        }
+
+        let enrollmentRequest = try await context.porthole.get(
+            keypath: "identityLink.state.review.enrollmentRequest",
+            requester: context.owner
+        )
+        guard case let .object(enrollmentRequestObject) = enrollmentRequest,
+              case let .object(proofObject)? = enrollmentRequestObject["proof"] else {
+            XCTFail("Expected signed CellProtocol IdentityEnrollmentRequest after local review")
+            return
+        }
+        XCTAssertEqual(enrollmentRequestObject["purpose"], .string("link_identity"))
+        XCTAssertNotNil(proofObject["signature"])
 
         let expectedLauncherPop = Task {
             await waitForConferenceNavigationPopFallbackConfiguration(containingName: "Conference Demo Launcher")
@@ -1583,6 +1616,238 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return
         }
         XCTAssertTrue(launcherConfiguration.name.contains("Conference Demo Launcher"))
+    }
+
+    func testConferenceIdentityLinkCompletionFlowWritesEntityAnchorRecord() async throws {
+        await ConferenceIdentityLinkInboxStore.shared.clear()
+
+        let configuration = ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration, identityMode: .startup)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let identityVault = await BindingStartupIdentityVault.shared.initialize()
+        guard let holderIdentity = await identityVault.identity(for: "private", makeNewIfNotFound: true),
+              let issuerIdentity = await identityVault.identity(for: "identity-link-issuer-\(UUID().uuidString)", makeNewIfNotFound: true) else {
+            XCTFail("Expected startup identities for identity-link completion fixture")
+            return
+        }
+
+        let jti = "binding-completion-jti-\(UUID().uuidString)"
+        let package = try await makeBindingIdentityLinkCompletionPackageJSON(
+            holderIdentity: holderIdentity,
+            issuerIdentity: issuerIdentity,
+            jti: jti
+        )
+
+        let setCompletionInputResponse = try await context.porthole.set(
+            keypath: "identityLink.setCompletionPackageInput",
+            value: .string(package.json),
+            requester: context.owner
+        )
+        guard let setCompletionInputResponse else {
+            XCTFail("Setting completion package input returned nil response")
+            return
+        }
+        let setCompletionInputFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: setCompletionInputResponse)
+        }
+        XCTAssertNil(setCompletionInputFailure)
+
+        let completeResponse = try await context.porthole.set(
+            keypath: "identityLink.dispatchAction",
+            value: .object([
+                "keypath": .string("identityLink.completeApprovedLink"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let completeResponse else {
+            XCTFail("Complete approved identity-link action returned nil response")
+            return
+        }
+        let completeFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: completeResponse)
+        }
+        XCTAssertNil(completeFailure)
+
+        let completionStatus = try await context.porthole.get(
+            keypath: "identityLink.state.completion.status",
+            requester: context.owner
+        )
+        XCTAssertEqual(
+            completionStatus,
+            .string("Identity-link completion er verifisert og lagret i EntityAnchor.")
+        )
+
+        let completionRecordPreview = try await context.porthole.get(
+            keypath: "identityLink.state.completion.recordPreview",
+            requester: context.owner
+        )
+        guard case let .string(recordPreview) = completionRecordPreview else {
+            XCTFail("Expected completion record preview string")
+            return
+        }
+        XCTAssertTrue(recordPreview.contains(package.approvalID))
+        XCTAssertTrue(recordPreview.contains("active"))
+        XCTAssertTrue(recordPreview.contains("proofs.identityLinks.\(package.approvalID)"))
+
+        let storedRecord = try await holderIdentity.get(
+            keypath: "identity.identityLinks.records.\(package.approvalID)",
+            requester: holderIdentity
+        )
+        guard case let .object(storedRecordObject) = storedRecord else {
+            XCTFail("Expected stored IdentityLinkRecord in EntityAnchor, got \(storedRecord)")
+            return
+        }
+        XCTAssertEqual(storedRecordObject["status"], .string("active"))
+
+        let replayMarker = try await holderIdentity.get(
+            keypath: "identity.identityLinks.usedApprovalJTIs.\(jti)",
+            requester: holderIdentity
+        )
+        XCTAssertNotEqual(replayMarker, .null)
+    }
+
+    func testConferenceIdentityLinkRejectsWeakNonceBeforeSigning() async throws {
+        let store = ConferenceIdentityLinkInboxStore.shared
+        await store.clear()
+
+        let futureExpiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+        let challengeURL = try XCTUnwrap(
+            URL(
+                string: "haven://identity-link?requestId=REQ-WEAK-NONCE&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=nonce-123&expiresAt=\(futureExpiry)&algorithm=P256-ES256"
+            )
+        )
+
+        let didIngest = await store.ingest(url: challengeURL)
+        XCTAssertTrue(didIngest)
+
+        let identity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
+        await store.confirmLocalReview(with: identity)
+
+        let state = await store.stateObject()
+        guard case let .object(review)? = state["review"] else {
+            XCTFail("Expected review identity-link state object")
+            await store.clear()
+            return
+        }
+
+        XCTAssertEqual(
+            review["confirmationStatus"],
+            .string("Challenge/nonce er ikke gyldig base64url med minst 128 bit. Binding nekter å signere.")
+        )
+        XCTAssertEqual(review["enrollmentRequest"], .null)
+
+        await store.clear()
+    }
+
+    private struct BindingIdentityLinkCompletionPackage {
+        var json: String
+        var approvalID: String
+    }
+
+    private func makeBindingIdentityLinkCompletionPackageJSON(
+        holderIdentity: Identity,
+        issuerIdentity: Identity,
+        jti: String
+    ) async throws -> BindingIdentityLinkCompletionPackage {
+        let now = Date()
+        let request = try await makeBindingSignedEnrollmentRequest(
+            holderIdentity: holderIdentity,
+            now: now,
+            expiresAt: now.addingTimeInterval(600)
+        )
+        let approval = try await IdentityLinkProtocolService.approveEnrollmentRequest(
+            request,
+            issuerIdentity: issuerIdentity,
+            issuerType: .existingDevice,
+            createdAt: now,
+            expiresAt: now.addingTimeInterval(300),
+            jti: jti,
+            freshAuthRequired: true,
+            freshAuthPerformedAt: now
+        )
+        let credential = try await IdentityLinkProtocolService.issueSameEntityCredential(
+            request: request,
+            approval: approval,
+            issuerIdentity: issuerIdentity,
+            validUntil: now.addingTimeInterval(600),
+            revocationReference: "cell:///EntityAnchor/proofs/identityLinks/\(approval.approvalID)"
+        )
+        let presentationChallenge = Data("binding-completion-verifier-challenge-2026".utf8)
+        let presentationDomain = "staging.haven.digipomps.org"
+        let presentation = try await IdentityLinkProtocolService.makeVerifierBoundPresentation(
+            credential: credential,
+            holderIdentity: holderIdentity,
+            challenge: presentationChallenge,
+            domain: presentationDomain
+        )
+        let envelope = IdentityLinkCompletionEnvelope(
+            request: request,
+            approval: approval,
+            sameEntityCredential: credential,
+            presentation: presentation,
+            issuerIdentity: try IdentityLinkProtocolService.descriptor(for: issuerIdentity),
+            expectedAudience: request.audience,
+            expectedOrigin: request.origin,
+            expectedPresentationChallenge: presentationChallenge,
+            expectedPresentationDomain: presentationDomain
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
+        let data = try encoder.encode(envelope)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw NSError(
+                domain: "CellConfigurationVerifierXCTest",
+                code: 10,
+                userInfo: [NSLocalizedDescriptionKey: "Could not encode identity-link completion envelope as UTF-8"]
+            )
+        }
+        return BindingIdentityLinkCompletionPackage(json: json, approvalID: approval.approvalID)
+    }
+
+    private func makeBindingSignedEnrollmentRequest(
+        holderIdentity: Identity,
+        now: Date,
+        expiresAt: Date
+    ) async throws -> IdentityEnrollmentRequest {
+        let descriptor = try IdentityLinkProtocolService.descriptor(for: holderIdentity)
+        var request = IdentityEnrollmentRequest(
+            requestID: "binding-request-\(UUID().uuidString)",
+            entityBinding: EntityBindingDescriptor(
+                mode: .localEntityAnchor,
+                entityAnchorReference: "cell:///EntityAnchor",
+                audience: "staging.haven.digipomps.org"
+            ),
+            newIdentity: descriptor,
+            requestedDomains: ["private", "scaffold"],
+            requestedIdentityContexts: ["private", "scaffold"],
+            requestedScopes: ["entity-auth", "personal-cells"],
+            audience: "staging.haven.digipomps.org",
+            origin: "haven://binding/add-device",
+            createdAt: IdentityLinkProtocolService.iso8601(now),
+            expiresAt: IdentityLinkProtocolService.iso8601(expiresAt),
+            nonce: Data((0..<32).map(UInt8.init)),
+            platform: "macOS",
+            deviceLabel: "Binding verifier"
+        )
+        let payload = try request.canonicalPayloadData()
+        guard let signature = try await holderIdentity.sign(data: payload) else {
+            throw NSError(
+                domain: "CellConfigurationVerifierXCTest",
+                code: 11,
+                userInfo: [NSLocalizedDescriptionKey: "Startup identity vault did not sign enrollment request"]
+            )
+        }
+        request.proof = IdentityEnrollmentRequestProof(
+            byIdentityUUID: holderIdentity.uuid,
+            algorithm: descriptor.algorithm,
+            curveType: descriptor.curveType,
+            signature: signature
+        )
+        return request
     }
 
     func testConferenceAIAssistantButtonsUpdateDraftAndSessionKeyViaRendererExecutionPath() async throws {

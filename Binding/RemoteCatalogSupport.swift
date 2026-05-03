@@ -23,12 +23,15 @@ enum RemoteEndpointAccessSupport {
 
     enum AccessError: Error, LocalizedError {
         case endpointDoesNotExposeMeddle(String)
+        case bridgeDescriptionUnavailable(String, String)
         case contractRejected(String, String)
 
         var errorDescription: String? {
             switch self {
             case .endpointDoesNotExposeMeddle(let endpoint):
                 return "Endpoint \(endpoint) does not expose a Meddle interface."
+            case .bridgeDescriptionUnavailable(let endpoint, let detail):
+                return "Endpoint \(endpoint) did not expose its Agreement before admission (\(detail))."
             case .contractRejected(let endpoint, let state):
                 return "Endpoint \(endpoint) rejected the access contract (\(state))."
             }
@@ -73,15 +76,19 @@ enum RemoteEndpointAccessSupport {
     ) async throws -> Emit {
         registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
         let emit = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester)
+        let authorization = authorizationKind(for: endpoint)
+        try await prepareAgreementTemplateForAdmissionIfNeeded(
+            endpoint: endpoint,
+            emit: emit,
+            requester: requester
+        )
         try await authorizeIfNeeded(
             endpoint: endpoint,
             emit: emit,
             requester: requester,
-            accessLabel: accessLabel
+            accessLabel: accessLabel,
+            kind: authorization
         )
-        if let bridge = emit as? BridgeBase {
-            try? await bridge.retrieveProxyRepresentation(for: requester)
-        }
         return emit
     }
 
@@ -116,6 +123,35 @@ enum RemoteEndpointAccessSupport {
             accessLabel: accessLabel,
             kind: authorizationKind(for: endpoint)
         )
+    }
+
+    private static func authorizeIfNeeded(
+        endpoint: String,
+        emit: Emit,
+        requester: Identity,
+        accessLabel: String,
+        kind: RemoteEndpointAuthorizationKind
+    ) async throws {
+        try await RemoteEndpointAccessAuthorizer.shared.authorizeIfNeeded(
+            endpoint: endpoint,
+            emit: emit,
+            requester: requester,
+            accessLabel: accessLabel,
+            kind: kind
+        )
+    }
+
+    private static func prepareAgreementTemplateForAdmissionIfNeeded(
+        endpoint: String,
+        emit: Emit,
+        requester: Identity
+    ) async throws {
+        guard let bridge = emit as? BridgeBase else { return }
+        do {
+            try await bridge.retrieveProxyRepresentation(for: requester)
+        } catch {
+            throw AccessError.bridgeDescriptionUnavailable(endpoint, String(describing: error))
+        }
     }
 
     static func endpointIdentity(_ endpoint: String) -> String {

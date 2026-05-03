@@ -55,11 +55,17 @@ struct BindingConferenceAutomationCommands: Commands {
                 Button(ContentView.ConferenceAutomationHook.openParticipantPortal.title) {
                     post(.openParticipantPortal)
                 }
+                Button(ContentView.ConferenceAutomationHook.openConferenceMVP.title) {
+                    post(.openConferenceMVP)
+                }
                 Button(ContentView.ConferenceAutomationHook.openPublicSurface.title) {
                     post(.openPublicSurface)
                 }
                 Button(ContentView.ConferenceAutomationHook.openControlTower.title) {
                     post(.openControlTower)
+                }
+                Button(ContentView.ConferenceAutomationHook.openSponsorFollowUp.title) {
+                    post(.openSponsorFollowUp)
                 }
                 Button(ContentView.ConferenceAutomationHook.openAIAssistant.title) {
                     post(.openAIAssistant)
@@ -69,6 +75,31 @@ struct BindingConferenceAutomationCommands: Commands {
                 }
                 Button(ContentView.ConferenceAutomationHook.openIdentityLink.title) {
                     post(.openIdentityLink)
+                }
+                if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
+                    Divider()
+
+                    Button(ContentView.ConferenceAutomationHook.openAgentSetupWorkbench.title) {
+                        post(.openAgentSetupWorkbench)
+                    }
+                    Button(ContentView.ConferenceAutomationHook.installAgent.title) {
+                        post(.installAgent)
+                    }
+                    Button(ContentView.ConferenceAutomationHook.startAgent.title) {
+                        post(.startAgent)
+                    }
+                    Button(ContentView.ConferenceAutomationHook.connectAgent.title) {
+                        post(.connectAgent)
+                    }
+                    Button(ContentView.ConferenceAutomationHook.queueAgentSafariReview.title) {
+                        post(.queueAgentSafariReview)
+                    }
+                    Button(ContentView.ConferenceAutomationHook.approveAgentReview.title) {
+                        post(.approveAgentReview)
+                    }
+                    Button(ContentView.ConferenceAutomationHook.stopAgent.title) {
+                        post(.stopAgent)
+                    }
                 }
 
                 Divider()

@@ -1,6 +1,7 @@
 import SwiftUI
 import CellBase
 import CellApple
+import CryptoKit
 #if canImport(Combine)
 import Combine
 #else
@@ -26,11 +27,18 @@ actor BindingLocalCellRegistration {
 
     private var isLocallyRegistered = false
     private var isRegistered = false
+    private var agentAdminCellsRegistered = false
     private var localRegistrationTask: Task<Void, Never>?
     private var registrationTask: Task<Void, Never>?
 
     func ensureLocallyRegistered() async {
         if isLocallyRegistered {
+            if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled,
+               !agentAdminCellsRegistered,
+               let resolver = CellBase.defaultCellResolver as? CellResolver {
+                await Self.registerOptInAgentAdminCells(on: resolver)
+                agentAdminCellsRegistered = true
+            }
             return
         }
         if let localRegistrationTask {
@@ -49,6 +57,7 @@ actor BindingLocalCellRegistration {
         localRegistrationTask = task
         await task.value
         isLocallyRegistered = true
+        agentAdminCellsRegistered = BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled
         localRegistrationTask = nil
     }
 
@@ -322,6 +331,7 @@ actor BindingLocalCellRegistration {
             type: ConferenceDemoLauncherLocalCell.self,
             resolver: resolver
         )
+        await registerOptInAgentAdminCells(on: resolver)
         await register(
             name: "WorkflowStudio",
             cellScope: .identityUnique,
@@ -337,6 +347,25 @@ actor BindingLocalCellRegistration {
             type: GeneralCell.self,
             resolver: resolver
         )
+    }
+
+    private static func registerOptInAgentAdminCells(on resolver: CellResolver) async {
+        if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
+            await register(
+                name: "AgentProvisioning",
+                cellScope: .identityUnique,
+                identityDomain: "private",
+                type: AgentProvisioningCell.self,
+                resolver: resolver
+            )
+            await register(
+                name: "AgentEnrollment",
+                cellScope: .identityUnique,
+                identityDomain: "private",
+                type: AgentEnrollmentCell.self,
+                resolver: resolver
+            )
+        }
     }
 
     private static func register<CellType: Emit & OwnerInstantiable>(
@@ -7742,6 +7771,19 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
 }
 
 struct ConferenceIdentityLinkParsedChallenge {
+    var requestID: String?
+    var purpose: String
+    var audience: String?
+    var origin: String?
+    var entityAnchorReference: String?
+    var deviceLabel: String?
+    var identityLabel: String?
+    var requestedDomains: [String]
+    var requestedIdentityContexts: [String]
+    var requestedScopes: [String]
+    var expiresAt: String?
+    var challenge: String?
+    var proofAlgorithm: String?
     var sourceSummary: String
     var statusSummary: String
     var challengeSummary: String
@@ -7900,6 +7942,19 @@ nonisolated enum ConferenceIdentityLinkSupport {
         }
 
         return ConferenceIdentityLinkParsedChallenge(
+            requestID: effectiveRequestID,
+            purpose: purpose,
+            audience: effectiveAudience,
+            origin: effectiveOrigin,
+            entityAnchorReference: effectiveEntity,
+            deviceLabel: effectiveDeviceLabel,
+            identityLabel: effectiveIdentityLabel,
+            requestedDomains: requestedDomains,
+            requestedIdentityContexts: requestedIdentityContexts,
+            requestedScopes: requestedScopes,
+            expiresAt: effectiveExpiresAt,
+            challenge: effectiveChallenge,
+            proofAlgorithm: proofAlgorithm,
             sourceSummary: sourceSummary,
             statusSummary: admissionStatusSummary
                 ?? "Incoming identity-link challenge klar for review. Binding viser challenge-data og lokal key-possession før scaffold/web fullfører approval.",
@@ -7985,8 +8040,15 @@ actor ConferenceIdentityLinkInboxStore {
     private var confirmationStatus = "Lokal brukerbekreftelse mangler."
     private var actionSummary = "Åpne en haven://identity-link-lenke eller lim inn challenge-data for å starte review."
     private var lastIntakeSource = "Ingen challenge mottatt ennå."
-    private var limitationSummary = "Binding gjør ekte challenge-intake og lokal key-review her. Endelig approval/fullføring i cross-vault identity-link-protokollen er fortsatt ikke koblet helt ferdig i denne flaten."
-    private var nextStepSummary = "Når challenge-data er synlig, bekrefter du lokal nøkkelbesittelse og går deretter tilbake til Scaffold/web for approval eller completion."
+    private var localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
+    private var enrollmentRequestPreview = "Ingen enrollment request klar ennå."
+    private var enrollmentRequestValue: ValueType = .null
+    private var completionPackageInput = ""
+    private var completionStatus = "Ingen completion package er importert ennå."
+    private var completionSummary = "Lim inn en ekte CellProtocol IdentityLinkCompletionEnvelope fra staging når approval, SameEntityIdentityLinkCredential og verifier-bound VP er laget."
+    private var completionRecordPreview = "Ingen active IdentityLinkRecord er skrevet ennå."
+    private var limitationSummary = "Binding gjør ekte challenge-intake, signerer CellProtocol IdentityEnrollmentRequest lokalt og fullfører bare mot EntityAnchor identityLinks når staging leverer en verifiserbar completion envelope."
+    private var nextStepSummary = "Når requesten er signert, godkjenn den i staging og lim inn completion envelope her for å skrive IdentityLinkRecord uten demo-bypass."
 
     private func defaultAdmissionState() -> Object {
         [
@@ -8011,12 +8073,16 @@ actor ConferenceIdentityLinkInboxStore {
         incomingChallenge = parsed
         lastIntakeSource = parsed.sourceSummary
         actionSummary = "Lastet challenge-data fra deep link. Kontroller audience, scopes og lokal identitet før du går videre."
-        nextStepSummary = "Bekreft lokal nøkkelbesittelse i Binding, og fullfør deretter approval i Scaffold/web."
+        nextStepSummary = "Signer lokal CellProtocol IdentityEnrollmentRequest i Binding, godkjenn den i staging, og lim inn completion envelope her."
         return true
     }
 
     func setDraftInput(_ input: String) {
         draftInput = input
+    }
+
+    func setCompletionPackageInput(_ input: String) {
+        completionPackageInput = input
     }
 
     func importDraft() -> Bool {
@@ -8027,7 +8093,7 @@ actor ConferenceIdentityLinkInboxStore {
         incomingChallenge = parsed
         lastIntakeSource = parsed.sourceSummary
         actionSummary = "Tolket challenge-data fra innlimt payload. Kontroller audience, scopes og origin før du går videre."
-        nextStepSummary = "Bekreft lokal nøkkelbesittelse i Binding, og fullfør deretter approval i Scaffold/web."
+        nextStepSummary = "Signer lokal CellProtocol IdentityEnrollmentRequest i Binding, godkjenn den i staging, og lim inn completion envelope her."
         return true
     }
 
@@ -8038,15 +8104,22 @@ actor ConferenceIdentityLinkInboxStore {
         confirmationStatus = "Lokal brukerbekreftelse mangler."
         actionSummary = "Åpne en haven://identity-link-lenke eller lim inn challenge-data for å starte review."
         lastIntakeSource = "Ingen challenge mottatt ennå."
-        nextStepSummary = "Når challenge-data er synlig, bekrefter du lokal nøkkelbesittelse og går deretter tilbake til Scaffold/web for approval eller completion."
+        localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
+        enrollmentRequestPreview = "Ingen enrollment request klar ennå."
+        enrollmentRequestValue = .null
+        completionPackageInput = ""
+        completionStatus = "Ingen completion package er importert ennå."
+        completionSummary = "Lim inn en ekte CellProtocol IdentityLinkCompletionEnvelope fra staging når approval, SameEntityIdentityLinkCredential og verifier-bound VP er laget."
+        completionRecordPreview = "Ingen active IdentityLinkRecord er skrevet ennå."
+        nextStepSummary = "Når challenge-data er synlig, signer lokal IdentityEnrollmentRequest i Binding, godkjenn den i staging, og lim inn completion envelope her."
     }
 
     func helperConfiguration() -> CellConfiguration? {
         incomingChallenge?.admission?.helperCellConfiguration
     }
 
-    func confirmLocalReview(with identity: Identity?) {
-        guard incomingChallenge != nil else {
+    func confirmLocalReview(with identity: Identity?) async {
+        guard let challenge = incomingChallenge else {
             confirmationStatus = "Last en identity-link challenge før du bekrefter lokal review."
             actionSummary = "Ingen challenge er lastet ennå."
             return
@@ -8056,13 +8129,60 @@ actor ConferenceIdentityLinkInboxStore {
             actionSummary = "Lokal key-possession kunne ikke bekreftes."
             return
         }
+        guard let signedRequest = await makeSignedEnrollmentRequest(from: challenge, identity: identity) else {
+            return
+        }
 
         let label = identity.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let identityLabel = label.isEmpty ? identity.uuid : label
-        localIdentitySummary = "Binding verifiserte lokal nøkkelbesittelse for \(identityLabel) i private-domenet. Denne identiteten kan signere videre i den vanlige cross-vault-flyten."
-        confirmationStatus = "Lokal brukerbekreftelse registrert. Binding er klar for neste proof-/approval-steg når Scaffold/web tilbyr det."
-        actionSummary = "Lokal Binding-identitet er klar. Fullfør approval eller completeEnrollment på Scaffold-siden."
-        nextStepSummary = "Gå tilbake til Scaffold Setup & Identity Link i web, godkjenn requesten der, og fullfør deretter den ordinære protocol completion uten demo-only bypass."
+        localIdentitySummary = "Binding signerte en CellProtocol IdentityEnrollmentRequest for \(identityLabel) i private-domenet. Lokal private key ble brukt uten å eksporteres."
+        confirmationStatus = "Signert enrollment request klar. Dette er lokal proof-of-possession, ikke ferdig same-entity approval."
+        localProofSummary = "Request hash \(signedRequest.requestHashBase64URL) · \(signedRequest.algorithmSummary) · signature \(signedRequest.signaturePreview)"
+        enrollmentRequestPreview = signedRequest.preview
+        enrollmentRequestValue = signedRequest.value
+        completionSummary = "Requesten er klar for staging approval. Completion krever en envelope med approval, SameEntityIdentityLinkCredential, verifier-bound VP, issuerIdentity og expected verifier binding."
+        actionSummary = "Lokal Binding-identitet har signert requesten. Fullfør approval i staging, og lim inn completion envelope under."
+        nextStepSummary = "Gå tilbake til Scaffold Setup & Identity Link i web, godkjenn requesten der, utsted SameEntityIdentityLinkCredential/VP, og fullfør så her via EntityAnchor identityLinks.completeEnrollment."
+    }
+
+    func completeApprovedLink(with identity: Identity?) async {
+        guard let identity else {
+            completionStatus = "Binding fant ingen lokal private-identitet å fullføre mot."
+            completionSummary = "Completion ble ikke sendt til EntityAnchor fordi lokal key-possession mangler."
+            return
+        }
+        guard let payload = Self.decodeCompletionEnvelope(from: completionPackageInput) else {
+            completionStatus = "Klarte ikke å lese completion package som CellProtocol IdentityLinkCompletionEnvelope."
+            completionSummary = "Lim inn rå JSON eller base64url-enkodet JSON fra staging-kontrakten. Binding lager ikke syntetisk approval eller VP."
+            return
+        }
+        guard payload.envelope.request.newIdentity.uuid == identity.uuid else {
+            completionStatus = "Completion package gjelder ikke denne lokale Binding-identiteten."
+            completionSummary = "Envelope subject \(payload.envelope.request.newIdentity.uuid) matcher ikke lokal identitet \(identity.uuid). Importer riktig package eller bytt lokal identitet."
+            return
+        }
+
+        do {
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            let response = try await identity.set(
+                keypath: "identity.identityLinks.completeEnrollment",
+                value: payload.value,
+                requester: identity
+            )
+            guard Self.statusString(from: response) == "completed" else {
+                completionStatus = "EntityAnchor returnerte ikke completed for identityLinks.completeEnrollment."
+                completionSummary = Self.responseSummary(from: response)
+                return
+            }
+            completionStatus = "Identity-link completion er verifisert og lagret i EntityAnchor."
+            completionSummary = "Approval JTI er markert brukt, SameEntityIdentityLinkCredential/VP er verifisert, og replay vil avvises av identityLinks-store."
+            completionRecordPreview = Self.recordPreview(from: response)
+            actionSummary = "EntityAnchor skrev en active IdentityLinkRecord fra ekte completion envelope."
+            nextStepSummary = "Identity-link er aktiv. Du kan nå bruke identityLinks-recorden som bevis på at Binding-identiteten hører til samme Entity."
+        } catch {
+            completionStatus = "identityLinks.completeEnrollment feilet: \(error)"
+            completionSummary = "Completion ble avvist av CellProtocol/EntityAnchor. Ingen record ble skrevet."
+        }
     }
 
     func stateObject() -> Object {
@@ -8092,12 +8212,288 @@ actor ConferenceIdentityLinkInboxStore {
             "review": .object([
                 "localIdentitySummary": .string(localIdentitySummary),
                 "confirmationStatus": .string(confirmationStatus),
+                "localProofSummary": .string(localProofSummary),
+                "enrollmentRequestPreview": .string(enrollmentRequestPreview),
+                "enrollmentRequest": enrollmentRequestValue,
                 "actionSummary": .string(actionSummary),
                 "limitationSummary": .string(limitationSummary),
                 "nextStepSummary": .string(nextStepSummary)
             ]),
+            "completion": .object([
+                "packageInput": .string(completionPackageInput),
+                "status": .string(completionStatus),
+                "summary": .string(completionSummary),
+                "recordPreview": .string(completionRecordPreview)
+            ]),
             "draftInput": .string(draftInput)
         ]
+    }
+
+    private struct SignedEnrollmentRequestState {
+        var value: ValueType
+        var requestHashBase64URL: String
+        var algorithmSummary: String
+        var signaturePreview: String
+        var preview: String
+    }
+
+    private func makeSignedEnrollmentRequest(
+        from challenge: ConferenceIdentityLinkParsedChallenge,
+        identity: Identity
+    ) async -> SignedEnrollmentRequestState? {
+        guard let publicSecureKey = identity.publicSecureKey,
+              let publicKey = publicSecureKey.compressedKey,
+              publicKey.isEmpty == false else {
+            confirmationStatus = "Binding fant ingen offentlig signeringsnøkkel for lokal identitet."
+            actionSummary = "Kan ikke lage CellProtocol IdentityEnrollmentRequest uten lokal signeringsnøkkel."
+            return nil
+        }
+        guard let challengeNonce = challenge.challenge,
+              challengeNonce.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            confirmationStatus = "Challenge/nonce mangler, så Binding nekter å signere enrollment request."
+            actionSummary = "Importer en challenge med nonce før lokal proof-of-possession kan lages."
+            return nil
+        }
+        guard let nonceData = Self.decodeBase64URL(challengeNonce),
+              nonceData.count >= 16 else {
+            confirmationStatus = "Challenge/nonce er ikke gyldig base64url med minst 128 bit. Binding nekter å signere."
+            actionSummary = "Hent en ny identity-link challenge med kryptografisk sterk nonce."
+            return nil
+        }
+        guard challenge.purpose == "link_identity" else {
+            confirmationStatus = "Purpose er \(challenge.purpose), ikke link_identity. Binding nekter å signere."
+            actionSummary = "Importer en identity-link challenge med riktig CellProtocol purpose."
+            return nil
+        }
+        guard let audience = challenge.audience,
+              audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            confirmationStatus = "Audience mangler, så Binding nekter å signere enrollment request."
+            actionSummary = "Importer en audience-bound challenge før lokal proof-of-possession kan lages."
+            return nil
+        }
+        guard let origin = challenge.origin,
+              origin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            confirmationStatus = "Origin mangler, så Binding nekter å signere enrollment request."
+            actionSummary = "Importer en origin-bound challenge før lokal proof-of-possession kan lages."
+            return nil
+        }
+        guard !challenge.requestedDomains.isEmpty,
+              !challenge.requestedIdentityContexts.isEmpty,
+              !challenge.requestedScopes.isEmpty else {
+            confirmationStatus = "Domains, identity contexts eller scopes mangler. Binding nekter å signere."
+            actionSummary = "Importer en scope-bound challenge før lokal proof-of-possession kan lages."
+            return nil
+        }
+        guard let requestedExpiry = challenge.expiresAt,
+              let expiryDate = ISO8601DateFormatter().date(from: requestedExpiry) else {
+            confirmationStatus = "Expiry mangler eller er ugyldig. Binding nekter å signere enrollment request."
+            actionSummary = "Importer en kortlivet challenge med gyldig expiresAt."
+            return nil
+        }
+        guard expiryDate >= Date() else {
+            confirmationStatus = "Challenge er utløpt. Binding nekter å signere enrollment request."
+            actionSummary = "Hent en ny identity-link challenge før du fortsetter."
+            return nil
+        }
+
+        let now = Date()
+        let createdAt = Self.iso8601String(now)
+        let expiresAt = requestedExpiry
+        let displayName = identity.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = IdentityPublicKeyDescriptor(
+            uuid: identity.uuid,
+            displayName: displayName.isEmpty ? nil : displayName,
+            publicKey: publicKey,
+            algorithm: publicSecureKey.algorithm,
+            curveType: publicSecureKey.curveType
+        )
+        let entityBinding = EntityBindingDescriptor(
+            mode: .localEntityAnchor,
+            entityAnchorReference: challenge.entityAnchorReference ?? identity.entityAnchorReference,
+            audience: audience
+        )
+
+        var request = IdentityEnrollmentRequest(
+            requestID: challenge.requestID ?? UUID().uuidString,
+            purpose: challenge.purpose,
+            entityBinding: entityBinding,
+            newIdentity: subject,
+            requestedDomains: challenge.requestedDomains,
+            requestedIdentityContexts: challenge.requestedIdentityContexts,
+            requestedScopes: challenge.requestedScopes,
+            audience: audience,
+            origin: origin,
+            createdAt: createdAt,
+            expiresAt: expiresAt,
+            nonce: nonceData,
+            platform: "macOS",
+            deviceLabel: challenge.deviceLabel ?? displayName
+        )
+
+        do {
+            let canonicalPayload = try request.canonicalPayloadData()
+            guard let signature = try await identity.sign(data: canonicalPayload) else {
+                confirmationStatus = "Lokal IdentityVault returnerte ingen signatur."
+                actionSummary = "Kan ikke fortsette før Binding kan signere enrollment requesten."
+                return nil
+            }
+            request.proof = IdentityEnrollmentRequestProof(
+                byIdentityUUID: identity.uuid,
+                algorithm: publicSecureKey.algorithm,
+                curveType: publicSecureKey.curveType,
+                signature: signature
+            )
+            let requestHash = Self.sha256Base64URL(canonicalPayload)
+            let value = Self.valueType(from: request) ?? .null
+            let signatureBase64URL = Self.base64URL(signature)
+            let preview = "IdentityEnrollmentRequest \(request.requestID) · audience \(request.audience) · scopes \(request.requestedScopes.joined(separator: ", ")) · hash \(requestHash)"
+            return SignedEnrollmentRequestState(
+                value: value,
+                requestHashBase64URL: requestHash,
+                algorithmSummary: "\(publicSecureKey.algorithm.rawValue)/\(publicSecureKey.curveType.rawValue)",
+                signaturePreview: String(signatureBase64URL.prefix(18)) + "...",
+                preview: preview
+            )
+        } catch {
+            confirmationStatus = "Signering av IdentityEnrollmentRequest feilet: \(error)"
+            actionSummary = "Binding laget ikke noe proof fordi signeringen feilet."
+            return nil
+        }
+    }
+
+    private static func iso8601String(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
+
+    private static func sha256Base64URL(_ data: Data) -> String {
+        base64URL(Data(SHA256.hash(data: data)))
+    }
+
+    private static func valueType<T: Encodable>(from value: T) -> ValueType? {
+        guard let data = try? JSONEncoder().encode(value) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(ValueType.self, from: data)
+    }
+
+    private struct CompletionEnvelopePayload {
+        var envelope: IdentityLinkCompletionEnvelope
+        var value: ValueType
+    }
+
+    private static func decodeCompletionEnvelope(from input: String) -> CompletionEnvelopePayload? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var candidates = [trimmed]
+        if let decodedPayload = decodeBase64URL(trimmed),
+           let decodedText = String(data: decodedPayload, encoding: .utf8) {
+            candidates.append(decodedText)
+        }
+
+        for candidate in candidates {
+            guard let data = candidate.data(using: .utf8) else { continue }
+            if let payload = decodeCompletionEnvelopeData(data) {
+                return payload
+            }
+        }
+        return nil
+    }
+
+    private static func decodeCompletionEnvelopeData(_ data: Data) -> CompletionEnvelopePayload? {
+        let decoder = JSONDecoder()
+        if let envelope = try? decoder.decode(IdentityLinkCompletionEnvelope.self, from: data),
+           let value = try? decoder.decode(ValueType.self, from: data) {
+            return CompletionEnvelopePayload(envelope: envelope, value: value)
+        }
+
+        guard case let .object(object)? = try? decoder.decode(ValueType.self, from: data) else {
+            return nil
+        }
+        guard let nested = object["completionEnvelope"] ?? object["envelope"] ?? object["identityLinkCompletion"] else {
+            return nil
+        }
+        guard let nestedData = try? JSONEncoder().encode(nested),
+              let envelope = try? decoder.decode(IdentityLinkCompletionEnvelope.self, from: nestedData) else {
+            return nil
+        }
+        return CompletionEnvelopePayload(envelope: envelope, value: nested)
+    }
+
+    private static func statusString(from response: ValueType?) -> String? {
+        guard case let .object(object)? = response,
+              case let .string(status)? = object["status"] else {
+            return nil
+        }
+        return status
+    }
+
+    private static func responseSummary(from response: ValueType?) -> String {
+        guard let response else {
+            return "EntityAnchor returnerte ingen response."
+        }
+        guard case let .object(object) = response else {
+            return "EntityAnchor response: \(response)"
+        }
+        if case let .string(error)? = object["error"] {
+            return "EntityAnchor error: \(error)"
+        }
+        if case let .string(status)? = object["status"] {
+            return "EntityAnchor status: \(status)"
+        }
+        return "EntityAnchor response manglet status-felt."
+    }
+
+    private static func recordPreview(from response: ValueType?) -> String {
+        guard case let .object(object)? = response,
+              case let .object(record)? = object["record"] else {
+            return "Completion ble lagret, men Binding fant ikke record preview i response."
+        }
+        let linkID = stringValue(record["linkID"]) ?? "ukjent linkID"
+        let status = stringValue(record["status"]) ?? "ukjent status"
+        let scopes = stringList(record["approvedScopes"]).joined(separator: ", ")
+        let linkedIdentity: String
+        if case let .object(identityObject)? = record["linkedIdentity"] {
+            linkedIdentity = stringValue(identityObject["displayName"])
+                ?? stringValue(identityObject["uuid"])
+                ?? "ukjent identitet"
+        } else {
+            linkedIdentity = "ukjent identitet"
+        }
+        let proofKeypath = stringValue(object["proofKeypath"]) ?? "proof keypath mangler"
+        return "Record \(linkID) · \(status) · \(linkedIdentity) · scopes \(scopes.isEmpty ? "ikke oppgitt" : scopes) · \(proofKeypath)"
+    }
+
+    private static func stringValue(_ value: ValueType?) -> String? {
+        guard case let .string(string)? = value else {
+            return nil
+        }
+        return string
+    }
+
+    private static func stringList(_ value: ValueType?) -> [String] {
+        guard case let .list(values)? = value else {
+            return []
+        }
+        return values.compactMap { stringValue($0) }
+    }
+
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private static func decodeBase64URL(_ value: String) -> Data? {
+        var normalized = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while normalized.count % 4 != 0 {
+            normalized.append("=")
+        }
+        return Data(base64Encoded: normalized)
     }
 }
 
@@ -8118,6 +8514,7 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
     private func configure(owner: Identity) async {
         agreementTemplate.addGrant("r---", for: "state")
         agreementTemplate.addGrant("rw--", for: "setDraftInput")
+        agreementTemplate.addGrant("rw--", for: "setCompletionPackageInput")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 
         await addInterceptForGet(requester: owner, key: "state", getValueIntercept: { _, _ in
@@ -8126,6 +8523,14 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
 
         await addInterceptForSet(requester: owner, key: "setDraftInput", setValueIntercept: { _, value, _ in
             await ConferenceIdentityLinkInboxStore.shared.setDraftInput(Self.string(from: value))
+            return .object([
+                "status": .string("ok"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        })
+
+        await addInterceptForSet(requester: owner, key: "setCompletionPackageInput", setValueIntercept: { _, value, _ in
+            await ConferenceIdentityLinkInboxStore.shared.setCompletionPackageInput(Self.string(from: value))
             return .object([
                 "status": .string("ok"),
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
@@ -8162,6 +8567,13 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
         case "identityLink.confirmLocalReview":
             let localIdentity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) ?? requester
             await ConferenceIdentityLinkInboxStore.shared.confirmLocalReview(with: localIdentity)
+            return .object([
+                "status": .string("ok"),
+                "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
+            ])
+        case "identityLink.completeApprovedLink":
+            let localIdentity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) ?? requester
+            await ConferenceIdentityLinkInboxStore.shared.completeApprovedLink(with: localIdentity)
             return .object([
                 "status": .string("ok"),
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())

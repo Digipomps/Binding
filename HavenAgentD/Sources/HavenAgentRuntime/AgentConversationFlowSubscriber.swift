@@ -20,8 +20,12 @@ public struct AgentConversationPrompt: Codable, Equatable, Sendable, Identifiabl
     public var participantId: String?
     public var deviceId: String?
     public var ticketId: String?
+    public var requiredActionKey: String?
     public var title: String?
     public var message: String?
+    public var responseKind: String?
+    public var decision: String?
+    public var note: String?
     public var prompt: String
     public var receivedAt: String
 
@@ -32,8 +36,12 @@ public struct AgentConversationPrompt: Codable, Equatable, Sendable, Identifiabl
         participantId: String? = nil,
         deviceId: String? = nil,
         ticketId: String? = nil,
+        requiredActionKey: String? = nil,
         title: String? = nil,
         message: String? = nil,
+        responseKind: String? = nil,
+        decision: String? = nil,
+        note: String? = nil,
         prompt: String,
         receivedAt: String = ISO8601DateFormatter().string(from: Date())
     ) {
@@ -43,8 +51,12 @@ public struct AgentConversationPrompt: Codable, Equatable, Sendable, Identifiabl
         self.participantId = participantId
         self.deviceId = deviceId
         self.ticketId = ticketId
+        self.requiredActionKey = requiredActionKey
         self.title = title
         self.message = message
+        self.responseKind = responseKind
+        self.decision = decision
+        self.note = note
         self.prompt = prompt
         self.receivedAt = receivedAt
     }
@@ -67,9 +79,14 @@ public actor AgentConversationFlowSubscriber {
     private var currentEmit: Emit?
     private var prompts: [AgentConversationPrompt] = []
     private let maxPromptBufferSize: Int
+    private var promptHandler: (@Sendable (AgentConversationPrompt) async -> Void)?
 
     public init(maxPromptBufferSize: Int = 50) {
         self.maxPromptBufferSize = max(1, maxPromptBufferSize)
+    }
+
+    public func setPromptHandler(_ handler: (@Sendable (AgentConversationPrompt) async -> Void)?) {
+        promptHandler = handler
     }
 
     public func connect(
@@ -123,6 +140,9 @@ public actor AgentConversationFlowSubscriber {
         if prompts.count > maxPromptBufferSize {
             prompts.removeFirst(prompts.count - maxPromptBufferSize)
         }
+        if let promptHandler {
+            await promptHandler(prompt)
+        }
     }
 
     public func promptSnapshot() -> [AgentConversationPrompt] {
@@ -148,22 +168,37 @@ public actor AgentConversationFlowSubscriber {
             return nil
         }
 
+        let receivedAt = stringValue(object["updatedAt"]) ?? stringValue(object["createdAt"]) ?? ISO8601DateFormatter().string(from: Date())
         let conversationId = stringValue(object["conversationId"])
             ?? stringValue(object["jobId"])
             ?? stringValue(object["id"])
             ?? UUID().uuidString
+        let ticketId = stringValue(object["ticketId"])
+        let stableID = stringValue(object["id"])
+            ?? [ticketId, conversationId, stringValue(object["jobId"]), receivedAt]
+                .compactMap { value in
+                    let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return trimmed?.isEmpty == false ? trimmed : nil
+                }
+                .joined(separator: "::")
+
+        let resolvedID = stableID.isEmpty ? UUID().uuidString : stableID
 
         return AgentConversationPrompt(
-            id: stringValue(object["id"]) ?? UUID().uuidString,
+            id: resolvedID,
             conversationId: conversationId,
             jobId: stringValue(object["jobId"]),
             participantId: stringValue(object["participantId"]),
             deviceId: stringValue(object["deviceId"]),
-            ticketId: stringValue(object["ticketId"]),
+            ticketId: ticketId,
+            requiredActionKey: stringValue(object["requiredActionKey"]),
             title: stringValue(object["title"]),
             message: stringValue(object["message"]),
+            responseKind: stringValue(object["responseKind"]),
+            decision: stringValue(object["decision"]),
+            note: stringValue(object["note"]),
             prompt: prompt,
-            receivedAt: stringValue(object["updatedAt"]) ?? stringValue(object["createdAt"]) ?? ISO8601DateFormatter().string(from: Date())
+            receivedAt: receivedAt
         )
     }
 

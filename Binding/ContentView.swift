@@ -396,11 +396,20 @@ struct ContentView: View {
     enum ConferenceAutomationHook: String, Equatable {
         case openLauncher = "open-launcher"
         case openParticipantPortal = "open-participant-portal"
+        case openConferenceMVP = "open-conference-mvp"
         case openPublicSurface = "open-public-surface"
         case openControlTower = "open-control-tower"
+        case openSponsorFollowUp = "open-sponsor-follow-up"
         case openAIAssistant = "open-ai-assistant"
         case logAIAssistantState = "log-ai-assistant-state"
         case openIdentityLink = "open-identity-link"
+        case openAgentSetupWorkbench = "open-agent-setup-workbench"
+        case installAgent = "install-agent"
+        case startAgent = "start-agent"
+        case connectAgent = "connect-agent"
+        case queueAgentSafariReview = "queue-agent-safari-review"
+        case approveAgentReview = "approve-agent-review"
+        case stopAgent = "stop-agent"
         case focusAneSolberg = "focus-ane-solberg"
         case startChatWithFocusedParticipant = "start-chat-with-focused-participant"
         case openFocusedChatWorkbench = "open-focused-chat-workbench"
@@ -417,16 +426,34 @@ struct ContentView: View {
                 return "Open Conference Demo Launcher"
             case .openParticipantPortal:
                 return "Open Conference Participant Portal"
+            case .openConferenceMVP:
+                return "Open Conference MVP"
             case .openPublicSurface:
                 return "Open Conference Public Surface"
             case .openControlTower:
                 return "Open Conference Control Tower"
+            case .openSponsorFollowUp:
+                return "Open Conference Sponsor Follow-up"
             case .openAIAssistant:
                 return "Open Conference AI Assistant"
             case .logAIAssistantState:
                 return "Log Conference AI State"
             case .openIdentityLink:
                 return "Open Conference Scaffold Setup & Identity Link"
+            case .openAgentSetupWorkbench:
+                return "Open Agent Setup Workbench"
+            case .installAgent:
+                return "Install HAVENAgentD"
+            case .startAgent:
+                return "Start HAVENAgentD"
+            case .connectAgent:
+                return "Run HAVENAgentD Once"
+            case .queueAgentSafariReview:
+                return "Queue Agent Safari Review"
+            case .approveAgentReview:
+                return "Approve Agent Review"
+            case .stopAgent:
+                return "Stop HAVENAgentD"
             case .focusAneSolberg:
                 return "Focus Ane Solberg"
             case .startChatWithFocusedParticipant:
@@ -2693,11 +2720,17 @@ struct ContentView: View {
         Button(ConferenceAutomationHook.openParticipantPortal.title) {
             runConferenceAutomation(.openParticipantPortal)
         }
+        Button(ConferenceAutomationHook.openConferenceMVP.title) {
+            runConferenceAutomation(.openConferenceMVP)
+        }
         Button(ConferenceAutomationHook.openPublicSurface.title) {
             runConferenceAutomation(.openPublicSurface)
         }
         Button(ConferenceAutomationHook.openControlTower.title) {
             runConferenceAutomation(.openControlTower)
+        }
+        Button(ConferenceAutomationHook.openSponsorFollowUp.title) {
+            runConferenceAutomation(.openSponsorFollowUp)
         }
         Button(ConferenceAutomationHook.openAIAssistant.title) {
             runConferenceAutomation(.openAIAssistant)
@@ -2707,6 +2740,29 @@ struct ContentView: View {
         }
         Button(ConferenceAutomationHook.openIdentityLink.title) {
             runConferenceAutomation(.openIdentityLink)
+        }
+        if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
+            Button(ConferenceAutomationHook.openAgentSetupWorkbench.title) {
+                runConferenceAutomation(.openAgentSetupWorkbench)
+            }
+            Button(ConferenceAutomationHook.installAgent.title) {
+                runConferenceAutomation(.installAgent)
+            }
+            Button(ConferenceAutomationHook.startAgent.title) {
+                runConferenceAutomation(.startAgent)
+            }
+            Button(ConferenceAutomationHook.connectAgent.title) {
+                runConferenceAutomation(.connectAgent)
+            }
+            Button(ConferenceAutomationHook.queueAgentSafariReview.title) {
+                runConferenceAutomation(.queueAgentSafariReview)
+            }
+            Button(ConferenceAutomationHook.approveAgentReview.title) {
+                runConferenceAutomation(.approveAgentReview)
+            }
+            Button(ConferenceAutomationHook.stopAgent.title) {
+                runConferenceAutomation(.stopAgent)
+            }
         }
 
         Divider()
@@ -3628,6 +3684,13 @@ struct ContentView: View {
                     navigationMode: .automatic
                 )
             }
+        case .openConferenceMVP:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.conferenceMVPAutomationConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
         case .openPublicSurface:
             await MainActor.run {
                 loadConferenceAutomationConfiguration(
@@ -3639,6 +3702,13 @@ struct ContentView: View {
             await MainActor.run {
                 loadConferenceAutomationConfiguration(
                     Self.conferenceAdminMenuSeedConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .openSponsorFollowUp:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.conferenceSponsorAutomationConfiguration(),
                     navigationMode: .automatic
                 )
             }
@@ -3658,6 +3728,49 @@ struct ContentView: View {
                     navigationMode: .automatic
                 )
             }
+        case .openAgentSetupWorkbench:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    Self.agentSetupAutomationConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .installAgent:
+            _ = await dispatchDirectConferenceAutomationAction(
+                endpoint: "cell:///AgentProvisioning",
+                actionKeypath: "agent.setup.install",
+                payload: .bool(true)
+            )
+        case .startAgent:
+            _ = await dispatchDirectConferenceAutomationAction(
+                endpoint: "cell:///AgentProvisioning",
+                actionKeypath: "agent.setup.start",
+                payload: .bool(true)
+            )
+        case .connectAgent:
+            _ = await dispatchDirectConferenceAutomationAction(
+                endpoint: "cell:///AgentProvisioning",
+                actionKeypath: "agent.setup.connect",
+                payload: .bool(true)
+            )
+        case .queueAgentSafariReview:
+            _ = await dispatchDirectConferenceAutomationAction(
+                endpoint: "cell:///AgentProvisioning",
+                actionKeypath: "agent.setup.review.queueSafariTest",
+                payload: .bool(true)
+            )
+        case .approveAgentReview:
+            _ = await dispatchDirectConferenceAutomationAction(
+                endpoint: "cell:///AgentProvisioning",
+                actionKeypath: "agent.setup.review.approveSelected",
+                payload: .bool(true)
+            )
+        case .stopAgent:
+            _ = await dispatchDirectConferenceAutomationAction(
+                endpoint: "cell:///AgentProvisioning",
+                actionKeypath: "agent.setup.stop",
+                payload: .bool(true)
+            )
         case .focusAneSolberg:
             let focused = await dispatchConferenceAutomationAction(
                 endpoint: "cell:///ConferenceParticipantMatchmakingSnapshot",
@@ -3920,7 +4033,88 @@ struct ContentView: View {
         }
     }
 
+    private func dispatchDirectConferenceAutomationAction(
+        endpoint: String,
+        actionKeypath: String,
+        payload: ValueType = .null
+    ) async -> Bool {
+        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard let requester = await startupRequesterIdentity() else {
+            await MainActor.run {
+                loadErrorMessage = "Conference automation mangler startup-identitet."
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: "Startup-identitet mangler for conference automation."
+                )
+            }
+            return false
+        }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            await MainActor.run {
+                loadErrorMessage = "Conference automation mangler CellResolver."
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: "CellResolver mangler for conference automation."
+                )
+            }
+            return false
+        }
+        guard let cell = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle else {
+            await MainActor.run {
+                loadErrorMessage = "Conference automation fant ikke \(endpoint)."
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: "Fant ikke automation-endpoint \(endpoint)."
+                )
+            }
+            return false
+        }
+
+        do {
+            let result = try await cell.set(keypath: actionKeypath, value: payload, requester: requester) ?? .null
+            if let failure = conferenceAutomationFailureMessage(from: result) {
+                await MainActor.run {
+                    loadErrorMessage = failure
+                    diagnosticsStore.record(
+                        severity: .warning,
+                        domain: "binding.automation",
+                        message: failure
+                    )
+                }
+                return false
+            }
+            await MainActor.run {
+                diagnosticsStore.record(
+                    domain: "binding.automation",
+                    message: "Automation utførte \(actionKeypath) på \(endpoint)."
+                )
+                refreshLegacyPortholeBindings(reason: "conference automation \(actionKeypath)")
+            }
+            return true
+        } catch {
+            let message = "Conference automation feilet for \(actionKeypath) på \(endpoint): \(error)"
+            await MainActor.run {
+                loadErrorMessage = message
+                diagnosticsStore.record(
+                    severity: .error,
+                    domain: "binding.automation",
+                    message: message
+                )
+            }
+            return false
+        }
+    }
+
     private func conferenceAutomationFailureMessage(from value: ValueType) -> String? {
+        if case let .string(text) = value {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("error:") || trimmed == "denied" || trimmed == "failure" {
+                return trimmed
+            }
+        }
         guard case let .object(object) = value else { return nil }
         if let status = stringValue(from: object["status"]),
            status == "error" || status == "denied" || status == "failure" {
@@ -3958,6 +4152,7 @@ struct ContentView: View {
             || normalizedName == "conference control tower"
             || normalizedName == "conference public surface"
             || normalizedName == "conference ai assistant"
+            || normalizedName == "agent setup workbench"
             || normalizedName == "conference scaffold setup & identity link"
             || normalizedName.contains("conference nearby radar")
             || normalizedName.contains("profilflate")
@@ -4326,6 +4521,7 @@ struct ContentView: View {
             "conference demo launcher",
             "conference scaffold setup & identity link",
             "conference participant portal dashboard",
+            "agent setup workbench",
             "conference ai assistant",
             "conference chat · oppfølging",
             "conference control tower",
@@ -6473,10 +6669,26 @@ struct ContentView: View {
         )
     }
 
+    static func conferenceMVPAutomationConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(
+            endpoint: "cell://\(Self.stagingHost)/ConferenceUIRouter"
+        )
+    }
+
     static func conferencePublicAutomationConfiguration() -> CellConfiguration {
         ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
             endpoint: "cell://\(Self.stagingHost)/ConferencePublicShell"
         )
+    }
+
+    static func conferenceSponsorAutomationConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
+            endpoint: "cell://\(Self.stagingHost)/ConferenceSponsorShell"
+        )
+    }
+
+    static func agentSetupAutomationConfiguration() -> CellConfiguration {
+        ConfigurationCatalogCell.agentSetupWorkbenchConfiguration()
     }
 
     static let conferenceAutomationDefaultsKey = "Binding.EnableConferenceAutomation"
@@ -6605,6 +6817,7 @@ struct ContentView: View {
         let conferenceDemoLauncher = Self.conferenceDemoLauncherMenuSeedConfiguration()
         let conferenceIdentityLink = Self.conferenceIdentityLinkMenuSeedConfiguration()
         let conferenceParticipantPortal = Self.conferenceParticipantPortalMenuSeedConfiguration()
+        let conferenceMVP = Self.conferenceMVPAutomationConfiguration()
         let conferenceAIAssistant = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
             aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
@@ -6613,6 +6826,7 @@ struct ContentView: View {
         let conferencePublic = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
             endpoint: stagingEndpoint("ConferencePublicShell")
         )
+        let conferenceSponsor = Self.conferenceSponsorAutomationConfiguration()
         let todo = referenceMenuConfiguration(
             name: "Todo MVP",
             endpoint: stagingEndpoint("Todo"),
@@ -6641,14 +6855,27 @@ struct ContentView: View {
         let localEntityScanner = ConfigurationCatalogCell.entityScannerWorkbenchConfiguration()
         let localEntityScannerHelper = ConfigurationCatalogCell.entityScannerTestHelperConfiguration()
         let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
+        let agentSetup = ConfigurationCatalogCell.agentSetupWorkbenchMenuConfiguration()
+
+        var upperLeft = [conferenceDemoLauncher, conferencePublic, conferenceMVP, chat, todo]
+        var upperMid = [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, conferenceSponsor, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, portholeWorkbench]
+        var upperRight = [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceSponsor, conferenceIdentityLink, workflowStudioPortable, obsidian, portholeWorkbench]
+        var lowerLeft = [localEntityScanner, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist]
+        var lowerMid = [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, conferenceMVP, conferenceSponsor, todo, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, folderWatchWorkbench, graphIndexWorkbench]
+        var lowerRight = [obsidian, vaultWorkbench, workflowStudioWorkbench, workflowStudioPortable, graphIndexWorkbench, trustedIssuersWorkbench]
+
+        if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
+            upperMid.append(agentSetup)
+            lowerRight.append(agentSetup)
+        }
 
         return (
-            upperLeft: [conferenceDemoLauncher, conferencePublic, chat, todo],
-            upperMid: [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, portholeWorkbench],
-            upperRight: [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceIdentityLink, workflowStudioPortable, obsidian, portholeWorkbench],
-            lowerLeft: [localEntityScanner, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist],
-            lowerMid: [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, todo, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, folderWatchWorkbench, graphIndexWorkbench],
-            lowerRight: [obsidian, vaultWorkbench, workflowStudioWorkbench, workflowStudioPortable, graphIndexWorkbench, trustedIssuersWorkbench]
+            upperLeft: upperLeft,
+            upperMid: upperMid,
+            upperRight: upperRight,
+            lowerLeft: lowerLeft,
+            lowerMid: lowerMid,
+            lowerRight: lowerRight
         )
     }
 
