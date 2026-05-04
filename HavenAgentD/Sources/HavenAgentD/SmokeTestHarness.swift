@@ -344,7 +344,7 @@ enum SmokeTestHarness {
             scaffold: ScaffoldConnectionConfig(
                 sproutBinaryPath: sproutBinaryPath,
                 startupMode: .join,
-                runtime: "mac-agent",
+                runtime: "macos-app",
                 domain: "smoke.haven.local",
                 purpose: "bootstrap.join_scaffold",
                 goal: "Exercise reconnect and renewal flow locally",

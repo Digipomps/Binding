@@ -85,7 +85,7 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
     public init(
         sproutBinaryPath: String,
         startupMode: SproutStartupMode = .disabled,
-        runtime: String = "mac-agent",
+        runtime: String = "macos-app",
         domain: String,
         purpose: String? = nil,
         goal: String? = nil,
@@ -334,7 +334,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
             scaffold: ScaffoldConnectionConfig(
                 sproutBinaryPath: "/absolute/path/to/sprout",
                 startupMode: .plan,
-                runtime: "mac-agent",
+                runtime: "macos-app",
                 domain: "staging.haven.example",
                 purpose: "bootstrap.join_scaffold",
                 goal: "Join scaffold and prepare native porthole access for local automation",

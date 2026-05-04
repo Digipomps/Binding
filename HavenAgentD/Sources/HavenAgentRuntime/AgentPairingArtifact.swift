@@ -38,6 +38,7 @@ public enum AgentPairingArtifactError: Error, LocalizedError, Sendable {
     case inconsistentPurpose
     case inconsistentScaffoldDomain
     case inconsistentChallenge
+    case unsupportedOperatorCurve(String)
     case invalidOperatorSignature
     case invalidAgentAttestationSignature
 
@@ -57,6 +58,8 @@ public enum AgentPairingArtifactError: Error, LocalizedError, Sendable {
             return "Pairing artifact scaffold domain does not match the agent attestation."
         case .inconsistentChallenge:
             return "Pairing artifact challenge does not match the agent attestation."
+        case .unsupportedOperatorCurve(let curve):
+            return "Pairing artifact operator curve is unsupported: \(curve)"
         case .invalidOperatorSignature:
             return "Pairing artifact operator approval signature did not verify."
         case .invalidAgentAttestationSignature:
@@ -174,11 +177,8 @@ private struct PairingArtifact: Codable {
             throw AgentPairingArtifactError.inconsistentChallenge
         }
 
-        let operatorPublicKey = try Curve25519.Signing.PublicKey(
-            rawRepresentation: Base64URL.decode(operatorApproval.payload.operatorPublicKeyBase64URL)
-        )
         let operatorSignature = Data(base64Encoded: operatorApproval.signatureBase64) ?? Data()
-        guard operatorPublicKey.isValidSignature(operatorSignature, for: try operatorApproval.canonicalPayloadData()) else {
+        guard try verifyOperatorSignature(signature: operatorSignature, payload: try operatorApproval.canonicalPayloadData()) else {
             throw AgentPairingArtifactError.invalidOperatorSignature
         }
 
@@ -188,6 +188,21 @@ private struct PairingArtifact: Codable {
         let agentSignature = try Base64URL.decode(agentAttestation.signatureBase64URL)
         guard agentPublicKey.isValidSignature(agentSignature, for: try agentAttestation.canonicalPayloadData()) else {
             throw AgentPairingArtifactError.invalidAgentAttestationSignature
+        }
+    }
+
+    private func verifyOperatorSignature(signature: Data, payload: Data) throws -> Bool {
+        let publicKeyData = try Base64URL.decode(operatorApproval.payload.operatorPublicKeyBase64URL)
+        switch operatorApproval.curveType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "curve25519", "ed25519":
+            let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: publicKeyData)
+            return publicKey.isValidSignature(signature, for: payload)
+        case "p-256", "p256":
+            let publicKey = try P256.Signing.PublicKey(x963Representation: publicKeyData)
+            let ecdsaSignature = try P256.Signing.ECDSASignature(derRepresentation: signature)
+            return publicKey.isValidSignature(ecdsaSignature, for: payload)
+        default:
+            throw AgentPairingArtifactError.unsupportedOperatorCurve(operatorApproval.curveType)
         }
     }
 }

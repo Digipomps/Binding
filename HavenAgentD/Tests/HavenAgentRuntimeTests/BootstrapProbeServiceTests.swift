@@ -121,7 +121,7 @@ private enum ProbeFixtureFactory {
             scaffold: ScaffoldConnectionConfig(
                 sproutBinaryPath: sproutBinaryPath,
                 startupMode: .join,
-                runtime: "mac-agent",
+                runtime: "macos-app",
                 domain: "staging.haven.digipomps.org",
                 purpose: "bootstrap.join_scaffold",
                 goal: "Join staging scaffold",
@@ -233,6 +233,82 @@ private enum ProbeFixtureFactory {
         try encoder.encode(artifact).write(to: fileURL, options: [.atomic])
     }
 
+    static func writePairingArtifact(
+        to fileURL: URL,
+        agentKey: Curve25519.Signing.PrivateKey,
+        operatorP256Key: P256.Signing.PrivateKey,
+        scaffoldDomain: String,
+        purposeRef: String
+    ) throws {
+        let recordedAt = "2026-03-15T12:00:00Z"
+        let challenge = "pairing-\(UUID().uuidString.lowercased())"
+        let pairingID = "pair_\(UUID().uuidString.lowercased())"
+        let agentPublicKey = Base64URL.encode(agentKey.publicKey.rawRepresentation)
+        let operatorPublicKey = Base64URL.encode(operatorP256Key.publicKey.x963Representation)
+        let attestationPayload = PairingArtifactMirror.AgentEnrollmentAttestationMirror.Payload(
+            version: "1.0",
+            instanceName: "haven-agentd-probe",
+            agentIdentityUUID: "agent-identity-001",
+            agentDisplayName: "HAVEN Agent",
+            agentDid: "did:key:zAgentFixture",
+            agentPublicKeyBase64URL: agentPublicKey,
+            operatorIdentityUUID: "operator-identity-001",
+            operatorDid: "did:key:zOperatorFixture",
+            operatorPublicKeyBase64URL: operatorPublicKey,
+            purposeRef: purposeRef,
+            scaffoldDomain: scaffoldDomain,
+            challenge: challenge,
+            issuedAt: recordedAt
+        )
+        var attestation = PairingArtifactMirror.AgentEnrollmentAttestationMirror(
+            payload: attestationPayload,
+            signatureAlgorithm: "Ed25519",
+            signatureBase64URL: ""
+        )
+        attestation.signatureBase64URL = Base64URL.encode(
+            try agentKey.signature(for: attestation.canonicalPayloadData())
+        )
+
+        let attestationDigest = Data(SHA256.hash(data: try attestation.canonicalPayloadData()))
+        let approvalPayload = PairingArtifactMirror.OperatorApprovalMirror.Payload(
+            version: "1.0",
+            pairingID: pairingID,
+            scaffoldDomain: scaffoldDomain,
+            purposeRef: purposeRef,
+            challenge: challenge,
+            attestationSHA256Base64URL: Base64URL.encode(attestationDigest),
+            operatorIdentityUUID: "operator-identity-001",
+            operatorDisplayName: "private",
+            operatorDid: "did:key:zOperatorFixture",
+            operatorPublicKeyBase64URL: operatorPublicKey,
+            approvedAt: recordedAt
+        )
+        var approval = PairingArtifactMirror.OperatorApprovalMirror(
+            payload: approvalPayload,
+            signatureBase64: "",
+            curveType: "P-256"
+        )
+        approval.signatureBase64 = try operatorP256Key.signature(for: approval.canonicalPayloadData()).derRepresentation.base64EncodedString()
+
+        let artifact = PairingArtifactMirror(
+            version: "1.0",
+            pairingID: pairingID,
+            recordedAt: recordedAt,
+            verificationStatus: "agent-attestation-verified",
+            agentAttestation: attestation,
+            operatorApproval: approval
+        )
+
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(artifact).write(to: fileURL, options: [.atomic])
+    }
+
     static func writeStarterAuth(
         to fileURL: URL,
         agentKey: Curve25519.Signing.PrivateKey,
@@ -309,6 +385,40 @@ private enum ProbeFixtureFactory {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(contract).write(to: fileURL, options: [.atomic])
+    }
+
+    static func makeMixedSignatureEntityLink(
+        agentKey: Curve25519.Signing.PrivateKey,
+        operatorP256Key: P256.Signing.PrivateKey,
+        domain: String,
+        purpose: String
+    ) throws -> AgentEntityLinkContract {
+        var contract = AgentEntityLinkContract(
+            contract_id: "elc_fixture_mixed_0001",
+            domain_a: domain,
+            pubkey_a: Base64URL.encode(operatorP256Key.publicKey.x963Representation),
+            domain_b: domain,
+            pubkey_b: Base64URL.encode(agentKey.publicKey.rawRepresentation),
+            scope: "purpose-bound:\(purpose)",
+            created_at: "2026-03-15T12:00:00Z",
+            revocation: AgentEntityLinkRevocation(mode: "mutual"),
+            signatures: []
+        )
+
+        let canonical = try contract.canonicalPayloadData()
+        contract.signatures = [
+            AgentEntityLinkSignature(
+                by_pubkey: contract.pubkey_a,
+                alg: "P256-ES256",
+                sig: Base64URL.encode(try operatorP256Key.signature(for: canonical).derRepresentation)
+            ),
+            AgentEntityLinkSignature(
+                by_pubkey: contract.pubkey_b,
+                alg: "Ed25519",
+                sig: Base64URL.encode(try agentKey.signature(for: canonical))
+            )
+        ]
+        return contract
     }
 
     static func makeSignedPortholeAccessContract(contractID: String) throws -> PortholeAccessContract {
@@ -390,6 +500,67 @@ struct BootstrapProbeServiceTests {
         #expect(report.starterAuth.valid)
         #expect(report.entityLink.valid)
         #expect(report.bootstrap == nil)
+    }
+
+    @Test
+    func probeAcceptsP256SignedPairingArtifact() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HavenAgentDProbe-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let agentKey = Curve25519.Signing.PrivateKey()
+        let operatorKey = P256.Signing.PrivateKey()
+        let sproutPath = root.appendingPathComponent("fake-sprout").path
+        let config = ProbeFixtureFactory.makeConfig(paths: paths, sproutBinaryPath: sproutPath)
+
+        try ProbeFixtureFactory.writeExecutableStub(at: sproutPath)
+        try ProbeFixtureFactory.writePairingArtifact(
+            to: paths.pairingArtifactFile,
+            agentKey: agentKey,
+            operatorP256Key: operatorKey,
+            scaffoldDomain: config.scaffold.domain,
+            purposeRef: try #require(config.scaffold.purpose)
+        )
+        try ProbeFixtureFactory.writeStarterAuth(
+            to: URL(fileURLWithPath: try #require(config.scaffold.starterAuthPath)),
+            agentKey: agentKey,
+            domain: config.scaffold.domain,
+            purpose: try #require(config.scaffold.purpose),
+            interests: config.scaffold.interests
+        )
+
+        let mixedContract = try ProbeFixtureFactory.makeMixedSignatureEntityLink(
+            agentKey: agentKey,
+            operatorP256Key: operatorKey,
+            domain: config.scaffold.domain,
+            purpose: try #require(config.scaffold.purpose)
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(mixedContract).write(
+            to: URL(fileURLWithPath: try #require(config.scaffold.entityLinkPath)),
+            options: [.atomic]
+        )
+        try config.write(to: paths.configFile)
+
+        let report = await BootstrapProbeService(paths: paths).probe(configURL: paths.configFile)
+
+        #expect(report.readyForBootstrap)
+        #expect(report.pairingArtifact.valid)
+        #expect(report.entityLink.valid)
+    }
+
+    @Test
+    func mixedP256AndEd25519EntityLinkVerifies() throws {
+        let contract = try ProbeFixtureFactory.makeMixedSignatureEntityLink(
+            agentKey: Curve25519.Signing.PrivateKey(),
+            operatorP256Key: P256.Signing.PrivateKey(),
+            domain: "staging.haven.digipomps.org",
+            purpose: "purpose://operate-local-haven-agent"
+        )
+
+        #expect(try contract.verifyMutualSignatures())
     }
 
     @Test

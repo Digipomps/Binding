@@ -137,7 +137,7 @@ private struct StarterAuthInspection {
 
 private struct EntityLinkInspection {
     var status: BootstrapProbeArtifactStatus
-    var contract: EntityLinkContract?
+    var contract: AgentEntityLinkContract?
 }
 
 public actor BootstrapProbeService {
@@ -416,7 +416,10 @@ public actor BootstrapProbeService {
         }
 
         do {
-            let contract = try EntityLinkContractIO.load(from: URL(fileURLWithPath: resolvedPath))
+            let contract = try JSONDecoder().decode(
+                AgentEntityLinkContract.self,
+                from: Data(contentsOf: URL(fileURLWithPath: resolvedPath))
+            )
             let signaturesValid = try contract.verifyMutualSignatures()
             let domainsMatch = contract.domain_a == config.scaffold.domain && contract.domain_b == config.scaffold.domain
             let expectedScope = config.scaffold.purpose.map { "purpose-bound:\($0)" }

@@ -924,7 +924,7 @@ final class AgentEnrollmentCell: GeneralCell {
         }
         let operatorSignature = EntityLinkSignature(
             by_pubkey: operatorPublicKeyBase64URL,
-            alg: "Ed25519",
+            alg: try Self.entityLinkSignatureAlgorithm(for: operatorIdentity),
             sig: Self.base64URLEncode(operatorSignatureData)
         )
 
@@ -952,6 +952,15 @@ final class AgentEnrollmentCell: GeneralCell {
     }
 
     private func parseEntityLinkSignature(from value: ValueType?) throws -> EntityLinkSignature {
+        if case let .string(text)? = value {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed == "denied" {
+                throw EnrollmentError.entityLinkInvalid("agent denied the entity-link countersign request")
+            }
+            if trimmed.hasPrefix("error:") {
+                throw EnrollmentError.entityLinkInvalid(trimmed)
+            }
+        }
         guard case let .object(object)? = value else {
             throw EnrollmentError.entityLinkInvalid("agent did not return an entity-link signature")
         }
@@ -974,16 +983,10 @@ final class AgentEnrollmentCell: GeneralCell {
         var verified = Set<String>()
 
         for signature in entityLink.signatures {
-            guard signature.alg == "Ed25519" else {
-                throw EnrollmentError.entityLinkInvalid("entity-link signature algorithm mismatch")
-            }
             guard requiredKeys.contains(signature.by_pubkey) else {
                 throw EnrollmentError.entityLinkInvalid("entity-link signature key mismatch")
             }
-            let publicKeyData = try Self.base64URLDecode(signature.by_pubkey)
-            let signatureData = try Self.base64URLDecode(signature.sig)
-            let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: publicKeyData)
-            guard publicKey.isValidSignature(signatureData, for: canonical) else {
+            guard try Self.verifyEntityLinkSignature(signature, canonical: canonical) else {
                 throw EnrollmentError.entityLinkInvalid("entity-link signature verification failed")
             }
             verified.insert(signature.by_pubkey)
@@ -1003,6 +1006,42 @@ final class AgentEnrollmentCell: GeneralCell {
             [.posixPermissions: 0o600],
             ofItemAtPath: fileURL.path
         )
+    }
+
+    private static func entityLinkSignatureAlgorithm(for identity: Identity) throws -> String {
+        guard let key = identity.publicSecureKey else {
+            throw EnrollmentError.operatorIdentityUnavailable
+        }
+
+        switch (key.algorithm, key.curveType) {
+        case (.ECDSA, .P256):
+            return "P256-ES256"
+        case (.EdDSA, .Curve25519), (.ECDSA, .Curve25519):
+            return "Ed25519"
+        default:
+            throw EnrollmentError.entityLinkInvalid(
+                "unsupported operator signature algorithm \(key.algorithm.rawValue)/\(key.curveType.rawValue)"
+            )
+        }
+    }
+
+    private static func verifyEntityLinkSignature(
+        _ signature: EntityLinkSignature,
+        canonical: Data
+    ) throws -> Bool {
+        let publicKeyData = try base64URLDecode(signature.by_pubkey)
+        let signatureData = try base64URLDecode(signature.sig)
+        switch signature.alg.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "ed25519":
+            let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: publicKeyData)
+            return publicKey.isValidSignature(signatureData, for: canonical)
+        case "p256-es256", "es256":
+            let publicKey = try P256.Signing.PublicKey(x963Representation: publicKeyData)
+            let ecdsaSignature = try P256.Signing.ECDSASignature(derRepresentation: signatureData)
+            return publicKey.isValidSignature(ecdsaSignature, for: canonical)
+        default:
+            throw EnrollmentError.entityLinkInvalid("unsupported entity-link signature algorithm \(signature.alg)")
+        }
     }
 
     private func currentPaths() throws -> AgentPaths {

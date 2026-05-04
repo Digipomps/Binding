@@ -46,7 +46,7 @@ struct SproutBootstrapClientTests {
             scaffold: ScaffoldConnectionConfig(
                 sproutBinaryPath: "/tmp/sprout",
                 startupMode: .plan,
-                runtime: "mac-agent",
+                runtime: "macos-app",
                 domain: "example.haven.local",
                 purpose: "bootstrap.join_scaffold",
                 goal: "Join scaffold",
@@ -109,7 +109,7 @@ struct SproutBootstrapClientTests {
             scaffold: ScaffoldConnectionConfig(
                 sproutBinaryPath: "/tmp/sprout",
                 startupMode: .disabled,
-                runtime: "mac-agent",
+                runtime: "macos-app",
                 domain: "example.haven.local",
                 purpose: nil,
                 goal: nil,
@@ -159,7 +159,7 @@ struct SproutBootstrapClientTests {
             scaffold: ScaffoldConnectionConfig(
                 sproutBinaryPath: "/tmp/sprout",
                 startupMode: .join,
-                runtime: "mac-agent",
+                runtime: "macos-app",
                 domain: "example.haven.local",
                 purpose: "bootstrap.join_scaffold",
                 goal: "Join scaffold",

@@ -63,7 +63,7 @@ private enum PortholeLifecycleFixtureFactory {
             scaffold: ScaffoldConnectionConfig(
                 sproutBinaryPath: executablePath,
                 startupMode: .join,
-                runtime: "mac-agent",
+                runtime: "macos-app",
                 domain: "test.haven.local",
                 purpose: "bootstrap.join_scaffold",
                 goal: "Exercise reconnect and renewal flow in tests",

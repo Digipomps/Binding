@@ -506,7 +506,7 @@ final class AgentProvisioningCell: GeneralCell {
         await registerAction(key: "agent.setup.connect", owner: owner) { [weak self] _, requester in
             guard let self = self else { return .string("failure") }
             return await self.performAction(title: "Ran purpose connect", requester: requester) {
-                try self.connectUsingCurrentPurpose()
+                try await self.connectUsingCurrentPurpose(requester: requester)
             }
         }
 
@@ -828,8 +828,14 @@ final class AgentProvisioningCell: GeneralCell {
 
         let serviceTarget = Self.launchctlServiceTarget()
         if Self.isLaunchAgentLoaded(label: Self.launchAgentLabel) {
+            if Self.isLaunchAgentRunning(label: Self.launchAgentLabel) {
+                return
+            }
             let result = try Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget])
             guard result.succeeded else {
+                if Self.isLaunchAgentRunning(label: Self.launchAgentLabel) {
+                    return
+                }
                 throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: result))")
             }
             return
@@ -843,7 +849,11 @@ final class AgentProvisioningCell: GeneralCell {
             throw ProvisioningError.commandFailed("launchctl bootstrap failed: \(Self.trimmedOutput(from: bootstrap))")
         }
 
-        _ = try? Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget])
+        if let kickstart = try? Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget]),
+           kickstart.succeeded == false,
+           Self.isLaunchAgentRunning(label: Self.launchAgentLabel) == false {
+            throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: kickstart))")
+        }
     }
 
     private func stopLaunchAgent() throws {
@@ -862,7 +872,7 @@ final class AgentProvisioningCell: GeneralCell {
         }
     }
 
-    private func connectUsingCurrentPurpose() throws {
+    private func connectUsingCurrentPurpose(requester: Identity) async throws {
         guard Self.supportsLocalAgentRuntime else {
             throw ProvisioningError.unsupportedPlatform("Connecting the local HAVEN agent")
         }
@@ -871,12 +881,44 @@ final class AgentProvisioningCell: GeneralCell {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
         }
 
+        try await ensureFreshEnrollmentArtifacts(requester: requester, paths: paths)
+
         let result = try Self.runCommand(
             paths.installedBinary.path,
             arguments: ["run", "--config", paths.configFile.path, "--once"]
         )
         guard result.succeeded else {
             throw ProvisioningError.commandFailed("haven-agentd run --once failed: \(Self.trimmedOutput(from: result))")
+        }
+    }
+
+    private func ensureFreshEnrollmentArtifacts(requester: Identity, paths: AgentPaths) async throws {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            throw ProvisioningError.commandFailed("CellResolver is unavailable for agent enrollment refresh.")
+        }
+        guard let enrollment = try await resolver.cellAtEndpoint(endpoint: "cell:///AgentEnrollment", requester: requester) as? Meddle else {
+            throw ProvisioningError.commandFailed("Agent enrollment surface is unavailable.")
+        }
+
+        _ = try await enrollment.set(
+            keypath: "enrollment.createPairingArtifact",
+            value: .bool(true),
+            requester: requester
+        )
+
+        let starterAuthFile = paths.agentDirectory.appendingPathComponent("starter-auth.json")
+        let entityLinkFile = paths.outDirectory.appendingPathComponent("agent-operator-entity-link.json")
+        let fileManager = FileManager.default
+
+        guard fileManager.fileExists(atPath: starterAuthFile.path) else {
+            throw ProvisioningError.commandFailed(
+                "Agent enrollment did not materialize starter auth at \(starterAuthFile.path)."
+            )
+        }
+        guard fileManager.fileExists(atPath: entityLinkFile.path) else {
+            throw ProvisioningError.commandFailed(
+                "Agent enrollment did not materialize entity-link evidence at \(entityLinkFile.path)."
+            )
         }
     }
 
@@ -1396,6 +1438,9 @@ final class AgentProvisioningCell: GeneralCell {
             if Self.supportsLocalAgentRuntime == false {
                 return "LaunchAgent plists are only used on macOS."
             }
+            if Self.isLaunchAgentRunning(label: Self.launchAgentLabel) {
+                return "Running as \(Self.launchctlServiceTarget())"
+            }
             return launchAgentLoaded
                 ? "Loaded as \(Self.launchctlServiceTarget())"
                 : (launchAgentExists ? "Plist ready in \(paths.launchAgentPlist.path)" : "Launch agent plist will be written to \(paths.launchAgentPlist.path)")
@@ -1713,7 +1758,7 @@ final class AgentProvisioningCell: GeneralCell {
             "scaffold": [
                 "sproutBinaryPath": NSString(string: snapshot.sproutBinaryPath).expandingTildeInPath,
                 "startupMode": "join",
-                "runtime": "mac-agent",
+                "runtime": "macos-app",
                 "domain": snapshot.domain,
                 "purpose": snapshot.purposeRef.isEmpty ? Self.portablePurposeRef(from: snapshot.purposeName) : snapshot.purposeRef,
                 "goal": snapshot.goal,
@@ -2226,6 +2271,19 @@ final class AgentProvisioningCell: GeneralCell {
             return false
         }
         return result.succeeded
+#else
+        false
+#endif
+    }
+
+    private static func isLaunchAgentRunning(label: String) -> Bool {
+#if os(macOS)
+        guard let result = try? runCommand("/bin/launchctl", arguments: ["print", "gui/\(getuid())/\(label)"]),
+              result.succeeded else {
+            return false
+        }
+        let output = "\(result.standardOutput)\n\(result.standardError)"
+        return output.range(of: "state = running") != nil
 #else
         false
 #endif
