@@ -828,15 +828,9 @@ final class AgentProvisioningCell: GeneralCell {
 
         let serviceTarget = Self.launchctlServiceTarget()
         if Self.isLaunchAgentLoaded(label: Self.launchAgentLabel) {
-            if Self.isLaunchAgentRunning(label: Self.launchAgentLabel) {
-                return
-            }
-            let result = try Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget])
-            guard result.succeeded else {
-                if Self.isLaunchAgentRunning(label: Self.launchAgentLabel) {
-                    return
-                }
-                throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: result))")
+            let kickstart = try Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget])
+            guard kickstart.succeeded || Self.isLaunchAgentRunning(label: Self.launchAgentLabel) else {
+                throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: kickstart))")
             }
             return
         }
@@ -882,14 +876,8 @@ final class AgentProvisioningCell: GeneralCell {
         }
 
         try await ensureFreshEnrollmentArtifacts(requester: requester, paths: paths)
-
-        let result = try Self.runCommand(
-            paths.installedBinary.path,
-            arguments: ["run", "--config", paths.configFile.path, "--once"]
-        )
-        guard result.succeeded else {
-            throw ProvisioningError.commandFailed("haven-agentd run --once failed: \(Self.trimmedOutput(from: result))")
-        }
+        try startLaunchAgent()
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
     }
 
     private func ensureFreshEnrollmentArtifacts(requester: Identity, paths: AgentPaths) async throws {
@@ -1384,6 +1372,12 @@ final class AgentProvisioningCell: GeneralCell {
             }
             if portholePhase.caseInsensitiveCompare("connecting") == .orderedSame {
                 return "Connecting to scaffold bridge"
+            }
+            if portholePhase.caseInsensitiveCompare("failed") == .orderedSame {
+                return "Scaffold join failed"
+            }
+            if !lastRuntimeError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Join reported an error"
             }
             if launchAgentLoaded {
                 return "Agent running; waiting for join"

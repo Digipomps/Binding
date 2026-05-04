@@ -24,7 +24,7 @@ private struct RecordingProcessRunner: ProcessRunning {
     }
 }
 
-private final class MockIdentityVault: IdentityVaultProtocol {
+private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendable {
     private var identities: [String: Identity] = [:]
 
     func initialize() async -> IdentityVaultProtocol {
