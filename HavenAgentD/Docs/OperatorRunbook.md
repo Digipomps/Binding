@@ -79,7 +79,7 @@ Important files under that root:
 ~/Library/Application Support/HAVENAgent/Out/agent-operator-entity-link.json
 ~/Library/Application Support/HAVENAgent/Logs/stdout.log
 ~/Library/Application Support/HAVENAgent/Logs/stderr.log
-~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
+~/Library/Application Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
 ```
 
 Disposable development root:
@@ -324,9 +324,11 @@ swift run haven-agentd print-launch-agent > /tmp/io.digipomps.haven.agentd.plist
 Review it, then install:
 
 ```bash
-cp /tmp/io.digipomps.haven.agentd.plist ~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
-launchctl unload ~/Library/LaunchAgents/io.digipomps.haven.agentd.plist >/dev/null 2>&1 || true
-launchctl load ~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
+mkdir -p ~/Library/Application\ Support/HAVENAgent/Launchd
+cp /tmp/io.digipomps.haven.agentd.plist ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
+launchctl bootout gui/$(id -u)/io.digipomps.haven.agentd >/dev/null 2>&1 || true
+launchctl bootstrap gui/$(id -u) ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
+launchctl kickstart -k gui/$(id -u)/io.digipomps.haven.agentd
 ```
 
 Verify:

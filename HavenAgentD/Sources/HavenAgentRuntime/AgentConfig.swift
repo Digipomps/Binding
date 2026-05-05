@@ -101,7 +101,7 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
         trustedResolverKey: String? = nil,
         requestedCapabilities: [String],
         requestedPortholeKind: String = "native",
-        renewalLeadTimeSeconds: Int = 900,
+        renewalLeadTimeSeconds: Int = 60,
         portholeHealthPollSeconds: Int = 5,
         portholeRetryBaseDelaySeconds: Int = 5,
         portholeRetryMaxDelaySeconds: Int = 60
@@ -358,7 +358,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     "cap.local_automation"
                 ],
                 requestedPortholeKind: "native",
-                renewalLeadTimeSeconds: 900,
+                renewalLeadTimeSeconds: 60,
                 portholeHealthPollSeconds: 5,
                 portholeRetryBaseDelaySeconds: 5,
                 portholeRetryMaxDelaySeconds: 60

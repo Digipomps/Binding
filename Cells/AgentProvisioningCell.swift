@@ -134,7 +134,7 @@ final class AgentProvisioningCell: GeneralCell {
         var buildBinary: URL
         var alternateBuildBinary: URL
         var bundledBinary: URL?
-        var homeDirectory: URL
+        var runtimeAccessDirectory: URL
         var applicationSupportDirectory: URL
         var agentDirectory: URL
         var binDirectory: URL
@@ -147,6 +147,7 @@ final class AgentProvisioningCell: GeneralCell {
         var installedBinary: URL
         var launchAgentsDirectory: URL
         var launchAgentPlist: URL
+        var launchAgentBootstrapScript: URL
     }
 
     private struct LiveControlBridgeConfiguration {
@@ -260,7 +261,7 @@ final class AgentProvisioningCell: GeneralCell {
     nonisolated private static let defaultInterests = "cellprotocol, agent, automation, review"
     nonisolated private static let defaultTestAppleScriptID = "binding-test-open-url-in-safari"
     nonisolated private static let defaultTestIssuerPrefix = "binding-operator"
-    private static let runtimeAccessBookmarkKey = "Binding.AgentRuntimeAccess.userHomeBookmark"
+    private static let runtimeAccessBookmarkKey = "Binding.AgentRuntimeAccess.applicationSupportBookmark"
     private static let runtimeAccessLock = NSLock()
     private static var runtimeAccessURL: URL?
     private static var runtimeAccessStarted = false
@@ -784,35 +785,25 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     private static func shouldInstallAsSymlink(sourceBinary: URL, paths: AgentPaths) -> Bool {
-        guard paths.applicationSupportDirectory.path.contains("/Library/Containers/com.digipomps.Binding/") else {
-            return false
-        }
-        if sourceBinary.standardizedFileURL == paths.stagedBinary.standardizedFileURL {
-            return true
-        }
-        if let bundledBinary = paths.bundledBinary,
-           sourceBinary.standardizedFileURL == bundledBinary.standardizedFileURL {
-            return true
-        }
-        return false
+        sourceBinary.standardizedFileURL == paths.stagedBinary.standardizedFileURL
     }
 
     private static func preferredBuiltBinary(
         paths: AgentPaths,
         fileManager: FileManager = .default
     ) -> URL? {
-        if regularFileExists(at: paths.stagedBinary, fileManager: fileManager) {
-            return paths.stagedBinary
-        }
-        if let bundledBinary = paths.bundledBinary,
-           regularFileExists(at: bundledBinary, fileManager: fileManager) {
-            return bundledBinary
-        }
         if regularFileExists(at: paths.buildBinary, fileManager: fileManager) {
             return paths.buildBinary
         }
         if regularFileExists(at: paths.alternateBuildBinary, fileManager: fileManager) {
             return paths.alternateBuildBinary
+        }
+        if let bundledBinary = paths.bundledBinary,
+           regularFileExists(at: bundledBinary, fileManager: fileManager) {
+            return bundledBinary
+        }
+        if regularFileExists(at: paths.stagedBinary, fileManager: fileManager) {
+            return paths.stagedBinary
         }
         return nil
     }
@@ -826,27 +817,25 @@ final class AgentProvisioningCell: GeneralCell {
             throw ProvisioningError.missingInstalledBinary(paths.installedBinary.path)
         }
 
-        let serviceTarget = Self.launchctlServiceTarget()
-        if Self.isLaunchAgentLoaded(label: Self.launchAgentLabel) {
-            let kickstart = try Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget])
-            guard kickstart.succeeded || Self.isLaunchAgentRunning(label: Self.launchAgentLabel) else {
-                throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: kickstart))")
-            }
+        do {
+            try Self.startLaunchAgentInProcess(paths: paths)
             return
-        }
-
-        let bootstrap = try Self.runCommand(
-            "/bin/launchctl",
-            arguments: ["bootstrap", "gui/\(getuid())", paths.launchAgentPlist.path]
-        )
-        guard bootstrap.succeeded else {
-            throw ProvisioningError.commandFailed("launchctl bootstrap failed: \(Self.trimmedOutput(from: bootstrap))")
-        }
-
-        if let kickstart = try? Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget]),
-           kickstart.succeeded == false,
-           Self.isLaunchAgentRunning(label: Self.launchAgentLabel) == false {
-            throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: kickstart))")
+        } catch {
+            let fallback = try Self.runExternalLaunchAgentScript(
+                scriptURL: paths.launchAgentBootstrapScript,
+                arguments: ["start", Self.launchAgentLabel, paths.launchAgentPlist.path]
+            )
+            guard fallback.succeeded,
+                  Self.isLaunchAgentRunning(label: Self.launchAgentLabel) else {
+                let directFailure = error.localizedDescription
+                let fallbackFailure = Self.trimmedOutput(from: fallback)
+                throw ProvisioningError.commandFailed(
+                    """
+                    launchctl bootstrap failed inside Binding sandbox: \(directFailure)
+                    External launch-agent helper also failed: \(fallbackFailure)
+                    """
+                )
+            }
         }
     }
 
@@ -857,12 +846,26 @@ final class AgentProvisioningCell: GeneralCell {
         guard Self.isLaunchAgentLoaded(label: Self.launchAgentLabel) else {
             return
         }
-        let result = try Self.runCommand(
-            "/bin/launchctl",
-            arguments: ["bootout", Self.launchctlServiceTarget()]
-        )
-        guard result.succeeded else {
-            throw ProvisioningError.commandFailed("launchctl bootout failed: \(Self.trimmedOutput(from: result))")
+
+        do {
+            let result = try Self.runCommand(
+                "/bin/launchctl",
+                arguments: ["bootout", Self.launchctlServiceTarget()]
+            )
+            guard result.succeeded else {
+                throw ProvisioningError.commandFailed("launchctl bootout failed: \(Self.trimmedOutput(from: result))")
+            }
+        } catch {
+            let paths = try prepareInstallArtifacts()
+            let fallback = try Self.runExternalLaunchAgentScript(
+                scriptURL: paths.launchAgentBootstrapScript,
+                arguments: ["stop", Self.launchAgentLabel]
+            )
+            guard fallback.succeeded else {
+                throw ProvisioningError.commandFailed(
+                    "launchctl bootout failed inside Binding sandbox: \(error.localizedDescription)\nExternal launch-agent helper also failed: \(Self.trimmedOutput(from: fallback))"
+                )
+            }
         }
     }
 
@@ -1071,7 +1074,7 @@ final class AgentProvisioningCell: GeneralCell {
 
     private func prepareInstallArtifacts(requester: Identity? = nil) throws -> AgentPaths {
         let paths = try currentPaths()
-        try Self.ensureExternalRuntimeAccess(forHomeDirectory: paths.homeDirectory)
+        try Self.ensureExternalRuntimeAccess(forRuntimeAccessDirectory: paths.runtimeAccessDirectory)
         let fileManager = FileManager.default
 
         for directory in [
@@ -1098,6 +1101,10 @@ final class AgentProvisioningCell: GeneralCell {
             logDirectory: paths.logsDirectory.path
         )
         try launchAgent.write(to: paths.launchAgentPlist, atomically: true, encoding: .utf8)
+        try Self.writeExecutableScript(
+            contents: Self.renderLaunchAgentBootstrapScript(),
+            to: paths.launchAgentBootstrapScript
+        )
 
         return paths
     }
@@ -1106,21 +1113,13 @@ final class AgentProvisioningCell: GeneralCell {
         let snapshot = stateQueue.sync { mutableState }
         let sourceRoot = URL(fileURLWithPath: NSString(string: snapshot.sourceRootPath).expandingTildeInPath)
         let homeDirectory = Self.userHomeDirectory()
-        Self.activatePersistedExternalRuntimeAccess(forHomeDirectory: homeDirectory)
         let applicationSupportDirectory = homeDirectory
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
+        Self.activatePersistedExternalRuntimeAccess(forRuntimeAccessDirectory: applicationSupportDirectory)
         let agentDirectory = applicationSupportDirectory.appendingPathComponent("HAVENAgent", isDirectory: true)
         let stagingDirectory = agentDirectory.appendingPathComponent("Staging", isDirectory: true)
-        let launchAgentsDirectory: URL = {
-#if os(macOS)
-            homeDirectory
-                .appendingPathComponent("Library", isDirectory: true)
-                .appendingPathComponent("LaunchAgents", isDirectory: true)
-#else
-            agentDirectory.appendingPathComponent("LaunchAgents", isDirectory: true)
-#endif
-        }()
+        let launchAgentsDirectory = agentDirectory.appendingPathComponent("Launchd", isDirectory: true)
         let bundledBinary = Bundle.main.resourceURL?.appendingPathComponent("HAVENAgent/haven-agentd")
 
         return AgentPaths(
@@ -1131,7 +1130,7 @@ final class AgentProvisioningCell: GeneralCell {
             buildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/debug/haven-agentd"),
             alternateBuildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd"),
             bundledBinary: bundledBinary,
-            homeDirectory: homeDirectory,
+            runtimeAccessDirectory: applicationSupportDirectory,
             applicationSupportDirectory: applicationSupportDirectory,
             agentDirectory: agentDirectory,
             binDirectory: agentDirectory.appendingPathComponent("bin", isDirectory: true),
@@ -1143,7 +1142,8 @@ final class AgentProvisioningCell: GeneralCell {
             configFile: agentDirectory.appendingPathComponent("config.json"),
             installedBinary: agentDirectory.appendingPathComponent("bin/haven-agentd"),
             launchAgentsDirectory: launchAgentsDirectory,
-            launchAgentPlist: launchAgentsDirectory.appendingPathComponent("\(Self.launchAgentLabel).plist")
+            launchAgentPlist: launchAgentsDirectory.appendingPathComponent("\(Self.launchAgentLabel).plist"),
+            launchAgentBootstrapScript: launchAgentsDirectory.appendingPathComponent("manage-launch-agent.sh")
         )
     }
 
@@ -1158,27 +1158,27 @@ final class AgentProvisioningCell: GeneralCell {
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
-    private static func activatePersistedExternalRuntimeAccess(forHomeDirectory homeDirectory: URL) {
+    private static func activatePersistedExternalRuntimeAccess(forRuntimeAccessDirectory runtimeAccessDirectory: URL) {
 #if os(macOS)
         runtimeAccessLock.lock()
         defer { runtimeAccessLock.unlock() }
-        _ = activatePersistedExternalRuntimeAccessLocked(forHomeDirectory: homeDirectory)
+        _ = activatePersistedExternalRuntimeAccessLocked(forRuntimeAccessDirectory: runtimeAccessDirectory)
 #else
-        _ = homeDirectory
+        _ = runtimeAccessDirectory
 #endif
     }
 
-    private static func ensureExternalRuntimeAccess(forHomeDirectory homeDirectory: URL) throws {
+    private static func ensureExternalRuntimeAccess(forRuntimeAccessDirectory runtimeAccessDirectory: URL) throws {
 #if os(macOS)
         runtimeAccessLock.lock()
-        let alreadyActive = activatePersistedExternalRuntimeAccessLocked(forHomeDirectory: homeDirectory)
+        let alreadyActive = activatePersistedExternalRuntimeAccessLocked(forRuntimeAccessDirectory: runtimeAccessDirectory)
         runtimeAccessLock.unlock()
         if alreadyActive {
             return
         }
 
-        let selectedHomeDirectory = try requestExternalRuntimeAccessFromUser(expectedHomeDirectory: homeDirectory)
-        let bookmarkData = try selectedHomeDirectory.bookmarkData(
+        let selectedRuntimeDirectory = try requestExternalRuntimeAccessFromUser(expectedRuntimeAccessDirectory: runtimeAccessDirectory)
+        let bookmarkData = try selectedRuntimeDirectory.bookmarkData(
             options: .withSecurityScope,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
@@ -1187,20 +1187,20 @@ final class AgentProvisioningCell: GeneralCell {
 
         runtimeAccessLock.lock()
         defer { runtimeAccessLock.unlock() }
-        guard activatePersistedExternalRuntimeAccessLocked(forHomeDirectory: homeDirectory) else {
+        guard activatePersistedExternalRuntimeAccessLocked(forRuntimeAccessDirectory: runtimeAccessDirectory) else {
             throw ProvisioningError.commandFailed(
-                "Binding could not activate external runtime access for \(homeDirectory.path)."
+                "Binding could not activate external runtime access for \(runtimeAccessDirectory.path)."
             )
         }
 #else
-        _ = homeDirectory
+        _ = runtimeAccessDirectory
 #endif
     }
 
 #if os(macOS)
-    private static func activatePersistedExternalRuntimeAccessLocked(forHomeDirectory homeDirectory: URL) -> Bool {
+    private static func activatePersistedExternalRuntimeAccessLocked(forRuntimeAccessDirectory runtimeAccessDirectory: URL) -> Bool {
         if runtimeAccessStarted,
-           runtimeAccessURL?.standardizedFileURL == homeDirectory.standardizedFileURL {
+           runtimeAccessURL?.standardizedFileURL == runtimeAccessDirectory.standardizedFileURL {
             return true
         }
 
@@ -1218,7 +1218,7 @@ final class AgentProvisioningCell: GeneralCell {
             return false
         }
 
-        guard resolvedURL.standardizedFileURL == homeDirectory.standardizedFileURL else {
+        guard resolvedURL.standardizedFileURL == runtimeAccessDirectory.standardizedFileURL else {
             return false
         }
 
@@ -1236,24 +1236,24 @@ final class AgentProvisioningCell: GeneralCell {
         return runtimeAccessStarted
     }
 
-    private static func requestExternalRuntimeAccessFromUser(expectedHomeDirectory: URL) throws -> URL {
+    private static func requestExternalRuntimeAccessFromUser(expectedRuntimeAccessDirectory: URL) throws -> URL {
         if Thread.isMainThread {
-            return try showExternalRuntimeAccessPanel(expectedHomeDirectory: expectedHomeDirectory)
+            return try showExternalRuntimeAccessPanel(expectedRuntimeAccessDirectory: expectedRuntimeAccessDirectory)
         }
 
         return try DispatchQueue.main.sync {
-            try showExternalRuntimeAccessPanel(expectedHomeDirectory: expectedHomeDirectory)
+            try showExternalRuntimeAccessPanel(expectedRuntimeAccessDirectory: expectedRuntimeAccessDirectory)
         }
     }
 
-    private static func showExternalRuntimeAccessPanel(expectedHomeDirectory: URL) throws -> URL {
+    private static func showExternalRuntimeAccessPanel(expectedRuntimeAccessDirectory: URL) throws -> URL {
         NSApp.activate(ignoringOtherApps: true)
 
         let panel = NSOpenPanel()
         panel.title = "Grant HAVENAgent Runtime Access"
-        panel.message = "Binding needs access to your home folder to manage ~/Library/Application Support/HAVENAgent and ~/Library/LaunchAgents outside the app container."
+        panel.message = "Binding needs access to ~/Library/Application Support so it can manage HAVENAgent outside the app container."
         panel.prompt = "Grant Access"
-        panel.directoryURL = expectedHomeDirectory
+        panel.directoryURL = expectedRuntimeAccessDirectory
         panel.showsHiddenFiles = true
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -1262,13 +1262,13 @@ final class AgentProvisioningCell: GeneralCell {
 
         guard panel.runModal() == .OK, let selectedURL = panel.url else {
             throw ProvisioningError.commandFailed(
-                "Grant access to your home folder to install HAVENAgentD outside the app container."
+                "Grant access to ~/Library/Application Support to install HAVENAgentD outside the app container."
             )
         }
 
-        guard selectedURL.standardizedFileURL == expectedHomeDirectory.standardizedFileURL else {
+        guard selectedURL.standardizedFileURL == expectedRuntimeAccessDirectory.standardizedFileURL else {
             throw ProvisioningError.commandFailed(
-                "Select \(expectedHomeDirectory.path) to grant Binding access to the external HAVENAgent runtime."
+                "Select \(expectedRuntimeAccessDirectory.path) to grant Binding access to the external HAVENAgent runtime."
             )
         }
 
@@ -2324,6 +2324,73 @@ final class AgentProvisioningCell: GeneralCell {
 #endif
     }
 
+    private static func startLaunchAgentInProcess(paths: AgentPaths) throws {
+        let serviceTarget = Self.launchctlServiceTarget()
+        if Self.isLaunchAgentLoaded(label: Self.launchAgentLabel) {
+            let kickstart = try Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget])
+            guard kickstart.succeeded || Self.isLaunchAgentRunning(label: Self.launchAgentLabel) else {
+                throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: kickstart))")
+            }
+            return
+        }
+
+        let bootstrap = try Self.runCommand(
+            "/bin/launchctl",
+            arguments: ["bootstrap", "gui/\(getuid())", paths.launchAgentPlist.path]
+        )
+        guard bootstrap.succeeded else {
+            throw ProvisioningError.commandFailed("launchctl bootstrap failed: \(Self.trimmedOutput(from: bootstrap))")
+        }
+
+        if let kickstart = try? Self.runCommand("/bin/launchctl", arguments: ["kickstart", "-k", serviceTarget]),
+           kickstart.succeeded == false,
+           Self.isLaunchAgentRunning(label: Self.launchAgentLabel) == false {
+            throw ProvisioningError.commandFailed("launchctl kickstart failed: \(Self.trimmedOutput(from: kickstart))")
+        }
+    }
+
+#if os(macOS)
+    private static func runExternalLaunchAgentScript(
+        scriptURL: URL,
+        arguments: [String]
+    ) throws -> CommandResult {
+        let task = try NSUserUnixTask(url: scriptURL)
+        let stdout = Pipe()
+        let stderr = Pipe()
+        task.standardOutput = stdout.fileHandleForWriting
+        task.standardError = stderr.fileHandleForWriting
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var completionError: Error?
+        task.execute(withArguments: arguments) { error in
+            completionError = error
+            stdout.fileHandleForWriting.closeFile()
+            stderr.fileHandleForWriting.closeFile()
+            semaphore.signal()
+        }
+        semaphore.wait()
+
+        let standardOutput = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let standardError = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+
+        if let completionError {
+            return CommandResult(
+                status: 1,
+                standardOutput: standardOutput,
+                standardError: [standardError, completionError.localizedDescription]
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n")
+            )
+        }
+
+        return CommandResult(
+            status: 0,
+            standardOutput: standardOutput,
+            standardError: standardError
+        )
+    }
+#endif
+
     private static func trimmedOutput(from result: CommandResult) -> String {
         let merged = [result.standardError, result.standardOutput]
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -2364,6 +2431,52 @@ final class AgentProvisioningCell: GeneralCell {
         </dict>
         </plist>
         """
+    }
+
+    private static func renderLaunchAgentBootstrapScript() -> String {
+        """
+        #!/bin/sh
+        set -eu
+
+        if [ "$#" -lt 2 ]; then
+          echo "usage: $0 <start|stop> <label> [plist-path]" >&2
+          exit 64
+        fi
+
+        ACTION="$1"
+        LABEL="$2"
+        GUI_DOMAIN="gui/$(id -u)"
+        TARGET="${GUI_DOMAIN}/${LABEL}"
+
+        case "$ACTION" in
+          start)
+            if [ "$#" -lt 3 ]; then
+              echo "missing plist path for start action" >&2
+              exit 64
+            fi
+            PLIST_PATH="$3"
+            /bin/launchctl bootout "$TARGET" >/dev/null 2>&1 || true
+            /bin/launchctl bootstrap "$GUI_DOMAIN" "$PLIST_PATH"
+            /bin/launchctl kickstart -k "$TARGET" >/dev/null 2>&1 || true
+            ;;
+          stop)
+            /bin/launchctl bootout "$TARGET"
+            ;;
+          *)
+            echo "unknown action: $ACTION" >&2
+            exit 64
+            ;;
+        esac
+        """
+    }
+
+    private static func writeExecutableScript(contents: String, to scriptURL: URL) throws {
+        try contents.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: scriptURL.path
+        )
+        Self.removeQuarantineAttribute(at: scriptURL)
     }
 
     private static func xmlEscaped(_ value: String) -> String {

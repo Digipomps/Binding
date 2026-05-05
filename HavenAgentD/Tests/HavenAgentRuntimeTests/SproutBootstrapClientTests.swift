@@ -81,6 +81,8 @@ struct SproutBootstrapClientTests {
         #expect(invocation.arguments.contains("https://example.haven.local"))
         #expect(invocation.arguments.contains("--entity-link"))
         #expect(invocation.arguments.contains("/tmp/entity-link.json"))
+        #expect(invocation.arguments.contains("--trust-root-out"))
+        #expect(invocation.arguments.contains("/Users/tester/Library/Application Support/HAVENAgent/State/scaffold-admin-trust-root.json"))
         #expect(invocation.arguments.contains("--out"))
         #expect(invocation.artifactPath == "/Users/tester/Library/Application Support/HAVENAgent/State/sprout-bootstrap-plan.json")
     }

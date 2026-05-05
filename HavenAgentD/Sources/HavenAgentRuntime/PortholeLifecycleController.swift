@@ -167,7 +167,12 @@ public actor PortholeLifecycleController {
                 break
             }
 
-            if shouldRenew(artifact: artifact, leadTimeSeconds: leadTime, now: now()) {
+            let decision = renewalDecision(
+                artifact: artifact,
+                configuredLeadTimeSeconds: leadTime,
+                now: now()
+            )
+            if decision.shouldRenew {
                 await renewalService.markRenewalDue(
                     contractID: artifact.session.contract.contract_id,
                     artifactExpiresAt: artifact.session.contract.expires_at
@@ -233,15 +238,36 @@ public actor PortholeLifecycleController {
         }
     }
 
-    private func shouldRenew(
+    private func renewalDecision(
         artifact: SproutBootstrapSessionArtifact,
-        leadTimeSeconds: TimeInterval,
+        configuredLeadTimeSeconds: TimeInterval,
         now: Date
-    ) -> Bool {
+    ) -> (shouldRenew: Bool, effectiveLeadTimeSeconds: TimeInterval) {
         guard let expiry = ISO8601DateFormatter().date(from: artifact.session.contract.expires_at) else {
-            return true
+            return (true, 0)
         }
-        return now.addingTimeInterval(leadTimeSeconds) >= expiry
+        let effectiveLeadTime = effectiveRenewalLeadTimeSeconds(
+            artifact: artifact,
+            configuredLeadTimeSeconds: configuredLeadTimeSeconds,
+            expiry: expiry
+        )
+        return (now.addingTimeInterval(effectiveLeadTime) >= expiry, effectiveLeadTime)
+    }
+
+    private func effectiveRenewalLeadTimeSeconds(
+        artifact: SproutBootstrapSessionArtifact,
+        configuredLeadTimeSeconds: TimeInterval,
+        expiry: Date
+    ) -> TimeInterval {
+        let configuredLeadTime = max(0, configuredLeadTimeSeconds)
+        guard let issuedAt = ISO8601DateFormatter().date(from: artifact.session.contract.issued_at) else {
+            return configuredLeadTime
+        }
+        let lifetime = expiry.timeIntervalSince(issuedAt)
+        guard lifetime > 0, configuredLeadTime >= lifetime else {
+            return configuredLeadTime
+        }
+        return min(configuredLeadTime, max(5, lifetime * 0.2))
     }
 
     private func backoffDelaySeconds(

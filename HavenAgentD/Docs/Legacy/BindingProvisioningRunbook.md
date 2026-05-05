@@ -62,7 +62,7 @@ The important files under that root are:
 ~/Library/Application Support/HAVENAgent/State/cell-runtime.json
 ~/Library/Application Support/HAVENAgent/Logs/stdout.log
 ~/Library/Application Support/HAVENAgent/Logs/stderr.log
-~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
+~/Library/Application Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
 ```
 
 ## Phase 1: Verify Local Code Before Provisioning
@@ -338,7 +338,8 @@ chmod 755 ~/Library/Application\ Support/HAVENAgent/bin/haven-agentd
 
 ```bash
 cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
-swift run haven-agentd print-launch-agent > ~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
+mkdir -p ~/Library/Application\ Support/HAVENAgent/Launchd
+swift run haven-agentd print-launch-agent > ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
 ```
 
 This generates a `LaunchAgent`, not a `LaunchDaemon`. That is required if the agent is ever going to interact with GUI apps like Safari, Xcode or Shortcuts.
@@ -346,7 +347,7 @@ This generates a `LaunchAgent`, not a `LaunchDaemon`. That is required if the ag
 ### 7.3 Load The LaunchAgent
 
 ```bash
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
+launchctl bootstrap gui/$(id -u) ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
 launchctl kickstart -k gui/$(id -u)/io.digipomps.haven.agentd
 ```
 

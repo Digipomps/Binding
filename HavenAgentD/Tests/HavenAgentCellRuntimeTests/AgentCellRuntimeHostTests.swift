@@ -45,6 +45,8 @@ struct AgentCellRuntimeHostTests {
         #expect(snapshot.cells.map(\.endpoint) == AgentCellRegistry.concreteDescriptors.map(\.endpoint))
         #expect(FileManager.default.fileExists(atPath: paths.cellRuntimeFile.path))
         #expect(CellBase.documentRootPath == paths.cellDocumentDirectory.path)
+        #expect(CellResolver.sharedInstance.registeredTransportSchemesSnapshot().contains("ws"))
+        #expect(CellResolver.sharedInstance.registeredTransportSchemesSnapshot().contains("wss"))
 
         let requester = Identity(snapshot.ownerUUID, displayName: snapshot.ownerDisplayName, identityVault: CellBase.defaultIdentityVault)
         let cell = try await CellResolver.sharedInstance.cellAtEndpoint(

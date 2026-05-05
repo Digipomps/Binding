@@ -138,28 +138,38 @@ approve_runtime_access_if_needed() {
   local target_pid="$1"
   local attempts="${2:-12}"
   local result=""
+  local clicked_any="0"
 
   for _ in $(seq 1 "$attempts"); do
     result="$(osascript \
       -e "tell application \"$APP_NAME\" to activate" \
       -e "tell application \"System Events\" to tell (first process whose unix id is $target_pid)
-            if exists sheet 1 of window 1 then
-              if exists button \"Grant Access\" of sheet 1 of window 1 then
-                click button \"Grant Access\" of sheet 1 of window 1
-                return \"accepted\"
-              end if
-            end if
-            if exists window 1 then
-              if exists button \"Grant Access\" of window 1 then
-                click button \"Grant Access\" of window 1
-                return \"accepted\"
-              end if
-            end if
+            repeat with candidateWindow in windows
+              try
+                if exists button \"Grant Access\" of candidateWindow then
+                  click button \"Grant Access\" of candidateWindow
+                  return \"accepted\"
+                end if
+              end try
+              try
+                if exists sheet 1 of candidateWindow then
+                  if exists button \"Grant Access\" of sheet 1 of candidateWindow then
+                    click button \"Grant Access\" of sheet 1 of candidateWindow
+                    return \"accepted\"
+                  end if
+                end if
+              end try
+            end repeat
             return \"waiting\"
           end tell" 2>/dev/null || true)"
     if [[ "$result" == *"accepted"* ]]; then
+      clicked_any="1"
       sleep 2
-      return 0
+      continue
+    fi
+    if [[ "$clicked_any" == "1" ]]; then
+      sleep 1
+      continue
     fi
     sleep 1
   done
@@ -276,12 +286,13 @@ capture_step "$APP_PID" "agent-setup" 11
 
 run_menu_action_async "$APP_PID" "Install HAVENAgentD"
 sleep 1
-approve_runtime_access_if_needed "$APP_PID" 12
+approve_runtime_access_if_needed "$APP_PID" 20
 sleep 23
 capture_step "$APP_PID" "agent-installed" 12
 
 run_menu_action "$APP_PID" "Start HAVENAgentD" 8.0
 run_menu_action "$APP_PID" "Run HAVENAgentD Once" 10.0
+approve_runtime_access_if_needed "$APP_PID" 20
 capture_step "$APP_PID" "agent-connected" 13
 
 run_menu_action "$APP_PID" "Queue Agent Safari Review" 5.0

@@ -63,6 +63,7 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - [Docs/OperatorRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/OperatorRunbook.md): step-by-step operator guide for setup, install, bootstrap, review, and launchd
 - [Docs/BindingBoundary.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/BindingBoundary.md): current Binding vs agent boundary
 - [Docs/SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md): security model
+- [Docs/HavenAgentDMCPServerSurface.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/HavenAgentDMCPServerSurface.md): proposed MCP adapter surface for local AI hosts
 - [Docs/Legacy/BindingProvisioningRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md): archived Binding-embedded provisioning flow
 - [Docs/Legacy/AgentSetupWorkbench_UI_Review.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/AgentSetupWorkbench_UI_Review.md): archived workbench UX review
 

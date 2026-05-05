@@ -401,4 +401,57 @@ struct PortholeLifecycleControllerTests {
         #expect(latestStatus?.contractID == "pac_test_0102")
         #expect(renewalStatus?.contractID == "pac_test_0102")
     }
+
+    @Test
+    func lifecycleControllerCapsOversizedRenewalLeadTimeAgainstShortContracts() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HavenAgentDLifecycle-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let executableURL = root.appendingPathComponent("fake-sprout")
+        try PortholeLifecycleFixtureFactory.writeExecutableStub(at: executableURL)
+        let paths = RuntimePaths.rooted(at: root)
+        let config = PortholeLifecycleFixtureFactory.makeConfig(
+            paths: paths,
+            executablePath: executableURL.path,
+            renewalLeadTimeSeconds: 900
+        )
+        let processRunner = ScriptedLifecycleProcessRunner(
+            outcomes: [
+                .success(contractID: "pac_test_short_ttl_1", expiresAt: Date().addingTimeInterval(300)),
+                .success(contractID: "pac_test_short_ttl_2", expiresAt: Date().addingTimeInterval(300))
+            ]
+        )
+        let client = SproutBootstrapClient(processRunner: processRunner)
+        let ingress = RecordingLifecycleIngress()
+        let renewalService = ContractRenewalService()
+        await renewalService.update(plan: config.makeSproutBootstrapPlan())
+        let collector = LifecycleStatusCollector()
+        let controller = PortholeLifecycleController(
+            paths: paths,
+            sproutBootstrapClient: client,
+            ingress: ingress,
+            renewalService: renewalService
+        )
+
+        await controller.start(
+            config: config,
+            onBootstrapRecord: { _ in },
+            onStatus: { status in
+                await collector.append(status)
+            }
+        )
+        let didConnect = await waitUntil {
+            await collector.hasConnected(contractID: "pac_test_short_ttl_1")
+        }
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        await controller.stop()
+        let attemptCount = await ingress.attemptCount()
+        let latestStatus = await collector.latest()
+
+        #expect(didConnect)
+        #expect(attemptCount == 1)
+        #expect(latestStatus?.contractID == "pac_test_short_ttl_1")
+    }
 }

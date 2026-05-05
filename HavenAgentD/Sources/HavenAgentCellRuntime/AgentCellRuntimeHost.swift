@@ -153,6 +153,7 @@ public actor AgentCellRuntimeHost {
         CellBase.defaultIdentityVault = vault
         CellBase.defaultCellResolver = resolver
         CellBase.documentRootPath = paths.cellDocumentDirectory.path
+        try await resolver.registerDefaultWebSocketBridgeTransports()
 
         var registrations: [ActiveCellRegistration] = []
         for descriptor in AgentCellRegistry.concreteDescriptors {

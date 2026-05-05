@@ -160,6 +160,10 @@ public final class SproutBootstrapClient: @unchecked Sendable {
         if let trustedResolverKey = scaffold.trustedResolverKey {
             arguments.append(contentsOf: ["--trusted-resolver-key", trustedResolverKey])
         }
+        arguments.append(contentsOf: [
+            "--trust-root-out",
+            paths.stateDirectory.appendingPathComponent("scaffold-admin-trust-root.json").path
+        ])
         if let artifactPath {
             if scaffold.startupMode == .plan {
                 arguments.append(contentsOf: ["--out", artifactPath])
