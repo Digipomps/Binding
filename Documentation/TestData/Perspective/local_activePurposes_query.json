@@ -1,0 +1,6 @@
+{
+  "minPurposeWeight": 0.65,
+  "limit": 20,
+  "includeInterests": true,
+  "referenceMode": "both"
+}

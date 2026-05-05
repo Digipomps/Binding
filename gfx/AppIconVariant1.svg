@@ -1,0 +1,73 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" version="1.1">
+  <defs>
+    <!-- Colors -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#15122A"/>
+      <stop offset="100%" stop-color="#1C1B3A"/>
+    </linearGradient>
+
+    <!-- Overlap glow -->
+    <radialGradient id="overlapGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7DECF0" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#7DECF0" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#7DECF0" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle inner shadow for rings -->
+    <linearGradient id="ringInner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.25)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.25)"/>
+    </linearGradient>
+
+    <!-- Soft blur for glow -->
+    <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+
+    <!-- Colors as variables (for reference) -->
+    <!-- tealLeft: #5CE1E6; cyanRight: #00B3FF; overlap: #7DECF0 -->
+  </defs>
+
+  <!-- Background rounded rect -->
+  <rect x="64" y="64" rx="212" ry="212" width="896" height="896" fill="url(#bgGrad)"/>
+
+  <!-- Overlap glow (positioned roughly between rings) -->
+  <ellipse cx="512" cy="512" rx="180" ry="160" fill="url(#overlapGlow)" filter="url(#softBlur)"/>
+
+  <!-- Left ring (person) -->
+  <!-- Ring base -->
+  <circle cx="420" cy="512" r="220" fill="none" stroke="#5CE1E6" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Subtle shine (top) -->
+  <path d="M420,292 A220,220 0 0,1 610,382" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Right ring (digital) -->
+  <!-- Ring base -->
+  <circle cx="604" cy="512" r="220" fill="none" stroke="#00B3FF" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Subtle shine (top) -->
+  <path d="M604,292 A220,220 0 0,1 794,382" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Overlap highlight stroke on top where rings cross -->
+  <path d="M512,332 A220,220 0 0,1 512,692" fill="none" stroke="#7DECF0" stroke-width="16" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Inner icons -->
+  <!-- Person silhouette inside left ring -->
+  <!-- Head -->
+  <circle cx="420" cy="472" r="46" fill="#DFFBFF" opacity="0.95"/>
+  <!-- Shoulders/torso -->
+  <path d="M360,560 C360,520 480,520 480,560 C480,600 360,600 360,560 Z" fill="#DFFBFF" opacity="0.95"/>
+
+  <!-- Digital hexagon (node) inside right ring -->
+  <g transform="translate(604,512)">
+    <!-- Hexagon -->
+    <polygon points="0,-68 59,-34 59,34 0,68 -59,34 -59,-34" fill="#C7F4FF" opacity="0.95"/>
+    <!-- Inner small nodes -->
+    <circle cx="0" cy="-28" r="6" fill="#003B5A" opacity="0.9"/>
+    <circle cx="24" cy="14" r="6" fill="#003B5A" opacity="0.9"/>
+    <circle cx="-24" cy="14" r="6" fill="#003B5A" opacity="0.9"/>
+    <!-- Connecting lines -->
+    <path d="M0,-28 L24,14 L-24,14 Z" fill="none" stroke="#003B5A" stroke-width="4" opacity="0.9"/>
+  </g>
+
+  <!-- Gentle inner vignette to add depth -->
+  <ellipse cx="512" cy="740" rx="380" ry="120" fill="rgba(0,0,0,0.25)" filter="url(#softBlur)" opacity="0.35"/>
+</svg>

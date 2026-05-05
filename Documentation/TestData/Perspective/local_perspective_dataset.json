@@ -1,0 +1,107 @@
+[
+  {
+    "weight": 0.93,
+    "reference": "purpose://attend-conference-talks",
+    "value": {
+      "name": "Attend Conference Talks",
+      "description": "Prioriter foredrag om personvern, AI og praktisk sikkerhet.",
+      "helperCells": [],
+      "types": [],
+      "subTypes": [],
+      "parts": [],
+      "partOf": [],
+      "purposes": [],
+      "interests": [
+        { "weight": 0.82, "reference": "interest://privacy-tech" },
+        { "weight": 0.78, "reference": "interest://applied-ai" },
+        { "weight": 0.70, "reference": "interest://keynote-sessions" }
+      ],
+      "entities": [],
+      "states": []
+    }
+  },
+  {
+    "weight": 0.88,
+    "reference": "purpose://grow-professional-network",
+    "value": {
+      "name": "Grow Professional Network",
+      "description": "Mote relevante folk for samarbeid, jobbmuligheter og startup-ideer.",
+      "helperCells": [],
+      "types": [],
+      "subTypes": [],
+      "parts": [],
+      "partOf": [],
+      "purposes": [],
+      "interests": [
+        { "weight": 0.90, "reference": "interest://networking" },
+        { "weight": 0.75, "reference": "interest://collaboration" },
+        { "weight": 0.73, "reference": "interest://startups" }
+      ],
+      "entities": [],
+      "states": []
+    }
+  },
+  {
+    "weight": 0.81,
+    "reference": "purpose://find-specialty-coffee",
+    "value": {
+      "name": "Find Specialty Coffee",
+      "description": "Finne gode kafeer i gangavstand fra konferansen.",
+      "helperCells": [],
+      "types": [],
+      "subTypes": [],
+      "parts": [],
+      "partOf": [],
+      "purposes": [],
+      "interests": [
+        { "weight": 0.92, "reference": "interest://specialty-coffee" },
+        { "weight": 0.68, "reference": "interest://quiet-workspace" },
+        { "weight": 0.52, "reference": "interest://local-food" }
+      ],
+      "entities": [],
+      "states": []
+    }
+  },
+  {
+    "weight": 0.76,
+    "reference": "purpose://discover-live-music",
+    "value": {
+      "name": "Discover Live Music",
+      "description": "Se etter konserter etter konferansedagen.",
+      "helperCells": [],
+      "types": [],
+      "subTypes": [],
+      "parts": [],
+      "partOf": [],
+      "purposes": [],
+      "interests": [
+        { "weight": 0.91, "reference": "interest://live-music" },
+        { "weight": 0.72, "reference": "interest://jazz" },
+        { "weight": 0.67, "reference": "interest://indie" }
+      ],
+      "entities": [],
+      "states": []
+    }
+  },
+  {
+    "weight": 0.72,
+    "reference": "purpose://learn-privacy-tooling",
+    "value": {
+      "name": "Learn Privacy Tooling",
+      "description": "Lare mer om konkrete verktoy for personvern i praksis.",
+      "helperCells": [],
+      "types": [],
+      "subTypes": [],
+      "parts": [],
+      "partOf": [],
+      "purposes": [],
+      "interests": [
+        { "weight": 0.88, "reference": "interest://privacy-tech" },
+        { "weight": 0.79, "reference": "interest://digital-rights" },
+        { "weight": 0.64, "reference": "interest://developer-tools" }
+      ],
+      "entities": [],
+      "states": []
+    }
+  }
+]

@@ -1,0 +1,129 @@
+{
+  "examples": [
+    {
+      "name": "ZStack overlay",
+      "skeleton": {
+        "ZStack": {
+          "elements": [
+            { "Image": { "name": "Background", "modifiers": { "maxWidthInfinity": true, "maxHeightInfinity": true } } },
+            { "Text": { "text": "Overlay title", "modifiers": { "fontStyle": "title", "foregroundColor": "#FFFFFF", "padding": 16 } } }
+          ],
+          "modifiers": { "padding": 12 }
+        }
+      }
+    },
+    {
+      "name": "Adaptive Grid of items",
+      "skeleton": {
+        "Grid": {
+          "columns": [ { "type": "adaptive", "min": 120, "max": 200 } ],
+          "spacing": 12,
+          "elements": [
+            { "Text": { "text": "Alpha", "modifiers": { "padding": 8, "background": "#F2F2F7", "cornerRadius": 8 } } },
+            { "Text": { "text": "Beta",  "modifiers": { "padding": 8, "background": "#F2F2F7", "cornerRadius": 8 } } },
+            { "Text": { "text": "Gamma", "modifiers": { "padding": 8, "background": "#F2F2F7", "cornerRadius": 8 } } },
+            { "Text": { "text": "Delta", "modifiers": { "padding": 8, "background": "#F2F2F7", "cornerRadius": 8 } } }
+          ],
+          "modifiers": { "padding": 16 }
+        }
+      }
+    },
+    {
+      "name": "Toggle bound to cell keypath",
+      "skeleton": {
+        "VStack": [
+          { "Text": { "text": "Settings", "modifiers": { "fontStyle": "title2", "fontWeight": "semibold", "padding": 8 } } },
+          { "Toggle": { "label": "Enable feature", "keypath": "cell:///Porthole/settings.enableFeature", "modifiers": { "padding": 8 } } }
+        ]
+      }
+    },
+    {
+      "name": "ScrollView with sections",
+      "skeleton": {
+        "ScrollView": {
+          "axis": "vertical",
+          "elements": [
+            { "Section": {
+                "header": { "Text": { "text": "Section A", "modifiers": { "fontStyle": "headline" } } },
+                "content": [
+                  { "Text": { "text": "Row 1" } },
+                  { "Text": { "text": "Row 2" } }
+                ],
+                "footer": { "Divider": {} }
+            }},
+            { "Section": {
+                "header": { "Text": { "text": "Section B", "modifiers": { "fontStyle": "headline" } } },
+                "content": [
+                  { "Text": { "text": "Row 3" } },
+                  { "Text": { "text": "Row 4" } }
+                ],
+                "footer": { "Divider": {} }
+            }}
+          ],
+          "modifiers": { "padding": 12 }
+        }
+      }
+    },
+    {
+      "name": "Horizontal cards",
+      "skeleton": {
+        "ScrollView": {
+          "axis": "horizontal",
+          "elements": [
+            { "VStack": [
+              { "Image": { "name": "photo", "modifiers": { "padding": 8 } } },
+              { "Text": { "text": "Card A", "modifiers": { "padding": 4 } } }
+            ] },
+            { "VStack": [
+              { "Image": { "name": "photo", "modifiers": { "padding": 8 } } },
+              { "Text": { "text": "Card B", "modifiers": { "padding": 4 } } }
+            ] },
+            { "VStack": [
+              { "Image": { "name": "photo", "modifiers": { "padding": 8 } } },
+              { "Text": { "text": "Card C", "modifiers": { "padding": 4 } } }
+            ] }
+          ],
+          "modifiers": { "padding": 8 }
+        }
+      }
+    },
+    {
+      "name": "Mixed Grid (fixed + flexible)",
+      "skeleton": {
+        "Grid": {
+          "columns": [
+            { "type": "fixed", "value": 100 },
+            { "type": "flexible", "min": 80, "max": 200 }
+          ],
+          "spacing": 10,
+          "elements": [
+            { "Text": { "text": "Item 1" } },
+            { "Text": { "text": "Item 2" } },
+            { "Text": { "text": "Item 3" } },
+            { "Text": { "text": "Item 4" } }
+          ],
+          "modifiers": { "padding": 12 }
+        }
+      }
+    },
+    {
+      "name": "Person Profile",
+      "skeleton": {
+        "VStack": [
+          { "Image": { "name": "person.circle", "modifiers": { "scaledToFit": true, "padding": 8 } } },
+          { "Text": { "text": "Alex Jensen", "modifiers": { "fontStyle": "title2", "fontWeight": "semibold" } } },
+          { "Text": { "text": "Privacy advocate. Building open tools.", "modifiers": { "foregroundColor": "#555555", "padding": 4 } } },
+          { "Grid": {
+              "columns": [ { "type": "adaptive", "min": 120, "max": 200 } ],
+              "elements": [
+                { "Text": { "text": "Interests: Privacy" } },
+                { "Text": { "text": "Location: Oslo" } },
+                { "Text": { "text": "Website: example.org" } }
+              ]
+          } }
+        ]
+      }
+    }
+  ]
+}
+

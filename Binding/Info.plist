@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_haven-radar._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Binding bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Binding bruker Face ID for aa laase opp identiteter og signere handlinger med noekler som brukeren kontrollerer.</string>
+	<key>NSNearbyInteractionUsageDescription</key>
+	<string>Binding bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Cell Configuration</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.haven.cellconfig</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>app.binding.haven-links</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>haven</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Cell Configuration</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.binding.cellconfiguration</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cellconfig</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-cellconfiguration</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Binding Component Palette Item</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.binding.componentpaletteitem</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.mime-type</key>
+				<string>application/x-binding-componentpaletteitem</string>
+			</dict>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Cell Configuration</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.binding.cellconfiguration</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cellconfig</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-cellconfiguration</string>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

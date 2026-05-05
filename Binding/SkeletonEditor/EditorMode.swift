@@ -1,0 +1,22 @@
+import Foundation
+
+enum EditorMode: String, CaseIterable, Identifiable {
+    case view
+    case edit
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .view: return "View"
+        case .edit: return "Edit"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .view: return "eye"
+        case .edit: return "slider.horizontal.3"
+        }
+    }
+}

@@ -1,0 +1,140 @@
+{
+  "minPurposeWeight": 0.65,
+  "minInterestWeight": 0.60,
+  "minMatchScore": 0.35,
+  "limit": 20,
+  "allowViaInterests": true,
+  "referenceMode": "both",
+  "targetPurposes": [
+    {
+      "purposeRef": "device://binding/purpose/attend-talks",
+      "portablePurposeRef": "purpose://attend-conference-talks",
+      "purposeName": "Attend Conference Talks",
+      "purposeWeight": 0.93,
+      "interests": [
+        {
+          "interestRef": "device://binding/interest/privacy-tech",
+          "portableInterestRef": "interest://privacy-tech",
+          "interestName": "Privacy Tech",
+          "interestWeight": 0.82
+        },
+        {
+          "interestRef": "device://binding/interest/applied-ai",
+          "portableInterestRef": "interest://applied-ai",
+          "interestName": "Applied AI",
+          "interestWeight": 0.78
+        },
+        {
+          "interestRef": "device://binding/interest/keynote-sessions",
+          "portableInterestRef": "interest://keynote-sessions",
+          "interestName": "Keynote Sessions",
+          "interestWeight": 0.70
+        }
+      ]
+    },
+    {
+      "purposeRef": "device://binding/purpose/grow-network",
+      "portablePurposeRef": "purpose://grow-professional-network",
+      "purposeName": "Grow Professional Network",
+      "purposeWeight": 0.88,
+      "interests": [
+        {
+          "interestRef": "device://binding/interest/networking",
+          "portableInterestRef": "interest://networking",
+          "interestName": "Networking",
+          "interestWeight": 0.90
+        },
+        {
+          "interestRef": "device://binding/interest/collaboration",
+          "portableInterestRef": "interest://collaboration",
+          "interestName": "Collaboration",
+          "interestWeight": 0.75
+        },
+        {
+          "interestRef": "device://binding/interest/startups",
+          "portableInterestRef": "interest://startups",
+          "interestName": "Startups",
+          "interestWeight": 0.73
+        }
+      ]
+    },
+    {
+      "purposeRef": "device://binding/purpose/find-specialty-coffee",
+      "portablePurposeRef": "purpose://find-specialty-coffee",
+      "purposeName": "Find Specialty Coffee",
+      "purposeWeight": 0.81,
+      "interests": [
+        {
+          "interestRef": "device://binding/interest/specialty-coffee",
+          "portableInterestRef": "interest://specialty-coffee",
+          "interestName": "Specialty Coffee",
+          "interestWeight": 0.92
+        },
+        {
+          "interestRef": "device://binding/interest/quiet-workspace",
+          "portableInterestRef": "interest://quiet-workspace",
+          "interestName": "Quiet Workspace",
+          "interestWeight": 0.68
+        },
+        {
+          "interestRef": "device://binding/interest/local-food",
+          "portableInterestRef": "interest://local-food",
+          "interestName": "Local Food",
+          "interestWeight": 0.52
+        }
+      ]
+    },
+    {
+      "purposeRef": "device://binding/purpose/discover-live-music",
+      "portablePurposeRef": "purpose://discover-live-music",
+      "purposeName": "Discover Live Music",
+      "purposeWeight": 0.76,
+      "interests": [
+        {
+          "interestRef": "device://binding/interest/live-music",
+          "portableInterestRef": "interest://live-music",
+          "interestName": "Live Music",
+          "interestWeight": 0.91
+        },
+        {
+          "interestRef": "device://binding/interest/jazz",
+          "portableInterestRef": "interest://jazz",
+          "interestName": "Jazz",
+          "interestWeight": 0.72
+        },
+        {
+          "interestRef": "device://binding/interest/indie",
+          "portableInterestRef": "interest://indie",
+          "interestName": "Indie",
+          "interestWeight": 0.67
+        }
+      ]
+    },
+    {
+      "purposeRef": "device://binding/purpose/learn-privacy-tooling",
+      "portablePurposeRef": "purpose://learn-privacy-tooling",
+      "purposeName": "Learn Privacy Tooling",
+      "purposeWeight": 0.72,
+      "interests": [
+        {
+          "interestRef": "device://binding/interest/privacy-tech",
+          "portableInterestRef": "interest://privacy-tech",
+          "interestName": "Privacy Tech",
+          "interestWeight": 0.88
+        },
+        {
+          "interestRef": "device://binding/interest/digital-rights",
+          "portableInterestRef": "interest://digital-rights",
+          "interestName": "Digital Rights",
+          "interestWeight": 0.79
+        },
+        {
+          "interestRef": "device://binding/interest/developer-tools",
+          "portableInterestRef": "interest://developer-tools",
+          "interestName": "Developer Tools",
+          "interestWeight": 0.64
+        }
+      ]
+    }
+  ]
+}
