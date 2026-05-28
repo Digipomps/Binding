@@ -11,6 +11,7 @@ final class EditorState: ObservableObject {
     @Published private(set) var workingDocument: EditorDocument?
     @Published var selectedNodePath: SkeletonNodePath?
     @Published private(set) var revision: Int = 0
+    @Published private(set) var sourceBackedChangeNotice: String?
 
     private var undoStack: [EditorDocument] = []
     private var redoStack: [EditorDocument] = []
@@ -46,6 +47,18 @@ final class EditorState: ObservableObject {
         sourceBackedContext: EditorSourceBackedContext? = nil,
         fallbackSkeleton: SkeletonElement? = nil
     ) {
+        if let currentContext = currentSourceBackedContext,
+           let sourceBackedContext,
+           currentContext.sourceCellEndpoint == sourceBackedContext.sourceCellEndpoint,
+           currentContext.committedSourceRevision != sourceBackedContext.committedSourceRevision {
+            sourceBackedChangeNotice = Self.sourceBackedChangeNotice(
+                for: sourceBackedContext,
+                keepingDirtyDraft: isDirty
+            )
+        } else if !isDirty {
+            sourceBackedChangeNotice = nil
+        }
+
         viewerDocument = EditorDocument(
             configuration: configuration,
             sourceBackedContext: sourceBackedContext,
@@ -69,9 +82,21 @@ final class EditorState: ObservableObject {
             sourceBackedContext: sourceBackedContext,
             fallbackSkeleton: fallbackSkeleton
         )
+        if shouldKeepDirtyDraft(forIncoming: document) {
+            viewerDocument = document
+            sourceBackedChangeNotice = Self.sourceBackedChangeNotice(
+                for: sourceBackedContext,
+                keepingDirtyDraft: true
+            )
+            selectedNodePath = workingDocument?.skeleton == nil ? nil : (selectedNodePath ?? .root)
+            revision &+= 1
+            return
+        }
+
         viewerDocument = document
         workingDocument = document
         selectedNodePath = document.skeleton == nil ? nil : .root
+        sourceBackedChangeNotice = nil
         undoStack.removeAll()
         redoStack.removeAll()
         revision &+= 1
@@ -80,6 +105,7 @@ final class EditorState: ObservableObject {
     func endEditing() {
         workingDocument = nil
         selectedNodePath = nil
+        sourceBackedChangeNotice = nil
         undoStack.removeAll()
         redoStack.removeAll()
         revision &+= 1
@@ -181,6 +207,7 @@ final class EditorState: ObservableObject {
         guard let viewerDocument else { return }
         workingDocument = viewerDocument
         selectedNodePath = viewerDocument.skeleton == nil ? nil : .root
+        sourceBackedChangeNotice = nil
         undoStack.removeAll()
         redoStack.removeAll()
         revision &+= 1
@@ -196,6 +223,7 @@ final class EditorState: ObservableObject {
     func commitDocumentChanges() -> EditorDocument? {
         guard let workingDocument else { return nil }
         viewerDocument = workingDocument
+        sourceBackedChangeNotice = nil
         undoStack.removeAll()
         redoStack.removeAll()
         revision &+= 1
@@ -225,6 +253,30 @@ final class EditorState: ObservableObject {
             return ""
         }
         return signature
+    }
+
+    private func shouldKeepDirtyDraft(forIncoming document: EditorDocument) -> Bool {
+        guard isDirty,
+              let currentContext = currentSourceBackedContext,
+              let incomingContext = document.sourceBackedContext,
+              currentContext.sourceCellEndpoint == incomingContext.sourceCellEndpoint,
+              currentContext.committedSourceRevision != incomingContext.committedSourceRevision
+        else {
+            return false
+        }
+        return true
+    }
+
+    private static func sourceBackedChangeNotice(
+        for context: EditorSourceBackedContext?,
+        keepingDirtyDraft: Bool
+    ) -> String? {
+        guard let context else { return nil }
+        let sourceLabel = context.sourceLabel
+        if keepingDirtyDraft || context.hasStoredOverride {
+            return "Original CellConfiguration er endret i \(sourceLabel). Din lokale skeleton-draft er beholdt, men oppdater eller forkast lokale endringer før du skriver tilbake til kilden."
+        }
+        return "Original CellConfiguration er endret i \(sourceLabel). Binding har oppdatert visningen fra kilden."
     }
 
     func dropTargets(for recipe: ComponentInsertionRecipe) -> [DropTargetDescriptor] {
