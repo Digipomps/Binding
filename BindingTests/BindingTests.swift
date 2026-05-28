@@ -809,6 +809,59 @@ struct BindingTests {
         #expect(json.contains("\"sourceCellEndpoint\":\"cell://staging.haven.digipomps.org/ConferencePublicProfilePreview\""))
     }
 
+    @Test func configurationEndpointRetargetingCanPointLocalReferencesAtFetchedScaffold() throws {
+        var configuration = CellConfiguration(name: "Remote Imported Workspace")
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///RemoteWorkspace",
+            sourceCellName: "RemoteWorkspaceCell",
+            purpose: "Remote workspace",
+            purposeDescription: "Imported over a bridge",
+            interests: ["remote"],
+            menuSlots: ["upperLeft"]
+        )
+
+        var reference = CellReference(endpoint: "cell:///RemoteWorkspace", label: "workspace")
+        reference.setKeysAndValues = [
+            KeyValue(
+                key: "state",
+                value: nil,
+                target: "cell:///RemotePeer"
+            )
+        ]
+        configuration.addReference(reference)
+        configuration.skeleton = .VStack(
+            SkeletonVStack(elements: [
+                .Button(
+                    SkeletonButton(
+                        keypath: "addConfiguration",
+                        label: "Open remote peer",
+                        payload: .object([
+                            "configurationLookup": .object([
+                                "name": .string("Remote Peer"),
+                                "sourceCellEndpoint": .string("cell:///RemotePeer")
+                            ])
+                        ])
+                    )
+                )
+            ])
+        )
+
+        let retargeted = CellConfigurationEndpointRetargeting.rewritingLocalCellEndpoints(
+            in: configuration,
+            toScaffoldEndpoint: "cell://preview.example.org/ConfigurationCatalog"
+        )
+
+        #expect(retargeted.discovery?.sourceCellEndpoint == "cell://preview.example.org/RemoteWorkspace")
+        #expect(retargeted.cellReferences?.first?.endpoint == "cell://preview.example.org/RemoteWorkspace")
+        #expect(retargeted.cellReferences?.first?.setKeysAndValues.first?.target == "cell://preview.example.org/RemotePeer")
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        let data = try encoder.encode(retargeted)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains("\"sourceCellEndpoint\":\"cell://preview.example.org/RemotePeer\""))
+    }
+
     @Test func fullLibraryCanPreferRemoteCatalogEndpointsBeforeLocalFallback() {
         let ordered = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: [
             "cell:///ConfigurationCatalog",
@@ -4395,6 +4448,65 @@ struct BindingTests {
         #expect(editorState.currentSourceBackedContext?.committedSourceRevision == 7)
     }
 
+    @MainActor
+    @Test func editorStateKeepsDirtyDraftWhenSourceBackedRevisionChanges() {
+        var configuration = CellConfiguration(name: "Source-backed Editor")
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceAdminShell",
+            sourceCellName: "ConferenceAdminShellCell",
+            purpose: "Conference admin editing",
+            purposeDescription: "Editable shell",
+            interests: ["conference", "admin"],
+            menuSlots: ["upperMid"]
+        )
+        configuration.skeleton = .Text(SkeletonText(text: "Original"))
+
+        let sourceContext = EditorSourceBackedContext(
+            committedSourceRevision: 7,
+            canEdit: true,
+            sourceCellEndpoint: "cell:///ConferenceAdminShell",
+            sourceCellName: "ConferenceAdminShellCell",
+            accessSummary: "Organizer requester can edit."
+        )
+
+        let editorState = EditorState()
+        editorState.beginEditing(configuration: configuration, sourceBackedContext: sourceContext)
+        editorState.replaceWorkingCopy(with: .Text(SkeletonText(text: "Local draft")), recordUndo: false)
+
+        var refreshedConfiguration = configuration
+        refreshedConfiguration.skeleton = .Text(SkeletonText(text: "Source revision 8"))
+        let refreshedContext = EditorSourceBackedContext(
+            committedSourceRevision: 8,
+            canEdit: true,
+            sourceCellEndpoint: "cell:///ConferenceAdminShell",
+            sourceCellName: "ConferenceAdminShellCell",
+            accessSummary: "Organizer requester can edit."
+        )
+
+        editorState.beginEditing(configuration: refreshedConfiguration, sourceBackedContext: refreshedContext)
+
+        guard case let .Text(workingText)? = editorState.workingCopy,
+              case let .Text(viewerText)? = editorState.viewerSnapshot else {
+            Issue.record("Expected text skeletons after source-backed refresh.")
+            return
+        }
+
+        #expect(workingText.text == "Local draft")
+        #expect(viewerText.text == "Source revision 8")
+        #expect(editorState.isDirty)
+        #expect(editorState.sourceBackedChangeNotice?.contains("Original CellConfiguration er endret") == true)
+
+        editorState.discardChanges()
+
+        guard case let .Text(discardedText)? = editorState.workingCopy else {
+            Issue.record("Expected source snapshot after discarding local draft.")
+            return
+        }
+
+        #expect(discardedText.text == "Source revision 8")
+        #expect(editorState.sourceBackedChangeNotice == nil)
+    }
+
     @Test func configurationCatalogSeedsRichLibrary() async throws {
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
@@ -4989,6 +5101,91 @@ struct BindingTests {
 
         let missingEmitter = await porthole.getEmitterWithLabel("missing", requester: owner)
         #expect(missingEmitter == nil)
+    }
+
+    @Test func cellConfigurationLookupPrefersEditableOverrideFromSourceCell() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await AppInitializer.initialize()
+        let resolver: CellResolver
+        if let existing = CellBase.defaultCellResolver as? CellResolver {
+            resolver = existing
+        } else {
+            resolver = CellResolver.sharedInstance
+            CellBase.defaultCellResolver = resolver
+        }
+
+        let owner = await makeOwnerIdentity()
+        let sourceCell = await EditableConfigurationSourceFixtureCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: "EditableConfigurationSourceFixture",
+            emitCell: sourceCell,
+            identity: owner
+        )
+
+        let payload: ValueType = .object([
+            "configurationLookup": .object([
+                "name": .string("Editable Override Workspace"),
+                "sourceCellEndpoint": .string("cell:///EditableConfigurationSourceFixture")
+            ])
+        ])
+
+        let resolved = await CellConfigurationPayloadSupport.resolveCellConfiguration(
+            from: payload,
+            requester: owner
+        )
+
+        #expect(resolved?.name == "Editable Override Workspace")
+        #expect(resolved?.cellReferences?.first?.endpoint == "cell:///RootOnlyState")
+    }
+
+    @Test func applePortholeAddConfigurationLookupLoadsResolvedConfiguration() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await AppInitializer.initialize()
+        let resolver: CellResolver
+        if let existing = CellBase.defaultCellResolver as? CellResolver {
+            resolver = existing
+        } else {
+            resolver = CellResolver.sharedInstance
+            CellBase.defaultCellResolver = resolver
+        }
+
+        let owner = await makeOwnerIdentity()
+        let rootStateCell = await RootOnlyStateCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: "RootOnlyState",
+            emitCell: rootStateCell,
+            identity: owner
+        )
+        let sourceCell = await EditableConfigurationSourceFixtureCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: "EditableConfigurationSourceFixture",
+            emitCell: sourceCell,
+            identity: owner
+        )
+
+        let porthole = await OrchestratorCell(owner: owner)
+        try await porthole.setCellConfiguration(cellConfig: CellConfiguration(name: "Empty Porthole"))
+
+        let response = try await porthole.set(
+            keypath: "addConfiguration",
+            value: .object([
+                "configurationLookup": .object([
+                    "name": .string("Editable Override Workspace"),
+                    "sourceCellEndpoint": .string("cell:///EditableConfigurationSourceFixture")
+                ])
+            ]),
+            requester: owner
+        )
+
+        #expect(response == .string("ok"))
+        #expect(porthole.getCellConfiguration()?.name == "Editable Override Workspace")
+        #expect(porthole.getCellConfiguration()?.cellReferences?.map(\.label) == ["rootState"])
     }
 
     @Test func nestedStateLookupFallsBackToRootStateIntercept() async throws {
@@ -6255,6 +6452,71 @@ private final class RootOnlyStateCell: GeneralCell {
             ])
         ])
     ]
+}
+
+private final class EditableConfigurationSourceFixtureCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        agreementTemplate.addGrant("r---", for: "editableCellConfigurationState")
+        agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
+        await addInterceptForGet(requester: owner, key: "editableCellConfigurationState") { _, _ in
+            .object(Self.editableState)
+        }
+        await addInterceptForGet(requester: owner, key: "skeletonConfiguration") { _, _ in
+            .cellConfiguration(Self.originalConfiguration)
+        }
+    }
+
+    required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private static var editableState: Object {
+        [
+            "configuration": .cellConfiguration(overrideConfiguration),
+            "fallbackConfiguration": .cellConfiguration(originalConfiguration),
+            "revision": .integer(3),
+            "hasStoredOverride": .bool(true),
+            "canEdit": .bool(true),
+            "sourceCellEndpoint": .string("cell:///EditableConfigurationSourceFixture"),
+            "sourceCellName": .string("EditableConfigurationSourceFixtureCell"),
+            "accessSummary": .string("Fixture editable state")
+        ]
+    }
+
+    private static var overrideConfiguration: CellConfiguration {
+        var configuration = CellConfiguration(name: "Editable Override Workspace")
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///EditableConfigurationSourceFixture",
+            sourceCellName: "EditableConfigurationSourceFixtureCell",
+            purpose: "Editable override",
+            purposeDescription: "Local override for lookup testing",
+            interests: ["test"],
+            menuSlots: ["upperLeft"]
+        )
+        configuration.addReference(CellReference(endpoint: "cell:///RootOnlyState", label: "rootState"))
+        configuration.skeleton = .Text(SkeletonText(text: "Override"))
+        return configuration
+    }
+
+    private static var originalConfiguration: CellConfiguration {
+        var configuration = CellConfiguration(name: "Original Published Workspace")
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///EditableConfigurationSourceFixture",
+            sourceCellName: "EditableConfigurationSourceFixtureCell",
+            purpose: "Original",
+            purposeDescription: "Published fallback",
+            interests: ["test"],
+            menuSlots: ["upperLeft"]
+        )
+        configuration.addReference(CellReference(endpoint: "cell:///RootOnlyState", label: "rootState"))
+        configuration.skeleton = .Text(SkeletonText(text: "Original"))
+        return configuration
+    }
 }
 
 enum ConferenceVerifierFixtureSupport {

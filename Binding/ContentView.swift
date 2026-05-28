@@ -476,7 +476,7 @@ struct ContentView: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private static let stagingHost = "staging.haven.digipomps.org"
-    private static let defaultRemoteWebSocketPath = "publishersws"
+    private static let defaultRemoteWebSocketPath = "bridgehead"
     private static let stagingRemoteWebSocketPath = "bridgehead"
     private static let portholeEndpoint = "cell:///Porthole"
     private static let defaultConferenceSponsorOrganizationID = "sponsor-ai-digital-independence"
@@ -694,9 +694,9 @@ struct ContentView: View {
             case .view:
                 if let context = editorState.currentSourceBackedContext,
                    editorState.isDirty {
-                    loadErrorMessage = context.canEdit
+                    loadErrorMessage = editorState.sourceBackedChangeNotice ?? (context.canEdit
                         ? "Bruk \(editorApplyButtonTitle) for å lagre draften, eller Discard for å forkaste den, før du går tilbake til view-modus."
-                        : context.readOnlyMessage
+                        : context.readOnlyMessage)
                     editorMode = .edit
                     return
                 }
@@ -1888,17 +1888,8 @@ struct ContentView: View {
 
     private func normalizeConfigurationForResolver(_ configuration: CellConfiguration, origin: CatalogOrigin?, resolver: CellResolver) -> CellConfiguration {
         var normalized = BindingConferenceConfigurationRepair.reconcile(configuration)
-        if var discovery = normalized.discovery,
-           let sourceCellEndpoint = discovery.sourceCellEndpoint {
-            discovery.sourceCellEndpoint = normalizeEndpointForResolver(
-                sourceCellEndpoint,
-                origin: origin,
-                resolver: resolver
-            )
-            normalized.discovery = discovery
-        }
-        if let references = normalized.cellReferences {
-            normalized.cellReferences = references.map { normalizeReferenceForResolver($0, origin: origin, resolver: resolver) }
+        normalized = CellConfigurationEndpointRetargeting.rewritingEndpoints(in: normalized) { endpoint in
+            normalizeEndpointForResolver(endpoint, origin: origin, resolver: resolver)
         }
         normalized = ensureCatalogReferenceBindingIfNeeded(normalized, origin: origin, resolver: resolver)
         normalized = canonicalizeSkeletonReferencesIfNeeded(in: normalized)
@@ -2333,6 +2324,9 @@ struct ContentView: View {
 
     private var editorApplyButtonDisabled: Bool {
         guard editorState.workingCopy != nil else { return true }
+        if editorState.sourceBackedChangeNotice != nil {
+            return true
+        }
         if let context = editorState.currentSourceBackedContext {
             return !context.canEdit
         }
@@ -2341,6 +2335,14 @@ struct ContentView: View {
 
     private var sourceBackedStatusMessage: (systemImage: String, tint: Color, message: String)? {
         guard let context = displayedSourceBackedContext else { return nil }
+
+        if let notice = editorState.sourceBackedChangeNotice {
+            return (
+                systemImage: "exclamationmark.triangle.fill",
+                tint: .orange,
+                message: notice
+            )
+        }
 
         if !context.canEdit {
             return (
@@ -3060,6 +3062,10 @@ struct ContentView: View {
 
     private func applyWorkingCopyToViewer() {
         guard let workingDocument = editorState.currentWorkingDocument else { return }
+        if let notice = editorState.sourceBackedChangeNotice {
+            loadErrorMessage = notice
+            return
+        }
         let workingConfiguration = canonicalizeSkeletonReferencesIfNeeded(in: workingDocument.configuration)
 
         if let sourceBackedContext = workingDocument.sourceBackedContext {
@@ -4412,17 +4418,31 @@ struct ContentView: View {
                 origin: nil,
                 resolver: resolver
             )
-            if let editableResolution = await resolveEditableConfigurationForCurrentRequester(
-                normalizedConfiguration,
-                requester: loadRequester,
-                timeoutNanoseconds: editorMode == .edit ? nil : 700_000_000
-            ) {
-                normalizedConfiguration = normalizeConfigurationForResolver(
-                    editableResolution.configuration,
-                    origin: nil,
-                    resolver: resolver
-                )
-                activeSourceBackedContext = editableResolution.context
+            if shouldResolveSourceBackedConfiguration(normalizedConfiguration, editorMode: editorMode) {
+                if let editableResolution = await resolveEditableConfigurationForCurrentRequester(
+                    normalizedConfiguration,
+                    requester: loadRequester,
+                    timeoutNanoseconds: editorMode == .edit ? nil : 700_000_000
+                ) {
+                    let sourceBackedOrigin = catalogOrigin(
+                        from: normalizedConfiguration.discovery?.sourceCellEndpoint
+                            ?? editableResolution.context.sourceCellEndpoint
+                    )
+                    normalizedConfiguration = normalizeConfigurationForResolver(
+                        editableResolution.configuration,
+                        origin: sourceBackedOrigin,
+                        resolver: resolver
+                    )
+                    var context = editableResolution.context
+                    context.sourceCellEndpoint = normalizeEndpointForResolver(
+                        context.sourceCellEndpoint,
+                        origin: sourceBackedOrigin,
+                        resolver: resolver
+                    )
+                    activeSourceBackedContext = context
+                } else {
+                    activeSourceBackedContext = nil
+                }
             } else {
                 activeSourceBackedContext = nil
             }
@@ -4513,6 +4533,10 @@ struct ContentView: View {
     }
 
     private func shouldLoadWithoutAuthenticatedRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
+        if configurationUsesOnlyLocalEndpoints(configuration) {
+            return true
+        }
+
         let normalizedName = configuration.name
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -4537,6 +4561,43 @@ struct ContentView: View {
 
     func requiresAuthenticatedRuntimeBootstrap(_ configuration: CellConfiguration) -> Bool {
         !shouldLoadWithoutAuthenticatedRuntimeBootstrap(configuration)
+    }
+
+    func shouldResolveSourceBackedConfiguration(
+        _ configuration: CellConfiguration,
+        editorMode: EditorMode
+    ) -> Bool {
+        if editorMode == .edit {
+            return true
+        }
+
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+        return metadata.appStoreScope != BindingPersonalCopilotV1Policy.appStoreScope
+    }
+
+    private func configurationUsesOnlyLocalEndpoints(_ configuration: CellConfiguration) -> Bool {
+        let endpoints = runtimeBootstrapEndpoints(for: configuration)
+        guard !endpoints.isEmpty else {
+            return true
+        }
+        return endpoints.allSatisfy { endpoint in
+            !RemoteCatalogSupport.isRemoteEndpoint(endpoint)
+        }
+    }
+
+    private func runtimeBootstrapEndpoints(for configuration: CellConfiguration) -> [String] {
+        var endpoints = (configuration.cellReferences ?? []).map(\.endpoint)
+        if let discoveryEndpoint = configuration.discovery?.sourceCellEndpoint,
+           !discoveryEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            endpoints.append(discoveryEndpoint)
+        }
+
+        var seen = Set<String>()
+        return endpoints.filter { endpoint in
+            let key = endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !key.isEmpty else { return false }
+            return seen.insert(key).inserted
+        }
     }
 
     private func shouldWarmConferenceRuntime(for configuration: CellConfiguration) -> Bool {
@@ -5095,6 +5156,7 @@ struct ContentView: View {
     ) -> EditorSourceBackedContext {
         EditorSourceBackedContext(
             committedSourceRevision: editableState.revision,
+            hasStoredOverride: editableState.hasStoredOverride,
             canEdit: editableState.canEdit,
             sourceCellEndpoint: editableState.sourceCellEndpoint,
             sourceCellName: editableState.sourceCellName,
