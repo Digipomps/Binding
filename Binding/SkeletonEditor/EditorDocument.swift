@@ -3,10 +3,16 @@ import CellBase
 
 struct EditorSourceBackedContext {
     var committedSourceRevision: Int?
+    var hasStoredOverride: Bool = false
     var canEdit: Bool
     var sourceCellEndpoint: String
     var sourceCellName: String
     var accessSummary: String
+
+    var sourceLabel: String {
+        let trimmedName = sourceCellName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty ? sourceCellEndpoint : trimmedName
+    }
 
     var readOnlyMessage: String {
         let summary = accessSummary.trimmingCharacters(in: .whitespacesAndNewlines)

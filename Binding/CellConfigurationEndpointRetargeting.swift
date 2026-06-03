@@ -2,6 +2,29 @@ import Foundation
 import CellBase
 
 enum CellConfigurationEndpointRetargeting {
+    static func rewritingLocalCellEndpoints(
+        in configuration: CellConfiguration,
+        toScaffoldEndpoint scaffoldEndpoint: String
+    ) -> CellConfiguration {
+        guard let origin = RetargetOrigin(scaffoldEndpoint: scaffoldEndpoint) else {
+            return configuration
+        }
+
+        return rewritingEndpoints(in: configuration) {
+            rewriteLocalCellEndpoint($0, to: origin)
+        }
+    }
+
+    static func rewriteLocalCellEndpoint(
+        _ endpoint: String,
+        toScaffoldEndpoint scaffoldEndpoint: String
+    ) -> String {
+        guard let origin = RetargetOrigin(scaffoldEndpoint: scaffoldEndpoint) else {
+            return endpoint
+        }
+        return rewriteLocalCellEndpoint(endpoint, to: origin)
+    }
+
     static func rewritingEndpoints(
         in configuration: CellConfiguration,
         transform: (String) -> String
@@ -66,5 +89,47 @@ enum CellConfigurationEndpointRetargeting {
         let prefix = value.prefix(prefixLength)
         let suffix = value.suffix(suffixLength)
         return "\(prefix)\(rewritten)\(suffix)"
+    }
+
+    private static func rewriteLocalCellEndpoint(
+        _ endpoint: String,
+        to origin: RetargetOrigin
+    ) -> String {
+        guard var components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell"
+        else {
+            return endpoint
+        }
+
+        let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalizedPath.isEmpty else { return endpoint }
+
+        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isLocal = host == nil || host?.isEmpty == true || host?.lowercased() == "localhost"
+        guard isLocal else { return endpoint }
+
+        components.host = origin.host
+        components.port = origin.port
+        components.path = "/" + normalizedPath
+        return components.string ?? endpoint
+    }
+
+    private struct RetargetOrigin {
+        let host: String
+        let port: Int?
+
+        init?(scaffoldEndpoint: String) {
+            guard let components = URLComponents(string: scaffoldEndpoint),
+                  let scheme = components.scheme?.lowercased(),
+                  ["cell", "ws", "wss", "http", "https"].contains(scheme),
+                  let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !host.isEmpty
+            else {
+                return nil
+            }
+
+            self.host = host
+            self.port = components.port
+        }
     }
 }
