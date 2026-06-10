@@ -245,6 +245,34 @@ Fallback acceptance:
 - do not introduce room-fixed positioning until device-relative radar is solid
 - preserve existing participant portal, chat, and verifier paths while adding the native radar incrementally
 
+## Implementation status - 2026-05-18
+
+Implemented in Binding:
+
+- `ConferenceNearbyRadarLocalCell.state.radarLayout.surface` now exposes an explicit native radar contract:
+  - `preciseNodes` contain `xNormalized`, `yNormalized`, `azimuthRadians`, distance, freshness, selection, relation, and follow-up metadata.
+  - `approximateNodes` keep distance/status metadata but leave `xNormalized` and `yNormalized` as `null` so MPC-only peers are not shown with invented direction.
+  - the selected participant is represented as `selectedNode` and remains the functional focus for follow-up actions.
+- `Binding/Binding/ConferenceNearbyRadarSurfaceView.swift` renders a Binding-local SwiftUI radar surface:
+  - full mode for `Conference Nearby Radar · Full oversikt`
+  - compact mode for `Conference Participant Portal Dashboard`
+  - animated sweep and node movement are local SwiftUI work, not per-frame Skeleton or bridge updates.
+  - node taps dispatch `selectEntity`; visible actions dispatch profile, contact, follow-up, and chat mutations through `nearbyRadar.dispatchAction`.
+- `PortholeCanvas` injects the native surface above the existing Skeleton workbench only for the nearby radar and participant portal configurations. The surrounding Skeleton contract still owns summaries, cards, navigation, and portable layout.
+
+Verified on 2026-05-18:
+
+- `xcodebuild build -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData CODE_SIGNING_ALLOWED=NO`
+- `xcodebuild build-for-testing -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO`
+- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSupportsVariableEntityCountsWithDistanceDirectionAndRelevance`
+- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
+- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileContract`
+- `swift test --filter EntityScannerCellContractTests` in `../CellProtocol`
+
+Not verified in this environment:
+
+- live two-device UWB acceptance. This still requires two physical UWB-capable iOS devices running the app build, with `NearbyInteraction` available, to confirm that rotating one device moves the node and changing distance changes the radius in real hardware conditions.
+
 ## Definition of done
 
 The nearby radar is done for this phase when:

@@ -2599,6 +2599,8 @@ final class FullLibraryViewModel: ObservableObject {
         appendUnique(fallbackTemplates, sourceRef: "offline.template", badges: ["Offline", "Template"], into: &candidates)
         appendUnique(
             [
+                ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration(),
+                ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration(),
                 ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(),
                 ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(),
                 ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(),

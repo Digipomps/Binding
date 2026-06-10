@@ -33,14 +33,6 @@
 /* Begin PBXFileReference section */
 		2430C8F22F18FB4B008F5B80 /* MultipeerConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MultipeerConnectivity.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MultipeerConnectivity.framework; sourceTree = DEVELOPER_DIR; };
 		2430C8F42F18FB57008F5B80 /* NearbyInteraction.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NearbyInteraction.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/NearbyInteraction.framework; sourceTree = DEVELOPER_DIR; };
-		2439566D2F641A13004C221F /* CryptoSwift.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = CryptoSwift.xcodeproj; sourceTree = "<group>"; };
-		243958602F641A13004C221F /* Algorithms.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Algorithms.xcodeproj; sourceTree = "<group>"; };
-		243959EC2F641A13004C221F /* Atomics.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Atomics.xcodeproj; sourceTree = "<group>"; };
-		24395DDF2F641A13004C221F /* Collections.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Collections.xcodeproj; sourceTree = "<group>"; };
-		2439B2A22F64B44F004C221F /* CryptoSwift.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = CryptoSwift.xcodeproj; sourceTree = "<group>"; };
-		2439B4952F64B44F004C221F /* Algorithms.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Algorithms.xcodeproj; sourceTree = "<group>"; };
-		2439B6212F64B44F004C221F /* Atomics.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Atomics.xcodeproj; sourceTree = "<group>"; };
-		2439BA142F64B44F004C221F /* Collections.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Collections.xcodeproj; sourceTree = "<group>"; };
 		24D800152EF195A000021B5A /* Binding.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Binding.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D800222EF195A200021B5A /* BindingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D8002C2EF195A200021B5A /* BindingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -158,62 +150,6 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		243986822F641A13004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		243986842F641A13004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		243986862F641A13004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		243986882F641A13004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		2439CD6E2F64B44F004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		2439CD702F64B44F004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		2439CD722F64B44F004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		2439CD742F64B44F004C221F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		24D8000C2EF195A000021B5A = {
 			isa = PBXGroup;
 			children = (
@@ -326,6 +262,14 @@
 				TargetAttributes = {
 					24D800142EF195A000021B5A = {
 						CreatedOnToolsVersion = 26.1.1;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 					24D800212EF195A200021B5A = {
 						CreatedOnToolsVersion = 26.1.1;
@@ -352,40 +296,6 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 243986862F641A13004C221F /* Products */;
-					ProjectRef = 243958602F641A13004C221F /* Algorithms.xcodeproj */;
-				},
-				{
-					ProductGroup = 2439CD742F64B44F004C221F /* Products */;
-					ProjectRef = 2439B4952F64B44F004C221F /* Algorithms.xcodeproj */;
-				},
-				{
-					ProductGroup = 2439CD6E2F64B44F004C221F /* Products */;
-					ProjectRef = 2439B6212F64B44F004C221F /* Atomics.xcodeproj */;
-				},
-				{
-					ProductGroup = 243986882F641A13004C221F /* Products */;
-					ProjectRef = 243959EC2F641A13004C221F /* Atomics.xcodeproj */;
-				},
-				{
-					ProductGroup = 243986842F641A13004C221F /* Products */;
-					ProjectRef = 24395DDF2F641A13004C221F /* Collections.xcodeproj */;
-				},
-				{
-					ProductGroup = 2439CD702F64B44F004C221F /* Products */;
-					ProjectRef = 2439BA142F64B44F004C221F /* Collections.xcodeproj */;
-				},
-				{
-					ProductGroup = 243986822F641A13004C221F /* Products */;
-					ProjectRef = 2439566D2F641A13004C221F /* CryptoSwift.xcodeproj */;
-				},
-				{
-					ProductGroup = 2439CD722F64B44F004C221F /* Products */;
-					ProjectRef = 2439B2A22F64B44F004C221F /* CryptoSwift.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
 				24D800142EF195A000021B5A /* Binding */,
@@ -582,6 +492,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Binding/Binding.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Binding/Binding-iOS.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Binding/Binding-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 58VP3BNL4B;
@@ -593,6 +506,16 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Binding/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Binding bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Binding bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Binding bruker Face ID for aa laase opp identiteter og signere handlinger med noekler som brukeren kontrollerer.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Binding bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Binding bruker mikrofonen bare naar du starter tale-til-tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "Binding bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Binding bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Binding bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Binding bruker talegjenkjenning for aa skrive inn diktert tekst i Co-Pilot Chat.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -611,8 +534,9 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.digipomps.Binding;
+				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.Binding.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -634,6 +558,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Binding/Binding.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Binding/Binding-iOS.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Binding/Binding-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 58VP3BNL4B;
@@ -645,6 +572,16 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Binding/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Binding bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Binding bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Binding bruker Face ID for aa laase opp identiteter og signere handlinger med noekler som brukeren kontrollerer.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Binding bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Binding bruker mikrofonen bare naar du starter tale-til-tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "Binding bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Binding bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Binding bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Binding bruker talegjenkjenning for aa skrive inn diktert tekst i Co-Pilot Chat.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -663,8 +600,9 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.digipomps.Binding;
+				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.Binding.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

@@ -41,7 +41,7 @@ struct AgentCellRuntimeHostTests {
         let snapshot = try await host.start(instanceName: "agent")
 
         #expect(snapshot.status == "running")
-        #expect(snapshot.cells.count == 4)
+        #expect(snapshot.cells.count == 5)
         #expect(snapshot.cells.map(\.endpoint) == AgentCellRegistry.concreteDescriptors.map(\.endpoint))
         #expect(FileManager.default.fileExists(atPath: paths.cellRuntimeFile.path))
         #expect(CellBase.documentRootPath == paths.cellDocumentDirectory.path)
@@ -54,6 +54,11 @@ struct AgentCellRuntimeHostTests {
             requester: requester
         )
         #expect(cell is AgentSupervisorCell)
+        let localModelCell = try await CellResolver.sharedInstance.cellAtEndpoint(
+            endpoint: "cell:///agent/local-model",
+            requester: requester
+        )
+        #expect(localModelCell is AgentLocalModelCell)
 
         await host.stop()
         let stoppedSnapshot = await host.snapshot()

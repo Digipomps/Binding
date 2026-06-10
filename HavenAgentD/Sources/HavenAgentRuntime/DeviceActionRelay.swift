@@ -447,16 +447,30 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
             throw DeviceActionRelayError.resolverUnavailable
         }
 
-        let cell = try await resolver.cellAtEndpoint(endpoint: notificationOutboxEndpoint, requester: requester)
+        let cell: any Emit
+        do {
+            cell = try await resolver.cellAtEndpoint(endpoint: notificationOutboxEndpoint, requester: requester)
+        } catch {
+            throw DeviceActionRelayError.publishRejected(
+                "Could not resolve NotificationOutbox at \(notificationOutboxEndpoint): \(error.localizedDescription)"
+            )
+        }
         guard let meddle = cell as? Meddle else {
             throw DeviceActionRelayError.targetNotWritable
         }
 
-        let response = try await meddle.set(
-            keypath: "createTicket",
-            value: action.notificationOutboxValue,
-            requester: requester
-        )
+        let response: ValueType?
+        do {
+            response = try await meddle.set(
+                keypath: "createTicket",
+                value: action.notificationOutboxValue,
+                requester: requester
+            )
+        } catch {
+            throw DeviceActionRelayError.publishRejected(
+                "NotificationOutbox createTicket failed at \(notificationOutboxEndpoint): \(error.localizedDescription)"
+            )
+        }
 
         if case let .string(message)? = response {
             throw DeviceActionRelayError.publishRejected(message)
@@ -492,7 +506,7 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
 
         let resolver = CellResolver.sharedInstance
         let route = RemoteCellHostRoute(
-            websocketEndpoint: "publishersws",
+            websocketEndpoint: "bridgehead",
             schemePreference: .automatic
         )
         let normalizedHost = host.lowercased()
@@ -602,7 +616,10 @@ public actor DeviceActionRelay {
             requestsDirectoryURL(),
             processedDirectoryURL(),
             failedDirectoryURL(),
-            repliesDirectoryURL()
+            repliesDirectoryURL(),
+            CodexPromptQueue(paths: paths, fileManager: fileManager).queuedDirectoryURL(),
+            CodexPromptQueue(paths: paths, fileManager: fileManager).startedDirectoryURL(),
+            CodexPromptQueue(paths: paths, fileManager: fileManager).completedDirectoryURL()
         ] {
             if !fileManager.fileExists(atPath: directory.path) {
                 try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -642,6 +659,11 @@ public actor DeviceActionRelay {
 
     public func recordConversationReply(_ prompt: AgentConversationPrompt) throws {
         try bootstrap()
+        if prompt.requiredActionKey == CodexPromptQueueContract.requiredActionKey {
+            _ = try CodexPromptQueue(paths: paths, fileManager: fileManager)
+                .enqueue(conversationPrompt: prompt)
+            return
+        }
         let fileURL = repliesDirectoryURL().appendingPathComponent("\(sanitizedFileComponent(prompt.id)).json")
         try writeJSON(prompt, to: fileURL)
     }
@@ -738,6 +760,9 @@ public actor DeviceActionRelay {
         payload["triggerEvent"] = .string(triggerEvent)
         if let resolvedSourceCellEndpoint {
             payload["sourceCellEndpoint"] = .string(resolvedSourceCellEndpoint)
+        }
+        if let resolvedDeviceID {
+            payload["deviceId"] = .string(resolvedDeviceID)
         }
         if let purpose = trimmed(request.purpose) {
             payload["purpose"] = .string(purpose)

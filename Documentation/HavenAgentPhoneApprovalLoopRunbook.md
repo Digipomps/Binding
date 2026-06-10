@@ -71,6 +71,116 @@ The flow currently spans these implementation points:
 | Live NotificationOutbox publish | Reached server but failed | request `phone-smoke-004` ended with `There was a bad response from the server.` |
 | End-to-end phone approve/reply/resume | Not yet verified | no confirmed push-to-reply roundtrip yet. |
 
+## Update As Of 2026-05-14
+
+The stale bootstrap blocker from 2026-05-05 was cleared for the local smoke path:
+
+- `haven-agentd refresh-starter-auth --ttl-seconds 3600` generated a fresh signed starter auth valid until `2026-05-14T18:52:54Z`.
+- `haven-agentd bootstrap-probe --run-bootstrap` succeeded for the live config earlier in the session.
+- The isolated relay config at `/tmp/haven-phone-smoke-config.json` still validates and starts on `127.0.0.1:43111`.
+
+The remaining live blocker is now narrower:
+
+- request `phone-live-003` decoded successfully
+- relay payload included the resolved device id in the nested `payload.deviceId` field when available, matching the current `NotificationOutboxCell` lookup contract
+- publish still failed before `createTicket`, while resolving the remote cell:
+
+```text
+Device action relay publish failed: Could not resolve NotificationOutbox at cell://staging.haven.digipomps.org/NotificationOutbox: There was a bad response from the server.
+```
+
+Interpretation:
+
+- the phone/APNS/prompt UI roundtrip is still unproven
+- the failure is no longer explained by expired starter auth
+- the failure appears to be in remote CellProtocol resolution, staging grant, or bridge transport for `cell://staging.haven.digipomps.org/NotificationOutbox`
+- the request never reaches a structured `NotificationTicketRecord`
+
+Related CellProtocolDocuments/CellScaffold work checked on 2026-05-14:
+
+- `CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md` documents `ContactEndpointCell` as the protocol-native contact surface for other entity endpoints.
+- `ContactEndpointCell` and `ContactRegistryCell` are implemented in CellScaffold.
+- `swift test --package-path ../CellScaffold --filter ContactEndpointCellTests` passed 13 tests.
+- `swift test --package-path ../CellScaffold --filter ContactRegistryCellTests` passed 5 tests.
+- `PersonalCopilotV1Tests/testChatEntityExtensionScansOwnerScopedCapabilities` passed.
+- live CellScaffold on port `9089` returned `200` for `GET /personal-copilot-v1/chat/api/entity-extension` and `POST /personal-copilot-v1/chat/api/entity-extension/scan`.
+
+Binding follow-up completed on 2026-05-14:
+
+- `BindingContactEndpointCell` now exposes the local owner-scoped
+  `cell:///ContactEndpoint` contract used by the canonical entity endpoint
+  route.
+- `PersonalChatHub`/Co-Pilot Chat parity now has side-effect-free
+  `entityExtension.scan` and ContactEndpoint resource matching for prompts about
+  sending a message/request through another entity's endpoint cell.
+- `xcodebuild test -project Binding.xcodeproj -scheme Binding -only-testing:BindingTests/ChatWorkbenchParityTests`
+  passed 8 tests, including a signed `contact.request`, replay rejection,
+  `ticket.resolve`, `ticket.respond`, and zero-side-effect chat scan/analyze.
+
+That means the recommended future route for "send a message via another entity's endpoint cell" is `ContactEndpointCell.contact.request`, with `NotificationOutbox` only as wakeup adapter. The current Binding/HAVENAgentD phone smoke still uses `NotificationOutbox` directly.
+
+## Update As Of 2026-05-15
+
+CellScaffold staging is running the same revision as the local CellScaffold checkout used for this review:
+
+- `GET https://staging.haven.digipomps.org/health` returned `{"status":"ok"}`.
+- `GET https://staging.haven.digipomps.org/health/build` returned `app_revision=6077784e35f636b6a17cbc0d381bce0ced28fdff`, matching local `CellScaffold` `HEAD`.
+- `POST https://staging.haven.digipomps.org/conference-mvp/api/device/register` with an empty JSON object returned a structured `400` for missing `participantId`, confirming the device registration route is mounted. No device token was sent during this probe.
+
+The deployed CellScaffold code now has the real APNS-capable path:
+
+- `DeviceRegistrationCell` is registered as `cell:///DeviceRegistration`, `identityUnique`, persistent, under the owner identity domain.
+- `NotificationOutboxCell` is registered as `cell:///NotificationOutbox`, persistent, and resolves devices from `DeviceRegistrationCell` before sending push.
+- `EnvironmentPushProviderAdapter` selects APNS for iOS when `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_PRIVATE_KEY_P8` or `APNS_PRIVATE_KEY_BASE64`, and `APNS_BUNDLE_ID`/`APNS_TOPIC` are configured.
+- `ContactEndpointCell` should still be the protocol-native entity endpoint; it uses `NotificationOutbox` only as a private wakeup adapter.
+
+Binding privacy hardening completed in `NotificationEnrollmentManager`:
+
+- APNS device tokens are no longer persisted in `UserDefaults`.
+- Legacy `binding.notifications.apnsToken` is removed during bootstrap and after registration.
+- The token is kept only in memory long enough to call the staging device registration API, then cleared after a successful registration.
+- On iOS startup, Binding asks the OS to re-deliver the remote notification token when terms are accepted and notification permission is already granted.
+
+Remaining live blockers / unknowns:
+
+- Staging health does not expose whether APNS environment variables are configured, so real APNS delivery is still unproven.
+- A full live roundtrip still needs a real APNS token from a signed iPhone build, or a simulator APNS sandbox token if the host/Xcode setup supports it and staging uses `APNS_USE_SANDBOX=true`.
+- If staging APNS is configured for production while Binding is using a development/simulator entitlement, delivery will fail even though registration succeeds.
+
+## Update As Of 2026-05-16
+
+Binding APNS capability hardening:
+
+- `Binding/Binding-iOS.entitlements` now includes `aps-environment=development`.
+- The iOS and macOS keychain access group now expands from `$(PRODUCT_BUNDLE_IDENTIFIER)` instead of the older `com.digipomps.Binding` identifier.
+- The Xcode target metadata now marks Push Notifications and Background Modes as enabled capabilities.
+- `Info.plist` still includes `UIBackgroundModes.remote-notification`, which is the required background mode for silent/remote notification wakeups.
+
+Local simulator proof:
+
+- A fresh iOS simulator build succeeded.
+- The generated simulator entitlement file includes:
+  - `application-identifier=58VP3BNL4B.org.digipomps.Binding.dev`
+  - `aps-environment=development`
+  - `keychain-access-groups=58VP3BNL4B.org.digipomps.Binding.dev`
+- `xcrun simctl push` delivered a HAVENAgent notification into the running Binding simulator app.
+- A first payload showed the approve/reject pending-action card.
+- A second payload using `requiredActionKey=haven.agent.followup.prompt` showed the next-prompt card with a text editor and disabled `Send prompt` button until input is entered.
+- Screenshot artifacts:
+  - `/private/tmp/binding-hard-push-after.png`
+  - `/private/tmp/binding-hard-push-prompt.png`
+
+Physical device blocker:
+
+- `iKjetil17 Pro` is visible to Xcode as `00008150-00050C200ED8401C`.
+- A signed physical device build now fails for the correct reason: the current personal development team provisioning profile for `org.digipomps.Binding.dev` does not support Push Notifications and does not include `aps-environment`.
+- Even with `-allowProvisioningUpdates`, Xcode reports: personal development teams do not support the Push Notifications capability.
+
+Required next external step:
+
+- Use a paid Apple Developer Program team/App ID for `org.digipomps.Binding.dev`, enable Push Notifications on that App ID, regenerate/download the development provisioning profile, then rerun the physical device build.
+- After that succeeds, the phone can obtain a real APNS token and Binding can register it with staging `DeviceRegistrationCell`.
+
 ## What Was Proven Today
 
 ### 1. The app can now be built for iPhone again

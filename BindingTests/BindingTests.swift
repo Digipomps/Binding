@@ -231,7 +231,7 @@ struct BindingTests {
             "Publish Public Profile",
             "Public Profile Directory",
             "Matches",
-            "Invite Chat",
+            "Co-Pilot Chat",
             "Vault / Ideas",
             "Meeting Intent",
             "Privacy Audit",
@@ -261,16 +261,171 @@ struct BindingTests {
         #expect(!normalized.contains("control tower"))
     }
 
-    @Test func personalCopilotInviteChatExposesSafetyActionsAndJitsiPlaceholder() {
+    @Test func conferenceLauncherAndClaudeReferenceAreLoadableAndExplicitAboutScope() throws {
+        let codex = ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
+        let claude = ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration()
+
+        for configuration in [codex, claude] {
+            #expect(
+                CellConfigurationValidationService.validate(configuration).errorCount == 0,
+                "\(configuration.name) should validate as a normal CellConfiguration."
+            )
+            #expect(
+                configuration.cellReferences?.contains(where: {
+                    $0.label == "conferenceNavigator" && $0.endpoint == "cell:///ConferenceConfigurationNavigator"
+                }) == true,
+                "\(configuration.name) should carry an explicit conference navigator reference."
+            )
+        }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
+
+        let codexJSON = try String(
+            decoding: encoder.encode(codex),
+            as: UTF8.self
+        )
+        let claudeJSON = try String(
+            decoding: encoder.encode(claude),
+            as: UTF8.self
+        )
+
+        for expected in [
+            "\"name\":\"Conference Codex Live Configurations\"",
+            "\"keypath\":\"conferenceNavigator.dispatchAction\"",
+            "\"keypath\":\"navigator.openConferenceParticipantPortal\"",
+            "\"keypath\":\"navigator.openConferenceAIAssistant\"",
+            "\"name\":\"Conference Participant Portal Dashboard\"",
+            "\"name\":\"Conference AI Assistant\"",
+            "\"name\":\"Conference Control Tower\"",
+            "\"name\":\"Conference Public Surface\"",
+            "\"name\":\"Conference Claude Design Reference\""
+        ] {
+            #expect(codexJSON.contains(expected), "Conference Codex launcher JSON missing \(expected)")
+        }
+
+        for expected in [
+            "\"name\":\"Conference Claude Design Reference\"",
+            "\"keypath\":\"conferenceNavigator.dispatchAction\"",
+            "\"keypath\":\"navigator.openConferencePublicSurface\"",
+            "\"keypath\":\"navigator.openConferenceSponsorFollowUp\"",
+            "\"name\":\"Conference Public Surface\"",
+            "\"name\":\"Conference Sponsor Follow-up\"",
+            "\"name\":\"Conference Nearby Radar · Full oversikt\"",
+            "\"name\":\"Conference Participant Chat\""
+        ] {
+            #expect(claudeJSON.contains(expected), "Conference Claude reference JSON missing \(expected)")
+        }
+
+        #expect(!codexJSON.contains("conferenceNavigator.status"))
+        #expect(!claudeJSON.contains("conferenceNavigator.status"))
+        #expect(claudeJSON.lowercased().contains("designreferanse") || claudeJSON.lowercased().contains("design reference"))
+    }
+
+    @Test func conferenceShowcaseDefaultsStayOnLocalDemoRuntime() {
+        let ai = ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration()
+        let publicSurface = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration()
+        let sponsor = ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration()
+
+        #expect(ai.discovery?.sourceCellEndpoint == "cell:///ConferenceParticipantPreviewShell")
+        #expect(ai.discovery?.sourceCellName == "ConferenceParticipantPreviewShellLocalFallbackCell")
+        #expect(ai.cellReferences?.first?.endpoint == "cell:///ConferenceParticipantPreviewShell")
+        #expect(ai.cellReferences?.last?.endpoint == "cell:///ConferenceAIAssistantGatewayProxy")
+
+        #expect(publicSurface.discovery?.sourceCellEndpoint == "cell:///ConferencePublicShellFixture")
+        #expect(publicSurface.discovery?.sourceCellName == "ConferencePublicShellFixtureCell")
+        #expect(publicSurface.cellReferences?.first?.endpoint == "cell:///ConferencePublicShellFixture")
+
+        #expect(sponsor.discovery?.sourceCellEndpoint == "cell:///ConferenceSponsorShellFixture")
+        #expect(sponsor.discovery?.sourceCellName == "ConferenceSponsorShellFixtureCell")
+        #expect(sponsor.cellReferences?.first?.endpoint == "cell:///ConferenceSponsorShellFixture")
+    }
+
+    @Test func runtimeBootstrapClassificationUsesEndpointsForLocalPersonalSurfaces() {
+        let contentView = ContentView()
+
+        for configuration in [
+            ConfigurationCatalogCell.personalHomeMenuConfiguration(),
+            ConfigurationCatalogCell.personalProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
+            ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
+            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        ] {
+            #expect(
+                contentView.requiresAuthenticatedRuntimeBootstrap(configuration) == false,
+                "\(configuration.name) should load through the local runtime path."
+            )
+        }
+
+        for configuration in [
+            ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
+            ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+            ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration()
+        ] {
+            #expect(
+                contentView.requiresAuthenticatedRuntimeBootstrap(configuration),
+                "\(configuration.name) should still require authenticated remote runtime bootstrap."
+            )
+        }
+    }
+
+    @Test func personalCopilotViewerModeSkipsSourceBackedResolutionForCuratedSurfaces() {
+        let contentView = ContentView()
+
+        #expect(
+            contentView.shouldResolveSourceBackedConfiguration(
+                ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
+                editorMode: .view
+            ) == false
+        )
+        #expect(
+            contentView.shouldResolveSourceBackedConfiguration(
+                ConfigurationCatalogCell.personalHomeMenuConfiguration(),
+                editorMode: .view
+            ) == false
+        )
+        #expect(
+            contentView.shouldResolveSourceBackedConfiguration(
+                ConfigurationCatalogCell.workflowStudioWorkbenchConfiguration(),
+                editorMode: .view
+            )
+        )
+        #expect(
+            contentView.shouldResolveSourceBackedConfiguration(
+                ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
+                editorMode: .edit
+            )
+        )
+    }
+
+    @Test func personalCopilotInviteChatStaysChatFirstAndDropsTechnicalInviteFields() {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
 
         #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(configuration))
-        #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: configuration).contains("cell:///PersonalChatClient"))
-        #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: configuration).contains("cell://staging.haven.digipomps.org/PersonalChatHub"))
+        #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: configuration).contains("cell:///PersonalChatHub"))
 
         guard let skeleton = configuration.skeleton else {
-            Issue.record("Invite Chat should have a skeleton")
+            Issue.record("Co-Pilot Chat should have a skeleton")
             return
+        }
+
+        let helpIntro = "Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt."
+        let helpFollowup = "Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene."
+        if let conversationPanel = skeletonTabPanel(id: "samtale", in: skeleton) {
+            #expect(!skeletonContainsLiteralText("Start her", in: conversationPanel))
+            #expect(!skeletonContainsLiteralText(helpIntro, in: conversationPanel))
+            #expect(!skeletonContainsLiteralText(helpFollowup, in: conversationPanel))
+        } else {
+            Issue.record("Co-Pilot Chat should expose a Samtale tab panel")
+        }
+        if let helpPanel = skeletonTabPanel(id: "hjelp", in: skeleton) {
+            #expect(skeletonContainsLiteralText("Hjelp", in: helpPanel))
+            #expect(skeletonContainsLiteralText(helpIntro, in: helpPanel))
+            #expect(skeletonContainsLiteralText(helpFollowup, in: helpPanel))
+        } else {
+            Issue.record("Co-Pilot Chat should expose a Mer > Hjelp tab panel")
         }
 
         for keypath in [
@@ -283,8 +438,23 @@ struct BindingTests {
             "chatHub.blockUser",
             "chatHub.unblockUser",
             "chatHub.assistant.analyzeDraft",
-            "chatHub.assistant.acceptSuggestion",
             "chatHub.assistant.dismissSuggestion",
+            "chatHub.ui.openSuggestedHelper",
+            "chatHub.ui.setActiveHelper",
+            "chatHub.ui.setCapabilityDiscoveryEnabled",
+            "chatHub.voice.requestPermission",
+            "chatHub.voice.startListening",
+            "chatHub.voice.stopListening",
+            "chatHub.voice.acceptTranscript",
+            "chatHub.voice.acceptTranscriptAndAnalyze",
+            "chatHub.voice.clearTranscript",
+            "chatHub.meeting.schedule",
+            "chatHub.idea.capture",
+            "chatHub.todo.create",
+            "chatHub.project.create",
+            "chatHub.reminder.create",
+            "chatHub.agent.review.create",
+            "chatHub.capabilityRequest.submit",
             "chatHub.poll.create",
             "chatHub.poll.vote",
             "chatHub.poll.close"
@@ -292,12 +462,28 @@ struct BindingTests {
             #expect(skeletonContainsButton(keypath: keypath, in: skeleton))
         }
 
-        #expect(skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.userUUID", in: skeleton))
         #expect(skeletonContainsTextField(targetKeypath: "chatHub.assistant.setCandidateQuery", in: skeleton))
+        #expect(skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.title", in: skeleton))
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: skeleton))
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.poll.setOptions", in: skeleton))
+        #expect(skeletonContainsTextField(targetKeypath: "chatHub.todo.title", in: skeleton))
+        #expect(skeletonContainsTextArea(targetKeypath: "chatHub.project.description", in: skeleton))
+        #expect(skeletonContainsTextArea(targetKeypath: "chatHub.capabilityRequest.summary", in: skeleton))
         #expect(skeletonContainsTextKeypath("chatHub.state.assistant.latestSuggestion.explanation", in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatHub.state.assistant.whySummary", in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatHub.state.assistant.providerRecommendation.title", in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatHub.state.voice.message", in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatHub.state.voice.finalTranscript", in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.ui.componentSurfaces", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.ui.activeToolChips", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.workbench.modules", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.capabilityRequests", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.assistant.assistantProviders", topic: nil, in: skeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.assistant.latestSuggestion.candidates", topic: nil, in: skeleton))
+        #expect(!skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.userUUID", in: skeleton))
+        #expect(!skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.profileID", in: skeleton))
+        #expect(!skeletonContainsTextKeypath("chatHub.state.blockedUsers", in: skeleton))
+        #expect(!skeletonContainsTextKeypath("chatHub.state.purposeWeights", in: skeleton))
     }
 
     @Test func personalCopilotV1PolicyRejectsConferenceAndUnapprovedHosts() {
@@ -408,6 +594,26 @@ struct BindingTests {
             Issue.record("Meeting Intent should expose the staging coordinator contract")
         }
 
+        let agenda = ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
+        #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(agenda))
+        #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: agenda).contains("cell:///PersonalAgendaContext"))
+        #expect((agenda.discovery?.interests ?? []).contains("policyCategory=agenda-context"))
+        #expect((agenda.discovery?.interests ?? []).contains("nativePermissionRequests=calendar,reminders"))
+        if let skeleton = agenda.skeleton {
+            for keypath in [
+                "agendaContext.agenda.refresh",
+                "agendaContext.agenda.answerQuery",
+                "agendaContext.agenda.publishPerspectiveSignals"
+            ] {
+                #expect(skeletonContainsButton(keypath: keypath, in: skeleton))
+            }
+            #expect(skeletonContainsTextKeypath("agendaContext.state.permissionStatus.calendar", in: skeleton))
+            #expect(skeletonContainsTextKeypath("agendaContext.state.permissionStatus.reminders", in: skeleton))
+            #expect(skeletonContainsList(keypath: "agendaContext.state.items", topic: nil, in: skeleton))
+        } else {
+            Issue.record("Agenda Context should expose the local agenda contract")
+        }
+
         let catalog = ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration()
         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: catalog).contains("cell://staging.haven.digipomps.org/PersonalCopilotConfigurationCatalog"))
         if let skeleton = catalog.skeleton {
@@ -429,6 +635,7 @@ struct BindingTests {
 
         for configuration in configurations {
             let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+            #expect(metadata.appStoreScope == BindingPersonalCopilotV1Policy.appStoreScope)
             #expect(metadata.policyCategory != nil)
             #expect(metadata.surfaceFamily != nil)
             #expect(metadata.presentationClass != nil)
@@ -443,6 +650,7 @@ struct BindingTests {
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
+        #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Invite Chat") == .inviteChat)
     }
 
@@ -2050,15 +2258,18 @@ struct BindingTests {
     }
 
     @Test func stagingWebSocketEndpointsCanonicalizeToBridgeheadRoute() {
-        let publishersRoute = RemoteEndpointAccessSupport.canonicalRoute(
-            for: "wss://staging.haven.digipomps.org/publishersws/ConferenceUIRouter"
-        )
         let bridgeheadRoute = RemoteEndpointAccessSupport.canonicalRoute(
             for: "wss://staging.haven.digipomps.org/bridgehead/ConferenceUIRouter"
         )
 
-        #expect(publishersRoute?.websocketEndpoint == "bridgehead")
         #expect(bridgeheadRoute?.websocketEndpoint == "bridgehead")
+        let usesEndpointFirstPath: Bool
+        if case .some(.endpointThenPublisherUUID) = bridgeheadRoute?.pathLayout {
+            usesEndpointFirstPath = true
+        } else {
+            usesEndpointFirstPath = false
+        }
+        #expect(usesEndpointFirstPath)
     }
 
     @Test func stagingAIGatewayRouteRegistrationRepairsStaleRemoteRoute() {
@@ -2086,6 +2297,13 @@ struct BindingTests {
         let repairedRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
         #expect(repairedRoute?.websocketEndpoint == "bridgehead")
         #expect(repairedRoute?.schemePreference == .wss)
+        let usesEndpointFirstPath: Bool
+        if case .some(.endpointThenPublisherUUID) = repairedRoute?.pathLayout {
+            usesEndpointFirstPath = true
+        } else {
+            usesEndpointFirstPath = false
+        }
+        #expect(usesEndpointFirstPath)
     }
 
     @Test func remoteEndpointAccessUsesBridgeAgreementBeforeAdmission() async throws {
@@ -2304,7 +2522,8 @@ struct BindingTests {
                 [
                     "identity.requestExport",
                     "identity.requestAccountDelete",
-                    "identity.cancelAccountDelete"
+                    "identity.cancelAccountDelete",
+                    "personalNavigator.dispatchAction"
                 ],
                 []
             ),
@@ -2382,6 +2601,32 @@ struct BindingTests {
         }
     }
 
+    @Test func personalHomeIncludesLocalNavigatorReference() {
+        let configuration = ConfigurationCatalogCell.personalHomeMenuConfiguration()
+
+        #expect(configuration.cellReferences?.contains(where: {
+            $0.label == "personalNavigator" && $0.endpoint == "cell:///PersonalCopilotNavigator"
+        }) == true)
+    }
+
+    @Test func storedCopilotDemoStartRefreshesToCurrentFactorySkeleton() {
+        guard BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return }
+
+        var stale = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        stale.skeleton = .Text(SkeletonText(text: "Start her"))
+
+        let effective = ContentView.effectiveDemoStartConfiguration(storedConfiguration: stale)
+
+        #expect(ContentView.shouldRefreshStoredDemoStartConfiguration(stale))
+        #expect(effective.name == "Co-Pilot Chat")
+        if let skeleton = effective.skeleton {
+            #expect(!skeletonContainsLiteralText("Start her", in: skeleton))
+            #expect(skeletonTabPanel(id: "hjelp", in: skeleton) != nil)
+        } else {
+            Issue.record("Co-Pilot Chat default should keep its factory skeleton")
+        }
+    }
+
     @Test func conferenceParticipantPortalMenuSeedUsesLocalPreviewInBinding() {
         let configuration = ContentView.conferenceParticipantPortalMenuSeedConfiguration()
 
@@ -2396,9 +2641,9 @@ struct BindingTests {
         let configuration = ContentView.defaultDemoStartConfiguration()
 
         if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
-            #expect(configuration.name == "Personal Home")
+            #expect(configuration.name == "Co-Pilot Chat")
             #expect(configuration.cellReferences?.contains(where: {
-                $0.label == "identity" && $0.endpoint == "cell:///PersonalIdentity"
+                $0.label == "chatHub" && $0.endpoint == "cell:///PersonalChatHub"
             }) == true)
         } else {
             #expect(configuration.name == "Conference Demo Launcher")
@@ -3777,12 +4022,21 @@ struct BindingTests {
         #expect(matchSummary.contains("Sterk verifisert match"))
 
         guard case let .object(radarLayout)? = stateObject["radarLayout"],
+              case let .object(surface)? = radarLayout["surface"],
               case let .object(centerNode)? = radarLayout["center"] else {
             Issue.record("Expected radarLayout.center in nearby radar state")
             return
         }
+        #expect(surface["renderingOwner"] == .string("binding-native-swiftui"))
         #expect(centerNode["title"] == .string("Nora Berg"))
         #expect(centerNode["relevanceBadge"] == .string("GRØNN MATCH"))
+
+        let preciseSurfaceNodes = bindingTestValueObjects(surface["preciseNodes"])
+        let noraSurfaceNode = preciseSurfaceNodes.first { bindingTestValueString($0["remoteUUID"]) == "nearby-verified-001" }
+        #expect(noraSurfaceNode?["positionPrecision"] == .string("precise"))
+        #expect(noraSurfaceNode?["isSelected"] == .bool(true))
+        #expect(abs((bindingTestValueDouble(noraSurfaceNode?["xNormalized"]) ?? 1.0)) < 0.001)
+        #expect((bindingTestValueDouble(noraSurfaceNode?["yNormalized"]) ?? 0.0) > 0.1)
 
         guard case let .list(selectedEntityActions)? = stateObject["selectedEntityActions"],
               case let .object(primaryAction)? = selectedEntityActions.first else {
@@ -3886,15 +4140,28 @@ struct BindingTests {
         #expect(bindingTestValueString(byTitle["Close Strong Match"]?["relevanceBadge"]) == "LOVENDE MATCH")
 
         guard case let .object(radarLayout)? = stateObject["radarLayout"],
+              case let .object(surface)? = radarLayout["surface"],
               case let .object(ahead)? = radarLayout["ahead"],
               case let .object(right)? = radarLayout["right"],
               case let .object(uncertain)? = radarLayout["uncertain"] else {
             Issue.record("Expected directional radar layout nodes")
             return
         }
+        #expect(surface["kind"] == .string("conference-nearby-radar-surface"))
+        #expect(surface["coordinateSpace"] == .string("device-relative"))
+        #expect(surface["preciseCount"] == .integer(2))
+        #expect(surface["approximateCount"] == .integer(0))
         #expect(bindingTestValueString(ahead["subtitle"]) == "1 peer(s)")
         #expect(bindingTestValueString(right["subtitle"]) == "1 peer(s)")
         #expect(bindingTestValueString(uncertain["subtitle"]) == "0 peer(s)")
+
+        let preciseSurfaceNodes = bindingTestValueObjects(surface["preciseNodes"])
+        let rightSurfaceNode = preciseSurfaceNodes.first { bindingTestValueString($0["remoteUUID"]) == "nearby-variable-002" }
+        let aheadSurfaceNode = preciseSurfaceNodes.first { bindingTestValueString($0["remoteUUID"]) == "nearby-variable-003" }
+        #expect((bindingTestValueDouble(rightSurfaceNode?["xNormalized"]) ?? 0.0) > 0.1)
+        #expect(abs(bindingTestValueDouble(rightSurfaceNode?["yNormalized"]) ?? 1.0) < 0.001)
+        #expect(abs(bindingTestValueDouble(aheadSurfaceNode?["xNormalized"]) ?? 1.0) < 0.001)
+        #expect((bindingTestValueDouble(aheadSurfaceNode?["yNormalized"]) ?? 0.0) > 0.1)
 
         _ = try await radar.set(
             keypath: "toggleLowerMatches",
@@ -3904,13 +4171,29 @@ struct BindingTests {
 
         let expandedStateValue = try await radar.get(keypath: "state", requester: identity)
         guard case let .object(expandedStateObject) = expandedStateValue,
-              case let .list(expandedNearbyCards)? = expandedStateObject["nearby"] else {
+              case let .list(expandedNearbyCards)? = expandedStateObject["nearby"],
+              case let .object(expandedRadarLayout)? = expandedStateObject["radarLayout"],
+              case let .object(expandedSurface)? = expandedRadarLayout["surface"] else {
             Issue.record("Expected expanded nearby list after showing lower matches")
             return
         }
 
         #expect(expandedStateObject["showingLowerMatches"] == .bool(true))
         #expect(expandedNearbyCards.count == 3)
+        #expect(expandedSurface["preciseCount"] == .integer(2))
+        #expect(expandedSurface["approximateCount"] == .integer(1))
+
+        let approximateSurfaceNodes = bindingTestValueObjects(expandedSurface["approximateNodes"])
+        let lowSignalSurfaceNode = approximateSurfaceNodes.first { bindingTestValueString($0["remoteUUID"]) == "nearby-variable-001" }
+        #expect(lowSignalSurfaceNode?["positionPrecision"] == .string("approximate"))
+        #expect(lowSignalSurfaceNode?["xNormalized"] == .null)
+        #expect(lowSignalSurfaceNode?["yNormalized"] == .null)
+        #expect(bindingTestValueString(lowSignalSurfaceNode?["uncertaintySummary"])?.contains("Ingen live retning") == true)
+
+        let decodedSurfaceSnapshot = ConferenceNearbyRadarSurfaceSnapshot(value: expandedStateValue)
+        #expect(decodedSurfaceSnapshot.preciseNodes.count == 2)
+        #expect(decodedSurfaceSnapshot.approximateNodes.count == 1)
+        #expect(decodedSurfaceSnapshot.approximateNodes.first?.hasPrecisePosition == false)
     }
 
     @Test func portholeRoutesNearbyRadarDispatchActionForConferenceParticipantPortal() async throws {
@@ -5025,7 +5308,7 @@ struct BindingTests {
             return
         }
 
-        try await porthole.setCellConfiguration(cellConfig: CellConfiguration(name: "Empty Porthole"))
+        try await porthole.loadCellConfiguration(CellConfiguration(name: "Empty Porthole"), requester: owner)
 
         var catalogConfiguration = CellConfiguration(name: "Catalog Workspace")
         catalogConfiguration.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
@@ -5080,7 +5363,7 @@ struct BindingTests {
             return
         }
 
-        try await porthole.setCellConfiguration(cellConfig: CellConfiguration(name: "Empty Porthole"))
+        try await porthole.loadCellConfiguration(CellConfiguration(name: "Empty Porthole"), requester: owner)
 
         var validConfiguration = CellConfiguration(name: "Catalog Workspace")
         validConfiguration.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
@@ -5170,7 +5453,7 @@ struct BindingTests {
         )
 
         let porthole = await OrchestratorCell(owner: owner)
-        try await porthole.setCellConfiguration(cellConfig: CellConfiguration(name: "Empty Porthole"))
+        try await porthole.loadCellConfiguration(CellConfiguration(name: "Empty Porthole"), requester: owner)
 
         let response = try await porthole.set(
             keypath: "addConfiguration",
@@ -5444,7 +5727,7 @@ struct BindingTests {
         #expect(response == .string("error: invalid payload for addConfiguration"))
     }
 
-    @Test func scaffoldChatConfigurationUsesRichStagingWorkbench() async throws {
+    @Test func copilotChatConfigurationUsesPersonalChatHubWorkbench() async throws {
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
@@ -5457,34 +5740,77 @@ struct BindingTests {
 
         let chatConfiguration = items.compactMap { value -> CellConfiguration? in
             guard case let .cellConfiguration(configuration) = value else { return nil }
-            return configuration.name == "Scaffold Chat" ? configuration : nil
+            return configuration.name == "Co-Pilot Chat" ? configuration : nil
         }.first
 
         guard let chatConfiguration else {
-            Issue.record("Fant ikke Scaffold Chat i configurations")
+            Issue.record("Fant ikke Co-Pilot Chat i configurations")
             return
         }
 
         let endpoints = chatConfiguration.cellReferences?.map(\.endpoint) ?? []
-        #expect(endpoints.contains("cell://staging.haven.digipomps.org/Chat"))
+        #expect(endpoints.contains("cell:///PersonalChatHub"))
 
         guard let skeleton = chatConfiguration.skeleton else {
-            Issue.record("Scaffold Chat mangler skeleton")
+            Issue.record("Co-Pilot Chat mangler skeleton")
             return
         }
 
-        #expect(skeletonContainsTextArea(targetKeypath: "chat.compose.body", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "chat.sendComposedMessage", in: skeleton))
-        #expect(skeletonContainsList(keypath: "chat.messages", topic: "chat.message", in: skeleton))
-        #expect(skeletonContainsList(keypath: "chat.participants", topic: "chat.participant", in: skeleton))
-        #expect(skeletonContainsList(keypath: "chat.compose.previewRows", topic: nil, in: skeleton))
-        #expect(skeletonContainsTextKeypath("ownerInitials", in: skeleton))
-        #expect(skeletonContainsTextKeypath("contentRichText", in: skeleton))
-        #expect(skeletonContainsTextKeypath("formatLabel", in: skeleton))
-        #expect(skeletonContainsTextKeypath("formatDescription", in: skeleton))
-        #expect(skeletonContainsTextKeypath("previewRichText", in: skeleton))
-        #expect(skeletonContainsTextKeypath("initials", in: skeleton))
-        #expect(skeletonContainsTextKeypath("activitySummary", in: skeleton))
+        #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.assistant.analyzeDraft", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", in: skeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.messages", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.workbench.modules", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.ui.componentSurfaces", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.ui.activeToolChips", topic: nil, in: skeleton))
+        #expect(skeletonContainsTextKeypath("chatHub.state.assistant.whySummary", in: skeleton))
+    }
+
+    @Test func catalogSyncRefreshesPersistedCopilotChatWorkbench() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        var stale = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        stale.skeleton = .Text(SkeletonText(text: "Start her"))
+
+        _ = try await cell.set(
+            keypath: "addConfiguration",
+            value: .object([
+                "sourceCellEndpoint": .string("cell:///PersonalChatHub"),
+                "sourceCellName": .string("PersonalChatHubCell"),
+                "purpose": .string("Central purpose-driven co-pilot chat"),
+                "purposeDescription": .string("stale"),
+                "interests": .list([.string("personal-copilot-v1")]),
+                "menuSlots": .list([.string("upperLeft")]),
+                "configuration": .cellConfiguration(stale),
+                "goal": .cellConfiguration(stale)
+            ]),
+            requester: owner
+        )
+
+        _ = try await cell.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
+        let configurations = try await cell.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = configurations else {
+            Issue.record("Forventet liste fra configurations")
+            return
+        }
+
+        let chatConfiguration = items.compactMap { value -> CellConfiguration? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name == "Co-Pilot Chat" ? configuration : nil
+        }.first
+
+        guard let skeleton = chatConfiguration?.skeleton else {
+            Issue.record("Co-Pilot Chat mangler skeleton etter sync")
+            return
+        }
+
+        #expect(!skeletonContainsLiteralText("Start her", in: skeleton))
+        #expect(skeletonTabPanel(id: "hjelp", in: skeleton) != nil)
+        #expect(chatConfiguration?.cellReferences?.contains(where: {
+            $0.label == "chatHub" && $0.endpoint == "cell:///PersonalChatHub"
+        }) == true)
     }
 
     @Test func configurationCatalogPublishesCatalogContractsForScaffoldParityFixtures() async throws {
@@ -6154,6 +6480,99 @@ struct BindingTests {
         }
     }
 
+    private func skeletonContainsLiteralText(_ text: String, in elements: [SkeletonElement]) -> Bool {
+        elements.contains { skeletonContainsLiteralText(text, in: $0) }
+    }
+
+    private func skeletonContainsLiteralText(_ text: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .Text(let skeletonText):
+            return skeletonText.text == text
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsLiteralText(text, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsLiteralText(text, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsLiteralText(text, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsLiteralText(text, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsLiteralText(text, in: $0) } ||
+                (section.footer.map { skeletonContainsLiteralText(text, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map { skeletonContainsLiteralText(text, in: .VStack($0)) } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map { skeletonContainsLiteralText(text, in: .VStack($0)) } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsLiteralText(text, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsLiteralText(text, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsLiteralText(text, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsLiteralText(text, in: $0) }
+            }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonTabPanel(id: String, in element: SkeletonElement) -> [SkeletonElement]? {
+        switch element {
+        case .Tabs(let tabs):
+            if let panel = tabs.panels.first(where: { $0.id == id }) {
+                return panel.content
+            }
+            for panel in tabs.panels {
+                for child in panel.content {
+                    if let match = skeletonTabPanel(id: id, in: child) {
+                        return match
+                    }
+                }
+            }
+            return nil
+        case .VStack(let stack):
+            return skeletonTabPanel(id: id, in: stack.elements)
+        case .HStack(let stack):
+            return skeletonTabPanel(id: id, in: stack.elements)
+        case .ScrollView(let scroll):
+            return skeletonTabPanel(id: id, in: scroll.elements)
+        case .Section(let section):
+            if let header = section.header,
+               let match = skeletonTabPanel(id: id, in: header) {
+                return match
+            }
+            if let match = skeletonTabPanel(id: id, in: section.content) {
+                return match
+            }
+            if let footer = section.footer {
+                return skeletonTabPanel(id: id, in: footer)
+            }
+            return nil
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.flatMap { skeletonTabPanel(id: id, in: .VStack($0)) }
+        case .List(let list):
+            return list.flowElementSkeleton.flatMap { skeletonTabPanel(id: id, in: .VStack($0)) }
+        case .Grid(let grid):
+            return skeletonTabPanel(id: id, in: grid.elements)
+        case .ZStack(let stack):
+            return skeletonTabPanel(id: id, in: stack.elements)
+        case .Object(let object):
+            return skeletonTabPanel(id: id, in: Array(object.elements.values))
+        default:
+            return nil
+        }
+    }
+
+    private func skeletonTabPanel(id: String, in elements: [SkeletonElement]) -> [SkeletonElement]? {
+        for element in elements {
+            if let panel = skeletonTabPanel(id: id, in: element) {
+                return panel
+            }
+        }
+        return nil
+    }
+
     private func skeletonStyleRoles(in element: SkeletonElement) -> [String] {
         var roles: [String] = []
 
@@ -6237,6 +6656,8 @@ struct BindingTests {
                     roles.append(contentsOf: skeletonStyleRoles(in: skeleton))
                 }
             }
+        case .Visualization(let visualization):
+            append(visualization.modifiers)
         case .Object(let object):
             append(object.modifiers)
             object.elements.values.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
@@ -6917,9 +7338,15 @@ struct CellConfigurationVerifierTests {
         #expect(report.startSucceeded)
         #expect(report.statusAfterStart == "started")
         #expect(report.requestContactSucceeded)
-        #expect(report.requestContactLabel == "Kontakt venter")
-        #expect(report.requestContactSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
-        #expect(report.requestContactActionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning.")
+        #expect(report.requestContactLabel.map { ["Kontakt venter", "Awaiting exchange"].contains($0) } == true)
+        #expect(report.requestContactSummary.map { [
+            "Signert kontaktforespørsel sendt. Venter på godkjenning.",
+            "Signed contact request sent. Awaiting signed identity exchange."
+        ].contains($0) } == true)
+        #expect(report.requestContactActionSummary.map { [
+            "Signert kontaktforespørsel sendt. Venter på godkjenning.",
+            "Signed contact request sent. Awaiting signed identity exchange."
+        ].contains($0) } == true)
         #expect(report.chatOpened)
         #expect(report.nearbyCardLabel == "Åpne chatflate")
         #expect(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
@@ -7535,16 +7962,21 @@ enum CellConfigurationVerifier {
         let requestContactOutcome = requestContactResponse.flatMap(SkeletonBindingProbeSupport.failureDetail(from:)) ?? "ok"
         let immediateRequestContactSnapshot = requestContactResponse.map(nearbyStateSnapshot(from:))
         let requestContactSnapshot: NearbySnapshot
+        @Sendable func requestContactIsWaiting(_ snapshot: NearbySnapshot?) -> Bool {
+            snapshot?.cardLabel == "Kontakt venter" ||
+                snapshot?.cardLabel == "Awaiting exchange" ||
+                snapshot?.actionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning." ||
+                snapshot?.actionSummary == "Signed contact request sent. Awaiting signed identity exchange."
+        }
+
         if let immediateRequestContactSnapshot,
-           immediateRequestContactSnapshot.cardLabel == "Kontakt venter" ||
-           immediateRequestContactSnapshot.actionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning." {
+           requestContactIsWaiting(immediateRequestContactSnapshot) {
             requestContactSnapshot = immediateRequestContactSnapshot
         } else {
             requestContactSnapshot = try await waitForNearbySnapshot(
                 operation: "waitForNearbyStateAfterRequestContact"
             ) { snapshot in
-                snapshot.cardLabel == "Kontakt venter" ||
-                snapshot.actionSummary == "Signert kontaktforespørsel sendt. Venter på godkjenning."
+                requestContactIsWaiting(snapshot)
             }
         }
         let requestContactLabel = requestContactSnapshot.cardLabel
@@ -8522,5 +8954,33 @@ private func bindingTestValueStrings(_ value: ValueType?) -> [String] {
             return nil
         }
         return string
+    }
+}
+
+private func bindingTestValueDouble(_ value: ValueType?) -> Double? {
+    guard let value else { return nil }
+    switch value {
+    case let .float(float):
+        return float
+    case let .integer(integer):
+        return Double(integer)
+    case let .number(number):
+        return Double(number)
+    case let .string(string):
+        return Double(string)
+    default:
+        return nil
+    }
+}
+
+private func bindingTestValueObjects(_ value: ValueType?) -> [Object] {
+    guard case let .list(values)? = value else {
+        return []
+    }
+    return values.compactMap { entry in
+        guard case let .object(object) = entry else {
+            return nil
+        }
+        return object
     }
 }

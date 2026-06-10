@@ -14,10 +14,13 @@ actor BindingLocalCellRegistration {
     private static let warmupStateTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let safeConferenceWarmupEndpoints: [String] = [
         "cell:///Perspective",
+        "cell:///PersonalAgendaContext",
         "cell:///ConferenceParticipantPreviewShell",
         "cell:///ConferenceParticipantAgendaSnapshot",
         "cell:///ConferenceParticipantDiscoverySnapshot",
         "cell:///ConferenceParticipantMatchmakingSnapshot",
+        "cell:///ConferencePublicShellFixture",
+        "cell:///ConferenceSponsorShellFixture",
         "cell:///ConferenceNearbyRadar",
         "cell:///EntityScanner",
         "cell:///ConferenceChatLaunch",
@@ -47,11 +50,12 @@ actor BindingLocalCellRegistration {
         }
 
         let task = Task {
+            let resolver = CellResolver.sharedInstance
+            await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
             // Keep the launch path free of LocalAuthentication and keychain
             // prompts. Ask CellApple to prepare its core runtime using the
             // existing startup vault instead of forcing IdentityVault.init.
             await AppInitializer.prepareLocalRuntime()
-            let resolver = CellResolver.sharedInstance
             await Self.registerAll(on: resolver)
         }
         localRegistrationTask = task
@@ -77,8 +81,9 @@ actor BindingLocalCellRegistration {
         }
 
         let task = Task {
-            await AppInitializer.initialize()
             let resolver = CellResolver.sharedInstance
+            await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
+            await AppInitializer.initialize()
             await Self.registerAll(on: resolver)
             await ensureLocallyRegistered()
         }
@@ -176,6 +181,7 @@ actor BindingLocalCellRegistration {
     }
 
     private static func registerAll(on resolver: CellResolver) async {
+        await registerChatWorkbenchParityCells(on: resolver)
         await register(
             name: "EventEmitter",
             cellScope: .template,
@@ -212,6 +218,38 @@ actor BindingLocalCellRegistration {
             persistency: .persistant,
             identityDomain: "private",
             type: PerspectiveCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "PersonalAgendaContext",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalAgendaContextCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: CalendarContract.storeCellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: CalendarStoreCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: CalendarContract.importExportCellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: CalendarImportExportCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: CalendarContract.nativeBridgeCellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: NativeCalendarBridgeCell.self,
             resolver: resolver
         )
         await register(
@@ -255,6 +293,14 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "PersonalCopilotNavigator",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalCopilotNavigatorLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "ConferenceParticipantPreviewShell",
             cellScope: .identityUnique,
             identityDomain: "private",
@@ -266,6 +312,20 @@ actor BindingLocalCellRegistration {
             cellScope: .identityUnique,
             identityDomain: "private",
             type: ConferenceAdminPreviewShellLocalFallbackCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "ConferencePublicShellFixture",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferencePublicShellFixtureCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "ConferenceSponsorShellFixture",
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: ConferenceSponsorShellFixtureCell.self,
             resolver: resolver
         )
         await register(
@@ -331,6 +391,14 @@ actor BindingLocalCellRegistration {
             type: ConferenceDemoLauncherLocalCell.self,
             resolver: resolver
         )
+        await register(
+            name: "ConferenceConfigurationNavigator",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: ConferenceConfigurationNavigatorLocalCell.self,
+            resolver: resolver
+        )
         await registerOptInAgentAdminCells(on: resolver)
         await register(
             name: "WorkflowStudio",
@@ -345,6 +413,44 @@ actor BindingLocalCellRegistration {
             cellScope: .scaffoldUnique,
             identityDomain: "private",
             type: GeneralCell.self,
+            resolver: resolver
+        )
+    }
+
+    private static func registerChatWorkbenchParityCells(
+        on resolver: CellResolver,
+        persistency: Persistancy? = .persistant
+    ) async {
+        await register(
+            name: "PersonalChatHub",
+            cellScope: .identityUnique,
+            persistency: persistency,
+            identityDomain: "private",
+            type: BindingPersonalChatHubCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "AppleIntelligence",
+            cellScope: .identityUnique,
+            persistency: persistency,
+            identityDomain: "private",
+            type: BindingAppleIntelligenceProviderCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "LocalLLM",
+            cellScope: .identityUnique,
+            persistency: persistency,
+            identityDomain: "private",
+            type: BindingLocalLLMCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "ContactEndpoint",
+            cellScope: .identityUnique,
+            persistency: persistency,
+            identityDomain: "private",
+            type: BindingContactEndpointCell.self,
             resolver: resolver
         )
     }
@@ -1001,6 +1107,165 @@ private final class PersonalPrivacyAuditLocalCell: PersonalCopilotLocalCell {
         ]))
         setStateValue(.list(entries), for: "audit.entries")
         return response(status: "ok", message: "Privacy audit entry recorded locally.")
+    }
+}
+
+private final class PersonalCopilotNavigatorLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var writableKeys: [String] {
+        ["dispatchAction"]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "status": .string("Ready to open personal surfaces."),
+            "lastOpened": .string(""),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        guard key == "dispatchAction" else {
+            return await super.handleSet(key: key, value: value)
+        }
+        guard case let .object(actionObject) = value,
+              case let .string(actionKeypath)? = actionObject["keypath"] else {
+            return response(status: "error", message: "Navigator action payload is missing a keypath.")
+        }
+        guard let configuration = configuration(for: actionKeypath) else {
+            return response(status: "error", message: "Navigator action is not supported yet.")
+        }
+
+        let openingMessage = "Opening \(configuration.name)…"
+        mergeState([
+            "lastAction": .string(actionKeypath),
+            "lastOpened": .string(configuration.name)
+        ])
+
+        Task { @MainActor [weak self] in
+            BindingPortholeLoadBridge.post(configuration: configuration)
+            self?.mergeState([
+                "status": .string("Opened \(configuration.name)."),
+                "lastAction": .string(actionKeypath),
+                "lastOpened": .string(configuration.name)
+            ])
+        }
+
+        return response(status: "ok", message: openingMessage)
+    }
+
+    private func configuration(for actionKeypath: String) -> CellConfiguration? {
+        switch actionKeypath {
+        case "navigator.openMyProfile":
+            return ConfigurationCatalogCell.personalProfileMenuConfiguration()
+        case "navigator.openPublishPublicProfile":
+            return ConfigurationCatalogCell.personalPublicProfileMenuConfiguration()
+        case "navigator.openPrivacyAudit":
+            return ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+        default:
+            return nil
+        }
+    }
+}
+
+private final class ConferenceConfigurationNavigatorLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var writableKeys: [String] {
+        ["dispatchAction"]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "status": .string("Ready to open conference configurations."),
+            "lastOpened": .string(""),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        guard key == "dispatchAction" else {
+            return await super.handleSet(key: key, value: value)
+        }
+        guard case let .object(actionObject) = value,
+              case let .string(actionKeypath)? = actionObject["keypath"] else {
+            return response(status: "error", message: "Conference navigator action payload is missing a keypath.")
+        }
+        guard let configuration = configuration(for: actionKeypath) else {
+            return response(status: "error", message: "Conference navigator action is not supported yet.")
+        }
+
+        let openingMessage = "Opening \(configuration.name)…"
+        mergeState([
+            "lastAction": .string(actionKeypath),
+            "lastOpened": .string(configuration.name)
+        ])
+
+        Task { @MainActor [weak self] in
+            BindingPortholeLoadBridge.post(configuration: configuration)
+            self?.mergeState([
+                "status": .string("Opened \(configuration.name)."),
+                "lastAction": .string(actionKeypath),
+                "lastOpened": .string(configuration.name)
+            ])
+        }
+
+        return response(status: "ok", message: openingMessage)
+    }
+
+    private func configuration(for actionKeypath: String) -> CellConfiguration? {
+        switch actionKeypath {
+        case "navigator.openConferenceCodexLiveConfigurations":
+            return ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
+        case "navigator.openConferenceClaudeDesignReference":
+            return ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration()
+        case "navigator.openConferenceDemoLauncher":
+            return ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+        case "navigator.openConferenceParticipantPortal":
+            return ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceParticipantPreviewShell"
+            )
+        case "navigator.openConferenceAIAssistant":
+            return ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(
+                conferenceEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                aiEndpoint: "cell:///ConferenceAIAssistantGatewayProxy"
+            )
+        case "navigator.openConferenceControlTower":
+            return ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceAdminPreviewShell"
+            )
+        case "navigator.openConferencePublicSurface":
+            return ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+                endpoint: "cell:///ConferencePublicShellFixture"
+            )
+        case "navigator.openConferenceSponsorFollowUp":
+            return ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration(
+                endpoint: "cell:///ConferenceSponsorShellFixture"
+            )
+        case "navigator.openConferenceNearbyRadar":
+            return ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration(
+                participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+            )
+        case "navigator.openConferenceParticipantChat":
+            return ConfigurationCatalogCell.conferenceParticipantChatWorkbenchConfiguration(
+                participantEndpoint: "cell:///ConferenceParticipantPreviewShell"
+            )
+        default:
+            return nil
+        }
     }
 }
 
@@ -3525,6 +3790,11 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     ) -> Object {
         let groupedEntities = Dictionary(grouping: entities, by: compassSector)
         return [
+            "surface": .object(makeRadarSurface(
+                entities: entities,
+                focusedRemoteUUID: focusedRemoteUUID,
+                effectiveScannerStatus: effectiveScannerStatus
+            )),
             "ahead": .object(makeRadarSectorNode(for: .ahead, entities: groupedEntities[.ahead] ?? [])),
             "left": .object(makeRadarSectorNode(for: .left, entities: groupedEntities[.left] ?? [])),
             "center": .object(makeRadarCenterNode(
@@ -3536,6 +3806,144 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "behind": .object(makeRadarSectorNode(for: .behind, entities: groupedEntities[.behind] ?? [])),
             "uncertain": .object(makeRadarSectorNode(for: .uncertain, entities: groupedEntities[.uncertain] ?? []))
         ]
+    }
+
+    private func makeRadarSurface(
+        entities: [NearbyEntity],
+        focusedRemoteUUID: String?,
+        effectiveScannerStatus: String
+    ) -> Object {
+        let now = Date()
+        let allNodes = entities.map { makeRadarSurfaceNode(for: $0, focusedRemoteUUID: focusedRemoteUUID, now: now) }
+        let preciseNodes = allNodes.filter { string(from: $0["positionPrecision"]) == "precise" }
+        let approximateNodes = allNodes.filter { string(from: $0["positionPrecision"]) != "precise" }
+        let selectedNode = focusedRemoteUUID.flatMap { remoteUUID in
+            entitiesById[remoteUUID].map { makeRadarSurfaceNode(for: $0, focusedRemoteUUID: focusedRemoteUUID, now: now) }
+        }
+
+        let summary: String
+        if entities.isEmpty {
+            summary = "Ingen live nearby-noder ennå."
+        } else if approximateNodes.isEmpty {
+            summary = "\(preciseNodes.count) node(r) har device-relative retning og avstand."
+        } else if preciseNodes.isEmpty {
+            summary = "\(approximateNodes.count) node(r) mangler retning og vises i usikkerhetsfeltet."
+        } else {
+            summary = "\(preciseNodes.count) presise node(r), \(approximateNodes.count) omtrentlige node(r)."
+        }
+
+        return [
+            "kind": .string("conference-nearby-radar-surface"),
+            "renderingOwner": .string("binding-native-swiftui"),
+            "coordinateSpace": .string("device-relative"),
+            "status": .string(effectiveScannerStatus),
+            "summary": .string(summary),
+            "selectedRemoteUUID": .string(focusedRemoteUUID ?? ""),
+            "maxDistanceMeters": .float(8.0),
+            "updatedAtEpoch": .float(now.timeIntervalSince1970),
+            "ringMeters": .list([1.0, 2.0, 4.0, 8.0].map { .float($0) }),
+            "preciseCount": .integer(preciseNodes.count),
+            "approximateCount": .integer(approximateNodes.count),
+            "allCount": .integer(allNodes.count),
+            "allNodes": .list(allNodes.map(ValueType.object)),
+            "preciseNodes": .list(preciseNodes.map(ValueType.object)),
+            "approximateNodes": .list(approximateNodes.map(ValueType.object)),
+            "selectedNode": selectedNode.map(ValueType.object) ?? .null
+        ]
+    }
+
+    private func makeRadarSurfaceNode(
+        for entity: NearbyEntity,
+        focusedRemoteUUID: String?,
+        now: Date
+    ) -> Object {
+        let directionIsPrecise = hasDirectionalPosition(entity)
+        let relevance = relevanceSignal(for: entity.remoteUUID, entity: entity)
+        let ageSeconds = max(0, now.timeIntervalSince(entity.lastSeenAt))
+        let distanceText = entity.distanceMeters.map { String(format: "%.1f m", $0) } ?? "distance pending"
+        let position = normalizedRadarSurfacePosition(for: entity)
+        let positionPrecision: String
+        if directionIsPrecise {
+            positionPrecision = "precise"
+        } else if entity.distanceMeters != nil || entity.connected {
+            positionPrecision = "approximate"
+        } else {
+            positionPrecision = "unknown"
+        }
+
+        return [
+            "remoteUUID": .string(entity.remoteUUID),
+            "displayName": .string(entity.displayName),
+            "title": .string(entity.displayName),
+            "subtitle": .string(directionSubtitle(for: entity, directionIsPrecise: directionIsPrecise)),
+            "detail": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
+            "distanceText": .string(distanceText),
+            "distanceMeters": entity.distanceMeters.map(ValueType.float) ?? .null,
+            "xNormalized": position.map { .float($0.x) } ?? .null,
+            "yNormalized": position.map { .float($0.y) } ?? .null,
+            "radiusNormalized": .float(position?.radius ?? radarRadiusNormalized(forDistanceMeters: entity.distanceMeters)),
+            "azimuthRadians": position.map { .float($0.azimuthRadians) } ?? .null,
+            "sector": .string(compassSector(for: entity).rawValue),
+            "positionPrecision": .string(positionPrecision),
+            "directionConfidence": .string(directionIsPrecise ? "precise direction" : "direction uncertain"),
+            "uncertaintySummary": .string(directionIsPrecise
+                ? "Retning kommer fra live nearby direction vector."
+                : "Ingen live retning i signalet. Noden plasseres ikke som presis retning."),
+            "connected": .bool(entity.connected),
+            "status": .string(entity.status),
+            "isSelected": .bool(entity.remoteUUID == focusedRemoteUUID),
+            "isStale": .bool(entity.status == "lost" || (!entity.connected && ageSeconds > 4.0)),
+            "ageSeconds": .float(ageSeconds),
+            "freshnessLabel": .string(freshnessLabel(ageSeconds: ageSeconds, status: entity.status)),
+            "relevanceBadge": .string(relevance.badge),
+            "tierLabel": .string(relevance.tier),
+            "scoreText": .string(relevance.scoreText),
+            "relevanceSummary": .string(relevance.summary),
+            "purposeSummary": .string(purposeSignalsById[entity.remoteUUID]?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
+            "relationBadge": .string(contactSignalsById[entity.remoteUUID]?.actionLabel ?? ""),
+            "followUpReady": .bool(followUpTargetsById[entity.remoteUUID] != nil),
+            "followUpMarked": .bool(followUpMarkedRemoteUUIDs.contains(entity.remoteUUID)),
+            "actionKeypath": .string("nearbyRadar.dispatchAction"),
+            "actionPayload": .object([
+                "keypath": .string("selectEntity"),
+                "payload": .object(["remoteUUID": .string(entity.remoteUUID)])
+            ])
+        ]
+    }
+
+    private func normalizedRadarSurfacePosition(for entity: NearbyEntity) -> (x: Double, y: Double, radius: Double, azimuthRadians: Double)? {
+        guard let direction = entity.direction else {
+            return nil
+        }
+        let radius = radarRadiusNormalized(forDistanceMeters: entity.distanceMeters)
+        let azimuthRadians = direction.azimuthRadians
+        return (
+            x: sin(azimuthRadians) * radius,
+            y: cos(azimuthRadians) * radius,
+            radius: radius,
+            azimuthRadians: azimuthRadians
+        )
+    }
+
+    private func radarRadiusNormalized(forDistanceMeters distanceMeters: Double?) -> Double {
+        guard let distanceMeters else {
+            return 0.72
+        }
+        return min(max(distanceMeters / 8.0, 0.12), 0.98)
+    }
+
+    private func freshnessLabel(ageSeconds: TimeInterval, status: String) -> String {
+        if status == "lost" {
+            return "lost"
+        }
+        switch ageSeconds {
+        case ..<1.5:
+            return "live"
+        case ..<5.0:
+            return "recent"
+        default:
+            return "stale"
+        }
     }
 
     private func makeRadarSectorNode(for sector: CompassSector, entities: [NearbyEntity]) -> Object {
@@ -8711,7 +9119,7 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
         switch actionKeypath {
         case "launcher.openPublicSurface":
             return ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
-                endpoint: "cell://\(Self.stagingHost)/ConferencePublicShell"
+                endpoint: "cell:///ConferencePublicShellFixture"
             )
         case "launcher.openIdentityLink":
             return ConfigurationCatalogCell.conferenceIdentityLinkWorkbenchConfiguration()

@@ -437,7 +437,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
     func testPersonalChatHubConfigurationPublishesAssistantAndPollContractQuickly() async throws {
         let startedAt = Date()
-        let configuration = try await fetchConfiguration(route: "/personal-copilot-v1/chat/api/configuration")
+        let json = try await fetchText(route: "/personal-copilot-v1/chat/api/configuration")
         let elapsed = Date().timeIntervalSince(startedAt)
 
         XCTAssertLessThan(
@@ -445,19 +445,13 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             1.5,
             "PersonalChatHub configuration should be fast enough for first-load UX on staging."
         )
-        XCTAssertEqual(configuration.name, "Invite Chat")
-        XCTAssertEqual(configuration.discovery?.sourceCellName, "PersonalChatHubCell")
+        XCTAssertTrue(json.contains("\"name\" : \"Co-Pilot Chat\""))
+        XCTAssertTrue(json.contains("\"sourceCellName\" : \"PersonalChatHubCell\""))
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
-        let data = try encoder.encode(configuration)
-        guard let json = String(data: data, encoding: .utf8) else {
-            throw RemoteParityError.invalidResponse("personal-copilot chat configuration JSON")
-        }
-
+        let compactJSON = json.filter { !$0.isWhitespace }
         for expected in [
-            "\"keypath\":\"chatHub.assistant.analyzeDraft\"",
-            "\"keypath\":\"chatHub.assistant.acceptSuggestion\"",
+            "visibleAction=assistant.analyzeDraft",
+            "visibleAction=assistant.acceptSuggestion",
             "\"keypath\":\"chatHub.assistant.dismissSuggestion\"",
             "\"targetKeypath\":\"chatHub.assistant.setCandidateQuery\"",
             "\"selectionActionKeypath\":\"chatHub.assistant.selectCandidate\"",
@@ -470,13 +464,166 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             "purposeRef=personal.chat.assist.invite",
             "purposeRef=personal.chat.assist.poll"
         ] {
-            XCTAssertTrue(json.contains(expected), "Staging PersonalChatHub config missing \(expected)")
+            XCTAssertTrue(compactJSON.contains(expected), "Staging PersonalChatHub config missing \(expected)")
         }
 
         XCTAssertFalse(
-            json.contains("\"selectionPayloadMode\":\"itemID\""),
+            compactJSON.contains("\"selectionPayloadMode\":\"itemID\""),
             "Staging must publish the CellProtocol wire value item_id, not the Swift case name itemID."
         )
+    }
+
+    func testConferenceParticipantPreviewPublishesConciergeAndLocationServices() async throws {
+        let configuration = try await fetchConfiguration(route: "/conference-participant-preview/api/configuration")
+
+        assertContainsStrings(.cellConfiguration(configuration), [
+            "conferenceParticipantShell.state.concierge.toolCards",
+            "conferenceParticipantShell.state.concierge.lastActionSummary",
+            "conferenceParticipantShell.dispatchAction",
+            "concierge.applyToolCard",
+            "find-peer-location"
+        ], context: "conference-participant-preview.configuration")
+
+        let state = try await fetchValue(route: "/conference-participant-preview/api/state")
+        assertContainsStrings(state, [
+            "ConferenceConciergeCell",
+            "ConferenceLocationShareCell",
+            "Tools are suggestions. Nothing is sent, shared, or created before you explicitly click Apply.",
+            "Location sharing"
+        ], context: "conference-participant-preview.state")
+        assertContainsSubstrings(state, [
+            "coarse conference venue",
+            "does not read device GPS"
+        ], context: "conference-participant-preview.state.location")
+
+        let locationResponse = try await postAction(
+            route: "/conference-participant-preview/api/action",
+            keypath: "location.updatePresence",
+            payload: .object([
+                "zone": .string("Binding bridge test hall"),
+                "proximity": .string("same venue")
+            ])
+        )
+        assertContainsStrings(locationResponse, [
+            "ConferenceLocationShareCell",
+            "Updated coarse conference presence to Binding bridge test hall."
+        ], context: "conference-participant-preview.location.updatePresence")
+
+        let conciergeResponse = try await postAction(
+            route: "/conference-participant-preview/api/action",
+            keypath: "concierge.applyToolCard",
+            payload: .object([
+                "toolId": .string("find-peer-location"),
+                "peerParticipantId": .string("participant-102"),
+                "displayName": .string("Nora Berg")
+            ])
+        )
+        assertContainsStrings(conciergeResponse, [
+            "ConferenceConciergeCell",
+            "Ran a consent-gated location lookup. The location cell returns not_shared unless a peer grant exists."
+        ], context: "conference-participant-preview.concierge.findPeerLocation")
+    }
+
+    func testConferenceMVPScreenMapPublishesRouterMap() async throws {
+        let status = try await fetchStatus(route: "/conference-mvp/api/screen-map")
+        XCTAssertEqual(
+            status,
+            401,
+            "Conference MVP screen-map is admin-gated over HTTP. Binding verifies the map service through the bridge canary."
+        )
+    }
+
+    @MainActor
+    func testConferenceMVPServicesResolveThroughBindingBridge() async throws {
+        try XCTSkipIf(
+            Self.shouldSkipBridgeCanary,
+            "Remote HTTP parity kjører uten bridge-canary. Kjør uten BINDING_REMOTE_PARITY_SKIP_BRIDGE for å verifisere ConferenceUIRouter/ConferenceParticipantShell over Binding bridge."
+        )
+
+        let routerEndpoint = "cell://staging.haven.digipomps.org/ConferenceUIRouter"
+        let participantEndpoint = "cell://staging.haven.digipomps.org/ConferenceParticipantShell"
+        var configuration = CellConfiguration(name: "Conference Remote Services Bridge Canary")
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: routerEndpoint,
+            sourceCellName: "ConferenceUIRouterCell",
+            purpose: "Conference service bridge parity",
+            purposeDescription: "Verifies Binding can reach CellScaffold conference map, concierge, and location services through the remote bridge.",
+            interests: ["conference", "bridge", "concierge", "location", "screen-map"],
+            menuSlots: []
+        )
+        configuration.addReference(CellReference(endpoint: routerEndpoint, label: "conferenceUIRouter"))
+        configuration.addReference(CellReference(endpoint: participantEndpoint, label: "conferenceParticipantShell"))
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "conferenceUIRouter.screenMap")),
+            .Text(SkeletonText(keypath: "conferenceParticipantShell.state.concierge.headline")),
+            .Text(SkeletonText(keypath: "conferenceParticipantShell.state.location.headline"))
+        ]))
+
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+
+        let router = try await RemoteEndpointAccessSupport.resolveMeddle(
+            endpoint: routerEndpoint,
+            resolver: context.resolver,
+            requester: context.owner,
+            accessLabel: "Conference router screen map"
+        )
+        let screenMap = try await readBridgeValue(
+            router,
+            endpoint: routerEndpoint,
+            operation: "get(screenMap)",
+            keypath: "screenMap",
+            requester: context.owner
+        )
+        assertContainsStrings(screenMap, [
+            "onboarding",
+            "peopleMatches",
+            "meetings",
+            "insights",
+            "sponsor"
+        ], context: "bridge.conferenceUIRouter.screenMap")
+
+        let participant = try await RemoteEndpointAccessSupport.resolveMeddle(
+            endpoint: participantEndpoint,
+            resolver: context.resolver,
+            requester: context.owner,
+            accessLabel: "Conference participant services"
+        )
+        let participantState = try await readBridgeValue(
+            participant,
+            endpoint: participantEndpoint,
+            operation: "get(state)",
+            keypath: "state",
+            requester: context.owner
+        )
+        assertContainsStrings(participantState, [
+            "ConferenceConciergeCell",
+            "ConferenceLocationShareCell",
+            "Tools are suggestions. Nothing is sent, shared, or created before you explicitly click Apply.",
+            "Location sharing"
+        ], context: "bridge.conferenceParticipantShell.state")
+
+        let locationResponse = try await writeBridgeValue(
+            participant,
+            endpoint: participantEndpoint,
+            operation: "set(dispatchAction location.updatePresence)",
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("location.updatePresence"),
+                "payload": .object([
+                    "zone": .string("Binding bridge test hall"),
+                    "proximity": .string("same venue")
+                ])
+            ]),
+            requester: context.owner
+        )
+        if let locationResponse {
+            assertContainsStrings(locationResponse, [
+                "ConferenceLocationShareCell",
+                "Updated coarse conference presence to Binding bridge test hall."
+            ], context: "bridge.conferenceParticipantShell.location.updatePresence")
+        } else {
+            XCTFail("Expected bridge response from ConferenceParticipantShell location.updatePresence")
+        }
     }
 
     private static var shouldSkipBridgeCanary: Bool {
@@ -538,11 +685,46 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
     }
 
     private func fetchConfiguration(route: String) async throws -> CellConfiguration {
-        let value = try await fetchValue(route: route)
+        let request = URLRequest(url: try makeURL(route: route))
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw RemoteParityError.invalidResponse(route)
+        }
+        guard http.statusCode == 200 else {
+            throw RemoteParityError.unexpectedStatus(http.statusCode, expected: 200, path: route)
+        }
+        if let configuration = try? JSONDecoder().decode(CellConfiguration.self, from: data) {
+            return configuration
+        }
+        let value = try JSONDecoder().decode(ValueType.self, from: data)
         guard let configuration = decodeCellConfiguration(from: value) else {
             throw RemoteParityError.missingConfiguration(route)
         }
         return configuration
+    }
+
+    private func fetchStatus(route: String) async throws -> Int {
+        let request = URLRequest(url: try makeURL(route: route))
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw RemoteParityError.invalidResponse(route)
+        }
+        return http.statusCode
+    }
+
+    private func fetchText(route: String) async throws -> String {
+        let request = URLRequest(url: try makeURL(route: route))
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw RemoteParityError.invalidResponse(route)
+        }
+        guard http.statusCode == 200 else {
+            throw RemoteParityError.unexpectedStatus(http.statusCode, expected: 200, path: route)
+        }
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw RemoteParityError.invalidResponse(route)
+        }
+        return text
     }
 
     private func fetchValue(

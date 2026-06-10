@@ -1,6 +1,7 @@
 import Foundation
 import HavenAgentCellRuntime
 import HavenAgentRuntime
+import HavenMacAutomation
 import HavenRuntimeBootstrap
 
 private struct MCPResourceDescriptor {
@@ -91,15 +92,18 @@ final class HavenAgentMCPService {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private let docsDirectory: URL
+    private let xcodeController: any XcodeWorkspaceControlling
 
     init(
         paths: RuntimePaths,
         configURL: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        xcodeController: any XcodeWorkspaceControlling = XcodeWorkspaceController()
     ) {
         self.paths = paths
         self.configURL = configURL.standardizedFileURL
         self.fileManager = fileManager
+        self.xcodeController = xcodeController
         self.decoder = JSONDecoder()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -137,6 +141,8 @@ final class HavenAgentMCPService {
             return try makeResourceReadResult(uri: uri, mimeType: "application/json", object: await bridgeStatusResource())
         case "haven-agent://conversation/replies":
             return try makeResourceReadResult(uri: uri, mimeType: "application/json", object: conversationRepliesResource())
+        case "haven-agent://codex/prompt-requests":
+            return try makeResourceReadResult(uri: uri, mimeType: "application/json", object: codexPromptRequestsResource())
         case "haven-agent://docs/security-model":
             return try makeTextResourceReadResult(
                 uri: uri,
@@ -171,6 +177,9 @@ final class HavenAgentMCPService {
             case "agent.bootstrap.probe":
                 return try await bootstrapProbeTool(arguments: arguments)
 
+            case "agent.xcode.ensure_workspace":
+                return try await xcodeEnsureWorkspaceTool(arguments: arguments)
+
             case "agent.review.state":
                 let summary = try await ReviewCommandService(paths: paths, configURL: configURL).state()
                 let object = try jsonObject(from: summary)
@@ -194,6 +203,15 @@ final class HavenAgentMCPService {
 
             case "agent.operator.request_and_wait":
                 return try await requestAndWaitTool(arguments: arguments)
+
+            case "agent.codex.next_prompt":
+                return try codexNextPromptTool(arguments: arguments)
+
+            case "agent.codex.mark_prompt_started":
+                return try codexMarkPromptStartedTool(arguments: arguments)
+
+            case "agent.codex.mark_prompt_done":
+                return try codexMarkPromptDoneTool(arguments: arguments)
 
             default:
                 throw HavenAgentMCPServiceError.invalidToolArguments("Unknown tool: \(name)")
@@ -267,6 +285,13 @@ final class HavenAgentMCPService {
                 mimeType: "application/json"
             ),
             MCPResourceDescriptor(
+                uri: "haven-agent://codex/prompt-requests",
+                name: "codex_prompt_requests",
+                title: "Codex Prompt Requests",
+                description: "Phone-originated Codex prompt requests queued for a running coding host.",
+                mimeType: "application/json"
+            ),
+            MCPResourceDescriptor(
                 uri: "haven-agent://docs/security-model",
                 name: "security_model_doc",
                 title: "Security Model",
@@ -321,6 +346,51 @@ final class HavenAgentMCPService {
                             "default": false
                         ]
                     ],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.xcode.ensure_workspace",
+                title: "Ensure Xcode Workspace",
+                description: "Close stale or competing Xcode workspaces, reopen the requested workspace, select scheme and destination, and optionally build.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "workspacePath": [
+                            "type": "string"
+                        ],
+                        "exclusiveLocalPackagePath": [
+                            "type": "string"
+                        ],
+                        "scheme": [
+                            "type": "string"
+                        ],
+                        "destinationName": [
+                            "type": "string",
+                            "default": "My Mac (arm64)"
+                        ],
+                        "destinationPlatform": [
+                            "type": "string",
+                            "default": "macosx"
+                        ],
+                        "destinationArchitecture": [
+                            "type": "string",
+                            "default": "arm64"
+                        ],
+                        "closeOtherWorkspaces": [
+                            "type": "boolean",
+                            "default": true
+                        ],
+                        "build": [
+                            "type": "boolean",
+                            "default": true
+                        ],
+                        "timeoutSeconds": [
+                            "type": "number",
+                            "default": 300
+                        ]
+                    ],
+                    "required": ["workspacePath"],
                     "additionalProperties": false
                 ]
             ),
@@ -469,6 +539,88 @@ final class HavenAgentMCPService {
                     "required": ["responseMode", "title", "message"],
                     "additionalProperties": false
                 ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.codex.next_prompt",
+                title: "Next Codex Prompt",
+                description: "Return the next phone-originated Codex prompt request, optionally claiming it for this host.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "workspacePath": [
+                            "type": "string"
+                        ],
+                        "purpose": [
+                            "type": "string"
+                        ],
+                        "interest": [
+                            "type": "string"
+                        ],
+                        "preferredAssistant": [
+                            "type": "string"
+                        ],
+                        "claim": [
+                            "type": "boolean",
+                            "default": true
+                        ],
+                        "assistant": [
+                            "type": "string"
+                        ],
+                        "note": [
+                            "type": "string"
+                        ]
+                    ],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.codex.mark_prompt_started",
+                title: "Mark Codex Prompt Started",
+                description: "Claim a queued phone-originated Codex prompt for the current coding host.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": [
+                            "type": "string"
+                        ],
+                        "assistant": [
+                            "type": "string"
+                        ],
+                        "workspacePath": [
+                            "type": "string"
+                        ],
+                        "note": [
+                            "type": "string"
+                        ]
+                    ],
+                    "required": ["id"],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.codex.mark_prompt_done",
+                title: "Mark Codex Prompt Done",
+                description: "Record the outcome of a phone-originated Codex prompt request.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": [
+                            "type": "string"
+                        ],
+                        "status": [
+                            "type": "string",
+                            "enum": ["done", "blocked", "failed"]
+                        ],
+                        "summary": [
+                            "type": "string"
+                        ],
+                        "error": [
+                            "type": "string"
+                        ]
+                    ],
+                    "required": ["id", "status"],
+                    "additionalProperties": false
+                ]
             )
         ]
     }
@@ -547,6 +699,42 @@ final class HavenAgentMCPService {
         return MCPToolCallOutput(
             structuredContent: object,
             text: text,
+            isError: didFail
+        )
+    }
+
+    private func xcodeEnsureWorkspaceTool(arguments: JSONObject) async throws -> MCPToolCallOutput {
+        let workspacePath = try requiredStringArgument(
+            arguments,
+            key: "workspacePath",
+            message: "xcode ensure_workspace requires workspacePath"
+        )
+        let request = XcodeWorkspaceRequest(
+            workspacePath: workspacePath,
+            exclusiveLocalPackagePath: normalizedFilterValue(arguments["exclusiveLocalPackagePath"]),
+            scheme: normalizedFilterValue(arguments["scheme"]),
+            destinationName: normalizedFilterValue(arguments["destinationName"]) ?? "My Mac (arm64)",
+            destinationPlatform: normalizedFilterValue(arguments["destinationPlatform"]) ?? "macosx",
+            destinationArchitecture: normalizedFilterValue(arguments["destinationArchitecture"]) ?? "arm64",
+            closeOtherWorkspaces: boolValue(arguments["closeOtherWorkspaces"]) ?? true,
+            build: boolValue(arguments["build"]) ?? true,
+            timeoutSeconds: Int(clampedSeconds(
+                doubleValue(arguments["timeoutSeconds"]),
+                defaultValue: 300,
+                minimum: 10,
+                maximum: 900
+            ))
+        )
+        let result = try await xcodeController.ensureWorkspace(request)
+        let object = try jsonObject(from: result)
+        let didFail = result.buildRequested
+            && (!result.completed || result.status != "succeeded" || result.errorCount > 0)
+        let buildText = result.buildRequested
+            ? " Build status: \(result.status), errors: \(result.errorCount), warnings: \(result.warningCount)."
+            : ""
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Xcode workspace \(result.openedWorkspaceName) is open.\(buildText)",
             isError: didFail
         )
     }
@@ -763,6 +951,91 @@ final class HavenAgentMCPService {
         )
     }
 
+    private func codexNextPromptTool(arguments: JSONObject) throws -> MCPToolCallOutput {
+        let queue = CodexPromptQueue(paths: paths, fileManager: fileManager)
+        try queue.bootstrap()
+        guard let record = queue.nextQueuedRecord(
+            workspacePath: normalizedFilterValue(arguments["workspacePath"]),
+            purpose: normalizedFilterValue(arguments["purpose"]),
+            interest: normalizedFilterValue(arguments["interest"]),
+            preferredAssistant: normalizedFilterValue(arguments["preferredAssistant"])
+        ) else {
+            let object: JSONObject = [
+                "matched": false,
+                "claimed": false,
+                "request": NSNull(),
+                "queuedCount": queue.queuedRecords().count
+            ]
+            return MCPToolCallOutput(
+                structuredContent: object,
+                text: "No queued phone-originated Codex prompt request matched.",
+                isError: false
+            )
+        }
+
+        let shouldClaim = boolValue(arguments["claim"]) ?? true
+        let resultRecord = shouldClaim
+            ? try queue.markStarted(
+                id: record.request.id,
+                assistant: normalizedFilterValue(arguments["assistant"]),
+                workspacePath: normalizedFilterValue(arguments["workspacePath"]),
+                note: normalizedFilterValue(arguments["note"])
+            )
+            : record
+        let requestObject = try jsonObject(from: resultRecord.request)
+        let object: JSONObject = [
+            "matched": true,
+            "claimed": shouldClaim,
+            "queue": resultRecord.queue,
+            "filePath": resultRecord.filePath,
+            "request": requestObject
+        ]
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: shouldClaim
+                ? "Claimed Codex prompt request \(resultRecord.request.id)."
+                : "Found Codex prompt request \(resultRecord.request.id).",
+            isError: false
+        )
+    }
+
+    private func codexMarkPromptStartedTool(arguments: JSONObject) throws -> MCPToolCallOutput {
+        let id = try requiredStringArgument(arguments, key: "id", message: "mark_prompt_started requires id")
+        let record = try CodexPromptQueue(paths: paths, fileManager: fileManager).markStarted(
+            id: id,
+            assistant: normalizedFilterValue(arguments["assistant"]),
+            workspacePath: normalizedFilterValue(arguments["workspacePath"]),
+            note: normalizedFilterValue(arguments["note"])
+        )
+        let object = try codexPromptRecordObject(record)
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Marked Codex prompt request \(record.request.id) as started.",
+            isError: false
+        )
+    }
+
+    private func codexMarkPromptDoneTool(arguments: JSONObject) throws -> MCPToolCallOutput {
+        let id = try requiredStringArgument(arguments, key: "id", message: "mark_prompt_done requires id")
+        guard let statusRaw = normalizedFilterValue(arguments["status"]),
+              let status = CodexPromptRequestStatus(rawValue: statusRaw),
+              status == .done || status == .blocked || status == .failed else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("mark_prompt_done status must be done, blocked, or failed")
+        }
+        let record = try CodexPromptQueue(paths: paths, fileManager: fileManager).markCompleted(
+            id: id,
+            status: status,
+            summary: normalizedFilterValue(arguments["summary"]),
+            error: normalizedFilterValue(arguments["error"])
+        )
+        let object = try codexPromptRecordObject(record)
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Marked Codex prompt request \(record.request.id) as \(status.rawValue).",
+            isError: false
+        )
+    }
+
     private func runtimeStateResource() async -> JSONObject {
         let identity = await identityResource()
         let bridgeStatus = await bridgeStatusValue()
@@ -879,6 +1152,21 @@ final class HavenAgentMCPService {
         return [
             "replyCount": sortedReplies.count,
             "replies": replyObjects
+        ]
+    }
+
+    private func codexPromptRequestsResource() -> JSONObject {
+        let queue = CodexPromptQueue(paths: paths, fileManager: fileManager)
+        let queued = queue.queuedRecords()
+        let started = queue.startedRecords()
+        let completed = queue.completedRecords()
+        return [
+            "queuedCount": queued.count,
+            "startedCount": started.count,
+            "completedCount": completed.count,
+            "queued": codexPromptRecordObjects(queued),
+            "started": codexPromptRecordObjects(started),
+            "completed": codexPromptRecordObjects(completed)
         ]
     }
 
@@ -1007,6 +1295,29 @@ final class HavenAgentMCPService {
             return nil
         }
         return rawValue
+    }
+
+    private func requiredStringArgument(
+        _ arguments: JSONObject,
+        key: String,
+        message: String
+    ) throws -> String {
+        guard let value = normalizedFilterValue(arguments[key]) else {
+            throw HavenAgentMCPServiceError.invalidToolArguments(message)
+        }
+        return value
+    }
+
+    private func codexPromptRecordObjects(_ records: [CodexPromptRequestRecord]) -> [JSONObject] {
+        records.compactMap { try? codexPromptRecordObject($0) }
+    }
+
+    private func codexPromptRecordObject(_ record: CodexPromptRequestRecord) throws -> JSONObject {
+        [
+            "queue": record.queue,
+            "filePath": record.filePath,
+            "request": try jsonObject(from: record.request)
+        ]
     }
 
     private func clampedSeconds(

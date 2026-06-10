@@ -166,6 +166,11 @@ public struct LocalControlBridgeConfig: Codable, Equatable, Sendable {
             name: "intent-review",
             targetCellReference: "agent/intents/review",
             description: "Operator review boundary for verified intents."
+        ),
+        LocalControlBridgeRoute(
+            name: "local-model",
+            targetCellReference: "agent/local-model",
+            description: "Local language model surface backed by the configured HAVENAgentD local model runtime."
         )
     ]
 
@@ -341,7 +346,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                 interests: [
                     "haven.core.bootstrap",
                     "haven.core.bridge",
-                    "haven.local.automation"
+                    "haven.local.automation",
+                    "haven.local.models"
                 ],
                 resolverBaseURL: "https://staging.haven.example",
                 starterAuthPath: paths.agentDirectory.appendingPathComponent("starter-auth.json").path,
@@ -355,7 +361,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                 requestedCapabilities: [
                     "cap.discover",
                     "cap.native_porthole",
-                    "cap.local_automation"
+                    "cap.local_automation",
+                    "cap.local_model.generate"
                 ],
                 requestedPortholeKind: "native",
                 renewalLeadTimeSeconds: 60,

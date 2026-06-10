@@ -1,6 +1,6 @@
 # HavenAgentD MCP Server Surface
 
-Status: proposal
+Status: partially implemented
 
 This document sketches a concrete v1 API surface for a `haven-agentd-mcp` server that exposes a safe subset of `HavenAgentD` to local AI hosts.
 
@@ -41,6 +41,7 @@ Primary implementation sources:
 - `BootstrapProbeService` for bootstrap preflight and optional real bootstrap verification
 - `AgentRuntime.validate` for config validation
 - `DeviceActionRelay` request/reply directories for operator prompt and approval workflows
+- `CodexPromptQueue` for phone-originated coding prompts consumed by a running Codex host
 
 Recommended process model:
 
@@ -96,6 +97,7 @@ Markdown docs should be returned as:
 | `haven-agent://review/audit` | `application/json` | `RemoteIntentReviewCell.audit` | Approval/reject history and dispatch outcomes. |
 | `haven-agent://bridge/status` | `application/json` | local control bridge status | Loopback bridge phase, host, port, and allowlisted routes. |
 | `haven-agent://conversation/replies` | `application/json` | `Inbox/Replies/*.json` | Latest prompt and approval replies coming back from Binding. |
+| `haven-agent://codex/prompt-requests` | `application/json` | `Inbox/CodexPromptRequests`, `Inbox/CodexPromptStarted`, `Inbox/CodexPromptDone` | Phone-originated Codex prompt requests queued for a running coding host. |
 | `haven-agent://docs/security-model` | `text/markdown` | `Docs/SecurityModel.md` | Safety context for AI hosts before they invoke sensitive tools. |
 | `haven-agent://docs/operator-runbook` | `text/markdown` | `Docs/OperatorRunbook.md` | Operator workflow context for troubleshooting and bootstrap flows. |
 
@@ -116,6 +118,41 @@ Markdown docs should be returned as:
   "lastError": "string|null",
   "lastEventSummary": "string|null",
   "lastHeartbeatAt": "string|null"
+}
+```
+
+`haven-agent://codex/prompt-requests` exposes:
+
+```json
+{
+  "queuedCount": 1,
+  "startedCount": 0,
+  "completedCount": 0,
+  "queued": [
+    {
+      "queue": "queued",
+      "filePath": "string",
+      "request": {
+        "id": "string",
+        "conversationId": "string",
+        "jobId": "string|null",
+        "participantId": "string|null",
+        "deviceId": "string|null",
+        "title": "string|null",
+        "message": "string|null",
+        "prompt": "string",
+        "purpose": "string|null",
+        "interests": ["string"],
+        "workspacePath": "string|null",
+        "preferredAssistant": "codex|null",
+        "status": "queued|started|done|blocked|failed",
+        "createdAt": "string",
+        "updatedAt": "string"
+      }
+    }
+  ],
+  "started": [],
+  "completed": []
 }
 ```
 
@@ -181,6 +218,9 @@ Sensitive tools should be treated by the host as confirmation-required.
 | `agent.operator.request` | Create an operator-facing prompt or approval request through `DeviceActionRelay`. | Recommended |
 | `agent.operator.wait_for_reply` | Wait for a matching prompt or approval reply to come back from Binding. | No |
 | `agent.operator.request_and_wait` | Queue an operator prompt or approval request and wait for the matching reply. | Recommended |
+| `agent.codex.next_prompt` | Return and optionally claim the next phone-originated Codex prompt request. | No |
+| `agent.codex.mark_prompt_started` | Claim a queued phone-originated Codex prompt request for the current coding host. | No |
+| `agent.codex.mark_prompt_done` | Record a done, blocked, or failed outcome for a phone-originated Codex prompt request. | No |
 
 ### Tool schemas
 
@@ -570,6 +610,104 @@ Important restriction:
 - this is a convenience wrapper around `agent.operator.request` and `agent.operator.wait_for_reply`
 - callers that need custom retry or background orchestration should still use the two lower-level tools directly
 
+#### `agent.codex.next_prompt`
+
+Input:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "workspacePath": { "type": "string" },
+    "purpose": { "type": "string" },
+    "interest": { "type": "string" },
+    "preferredAssistant": { "type": "string" },
+    "claim": {
+      "type": "boolean",
+      "default": true
+    },
+    "assistant": { "type": "string" },
+    "note": { "type": "string" }
+  },
+  "additionalProperties": false
+}
+```
+
+Output when matched:
+
+```json
+{
+  "matched": true,
+  "claimed": true,
+  "queue": "started",
+  "filePath": "string",
+  "request": {
+    "id": "string",
+    "prompt": "string",
+    "purpose": "string|null",
+    "interests": ["string"],
+    "workspacePath": "string|null",
+    "status": "started"
+  }
+}
+```
+
+Output when no queued request matches:
+
+```json
+{
+  "matched": false,
+  "claimed": false,
+  "request": null,
+  "queuedCount": 0
+}
+```
+
+#### `agent.codex.mark_prompt_started`
+
+Input:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "assistant": { "type": "string" },
+    "workspacePath": { "type": "string" },
+    "note": { "type": "string" }
+  },
+  "required": ["id"],
+  "additionalProperties": false
+}
+```
+
+#### `agent.codex.mark_prompt_done`
+
+Input:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["done", "blocked", "failed"]
+    },
+    "summary": { "type": "string" },
+    "error": { "type": "string" }
+  },
+  "required": ["id", "status"],
+  "additionalProperties": false
+}
+```
+
+Important restriction:
+
+- these tools never launch Codex or execute shell commands by themselves
+- they only manage the local prompt-request queue
+- the coding host remains responsible for deciding whether and how to continue work
+
 ## Host-side Confirmation Policy
 
 Even though MCP tools are model-callable, the host should require explicit user confirmation for:
@@ -578,6 +716,7 @@ Even though MCP tools are model-callable, the host should require explicit user 
 - `agent.review.approve`
 - `agent.review.reject`
 - `agent.operator.request` when `responseMode=approval`
+- any future launch-runner tool that starts Codex or another local process
 
 Recommended confirmation copy should show:
 
@@ -607,8 +746,9 @@ Examples of tool execution errors:
 2. read-only resources for runtime, bootstrap, porthole, identity, queue, and audit
 3. safe read tools: `agent.state.refresh`, `agent.config.validate`, `agent.review.state`
 4. sensitive write tools: `agent.review.approve`, `agent.review.reject`
-5. operator messaging tool: `agent.operator.request`
-6. optional `agent.bootstrap.probe`
+5. operator messaging tools: `agent.operator.request`, `agent.operator.wait_for_reply`, `agent.operator.request_and_wait`
+6. phone-originated coding prompt queue: `haven-agent://codex/prompt-requests` and `agent.codex.*`
+7. optional `agent.bootstrap.probe`
 
 ## Future Extensions
 
@@ -624,8 +764,8 @@ Reasonable phase-2 additions:
 
 Build `haven-agentd-mcp` as a separate executable target inside the `HavenAgentD` package, using MCP `stdio`, with the initial surface limited to:
 
-- 8 operational JSON resources
+- 9 operational JSON resources
 - 2 markdown policy/runbook resources
-- 7 core tools
+- 10 core tools
 
 That is enough to let multiple AI hosts share a stable operational view of the same local agent without widening the current security boundary.

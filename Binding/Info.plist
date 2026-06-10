@@ -2,16 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_haven-radar._tcp</string>
-	</array>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Binding bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Binding bruker Face ID for aa laase opp identiteter og signere handlinger med noekler som brukeren kontrollerer.</string>
-	<key>NSNearbyInteractionUsageDescription</key>
-	<string>Binding bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -39,6 +29,17 @@
 				<string>haven</string>
 			</array>
 		</dict>
+	</array>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_haven-radar._tcp</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>push-to-talk</string>
+		<string>nearby-interaction</string>
+		<string>bluetooth-central</string>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
