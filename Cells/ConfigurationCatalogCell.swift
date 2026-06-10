@@ -94,11 +94,7 @@ enum BindingPersonalCopilotV1Policy {
     }
 
     nonisolated static var conferenceShowcaseEnabled: Bool {
-        #if os(macOS)
-        true
-        #else
         conferenceDemoMenusEnabled
-        #endif
     }
 
     nonisolated static let agentSetupWorkbenchDefaultsKey = "Binding.EnableAgentSetupWorkbench"

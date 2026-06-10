@@ -1175,16 +1175,17 @@ struct ContentView: View {
         showInspector: Bool,
         isActive: Bool
     ) -> some View {
-        let configuration = activeConfiguration?.name == destination.title
-            ? activeConfiguration ?? destination.configuration
-            : destination.configuration
+        let configuration = personalCopilotVisibleConfiguration(for: destination)
         let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+        let showsSurfaceHeader = shouldShowPersonalCopilotSurfaceHeader(configuration: configuration)
 
         return ZStack {
             personalCopilotShellBackground
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 18) {
-                    personalCopilotSurfaceHeader(configuration: configuration, metadata: metadata)
+                    if showsSurfaceHeader {
+                        personalCopilotSurfaceHeader(configuration: configuration, metadata: metadata)
+                    }
                     portholeCanvas
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .background(Color(bindingHex: BindingPersonalCopilotDesignSystem.surface) ?? .white)
@@ -1210,9 +1211,125 @@ struct ContentView: View {
         }
         .task(id: destination.id) {
             guard isActive else { return }
+            if activeConfigurationIsAdHocPersonalCopilotSurface {
+                return
+            }
             guard activeConfiguration?.name != destination.title else { return }
             queueConfigurationLoad(destination.configuration, navigationMode: .reset)
         }
+    }
+
+    private func personalCopilotVisibleConfiguration(
+        for destination: BindingPersonalCopilotDestination
+    ) -> CellConfiguration {
+        guard let activeConfiguration,
+              BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(activeConfiguration)
+        else {
+            return destination.configuration
+        }
+        if activeConfiguration.name == destination.title {
+            return activeConfiguration
+        }
+        if BindingPersonalCopilotDestination.matching(configurationName: activeConfiguration.name) == nil {
+            return activeConfiguration
+        }
+        return destination.configuration
+    }
+
+    private var activeConfigurationIsAdHocPersonalCopilotSurface: Bool {
+        guard let activeConfiguration,
+              BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(activeConfiguration)
+        else {
+            return false
+        }
+        return BindingPersonalCopilotDestination.matching(configurationName: activeConfiguration.name) == nil
+    }
+
+    private func shouldShowPersonalCopilotSurfaceHeader(configuration: CellConfiguration) -> Bool {
+        guard let skeleton = configuration.skeleton else {
+            return true
+        }
+        if skeletonHasLeadingStaticTitle(configuration.name, in: skeleton) {
+            return false
+        }
+        return true
+    }
+
+    private func skeletonHasLeadingStaticTitle(_ title: String, in element: SkeletonElement) -> Bool {
+        let target = normalizedPersonalCopilotTitle(title)
+        guard !target.isEmpty else { return false }
+        return leadingStaticSkeletonText(in: element, maxDepth: 5, limit: 10)
+            .map(normalizedPersonalCopilotTitle)
+            .contains(target)
+    }
+
+    private func leadingStaticSkeletonText(
+        in element: SkeletonElement,
+        maxDepth: Int,
+        limit: Int
+    ) -> [String] {
+        guard maxDepth >= 0, limit > 0 else { return [] }
+        switch element {
+        case .Text(let text):
+            guard let value = text.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty else { return [] }
+            return [value]
+        case .ScrollView(let scrollView):
+            return leadingStaticSkeletonText(in: scrollView.elements, maxDepth: maxDepth - 1, limit: limit)
+        case .VStack(let stack):
+            return leadingStaticSkeletonText(in: stack.elements, maxDepth: maxDepth - 1, limit: limit)
+        case .HStack(let stack):
+            return leadingStaticSkeletonText(in: stack.elements, maxDepth: maxDepth - 1, limit: limit)
+        case .ZStack(let stack):
+            return leadingStaticSkeletonText(in: stack.elements, maxDepth: maxDepth - 1, limit: limit)
+        case .Section(let section):
+            var elements: [SkeletonElement] = []
+            if let header = section.header {
+                elements.append(header)
+            }
+            elements.append(contentsOf: section.content)
+            if let footer = section.footer {
+                elements.append(footer)
+            }
+            return leadingStaticSkeletonText(in: elements, maxDepth: maxDepth - 1, limit: limit)
+        case .Object(let object):
+            let elements = object.elements.keys.sorted().compactMap { object.elements[$0] }
+            return leadingStaticSkeletonText(in: elements, maxDepth: maxDepth - 1, limit: limit)
+        case .Grid(let grid):
+            var elements = grid.elements
+            if let itemSkeleton = grid.itemSkeleton {
+                elements.append(itemSkeleton)
+            }
+            return leadingStaticSkeletonText(in: elements, maxDepth: maxDepth - 1, limit: limit)
+        default:
+            return []
+        }
+    }
+
+    private func leadingStaticSkeletonText(
+        in elements: [SkeletonElement],
+        maxDepth: Int,
+        limit: Int
+    ) -> [String] {
+        var output: [String] = []
+        for element in elements {
+            output.append(contentsOf: leadingStaticSkeletonText(
+                in: element,
+                maxDepth: maxDepth,
+                limit: limit - output.count
+            ))
+            if output.count >= limit {
+                return Array(output.prefix(limit))
+            }
+        }
+        return output
+    }
+
+    private func normalizedPersonalCopilotTitle(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
     }
 
     private func personalCopilotSurfaceHeader(
@@ -1463,7 +1580,7 @@ struct ContentView: View {
                 Text("Binding")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
-                Text(personalCopilotDestination.title)
+                Text("Personal Co-Pilot")
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textSecondary) ?? .secondary)
                     .lineLimit(1)
