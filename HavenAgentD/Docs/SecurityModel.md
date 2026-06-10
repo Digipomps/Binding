@@ -60,9 +60,11 @@ The first concrete `GeneralCell` implementations are intentionally low-risk:
 
 - `AgentSupervisorCell` projects local runtime state outward
 - `RemoteIntentInboxCell` accepts structured intent payloads and queues them
-- neither cell executes a side effect as part of remote input handling
+- `AgentLocalModelCell` calls only the configured loopback local model backend by default
+- none of these cells executes local automation as part of remote input handling
 
 That split is deliberate. It keeps "receive intent" separate from "perform effect", so policy, audit and approval can sit between them.
+Local model generation is treated as advisory compute, not device automation: it emits CellProtocol flow events and returns text, but it does not grant tool, file, sensor or GUI authority to the model.
 
 ## Why signed remote intents use a local issuer trust store
 

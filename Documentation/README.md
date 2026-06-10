@@ -8,6 +8,10 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 - [BindingStandaloneSeparationPlan-2026-04-16.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneSeparationPlan-2026-04-16.md)
 - [BindingStandaloneStatus.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneStatus.md)
 
+## Agent Phone Loop
+- [HavenAgentPhoneApprovalLoopRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/HavenAgentPhoneApprovalLoopRunbook.md)
+- [HavenAgentDChatIntegrationPlan.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/HavenAgentDChatIntegrationPlan.md)
+
 ## Personal Co-Pilot App Store track
 - [PersonalCopilotV1AppStoreImplementation.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotV1AppStoreImplementation.md)
 - [AppStoreReviewNotes_PersonalCopilotV1.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/AppStoreReviewNotes_PersonalCopilotV1.md)
@@ -339,6 +343,7 @@ Projects importing CellProtocol must include:
 - Contributing guidelines: [Prompts/CONTRIBUTING.md](../Prompts/CONTRIBUTING.md)
 - Edge menus overlay: [Prompts/EdgeMenusOverlay.md](../Prompts/EdgeMenusOverlay.md)
 - Apple Intelligence cell: [Prompts/AppleIntelligenceCell.md](../Prompts/AppleIntelligenceCell.md)
+- Chat Workbench Binding parity: [Documentation/ChatWorkbenchBindingParity.md](ChatWorkbenchBindingParity.md)
 - Explainer for LLMs: [Prompts/ExplainToAnotherLLM.md](../Prompts/ExplainToAnotherLLM.md)
 - Documentation index (folder): [Documentation/](./)
 - Prompts index (folder): [Prompts/](../Prompts/)

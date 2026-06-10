@@ -12,7 +12,8 @@ The first App Store build exposes only the Personal Co-Pilot V1 surface:
 - `My Profile`
 - `Publish Public Profile`
 - `Matches`
-- `Invite Chat`
+- `Co-Pilot Chat`
+- `Agenda Context`
 - `Vault / Ideas`
 - `Meeting Intent`
 - `Apple Intelligence`
@@ -26,7 +27,7 @@ Conference, sponsor, admin, control tower, demo launcher and conference chat con
 ```text
 Binding is submitted as a curated Personal Co-Pilot app.
 
-The app can load CellConfigurations from our approved CellScaffold host, but the App Store build is allowlisted to Personal Co-Pilot V1 configurations only. The visible V1 scope is profile drafting/publishing, opt-in public profile discovery, consent-based matching, invite-only chat, local vault/idea/project organization, meeting intent planning, Apple Intelligence-related local actions and entity scanning.
+The app can load CellConfigurations from our approved CellScaffold host, but the App Store build is allowlisted to Personal Co-Pilot V1 configurations only. The visible V1 scope is profile drafting/publishing, opt-in public profile discovery, consent-based matching, Co-Pilot Chat, local agenda context, local vault/idea/project organization, meeting intent planning, Apple Intelligence-related local actions and entity scanning.
 
 The app is not a general plugin marketplace and does not expose arbitrary third-party mini apps. Every remote configuration shown in the App Store build must include appStoreScope="personal-copilot-v1", policy metadata, a universalLink and a reviewSummary. Non-allowlisted configurations are hidden or shown as unavailable.
 
@@ -34,7 +35,7 @@ User-generated content surfaces are limited to public profiles and invite-only c
 
 The app does not include prepaid credits, external purchase calls to action, StoreKit UI or in-app purchase in V1.
 
-Remote configurations do not receive native permissions automatically. Camera, microphone, calendar, contacts, nearby/Bluetooth, local vault/file access and Apple Intelligence-related capabilities require explicit user action and platform permission flow where applicable. V1 meeting/Jitsi support is metadata-only and does not request camera or microphone access.
+Remote configurations do not receive native permissions automatically. Camera, microphone, calendar, reminders, contacts, nearby/Bluetooth, local vault/file access and Apple Intelligence-related capabilities require explicit user action and platform permission flow where applicable. Agenda Context reads Calendar/Reminders only in the local Binding adapter after the user asks to refresh or answer an agenda query; it does not monitor the calendar in the background. Co-Pilot Chat microphone/speech access is limited to explicit speech-to-text dictation into the local composer; it does not listen in the background, use wake phrases or send messages automatically. V1 meeting/Jitsi support is metadata-only and does not request camera or microphone access.
 
 If account creation or sign-in is enabled for the review build, the app provides in-app account deletion and data export/deletion hooks.
 ```

@@ -5,6 +5,7 @@ This map defines what Binding Personal Co-Pilot V1 may read, write, publish and 
 ## Default Principles
 
 - Local draft data stays local until the user takes an explicit publish/share action.
+- Speech transcripts are local composer drafts until the user explicitly analyzes or sends them.
 - Remote CellConfigurations receive no native permission by default.
 - App Store mode shows only configurations scoped to `appStoreScope="personal-copilot-v1"` from approved hosts.
 - Denied permissions must leave the app usable with an honest reduced-capability state.
@@ -20,8 +21,9 @@ This map defines what Binding Personal Co-Pilot V1 may read, write, publish and 
 | `PersonalProfilePublisherCell` | CellScaffold | explicitly published profile payload, public profile read model | Cloud | None; receives only explicit publish payload | Publish fails with recoverable error; local draft remains intact | Must be implemented in CellScaffold |
 | `PublicProfileDirectoryCell` | CellScaffold | searchable public profile index, report/hide/block state | Cloud | None | Directory can be unavailable without affecting local draft/vault | Must be implemented in CellScaffold |
 | `PersonalMatchmakingCell` | CellScaffold | match preferences, published-profile-derived suggestions, mutual consent state | Cloud | None | Matching unavailable; no chat is created | Must be implemented in CellScaffold |
-| `PersonalChatClient` | Binding | local composer draft, selected invite, report/block UI state, Jitsi placeholder metadata | Local client state plus cloud chat handoff | Notifications optional later; no camera/mic in V1 | Composer remains usable only for accepted invites; denied notifications do not block chat | Binding local cell registered |
-| `PersonalChatHubCell` | CellScaffold | invite-only conversation state, messages, moderation status, report/block records | Cloud | None; uses CellProtocol chat contract | Chat unavailable or read-only if backend unavailable; blocked users cannot continue | Must be implemented in CellScaffold |
+| `PersonalChatClient` | Binding | local composer draft, optional speech transcript state, selected invite, report/block UI state, Jitsi placeholder metadata | Local client state plus cloud chat handoff | Microphone/speech recognition only after explicit Co-Pilot dictation tap; notifications optional later; no camera/mic for meeting metadata | Text composer remains usable if microphone/speech is denied; denied notifications do not block chat | Binding local cell registered |
+| `PersonalChatHubCell` | CellScaffold | invite-only conversation state, messages, moderation status, report/block records | Cloud | None; uses CellProtocol chat contract and receives only text the user explicitly sends | Chat unavailable or read-only if backend unavailable; blocked users cannot continue | Must be implemented in CellScaffold |
+| `PersonalAgendaContext` | Binding | cached Calendar events and incomplete Reminders used for today's/next agenda summaries, role/aspect weights and Perspective purpose signals | Local/EventKit cache only | Calendar and Reminders full access only after explicit user action | Agenda surface remains usable with local/test cache and reports `requiresConsent`; chat receives an honest unavailable state | Binding local cell registered |
 | `Vault` / `PersonalVault` | Binding / CellProtocol | local notes, ideas, projects, optional vault paths | Local file/vault access | File/vault picker or explicit user-selected folder | User can keep using non-file-backed local state or choose a folder later | Existing utility cell reused |
 | `PersonalMeetingIntent` | Binding | meeting title, participants, proposed time, meetingBridge metadata placeholder | Local client state | Calendar/EventKit only after explicit user action; no camera/mic in V1 | Meeting intent remains local; calendar write disabled | Binding local cell registered |
 | `PersonalMeetingCoordinatorCell` | CellScaffold | suggested times, meeting intent coordination, meetingBridge metadata | Cloud | None | Suggestions unavailable; local meeting intent remains editable | Must be implemented in CellScaffold |
@@ -37,8 +39,9 @@ This map defines what Binding Personal Co-Pilot V1 may read, write, publish and 
 | Capability | Allowed trigger | Remote config access | Required UX |
 | --- | --- | --- | --- |
 | Camera / scanning | User taps scanner/start scan in local scanner surface | Never direct; Binding adapter mediates | Purpose string, denied state, no silent retry |
-| Microphone | Out of V1 except future meeting/video surfaces | Never in V1 | No request in V1 meetingBridge placeholder |
-| Calendar/EventKit | User explicitly adds/saves a meeting intent to calendar | Never direct; Binding adapter mediates | Purpose string, fallback to local meeting intent |
+| Microphone / speech recognition | User taps Co-Pilot Chat speech input in the local Binding surface | Never direct; Binding adapter writes only local transcript/composer text | Purpose string, denied state, no silent retry, no autosend |
+| Calendar/EventKit | User explicitly refreshes Agenda Context or adds/saves a meeting intent to calendar | Never direct; Binding adapter mediates | Purpose string, fallback to local agenda/meeting intent, denied state |
+| Reminders/EventKit | User explicitly refreshes Agenda Context or saves a reminder intent | Never direct; Binding adapter mediates | Purpose string, fallback to local agenda/reminder draft, denied state |
 | Contacts | Out of V1 unless later invite flow explicitly needs picker | Never direct | Use picker/individual selection; no contact database |
 | Nearby/Bluetooth | User starts entity scanner/nearby capability | Never direct | Purpose string and safe stopped state |
 | Local vault/files | User selects vault/folder/file or imports/exports | Never direct; Binding-owned vault adapter mediates | File picker/folder consent; unavailable state if denied |

@@ -20,10 +20,11 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let deviceIDKey = "binding.notifications.deviceId"
     private let termsVersionKey = "binding.notifications.termsVersion"
     private let termsAcceptedAtKey = "binding.notifications.termsAcceptedAt"
-    private let apnsTokenKey = "binding.notifications.apnsToken"
+    private let legacyAPNSTokenKey = "binding.notifications.apnsToken"
     private let participantIDKey = "binding.notifications.participantId"
     private var participantID: String?
     private var deviceID: String?
+    private var pendingAPNSToken: String?
 
     private init() {
         bootstrapIfNeeded()
@@ -54,10 +55,14 @@ final class NotificationEnrollmentManager: ObservableObject {
 
         let currentTermsVersion = termsVersion()
         needsTermsAcceptance = defaults.string(forKey: termsVersionKey) != currentTermsVersion || defaults.double(forKey: termsAcceptedAtKey) <= 0
+        defaults.removeObject(forKey: legacyAPNSTokenKey)
 
         Task { @MainActor in
             #if os(iOS)
             await refreshPushAuthorizationStatus()
+            if !needsTermsAcceptance, pushPermissionGranted {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
             #else
             pushPermissionGranted = false
             #endif
@@ -99,7 +104,10 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func updateAPNSToken(_ token: String) async {
-        defaults.set(token, forKey: apnsTokenKey)
+        let normalizedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedToken.isEmpty else { return }
+        pendingAPNSToken = normalizedToken
+        defaults.removeObject(forKey: legacyAPNSTokenKey)
         await registerCurrentDeviceIfReady()
     }
 
@@ -107,7 +115,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         guard !needsTermsAcceptance,
               let participantID,
               let deviceID,
-              let token = defaults.string(forKey: apnsTokenKey),
+              let token = pendingAPNSToken,
               !token.isEmpty
         else {
             return
@@ -126,6 +134,8 @@ final class NotificationEnrollmentManager: ObservableObject {
 
         do {
             _ = try await NotificationCallbackClient.shared.registerDevice(payload: payload)
+            pendingAPNSToken = nil
+            defaults.removeObject(forKey: legacyAPNSTokenKey)
             lastRegistrationError = nil
         } catch {
             lastRegistrationError = "Device registration failed: \(error.localizedDescription)"

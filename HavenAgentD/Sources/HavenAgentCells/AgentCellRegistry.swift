@@ -40,6 +40,12 @@ public enum AgentCellRegistry {
             endpoint: "cell:///agent/intents/review",
             typeName: "RemoteIntentReviewCell",
             sideEffectBoundary: "Approves or rejects verified intents and dispatches only locally allowlisted remote actions."
+        ),
+        AgentCellDescriptor(
+            kind: .localModel,
+            endpoint: "cell:///agent/local-model",
+            typeName: "AgentLocalModelCell",
+            sideEffectBoundary: "Calls a configured loopback local model backend; no device automation side effects."
         )
     ]
 
@@ -53,6 +59,8 @@ public enum AgentCellRegistry {
             return await RemoteIntentInboxCell(owner: owner)
         case .remoteIntentReview:
             return await RemoteIntentReviewCell(owner: owner)
+        case .localModel:
+            return await AgentLocalModelCell(owner: owner)
         default:
             throw AgentCellRegistryError.unsupportedConcreteKind(kind)
         }

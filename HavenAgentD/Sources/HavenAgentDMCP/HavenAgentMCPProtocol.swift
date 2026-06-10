@@ -170,6 +170,21 @@ func boolValue(_ value: Any?) -> Bool? {
     }
 }
 
+func doubleValue(_ value: Any?) -> Double? {
+    switch value {
+    case let double as Double:
+        return double
+    case let float as Float:
+        return Double(float)
+    case let int as Int:
+        return Double(int)
+    case let number as NSNumber:
+        return number.doubleValue
+    default:
+        return nil
+    }
+}
+
 func objectValue(_ value: Any?) -> JSONObject? {
     value as? JSONObject
 }

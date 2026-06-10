@@ -202,6 +202,37 @@ Jitsi-ready metadata for V1:
 
 Binding must render this as metadata/placeholder in V1 and must not request camera or microphone merely because this metadata exists.
 
+## PersonalAgendaContextCell
+
+Purpose: local Binding-owned context cell that answers "today/next agenda" questions from Calendar and Reminders after explicit user consent, and exposes weighted purpose signals for Perspective.
+
+Minimum state:
+
+- `agenda.state`
+- `agenda.today`
+- `agenda.next`
+- `agenda.items`
+- `agenda.summary`
+- `agenda.permissionStatus`
+- `agenda.purposeSignals`
+
+Minimum actions:
+
+- `agenda.refresh`
+- `agenda.answerQuery`
+- `agenda.requestAccess`
+- `agenda.requestCalendarAccess`
+- `agenda.requestReminderAccess`
+- `agenda.publishPerspectiveSignals`
+- `agenda.clearCache`
+
+Required behavior:
+
+- Calendar and Reminders access is mediated by the local Binding cell only; remote configurations never receive native permission.
+- `agenda.answerQuery` must be side-effect free and return an honest `requiresConsent` status when native data cannot be read.
+- If multiple conference aspects are plausible, such as participant, organizer, sponsor or exhibitor, return `needsClarification=true` and a clarifying question instead of assuming the role.
+- Purpose/interest weighting is published to Perspective only through the explicit `agenda.publishPerspectiveSignals` action.
+
 ## PersonalMeetingCoordinatorCell
 
 Purpose: coordinate meeting intents and proposed times without native calendar/camera/mic access.

@@ -1071,7 +1071,11 @@ final class AgentEnrollmentCell: GeneralCell {
             return URL(fileURLWithPath: resolvedHome, isDirectory: true)
         }
 
-        return FileManager.default.homeDirectoryForCurrentUser
+        let fallbackHome = NSHomeDirectory().trimmingCharacters(in: .whitespacesAndNewlines)
+        if fallbackHome.isEmpty == false {
+            return URL(fileURLWithPath: fallbackHome, isDirectory: true)
+        }
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
     }
 
     private static func activatePersistedExternalRuntimeAccess(forHomeDirectory homeDirectory: URL) {

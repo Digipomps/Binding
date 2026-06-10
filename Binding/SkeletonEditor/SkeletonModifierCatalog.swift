@@ -33,6 +33,8 @@ enum SkeletonModifierKey: String, CaseIterable, Identifiable {
     case lineLimit
     case multilineTextAlignment
     case minimumScaleFactor
+    case motionHint
+    case motionSourceRole
 
     var id: String { rawValue }
     var title: String { rawValue }
@@ -43,7 +45,7 @@ enum SkeletonModifierKey: String, CaseIterable, Identifiable {
             return .bool
         case .lineLimit:
             return .int
-        case .hAlignment, .vAlignment, .background, .shadowColor, .borderColor, .foregroundColor, .fontStyle, .fontWeight, .multilineTextAlignment:
+        case .hAlignment, .vAlignment, .background, .shadowColor, .borderColor, .foregroundColor, .fontStyle, .fontWeight, .multilineTextAlignment, .motionHint, .motionSourceRole:
             return .string
         default:
             return .double
@@ -76,6 +78,8 @@ enum SkeletonModifierKey: String, CaseIterable, Identifiable {
         case .lineLimit: return modifiers?.lineLimit != nil
         case .multilineTextAlignment: return modifiers?.multilineTextAlignment != nil
         case .minimumScaleFactor: return modifiers?.minimumScaleFactor != nil
+        case .motionHint: return modifiers?.motionHint != nil
+        case .motionSourceRole: return modifiers?.motionSourceRole != nil
         }
     }
 
@@ -111,6 +115,8 @@ enum SkeletonModifierKey: String, CaseIterable, Identifiable {
         case .lineLimit: return modifiers?.lineLimit.map { "\($0)" }
         case .multilineTextAlignment: return modifiers?.multilineTextAlignment
         case .minimumScaleFactor: return modifiers?.minimumScaleFactor.map { "\($0)" }
+        case .motionHint: return modifiers?.motionHint?.rawValue
+        case .motionSourceRole: return modifiers?.motionSourceRole
         case .maxWidthInfinity, .maxHeightInfinity, .hidden:
             return nil
         }
@@ -155,6 +161,8 @@ enum SkeletonModifierKey: String, CaseIterable, Identifiable {
         case .lineLimit: modifiers.lineLimit = nil
         case .multilineTextAlignment: modifiers.multilineTextAlignment = nil
         case .minimumScaleFactor: modifiers.minimumScaleFactor = nil
+        case .motionHint: modifiers.motionHint = nil
+        case .motionSourceRole: modifiers.motionSourceRole = nil
         }
     }
 
@@ -201,6 +209,8 @@ enum SkeletonModifierKey: String, CaseIterable, Identifiable {
         case .fontStyle: modifiers.fontStyle = value
         case .fontWeight: modifiers.fontWeight = value
         case .multilineTextAlignment: modifiers.multilineTextAlignment = value
+        case .motionHint: modifiers.motionHint = SkeletonMotionHint(rawValue: value.trimmingCharacters(in: .whitespacesAndNewlines))
+        case .motionSourceRole: modifiers.motionSourceRole = value
         default: break
         }
     }
@@ -217,6 +227,10 @@ enum SkeletonModifierKey: String, CaseIterable, Identifiable {
             return "body"
         case .fontWeight:
             return "regular"
+        case .motionHint:
+            return SkeletonMotionHint.appear.rawValue
+        case .motionSourceRole:
+            return "suggestion-card"
         default:
             return ""
         }

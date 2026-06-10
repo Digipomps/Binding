@@ -264,6 +264,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             tabs.modifiers = modifiers
             return .Tabs(tabs)
+        case .Visualization(var visualization):
+            var modifiers = visualization.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            visualization.modifiers = modifiers
+            return .Visualization(visualization)
         }
     }
 

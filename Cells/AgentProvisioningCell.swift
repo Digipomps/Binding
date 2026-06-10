@@ -1155,7 +1155,11 @@ final class AgentProvisioningCell: GeneralCell {
             return URL(fileURLWithPath: resolvedHome, isDirectory: true)
         }
 
-        return FileManager.default.homeDirectoryForCurrentUser
+        let fallbackHome = NSHomeDirectory().trimmingCharacters(in: .whitespacesAndNewlines)
+        if fallbackHome.isEmpty == false {
+            return URL(fileURLWithPath: fallbackHome, isDirectory: true)
+        }
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
     }
 
     private static func activatePersistedExternalRuntimeAccess(forRuntimeAccessDirectory runtimeAccessDirectory: URL) {
@@ -2388,6 +2392,15 @@ final class AgentProvisioningCell: GeneralCell {
             standardOutput: standardOutput,
             standardError: standardError
         )
+    }
+#else
+    private static func runExternalLaunchAgentScript(
+        scriptURL: URL,
+        arguments: [String]
+    ) throws -> CommandResult {
+        _ = scriptURL
+        _ = arguments
+        throw ProvisioningError.unsupportedPlatform("Managing the local HAVEN agent through an external helper")
     }
 #endif
 

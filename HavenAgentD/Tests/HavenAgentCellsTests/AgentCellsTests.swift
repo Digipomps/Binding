@@ -24,15 +24,44 @@ private struct RecordingProcessRunner: ProcessRunning {
     }
 }
 
+private actor StubAgentLocalModelClient: AgentLocalModelInvoking {
+    var response = AgentLocalModelInvokeResponse(
+        providerID: "agent-qwen",
+        model: "qwen-test",
+        outputText: "local qwen answer",
+        finishReason: "stop",
+        inputTokens: 7,
+        outputTokens: 3
+    )
+    var error: Error?
+    private(set) var callCount = 0
+    private(set) var lastConfig: AgentLocalModelBackendConfig?
+    private(set) var lastRequest: AgentLocalModelInvokeRequest?
+
+    func invoke(
+        config: AgentLocalModelBackendConfig,
+        request: AgentLocalModelInvokeRequest
+    ) async throws -> AgentLocalModelInvokeResponse {
+        callCount += 1
+        lastConfig = config
+        lastRequest = request
+        if let error {
+            throw error
+        }
+        return response
+    }
+}
+
 private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendable {
     private var identities: [String: Identity] = [:]
+    private var privateKeys: [String: Curve25519.Signing.PrivateKey] = [:]
 
     func initialize() async -> IdentityVaultProtocol {
         self
     }
 
     func addIdentity(identity: inout Identity, for identityContext: String) async {
-        identity.identityVault = self
+        ensureSigningKey(for: identity)
         identities[identityContext] = identity
     }
 
@@ -44,20 +73,29 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
             return nil
         }
         let identity = Identity(identityContext, displayName: identityContext, identityVault: self)
+        ensureSigningKey(for: identity)
         identities[identityContext] = identity
         return identity
     }
 
     func saveIdentity(_ identity: Identity) async {
+        ensureSigningKey(for: identity)
         identities[identity.displayName] = identity
     }
 
     func signMessageForIdentity(messageData: Data, identity: Identity) async throws -> Data {
-        messageData + Data(identity.uuid.utf8)
+        guard let privateKey = privateKeys[identity.uuid] else {
+            throw MockIdentityVaultError.noPrivateKey
+        }
+        return try privateKey.signature(for: messageData)
     }
 
     func verifySignature(signature: Data, messageData: Data, for identity: Identity) async throws -> Bool {
-        signature == messageData + Data(identity.uuid.utf8)
+        guard let publicKeyData = identity.publicSecureKey?.compressedKey else {
+            return false
+        }
+        let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: publicKeyData)
+        return publicKey.isValidSignature(signature, for: messageData)
     }
 
     func randomBytes64() async -> Data? {
@@ -66,6 +104,32 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
 
     func aquireKeyForTag(tag: String) async throws -> (key: String, iv: String) {
         ("test-\(tag)", "iv-\(tag)")
+    }
+
+    private func ensureSigningKey(for identity: Identity) {
+        identity.identityVault = self
+        if privateKeys[identity.uuid] != nil,
+           identity.publicSecureKey?.compressedKey?.isEmpty == false {
+            return
+        }
+
+        let privateKey = Curve25519.Signing.PrivateKey()
+        identity.publicSecureKey = SecureKey(
+            date: Date(timeIntervalSince1970: 0),
+            privateKey: false,
+            use: .signature,
+            algorithm: .EdDSA,
+            size: 32,
+            curveType: .Curve25519,
+            x: nil,
+            y: nil,
+            compressedKey: privateKey.publicKey.rawRepresentation
+        )
+        privateKeys[identity.uuid] = privateKey
+    }
+
+    enum MockIdentityVaultError: Error {
+        case noPrivateKey
     }
 }
 
@@ -78,12 +142,107 @@ struct AgentCellsTests {
 
         let cells = await AgentCellRegistry.instantiateDefaultCells(owner: owner)
 
-        #expect(cells.count == 4)
-        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview])
+        #expect(cells.count == 5)
+        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel])
         #expect(cells.contains { $0 is AgentSupervisorCell })
         #expect(cells.contains { $0 is AgentIdentityCell })
         #expect(cells.contains { $0 is RemoteIntentInboxCell })
         #expect(cells.contains { $0 is RemoteIntentReviewCell })
+        #expect(cells.contains { $0 is AgentLocalModelCell })
+    }
+
+    @Test
+    func localModelCellGeneratesThroughConfiguredLoopbackBackendAndEmitsState() async throws {
+        let client = StubAgentLocalModelClient()
+        AgentLocalModelCell.clientFactory = { client }
+        AgentLocalModelCell.backendConfigFactory = {
+            AgentLocalModelBackendConfig(
+                profileID: "qwen2.5-0.5b-instruct-q4_k_m",
+                providerID: "agent-qwen",
+                baseURL: "http://127.0.0.1:8080",
+                apiPath: "/v1/chat/completions",
+                model: "qwen-test",
+                timeoutMs: 1_500
+            )
+        }
+        defer {
+            AgentLocalModelCell.clientFactory = { AgentLocalModelHTTPClient() }
+            AgentLocalModelCell.backendConfigFactory = { AgentLocalModelBackendConfig.load() }
+        }
+
+        let vault = MockIdentityVault()
+        let owner = try #require(await vault.identity(for: "owner", makeNewIfNotFound: true))
+        let cell = await AgentLocalModelCell(owner: owner)
+
+        let result = try await cell.set(
+            keypath: "llm.generate",
+            value: .object([
+                "prompt": .string("Teach Qwen one HAVEN concept."),
+                "systemPrompt": .string("You are a local teacher."),
+                "maxTokens": .integer(64),
+                "correlationID": .string("local-model-test")
+            ]),
+            requester: owner
+        )
+
+        guard case let .object(object) = result else {
+            Issue.record("Expected local model generation object.")
+            return
+        }
+        #expect(object["status"] == .string("completed"))
+        #expect(object["providerID"] == .string("agent-qwen"))
+        #expect(object["model"] == .string("qwen-test"))
+        #expect(object["outputText"] == .string("local qwen answer"))
+        #expect(await client.callCount == 1)
+        #expect(await client.lastConfig?.baseURL == "http://127.0.0.1:8080")
+        #expect(await client.lastRequest?.prompt == "Teach Qwen one HAVEN concept.")
+        #expect(await client.lastRequest?.correlationID == "local-model-test")
+
+        let state = try await cell.get(keypath: "state", requester: owner)
+        guard case let .object(stateObject) = state,
+              case let .object(lastInvocation)? = stateObject["lastInvocation"] else {
+            Issue.record("Expected local model state with lastInvocation.")
+            return
+        }
+        #expect(stateObject["endpoint"] == .string("cell:///agent/local-model"))
+        #expect(stateObject["selectedModel"] == .string("qwen-test"))
+        #expect(stateObject["backendStatus"] == .string("healthy"))
+        #expect(lastInvocation["correlationID"] == .string("local-model-test"))
+        guard case let .list(modelProfiles)? = stateObject["modelProfiles"] else {
+            Issue.record("Expected local model profiles in state.")
+            return
+        }
+        #expect(modelProfiles.contains { item in
+            guard case let .object(profile) = item else { return false }
+            return profile["id"] == .string("borealis-4b-instruct-q4_k_m")
+        })
+    }
+
+    @Test
+    func localModelBackendRejectsNonLoopbackByDefault() throws {
+        let config = AgentLocalModelBackendConfig(
+            providerID: "remote",
+            baseURL: "https://models.example.com",
+            apiPath: "/v1/chat/completions",
+            model: "remote-model",
+            timeoutMs: 1_500
+        )
+
+        #expect(throws: AgentLocalModelError.nonLoopbackBackend("models.example.com")) {
+            _ = try config.endpointURL()
+        }
+    }
+
+    @Test
+    func localModelBackendConfigSelectsBorealisProfileFromEnvironment() throws {
+        let config = AgentLocalModelBackendConfig.load(environment: [
+            "HAVEN_AGENTD_LOCAL_LLM_PROFILE": "borealis-4b-instruct-q4_k_m"
+        ])
+
+        #expect(config.profileID == "borealis-4b-instruct-q4_k_m")
+        #expect(config.providerID == "agent-borealis")
+        #expect(config.baseURL == "http://127.0.0.1:8082")
+        #expect(config.model == "NbAiLab/borealis-4b-instruct-preview-gguf:Q4_K_M")
     }
 
     @Test

@@ -1,0 +1,4 @@
+interface:
+  display_name: "HAVEN Xcode Workspace Recovery"
+  short_description: "Recover stale Xcode package graphs for HAVEN workspaces."
+  default_prompt: "Use this skill when Xcode says CellProtocol is already open or reports missing CellBase, CellApple, CellVapor, or CodableHelpers in Binding or CellScaffold."

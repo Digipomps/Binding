@@ -10,6 +10,7 @@ struct AgentConversationFlowSubscriberTests {
             title: AgentConversationFlowContract.promptReceivedEvent,
             content: .object([
                 "id": .string("record-1"),
+                "requestId": .string("request-1"),
                 "conversationId": .string("conversation-1"),
                 "jobId": .string("job-1"),
                 "participantId": .string("participant-phone"),
@@ -21,6 +22,13 @@ struct AgentConversationFlowSubscriberTests {
                 "responseKind": .string("decision"),
                 "decision": .string("approved"),
                 "note": .string("Looks good"),
+                "purpose": .string("purpose://operate-local-haven-agent"),
+                "purposeDescription": .string("Start or continue local coding work."),
+                "interests": .list([.string("codex"), .string("automation")]),
+                "workspacePath": .string("/tmp/haven"),
+                "preferredAssistant": .string("codex"),
+                "areaContext": .string("home-office"),
+                "timeOfDayLabel": .string("arbeidstid"),
                 "prompt": .string("Fortsett med neste steg"),
                 "updatedAt": .string("2026-04-20T12:00:00Z")
             ]),
@@ -32,6 +40,7 @@ struct AgentConversationFlowSubscriberTests {
         let prompt = AgentConversationFlowSubscriber.parsePrompt(from: event)
 
         #expect(prompt?.id == "record-1")
+        #expect(prompt?.requestId == "request-1")
         #expect(prompt?.conversationId == "conversation-1")
         #expect(prompt?.jobId == "job-1")
         #expect(prompt?.participantId == "participant-phone")
@@ -41,6 +50,13 @@ struct AgentConversationFlowSubscriberTests {
         #expect(prompt?.responseKind == "decision")
         #expect(prompt?.decision == "approved")
         #expect(prompt?.note == "Looks good")
+        #expect(prompt?.purpose == "purpose://operate-local-haven-agent")
+        #expect(prompt?.purposeDescription == "Start or continue local coding work.")
+        #expect(prompt?.interests == ["codex", "automation"])
+        #expect(prompt?.workspacePath == "/tmp/haven")
+        #expect(prompt?.preferredAssistant == "codex")
+        #expect(prompt?.areaContext == "home-office")
+        #expect(prompt?.timeOfDayLabel == "arbeidstid")
         #expect(prompt?.prompt == "Fortsett med neste steg")
         #expect(prompt?.receivedAt == "2026-04-20T12:00:00Z")
     }

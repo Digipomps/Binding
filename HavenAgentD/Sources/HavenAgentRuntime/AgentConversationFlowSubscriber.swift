@@ -15,6 +15,7 @@ public enum AgentConversationFlowContract {
 
 public struct AgentConversationPrompt: Codable, Equatable, Sendable, Identifiable {
     public var id: String
+    public var requestId: String?
     public var conversationId: String
     public var jobId: String?
     public var participantId: String?
@@ -26,11 +27,19 @@ public struct AgentConversationPrompt: Codable, Equatable, Sendable, Identifiabl
     public var responseKind: String?
     public var decision: String?
     public var note: String?
+    public var purpose: String?
+    public var purposeDescription: String?
+    public var interests: [String]
+    public var workspacePath: String?
+    public var preferredAssistant: String?
+    public var areaContext: String?
+    public var timeOfDayLabel: String?
     public var prompt: String
     public var receivedAt: String
 
     public init(
         id: String = UUID().uuidString,
+        requestId: String? = nil,
         conversationId: String,
         jobId: String? = nil,
         participantId: String? = nil,
@@ -42,10 +51,18 @@ public struct AgentConversationPrompt: Codable, Equatable, Sendable, Identifiabl
         responseKind: String? = nil,
         decision: String? = nil,
         note: String? = nil,
+        purpose: String? = nil,
+        purposeDescription: String? = nil,
+        interests: [String] = [],
+        workspacePath: String? = nil,
+        preferredAssistant: String? = nil,
+        areaContext: String? = nil,
+        timeOfDayLabel: String? = nil,
         prompt: String,
         receivedAt: String = ISO8601DateFormatter().string(from: Date())
     ) {
         self.id = id
+        self.requestId = requestId
         self.conversationId = conversationId
         self.jobId = jobId
         self.participantId = participantId
@@ -57,6 +74,13 @@ public struct AgentConversationPrompt: Codable, Equatable, Sendable, Identifiabl
         self.responseKind = responseKind
         self.decision = decision
         self.note = note
+        self.purpose = purpose
+        self.purposeDescription = purposeDescription
+        self.interests = interests
+        self.workspacePath = workspacePath
+        self.preferredAssistant = preferredAssistant
+        self.areaContext = areaContext
+        self.timeOfDayLabel = timeOfDayLabel
         self.prompt = prompt
         self.receivedAt = receivedAt
     }
@@ -174,8 +198,9 @@ public actor AgentConversationFlowSubscriber {
             ?? stringValue(object["id"])
             ?? UUID().uuidString
         let ticketId = stringValue(object["ticketId"])
+        let requestId = stringValue(object["requestId"])
         let stableID = stringValue(object["id"])
-            ?? [ticketId, conversationId, stringValue(object["jobId"]), receivedAt]
+            ?? [requestId, ticketId, conversationId, stringValue(object["jobId"]), receivedAt]
                 .compactMap { value in
                     let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
                     return trimmed?.isEmpty == false ? trimmed : nil
@@ -186,6 +211,7 @@ public actor AgentConversationFlowSubscriber {
 
         return AgentConversationPrompt(
             id: resolvedID,
+            requestId: requestId,
             conversationId: conversationId,
             jobId: stringValue(object["jobId"]),
             participantId: stringValue(object["participantId"]),
@@ -197,6 +223,13 @@ public actor AgentConversationFlowSubscriber {
             responseKind: stringValue(object["responseKind"]),
             decision: stringValue(object["decision"]),
             note: stringValue(object["note"]),
+            purpose: stringValue(object["purpose"]),
+            purposeDescription: stringValue(object["purposeDescription"]),
+            interests: stringArrayValue(object["interests"]),
+            workspacePath: stringValue(object["workspacePath"]) ?? stringValue(object["workspace"]),
+            preferredAssistant: stringValue(object["preferredAssistant"]),
+            areaContext: stringValue(object["areaContext"]),
+            timeOfDayLabel: stringValue(object["timeOfDayLabel"]),
             prompt: prompt,
             receivedAt: receivedAt
         )
@@ -226,6 +259,30 @@ public actor AgentConversationFlowSubscriber {
             return String(bool)
         default:
             return nil
+        }
+    }
+
+    private static func stringArrayValue(_ value: ValueType?) -> [String] {
+        guard let value else {
+            return []
+        }
+
+        switch value {
+        case .list(let values):
+            return values.compactMap { value in
+                stringValue(value)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+        case .object(let object):
+            return object.values.compactMap { value in
+                stringValue(value)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+        case .string(let string):
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? [] : [trimmed]
+        default:
+            return []
         }
     }
 }

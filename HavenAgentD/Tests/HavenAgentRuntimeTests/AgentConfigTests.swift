@@ -29,6 +29,8 @@ struct AgentConfigTests {
 
         #expect(decoded == config)
         #expect(config.localControlBridge.accessToken == "replace-with-strong-local-token")
+        #expect(config.localControlBridge.routes.contains { $0.name == "local-model" })
+        #expect(config.scaffold.requestedCapabilities.contains("cap.local_model.generate"))
     }
 
     @Test

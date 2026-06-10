@@ -11,6 +11,8 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
     case text
     case endpoint
     case keypath
+    case kind
+    case spec
     case name
     case type
     case resizable
@@ -78,11 +80,22 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Text(let text): return text.keypath != nil
             case .List(let list): return list.keypath != nil
             case .Picker(let picker): return picker.keypath != nil
+            case .Visualization(let visualization): return visualization.keypath != nil
             case .Reference, .Button, .Toggle:
                 return true
             default:
                 return false
             }
+        case .kind:
+            if case .Visualization(let visualization) = element {
+                return visualization.kind.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            }
+            return false
+        case .spec:
+            if case .Visualization(let visualization) = element {
+                return visualization.spec != nil
+            }
+            return false
         case .name:
             if case .Image(let image) = element { return image.name != nil }
             return false
@@ -105,11 +118,17 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             if case .FileUpload(let fileUpload) = element { return fileUpload.valueKeypath != nil }
             return false
         case .stateKeypath:
-            if case .FileUpload(let fileUpload) = element { return fileUpload.stateKeypath != nil }
-            return false
+            switch element {
+            case .FileUpload(let fileUpload): return fileUpload.stateKeypath != nil
+            case .Visualization(let visualization): return visualization.stateKeypath != nil
+            default: return false
+            }
         case .actionKeypath:
-            if case .FileUpload(let fileUpload) = element { return fileUpload.actionKeypath != nil }
-            return false
+            switch element {
+            case .FileUpload(let fileUpload): return fileUpload.actionKeypath != nil
+            case .Visualization(let visualization): return visualization.actionKeypath != nil
+            default: return false
+            }
         case .helperText:
             if case .FileUpload(let fileUpload) = element { return fileUpload.helperText != nil }
             return false
@@ -233,6 +252,10 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             default:
                 return true
             }
+        case .kind:
+            return false
+        case .spec:
+            return true
         case .topic:
             switch element {
             case .Reference:
@@ -304,11 +327,20 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Text(let text): return text.keypath
             case .List(let list): return list.keypath
             case .Picker(let picker): return picker.keypath
+            case .Visualization(let visualization): return visualization.keypath
             case .Reference(let reference): return reference.keypath
             case .Button(let button): return button.keypath
             case .Toggle(let toggle): return toggle.keypath
             default: return nil
             }
+        case .kind:
+            if case .Visualization(let visualization) = element { return visualization.kind }
+            return nil
+        case .spec:
+            if case .Visualization(let visualization) = element {
+                return Self.formattedSpecString(visualization.spec)
+            }
+            return nil
         case .name:
             if case .Image(let image) = element { return image.name }
             return nil
@@ -322,11 +354,17 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             if case .FileUpload(let fileUpload) = element { return fileUpload.valueKeypath }
             return nil
         case .stateKeypath:
-            if case .FileUpload(let fileUpload) = element { return fileUpload.stateKeypath }
-            return nil
+            switch element {
+            case .FileUpload(let fileUpload): return fileUpload.stateKeypath
+            case .Visualization(let visualization): return visualization.stateKeypath
+            default: return nil
+            }
         case .actionKeypath:
-            if case .FileUpload(let fileUpload) = element { return fileUpload.actionKeypath }
-            return nil
+            switch element {
+            case .FileUpload(let fileUpload): return fileUpload.actionKeypath
+            case .Visualization(let visualization): return visualization.actionKeypath
+            default: return nil
+            }
         case .helperText:
             if case .FileUpload(let fileUpload) = element { return fileUpload.helperText }
             return nil
@@ -432,7 +470,17 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
         case .endpoint:
             _ = set(string: "cell:///Porthole", on: &element)
         case .keypath:
-            _ = set(string: "value", on: &element)
+            if case .Visualization = element {
+                _ = set(string: "visualization.data", on: &element)
+            } else {
+                _ = set(string: "value", on: &element)
+            }
+        case .kind:
+            _ = set(string: "table", on: &element)
+        case .spec:
+            if case .Visualization = element {
+                _ = set(string: "{\n  \"rows\": []\n}", on: &element)
+            }
         case .name:
             _ = set(string: "image", on: &element)
         case .type:
@@ -470,9 +518,17 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
         case .valueKeypath:
             _ = set(string: "attachments.current", on: &element)
         case .stateKeypath:
-            _ = set(string: "attachments.state", on: &element)
+            if case .Visualization = element {
+                _ = set(string: "visualization.selection", on: &element)
+            } else {
+                _ = set(string: "attachments.state", on: &element)
+            }
         case .actionKeypath:
-            _ = set(string: "attachments.upload", on: &element)
+            if case .Visualization = element {
+                _ = set(string: "visualization.select", on: &element)
+            } else {
+                _ = set(string: "attachments.upload", on: &element)
+            }
         case .helperText:
             _ = set(string: "Selected files are sent to the target cell action.", on: &element)
         case .acceptedContentTypes:
@@ -529,8 +585,18 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             case .Picker(var picker):
                 picker.keypath = nil
                 element = .Picker(picker)
+            case .Visualization(var visualization):
+                visualization.keypath = nil
+                element = .Visualization(visualization)
             default:
                 break
+            }
+        case .kind:
+            break
+        case .spec:
+            if case .Visualization(var visualization) = element {
+                visualization.spec = nil
+                element = .Visualization(visualization)
             }
         case .name:
             if case .Image(var image) = element {
@@ -557,14 +623,26 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 element = .FileUpload(fileUpload)
             }
         case .stateKeypath:
-            if case .FileUpload(var fileUpload) = element {
+            switch element {
+            case .FileUpload(var fileUpload):
                 fileUpload.stateKeypath = nil
                 element = .FileUpload(fileUpload)
+            case .Visualization(var visualization):
+                visualization.stateKeypath = nil
+                element = .Visualization(visualization)
+            default:
+                break
             }
         case .actionKeypath:
-            if case .FileUpload(var fileUpload) = element {
+            switch element {
+            case .FileUpload(var fileUpload):
                 fileUpload.actionKeypath = nil
                 element = .FileUpload(fileUpload)
+            case .Visualization(var visualization):
+                visualization.actionKeypath = nil
+                element = .Visualization(visualization)
+            default:
+                break
             }
         case .helperText:
             if case .FileUpload(var fileUpload) = element {
@@ -875,6 +953,10 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
                 picker.keypath = trimmed.isEmpty ? nil : trimmed
                 element = .Picker(picker)
                 return true
+            case .Visualization(var visualization):
+                visualization.keypath = trimmed.isEmpty ? nil : trimmed
+                element = .Visualization(visualization)
+                return true
             case .Reference(var reference):
                 reference.keypath = trimmed
                 element = .Reference(reference)
@@ -890,6 +972,31 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             default:
                 return false
             }
+        case .kind:
+            if case .Visualization(var visualization) = element {
+                guard trimmed.isEmpty == false else {
+                    return false
+                }
+                visualization.kind = trimmed
+                element = .Visualization(visualization)
+                return true
+            }
+            return false
+        case .spec:
+            if case .Visualization(var visualization) = element {
+                if trimmed.isEmpty {
+                    visualization.spec = nil
+                    element = .Visualization(visualization)
+                    return true
+                }
+                guard let spec = Self.parseSpecValueType(from: trimmed) else {
+                    return false
+                }
+                visualization.spec = spec
+                element = .Visualization(visualization)
+                return true
+            }
+            return false
         case .name:
             if case .Image(var image) = element {
                 image.name = trimmed.isEmpty ? nil : trimmed
@@ -912,19 +1019,31 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             }
             return false
         case .stateKeypath:
-            if case .FileUpload(var fileUpload) = element {
+            switch element {
+            case .FileUpload(var fileUpload):
                 fileUpload.stateKeypath = trimmed.isEmpty ? nil : trimmed
                 element = .FileUpload(fileUpload)
                 return true
+            case .Visualization(var visualization):
+                visualization.stateKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .Visualization(visualization)
+                return true
+            default:
+                return false
             }
-            return false
         case .actionKeypath:
-            if case .FileUpload(var fileUpload) = element {
+            switch element {
+            case .FileUpload(var fileUpload):
                 fileUpload.actionKeypath = trimmed.isEmpty ? nil : trimmed
                 element = .FileUpload(fileUpload)
                 return true
+            case .Visualization(var visualization):
+                visualization.actionKeypath = trimmed.isEmpty ? nil : trimmed
+                element = .Visualization(visualization)
+                return true
+            default:
+                return false
             }
-            return false
         case .helperText:
             if case .FileUpload(var fileUpload) = element {
                 fileUpload.helperText = trimmed.isEmpty ? nil : trimmed
@@ -1148,6 +1267,23 @@ enum SkeletonElementParameterKey: String, CaseIterable, Identifiable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+
+    private static func formattedSpecString(_ value: ValueType?) -> String? {
+        guard let value else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(value) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func parseSpecValueType(from text: String) -> ValueType? {
+        guard let data = text.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(ValueType.self, from: data)
+    }
 }
 
 enum SkeletonElementParameterCatalog {
@@ -1157,6 +1293,8 @@ enum SkeletonElementParameterCatalog {
         switch element {
         case .Text:
             return [.text, .endpoint, .keypath]
+        case .Visualization:
+            return [.kind, .keypath, .stateKeypath, .actionKeypath, .spec]
         case .TextField:
             return [.text, .sourceKeypath, .targetKeypath, .placeholder]
         case .TextArea:

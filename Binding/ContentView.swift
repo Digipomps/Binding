@@ -286,7 +286,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case publishPublicProfile = "Publish Public Profile"
     case publicProfileDirectory = "Public Profile Directory"
     case matches = "Matches"
-    case inviteChat = "Invite Chat"
+    case inviteChat = "Co-Pilot Chat"
+    case agendaContext = "Agenda Context"
     case vaultIdeas = "Vault / Ideas"
     case meetingIntent = "Meeting Intent"
     case privacyAudit = "Privacy Audit"
@@ -300,7 +301,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     var phoneTab: BindingPersonalCopilotPhoneTab {
         switch self {
-        case .personalHome, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .personalHome, .agendaContext, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
             return .home
         case .publicProfileDirectory, .matches:
             return .matches
@@ -319,7 +320,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return "Personal"
         case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent:
             return "Network"
-        case .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .agendaContext, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
             return "Workspace"
         }
     }
@@ -342,6 +343,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return ConfigurationCatalogCell.personalMatchesMenuConfiguration()
         case .inviteChat:
             return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        case .agendaContext:
+            return ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
         case .vaultIdeas:
             return ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
         case .meetingIntent:
@@ -367,13 +370,16 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         [
             ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit]),
             ("Network", [.matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
-            ("Workspace", [.vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
+            ("Workspace", [.agendaContext, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
         ]
     }
 
     static func matching(configurationName: String?) -> BindingPersonalCopilotDestination? {
         guard let configurationName else { return nil }
         let normalized = configurationName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "invite chat" {
+            return .inviteChat
+        }
         return allCases.first { $0.rawValue.lowercased() == normalized }
     }
 
@@ -603,7 +609,7 @@ struct ContentView: View {
     private static let stagingRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: Self.stagingRemoteWebSocketPath,
         schemePreference: .wss,
-        pathLayout: .publisherUUIDThenEndpoint
+        pathLayout: .endpointThenPublisherUUID
     )
 
     var body: some View {
@@ -952,6 +958,7 @@ struct ContentView: View {
         PortholeCanvas(
             skeleton: renderedSkeleton,
             isEditing: editorMode == .edit,
+            activeConfigurationName: activeConfiguration?.name,
             selectedNodePath: editorState.selectedNodePath,
             highlightedDropTargets: activeComponentDropTargets,
             activeComponent: activeComponentInsertionItem,
@@ -3230,6 +3237,18 @@ struct ContentView: View {
                 domain: "binding.demo",
                 message: "Overstyrer lagret demo-start med Conference Demo Launcher inntil demoen er ferdig."
             )
+        } else if let decoded = decodedStoredConfiguration,
+                  Self.shouldRefreshStoredDemoStartConfiguration(
+                    decoded,
+                    defaultConfiguration: storedConfiguration
+                  ) {
+            if let data = try? JSONEncoder().encode(storedConfiguration) {
+                demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
+            }
+            diagnosticsStore.record(
+                domain: "binding.demo",
+                message: "Oppgraderte lagret demo-start til nyeste Co-Pilot Chat-konfigurasjon."
+            )
         } else if decodedStoredConfiguration == nil {
             if let data = try? JSONEncoder().encode(storedConfiguration) {
                 demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
@@ -3295,7 +3314,29 @@ struct ContentView: View {
             return defaultConfiguration
         }
 
+        if shouldRefreshStoredDemoStartConfiguration(
+            storedConfiguration,
+            defaultConfiguration: defaultConfiguration
+        ) {
+            return defaultConfiguration
+        }
+
         return storedConfiguration
+    }
+
+    static func shouldRefreshStoredDemoStartConfiguration(
+        _ storedConfiguration: CellConfiguration,
+        defaultConfiguration: CellConfiguration = defaultDemoStartConfiguration()
+    ) -> Bool {
+        let storedName = storedConfiguration.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let defaultName = defaultConfiguration.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard storedName == defaultName else { return false }
+        return defaultName == "co-pilot chat"
     }
 
     @MainActor
@@ -6189,7 +6230,7 @@ struct ContentView: View {
         let canonicalRoute = RemoteCellHostRoute(
             websocketEndpoint: Self.stagingRemoteWebSocketPath,
             schemePreference: .wss,
-            pathLayout: .publisherUUIDThenEndpoint
+            pathLayout: .endpointThenPublisherUUID
         )
         registerRemoteHostIfNeeded(host, route: canonicalRoute, resolver: resolver)
         do {
@@ -6715,7 +6756,7 @@ struct ContentView: View {
 
     static func defaultDemoStartConfiguration() -> CellConfiguration {
         if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
-            return ConfigurationCatalogCell.personalHomeMenuConfiguration()
+            return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         }
         return conferenceDemoLauncherMenuSeedConfiguration()
     }
@@ -6851,20 +6892,35 @@ struct ContentView: View {
         let publishProfile = ConfigurationCatalogCell.personalPublicProfileMenuConfiguration()
         let matches = ConfigurationCatalogCell.personalMatchesMenuConfiguration()
         let inviteChat = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        let agendaContext = ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
         let vaultIdeas = ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
         let meetingIntent = ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration()
         let privacyAudit = ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
         let appleIntelligence = ConfigurationCatalogCell.appleIntelligenceLandingForPersonalCopilotConfiguration()
         let entityScanner = ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
         let workflowStudio = ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
+        var upperMid = [myProfile, publishProfile, appleIntelligence, workflowStudio]
+        var upperRight = [agendaContext, vaultIdeas, meetingIntent]
+        var lowerLeft = [entityScanner, privacyAudit]
+        var lowerMid = [workflowStudio, inviteChat, matches]
+        var lowerRight = [agendaContext, vaultIdeas, meetingIntent, privacyAudit]
+        if BindingPersonalCopilotV1Policy.conferenceShowcaseEnabled {
+            let conferenceCodex = ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
+            let conferenceClaude = ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration()
+            upperMid.append(conferenceCodex)
+            upperRight.append(contentsOf: [conferenceCodex, conferenceClaude])
+            lowerLeft.append(conferenceCodex)
+            lowerMid.append(contentsOf: [conferenceCodex, conferenceClaude])
+            lowerRight.append(contentsOf: [conferenceCodex, conferenceClaude])
+        }
 
         return (
             upperLeft: [personalHome, inviteChat, matches],
-            upperMid: [myProfile, publishProfile, appleIntelligence, workflowStudio],
-            upperRight: [vaultIdeas, meetingIntent],
-            lowerLeft: [entityScanner, privacyAudit],
-            lowerMid: [workflowStudio, inviteChat, matches],
-            lowerRight: [vaultIdeas, meetingIntent, privacyAudit]
+            upperMid: upperMid,
+            upperRight: upperRight,
+            lowerLeft: lowerLeft,
+            lowerMid: lowerMid,
+            lowerRight: lowerRight
         )
     }
 
@@ -6889,6 +6945,8 @@ struct ContentView: View {
             endpoint: stagingEndpoint("ConferencePublicShell")
         )
         let conferenceSponsor = Self.conferenceSponsorAutomationConfiguration()
+        let conferenceCodex = ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
+        let conferenceClaude = ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration()
         let todo = referenceMenuConfiguration(
             name: "Todo MVP",
             endpoint: stagingEndpoint("Todo"),
@@ -6919,12 +6977,12 @@ struct ContentView: View {
         let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
         let agentSetup = ConfigurationCatalogCell.agentSetupWorkbenchMenuConfiguration()
 
-        var upperLeft = [conferenceDemoLauncher, conferencePublic, conferenceMVP, chat, todo]
-        var upperMid = [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, conferenceSponsor, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, portholeWorkbench]
-        var upperRight = [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceSponsor, conferenceIdentityLink, workflowStudioPortable, obsidian, portholeWorkbench]
-        var lowerLeft = [localEntityScanner, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist]
-        var lowerMid = [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, conferenceMVP, conferenceSponsor, todo, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, folderWatchWorkbench, graphIndexWorkbench]
-        var lowerRight = [obsidian, vaultWorkbench, workflowStudioWorkbench, workflowStudioPortable, graphIndexWorkbench, trustedIssuersWorkbench]
+        let upperLeft = [conferenceDemoLauncher, conferencePublic, conferenceMVP, chat, todo, conferenceCodex]
+        var upperMid = [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, conferenceSponsor, conferenceClaude, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, portholeWorkbench]
+        let upperRight = [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceSponsor, conferenceIdentityLink, conferenceCodex, conferenceClaude, workflowStudioPortable, obsidian, portholeWorkbench]
+        let lowerLeft = [localEntityScanner, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist]
+        let lowerMid = [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, conferenceMVP, conferenceSponsor, conferenceCodex, conferenceClaude, todo, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, folderWatchWorkbench, graphIndexWorkbench]
+        var lowerRight = [obsidian, vaultWorkbench, workflowStudioWorkbench, workflowStudioPortable, graphIndexWorkbench, trustedIssuersWorkbench, conferenceCodex, conferenceClaude]
 
         if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
             upperMid.append(agentSetup)
@@ -7030,6 +7088,7 @@ private extension ValueType {
 private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
     var isEditing: Bool
+    var activeConfigurationName: String?
     var selectedNodePath: SkeletonNodePath?
     var highlightedDropTargets: [DropTargetDescriptor]
     var activeComponent: ComponentPaletteItem?
@@ -7112,7 +7171,43 @@ private struct PortholeCanvas: View {
                 onSelect: onSelectPath
             )
         } else {
-            SkeletonView(element: skeleton)
+            if let mode = nativeNearbyRadarMode {
+                nativeNearbyRadarCanvas(mode: mode)
+            } else {
+                SkeletonView(element: skeleton)
+            }
+        }
+    }
+
+    private var nativeNearbyRadarMode: ConferenceNearbyRadarSurfaceMode? {
+        guard !isEditing,
+              let normalizedName = activeConfigurationName?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() else {
+            return nil
+        }
+
+        if normalizedName.contains("conference nearby radar") {
+            return .full
+        }
+
+        if normalizedName == "conference participant portal dashboard" {
+            return .compact
+        }
+
+        return nil
+    }
+
+    private func nativeNearbyRadarCanvas(mode: ConferenceNearbyRadarSurfaceMode) -> some View {
+        let maxWidth: CGFloat = mode == .full ? 1080 : 940
+        return ScrollView {
+            VStack(spacing: mode == .full ? 16 : 12) {
+                ConferenceNearbyRadarSurfaceView(mode: mode)
+                SkeletonView(element: skeleton)
+            }
+            .frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, mode == .full ? 10 : 0)
         }
     }
 

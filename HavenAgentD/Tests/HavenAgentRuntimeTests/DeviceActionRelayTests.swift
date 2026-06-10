@@ -83,6 +83,7 @@ struct DeviceActionRelayTests {
         #expect(published.first?.deviceId == "device-phone")
         #expect(published.first?.requiredActionKey == DeviceActionRequest.approvalActionKey)
         #expect(published.first?.triggerEvent == "workflow.review.pending")
+        #expect(published.first?.payload["deviceId"] == .string("device-phone"))
         #expect(published.first?.payload["responseMode"] == .string("approval"))
         #expect(published.first?.payload["conversationId"] == .string("conversation-1"))
         #expect(published.first?.payload["interests"] == .array([.string("approval"), .string("automation")]))
@@ -166,6 +167,56 @@ struct DeviceActionRelayTests {
 
         let replyFile = relay.repliesDirectoryURL().appendingPathComponent("ticket-1--conversation-1--2026-05-02T12-30-00Z.json")
         #expect(FileManager.default.fileExists(atPath: replyFile.path))
+    }
+
+    @Test
+    func recordConversationReplyRoutesCodexStartPromptToCodexQueue() async throws {
+        let root = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let relay = DeviceActionRelay(
+            paths: paths,
+            config: DeviceActionRelayConfig(
+                enabled: true,
+                notificationOutboxEndpoint: "cell://staging.haven.digipomps.org/NotificationOutbox"
+            ),
+            publisher: RecordingDeviceActionPublisher(),
+            requesterProvider: { Identity("test-requester", displayName: "Test Requester", identityVault: nil) }
+        )
+
+        try await relay.bootstrap()
+
+        let prompt = AgentConversationPrompt(
+            id: "codex-request-1",
+            requestId: "codex-request-1",
+            conversationId: "conversation-codex-1",
+            jobId: "job-codex-1",
+            participantId: "participant-phone",
+            deviceId: "device-phone",
+            ticketId: "ticket-codex-1",
+            requiredActionKey: CodexPromptQueueContract.requiredActionKey,
+            title: "Start Codex",
+            message: "Start a coding prompt from the phone.",
+            purpose: "purpose://operate-local-haven-agent",
+            interests: ["codex", "automation"],
+            workspacePath: "/tmp/haven",
+            preferredAssistant: "codex",
+            prompt: "Run the next safe test."
+        )
+
+        try await relay.recordConversationReply(prompt)
+
+        let queue = CodexPromptQueue(paths: paths)
+        let queued = queue.queuedRecords()
+        #expect(queued.count == 1)
+        #expect(queued.first?.request.id == "codex-request-1")
+        #expect(queued.first?.request.prompt == "Run the next safe test.")
+        #expect(queued.first?.request.purpose == "purpose://operate-local-haven-agent")
+        #expect(queued.first?.request.interests == ["codex", "automation"])
+
+        let replyFile = relay.repliesDirectoryURL().appendingPathComponent("codex-request-1.json")
+        #expect(FileManager.default.fileExists(atPath: replyFile.path) == false)
     }
 
     private func makeTemporaryRoot() -> URL {

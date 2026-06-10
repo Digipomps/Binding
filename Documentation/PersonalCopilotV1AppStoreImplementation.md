@@ -4,7 +4,7 @@ Binding now treats `Personal Co-Pilot` as the default product surface for App St
 
 ## Binding Runtime
 
-- Default menu seeds expose only: `Personal Home`, `My Profile`, `Publish Public Profile`, `Matches`, `Invite Chat`, `Vault / Ideas`, `Meeting Intent`, `Apple Intelligence`, `Entity Scanner` and `Workflow Studio`.
+- Default menu seeds expose only: `Personal Home`, `My Profile`, `Publish Public Profile`, `Matches`, `Co-Pilot Chat`, `Vault / Ideas`, `Meeting Intent`, `Apple Intelligence`, `Entity Scanner` and `Workflow Studio`.
 - Conference/demo surfaces are still available in debug builds only when `BINDING_ENABLE_CONFERENCE_DEMO_MENUS=1` or `--conference-demo-menus` is supplied.
 - App Store catalog gating is controlled by `BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled`.
 - Allowed remote hosts are explicit. V1 currently allows `staging.haven.digipomps.org`; local `cell:///...` endpoints are allowed only when the configuration is scoped to `personal-copilot-v1`.
@@ -18,6 +18,7 @@ Binding registers these identity-scoped local cells:
 - `PersonalIdentity`: requester/account lifecycle, export/delete hooks.
 - `PersonalProfileDraft`: local profile draft, publish preview and consent staging.
 - `PersonalChatClient`: invite-only chat draft surface with `invite`, `acceptInvite`, `declineInvite`, `sendComposedMessage`, `clearComposer`, `reportMessage`, `blockUser`, `blockedUsers` and `moderationStatus`.
+- Co-Pilot Chat speech input is Binding-local push-to-talk dictation. It may request microphone/speech permission only after explicit user action, writes transcript text to the local composer, and does not implement wake phrases, background listening or autosend in V1.
 - `PersonalMeetingIntent`: meeting intent state and Jitsi-ready `meetingBridge` metadata without camera/microphone/calendar requests in v1.
 - `PersonalPrivacyAudit`: local audit log for publish, match consent, chat invite, remote config loads and permission grants.
 
@@ -58,7 +59,8 @@ Hard requirements:
 - Catalog search/recommendations must return only `personal-copilot-v1` entries from approved hosts in App Store mode.
 - Chat must support invite, accept, decline, compose/send, report and block before submission.
 - Profile publish must require explicit consent; unpublish/delete must remove public profile state from CellScaffold.
-- Remote configurations must not access vault, camera, microphone, calendar, contacts, nearby/bluetooth or Apple Intelligence without explicit user action per capability.
+- Remote configurations must not access vault, camera, microphone, calendar, contacts, nearby/bluetooth or Apple Intelligence without explicit Binding-mediated user action per capability.
+- Co-Pilot speech denial must leave typed chat composer workflows usable.
 - Jitsi remains metadata only in v1: no embed and no camera/microphone request.
 - No StoreKit, prepaid wording or external purchase call-to-action is exposed in v1.
 

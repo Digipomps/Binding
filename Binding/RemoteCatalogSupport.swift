@@ -12,13 +12,13 @@ enum RemoteEndpointAccessSupport {
     static let localCatalogEndpoint = "cell:///ConfigurationCatalog"
 
     private static let defaultRemoteRoute = RemoteCellHostRoute(
-        websocketEndpoint: "publishersws",
+        websocketEndpoint: "bridgehead",
         schemePreference: .automatic
     )
     private static let stagingRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: "bridgehead",
         schemePreference: .wss,
-        pathLayout: .publisherUUIDThenEndpoint
+        pathLayout: .endpointThenPublisherUUID
     )
 
     enum AccessError: Error, LocalizedError {

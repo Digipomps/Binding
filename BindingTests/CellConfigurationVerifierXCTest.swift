@@ -117,12 +117,181 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
     }
 
+    func testPersonalHomeNavigatorCanOpenProfileAuditAndPublishSurfaces() async throws {
+        let configuration = ConfigurationCatalogCell.personalHomeMenuConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let expectedProfileLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "My Profile")
+        }
+        let openProfileResponse = try await context.porthole.set(
+            keypath: "personalNavigator.dispatchAction",
+            value: .object([
+                "keypath": .string("navigator.openMyProfile"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openProfileResponse else {
+            XCTFail("Open profile action returned nil response")
+            return
+        }
+        let openProfileFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openProfileResponse)
+        }
+        XCTAssertNil(openProfileFailure)
+
+        guard let profileConfiguration = await expectedProfileLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for My Profile")
+            return
+        }
+        XCTAssertEqual(profileConfiguration.name, "My Profile")
+        XCTAssertTrue(profileConfiguration.cellReferences?.contains(where: { $0.label == "profileDraft" }) == true)
+
+        let expectedAuditLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Privacy Audit")
+        }
+        let openAuditResponse = try await context.porthole.set(
+            keypath: "personalNavigator.dispatchAction",
+            value: .object([
+                "keypath": .string("navigator.openPrivacyAudit"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openAuditResponse else {
+            XCTFail("Open privacy audit action returned nil response")
+            return
+        }
+        let openAuditFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openAuditResponse)
+        }
+        XCTAssertNil(openAuditFailure)
+
+        guard let auditConfiguration = await expectedAuditLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Privacy Audit")
+            return
+        }
+        XCTAssertEqual(auditConfiguration.name, "Privacy Audit")
+        XCTAssertTrue(auditConfiguration.cellReferences?.contains(where: { $0.label == "privacyAudit" }) == true)
+
+        let expectedPublishLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Publish Public Profile")
+        }
+        let openPublishResponse = try await context.porthole.set(
+            keypath: "personalNavigator.dispatchAction",
+            value: .object([
+                "keypath": .string("navigator.openPublishPublicProfile"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openPublishResponse else {
+            XCTFail("Open publish public profile action returned nil response")
+            return
+        }
+        let openPublishFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openPublishResponse)
+        }
+        XCTAssertNil(openPublishFailure)
+
+        guard let publishConfiguration = await expectedPublishLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Publish Public Profile")
+            return
+        }
+        XCTAssertEqual(publishConfiguration.name, "Publish Public Profile")
+        XCTAssertTrue(publishConfiguration.cellReferences?.contains(where: { $0.label == "profilePublisher" }) == true)
+    }
+
+    func testConferenceShowcaseButtonsCanExecuteWithoutBrokenBindings() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Open demo launcher",
+                "Open Claude reference",
+                "Participant portal",
+                "AI assistant",
+                "Control tower",
+                "Public surface",
+                "Sponsor follow-up",
+                "Nearby radar",
+                "Participant chat"
+            ]
+        )
+
+        XCTAssertTrue(report.failedActions.isEmpty, "Expected direct showcase buttons to succeed, got: \(report.failedActions)")
+        XCTAssertTrue(report.unresolvedReferences.isEmpty, "Conference showcase should resolve its navigator reference cleanly.")
+        XCTAssertTrue(report.unreadableRootProbes.isEmpty, "Conference showcase should not expose unreadable status bindings anymore.")
+    }
+
+    func testConferenceShowcaseNavigatorPostsBindingLoadRequests() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let expectedParticipantLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Participant Portal")
+        }
+        let openParticipantResponse = try await context.porthole.set(
+            keypath: "conferenceNavigator.dispatchAction",
+            value: .object([
+                "keypath": .string("navigator.openConferenceParticipantPortal"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openParticipantResponse else {
+            XCTFail("Open participant portal action returned nil response")
+            return
+        }
+        let openParticipantFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openParticipantResponse)
+        }
+        XCTAssertNil(openParticipantFailure)
+
+        guard let participantConfiguration = await expectedParticipantLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Participant Portal")
+            return
+        }
+        XCTAssertTrue(participantConfiguration.name.contains("Conference Participant Portal"))
+        XCTAssertTrue(participantConfiguration.cellReferences?.contains(where: { $0.label == "conferenceParticipantShell" }) == true)
+
+        let expectedClaudeReferenceLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Claude Design Reference")
+        }
+        let openClaudeResponse = try await context.porthole.set(
+            keypath: "conferenceNavigator.dispatchAction",
+            value: .object([
+                "keypath": .string("navigator.openConferenceClaudeDesignReference"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openClaudeResponse else {
+            XCTFail("Open Claude reference action returned nil response")
+            return
+        }
+        let openClaudeFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openClaudeResponse)
+        }
+        XCTAssertNil(openClaudeFailure)
+
+        guard let claudeConfiguration = await expectedClaudeReferenceLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Conference Claude Design Reference")
+            return
+        }
+        XCTAssertEqual(claudeConfiguration.name, "Conference Claude Design Reference")
+    }
+
     func testPersonalCopilotInviteChatMatchesStagingAssistantAndPollContract() throws {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         let references = Set((configuration.cellReferences ?? []).map(\.endpoint))
 
-        XCTAssertTrue(references.contains("cell://staging.haven.digipomps.org/PersonalChatHub"))
-        XCTAssertTrue(references.contains("cell:///PersonalChatClient"))
+        XCTAssertTrue(references.contains("cell:///PersonalChatHub"))
         XCTAssertEqual(
             CellConfigurationValidationService.validate(configuration).errorCount,
             0
@@ -132,26 +301,48 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
         let data = try encoder.encode(configuration)
         guard let json = String(data: data, encoding: .utf8) else {
-            XCTFail("Expected Invite Chat configuration JSON")
+            XCTFail("Expected Co-Pilot Chat configuration JSON")
             return
         }
 
         for expected in [
             "\"keypath\":\"chatHub.assistant.analyzeDraft\"",
-            "\"keypath\":\"chatHub.assistant.acceptSuggestion\"",
             "\"keypath\":\"chatHub.assistant.dismissSuggestion\"",
+            "\"keypath\":\"chatHub.ui.openSuggestedHelper\"",
             "\"targetKeypath\":\"chatHub.assistant.setCandidateQuery\"",
             "\"selectionActionKeypath\":\"chatHub.assistant.selectCandidate\"",
             "\"selectionPayloadMode\":\"item_id\"",
+            "\"selectionStateKeypath\":\"chatHub.state.assistant.latestSuggestion.selectedCandidateProfileID\"",
+            "\"targetKeypath\":\"chatHub.inviteDraft.title\"",
             "\"targetKeypath\":\"chatHub.poll.setQuestion\"",
             "\"targetKeypath\":\"chatHub.poll.setOptions\"",
             "\"keypath\":\"chatHub.poll.create\"",
             "\"keypath\":\"chatHub.poll.vote\"",
             "\"keypath\":\"chatHub.poll.close\"",
+            "\"keypath\":\"chatHub.idea.capture\"",
+            "\"keypath\":\"chatHub.todo.create\"",
+            "\"keypath\":\"chatHub.project.create\"",
+            "\"keypath\":\"chatHub.reminder.create\"",
+            "\"keypath\":\"chatHub.meeting.schedule\"",
+            "\"keypath\":\"chatHub.agent.review.create\"",
+            "\"keypath\":\"chatHub.capabilityRequest.submit\"",
+            "\"keypath\":\"chatHub.ui.setCapabilityDiscoveryEnabled\"",
             "\"keypath\":\"chatHub.unblockUser\"",
-            "\"targetKeypath\":\"chatHub.setComposer\""
+            "\"targetKeypath\":\"chatHub.setComposer\"",
+            "\"keypath\":\"chatHub.state.assistant.whySummary\""
         ] {
-            XCTAssertTrue(json.contains(expected), "Invite Chat JSON missing \(expected)")
+            XCTAssertTrue(json.contains(expected), "Co-Pilot Chat JSON missing \(expected)")
+        }
+
+        for unwanted in [
+            "\"targetKeypath\":\"chatHub.inviteDraft.userUUID\"",
+            "\"targetKeypath\":\"chatHub.inviteDraft.profileID\"",
+            "Safety status",
+            "\"keypath\":\"chatHub.assistant.acceptSuggestion\"",
+            "\"keypath\":\"chatHub.state.blockedUsers\"",
+            "\"keypath\":\"chatHub.state.purposeWeights\""
+        ] {
+            XCTAssertFalse(json.contains(unwanted), "Co-Pilot Chat JSON should not expose \(unwanted)")
         }
 
         XCTAssertFalse(
@@ -514,9 +705,15 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(report.startOutcome, "ok")
         XCTAssertEqual(report.statusAfterStart, "started")
         XCTAssertEqual(report.requestContactOutcome, "ok")
-        XCTAssertEqual(report.requestContactLabel, "Kontakt venter")
-        XCTAssertEqual(report.requestContactSummary, "Signert kontaktforespørsel sendt. Venter på godkjenning.")
-        XCTAssertEqual(report.requestContactActionSummary, "Signert kontaktforespørsel sendt. Venter på godkjenning.")
+        XCTAssertTrue(report.requestContactLabel.map { ["Kontakt venter", "Awaiting exchange"].contains($0) } == true)
+        XCTAssertTrue(report.requestContactSummary.map { [
+            "Signert kontaktforespørsel sendt. Venter på godkjenning.",
+            "Signed contact request sent. Awaiting signed identity exchange."
+        ].contains($0) } == true)
+        XCTAssertTrue(report.requestContactActionSummary.map { [
+            "Signert kontaktforespørsel sendt. Venter på godkjenning.",
+            "Signed contact request sent. Awaiting signed identity exchange."
+        ].contains($0) } == true)
         XCTAssertEqual(report.openChatOutcome, "ok")
         XCTAssertEqual(report.nearbyCardLabel, "Åpne chatflate")
         XCTAssertTrue(report.nearbyCardPurposeSummary?.contains("verified overlap") == true)
@@ -1351,6 +1548,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
         XCTAssertTrue(publicSurfaceConfiguration.name.contains("Conference Public Surface"))
         XCTAssertTrue(publicSurfaceConfiguration.cellReferences?.contains(where: { $0.label == "conferencePublicShell" }) == true)
+        XCTAssertTrue(publicSurfaceConfiguration.cellReferences?.contains(where: {
+            $0.label == "conferencePublicShell" && $0.endpoint == "cell:///ConferencePublicShellFixture"
+        }) == true)
 
         let expectedControlTowerLoad = Task {
             await waitForPortholeLoadBridgeConfiguration(containingName: "Conference Control Tower")
@@ -1466,6 +1666,12 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
         XCTAssertTrue(aiAssistantConfiguration.name.contains("Conference AI Assistant"))
         XCTAssertTrue(aiAssistantConfiguration.cellReferences?.contains(where: { $0.label == "aiGateway" }) == true)
+        XCTAssertTrue(aiAssistantConfiguration.cellReferences?.contains(where: {
+            $0.label == "conferenceParticipantShell" && $0.endpoint == "cell:///ConferenceParticipantPreviewShell"
+        }) == true)
+        XCTAssertTrue(aiAssistantConfiguration.cellReferences?.contains(where: {
+            $0.label == "aiGateway" && $0.endpoint == "cell:///ConferenceAIAssistantGatewayProxy"
+        }) == true)
     }
 
     func testConferenceIdentityLinkImportAndReviewFlow() async throws {

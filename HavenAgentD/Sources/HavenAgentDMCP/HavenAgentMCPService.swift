@@ -1,6 +1,7 @@
 import Foundation
 import HavenAgentCellRuntime
 import HavenAgentRuntime
+import HavenMacAutomation
 import HavenRuntimeBootstrap
 
 private struct MCPResourceDescriptor {
@@ -37,6 +38,30 @@ private struct MCPToolDescriptor {
     }
 }
 
+private struct StoredConversationReply {
+    let fileURL: URL
+    let reply: AgentConversationPrompt
+}
+
+private struct QueuedOperatorRequest {
+    let requestID: String
+    let responseMode: DeviceActionResponseMode
+    let requestFilePath: String
+    let conversationID: String
+    let jobID: String
+
+    func jsonObject() -> JSONObject {
+        [
+            "requestId": requestID,
+            "responseMode": responseMode.rawValue,
+            "status": "queued",
+            "requestFilePath": requestFilePath,
+            "conversationId": conversationID,
+            "jobId": jobID
+        ]
+    }
+}
+
 enum HavenAgentMCPServiceError: Error, LocalizedError {
     case unknownResource(String)
     case invalidToolArguments(String)
@@ -67,15 +92,18 @@ final class HavenAgentMCPService {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private let docsDirectory: URL
+    private let xcodeController: any XcodeWorkspaceControlling
 
     init(
         paths: RuntimePaths,
         configURL: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        xcodeController: any XcodeWorkspaceControlling = XcodeWorkspaceController()
     ) {
         self.paths = paths
         self.configURL = configURL.standardizedFileURL
         self.fileManager = fileManager
+        self.xcodeController = xcodeController
         self.decoder = JSONDecoder()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -113,6 +141,8 @@ final class HavenAgentMCPService {
             return try makeResourceReadResult(uri: uri, mimeType: "application/json", object: await bridgeStatusResource())
         case "haven-agent://conversation/replies":
             return try makeResourceReadResult(uri: uri, mimeType: "application/json", object: conversationRepliesResource())
+        case "haven-agent://codex/prompt-requests":
+            return try makeResourceReadResult(uri: uri, mimeType: "application/json", object: codexPromptRequestsResource())
         case "haven-agent://docs/security-model":
             return try makeTextResourceReadResult(
                 uri: uri,
@@ -147,6 +177,9 @@ final class HavenAgentMCPService {
             case "agent.bootstrap.probe":
                 return try await bootstrapProbeTool(arguments: arguments)
 
+            case "agent.xcode.ensure_workspace":
+                return try await xcodeEnsureWorkspaceTool(arguments: arguments)
+
             case "agent.review.state":
                 let summary = try await ReviewCommandService(paths: paths, configURL: configURL).state()
                 let object = try jsonObject(from: summary)
@@ -164,6 +197,21 @@ final class HavenAgentMCPService {
 
             case "agent.operator.request":
                 return try operatorRequestTool(arguments: arguments)
+
+            case "agent.operator.wait_for_reply":
+                return try await waitForReplyTool(arguments: arguments)
+
+            case "agent.operator.request_and_wait":
+                return try await requestAndWaitTool(arguments: arguments)
+
+            case "agent.codex.next_prompt":
+                return try codexNextPromptTool(arguments: arguments)
+
+            case "agent.codex.mark_prompt_started":
+                return try codexMarkPromptStartedTool(arguments: arguments)
+
+            case "agent.codex.mark_prompt_done":
+                return try codexMarkPromptDoneTool(arguments: arguments)
 
             default:
                 throw HavenAgentMCPServiceError.invalidToolArguments("Unknown tool: \(name)")
@@ -237,6 +285,13 @@ final class HavenAgentMCPService {
                 mimeType: "application/json"
             ),
             MCPResourceDescriptor(
+                uri: "haven-agent://codex/prompt-requests",
+                name: "codex_prompt_requests",
+                title: "Codex Prompt Requests",
+                description: "Phone-originated Codex prompt requests queued for a running coding host.",
+                mimeType: "application/json"
+            ),
+            MCPResourceDescriptor(
                 uri: "haven-agent://docs/security-model",
                 name: "security_model_doc",
                 title: "Security Model",
@@ -291,6 +346,51 @@ final class HavenAgentMCPService {
                             "default": false
                         ]
                     ],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.xcode.ensure_workspace",
+                title: "Ensure Xcode Workspace",
+                description: "Close stale or competing Xcode workspaces, reopen the requested workspace, select scheme and destination, and optionally build.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "workspacePath": [
+                            "type": "string"
+                        ],
+                        "exclusiveLocalPackagePath": [
+                            "type": "string"
+                        ],
+                        "scheme": [
+                            "type": "string"
+                        ],
+                        "destinationName": [
+                            "type": "string",
+                            "default": "My Mac (arm64)"
+                        ],
+                        "destinationPlatform": [
+                            "type": "string",
+                            "default": "macosx"
+                        ],
+                        "destinationArchitecture": [
+                            "type": "string",
+                            "default": "arm64"
+                        ],
+                        "closeOtherWorkspaces": [
+                            "type": "boolean",
+                            "default": true
+                        ],
+                        "build": [
+                            "type": "boolean",
+                            "default": true
+                        ],
+                        "timeoutSeconds": [
+                            "type": "number",
+                            "default": 300
+                        ]
+                    ],
+                    "required": ["workspacePath"],
                     "additionalProperties": false
                 ]
             ),
@@ -355,6 +455,170 @@ final class HavenAgentMCPService {
                         ]
                     ],
                     "required": ["responseMode", "title", "message"],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.operator.wait_for_reply",
+                title: "Wait For Operator Reply",
+                description: "Wait for a matching prompt or approval reply to come back from Binding.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "requestId": [
+                            "type": "string"
+                        ],
+                        "conversationId": [
+                            "type": "string"
+                        ],
+                        "jobId": [
+                            "type": "string"
+                        ],
+                        "ticketId": [
+                            "type": "string"
+                        ],
+                        "timeoutSeconds": [
+                            "type": "number",
+                            "default": 300
+                        ],
+                        "pollIntervalSeconds": [
+                            "type": "number",
+                            "default": 2
+                        ]
+                    ],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.operator.request_and_wait",
+                title: "Request And Wait",
+                description: "Queue an operator prompt or approval request and wait for the matching reply.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "responseMode": [
+                            "type": "string",
+                            "enum": ["prompt", "approval"]
+                        ],
+                        "title": [
+                            "type": "string"
+                        ],
+                        "message": [
+                            "type": "string"
+                        ],
+                        "purpose": [
+                            "type": "string"
+                        ],
+                        "purposeDescription": [
+                            "type": "string"
+                        ],
+                        "interests": [
+                            "type": "array",
+                            "items": [
+                                "type": "string"
+                            ]
+                        ],
+                        "conversationId": [
+                            "type": "string"
+                        ],
+                        "jobId": [
+                            "type": "string"
+                        ],
+                        "payload": [
+                            "type": "object"
+                        ],
+                        "timeoutSeconds": [
+                            "type": "number",
+                            "default": 300
+                        ],
+                        "pollIntervalSeconds": [
+                            "type": "number",
+                            "default": 2
+                        ]
+                    ],
+                    "required": ["responseMode", "title", "message"],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.codex.next_prompt",
+                title: "Next Codex Prompt",
+                description: "Return the next phone-originated Codex prompt request, optionally claiming it for this host.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "workspacePath": [
+                            "type": "string"
+                        ],
+                        "purpose": [
+                            "type": "string"
+                        ],
+                        "interest": [
+                            "type": "string"
+                        ],
+                        "preferredAssistant": [
+                            "type": "string"
+                        ],
+                        "claim": [
+                            "type": "boolean",
+                            "default": true
+                        ],
+                        "assistant": [
+                            "type": "string"
+                        ],
+                        "note": [
+                            "type": "string"
+                        ]
+                    ],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.codex.mark_prompt_started",
+                title: "Mark Codex Prompt Started",
+                description: "Claim a queued phone-originated Codex prompt for the current coding host.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": [
+                            "type": "string"
+                        ],
+                        "assistant": [
+                            "type": "string"
+                        ],
+                        "workspacePath": [
+                            "type": "string"
+                        ],
+                        "note": [
+                            "type": "string"
+                        ]
+                    ],
+                    "required": ["id"],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
+                name: "agent.codex.mark_prompt_done",
+                title: "Mark Codex Prompt Done",
+                description: "Record the outcome of a phone-originated Codex prompt request.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": [
+                            "type": "string"
+                        ],
+                        "status": [
+                            "type": "string",
+                            "enum": ["done", "blocked", "failed"]
+                        ],
+                        "summary": [
+                            "type": "string"
+                        ],
+                        "error": [
+                            "type": "string"
+                        ]
+                    ],
+                    "required": ["id", "status"],
                     "additionalProperties": false
                 ]
             )
@@ -439,6 +703,42 @@ final class HavenAgentMCPService {
         )
     }
 
+    private func xcodeEnsureWorkspaceTool(arguments: JSONObject) async throws -> MCPToolCallOutput {
+        let workspacePath = try requiredStringArgument(
+            arguments,
+            key: "workspacePath",
+            message: "xcode ensure_workspace requires workspacePath"
+        )
+        let request = XcodeWorkspaceRequest(
+            workspacePath: workspacePath,
+            exclusiveLocalPackagePath: normalizedFilterValue(arguments["exclusiveLocalPackagePath"]),
+            scheme: normalizedFilterValue(arguments["scheme"]),
+            destinationName: normalizedFilterValue(arguments["destinationName"]) ?? "My Mac (arm64)",
+            destinationPlatform: normalizedFilterValue(arguments["destinationPlatform"]) ?? "macosx",
+            destinationArchitecture: normalizedFilterValue(arguments["destinationArchitecture"]) ?? "arm64",
+            closeOtherWorkspaces: boolValue(arguments["closeOtherWorkspaces"]) ?? true,
+            build: boolValue(arguments["build"]) ?? true,
+            timeoutSeconds: Int(clampedSeconds(
+                doubleValue(arguments["timeoutSeconds"]),
+                defaultValue: 300,
+                minimum: 10,
+                maximum: 900
+            ))
+        )
+        let result = try await xcodeController.ensureWorkspace(request)
+        let object = try jsonObject(from: result)
+        let didFail = result.buildRequested
+            && (!result.completed || result.status != "succeeded" || result.errorCount > 0)
+        let buildText = result.buildRequested
+            ? " Build status: \(result.status), errors: \(result.errorCount), warnings: \(result.warningCount)."
+            : ""
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Xcode workspace \(result.openedWorkspaceName) is open.\(buildText)",
+            isError: didFail
+        )
+    }
+
     private enum ReviewMutationAction {
         case approve
         case reject
@@ -476,6 +776,16 @@ final class HavenAgentMCPService {
     }
 
     private func operatorRequestTool(arguments: JSONObject) throws -> MCPToolCallOutput {
+        let queuedRequest = try queueOperatorRequest(arguments: arguments)
+        let object = queuedRequest.jsonObject()
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Queued operator \(queuedRequest.responseMode.rawValue) request \(queuedRequest.requestID).",
+            isError: false
+        )
+    }
+
+    private func queueOperatorRequest(arguments: JSONObject) throws -> QueuedOperatorRequest {
         guard let relayConfig = try loadRelayConfig() else {
             throw HavenAgentMCPServiceError.relayDisabled
         }
@@ -522,17 +832,206 @@ final class HavenAgentMCPService {
         let data = try encoder.encode(request)
         try data.write(to: requestFileURL, options: [.atomic])
 
+        return QueuedOperatorRequest(
+            requestID: requestID,
+            responseMode: responseMode,
+            requestFilePath: requestFileURL.path,
+            conversationID: conversationID,
+            jobID: jobID
+        )
+    }
+
+    private func waitForReplyTool(arguments: JSONObject) async throws -> MCPToolCallOutput {
+        let requestID = normalizedFilterValue(arguments["requestId"])
+        let conversationID = normalizedFilterValue(arguments["conversationId"])
+        let jobID = normalizedFilterValue(arguments["jobId"])
+        let ticketID = normalizedFilterValue(arguments["ticketId"])
+
+        guard requestID != nil || conversationID != nil || jobID != nil || ticketID != nil else {
+            throw HavenAgentMCPServiceError.invalidToolArguments(
+                "wait_for_reply requires at least one of requestId, conversationId, jobId, or ticketId"
+            )
+        }
+
+        let timeoutSeconds = clampedSeconds(
+            doubleValue(arguments["timeoutSeconds"]),
+            defaultValue: 300,
+            minimum: 0,
+            maximum: 3600
+        )
+        let pollIntervalSeconds = clampedSeconds(
+            doubleValue(arguments["pollIntervalSeconds"]),
+            defaultValue: 2,
+            minimum: 0.25,
+            maximum: 30
+        )
+
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+
+        while true {
+            let replies = conversationReplyRecords()
+            if let match = latestMatchingReply(
+                in: replies,
+                requestID: requestID,
+                conversationID: conversationID,
+                jobID: jobID,
+                ticketID: ticketID
+            ) {
+                let replyObject = try jsonObject(from: match.reply)
+                let result: JSONObject = [
+                    "matched": true,
+                    "timedOut": false,
+                    "replyFilePath": match.fileURL.path,
+                    "reply": replyObject,
+                    "requestId": (match.reply.requestId ?? requestID) as Any,
+                    "conversationId": match.reply.conversationId,
+                    "jobId": match.reply.jobId ?? NSNull(),
+                    "ticketId": match.reply.ticketId ?? NSNull()
+                ]
+                return MCPToolCallOutput(
+                    structuredContent: result,
+                    text: replySummary(for: match.reply),
+                    isError: false
+                )
+            }
+
+            if timeoutSeconds == 0 || Date() >= deadline {
+                let result: JSONObject = [
+                    "matched": false,
+                    "timedOut": true,
+                    "requestId": requestID ?? NSNull(),
+                    "conversationId": conversationID ?? NSNull(),
+                    "jobId": jobID ?? NSNull(),
+                    "ticketId": ticketID ?? NSNull(),
+                    "timeoutSeconds": timeoutSeconds,
+                    "pollIntervalSeconds": pollIntervalSeconds,
+                    "reply": NSNull()
+                ]
+                let matchLabel = requestID ?? conversationID ?? jobID ?? ticketID ?? "unknown"
+                return MCPToolCallOutput(
+                    structuredContent: result,
+                    text: "Timed out waiting for operator reply matching \(matchLabel).",
+                    isError: true
+                )
+            }
+
+            try await Task.sleep(nanoseconds: sleepNanoseconds(for: pollIntervalSeconds))
+        }
+    }
+
+    private func requestAndWaitTool(arguments: JSONObject) async throws -> MCPToolCallOutput {
+        let queuedRequest = try queueOperatorRequest(arguments: arguments)
+
+        var waitArguments: JSONObject = [
+            "requestId": queuedRequest.requestID,
+            "conversationId": queuedRequest.conversationID,
+            "jobId": queuedRequest.jobID
+        ]
+        if let timeoutSeconds = doubleValue(arguments["timeoutSeconds"]) {
+            waitArguments["timeoutSeconds"] = timeoutSeconds
+        }
+        if let pollIntervalSeconds = doubleValue(arguments["pollIntervalSeconds"]) {
+            waitArguments["pollIntervalSeconds"] = pollIntervalSeconds
+        }
+
+        let waitResult = try await waitForReplyTool(arguments: waitArguments)
+        var object: JSONObject = [
+            "queuedRequest": queuedRequest.jsonObject()
+        ]
+        if let structuredContent = waitResult.structuredContent {
+            object["wait"] = structuredContent
+            object["matched"] = structuredContent["matched"] ?? NSNull()
+            object["timedOut"] = structuredContent["timedOut"] ?? NSNull()
+            object["reply"] = structuredContent["reply"] ?? NSNull()
+        }
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Queued operator \(queuedRequest.responseMode.rawValue) request \(queuedRequest.requestID). \(waitResult.text)",
+            isError: waitResult.isError
+        )
+    }
+
+    private func codexNextPromptTool(arguments: JSONObject) throws -> MCPToolCallOutput {
+        let queue = CodexPromptQueue(paths: paths, fileManager: fileManager)
+        try queue.bootstrap()
+        guard let record = queue.nextQueuedRecord(
+            workspacePath: normalizedFilterValue(arguments["workspacePath"]),
+            purpose: normalizedFilterValue(arguments["purpose"]),
+            interest: normalizedFilterValue(arguments["interest"]),
+            preferredAssistant: normalizedFilterValue(arguments["preferredAssistant"])
+        ) else {
+            let object: JSONObject = [
+                "matched": false,
+                "claimed": false,
+                "request": NSNull(),
+                "queuedCount": queue.queuedRecords().count
+            ]
+            return MCPToolCallOutput(
+                structuredContent: object,
+                text: "No queued phone-originated Codex prompt request matched.",
+                isError: false
+            )
+        }
+
+        let shouldClaim = boolValue(arguments["claim"]) ?? true
+        let resultRecord = shouldClaim
+            ? try queue.markStarted(
+                id: record.request.id,
+                assistant: normalizedFilterValue(arguments["assistant"]),
+                workspacePath: normalizedFilterValue(arguments["workspacePath"]),
+                note: normalizedFilterValue(arguments["note"])
+            )
+            : record
+        let requestObject = try jsonObject(from: resultRecord.request)
         let object: JSONObject = [
-            "requestId": requestID,
-            "responseMode": responseMode.rawValue,
-            "status": "queued",
-            "requestFilePath": requestFileURL.path,
-            "conversationId": conversationID,
-            "jobId": jobID
+            "matched": true,
+            "claimed": shouldClaim,
+            "queue": resultRecord.queue,
+            "filePath": resultRecord.filePath,
+            "request": requestObject
         ]
         return MCPToolCallOutput(
             structuredContent: object,
-            text: "Queued operator \(responseMode.rawValue) request \(requestID).",
+            text: shouldClaim
+                ? "Claimed Codex prompt request \(resultRecord.request.id)."
+                : "Found Codex prompt request \(resultRecord.request.id).",
+            isError: false
+        )
+    }
+
+    private func codexMarkPromptStartedTool(arguments: JSONObject) throws -> MCPToolCallOutput {
+        let id = try requiredStringArgument(arguments, key: "id", message: "mark_prompt_started requires id")
+        let record = try CodexPromptQueue(paths: paths, fileManager: fileManager).markStarted(
+            id: id,
+            assistant: normalizedFilterValue(arguments["assistant"]),
+            workspacePath: normalizedFilterValue(arguments["workspacePath"]),
+            note: normalizedFilterValue(arguments["note"])
+        )
+        let object = try codexPromptRecordObject(record)
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Marked Codex prompt request \(record.request.id) as started.",
+            isError: false
+        )
+    }
+
+    private func codexMarkPromptDoneTool(arguments: JSONObject) throws -> MCPToolCallOutput {
+        let id = try requiredStringArgument(arguments, key: "id", message: "mark_prompt_done requires id")
+        guard let statusRaw = normalizedFilterValue(arguments["status"]),
+              let status = CodexPromptRequestStatus(rawValue: statusRaw),
+              status == .done || status == .blocked || status == .failed else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("mark_prompt_done status must be done, blocked, or failed")
+        }
+        let record = try CodexPromptQueue(paths: paths, fileManager: fileManager).markCompleted(
+            id: id,
+            status: status,
+            summary: normalizedFilterValue(arguments["summary"]),
+            error: normalizedFilterValue(arguments["error"])
+        )
+        let object = try codexPromptRecordObject(record)
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "Marked Codex prompt request \(record.request.id) as \(status.rawValue).",
             isError: false
         )
     }
@@ -648,18 +1147,80 @@ final class HavenAgentMCPService {
     }
 
     private func conversationRepliesResource() -> JSONObject {
-        let files = pendingReplyFiles()
-        let replies = files.compactMap { fileURL in
-            load(AgentConversationPrompt.self, from: fileURL)
-        }
-        let sortedReplies = replies.sorted {
-            $0.receivedAt.localizedStandardCompare($1.receivedAt) == .orderedDescending
-        }
+        let sortedReplies = conversationReplyRecords().map(\.reply)
         let replyObjects = (try? sortedReplies.map(jsonObject(from:))) ?? []
         return [
             "replyCount": sortedReplies.count,
             "replies": replyObjects
         ]
+    }
+
+    private func codexPromptRequestsResource() -> JSONObject {
+        let queue = CodexPromptQueue(paths: paths, fileManager: fileManager)
+        let queued = queue.queuedRecords()
+        let started = queue.startedRecords()
+        let completed = queue.completedRecords()
+        return [
+            "queuedCount": queued.count,
+            "startedCount": started.count,
+            "completedCount": completed.count,
+            "queued": codexPromptRecordObjects(queued),
+            "started": codexPromptRecordObjects(started),
+            "completed": codexPromptRecordObjects(completed)
+        ]
+    }
+
+    private func conversationReplyRecords() -> [StoredConversationReply] {
+        let files = pendingReplyFiles()
+        let replies: [StoredConversationReply] = files.compactMap { fileURL in
+            guard let reply = load(AgentConversationPrompt.self, from: fileURL) else {
+                return nil
+            }
+            return StoredConversationReply(fileURL: fileURL, reply: reply)
+        }
+        return replies.sorted {
+            $0.reply.receivedAt.localizedStandardCompare($1.reply.receivedAt) == .orderedDescending
+        }
+    }
+
+    private func latestMatchingReply(
+        in replies: [StoredConversationReply],
+        requestID: String?,
+        conversationID: String?,
+        jobID: String?,
+        ticketID: String?
+    ) -> StoredConversationReply? {
+        replies.first { record in
+            replyMatches(
+                record.reply,
+                requestID: requestID,
+                conversationID: conversationID,
+                jobID: jobID,
+                ticketID: ticketID
+            )
+        }
+    }
+
+    private func replyMatches(
+        _ reply: AgentConversationPrompt,
+        requestID: String?,
+        conversationID: String?,
+        jobID: String?,
+        ticketID: String?
+    ) -> Bool {
+        if let requestID, reply.requestId != requestID {
+            return false
+        }
+        if let conversationID, reply.conversationId != conversationID {
+            return false
+        }
+        if let jobID, reply.jobId != jobID {
+            return false
+        }
+        if let ticketID, reply.ticketId != ticketID {
+            return false
+        }
+        return true
     }
 
     private func pairedOperatorValue() -> Any {
@@ -726,6 +1287,59 @@ final class HavenAgentMCPService {
         return urls
             .filter { $0.pathExtension.lowercased() == "json" }
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+    }
+
+    private func normalizedFilterValue(_ value: Any?) -> String? {
+        guard let rawValue = stringValue(value)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawValue.isEmpty else {
+            return nil
+        }
+        return rawValue
+    }
+
+    private func requiredStringArgument(
+        _ arguments: JSONObject,
+        key: String,
+        message: String
+    ) throws -> String {
+        guard let value = normalizedFilterValue(arguments[key]) else {
+            throw HavenAgentMCPServiceError.invalidToolArguments(message)
+        }
+        return value
+    }
+
+    private func codexPromptRecordObjects(_ records: [CodexPromptRequestRecord]) -> [JSONObject] {
+        records.compactMap { try? codexPromptRecordObject($0) }
+    }
+
+    private func codexPromptRecordObject(_ record: CodexPromptRequestRecord) throws -> JSONObject {
+        [
+            "queue": record.queue,
+            "filePath": record.filePath,
+            "request": try jsonObject(from: record.request)
+        ]
+    }
+
+    private func clampedSeconds(
+        _ value: Double?,
+        defaultValue: Double,
+        minimum: Double,
+        maximum: Double
+    ) -> Double {
+        let resolved = value ?? defaultValue
+        return max(minimum, min(maximum, resolved))
+    }
+
+    private func sleepNanoseconds(for seconds: Double) -> UInt64 {
+        UInt64((seconds * 1_000_000_000).rounded())
+    }
+
+    private func replySummary(for reply: AgentConversationPrompt) -> String {
+        if let decision = reply.decision?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !decision.isEmpty {
+            return "Received operator decision '\(decision)' for conversation \(reply.conversationId)."
+        }
+        return "Received operator reply for conversation \(reply.conversationId): \(reply.prompt)"
     }
 
     private func readDoc(named fileName: String) throws -> String {

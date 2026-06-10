@@ -37,6 +37,7 @@ enum SkeletonTreeQueries {
         case .Toggle(let toggle): return toggle.modifiers
         case .Picker(let picker): return picker.modifiers
         case .Tabs(let tabs): return tabs.modifiers
+        case .Visualization(let visualization): return visualization.modifiers
         }
     }
 
@@ -69,6 +70,7 @@ enum SkeletonTreeQueries {
         case .Toggle: return "Toggle"
         case .Picker: return "Picker"
         case .Tabs: return "Tabs"
+        case .Visualization: return "Visualization"
         }
     }
 
@@ -130,6 +132,8 @@ enum SkeletonTreeQueries {
             return grid.elements
         case .Tabs(let tabs):
             return tabs.panels.flatMap(\.content)
+        case .Visualization:
+            return []
         default:
             return []
         }

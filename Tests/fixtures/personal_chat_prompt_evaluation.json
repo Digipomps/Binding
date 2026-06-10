@@ -1,0 +1,386 @@
+{
+  "schemaVersion": "haven.personal-chat.prompt-eval.v1",
+  "name": "Personal Chat Purpose/Component Prompt Evaluation",
+  "description": "Reusable prompt matrix for checking that PersonalChatHub maps natural language to purpose, interests and helper components without side effects. The same cases can later be run against Apple Intelligence, 4o-mini and other scoped provider cells.",
+  "targetSurface": "Co-Pilot Chat",
+  "defaultProviderUnderTest": "deterministic-v1",
+  "futureProviders": [
+    "binding.apple-intelligence",
+    "binding.local-llm",
+    "openai.4o-mini"
+  ],
+  "assertions": {
+    "analyzeHasNoSideEffects": true,
+    "openHelperHasNoSideEffects": true,
+    "effectsRequireExplicitAction": true,
+    "providersMustBeDeclaredInsideChatScope": true
+  },
+  "cases": [
+    {
+      "id": "invite.closest-colleague.nb",
+      "locale": "nb-NO",
+      "prompt": "inviter min nærmeste kollega",
+      "setup": ["published-colleague-profile"],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "invite_person",
+        "purposeRef": "personal.chat.assist.invite",
+        "suggestionStatus": "suggested",
+        "helperID": "invite"
+      }
+    },
+    {
+      "id": "invite.ambiguous-colleague.nb",
+      "locale": "nb-NO",
+      "prompt": "inviter kollega",
+      "setup": ["published-two-colleague-profiles"],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "invite_person",
+        "purposeRef": "personal.chat.assist.invite",
+        "suggestionStatus": "needs_candidate_selection",
+        "helperID": "invite",
+        "minimumCandidateCount": 2
+      }
+    },
+    {
+      "id": "poll.group.nb",
+      "locale": "nb-NO",
+      "prompt": "vi trenger avstemning om lunsj",
+      "setup": ["accepted-group-thread"],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "create_poll",
+        "purposeRef": "personal.chat.assist.poll",
+        "suggestionStatus": "suggested",
+        "helperID": "poll"
+      }
+    },
+    {
+      "id": "idea.capture.nb",
+      "locale": "nb-NO",
+      "prompt": "jeg har en idé jeg må skrive ned: privat mappe for prosjektideer",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "idea_capture",
+        "purposeRef": "personal.chat.assist.idea.capture",
+        "suggestionStatus": "suggested",
+        "helperID": "idea-capture"
+      }
+    },
+    {
+      "id": "todo.create.nb",
+      "locale": "nb-NO",
+      "prompt": "oppgave: send notater etter møtet",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "todo",
+        "purposeRef": "personal.chat.assist.todo",
+        "suggestionStatus": "suggested",
+        "helperID": "todo"
+      }
+    },
+    {
+      "id": "project.shared-idea.nb",
+      "locale": "nb-NO",
+      "prompt": "lag prosjekt for felles idé om personvern-demo",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "project",
+        "purposeRef": "personal.chat.assist.project",
+        "suggestionStatus": "suggested",
+        "helperID": "project"
+      }
+    },
+    {
+      "id": "reminder.create.nb",
+      "locale": "nb-NO",
+      "prompt": "minn meg på å sjekke pull request i morgen",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "reminder",
+        "purposeRef": "personal.chat.assist.reminder",
+        "suggestionStatus": "suggested",
+        "helperID": "reminder"
+      }
+    },
+    {
+      "id": "meeting.schedule.nb",
+      "locale": "nb-NO",
+      "prompt": "sett opp møte med Anna i morgen kl 10",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "schedule_meeting",
+        "purposeRef": "personal.chat.assist.meeting.schedule",
+        "suggestionStatus": "suggested",
+        "helperID": "meeting"
+      }
+    },
+    {
+      "id": "meeting.video.nb",
+      "locale": "nb-NO",
+      "prompt": "kan vi ta dette på videochat i morgen?",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "meeting_video",
+        "purposeRef": "personal.chat.assist.meeting.video",
+        "suggestionStatus": "suggested",
+        "helperID": "meeting"
+      }
+    },
+    {
+      "id": "agent.finder-review.nb",
+      "locale": "nb-NO",
+      "prompt": "kan du lukke alle Finder vinduer?",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "agent_action",
+        "purposeRef": "personal.agent.local.gui.finder.close-windows",
+        "suggestionStatus": "suggested",
+        "helperID": "agent-review"
+      }
+    },
+    {
+      "id": "capability-gap.opt-in.nb",
+      "locale": "nb-NO",
+      "prompt": "skulle ønske chatten kunne lage en Gantt-visning for prosjekter",
+      "setup": ["capability-discovery-enabled"],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "capability_request",
+        "purposeRef": "personal.chat.assist.capability-request",
+        "suggestionStatus": "suggested",
+        "helperID": "capability-request"
+      }
+    },
+    {
+      "id": "capability-gap.off-by-default.nb",
+      "locale": "nb-NO",
+      "prompt": "skulle ønske chatten kunne lage en Gantt-visning for prosjekter",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "capability_request"
+      }
+    },
+    {
+      "id": "rag.query.nb",
+      "locale": "nb-NO",
+      "prompt": "hva sier innovasjon RAG om anskaffelser?",
+      "setup": ["rag-case"],
+      "expected": {
+        "shouldSuggest": false,
+        "resourceMatchKind": "rag_case",
+        "providerRecommendationKind": "rag_gateway",
+        "resourceActionKeypath": "assistant.queryResource"
+      }
+    },
+    {
+      "id": "resource.music-publishing.nb",
+      "locale": "nb-NO",
+      "prompt": "jeg vil legge ut musikk for streaming og nedlasting",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.music.publish",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Music Publishing Console",
+        "resourceSourceCellEndpoint": "cell:///MusicPublishingConsole",
+        "resourcePurposeRef": "personal.music.publish"
+      }
+    },
+    {
+      "id": "resource.mermaid-renderer.nb",
+      "locale": "nb-NO",
+      "prompt": "jeg trenger mermaid diagram",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.diagram.mermaid.render",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Mermaid Renderer Playground",
+        "resourceSourceCellEndpoint": "cell:///MermaidRenderer",
+        "resourcePurposeRef": "personal.diagram.mermaid.render"
+      }
+    },
+    {
+      "id": "resource.private-entities-relations.nb",
+      "locale": "nb-NO",
+      "prompt": "Vis meg hvilke entities jeg har i mine relasjoner",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.entity.relations.manage",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Entity Studio",
+        "resourceSourceCellEndpoint": "cell:///EntityStudio",
+        "resourcePurposeRef": "personal.entity.relations.manage"
+      }
+    },
+    {
+      "id": "resource.admin-orphaned-cells.nb",
+      "locale": "nb-NO",
+      "prompt": "hvor mange celler er orphaned på staging",
+      "setup": ["admin-observer-role"],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "admin.cell-lifecycle.cleanup-review",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Admin Cell Dashboard",
+        "resourceSourceCellEndpoint": "cell:///AdminOverview",
+        "resourcePurposeRef": "admin.cell-lifecycle.cleanup-review",
+        "adminObservationStatus": "admin_scope_required"
+      }
+    },
+    {
+      "id": "resource.conference-agenda-today.nb",
+      "locale": "nb-NO",
+      "prompt": "Vis meg agendaen på konferansen i dag",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "conference.agenda.view",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Conference Participant Portal Dashboard",
+        "resourceSourceCellEndpoint": "cell:///ConferenceParticipantPreviewShell",
+        "resourcePurposeRef": "conference.agenda.view",
+        "conferenceObservationStatus": "conference_scope_required"
+      }
+    },
+    {
+      "id": "provider.apple-local.nb",
+      "locale": "nb-NO",
+      "prompt": "bruk Apple lokal privat assistent",
+      "setup": ["scoped-ai-providers"],
+      "expected": {
+        "shouldSuggest": false,
+        "providerRecommendationID": "binding.apple.local",
+        "providerExecutionScope": "binding_chat_scope"
+      }
+    },
+    {
+      "id": "porthole.show-tools.nb",
+      "locale": "nb-NO",
+      "prompt": "vis Porthole verktøy og åpne bibliotek",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "portholeUI": {
+          "showProductChrome": true,
+          "showToolbarDetails": true,
+          "openLibrary": true
+        },
+        "minimumExpandedMenuCount": 3
+      }
+    },
+    {
+      "id": "porthole.hide-edge-menus.nb",
+      "locale": "nb-NO",
+      "prompt": "skjul menyene i kantene",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "portholeUI": {
+          "hideEdgeMenus": true,
+          "collapseMenus": true
+        }
+      }
+    },
+    {
+      "id": "porthole.toggle-toolbar.nb",
+      "locale": "nb-NO",
+      "prompt": "toggle verktøylinjen",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "portholeUI": {
+          "toggleToolbarDetails": true
+        }
+      }
+    },
+    {
+      "id": "porthole.configuration-json.nb",
+      "locale": "nb-NO",
+      "prompt": "vis json av innlastet CellConfiguration",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "portholeUI": {
+          "showConfigurationJSON": true,
+          "showToolbarDetails": true
+        }
+      }
+    },
+    {
+      "id": "no-intent.smalltalk.nb",
+      "locale": "nb-NO",
+      "prompt": "Dette er bare en vanlig melding om dagens lunsj.",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false
+      }
+    },
+    {
+      "id": "no-poll.negated.nb",
+      "locale": "nb-NO",
+      "prompt": "Ikke lag avstemning, jeg bare nevner at temaet kom opp.",
+      "setup": ["accepted-group-thread"],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "create_poll"
+      }
+    },
+    {
+      "id": "no-invite.past-tense.nb",
+      "locale": "nb-NO",
+      "prompt": "Jeg inviterte Anna i går, bare til info.",
+      "setup": ["published-colleague-profile"],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "invite_person"
+      }
+    },
+    {
+      "id": "no-idea.reference-only.nb",
+      "locale": "nb-NO",
+      "prompt": "Ideen fra i går var god, men jeg vil bare diskutere den her.",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "idea_capture"
+      }
+    },
+    {
+      "id": "no-agent.negated.nb",
+      "locale": "nb-NO",
+      "prompt": "Ikke lukk Finder-vinduer nå; bare forklar hvordan det ville virket.",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "agent_action"
+      }
+    }
+  ]
+}

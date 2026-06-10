@@ -52,6 +52,11 @@ Hvis `participantId` eller `deviceId` ikke settes i filen, brukes eventuelle def
 
 Hvis `conversationId` eller `jobId` mangler, fyller relayet dem ut med request-id slik at svar fra telefonen kan korreleres deterministisk.
 
+Når en `deviceId` er kjent, sender relayet den både på toppnivå og som
+`payload.deviceId`. CellScaffold sin nåværende `NotificationOutboxCell` bruker
+`payload.deviceId` for direkte enhetsoppslag før den faller tilbake til
+participant/platform-match.
+
 ## Konfig
 
 `config.json` kan nå ha en `deviceActionRelay`-seksjon:
@@ -74,3 +79,4 @@ Viktig:
 - relayet oppretter tickets direkte i staging-kontrakten, ikke via en lokal/mock adapter
 - eldre `publishURL`-konfig blir fortsatt lest som fallback og mappes til riktig staging-host
 - approval-/prompt-svar kommer tilbake gjennom `AgentConversationInbox`, ikke gjennom `callback/submit`
+- ved live-feil pakkes remote resolver-/`createTicket`-feil med endpoint-kontekst slik at `Inbox/Failed/*.json` viser om feilen skjedde før eller under `NotificationOutbox.createTicket`

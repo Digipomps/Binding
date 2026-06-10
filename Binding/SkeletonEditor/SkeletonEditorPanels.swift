@@ -487,33 +487,68 @@ struct SkeletonModifierInspectorPanel: View {
                 )
                 .font(.caption)
             case .double, .string:
-                HStack(spacing: 8) {
-                    TextField(
-                        "Value",
-                        text: Binding(
-                            get: {
-                                if let draft = parameterValueDrafts[key] {
-                                    return draft
+                if key == .spec {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextEditor(
+                            text: Binding(
+                                get: {
+                                    if let draft = parameterValueDrafts[key] {
+                                        return draft
+                                    }
+                                    guard let selectedElement else { return "" }
+                                    return key.textValue(on: selectedElement) ?? ""
+                                },
+                                set: { newValue in
+                                    parameterValueDrafts[key] = newValue
+                                    invalidParameterDrafts.remove(key)
                                 }
-                                guard let selectedElement else { return "" }
-                                return key.textValue(on: selectedElement) ?? ""
-                            },
-                            set: { newValue in
-                                parameterValueDrafts[key] = newValue
-                                invalidParameterDrafts.remove(key)
-                            }
+                            )
                         )
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-                    .onSubmit {
-                        applyParameterValueDraft(for: key)
-                    }
+                        .font(.caption.monospaced())
+                        .frame(minHeight: 150, maxHeight: 220)
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.black.opacity(0.03))
+                        )
 
-                    Button("Set") {
-                        applyParameterValueDraft(for: key)
+                        HStack {
+                            Spacer()
+                            Button("Set") {
+                                applyParameterValueDraft(for: key)
+                            }
+                            .font(.caption)
+                        }
                     }
-                    .font(.caption)
+                } else {
+                    HStack(spacing: 8) {
+                        TextField(
+                            "Value",
+                            text: Binding(
+                                get: {
+                                    if let draft = parameterValueDrafts[key] {
+                                        return draft
+                                    }
+                                    guard let selectedElement else { return "" }
+                                    return key.textValue(on: selectedElement) ?? ""
+                                },
+                                set: { newValue in
+                                    parameterValueDrafts[key] = newValue
+                                    invalidParameterDrafts.remove(key)
+                                }
+                            )
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+                        .onSubmit {
+                            applyParameterValueDraft(for: key)
+                        }
+
+                        Button("Set") {
+                            applyParameterValueDraft(for: key)
+                        }
+                        .font(.caption)
+                    }
                 }
             }
 
@@ -867,6 +902,9 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
     case grid
     case list
     case picker
+    case visualization
+    case mapGeospatial
+    case mapPlanar
     case object
     case reference
 
@@ -891,6 +929,9 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
         case .grid: return "Grid"
         case .list: return "List"
         case .picker: return "Picker"
+        case .visualization: return "Visualization"
+        case .mapGeospatial: return "Map (Geospatial)"
+        case .mapPlanar: return "Map (Planar)"
         case .object: return "Object"
         case .reference: return "Reference"
         }
@@ -964,6 +1005,95 @@ enum SkeletonInsertElementKind: String, CaseIterable, Identifiable {
             return .List(SkeletonList(topic: nil, keypath: nil, flowElementSkeleton: nil))
         case .picker:
             return .Picker(SkeletonPicker(label: "Select", placeholder: "Choose", elements: []))
+        case .visualization:
+            return .Visualization(
+                SkeletonVisualization(
+                    kind: "table",
+                    keypath: "visualization.data",
+                    stateKeypath: "visualization.selection",
+                    actionKeypath: "visualization.select"
+                )
+            )
+        case .mapGeospatial:
+            return .Visualization(
+                SkeletonVisualization(
+                    kind: "map",
+                    keypath: "visualization.data",
+                    stateKeypath: "visualization.selection",
+                    actionKeypath: "visualization.select",
+                    spec: MapVisualizationSpec(
+                        coordinateSpace: .geospatial,
+                        viewport: MapVisualizationViewport(
+                            center: MapVisualizationCoordinate(10.7522, 59.9139),
+                            zoom: 6
+                        ),
+                        fit: .manual,
+                        features: [
+                            MapVisualizationFeature(
+                                id: "point-1",
+                                geometry: .point(MapVisualizationCoordinate(10.7522, 59.9139)),
+                                label: "Sample point",
+                                selectable: true,
+                                style: MapVisualizationStyle(
+                                    fillColor: "#2563EB",
+                                    radius: 8
+                                )
+                            )
+                        ],
+                        revision: "binding-map-geospatial-template"
+                    ).valueType
+                )
+            )
+        case .mapPlanar:
+            return .Visualization(
+                SkeletonVisualization(
+                    kind: "map",
+                    keypath: "visualization.data",
+                    stateKeypath: "visualization.selection",
+                    actionKeypath: "visualization.select",
+                    spec: MapVisualizationSpec(
+                        coordinateSpace: .planar,
+                        base: .image(
+                            MapVisualizationImageBase(
+                                url: "https://example.com/plan.png",
+                                bounds: MapVisualizationBounds(minX: 0, minY: 0, maxX: 1000, maxY: 700),
+                                intrinsicSize: MapVisualizationSize(width: 1000, height: 700)
+                            )
+                        ),
+                        fit: .fitBase,
+                        features: [
+                            MapVisualizationFeature(
+                                id: "zone-a",
+                                geometry: .polygon([
+                                    MapVisualizationCoordinate(120, 120),
+                                    MapVisualizationCoordinate(420, 120),
+                                    MapVisualizationCoordinate(420, 360),
+                                    MapVisualizationCoordinate(120, 360)
+                                ]),
+                                label: "Zone A",
+                                selectable: true,
+                                style: MapVisualizationStyle(
+                                    strokeColor: "#0F172A",
+                                    strokeWidth: 2,
+                                    fillColor: "#38BDF8",
+                                    fillOpacity: 0.24
+                                )
+                            ),
+                            MapVisualizationFeature(
+                                id: "hotspot-1",
+                                geometry: .point(MapVisualizationCoordinate(720, 250)),
+                                label: "Hotspot",
+                                selectable: true,
+                                style: MapVisualizationStyle(
+                                    fillColor: "#F97316",
+                                    radius: 9
+                                )
+                            )
+                        ],
+                        revision: "binding-map-planar-template"
+                    ).valueType
+                )
+            )
         case .object:
             return .Object(.empty())
         case .reference:
