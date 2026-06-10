@@ -1096,6 +1096,12 @@ struct FullLibraryView: View {
                                 .buttonStyle(.borderedProminent)
                                 .keyboardShortcut(.return, modifiers: [.command])
                             }
+                            if let componentItem = selected.componentItem,
+                               armedComponentID == componentItem.id {
+                                Text("Plassering er aktiv. Lukk biblioteket og klikk et innsettingspunkt i lerretet.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         } else {
                             Button("Legg til i Porthole") {
                                 applySelection(selected)
@@ -1105,23 +1111,36 @@ struct FullLibraryView: View {
                             .keyboardShortcut(.return, modifiers: [.command])
                         }
 
-                        Text("Score breakdown")
-                            .font(.caption.weight(.semibold))
-
-                        scoreRow("Text", selected.scoreBreakdown.text)
-                        scoreRow("Purpose", selected.scoreBreakdown.purpose)
-                        scoreRow("Interest", selected.scoreBreakdown.interest)
-                        scoreRow("Compat", selected.scoreBreakdown.compatibility)
-                        scoreRow("Conn", selected.scoreBreakdown.connectivity)
-                        scoreRow("Resource", selected.scoreBreakdown.resourceFit)
-                        scoreRow("Recency", selected.scoreBreakdown.recency)
+                        DisclosureGroup("Match diagnostics") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                scoreRow("Text", selected.scoreBreakdown.text)
+                                scoreRow("Purpose", selected.scoreBreakdown.purpose)
+                                scoreRow("Interest", selected.scoreBreakdown.interest)
+                                scoreRow("Compat", selected.scoreBreakdown.compatibility)
+                                scoreRow("Conn", selected.scoreBreakdown.connectivity)
+                                scoreRow("Resource", selected.scoreBreakdown.resourceFit)
+                                scoreRow("Recency", selected.scoreBreakdown.recency)
+                            }
+                            .padding(.top, 4)
+                        }
+                        .font(.caption)
 
                         if let preparedPreview = LibraryPreviewSkeletonSupport.preparePreview(for: selected.configuration) {
-                            Text("Skeleton")
-                                .font(.caption.weight(.semibold))
+                            HStack(spacing: 8) {
+                                Text("Static skeleton preview")
+                                    .font(.caption.weight(.semibold))
+                                if preparedPreview.usesPlaceholders {
+                                    Text("bindings/actions disabled")
+                                        .font(.caption2.weight(.medium))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                             SkeletonView(element: preparedPreview.element)
                                 .allowsHitTesting(false)
-                                .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 220, alignment: .topLeading)
+                                .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 420, alignment: .topLeading)
                                 .padding(8)
                                 .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             if preparedPreview.usesPlaceholders {
@@ -1133,35 +1152,6 @@ struct FullLibraryView: View {
                             Text("Ingen skeleton-preview tilgjengelig.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }
-
-                        if selected.componentItem != nil {
-                            if let componentItem = selected.componentItem,
-                               armedComponentID == componentItem.id {
-                                Text("Plassering er aktiv. Lukk biblioteket og klikk et innsettingspunkt i lerretet.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            HStack(spacing: 8) {
-                                Button(componentPlacementLabel(for: selected)) {
-                                    togglePlacement(for: selected)
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button("Sett inn i valgt layout") {
-                                    applySelection(selected)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .keyboardShortcut(.return, modifiers: [.command])
-                            }
-                        } else {
-                            Button("Legg til i Porthole") {
-                                applySelection(selected)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .keyboardShortcut(.defaultAction)
-                            .keyboardShortcut(.return, modifiers: [.command])
                         }
                     }
                 }
@@ -2597,21 +2587,23 @@ final class FullLibraryViewModel: ObservableObject {
         var candidates: [(CellConfiguration, String, [String])] = []
         appendUnique(fallbackFavorites, sourceRef: "offline.favorite", badges: ["Offline", "Favorite"], into: &candidates)
         appendUnique(fallbackTemplates, sourceRef: "offline.template", badges: ["Offline", "Template"], into: &candidates)
-        appendUnique(
-            [
-                ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration(),
-                ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration(),
-                ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(),
-                ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(),
-                ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(),
-                ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(),
-                ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(),
-                ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration()
-            ],
-            sourceRef: "offline.local",
-            badges: ["Offline", "Local"],
-            into: &candidates
-        )
+        if BindingPersonalCopilotV1Policy.conferenceShowcaseEnabled {
+            appendUnique(
+                [
+                    ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration(),
+                    ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration(),
+                    ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(),
+                    ConfigurationCatalogCell.conferenceAIAssistantWorkbenchConfiguration(),
+                    ConfigurationCatalogCell.conferenceMVPWorkbenchMenuConfiguration(),
+                    ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(),
+                    ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(),
+                    ConfigurationCatalogCell.conferenceSponsorWorkbenchConfiguration()
+                ],
+                sourceRef: "offline.local",
+                badges: ["Offline", "Local"],
+                into: &candidates
+            )
+        }
 
         let results = candidates.compactMap { configuration, sourceRef, seedBadges -> SearchResult? in
             let configuration = ConfigurationPresentationSupport.viewportSafeConfiguration(configuration)
