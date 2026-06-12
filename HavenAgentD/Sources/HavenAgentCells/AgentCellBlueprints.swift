@@ -9,6 +9,7 @@ public enum AgentCellKind: String, Codable, CaseIterable, Sendable {
     case agentSupervisor
     case agentIdentity
     case localModel
+    case networkSentinel
 }
 
 public struct AgentCellBlueprint: Codable, Equatable, Sendable {
@@ -79,6 +80,12 @@ public enum AgentCellCatalog {
             suggestedCellName: "AgentLocalModelCell",
             purpose: "Expose an operator-approved local language model backend through CellProtocol.",
             sideEffectBoundary: "May call only the configured loopback local model backend by default."
+        ),
+        AgentCellBlueprint(
+            kind: .networkSentinel,
+            suggestedCellName: "NetworkSentinelCell",
+            purpose: "Watch local link health and surface flood alerts the operator actually cares about.",
+            sideEffectBoundary: "Read-only interface counter observation; emits FlowElements; may trigger a bounded local packet capture and a user notification when enabled."
         )
     ]
 }

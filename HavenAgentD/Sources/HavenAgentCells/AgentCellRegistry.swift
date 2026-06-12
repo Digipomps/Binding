@@ -46,6 +46,12 @@ public enum AgentCellRegistry {
             endpoint: "cell:///agent/local-model",
             typeName: "AgentLocalModelCell",
             sideEffectBoundary: "Calls a configured loopback local model backend; no device automation side effects."
+        ),
+        AgentCellDescriptor(
+            kind: .networkSentinel,
+            endpoint: "cell:///agent/network/sentinel",
+            typeName: "NetworkSentinelCell",
+            sideEffectBoundary: "Read-only link-health projection; emits flood FlowElements; optional bounded capture and notification when enabled."
         )
     ]
 
@@ -61,6 +67,8 @@ public enum AgentCellRegistry {
             return await RemoteIntentReviewCell(owner: owner)
         case .localModel:
             return await AgentLocalModelCell(owner: owner)
+        case .networkSentinel:
+            return await NetworkSentinelCell(owner: owner)
         default:
             throw AgentCellRegistryError.unsupportedConcreteKind(kind)
         }

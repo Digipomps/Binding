@@ -52,8 +52,27 @@ public actor AgentRuntimeBridge {
     private var pairingArtifactFileURL: URL?
     private var pairedOperatorIdentity: PairedOperatorIdentity?
     private var pairingArtifactLastError: String?
+    private var networkHealth: NetworkHealthSnapshot?
 
     public init() {}
+
+    public func update(networkHealth: NetworkHealthSnapshot?) {
+        self.networkHealth = networkHealth
+    }
+
+    public func networkHealthSnapshot() -> NetworkHealthSnapshot? {
+        networkHealth
+    }
+
+    private var networkSentinelControl: NetworkSentinelControlling?
+
+    public func update(networkSentinelControl: NetworkSentinelControlling?) {
+        self.networkSentinelControl = networkSentinelControl
+    }
+
+    public func networkSentinelControlSnapshot() -> NetworkSentinelControlling? {
+        networkSentinelControl
+    }
 
     public func update(runtimeState: AgentRuntimeState) {
         self.runtimeState = runtimeState
