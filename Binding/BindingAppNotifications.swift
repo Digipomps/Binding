@@ -108,7 +108,7 @@ enum BindingRuntimeBootstrap {
         if CellBase.hostname != "localhost", !CellBase.hostname.isEmpty {
             resolver.registerRemoteCellHost(
                 CellBase.hostname,
-                route: RemoteCellHostRoute(websocketEndpoint: "publishersws", schemePreference: .automatic)
+                route: RemoteCellHostRoute(websocketEndpoint: "bridgehead", schemePreference: .automatic)
             )
         }
     }
@@ -214,6 +214,10 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        let userInfo = notification.request.content.userInfo
+        Task {
+            _ = await NotificationCallbackClient.shared.handleRemoteNotification(userInfo: userInfo)
+        }
         completionHandler([.banner, .list, .sound])
     }
 

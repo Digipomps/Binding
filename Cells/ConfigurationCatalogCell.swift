@@ -93,6 +93,10 @@ enum BindingPersonalCopilotV1Policy {
         #endif
     }
 
+    nonisolated static var conferenceShowcaseEnabled: Bool {
+        conferenceDemoMenusEnabled
+    }
+
     nonisolated static let agentSetupWorkbenchDefaultsKey = "Binding.EnableAgentSetupWorkbench"
 
     nonisolated static var agentSetupWorkbenchEnabled: Bool {
@@ -179,11 +183,11 @@ enum BindingPersonalCopilotV1Policy {
         switch policyCategory {
         case "identity-and-account", "profile-draft", "profile-publish", "privacy-audit":
             return "identity"
-        case "matching", "invite-only-chat", "public-profile-directory", "public-directory":
+        case "matching", "invite-only-chat", "purpose-driven-chat", "public-profile-directory", "public-directory":
             return "relationship"
         case "local-vault", "catalog", "catalog-policy":
             return "content"
-        case "meeting-intent", "meeting-coordinator", "apple-intelligence", "hardware-scanner", "workflow-studio":
+        case "meeting-intent", "meeting-coordinator", "agenda-context", "apple-intelligence", "hardware-scanner", "workflow-studio":
             return "intelligence"
         default:
             return "governance"
@@ -196,11 +200,11 @@ enum BindingPersonalCopilotV1Policy {
             return "detail"
         case "matching", "public-profile-directory", "public-directory", "catalog", "catalog-policy":
             return "list"
-        case "invite-only-chat":
+        case "invite-only-chat", "purpose-driven-chat":
             return "detail"
         case "local-vault":
             return "grid"
-        case "meeting-intent", "meeting-coordinator", "workflow-studio":
+        case "meeting-intent", "meeting-coordinator", "agenda-context", "calendar-store", "workflow-studio":
             return "form"
         case "apple-intelligence", "hardware-scanner":
             return "hero"
@@ -309,6 +313,7 @@ struct BindingPersonalCopilotSurfaceMetadata: Equatable {
         }
     }
 
+    let appStoreScope: String?
     let policyCategory: String?
     let surfaceFamily: String?
     let presentationClass: String?
@@ -324,6 +329,7 @@ struct BindingPersonalCopilotSurfaceMetadata: Equatable {
         let interests = configuration.discovery?.interests ?? []
         let sourceEndpoint = configuration.discovery?.sourceCellEndpoint
 
+        self.appStoreScope = Self.metadataValue(for: "appStoreScope", in: interests)
         self.policyCategory = Self.metadataValue(for: "policyCategory", in: interests)
         self.surfaceFamily = Self.metadataValue(for: "surfaceFamily", in: interests)
         self.presentationClass = Self.metadataValue(for: "presentationClass", in: interests)
@@ -424,6 +430,28 @@ enum BindingPersonalCopilotDesignSystem {
             $0.borderWidth = 1
             $0.borderColor = brandPrimary
             $0.styleRole = "personal-hero"
+        }
+    }
+
+    nonisolated static func compactHeroPanel() -> SkeletonModifiers {
+        modifier {
+            $0.padding = 12
+            $0.background = surface
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = borderStrong
+            $0.styleRole = "personal-hero"
+        }
+    }
+
+    nonisolated static func dangerSectionCard(role: String = "personal-card") -> SkeletonModifiers {
+        modifier {
+            $0.padding = 12
+            $0.background = dangerSoft
+            $0.cornerRadius = 16
+            $0.borderWidth = 1
+            $0.borderColor = danger
+            $0.styleRole = role
         }
     }
 
@@ -825,6 +853,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var ioFilterTypes: [String]? = nil
         var supportedTargetKinds: [String]? = ["tool", "porthole", "library"]
         var skipResolverLookup: Bool = true
+        var forceRefreshExisting: Bool = false
     }
 
     private enum ConferenceSurfacePalette {
@@ -5338,6 +5367,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             )
         ]
 
+        let conferenceShowcaseTemplates = staticCatalogTemplates(from: conferenceShowcaseCatalogDescriptors())
         let optInTemplates = staticCatalogTemplates(from: optInLocalCatalogDescriptors())
 
         templates.append(contentsOf: staticCatalogTemplates(from: personalCopilotV1CatalogDescriptors()))
@@ -5348,6 +5378,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         } else {
             templates = templates.filter(isPersonalCopilotV1Template)
         }
+        templates.append(contentsOf: conferenceShowcaseTemplates)
         templates.append(contentsOf: optInTemplates)
         let knownEndpoints = Set(templates.map { $0.sourceCellEndpoint.lowercased() })
         if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
@@ -5752,23 +5783,103 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ioSetKeys: ["preferencesText", "setPreferences", "refreshSuggestions", "requestMatchConsent", "acceptMatchConsent", "declineMatchConsent", "clearMatchSuggestion"]
             ),
             StaticCatalogDescriptor(
-                sourceCellEndpoint: "cell://staging.haven.digipomps.org/PersonalChatHub",
+                sourceCellEndpoint: "cell:///PersonalChatHub",
                 sourceCellName: "PersonalChatHubCell",
-                displayName: "Invite Chat",
-                purpose: "Invite-only personlig chat",
-                purposeDescription: "Delt invite-only chat-state med forslag-forst assistent for invite og poll. Brukeren maa godkjenne alle sideeffekter.",
-                interests: scopedInterests(["chat", "invite-only", "moderation", "report", "block", "chat-assistant", "poll"], policyCategory: "invite-only-chat"),
-                summary: "Skybasert invite-only chat hub for Personal Co-Pilot.",
+                displayName: "Co-Pilot Chat",
+                purpose: "Central purpose-driven co-pilot chat",
+                purposeDescription: "Kompakt chat-first arbeidsflate som matcher naturlig sprak mot formaal, interesser, CellConfigurations, RAG-cases og trygge agent-action metadata. Alle sideeffekter krever klikk.",
+                interests: scopedInterests([
+                    "chat",
+                    "invite-only",
+                    "moderation",
+                    "report",
+                    "block",
+                    "chat-assistant",
+                    "invite-person",
+                    "poll",
+                    "meeting-video-intent",
+                    "schedule-meeting-intent",
+                    "project-intent",
+                    "todo-intent",
+                    "reminder-intent",
+                    "capability-gap",
+                    "resource-router",
+                    "rag-query",
+                    "cell-scoped-ai-provider",
+                    "provider-slot",
+                    "voice-input",
+                    "speech-to-text",
+                    "dictation",
+                    "local-agent-action",
+                    "signed-remote-intent",
+                    "component-surface",
+                    "requires-user-approval",
+                    "purpose-interest-weighted",
+                    "purposeRef=personal.chat.assist.invite",
+                    "purposeRef=personal.chat.assist.poll",
+                    "purposeRef=personal.chat.assist.resource-router",
+                    "purposeRef=personal.chat.assist.rag-query",
+                    "purposeRef=personal.chat.assist.provider-route",
+                    "purposeRef=personal.chat.assist.meeting.video",
+                    "purposeRef=personal.chat.assist.meeting.schedule",
+                    "purposeRef=personal.chat.assist.project",
+                    "purposeRef=personal.chat.assist.todo",
+                    "purposeRef=personal.chat.assist.reminder",
+                    "purposeRef=personal.chat.assist.capability-request",
+                    "purposeRef=personal.chat.assist.local-agent-action",
+                    "purposeRef=personal.agent.local.gui.finder.close-windows"
+                ], policyCategory: "purpose-driven-chat"),
+                summary: "Cell-scoped Co-Pilot Chat hub for Personal Co-Pilot.",
                 categoryPath: ["personal-copilot", "chat"],
-                tags: ["chat", "moderation", "invite", "poll", "assistant"],
+                tags: ["chat", "moderation", "invite", "poll", "assistant", "copilot"],
                 menuSlots: [.upperLeft, .lowerLeft],
-                chip: "REMOTE",
+                chip: "LOCAL",
                 borderColor: "#0F766E",
-                policyHints: hints("invite-only-chat", requiresLogin: true, requiresUserGeneratedContentModeration: true, universalLinkPath: "personal/chat/invite"),
+                policyHints: hints("purpose-driven-chat", requiresLogin: true, requiresUserGeneratedContentModeration: true, universalLinkPath: "personal/chat/copilot"),
                 flowDriven: true,
                 recommendedContexts: ["personal-copilot", "chat", "safety"],
-                ioGetKeys: ["state", "messages", "participants", "blockedUsers", "moderationStatus", "meetingBridge", "skeletonConfiguration"],
-                ioSetKeys: ["invite", "acceptInvite", "declineInvite", "setComposer", "sendComposedMessage", "clearComposer", "reportMessage", "blockUser", "unblockUser", "assistant.analyzeDraft", "assistant.acceptSuggestion", "assistant.dismissSuggestion", "assistant.setCandidateQuery", "assistant.selectCandidate", "poll.setQuestion", "poll.setOptions", "poll.create", "poll.vote", "poll.close"]
+                ioGetKeys: ["state", "assistantState", "assistantSuggestions", "assistantPolicy", "assistantProviders", "providerRecommendation", "threads", "messages", "blockedUsers", "moderationStatus", "meetingBridge", "polls", "pollDraft", "workbenchState", "workbenchModules", "capabilityRequestDraft", "capabilityRequests", "entityExtension", "voiceState", "purposeWeights", "purposeGoal", "skeletonConfiguration"],
+                ioSetKeys: ["invite", "acceptInvite", "declineInvite", "setComposer", "sendComposedMessage", "clearComposer", "reportMessage", "blockUser", "unblockUser", "assistant.analyzeDraft", "assistant.acceptSuggestion", "assistant.dismissSuggestion", "assistant.queryResource", "assistant.provider.register", "assistant.provider.recommend", "assistant.setCandidateQuery", "assistant.selectCandidate", "entityExtension.scan", "voice.requestPermission", "voice.startListening", "voice.stopListening", "voice.acceptTranscript", "voice.acceptTranscriptAndAnalyze", "voice.clearTranscript", "ui.openSuggestedHelper", "ui.openComponentSurface", "ui.minimizeComponentSurface", "ui.restoreComponentSurface", "ui.dismissComponentSurface", "ui.pinComponentSurface", "ui.setActiveHelper", "ui.setActiveMoreTab", "ui.setCapabilityDiscoveryEnabled", "poll.setQuestion", "poll.setOptions", "poll.create", "poll.vote", "poll.close", "idea.title", "idea.content", "idea.capture", "todo.title", "todo.note", "todo.dueAtText", "todo.assigneeUUID", "todo.create", "project.title", "project.description", "project.membersText", "project.create", "reminder.title", "reminder.scheduledAtText", "reminder.scope", "reminder.create", "meeting.title", "meeting.targetProfileID", "meeting.proposedTimesText", "meeting.setBridgeMetadata", "meeting.schedule", "agent.review.actionID", "agent.review.reason", "agent.review.argumentsText", "agent.review.signatureBase64", "agent.review.create", "agent.review.execute", "capabilityRequest.title", "capabilityRequest.summary", "capabilityRequest.destination", "capabilityRequest.category", "capabilityRequest.submit"],
+                forceRefreshExisting: true
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///PersonalAgendaContext",
+                sourceCellName: "PersonalAgendaContextCell",
+                displayName: "Agenda Context",
+                purpose: "Dagens agenda for personlig co-pilot",
+                purposeDescription: "Lokal agenda-context som leser Calendar og Reminders etter eksplisitt samtykke, svarer på dagens/neste agenda, og kan dele purpose-signaler med Perspective.",
+                interests: scopedInterests(["agenda", "calendar", "reminders", "daily-planning", "agenda-aspects", "purpose-interest-weighted"], policyCategory: "agenda-context"),
+                summary: "Lokal agenda over kalender og påminnelser for Co-Pilot Chat.",
+                categoryPath: ["personal-copilot", "agenda"],
+                tags: ["agenda", "calendar", "reminders", "planning"],
+                menuSlots: [.upperRight, .lowerRight],
+                chip: "LOCAL",
+                borderColor: "#0F766E",
+                policyHints: hints("agenda-context", nativePermissionRequests: ["calendar", "reminders"], universalLinkPath: "personal/agenda"),
+                flowDriven: true,
+                recommendedContexts: ["personal-copilot", "daily-use", "planning"],
+                ioGetKeys: ["state", "agenda.today", "agenda.next", "agenda.items", "agenda.summary", "agenda.permissionStatus", "agenda.purposeSignals", "providerDescriptor", "skeletonConfiguration"],
+                ioSetKeys: ["agenda.refresh", "agenda.answerQuery", "agenda.requestAccess", "agenda.requestCalendarAccess", "agenda.requestReminderAccess", "agenda.publishPerspectiveSignals", "agenda.clearCache"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: CalendarContract.endpoint,
+                sourceCellName: CalendarContract.storeCellName,
+                displayName: "Calendar Store",
+                purpose: "Canonical kalender for personlig co-pilot",
+                purposeDescription: "Lokal HAVEN-kalenderkontrakt med CalendarItem/CalendarOccurrence, portable calendar visualization og eksplisitt ICS import/export.",
+                interests: scopedInterests(["calendar", "agenda", "schedule", "ics", "recurrence", "planning"], policyCategory: "calendar-store"),
+                summary: "Canonical kalenderdata med portable visning og liste-fallback.",
+                categoryPath: ["personal-copilot", "calendar"],
+                tags: ["calendar", "agenda", "schedule", "ics"],
+                menuSlots: [.upperRight, .lowerRight],
+                chip: "LOCAL",
+                borderColor: "#2563EB",
+                policyHints: hints("calendar-store", universalLinkPath: "personal/calendar"),
+                flowDriven: true,
+                recommendedContexts: ["personal-copilot", "daily-use", "planning"],
+                ioGetKeys: [CalendarContract.Keys.state, CalendarContract.Keys.collections, CalendarContract.Keys.items, CalendarContract.Keys.occurrences, CalendarContract.Keys.permissionStatus],
+                ioSetKeys: [CalendarContract.Keys.queryOccurrences, CalendarContract.Keys.createItem, CalendarContract.Keys.updateItem, CalendarContract.Keys.deleteItem, CalendarContract.Keys.importCalendar, CalendarContract.Keys.exportCalendar],
+                ioTopics: [CalendarContract.flowTopic]
             ),
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///Vault",
@@ -5913,6 +6024,38 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "partnering", "event-day"]
             ),
             StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
+                sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
+                displayName: "Conference Codex Live Configurations",
+                purpose: "Conference live configuration launcher",
+                purposeDescription: "Last inn de kjørbare konferanse-CellConfigurationene som finnes i Binding akkurat na, uten aa gjette paa skjulte demo-ruter eller stale dokumentasjonsfiler.",
+                interests: ["conference", "codex", "binding", "configurations", "launcher", "participant", "organizer", "sponsor", "public"],
+                summary: "Operator-/demo-innngang til de faktiske konferanseflatene som kan lastes i Binding na.",
+                categoryPath: ["experiences", "conference", "demo"],
+                tags: ["conference", "codex", "binding", "launcher", "configurations"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "LOCAL DEMO",
+                borderColor: "#A77044",
+                flowDriven: true,
+                recommendedContexts: ["conference", "demo", "meeting", "binding"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
+                sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
+                displayName: "Conference Claude Design Reference",
+                purpose: "Conference Claude design reference",
+                purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de naavaerende konferanseflatene som matcher hver rolle best.",
+                interests: ["conference", "claude", "design", "reference", "visual-direction", "binding"],
+                summary: "Claude-designreferanse i Binding med tydelig mapping til dagens kjørbare conference-flater.",
+                categoryPath: ["experiences", "conference", "design"],
+                tags: ["conference", "claude", "design", "reference", "visual"],
+                menuSlots: [.upperRight, .lowerRight],
+                chip: "LOCAL REFERENCE",
+                borderColor: "#5B4BC8",
+                flowDriven: false,
+                recommendedContexts: ["conference", "design-review", "meeting", "showcase"]
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///ConferenceDemoLauncher",
                 sourceCellName: "ConferenceDemoLauncherLocalCell",
                 displayName: "Conference Demo Launcher",
@@ -5961,8 +6104,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "event-day", "participant"]
             ),
             StaticCatalogDescriptor(
-                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-                sourceCellName: "ConferenceParticipantPreviewShellCell",
+                sourceCellEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                sourceCellName: "ConferenceParticipantPreviewShellLocalFallbackCell",
                 displayName: "Conference AI Assistant",
                 purpose: "Conference copilot",
                 purposeDescription: "Participant preview-state side om side med AIGateway for briefing, prioritering og oppfølging.",
@@ -5971,7 +6114,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 categoryPath: ["experiences", "conference", "ai"],
                 tags: ["conference", "ai", "copilot", "prompting"],
                 menuSlots: [.upperMid],
-                chip: "REMOTE",
+                chip: "LOCAL DEMO",
                 borderColor: "#7C3AED",
                 flowDriven: true,
                 recommendedContexts: ["conference", "briefing", "follow-up"]
@@ -5993,33 +6136,33 @@ final class ConfigurationCatalogCell: GeneralCell {
                 recommendedContexts: ["conference", "operations", "organizer"]
             ),
             StaticCatalogDescriptor(
-                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferencePublicShell",
-                sourceCellName: "ConferencePublicShellCell",
+                sourceCellEndpoint: "cell:///ConferencePublicShellFixture",
+                sourceCellName: "ConferencePublicShellFixtureCell",
                 displayName: "Conference Public Surface",
                 purpose: "Conference public website",
                 purposeDescription: "Landing, tracks, sessions, people, articles og facilities i samme public shell.",
                 interests: ["conference", "public", "landing", "tracks", "sessions", "articles"],
-                summary: "Public shell med landing, tracks, sessions, people og facilities fra staging.",
+                summary: "Public shell med landing, tracks, sessions, people og facilities via lokal demo-fixture i Binding.",
                 categoryPath: ["experiences", "conference", "public"],
                 tags: ["conference", "public", "landing", "program"],
                 menuSlots: [.upperLeft],
-                chip: "REMOTE",
+                chip: "LOCAL DEMO",
                 borderColor: "#2563EB",
                 flowDriven: true,
                 recommendedContexts: ["conference", "public", "website"]
             ),
             StaticCatalogDescriptor(
-                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ConferenceSponsorShell",
-                sourceCellName: "ConferenceSponsorShellCell",
+                sourceCellEndpoint: "cell:///ConferenceSponsorShellFixture",
+                sourceCellName: "ConferenceSponsorShellFixtureCell",
                 displayName: "Conference Sponsor Follow-up",
                 purpose: "Conference sponsor follow-up",
                 purposeDescription: "Sponsor-owned shell for lead inbox, consent, unlock, export og retention.",
                 interests: ["conference", "sponsor", "lead-vault", "consent", "handoff", "retention"],
-                summary: "Sponsor shell med lead inbox, consent, unlock og retention fra staging.",
+                summary: "Sponsor shell med lead inbox, consent, unlock og retention via lokal demo-fixture i Binding.",
                 categoryPath: ["experiences", "conference", "sponsor"],
                 tags: ["conference", "sponsor", "leads", "retention", "consent"],
                 menuSlots: [.upperRight, .lowerMid],
-                chip: "REMOTE",
+                chip: "LOCAL DEMO",
                 borderColor: "#C2410C",
                 flowDriven: true,
                 recommendedContexts: ["conference", "sponsor", "lead-followup"]
@@ -6121,6 +6264,24 @@ final class ConfigurationCatalogCell: GeneralCell {
                 chip: "LOCAL",
                 borderColor: "#0F766E",
                 recommendedContexts: ["matching", "personalization", "identity"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///PersonalAgendaContext",
+                sourceCellName: "PersonalAgendaContextCell",
+                displayName: "Agenda Context",
+                purpose: "Lokal agenda-context",
+                purposeDescription: "Leser Calendar/Reminders etter eksplisitt samtykke og gjør dagens/neste agenda tilgjengelig for chat og Perspective.",
+                interests: ["agenda", "calendar", "reminders", "daily-planning", "perspective", "context"],
+                summary: "Owner-local agenda context for kalender, påminnelser og rolleavklaring.",
+                categoryPath: ["identity", "context"],
+                tags: ["agenda", "calendar", "reminders", "context"],
+                menuSlots: [.upperRight],
+                chip: "LOCAL",
+                borderColor: "#0F766E",
+                flowDriven: true,
+                recommendedContexts: ["daily-use", "planning", "personalization"],
+                ioGetKeys: ["state", "agenda.today", "agenda.next", "agenda.items", "agenda.summary", "agenda.permissionStatus", "agenda.purposeSignals"],
+                ioSetKeys: ["agenda.refresh", "agenda.answerQuery", "agenda.requestAccess", "agenda.publishPerspectiveSignals"]
             ),
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///EntityAnchor",
@@ -6582,6 +6743,47 @@ final class ConfigurationCatalogCell: GeneralCell {
         ]
     }
 
+    nonisolated private static func conferenceShowcaseCatalogDescriptors() -> [StaticCatalogDescriptor] {
+        guard BindingPersonalCopilotV1Policy.conferenceShowcaseEnabled else {
+            return []
+        }
+
+        return [
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
+                sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
+                displayName: "Conference Codex Live Configurations",
+                purpose: "Conference live configuration launcher",
+                purposeDescription: "Last inn de kjørbare konferanse-CellConfigurationene som finnes i Binding akkurat na, uten aa gjette paa skjulte demo-ruter eller stale dokumentasjonsfiler.",
+                interests: ["conference", "codex", "binding", "configurations", "launcher", "participant", "organizer", "sponsor", "public"],
+                summary: "Operator-/demo-innngang til de faktiske konferanseflatene som kan lastes i Binding na.",
+                categoryPath: ["experiences", "conference", "demo"],
+                tags: ["conference", "codex", "binding", "launcher", "configurations"],
+                menuSlots: [.upperMid, .upperRight, .lowerMid],
+                chip: "LOCAL DEMO",
+                borderColor: "#A77044",
+                flowDriven: true,
+                recommendedContexts: ["conference", "demo", "meeting", "binding"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
+                sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
+                displayName: "Conference Claude Design Reference",
+                purpose: "Conference Claude design reference",
+                purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de naavaerende konferanseflatene som matcher hver rolle best.",
+                interests: ["conference", "claude", "design", "reference", "visual-direction", "binding"],
+                summary: "Claude-designreferanse i Binding med tydelig mapping til dagens kjørbare conference-flater.",
+                categoryPath: ["experiences", "conference", "design"],
+                tags: ["conference", "claude", "design", "reference", "visual"],
+                menuSlots: [.upperRight, .lowerRight],
+                chip: "LOCAL REFERENCE",
+                borderColor: "#5B4BC8",
+                flowDriven: false,
+                recommendedContexts: ["conference", "design-review", "meeting", "showcase"]
+            )
+        ]
+    }
+
     nonisolated private static func staticCatalogTemplates(from descriptors: [StaticCatalogDescriptor]) -> [ScaffoldPurposeTemplate] {
         descriptors.map(staticCatalogTemplate(from:))
     }
@@ -6641,6 +6843,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             flowDriven: descriptor.flowDriven,
             editable: descriptor.editable,
             recommendedContexts: descriptor.recommendedContexts,
+            forceRefreshExisting: descriptor.forceRefreshExisting,
             skipResolverLookup: descriptor.skipResolverLookup
         )
     }
@@ -6657,10 +6860,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             return personalPublicProfileDirectoryMenuConfiguration()
         case "cell://staging.haven.digipomps.org/personalmatchmaking":
             return personalMatchesMenuConfiguration()
+        case "cell:///personalchathub":
+            return personalInviteChatMenuConfiguration()
         case "cell:///personalchatclient":
             return personalInviteChatMenuConfiguration()
         case "cell://staging.haven.digipomps.org/personalchathub":
             return personalInviteChatMenuConfiguration(chatHubEndpoint: descriptor.sourceCellEndpoint)
+        case "cell:///personalagendacontext":
+            return personalAgendaContextMenuConfiguration()
+        case "cell:///calendarstore":
+            return personalCalendarStoreMenuConfiguration()
         case "cell:///personalmeetingintent", "cell://staging.haven.digipomps.org/personalmeetingcoordinator":
             return personalMeetingIntentMenuConfiguration()
         case "cell:///personalprivacyaudit":
@@ -6675,6 +6884,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                 displayName: descriptor.displayName,
                 summary: descriptor.summary
             )
+        case "cell:///conferenceconfigurationnavigator":
+            if descriptor.displayName == "Conference Claude Design Reference" {
+                return conferenceClaudeDesignReferenceMenuConfiguration()
+            }
+            return conferenceCodexLiveConfigurationsMenuConfiguration()
         case "cell:///conferencedemolauncher":
             return conferenceDemoLauncherWorkbenchConfiguration()
         case "cell:///conferenceparticipantpreviewshell", "cell://staging.haven.digipomps.org/conferenceparticipantpreviewshell":
@@ -6700,13 +6914,17 @@ final class ConfigurationCatalogCell: GeneralCell {
                 displayName: descriptor.displayName,
                 summary: descriptor.summary
             )
-        case "cell:///conferencepublicshell", "cell://staging.haven.digipomps.org/conferencepublicshell":
+        case "cell:///conferencepublicshell",
+             "cell://staging.haven.digipomps.org/conferencepublicshell",
+             "cell:///conferencepublicshellfixture":
             return conferencePublicWorkbenchConfiguration(
                 endpoint: descriptor.sourceCellEndpoint,
                 displayName: descriptor.displayName,
                 summary: descriptor.summary
             )
-        case "cell:///conferencesponsorshell", "cell://staging.haven.digipomps.org/conferencesponsorshell":
+        case "cell:///conferencesponsorshell",
+             "cell://staging.haven.digipomps.org/conferencesponsorshell",
+             "cell:///conferencesponsorshellfixture":
             return conferenceSponsorWorkbenchConfiguration(
                 endpoint: descriptor.sourceCellEndpoint,
                 displayName: descriptor.displayName,
@@ -7201,8 +7419,8 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     nonisolated static func conferenceAIAssistantWorkbenchConfiguration(
-        conferenceEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceParticipantPreviewShell",
-        aiEndpoint: String = "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview"
+        conferenceEndpoint: String = "cell:///ConferenceParticipantPreviewShell",
+        aiEndpoint: String = "cell:///ConferenceAIAssistantGatewayProxy"
     ) -> CellConfiguration {
         conferenceAIAssistantWorkbenchConfiguration(
             conferenceEndpoint: conferenceEndpoint,
@@ -7220,7 +7438,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    nonisolated static func conferencePublicWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferencePublicShell") -> CellConfiguration {
+    nonisolated static func conferencePublicWorkbenchConfiguration(endpoint: String = "cell:///ConferencePublicShellFixture") -> CellConfiguration {
         conferencePublicWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Public Surface",
@@ -7228,11 +7446,11 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
     }
 
-    nonisolated static func conferenceSponsorWorkbenchConfiguration(endpoint: String = "cell://staging.haven.digipomps.org/ConferenceSponsorShell") -> CellConfiguration {
+    nonisolated static func conferenceSponsorWorkbenchConfiguration(endpoint: String = "cell:///ConferenceSponsorShellFixture") -> CellConfiguration {
         conferenceSponsorWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Sponsor Follow-up",
-            summary: "Sponsor shell med lead inbox, consent, unlock og retention fra staging."
+            summary: "Sponsor shell med lead inbox, consent, unlock og retention via lokal demo-fixture i Binding."
         )
     }
 
@@ -7327,6 +7545,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             personalPublicProfileDirectoryMenuConfiguration(),
             personalMatchesMenuConfiguration(),
             personalInviteChatMenuConfiguration(),
+            personalAgendaContextMenuConfiguration(),
+            personalCalendarStoreMenuConfiguration(),
             personalVaultIdeasMenuConfiguration(),
             personalMeetingIntentMenuConfiguration(),
             personalPrivacyAuditMenuConfiguration(),
@@ -7341,6 +7561,429 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         return configurations
+    }
+
+    nonisolated private static func conferenceConfigurationNavigatorReference(
+        label: String = "conferenceNavigator"
+    ) -> CellReference {
+        var reference = CellReference(
+            endpoint: "cell:///ConferenceConfigurationNavigator",
+            subscribeFeed: false,
+            label: label
+        )
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        return reference
+    }
+
+    nonisolated private static func conferenceShowcaseStaticText(
+        _ text: String,
+        fontSize: Double? = nil,
+        fontWeight: String? = nil,
+        foregroundColor: String? = ConferenceSurfacePalette.textMuted,
+        lineLimit: Int? = nil
+    ) -> SkeletonElement {
+        var label = SkeletonText(text: text)
+        label.modifiers = modifier {
+            $0.fontSize = fontSize
+            $0.fontWeight = fontWeight
+            $0.foregroundColor = foregroundColor
+            $0.lineLimit = lineLimit
+        }
+        return .Text(label)
+    }
+
+    nonisolated private static func conferenceShowcaseKeyText(
+        _ keypath: String,
+        fontSize: Double? = nil,
+        fontWeight: String? = nil,
+        foregroundColor: String? = ConferenceSurfacePalette.textMain,
+        lineLimit: Int? = nil
+    ) -> SkeletonElement {
+        var label = SkeletonText(keypath: keypath)
+        label.modifiers = modifier {
+            $0.fontSize = fontSize
+            $0.fontWeight = fontWeight
+            $0.foregroundColor = foregroundColor
+            $0.lineLimit = lineLimit
+        }
+        return .Text(label)
+    }
+
+    nonisolated private static func conferenceShowcaseSection(
+        _ title: String,
+        content: SkeletonElementList,
+        background: String = ConferenceSurfacePalette.shellStrong,
+        borderColor: String = ConferenceSurfacePalette.strokeStrong
+    ) -> SkeletonElement {
+        var header = SkeletonText(text: title)
+        header.modifiers = modifier {
+            $0.fontSize = 16
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = ConferenceSurfacePalette.textMain
+        }
+
+        var section = SkeletonSection(header: .Text(header), content: content)
+        section.modifiers = conferenceCardModifier(
+            padding: 14,
+            background: background,
+            borderColor: borderColor,
+            cornerRadius: 18,
+            shadowRadius: 6,
+            shadowY: 2
+        )
+        return .Section(section)
+    }
+
+    nonisolated private static func conferenceShowcaseActionButton(
+        _ referenceLabel: String = "conferenceNavigator",
+        actionKeypath: String,
+        label: String,
+        background: String = ConferenceSurfacePalette.accentWarmSoft,
+        borderColor: String = ConferenceSurfacePalette.strokeStrong,
+        foregroundColor: String = ConferenceSurfacePalette.textMain
+    ) -> SkeletonElement {
+        let actionObject: Object = [
+            "keypath": .string(actionKeypath),
+            "payload": .bool(true)
+        ]
+        var button = SkeletonButton(
+            keypath: "\(referenceLabel).dispatchAction",
+            label: label,
+            payload: .object(actionObject)
+        )
+        button.modifiers = conferenceButtonModifier(
+            background: background,
+            borderColor: borderColor,
+            foregroundColor: foregroundColor
+        )
+        return .Button(button)
+    }
+
+    nonisolated static func conferenceCodexLiveConfigurationsMenuConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Conference Codex Live Configurations")
+        configuration.description = "Launcher for de kjørbare konferanse-CellConfigurationene som finnes i Binding akkurat na."
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
+            sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
+            purpose: "Conference live configuration launcher",
+            purposeDescription: "Last inn de faktiske konferansekonfigurasjonene som finnes i Binding, med raske entry points for public, participant, AI assistant, control tower, sponsor, nearby og chat.",
+            interests: ["conference", "codex", "binding", "configurations", "launcher", "participant", "organizer", "public", "sponsor"],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+        configuration.addReference(conferenceConfigurationNavigatorReference())
+
+        var root = SkeletonVStack(elements: [
+            conferenceShowcaseSection(
+                "Conference Configurations",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Dette er de konferanseflatene vi faktisk kan laste i Binding na. Bruk denne som demo-/operatorinngang i stedet for aa jakte paa skjulte testveier.",
+                        fontSize: 13,
+                        foregroundColor: ConferenceSurfacePalette.textMuted,
+                        lineLimit: 4
+                    ),
+                    conferenceShowcaseStaticText(
+                        "Knappene under aapner neste conference-flate i Binding, slik at hele vinduet bytter til riktig CellConfiguration.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.accentCool,
+                        lineLimit: 3
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceDemoLauncher",
+                                label: "Open demo launcher"
+                            ),
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceClaudeDesignReference",
+                                label: "Open Claude reference",
+                                background: "#EFEDFF",
+                                borderColor: "#5B4BC8"
+                            )
+                        ])
+                    )
+                ],
+                background: ConferenceSurfacePalette.shellStrong,
+                borderColor: ConferenceSurfacePalette.strokeStrong
+            ),
+            conferenceShowcaseSection(
+                "Core Surfaces",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Start her hvis du vil vise den faktiske conference-opplevelsen i Binding.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.textMuted,
+                        lineLimit: 3
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceParticipantPortal",
+                                label: "Participant portal",
+                                background: "#EFEDFF",
+                                borderColor: "#5B4BC8"
+                            ),
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceAIAssistant",
+                                label: "AI assistant",
+                                background: "#EFEDFF",
+                                borderColor: "#5B4BC8"
+                            )
+                        ])
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceControlTower",
+                                label: "Control tower"
+                            ),
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferencePublicSurface",
+                                label: "Public surface",
+                                background: ConferenceSurfacePalette.shellMuted,
+                                borderColor: ConferenceSurfacePalette.stroke
+                            )
+                        ])
+                    )
+                ],
+                background: ConferenceSurfacePalette.shell,
+                borderColor: ConferenceSurfacePalette.stroke
+            ),
+            conferenceShowcaseSection(
+                "Supporting Surfaces",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Disse flatene er nyttige når du vil zoome inn paa sponsor, nearby eller chat-bevis.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.textMuted,
+                        lineLimit: 3
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceSponsorFollowUp",
+                                label: "Sponsor follow-up",
+                                background: "#DCEEEB",
+                                borderColor: "#0B7A5A"
+                            ),
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceNearbyRadar",
+                                label: "Nearby radar",
+                                background: "#E8F1FF",
+                                borderColor: "#2F65B8"
+                            )
+                        ])
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceParticipantChat",
+                                label: "Participant chat",
+                                background: ConferenceSurfacePalette.accentCoolSoft,
+                                borderColor: ConferenceSurfacePalette.accentCoolBorder
+                            )
+                        ])
+                    )
+                ],
+                background: ConferenceSurfacePalette.shell,
+                borderColor: ConferenceSurfacePalette.stroke
+            ),
+            conferenceShowcaseSection(
+                "Scope Note",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Jeg fant ikke en separat, ferdig implementert Claude-runtime i repoet. Derfor skiller denne launcheren mellom det som faktisk er kjørbart na og den separate Claude-designreferansen.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.textMuted,
+                        lineLimit: 6
+                    )
+                ],
+                background: "#FBF7F1",
+                borderColor: "#D9D5CB"
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 14
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated static func conferenceClaudeDesignReferenceMenuConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Conference Claude Design Reference")
+        configuration.description = "Loadbar Claude-designreferanse med aerlige notater om hva som faktisk er implementert i Binding na."
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
+            sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
+            purpose: "Conference Claude design reference",
+            purposeDescription: "Oppsummerer den repo-lokale Claude-designretningen for public, participant, organizer, sponsor og nearby, og lar brukeren aapne den naavaerende live-flaten for hver rolle.",
+            interests: ["conference", "claude", "design", "reference", "visual-direction", "public", "participant", "organizer", "sponsor", "nearby"],
+            menuSlots: ["upperRight", "lowerRight"]
+        )
+        configuration.addReference(conferenceConfigurationNavigatorReference())
+
+        var root = SkeletonVStack(elements: [
+            conferenceShowcaseSection(
+                "Claude Design Reference",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Denne flaten er en designreferanse, ikke en paastand om at det finnes en separat skjult Claude-runtime i Binding. Bruk knappene under for aa aapne dagens kjørbare flater side om side med designretningen.",
+                        fontSize: 13,
+                        foregroundColor: ConferenceSurfacePalette.textMuted,
+                        lineLimit: 6
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceDemoLauncher",
+                                label: "Open demo launcher",
+                                background: ConferenceSurfacePalette.shellMuted,
+                                borderColor: ConferenceSurfacePalette.stroke
+                            ),
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceParticipantPortal",
+                                label: "Open participant portal",
+                                background: ConferenceSurfacePalette.accentWarmSoft,
+                                borderColor: ConferenceSurfacePalette.strokeStrong
+                            )
+                        ])
+                    )
+                ],
+                background: "#FBFAF6",
+                borderColor: "#D9D5CB"
+            ),
+            conferenceShowcaseSection(
+                "Public",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Claude public skal kjennes som en editorial konferanseflate med tydelig hero, program, speakers og CTAs. Ikke intern participant-drift eller debug-tekst.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.textMain,
+                        lineLimit: 5
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferencePublicSurface",
+                                label: "Open public surface",
+                                background: "#EFEDFF",
+                                borderColor: "#5B4BC8"
+                            )
+                        ])
+                    )
+                ],
+                background: "#EFEDFF",
+                borderColor: "#5B4BC8"
+            ),
+            conferenceShowcaseSection(
+                "Participant",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Claude participant er en varm day workspace: agenda, people, chats og meetings med store touch targets og indigo/lavender-aksenter.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.textMain,
+                        lineLimit: 5
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceParticipantPortal",
+                                label: "Open participant portal",
+                                background: "#EFEDFF",
+                                borderColor: "#5B4BC8"
+                            ),
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceAIAssistant",
+                                label: "Open AI assistant",
+                                background: "#EFEDFF",
+                                borderColor: "#5B4BC8"
+                            )
+                        ])
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceParticipantChat",
+                                label: "Open participant chat",
+                                background: "#EFEDFF",
+                                borderColor: "#5B4BC8"
+                            )
+                        ])
+                    )
+                ],
+                background: "#F4F0FF",
+                borderColor: "#7C6BE3"
+            ),
+            conferenceShowcaseSection(
+                "Organizer",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Claude organizer/control tower skal vaere lys, varm og amber-orientert, med tydelig KPI-historie og mindre teknisk stoy.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.textMain,
+                        lineLimit: 5
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceControlTower",
+                                label: "Open control tower",
+                                background: "#F9ECD7",
+                                borderColor: "#B76A00"
+                            )
+                        ])
+                    )
+                ],
+                background: "#F9ECD7",
+                borderColor: "#B76A00"
+            ),
+            conferenceShowcaseSection(
+                "Sponsor & Nearby",
+                content: [
+                    conferenceShowcaseStaticText(
+                        "Claude sponsor skal foeles som en consent-pipeline i groent. Claude nearby skal vaere lett og signalpreget i blaatt uten unsupported-stoy i normalflyten.",
+                        fontSize: 12,
+                        foregroundColor: ConferenceSurfacePalette.textMain,
+                        lineLimit: 6
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceSponsorFollowUp",
+                                label: "Open sponsor follow-up",
+                                background: "#DCEEEB",
+                                borderColor: "#0B7A5A"
+                            ),
+                            conferenceShowcaseActionButton(
+                                actionKeypath: "navigator.openConferenceNearbyRadar",
+                                label: "Open nearby radar",
+                                background: "#E8F1FF",
+                                borderColor: "#2F65B8"
+                            )
+                        ])
+                    )
+                ],
+                background: "#FBFAF6",
+                borderColor: "#D9D5CB"
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 14
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
     }
 
     nonisolated static func personalHomeMenuConfiguration() -> CellConfiguration {
@@ -7359,6 +8002,15 @@ final class ConfigurationCatalogCell: GeneralCell {
             menuSlots: [.upperLeft],
             policyCategory: "identity-and-account"
         )
+        configuration.addReference(CellReference(endpoint: "cell:///PersonalProfileDraft", subscribeFeed: false, label: "profileDraft"))
+        configuration.addReference(CellReference(endpoint: "cell:///PersonalPrivacyAudit", subscribeFeed: false, label: "privacyAudit"))
+        var navigatorReference = CellReference(
+            endpoint: "cell:///PersonalCopilotNavigator",
+            subscribeFeed: false,
+            label: "personalNavigator"
+        )
+        navigatorReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(navigatorReference)
         configuration.skeleton = personalIdentitySurfaceSkeleton()
         return configuration
     }
@@ -7502,6 +8154,35 @@ final class ConfigurationCatalogCell: GeneralCell {
         return configuration
     }
 
+    nonisolated static func personalAgendaContextMenuConfiguration() -> CellConfiguration {
+        withPersonalCopilotMetadata(
+            PersonalAgendaContextCell.menuConfiguration(),
+            sourceCellEndpoint: "cell:///PersonalAgendaContext",
+            sourceCellName: "PersonalAgendaContextCell",
+            purpose: "Dagens agenda for personlig co-pilot",
+            purposeDescription: "Lokal agenda-context som leser Calendar og Reminders etter eksplisitt samtykke, svarer på dagens/neste agenda, og kan dele purpose-signaler med Perspective.",
+            interests: ["agenda", "calendar", "reminders", "daily-planning", "agenda-aspects", "purpose-interest-weighted"],
+            menuSlots: [.upperRight, .lowerRight],
+            policyCategory: "agenda-context",
+            nativePermissionRequests: ["calendar", "reminders"],
+            universalLinkPath: "personal/agenda"
+        )
+    }
+
+    nonisolated static func personalCalendarStoreMenuConfiguration() -> CellConfiguration {
+        withPersonalCopilotMetadata(
+            CalendarConfigurationFactory.makeStoreConfiguration(),
+            sourceCellEndpoint: CalendarContract.endpoint,
+            sourceCellName: CalendarContract.storeCellName,
+            purpose: "Canonical kalender for personlig co-pilot",
+            purposeDescription: "Lokal HAVEN-kalenderkontrakt med CalendarItem/CalendarOccurrence, portable calendar visualization og eksplisitt ICS import/export.",
+            interests: ["calendar", "agenda", "schedule", "ics", "recurrence", "planning"],
+            menuSlots: [.upperRight, .lowerRight],
+            policyCategory: "calendar-store",
+            universalLinkPath: "personal/calendar"
+        )
+    }
+
     nonisolated static func personalPrivacyAuditMenuConfiguration() -> CellConfiguration {
         var configuration = personalReferenceCardConfiguration(
             name: "Privacy Audit",
@@ -7585,92 +8266,85 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     nonisolated static func personalInviteChatMenuConfiguration(
-        chatHubEndpoint: String = "cell://staging.haven.digipomps.org/PersonalChatHub"
+        chatHubEndpoint: String = "cell:///PersonalChatHub"
     ) -> CellConfiguration {
-        var configuration = CellConfiguration(name: "Invite Chat")
-        configuration.description = "Invite-only 1:1 og sma grupper med rapportering, blokkering, assistentforslag og poll. Brukeren maa godkjenne alle sideeffekter."
-        configuration.addReference(CellReference(endpoint: "cell:///PersonalChatClient", label: "chatClient"))
+        var configuration = CellConfiguration(name: "Co-Pilot Chat")
+        configuration.description = "Chat-first Co-Pilot arbeidsflate. Skriv naturlig hva du vil oppnaa, finn forslag, og apne bare de hjelperne du ber om. Alle sideeffekter krever eget trykk."
         configuration.addReference(CellReference(endpoint: chatHubEndpoint, label: "chatHub"))
         configuration = withPersonalCopilotMetadata(
             configuration,
             sourceCellEndpoint: chatHubEndpoint,
             sourceCellName: "PersonalChatHubCell",
-            purpose: "Invite-only personlig chat",
-            purposeDescription: "Delt invite-only chat-state med forslag-forst assistent for invite og poll. Brukeren maa godkjenne alle sideeffekter.",
-            interests: ["chat", "invite-only", "moderation", "report", "block", "chat-assistant", "poll", "requires-user-approval"],
+            purpose: "Central purpose-driven co-pilot chat",
+            purposeDescription: "Kompakt chat-first arbeidsflate som matcher naturlig sprak mot synlige formaal, interesser, CellConfigurations, tilgjengelige RAG-cases og trygge agent-action metadata. Alle sideeffekter krever klikk og scope-godkjenning.",
+            interests: [
+                "chat",
+                "invite-only",
+                "moderation",
+                "report",
+                "block",
+                "chat-assistant",
+                "invite-person",
+                "poll",
+                "meeting-video-intent",
+                "schedule-meeting-intent",
+                "project-intent",
+                "todo-intent",
+                "reminder-intent",
+                "capability-gap",
+                "resource-router",
+                "rag-query",
+                "cell-scoped-ai-provider",
+                "provider-slot",
+                "voice-input",
+                "speech-to-text",
+                "dictation",
+                "local-agent-action",
+                "signed-remote-intent",
+                "component-surface",
+                "requires-user-approval",
+                "purpose-interest-weighted",
+                "purposeRef=personal.chat.assist.invite",
+                "purposeRef=personal.chat.assist.poll",
+                "purposeRef=personal.chat.assist.resource-router",
+                "purposeRef=personal.chat.assist.rag-query",
+                "purposeRef=personal.chat.assist.provider-route",
+                "purposeRef=personal.chat.assist.meeting.video",
+                "purposeRef=personal.chat.assist.meeting.schedule",
+                "purposeRef=personal.chat.assist.project",
+                "purposeRef=personal.chat.assist.todo",
+                "purposeRef=personal.chat.assist.reminder",
+                "purposeRef=personal.chat.assist.capability-request",
+                "purposeRef=personal.chat.assist.local-agent-action",
+                "purposeRef=personal.agent.local.gui.finder.close-windows"
+            ],
             menuSlots: [.upperLeft, .lowerLeft],
-            policyCategory: "invite-only-chat",
+            policyCategory: "purpose-driven-chat",
             requiresLogin: true,
             requiresUserGeneratedContentModeration: true,
-            universalLinkPath: "personal/chat/invite"
+            universalLinkPath: "personal/chat/copilot"
         )
 
-        let pageCard = BindingPersonalCopilotDesignSystem.pageCard()
         let fieldCard = BindingPersonalCopilotDesignSystem.fieldCard()
-        let primaryButton = BindingPersonalCopilotDesignSystem.primaryButton()
-        let secondaryButton = BindingPersonalCopilotDesignSystem.secondaryButton()
-        let warningButton = BindingPersonalCopilotDesignSystem.warningButton()
-
-        func label(_ text: String, size: Double = 12, weight: String? = nil) -> SkeletonText {
-            var view = SkeletonText(text: text)
-            view.modifiers = modifier {
-                $0.foregroundColor = BindingPersonalCopilotDesignSystem.textSecondary
-                $0.fontSize = size
-                $0.lineLimit = 5
-                if let weight {
-                    $0.fontWeight = weight
-                }
-            }
-            return view
+        func button(
+            _ keypath: String,
+            _ title: String,
+            payload: ValueType = .object([:]),
+            style: PersonalButtonStyle = .primary
+        ) -> SkeletonButton {
+            personalActionButton(
+                keypath: keypath,
+                label: title,
+                payload: payload,
+                style: style
+            )
         }
 
-        var title = SkeletonText(text: "Invite Chat")
-        title.modifiers = modifier {
-            $0.fontStyle = "title2"
-            $0.fontWeight = "medium"
-            $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
-            $0.styleRole = "personal-hero"
-        }
-
-        func button(_ keypath: String, _ title: String, payload: ValueType = .object([:]), style: PersonalButtonStyle = .primary) -> SkeletonButton {
-            var view = SkeletonButton(keypath: keypath, label: title, payload: payload)
-            switch style {
-            case .primary:
-                view.modifiers = primaryButton
-            case .secondary:
-                view.modifiers = secondaryButton
-            case .warning:
-                view.modifiers = warningButton
-            }
-            return view
-        }
-
-        let inviteUserField = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "chatHub.state.inviteDraft.userUUID",
-            targetKeypath: "chatHub.inviteDraft.userUUID",
-            placeholder: "User UUID to invite",
-            modifiers: fieldCard
-        )
-        let inviteProfileField = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "chatHub.state.inviteDraft.profileID",
-            targetKeypath: "chatHub.inviteDraft.profileID",
-            placeholder: "Or public profile ID",
-            modifiers: fieldCard
-        )
-        let inviteTitleField = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "chatHub.state.inviteDraft.title",
-            targetKeypath: "chatHub.inviteDraft.title",
-            placeholder: "Chat title",
-            modifiers: fieldCard
-        )
         let composer = SkeletonTextArea(
             text: nil,
             sourceKeypath: "chatHub.state.currentThread.composer.body",
             targetKeypath: "chatHub.setComposer",
-            placeholder: "Write a message, e.g. inviter min naermeste kollega",
+            placeholder: "Skriv naturlig, f.eks. \"Inviter Anna til en liten chat om lunsj i dag\"",
             minLines: 3,
             maxLines: 8,
             submitOnEnter: false,
@@ -7680,85 +8354,166 @@ final class ConfigurationCatalogCell: GeneralCell {
             text: nil,
             sourceKeypath: "chatHub.state.assistant.candidateQuery",
             targetKeypath: "chatHub.assistant.setCandidateQuery",
-            placeholder: "Find person to invite",
+            placeholder: "Avgrens med navn, kallenavn eller relasjon",
+            modifiers: fieldCard
+        )
+        let inviteTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.inviteDraft.title",
+            targetKeypath: "chatHub.inviteDraft.title",
+            placeholder: "Gi chatten en kort tittel",
             modifiers: fieldCard
         )
         let pollQuestionField = SkeletonTextField(
             text: nil,
             sourceKeypath: "chatHub.state.pollDraft.question",
             targetKeypath: "chatHub.poll.setQuestion",
-            placeholder: "Poll question",
+            placeholder: "Hva skal dere stemme over?",
             modifiers: fieldCard
         )
         let pollOptionsField = SkeletonTextArea(
             text: nil,
             sourceKeypath: "chatHub.state.pollDraft.optionsText",
             targetKeypath: "chatHub.poll.setOptions",
-            placeholder: "Poll options, one per line",
+            placeholder: "Ett alternativ per linje",
             minLines: 2,
             maxLines: 6,
             submitOnEnter: false,
             modifiers: fieldCard
         )
+        let meetingTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.meetingDraft.title",
+            targetKeypath: "chatHub.meeting.title",
+            placeholder: "Hva skal motet handle om?",
+            modifiers: fieldCard
+        )
+        let meetingTimesField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.meetingDraft.proposedTimesText",
+            targetKeypath: "chatHub.meeting.proposedTimesText",
+            placeholder: "Forslag som \"i morgen formiddag, fredag ettermiddag\"",
+            modifiers: fieldCard
+        )
+        let todoTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.todoDraft.title",
+            targetKeypath: "chatHub.todo.title",
+            placeholder: "Oppgave",
+            modifiers: fieldCard
+        )
+        let todoNoteField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.todoDraft.note",
+            targetKeypath: "chatHub.todo.note",
+            placeholder: "Detaljer",
+            minLines: 2,
+            maxLines: 5,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+        let todoDueField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.todoDraft.dueAtText",
+            targetKeypath: "chatHub.todo.dueAtText",
+            placeholder: "Frist eller tidspunkt",
+            modifiers: fieldCard
+        )
+        let projectTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.projectDraft.title",
+            targetKeypath: "chatHub.project.title",
+            placeholder: "Prosjekttittel",
+            modifiers: fieldCard
+        )
+        let projectDescriptionField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.projectDraft.description",
+            targetKeypath: "chatHub.project.description",
+            placeholder: "Hva skal lages?",
+            minLines: 3,
+            maxLines: 7,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+        let reminderTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.reminderDraft.title",
+            targetKeypath: "chatHub.reminder.title",
+            placeholder: "Hva skal huskes?",
+            modifiers: fieldCard
+        )
+        let reminderTimeField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.reminderDraft.scheduledAtText",
+            targetKeypath: "chatHub.reminder.scheduledAtText",
+            placeholder: "Tidspunkt",
+            modifiers: fieldCard
+        )
+        let ideaTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.ideaDraft.title",
+            targetKeypath: "chatHub.idea.title",
+            placeholder: "Kort ide-tittel",
+            modifiers: fieldCard
+        )
+        let ideaContentField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.ideaDraft.content",
+            targetKeypath: "chatHub.idea.content",
+            placeholder: "Skriv ideen her",
+            minLines: 3,
+            maxLines: 8,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+        let agentActionField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.agentReviewDraft.actionID",
+            targetKeypath: "chatHub.agent.review.actionID",
+            placeholder: "Agent action ID",
+            modifiers: fieldCard
+        )
+        let agentReasonField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.agentReviewDraft.reason",
+            targetKeypath: "chatHub.agent.review.reason",
+            placeholder: "Hvorfor skal dette til lokal review?",
+            minLines: 2,
+            maxLines: 5,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+        let capabilityTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.capabilityRequestDraft.title",
+            targetKeypath: "chatHub.capabilityRequest.title",
+            placeholder: "Kort behovstittel",
+            modifiers: fieldCard
+        )
+        let capabilitySummaryField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.capabilityRequestDraft.summary",
+            targetKeypath: "chatHub.capabilityRequest.summary",
+            placeholder: "Hva provde du aa faa til?",
+            minLines: 3,
+            maxLines: 7,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
 
-        var statusSection = SkeletonVStack(elements: [
-            .Text(label("Safety status", size: 13, weight: "semibold")),
-            .Text(SkeletonText(keypath: "chatHub.state.moderationStatus.filteringEnabled")),
-            .Text(SkeletonText(keypath: "chatHub.state.blockedUsers")),
-            .Text(SkeletonText(keypath: "chatHub.state.purposeWeights"))
-        ])
-        statusSection.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-chat-item")
-
-        var threadRow = SkeletonVStack(elements: [
-            .Text(personalBoundText("title", lineLimit: 1)),
-            .Text(personalBoundText("moderationStatus", lineLimit: 2)),
-            .Text(personalBoundText("participantUUIDs", lineLimit: 3))
+        var messageRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("authorDisplayName", lineLimit: 1)),
+            .Text(personalBoundText("body", lineLimit: 4))
         ], spacing: 4)
-        threadRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-chat-item")
-        var threads = SkeletonList(topic: nil, keypath: "chatHub.state.threads", flowElementSkeleton: threadRow)
-        threads.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-chat-item")
-
-        var composeSection = SkeletonVStack(elements: [
-            .Text(label("Composer", size: 13, weight: "semibold")),
-            .List(threads),
-            .TextArea(composer),
-            .HStack(SkeletonHStack(elements: [
-                .Button(button("chatHub.sendComposedMessage", "Send message")),
-                .Button(button("chatHub.clearComposer", "Clear composer", style: .secondary))
-            ]))
-        ])
-        composeSection.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-draft-composer")
-
-        var consentSection = SkeletonVStack(elements: [
-            .Text(label("Invite-only consent", size: 13, weight: "semibold")),
-            .Text(label("1:1 og sma grupper starter bare etter eksplisitt invitasjon og aksept. Matching kan foresla kontakt, men ikke starte chat alene.")),
-            .TextField(inviteUserField),
-            .TextField(inviteProfileField),
-            .TextField(inviteTitleField),
-            .HStack(SkeletonHStack(elements: [
-                .Button(button("chatHub.invite", "Invite")),
-                .Button(button("chatHub.acceptInvite", "Accept invite", style: .secondary)),
-                .Button(button("chatHub.declineInvite", "Decline invite", style: .warning))
-            ]))
-        ])
-        consentSection.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-consent-prompt")
-
-        var moderationSection = SkeletonVStack(elements: [
-            .Text(label("Report and block", size: 13, weight: "semibold")),
-            .Text(label("Rapportering og blokkering er synlig fra forste versjon. Blokkert bruker kan ikke fortsette lokal samtaleflyt.")),
-            .HStack(SkeletonHStack(elements: [
-                .Button(button("chatHub.reportMessage", "Report latest", payload: .object(["reason": .string("user_reported_from_chat")]), style: .warning)),
-                .Button(button("chatHub.blockUser", "Block participant", style: .warning)),
-                .Button(button("chatHub.unblockUser", "Unblock participant", style: .secondary))
-            ]))
-        ])
-        moderationSection.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-audit-row")
+        messageRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-message-bubble")
+        var messages = SkeletonList(topic: nil, keypath: "chatHub.state.messages", flowElementSkeleton: messageRow)
+        messages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 220, role: "personal-message-bubble")
 
         var candidateRow = SkeletonVStack(elements: [
             .Text(personalBoundText("displayName", lineLimit: 1)),
             .Text(personalBoundText("headline", lineLimit: 2)),
-            .Text(personalBoundText("interests", lineLimit: 2)),
-            .Text(personalBoundText("moderationStatus", lineLimit: 1))
+            .Text(personalBoundText("summary", lineLimit: 3))
         ], spacing: 4)
         candidateRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
         var candidates = SkeletonList(
@@ -7767,117 +8522,444 @@ final class ConfigurationCatalogCell: GeneralCell {
             flowElementSkeleton: candidateRow
         )
         candidates.selectionMode = .single
+        candidates.selectionStateKeypath = "chatHub.state.assistant.latestSuggestion.selectedCandidateProfileID"
         candidates.selectionValueKeypath = "id"
         candidates.selectionActionKeypath = "chatHub.assistant.selectCandidate"
         candidates.selectionPayloadMode = .itemID
         candidates.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 220, role: "personal-list-row")
 
-        var assistantSection = SkeletonVStack(elements: [
-            .Text(label("Assistant", size: 13, weight: "semibold")),
-            .Text(SkeletonText(keypath: "chatHub.state.assistant.status")),
-            .Text(SkeletonText(keypath: "chatHub.state.assistant.latestSuggestion.kind")),
-            .Text(SkeletonText(keypath: "chatHub.state.assistant.latestSuggestion.explanation")),
-            .Text(SkeletonText(keypath: "chatHub.state.assistant.latestSuggestion.confidence")),
-            .Text(SkeletonText(keypath: "chatHub.state.assistant.policy.autonomy")),
-            .HStack(SkeletonHStack(elements: [
-                .Button(button("chatHub.assistant.analyzeDraft", "Analyze draft")),
-                .Button(button("chatHub.assistant.acceptSuggestion", "Use suggestion", style: .secondary)),
-                .Button(button("chatHub.assistant.dismissSuggestion", "Dismiss", style: .secondary))
-            ])),
-            .TextField(candidateField),
-            .List(candidates)
-        ])
-        assistantSection.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-card")
+        var inviteRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1))
+        ], spacing: 4)
+        inviteRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-chat-item")
+        var invites = SkeletonList(topic: nil, keypath: "chatHub.state.invites", flowElementSkeleton: inviteRow)
+        invites.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-chat-item")
 
         var pollRow = SkeletonVStack(elements: [
             .Text(personalBoundText("question", lineLimit: 2)),
-            .Text(personalBoundText("status", lineLimit: 1)),
-            .Text(personalBoundText("options", lineLimit: 3))
+            .Text(personalBoundText("status", lineLimit: 1))
         ], spacing: 4)
         pollRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
         var polls = SkeletonList(topic: nil, keypath: "chatHub.state.polls", flowElementSkeleton: pollRow)
         polls.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
 
-        var pollSection = SkeletonVStack(elements: [
-            .Text(label("Poll", size: 13, weight: "semibold")),
-            .Text(SkeletonText(keypath: "chatHub.state.assistant.pollPrerequisite")),
-            .TextField(pollQuestionField),
-            .TextArea(pollOptionsField),
-            .HStack(SkeletonHStack(elements: [
-                .Button(button("chatHub.poll.create", "Create poll")),
-                .Button(button("chatHub.poll.vote", "Vote first option", payload: .object(["optionID": .string("option-1")]), style: .secondary)),
-                .Button(button("chatHub.poll.close", "Close poll", style: .secondary))
-            ])),
-            .List(polls)
-        ])
-        pollSection.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-card")
+        var moduleRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("kind", lineLimit: 1)),
+            .Text(personalBoundText("status", lineLimit: 1))
+        ], spacing: 4)
+        moduleRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var workbenchModules = SkeletonList(topic: nil, keypath: "chatHub.state.workbench.modules", flowElementSkeleton: moduleRow)
+        workbenchModules.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
 
-        var root = SkeletonVStack(elements: [
-            .Text(title),
-            .Text(label(configuration.description ?? "")),
-            .VStack(statusSection),
-            .VStack(consentSection),
-            .VStack(composeSection),
-            .VStack(moderationSection),
-            .VStack(assistantSection),
-            .VStack(pollSection)
-        ])
-        root.modifiers = pageCard
-        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
-        scroll.modifiers = modifier {
-            $0.background = BindingPersonalCopilotDesignSystem.canvas
-            $0.padding = 6
+        var capabilityRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("destination", lineLimit: 1)),
+            .Text(personalBoundText("status", lineLimit: 1))
+        ], spacing: 4)
+        capabilityRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var capabilityRequests = SkeletonList(topic: nil, keypath: "chatHub.state.capabilityRequests", flowElementSkeleton: capabilityRow)
+        capabilityRequests.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-list-row")
+
+        var surfaceRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("state", lineLimit: 1))
+        ], spacing: 4)
+        surfaceRow.modifiers = modifier {
+            $0.padding = 12
+            $0.background = BindingPersonalCopilotDesignSystem.surfaceElevated
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = BindingPersonalCopilotDesignSystem.border
+            $0.styleRole = "personal-list-row"
+            $0.motionHint = .appear
+            $0.motionSourceRole = "personal-chat-helper"
         }
-        configuration.skeleton = .ScrollView(scroll)
+        var componentSurfaces = SkeletonList(topic: nil, keypath: "chatHub.state.ui.componentSurfaces", flowElementSkeleton: surfaceRow)
+        componentSurfaces.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
+
+        var activeToolChipRow = SkeletonVStack(elements: [
+            .HStack(SkeletonHStack(elements: [
+                .Text(personalBoundText("title", lineLimit: 1)),
+                .Button(button("chatHub.ui.dismissComponentSurface", "Fjern", style: .secondary))
+            ], spacing: 6))
+        ], spacing: 4)
+        activeToolChipRow.modifiers = modifier {
+            $0.padding = 6
+            $0.background = BindingPersonalCopilotDesignSystem.surfaceMuted
+            $0.cornerRadius = 999
+            $0.borderWidth = 1
+            $0.borderColor = BindingPersonalCopilotDesignSystem.border
+            $0.styleRole = "chat-active-tool-chip"
+            $0.styleClasses = ["chat-active-tool-chip"]
+        }
+        var activeToolChips = SkeletonList(
+            topic: nil,
+            keypath: "chatHub.state.ui.activeToolChips",
+            flowElementSkeleton: activeToolChipRow
+        )
+        activeToolChips.activationActionKeypath = "chatHub.ui.dismissComponentSurface"
+        activeToolChips.selectionValueKeypath = "id"
+        activeToolChips.selectionPayloadMode = .itemID
+        activeToolChips.modifiers = modifier {
+            $0.styleRole = "chat-active-tool-chips"
+            $0.styleClasses = ["chat-active-tool-chips"]
+        }
+
+        var providerRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("availability", lineLimit: 1)),
+            .Text(personalBoundText("kind", lineLimit: 1))
+        ], spacing: 4)
+        providerRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var providerList = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.assistantProviders", flowElementSkeleton: providerRow)
+        providerList.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
+
+        let helpPanel = personalSection(
+            "Hjelp",
+            content: [
+                .Text(personalBodyText("Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt.")),
+                .Text(personalBodyText("Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene."))
+            ]
+        )
+
+        let conversationPanel: [SkeletonElement] = [
+            personalSection(
+                "Samtale",
+                role: "personal-draft-composer",
+                content: [
+                    .List(messages),
+                    .List(activeToolChips),
+                    .TextArea(composer),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.sendComposedMessage", "Send melding")),
+                        .Button(button("chatHub.clearComposer", "Tom", style: .secondary))
+                    ])),
+                    .Text(personalBoundText("chatHub.state.voice.message", lineLimit: 2)),
+                    .Text(personalBoundText("chatHub.state.voice.finalTranscript", lineLimit: 3)),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.voice.requestPermission", "Mikrofon", style: .secondary)),
+                        .Button(button("chatHub.voice.startListening", "Snakk", style: .secondary)),
+                        .Button(button("chatHub.voice.stopListening", "Stopp", style: .secondary))
+                    ])),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.voice.acceptTranscript", "Bruk tekst", style: .secondary)),
+                        .Button(button("chatHub.voice.acceptTranscriptAndAnalyze", "Bruk + finn forslag", style: .secondary)),
+                        .Button(button("chatHub.voice.clearTranscript", "Tøm tale", style: .secondary))
+                    ]))
+                ],
+                modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-draft-composer")
+            ),
+            personalSection(
+                "Neste steg",
+                content: [
+                    .Text(personalBodyText("La assistenten lese utkastet ditt bare naar du ber om det. Resultatet skal hjelpe deg videre, ikke overta.")),
+                    .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 4)),
+                    .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 4)),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.assistant.analyzeDraft", "Finn forslag")),
+                        .Button(button("chatHub.ui.setActiveHelper", "Inviter mennesker", payload: .object(["activeHelper": .string("invite")]), style: .secondary)),
+                        .Button(button("chatHub.ui.openSuggestedHelper", "Apne hjelper", style: .secondary)),
+                        .Button(button("chatHub.assistant.dismissSuggestion", "Avvis", style: .secondary))
+                    ]))
+                ]
+            ),
+            personalSection(
+                "Inviter person",
+                role: "personal-consent-prompt",
+                content: [
+                    .Text(personalBodyText("Etter at du har skrevet hvem du vil invitere i meldingsfeltet, kan du bruke soket her for aa avgrense trefflisten og velge riktig person.")),
+                    .TextField(candidateField),
+                    .List(candidates),
+                    .TextField(inviteTitleField),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.invite", "Send invitasjon"))
+                    ]))
+                ],
+                modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-consent-prompt")
+            )
+        ]
+
+        let activePanel: [SkeletonElement] = [
+            personalSection(
+                "Apne hjelpere",
+                content: [
+                    .Text(personalBodyText("Hjelpere som apnes fra forslag vises her som UI-flater. De oppretter ikke poll, invite eller agentjobb uten eget bekreftelsestrinn.")),
+                    .List(componentSurfaces),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.ui.minimizeComponentSurface", "Minimer", style: .secondary)),
+                        .Button(button("chatHub.ui.restoreComponentSurface", "Gjenopprett", style: .secondary)),
+                        .Button(button("chatHub.ui.dismissComponentSurface", "Lukk", style: .secondary))
+                    ]))
+                ]
+            ),
+            personalSection(
+                "Ventende invitasjoner",
+                content: [
+                    .Text(personalBodyText("Nye invitasjoner dukker opp her. Godta eller avslutt dem eksplisitt.")),
+                    .List(invites),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.acceptInvite", "Godta", style: .secondary)),
+                        .Button(button("chatHub.declineInvite", "Avslaa", style: .warning))
+                    ]))
+                ]
+            ),
+            personalSection(
+                "Avstemninger",
+                content: [
+                    .Text(personalBodyText("Aktive polls i chatten vises her naar de finnes.")),
+                    .List(polls),
+                    .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.poll.vote", "Stem forste", payload: .object(["optionID": .string("option-1")]), style: .secondary)),
+                        .Button(button("chatHub.poll.close", "Lukk poll", style: .secondary))
+                    ]))
+                ]
+            ),
+            personalSection(
+                "Opprettet fra chat",
+                content: [
+                    .Text(personalBodyText("Dette er ting chatten faktisk har opprettet eller delegert videre etter et eksplisitt klikk.")),
+                    .List(workbenchModules)
+                ]
+            ),
+            personalSection(
+                "Meldte behov",
+                content: [
+                    .Text(personalBodyText("Behov vises bare etter frivillig innsending fra denne chatten.")),
+                    .List(capabilityRequests)
+                ]
+            )
+        ]
+
+        let toolsPanel = personalSection(
+            "Verktoy",
+            content: [
+                .Text(personalBodyText("Velg hjelperen som passer til det du vil gjore. Alle knapper peker til implementerte keypaths.")),
+                .TextField(pollQuestionField),
+                .TextArea(pollOptionsField),
+                .Button(button("chatHub.poll.create", "Opprett avstemning")),
+                .TextField(ideaTitleField),
+                .TextArea(ideaContentField),
+                .Button(button("chatHub.idea.capture", "Fang ide")),
+                .TextField(todoTitleField),
+                .TextArea(todoNoteField),
+                .TextField(todoDueField),
+                .Button(button("chatHub.todo.create", "Opprett oppgave")),
+                .TextField(projectTitleField),
+                .TextArea(projectDescriptionField),
+                .Button(button("chatHub.project.create", "Opprett ide")),
+                .TextField(reminderTitleField),
+                .TextField(reminderTimeField),
+                .Button(button("chatHub.reminder.create", "Lagre paaminnelse")),
+                .TextField(meetingTitleField),
+                .TextField(meetingTimesField),
+                .Button(button("chatHub.meeting.schedule", "Foresla mote")),
+                .TextField(agentActionField),
+                .TextArea(agentReasonField),
+                .Button(button("chatHub.agent.review.create", "Lag agent-review")),
+                .TextField(capabilityTitleField),
+                .TextArea(capabilitySummaryField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.ui.setCapabilityDiscoveryEnabled", "Skru paa behovsradar", payload: .bool(true), style: .secondary)),
+                    .Button(button("chatHub.capabilityRequest.submit", "Send behov"))
+                ]))
+            ]
+        )
+
+        let aiPanel = personalSection(
+            "AI",
+            content: [
+                .Text(personalBodyText("Provider velges bare blant provider-celler som finnes i denne chat-scopen.")),
+                .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.title", lineLimit: 1)),
+                .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.reason", lineLimit: 3)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.assistant.provider.recommend", "Velg beste provider")),
+                    .Button(button("chatHub.assistant.queryResource", "Spor tilgjengelig RAG", style: .secondary))
+                ]))
+            ]
+        )
+
+        let moderationPanel = personalSection(
+            "Moderering",
+            role: "personal-audit-row",
+            content: [
+                .Text(personalBodyText("Rapportering og blokkering overstyrer alltid assistentforslag.")),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.reportMessage", "Rapporter siste", payload: .object(["reason": .string("user_reported_from_chat")]), style: .warning)),
+                    .Button(button("chatHub.blockUser", "Blokker deltaker", style: .warning)),
+                    .Button(button("chatHub.unblockUser", "Opphev blokk", style: .secondary))
+                ]))
+            ],
+            modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-audit-row")
+        )
+
+        let privacyPanel = personalSection(
+            "Personvern",
+            content: [
+                .Text(personalBodyText("Co-piloten leser kun utkastet ditt naar du ber om forslag. RAG og agent-review krever egne klikk.")),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.ui.setLearningEnabled", "Stopp laering", payload: .bool(false), style: .secondary)),
+                    .Button(button("chatHub.ui.setLearningEnabled", "Tillat laering", payload: .bool(true), style: .secondary)),
+                    .Button(button("chatHub.ui.setCapabilityDiscoveryEnabled", "Skru av behovsradar", payload: .bool(false), style: .secondary)),
+                    .Button(button("chatHub.ui.setShowAdvanced", "Vis avansert", payload: .bool(true), style: .secondary))
+                ]))
+            ]
+        )
+
+        let advancedPanel = personalSection(
+            "Avansert",
+            content: [
+                .Text(personalBodyText("Tekniske detaljer ligger her for feilsoking og paritetstesting, ikke i standard Samtale-visning.")),
+                .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.kind", lineLimit: 1)),
+                .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.executionScope", lineLimit: 1)),
+                .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 4)),
+                .List(providerList)
+            ]
+        )
+
+        var moreTabs = SkeletonTabs(
+            tabsKeypath: "chatHub.state.ui.moreTabs",
+            activeTabStateKeypath: "chatHub.state.ui.activeMoreTab",
+            selectionActionKeypath: "chatHub.ui.setActiveMoreTab",
+            idKeypath: "id",
+            labelKeypath: "title",
+            panels: [
+                SkeletonTabPanel(id: "verktoy", content: [toolsPanel]),
+                SkeletonTabPanel(id: "hjelp", content: [helpPanel]),
+                SkeletonTabPanel(id: "ai", content: [aiPanel]),
+                SkeletonTabPanel(id: "moderering", content: [moderationPanel]),
+                SkeletonTabPanel(id: "personvern", content: [privacyPanel]),
+                SkeletonTabPanel(id: "avansert", content: [advancedPanel])
+            ]
+        )
+        moreTabs.modifiers = modifier {
+            $0.styleRole = "tabstrip"
+        }
+
+        let morePanel: [SkeletonElement] = [
+            .Tabs(moreTabs)
+        ]
+
+        var tabs = SkeletonTabs(
+            tabsKeypath: "chatHub.state.ui.tabs",
+            activeTabStateKeypath: "chatHub.state.ui.activeTab",
+            selectionActionKeypath: "chatHub.ui.setActiveTab",
+            idKeypath: "id",
+            labelKeypath: "title",
+            panels: [
+                SkeletonTabPanel(id: "samtale", content: conversationPanel),
+                SkeletonTabPanel(id: "aktivt", content: activePanel),
+                SkeletonTabPanel(id: "mer", content: morePanel)
+            ]
+        )
+        tabs.modifiers = modifier {
+            $0.styleRole = "tabstrip"
+        }
+
+        configuration.skeleton = personalSurfacePage(
+            title: "Co-Pilot Chat",
+            subtitle: "Skriv naturlig hva du vil oppnaa. Chatten finner formål og apner bare hjelpere du ber om.",
+            chip: "CHAT",
+            content: [
+                .Tabs(tabs)
+            ]
+        )
         return configuration
     }
 
     nonisolated private static func personalIdentitySurfaceSkeleton() -> SkeletonElement {
         let exportButton = personalActionButton(
             keypath: "identity.requestExport",
-            label: "Request export",
+            label: "Request account export",
             payload: .bool(true)
         )
         let deleteButton = personalActionButton(
             keypath: "identity.requestAccountDelete",
-            label: "Stage delete",
+            label: "Request account deletion",
             payload: .bool(true),
             style: .warning
         )
         let cancelDeleteButton = personalActionButton(
             keypath: "identity.cancelAccountDelete",
-            label: "Cancel delete",
+            label: "Cancel deletion request",
             payload: .bool(true),
+            style: .secondary
+        )
+        let openPublishButton = personalDispatchActionButton(
+            "personalNavigator",
+            actionKeypath: "navigator.openPublishPublicProfile",
+            label: "Manage public identity",
+            style: .secondary
+        )
+        let openProfileButton = personalDispatchActionButton(
+            "personalNavigator",
+            actionKeypath: "navigator.openMyProfile",
+            label: "Open profile",
+            style: .secondary
+        )
+        let openPrivacyAuditButton = personalDispatchActionButton(
+            "personalNavigator",
+            actionKeypath: "navigator.openPrivacyAudit",
+            label: "Open privacy audit",
             style: .secondary
         )
 
         return personalSurfacePage(
             title: "Personal Home",
-            subtitle: "Requester, public/private identity og konto-livssyklus holdes lokalt til brukeren eksplisitt velger eksport, sletting eller publisering.",
-            chip: "LOCAL CORE",
+            subtitle: "Start med profil og personvern. Eksport og sletting ligger som egne kontohandlinger.",
+            chip: "ON DEVICE",
             content: [
                 personalSection(
-                    "Identity state",
-                    role: "personal-key-value-block",
+                    "Quick actions",
+                    role: "personal-action-row",
                     content: [
-                        personalKeyValueRow("Mode", keypath: "identity.state.identityMode", accent: BindingPersonalCopilotDesignSystem.success),
-                        personalKeyValueRow("Public identity", keypath: "identity.state.publicIdentityStatus", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
-                        personalKeyValueRow("Export", keypath: "identity.state.exportStatus", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Delete", keypath: "identity.state.deleteStatus", accent: BindingPersonalCopilotDesignSystem.warning)
+                        .Text(personalBoundText("identity.state.status", lineLimit: 3)),
+                        .HStack(SkeletonHStack(elements: [
+                            .Button(exportButton)
+                        ], spacing: 8)),
+                        personalKeyValueRow("Identity mode", keypath: "identity.state.identityMode", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("Export", keypath: "identity.state.exportStatus", accent: BindingPersonalCopilotDesignSystem.textTertiary)
                     ]
                 ),
                 personalSection(
-                    "Local account actions",
-                    role: "personal-action-row",
+                    "Overview",
+                    role: "personal-card",
                     content: [
-                        .Text(personalBodyText("Disse handlingene oppdaterer bare lokal state i V1. Remote konto-/sletteflyt kan kobles pa senere uten at flaten endrer kontrakt.")),
+                        personalStatusActionCard(
+                            "Public identity",
+                            keypath: "identity.state.publicIdentityStatus",
+                            accent: BindingPersonalCopilotDesignSystem.brandPrimary,
+                            button: openPublishButton,
+                            supportingText: "Publisering og avpublisering skjer i en egen, samtykkestyrt flate."
+                        ),
+                        personalStatusActionCard(
+                            "Profile",
+                            keypath: "profileDraft.state.publishedStatus",
+                            accent: BindingPersonalCopilotDesignSystem.success,
+                            button: openProfileButton,
+                            supportingText: "Rediger det private profilutkastet ditt uten å forlate lokal modus."
+                        ),
+                        personalStatusActionCard(
+                            "Privacy audit",
+                            keypath: "privacyAudit.state.status",
+                            accent: BindingPersonalCopilotDesignSystem.textTertiary,
+                            button: openPrivacyAuditButton,
+                            supportingText: "Se lokal samtykke- og aktivitetshistorikk før du går videre."
+                        )
+                    ]
+                ),
+                personalSection(
+                    "Danger zone",
+                    role: "personal-card",
+                    content: [
+                        .Text(personalBodyText("Sletting er separat fra vanlig profilbruk og krever en tydelig ekstra bekreftelse.")),
+                        personalKeyValueRow("Deletion", keypath: "identity.state.deleteStatus", accent: BindingPersonalCopilotDesignSystem.danger),
                         .HStack(SkeletonHStack(elements: [
-                            .Button(exportButton),
                             .Button(deleteButton),
                             .Button(cancelDeleteButton)
-                        ], spacing: 8)),
-                        .Text(personalBoundText("identity.state.status", lineLimit: 3))
-                    ]
+                        ], spacing: 8))
+                    ],
+                    modifiers: BindingPersonalCopilotDesignSystem.dangerSectionCard()
                 )
             ]
         )
@@ -8529,6 +9611,24 @@ final class ConfigurationCatalogCell: GeneralCell {
         return button
     }
 
+    nonisolated private static func personalDispatchActionButton(
+        _ referenceLabel: String,
+        actionKeypath: String,
+        label: String,
+        payload: ValueType = .bool(true),
+        style: PersonalButtonStyle = .secondary
+    ) -> SkeletonButton {
+        personalActionButton(
+            keypath: "\(referenceLabel).dispatchAction",
+            label: label,
+            payload: .object([
+                "keypath": .string(actionKeypath),
+                "payload": payload
+            ]),
+            style: style
+        )
+    }
+
     nonisolated private static func personalSurfacePage(
         title: String,
         subtitle: String,
@@ -8537,22 +9637,30 @@ final class ConfigurationCatalogCell: GeneralCell {
     ) -> SkeletonElement {
         var titleText = BindingPersonalCopilotDesignSystem.headingText(title)
         titleText.modifiers?.styleRole = "personal-hero"
+        titleText.modifiers?.lineLimit = 1
         var chipText = SkeletonText(text: chip)
         chipText.modifiers = BindingPersonalCopilotDesignSystem.badgeModifier()
+        let subtitleText = personalBodyText(subtitle, lineLimit: 2)
+
+        var heroHeader = SkeletonHStack(elements: [
+            .Text(titleText),
+            .Spacer(SkeletonSpacer()),
+            .Text(chipText)
+        ], spacing: 10)
+        heroHeader.modifiers = modifier {
+            $0.maxWidthInfinity = true
+        }
 
         var hero = SkeletonVStack(elements: [
+            .HStack(heroHeader),
             .HStack(SkeletonHStack(elements: [
-                .VStack(SkeletonVStack(elements: [
-                    .Text(titleText),
-                    .Text(personalBodyText(subtitle, lineLimit: 4))
-                ], spacing: 6)),
-                .Spacer(SkeletonSpacer()),
-                .Text(chipText)
-            ], spacing: 10))
-        ], spacing: 8)
-        hero.modifiers = BindingPersonalCopilotDesignSystem.heroPanel()
+                .Text(subtitleText),
+                .Spacer(SkeletonSpacer())
+            ], spacing: 8))
+        ], spacing: 6)
+        hero.modifiers = BindingPersonalCopilotDesignSystem.compactHeroPanel()
 
-        var root = SkeletonVStack(elements: [.VStack(hero)] + content, spacing: 12)
+        var root = SkeletonVStack(elements: [.VStack(hero)] + content, spacing: 10)
         root.modifiers = BindingPersonalCopilotDesignSystem.pageCard()
 
         var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
@@ -8567,13 +9675,14 @@ final class ConfigurationCatalogCell: GeneralCell {
     nonisolated private static func personalSection(
         _ title: String,
         role: String = "personal-card",
-        content: [SkeletonElement]
+        content: [SkeletonElement],
+        modifiers: SkeletonModifiers? = nil
     ) -> SkeletonElement {
         var section = SkeletonSection(
             header: .Text(BindingPersonalCopilotDesignSystem.titleText(title)),
             content: content
         )
-        section.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: role)
+        section.modifiers = modifiers ?? BindingPersonalCopilotDesignSystem.sectionCard(role: role)
         return .Section(section)
     }
 
@@ -8614,6 +9723,62 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.styleRole = "personal-key-value-block"
         }
         return .HStack(row)
+    }
+
+    nonisolated private static func personalStatusActionCard(
+        _ title: String,
+        keypath: String,
+        accent: String,
+        button: SkeletonButton,
+        supportingText: String? = nil
+    ) -> SkeletonElement {
+        var accentText = SkeletonText(text: " ")
+        accentText.modifiers = modifier {
+            $0.width = 4
+            $0.height = 40
+            $0.background = accent
+            $0.cornerRadius = 99
+        }
+
+        let titleText = personalLabelText(title.uppercased())
+        var valueText = personalBoundText(keypath, lineLimit: 3)
+        valueText.modifiers?.fontSize = 14
+
+        var textColumn = SkeletonVStack(
+            elements: [
+                .Text(titleText),
+                .Text(valueText)
+            ],
+            spacing: 4
+        )
+        textColumn.modifiers = modifier {
+            $0.hAlignment = "leading"
+        }
+
+        var row = SkeletonHStack(
+            elements: [
+                .Text(accentText),
+                .VStack(textColumn),
+                .Spacer(SkeletonSpacer())
+            ],
+            spacing: 8
+        )
+        row.modifiers = modifier {
+            $0.maxWidthInfinity = true
+        }
+
+        var elements: [SkeletonElement] = [
+            .HStack(row),
+            .Button(button)
+        ]
+        if let supportingText,
+           !supportingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            elements.append(.Text(personalBodyText(supportingText, lineLimit: 2)))
+        }
+
+        var card = SkeletonVStack(elements: elements, spacing: 10)
+        card.modifiers = BindingPersonalCopilotDesignSystem.keyValueCard()
+        return .VStack(card)
     }
 
     nonisolated private static func personalLabelText(_ text: String) -> SkeletonText {
@@ -11975,13 +13140,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         displayName: String,
         summary: String
     ) -> CellConfiguration {
+        let usesLocalPreview = conferenceEndpoint.caseInsensitiveCompare("cell:///ConferenceParticipantPreviewShell") == .orderedSame
         var configuration = CellConfiguration(name: displayName)
         configuration.description = summary
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: conferenceEndpoint,
-            sourceCellName: "ConferenceParticipantPreviewShellCell",
+            sourceCellName: usesLocalPreview
+                ? "ConferenceParticipantPreviewShellLocalFallbackCell"
+                : "ConferenceParticipantPreviewShellCell",
             purpose: "Conference copilot",
-            purposeDescription: "Kombiner participant-shellens levende kontekst med embedded AIGateway for briefing, prioritering, matchmaking og follow-up.",
+            purposeDescription: usesLocalPreview
+                ? "Kombiner den lokale participant-previewen med lokal AI-gateway for briefing, prioritering, matchmaking og follow-up i Binding."
+                : "Kombiner participant-shellens levende kontekst med embedded AIGateway for briefing, prioritering, matchmaking og follow-up.",
             interests: ["conference", "ai", "copilot", "participant", "matchmaking", "meetings", "prompting"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -12840,13 +14010,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         displayName: String,
         summary: String
     ) -> CellConfiguration {
+        let usesLocalFixture = endpoint.caseInsensitiveCompare("cell:///ConferencePublicShellFixture") == .orderedSame
         var configuration = CellConfiguration(name: displayName)
         configuration.description = summary
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: endpoint,
-            sourceCellName: "ConferencePublicShellCell",
+            sourceCellName: usesLocalFixture
+                ? "ConferencePublicShellFixtureCell"
+                : "ConferencePublicShellCell",
             purpose: "Conference public website",
-            purposeDescription: "Public-facing shell for landing, tracks, program, articles, people and facilities.",
+            purposeDescription: usesLocalFixture
+                ? "Public-facing shell for landing, tracks, program, articles, people and facilities, served from a deterministic local demo fixture in Binding."
+                : "Public-facing shell for landing, tracks, program, articles, people and facilities.",
             interests: ["conference", "public", "landing", "tracks", "sessions", "articles"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -12985,13 +14160,18 @@ final class ConfigurationCatalogCell: GeneralCell {
         displayName: String,
         summary: String
     ) -> CellConfiguration {
+        let usesLocalFixture = endpoint.caseInsensitiveCompare("cell:///ConferenceSponsorShellFixture") == .orderedSame
         var configuration = CellConfiguration(name: displayName)
         configuration.description = summary
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: endpoint,
-            sourceCellName: "ConferenceSponsorShellCell",
+            sourceCellName: usesLocalFixture
+                ? "ConferenceSponsorShellFixtureCell"
+                : "ConferenceSponsorShellCell",
             purpose: "Conference sponsor follow-up",
-            purposeDescription: "Sponsor-owned shell for lead inbox, consent, unlock and retention flow.",
+            purposeDescription: usesLocalFixture
+                ? "Sponsor-owned shell for lead inbox, consent, unlock and retention flow, served from a deterministic local demo fixture in Binding."
+                : "Sponsor-owned shell for lead inbox, consent, unlock and retention flow.",
             interests: ["conference", "sponsor", "lead-vault", "consent", "handoff", "retention"],
             menuSlots: ["upperMid", "lowerMid"]
         )

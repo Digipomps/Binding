@@ -88,6 +88,7 @@ let package = Package(
         .executableTarget(
             name: "HavenAgentDMCP",
             dependencies: [
+                "HavenMacAutomation",
                 "HavenAgentRuntime",
                 "HavenRuntimeBootstrap",
                 "HavenAgentCells",
@@ -131,6 +132,7 @@ let package = Package(
             name: "HavenAgentDMCPTests",
             dependencies: [
                 "HavenAgentDMCP",
+                "HavenMacAutomation",
                 "HavenAgentRuntime",
                 "HavenRuntimeBootstrap"
             ]

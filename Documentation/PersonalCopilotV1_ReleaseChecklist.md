@@ -40,6 +40,9 @@ This checklist is the App Store gate for Binding Personal Co-Pilot V1.
 ## Chat Gate
 
 - [ ] Chat is invite-only.
+- [ ] Co-Pilot speech input is explicit push-to-talk/dictation only.
+- [ ] Speech transcript can fill the composer without sending a message.
+- [ ] Speech transcript analysis remains side-effect-free until the user chooses a concrete action.
 - [ ] `invite` works.
 - [ ] `acceptInvite` works.
 - [ ] `declineInvite` works.
@@ -74,6 +77,9 @@ This checklist is the App Store gate for Binding Personal Co-Pilot V1.
 - [ ] Entity scanner shows purpose copy before camera/scanner use.
 - [ ] Entity scanner works when allowed.
 - [ ] Entity scanner denied state is honest and non-fatal.
+- [ ] Co-Pilot Chat requests microphone and speech recognition only after an explicit speech-input tap.
+- [ ] Microphone/speech denial leaves the text composer usable.
+- [ ] Co-Pilot speech input has no wake phrase, background listening or autosend.
 - [ ] Apple Intelligence surface handles unsupported/denied/unavailable state.
 - [ ] Calendar/EventKit is requested only after explicit meeting action.
 - [ ] Calendar denial leaves local meeting intent usable.

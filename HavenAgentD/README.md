@@ -25,6 +25,7 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - ships a bootstrap probe that verifies pairing, starter-auth and entity-link artifacts before optionally running a real `sprout bootstrap` against staging or dev
 - exposes real CellProtocol `GeneralCell` subclasses for supervisor state and remote-intent inboxing
 - exposes `AgentIdentityCell` so local operator tooling can attest a stable device identity and request a signed starter-auth payload over the loopback CellProtocol bridge
+- exposes `AgentLocalModelCell` for a configured loopback local language model backend such as `llama-server`
 - verifies the persisted Binding<->agent pairing artifact before treating an operator identity as paired
 - lets `sprout bootstrap join` consume purpose-bound entity-link evidence generated from the Binding<->agent pairing flow
 - installs those cells into a local `CellResolver` graph during `run`
@@ -39,6 +40,7 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - it does not yet bind native porthole ingress to a richer resolver/session lifecycle than the bootstrap artifact alone
 - it does not yet auto-execute queued remote intents without explicit review
 - it does not yet store the persisted agent seed in Keychain
+- it does not yet run language models directly on iPhone or iPad; phone access goes through the paired agent/porthole path first
 
 Those boundaries are intentional. This package gives a safe executable skeleton first, so that `sprout` and `CellProtocol` can be added behind explicit interfaces instead of collapsing bootstrap, policy and local automation into one process with unclear trust rules.
 
@@ -63,6 +65,7 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - [Docs/OperatorRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/OperatorRunbook.md): step-by-step operator guide for setup, install, bootstrap, review, and launchd
 - [Docs/BindingBoundary.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/BindingBoundary.md): current Binding vs agent boundary
 - [Docs/SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md): security model
+- [Docs/LocalModels.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/LocalModels.md): local model cell contract and phone/iPad access path
 - [Docs/HavenAgentDMCPServerSurface.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/HavenAgentDMCPServerSurface.md): proposed MCP adapter surface for local AI hosts
 - [../Documentation/HavenAgentPhoneApprovalLoopRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/HavenAgentPhoneApprovalLoopRunbook.md): physical iPhone install + notification approval loop runbook with current verification state
 - [Docs/Legacy/BindingProvisioningRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md): archived Binding-embedded provisioning flow
@@ -80,6 +83,7 @@ The same principle now applies to `sprout`: the agent builds a fixed argument ve
 The same principle also applies to the first real cells: `RemoteIntentInboxCell` now accepts either local structured payloads or signed remote envelopes, but only the signed envelope path can become a verified remote intent. It still does not invoke AppleScript or Shortcuts directly.
 The same principle now also applies to live ingress: only native contracts produced by `sprout bootstrap join` are accepted, and only flow payloads that decode into the signed-envelope shape are handed to remote-intent verification. Other porthole traffic is ignored.
 The reconnect/renewal loop follows the same boundary: on failure or near-expiry it re-runs the same local `sprout bootstrap join` path, instead of accepting a remotely supplied websocket or contract override.
+The local model cell follows the same boundary: it calls only the configured loopback model backend by default, and exposes generation through CellProtocol actions and flow events instead of opening a raw model socket to remote clients.
 When `haven-agentd run` starts, it now installs a narrow local `CellBase` host backed by an in-memory vault and a dedicated `CellDocuments` root under `~/Library/Application Support/HAVENAgent/`.
 
 ## Current cells
@@ -88,6 +92,7 @@ When `haven-agentd run` starts, it now installs a narrow local `CellBase` host b
 - `AgentIdentityCell`: exposes the stable local agent identity, issues explicit enrollment attestations for Binding-side pairing, and signs purpose-bound starter-auth payloads for `sprout`
 - `RemoteIntentInboxCell`: accepts structured local intents or signed remote envelopes, validates payload shape, signature, expiry and nonce, and appends only accepted intents to a local queue
 - `RemoteIntentReviewCell`: approves or rejects verified queued intents and dispatches only locally allowlisted remote actions
+- `AgentLocalModelCell`: exposes `state`, `contracts`, `llm.health` and `llm.generate` for a configured loopback local model backend, emitting `agent.localModel` flow events
 - `AgentCellRegistry`: instantiates the current safe default cell set for a local owner identity
 - `AgentCellRuntimeHost`: installs the local owner/vault, registers the current cells into `CellResolver.sharedInstance`, and persists a runtime snapshot
 - `AgentCellBlueprints`: retains the next planned cells, including dedicated action cells, before they are promoted to executable runtime components

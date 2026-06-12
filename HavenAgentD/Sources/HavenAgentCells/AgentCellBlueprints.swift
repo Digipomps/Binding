@@ -8,6 +8,7 @@ public enum AgentCellKind: String, Codable, CaseIterable, Sendable {
     case remoteIntentReview
     case agentSupervisor
     case agentIdentity
+    case localModel
 }
 
 public struct AgentCellBlueprint: Codable, Equatable, Sendable {
@@ -72,6 +73,12 @@ public enum AgentCellCatalog {
             suggestedCellName: "AgentIdentityCell",
             purpose: "Expose the stable local agent identity and issue signed local enrollment attestations.",
             sideEffectBoundary: "Signs only explicit enrollment payloads over the loopback control bridge."
+        ),
+        AgentCellBlueprint(
+            kind: .localModel,
+            suggestedCellName: "AgentLocalModelCell",
+            purpose: "Expose an operator-approved local language model backend through CellProtocol.",
+            sideEffectBoundary: "May call only the configured loopback local model backend by default."
         )
     ]
 }
