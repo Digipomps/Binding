@@ -55,6 +55,56 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
     private var session: URLSession!
 
+    private final class BridgeStatusRecorder {
+        private let notificationCenter: NotificationCenter
+        private let lock = NSLock()
+        private var token: NSObjectProtocol?
+        private var statuses: [LightweightBridgeConnectionStatus] = []
+
+        init(notificationCenter: NotificationCenter = .default) {
+            self.notificationCenter = notificationCenter
+            token = notificationCenter.addObserver(
+                forName: .lightweightBridgeConnectionStatusDidChange,
+                object: nil,
+                queue: nil
+            ) { [weak self] notification in
+                guard let status = LightweightBridgeConnectionStatus(notification: notification) else {
+                    return
+                }
+                self?.append(status)
+            }
+        }
+
+        deinit {
+            if let token {
+                notificationCenter.removeObserver(token)
+            }
+        }
+
+        var summary: String {
+            lock.lock()
+            let snapshot = statuses
+            lock.unlock()
+
+            guard !snapshot.isEmpty else {
+                return "no bridge status notifications"
+            }
+
+            return snapshot
+                .map { status in
+                    let detail = status.detail.map { " (\($0))" } ?? ""
+                    return "\(status.phase.rawValue) \(status.endpoint)\(detail)"
+                }
+                .joined(separator: " | ")
+        }
+
+        private func append(_ status: LightweightBridgeConnectionStatus) {
+            lock.lock()
+            statuses.append(status)
+            lock.unlock()
+        }
+    }
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         try skipUnlessRemoteParityEnabled()
@@ -377,7 +427,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
         RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: context.resolver)
-        let bridgeMeddle = try await RemoteEndpointAccessSupport.resolveMeddle(
+        let bridgeMeddle = try await resolveBridgeMeddle(
             endpoint: endpoint,
             resolver: context.resolver,
             requester: context.owner,
@@ -420,7 +470,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         )
         if let actionResponse {
             XCTAssertNil(SkeletonBindingProbeSupport.failureDetail(from: actionResponse))
-            assertContainsStrings(actionResponse, ["Ack mottatt"], context: "bridge.action")
+            assertContainsSubstrings(actionResponse, ["Ack mottatt"], context: "bridge.action")
         } else {
             XCTFail("Expected bridge action response from remote fixture")
         }
@@ -432,7 +482,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             keypath: "fixture.state",
             requester: context.owner
         )
-        assertContainsStrings(stateAfterAction, ["Ack mottatt"], context: "bridge.state.after")
+        assertContainsSubstrings(stateAfterAction, ["Ack mottatt"], context: "bridge.state.after")
     }
 
     func testPersonalChatHubConfigurationPublishesAssistantAndPollContractQuickly() async throws {
@@ -488,7 +538,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         assertContainsStrings(state, [
             "ConferenceConciergeCell",
             "ConferenceLocationShareCell",
-            "Tools are suggestions. Nothing is sent, shared, or created before you explicitly click Apply.",
+            "Verktøykort er forslag. Ingenting sendes, deles eller opprettes før du trykker Bruk.",
             "Location sharing"
         ], context: "conference-participant-preview.state")
         assertContainsSubstrings(state, [
@@ -520,7 +570,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         )
         assertContainsStrings(conciergeResponse, [
             "ConferenceConciergeCell",
-            "Ran a consent-gated location lookup. The location cell returns not_shared unless a peer grant exists."
+            "Sjekket delt lokasjon med samtykkegrense. Uten aktiv tilgang vises lokasjon som ikke delt."
         ], context: "conference-participant-preview.concierge.findPeerLocation")
     }
 
@@ -561,7 +611,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
 
-        let router = try await RemoteEndpointAccessSupport.resolveMeddle(
+        let router = try await resolveBridgeMeddle(
             endpoint: routerEndpoint,
             resolver: context.resolver,
             requester: context.owner,
@@ -582,7 +632,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             "sponsor"
         ], context: "bridge.conferenceUIRouter.screenMap")
 
-        let participant = try await RemoteEndpointAccessSupport.resolveMeddle(
+        let participant = try await resolveBridgeMeddle(
             endpoint: participantEndpoint,
             resolver: context.resolver,
             requester: context.owner,
@@ -598,7 +648,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         assertContainsStrings(participantState, [
             "ConferenceConciergeCell",
             "ConferenceLocationShareCell",
-            "Tools are suggestions. Nothing is sent, shared, or created before you explicitly click Apply.",
+            "Verktøykort er forslag. Ingenting sendes, deles eller opprettes før du trykker Bruk.",
             "Location sharing"
         ], context: "bridge.conferenceParticipantShell.state")
 
@@ -770,7 +820,9 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         requester: Identity
     ) async throws -> ValueType {
         do {
-            return try await meddle.get(keypath: keypath, requester: requester)
+            return try await withBridgeOperationTimeout(endpoint: endpoint, operation: operation) {
+                try await meddle.get(keypath: keypath, requester: requester)
+            }
         } catch {
             throw RemoteParityError.bridgeOperationFailed(
                 endpoint: endpoint,
@@ -789,13 +841,90 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         requester: Identity
     ) async throws -> ValueType? {
         do {
-            return try await meddle.set(keypath: keypath, value: value, requester: requester)
+            return try await withBridgeOperationTimeout(endpoint: endpoint, operation: operation) {
+                try await meddle.set(keypath: keypath, value: value, requester: requester)
+            }
         } catch {
             throw RemoteParityError.bridgeOperationFailed(
                 endpoint: endpoint,
                 operation: operation,
                 underlying: String(describing: error)
             )
+        }
+    }
+
+    private func resolveBridgeMeddle(
+        endpoint: String,
+        resolver: CellResolver,
+        requester: Identity,
+        accessLabel: String
+    ) async throws -> Meddle {
+        let bridgeStatuses = BridgeStatusRecorder()
+        do {
+            return try await RemoteEndpointAccessSupport.resolveMeddle(
+                endpoint: endpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: accessLabel
+            )
+        } catch {
+            throw RemoteParityError.bridgeOperationFailed(
+                endpoint: endpoint,
+                operation: "resolveMeddle",
+                underlying: "\(String(describing: error)); bridge statuses: \(bridgeStatuses.summary)"
+            )
+        }
+    }
+
+    private func withBridgeOperationTimeout<T: Sendable>(
+        endpoint: String,
+        operation: String,
+        seconds: Double = 20,
+        _ work: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            let lock = NSLock()
+            var didResolve = false
+
+            func resolve(_ result: Result<T, Error>) {
+                lock.lock()
+                guard !didResolve else {
+                    lock.unlock()
+                    return
+                }
+                didResolve = true
+                lock.unlock()
+
+                switch result {
+                case .success(let value):
+                    continuation.resume(returning: value)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            let workTask = Task.detached {
+                do {
+                    resolve(.success(try await work()))
+                } catch {
+                    resolve(.failure(error))
+                }
+            }
+
+            Task.detached {
+                let duration = max(seconds, 0)
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+                } catch {
+                    return
+                }
+                workTask.cancel()
+                resolve(.failure(RemoteParityError.bridgeOperationFailed(
+                    endpoint: endpoint,
+                    operation: operation,
+                    underlying: "timed out after \(duration)s"
+                )))
+            }
         }
     }
 
