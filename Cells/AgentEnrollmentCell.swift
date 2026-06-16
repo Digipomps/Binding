@@ -263,7 +263,8 @@ final class AgentEnrollmentCell: GeneralCell {
             "agent/identity": "agent-identity",
             "agent/supervisor": "agent-supervisor",
             "agent/intents/inbox": "intent-inbox",
-            "agent/intents/review": "intent-review"
+            "agent/intents/review": "intent-review",
+            "agent/network/sentinel": "network-sentinel"
         ]
     )
     nonisolated private let stateQueue = DispatchQueue(label: "Binding.AgentEnrollmentCell.State")

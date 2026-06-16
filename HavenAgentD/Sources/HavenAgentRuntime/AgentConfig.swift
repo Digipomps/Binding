@@ -171,6 +171,11 @@ public struct LocalControlBridgeConfig: Codable, Equatable, Sendable {
             name: "local-model",
             targetCellReference: "agent/local-model",
             description: "Local language model surface backed by the configured HAVENAgentD local model runtime."
+        ),
+        LocalControlBridgeRoute(
+            name: "network-sentinel",
+            targetCellReference: "agent/network/sentinel",
+            description: "Local network health sentinel: live link metrics, flood events, interfaces, and on-demand probe/capture. Lets a local GUI (Binding) render the network tool."
         )
     ]
 
@@ -260,6 +265,77 @@ public struct LocalControlBridgeStatus: Codable, Equatable, Sendable {
     }
 }
 
+/// Operator-tunable configuration for the local network sentinel. Decoding an
+/// older config without this key yields `nil`, which the host treats as the
+/// built-in defaults (sentinel enabled). Individual fields are also optional in
+/// JSON — a partial object falls back to the defaults below. The
+/// `purpose`/`goal`/`interests` mirror the scaffold connection vocabulary and
+/// declare the sentinel's formål.
+public struct NetworkSentinelConfig: Codable, Equatable, Sendable {
+    public var enabled: Bool
+    public var interface: String
+    public var intervalSeconds: Double
+    public var notificationsEnabled: Bool
+    public var captureEnabled: Bool
+    public var captureDurationSeconds: Double
+    public var capturePacketLimit: Int
+    public var captureSnaplen: Int
+    public var thresholds: NetworkSentinelThresholds
+    public var purpose: String
+    public var goal: String
+    public var interests: [String]
+
+    public init(
+        enabled: Bool = true,
+        interface: String = "en0",
+        intervalSeconds: Double = 2.0,
+        notificationsEnabled: Bool = true,
+        captureEnabled: Bool = true,
+        captureDurationSeconds: Double = 12.0,
+        capturePacketLimit: Int = 20_000,
+        captureSnaplen: Int = 160,
+        thresholds: NetworkSentinelThresholds = .init(),
+        purpose: String = NetworkHealthPurposeCatalog.purposeRef,
+        goal: String = NetworkHealthPurposeCatalog.goalID,
+        interests: [String] = NetworkHealthPurposeCatalog.defaultInterests
+    ) {
+        self.enabled = enabled
+        self.interface = interface
+        self.intervalSeconds = intervalSeconds
+        self.notificationsEnabled = notificationsEnabled
+        self.captureEnabled = captureEnabled
+        self.captureDurationSeconds = captureDurationSeconds
+        self.capturePacketLimit = capturePacketLimit
+        self.captureSnaplen = captureSnaplen
+        self.thresholds = thresholds
+        self.purpose = purpose
+        self.goal = goal
+        self.interests = interests
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled, interface, intervalSeconds, notificationsEnabled, captureEnabled
+        case captureDurationSeconds, capturePacketLimit, captureSnaplen, thresholds, purpose, goal, interests
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = NetworkSentinelConfig()
+        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? defaults.enabled
+        self.interface = try container.decodeIfPresent(String.self, forKey: .interface) ?? defaults.interface
+        self.intervalSeconds = try container.decodeIfPresent(Double.self, forKey: .intervalSeconds) ?? defaults.intervalSeconds
+        self.notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
+        self.captureEnabled = try container.decodeIfPresent(Bool.self, forKey: .captureEnabled) ?? defaults.captureEnabled
+        self.captureDurationSeconds = try container.decodeIfPresent(Double.self, forKey: .captureDurationSeconds) ?? defaults.captureDurationSeconds
+        self.capturePacketLimit = try container.decodeIfPresent(Int.self, forKey: .capturePacketLimit) ?? defaults.capturePacketLimit
+        self.captureSnaplen = try container.decodeIfPresent(Int.self, forKey: .captureSnaplen) ?? defaults.captureSnaplen
+        self.thresholds = try container.decodeIfPresent(NetworkSentinelThresholds.self, forKey: .thresholds) ?? defaults.thresholds
+        self.purpose = try container.decodeIfPresent(String.self, forKey: .purpose) ?? defaults.purpose
+        self.goal = try container.decodeIfPresent(String.self, forKey: .goal) ?? defaults.goal
+        self.interests = try container.decodeIfPresent([String].self, forKey: .interests) ?? defaults.interests
+    }
+}
+
 public struct AgentConfig: Codable, Equatable, Sendable {
     public var instanceName: String
     public var heartbeatIntervalSeconds: Int
@@ -269,6 +345,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
     public var deviceActionRelay: DeviceActionRelayConfig?
     public var automationPolicy: AutomationPolicy
     public var remoteIntentPolicy: RemoteIntentPolicy
+    public var networkSentinel: NetworkSentinelConfig?
 
     public init(
         instanceName: String,
@@ -278,7 +355,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         watchFolders: [WatchFolderConfig],
         deviceActionRelay: DeviceActionRelayConfig? = nil,
         automationPolicy: AutomationPolicy,
-        remoteIntentPolicy: RemoteIntentPolicy = .init()
+        remoteIntentPolicy: RemoteIntentPolicy = .init(),
+        networkSentinel: NetworkSentinelConfig? = NetworkSentinelConfig()
     ) {
         self.instanceName = instanceName
         self.heartbeatIntervalSeconds = heartbeatIntervalSeconds
@@ -288,6 +366,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         self.deviceActionRelay = deviceActionRelay
         self.automationPolicy = automationPolicy
         self.remoteIntentPolicy = remoteIntentPolicy
+        self.networkSentinel = networkSentinel
     }
 
     public static func load(from fileURL: URL) throws -> AgentConfig {
@@ -433,7 +512,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                 requireExpiry: true,
                 maxClockSkewSeconds: 300,
                 maxArgumentCount: 16
-            )
+            ),
+            networkSentinel: NetworkSentinelConfig()
         )
     }
 }

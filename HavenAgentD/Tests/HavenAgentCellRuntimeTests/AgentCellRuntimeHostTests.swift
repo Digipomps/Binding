@@ -41,7 +41,7 @@ struct AgentCellRuntimeHostTests {
         let snapshot = try await host.start(instanceName: "agent")
 
         #expect(snapshot.status == "running")
-        #expect(snapshot.cells.count == 5)
+        #expect(snapshot.cells.count == AgentCellRegistry.concreteDescriptors.count)
         #expect(snapshot.cells.map(\.endpoint) == AgentCellRegistry.concreteDescriptors.map(\.endpoint))
         #expect(FileManager.default.fileExists(atPath: paths.cellRuntimeFile.path))
         #expect(CellBase.documentRootPath == paths.cellDocumentDirectory.path)

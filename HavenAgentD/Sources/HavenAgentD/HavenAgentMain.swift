@@ -18,6 +18,8 @@ enum HavenAgentCommand {
     case reviewApprove(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
     case reviewReject(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
     case listCellBlueprints
+    case networkStatus(secondsToObserve: Int)
+    case monitor(configPath: String?, rootPath: String?, bridgePort: Int?)
     case smokeTest(rootPath: String?)
     case xcodeEnsureWorkspace(
         workspacePath: String,
@@ -96,7 +98,8 @@ struct HavenAgentMain {
                 do {
                     let snapshot = try await cellRuntimeHost.start(
                         instanceName: config.instanceName,
-                        controlBridge: once ? nil : config.localControlBridge
+                        controlBridge: once ? nil : config.localControlBridge,
+                        networkSentinel: config.networkSentinel
                     )
                     try await runtime.run(config: config, once: once)
                     await cellRuntimeHost.stop()
@@ -133,6 +136,48 @@ struct HavenAgentMain {
                 for blueprint in AgentCellCatalog.defaultBlueprints {
                     print("\(blueprint.kind.rawValue): \(blueprint.suggestedCellName) - \(blueprint.purpose)")
                 }
+
+            case .monitor(let configPath, let rootPath, let bridgePort):
+                // Persistent LOCAL daemon: hosts the cells + network sentinel service
+                // + loopback control bridge, then waits for a signal. No scaffold, no
+                // staging — this watches THIS machine's link continuously and dumps a
+                // pcap at the moment of a flood. A local GUI (Binding) connects to the
+                // control bridge to render the network tool. `--bridge-port` lets a
+                // second instance run alongside an existing agentd on its own port.
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                var config = (try? AgentConfig.load(from: configURL)) ?? AgentConfig.example(paths: paths)
+                if let bridgePort { config.localControlBridge.port = bridgePort }
+                let host = AgentCellRuntimeHost(paths: paths)
+                let snapshot = try await host.start(
+                    instanceName: config.instanceName,
+                    controlBridge: config.localControlBridge,
+                    networkSentinel: config.networkSentinel
+                )
+                let bridge = snapshot.controlBridge
+                FileHandle.standardError.write(Data(
+                    "haven-agentd monitor: \(snapshot.cells.count) cells; sentinel on \(config.networkSentinel?.interface ?? "en0"); control bridge \(bridge?.phase.rawValue ?? "—") at \(bridge?.websocketBaseURL ?? "n/a"). SIGTERM/Ctrl-C to stop.\n".utf8
+                ))
+                await AgentMonitorShutdown().wait()
+                await host.stop()
+                FileHandle.standardError.write(Data("haven-agentd monitor: stopped cleanly.\n".utf8))
+
+            case .networkStatus(let secondsToObserve):
+                // Runs the measurement engine standalone on this machine — no scaffold,
+                // no bootstrap, no network. Observes the real wifi interface for a few
+                // seconds and prints the live snapshot. Proves the tool works locally.
+                let captureDirectory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("haven-network-status", isDirectory: true)
+                let service = NetworkSentinelService(captureDirectory: captureDirectory, captureEnabled: false)
+                await service.start()
+                let deadline = Date().addingTimeInterval(TimeInterval(max(2, secondsToObserve)))
+                var snapshot = await service.snapshot()
+                while Date() < deadline, snapshot.latest == nil {
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    snapshot = await service.snapshot()
+                }
+                await service.stop()
+                try printJSON(snapshot)
 
             case .smokeTest(let rootPath):
                 let summary = try await SmokeTestHarness.run(rootPath: rootPath)
@@ -242,6 +287,16 @@ struct HavenAgentMain {
             )
         case "list-cell-blueprints":
             return .listCellBlueprints
+        case "network-status":
+            let remaining = Array(arguments.dropFirst())
+            return .networkStatus(secondsToObserve: intArgumentValue(for: "--seconds", in: remaining) ?? 6)
+        case "monitor":
+            let remaining = Array(arguments.dropFirst())
+            return .monitor(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining),
+                bridgePort: intArgumentValue(for: "--bridge-port", in: remaining)
+            )
         case "smoke-test":
             return .smokeTest(rootPath: argumentValue(for: "--root", in: Array(arguments.dropFirst())))
         case "xcode-ensure-workspace":
@@ -312,6 +367,8 @@ struct HavenAgentMain {
           haven-agentd review-approve --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd review-reject --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd list-cell-blueprints
+          haven-agentd network-status [--seconds N]
+          haven-agentd monitor [--config /path/to/config.json] [--root /path/to/dev-root] [--bridge-port N]
           haven-agentd smoke-test [--root /path/to/dev-root]
           haven-agentd xcode-ensure-workspace --workspace /path/App.xcworkspace [--exclusive-package /path/CellProtocol] [--scheme Run] [--destination-name "My Mac (arm64)"] [--destination-platform macosx] [--destination-architecture arm64] [--keep-other-workspaces] [--no-build] [--timeout-seconds N]
         """
@@ -414,6 +471,40 @@ struct HavenAgentMain {
             ttlSeconds: ttl,
             entityLinkContractID: entityLink.contract_id
         )
+    }
+}
+
+/// Suspends until SIGTERM/SIGINT, so `monitor` runs as a long-lived local daemon
+/// and shuts the host down cleanly when launchd (or Ctrl-C) stops it.
+final class AgentMonitorShutdown: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var sources: [DispatchSourceSignal] = []
+
+    init(signals: [Int32] = [SIGINT, SIGTERM]) {
+        for signalNumber in signals {
+            signal(signalNumber, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .global())
+            source.setEventHandler { [weak self] in self?.resume() }
+            source.resume()
+            sources.append(source)
+        }
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            self.continuation = continuation
+            lock.unlock()
+        }
+    }
+
+    private func resume() {
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume()
     }
 }
 

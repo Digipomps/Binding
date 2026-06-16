@@ -1,0 +1,233 @@
+{
+  "uuid" : "B6F2B0E2-7B1E-4E3A-9C2E-1A2B3C4D5E6F",
+  "name" : "Network Sentinel",
+  "description" : "Komplett nettverksverktøy for haven-agentd: sanntids linkhelse, enhetsoversikt, hendelseslogg med formål-status, og på-forespørsel-verktøy (tilkoblingstest + pakkefangst). Varsler kan slås av/på.",
+  "discovery" : {
+    "sourceCellEndpoint" : "cell:///agent/network/sentinel",
+    "sourceCellName" : "NetworkSentinelCell",
+    "purpose" : "Nettverkssensor",
+    "purposeDescription" : "Overvåk hjemmenettet: oppdag skadelig flom (ikke godartet nedlasting), se enheter og hendelser, og kjør tilkoblingstest eller pakkefangst ved behov.",
+    "interests" : ["network", "diagnostics", "security", "local", "binding", "web"],
+    "menuSlots" : ["upperMid"]
+  },
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:///agent/network/sentinel",
+      "label" : "networkSentinel",
+      "subscribeFeed" : true,
+      "setKeysAndValues" : [ { "key" : "state" } ],
+      "subscriptions" : []
+    }
+  ],
+  "skeleton" : {
+    "VStack" : {
+      "spacing" : 12,
+      "elements" : [
+        {
+          "Section" : {
+            "header" : { "Text" : { "text" : "Nettverkssensor", "modifiers" : { "foregroundColor" : "#8DE1DA", "fontWeight" : "semibold" } } },
+            "modifiers" : { "background" : "#0F1B24", "borderColor" : "#1F3442", "borderWidth" : 1, "cornerRadius" : 12, "padding" : 14 },
+            "content" : [
+              { "Text" : { "keypath" : "networkSentinel.state.statusText", "modifiers" : { "fontSize" : 20, "fontWeight" : "bold", "foregroundColor" : "#F5FBFF" } } },
+              { "Text" : { "keypath" : "networkSentinel.state.metrics.summary", "modifiers" : { "fontSize" : 13, "foregroundColor" : "#D5E4ED" } } },
+              { "Text" : { "keypath" : "networkSentinel.state.activeEventText", "modifiers" : { "fontSize" : 13, "foregroundColor" : "#FFC9B0" } } },
+              { "Text" : { "keypath" : "networkSentinel.state.goal.statusText", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#8DE1DA" } } }
+            ]
+          }
+        },
+        {
+          "Tabs" : {
+            "activeTabStateKeypath" : "networkSentinel.state.navigation.activeTab",
+            "tabsKeypath" : "networkSentinel.state.navigation.tabs",
+            "selectionActionKeypath" : "selectTab",
+            "idKeypath" : "id",
+            "labelKeypath" : "title",
+            "panels" : [
+              {
+                "id" : "dashboard",
+                "content" : [
+                  {
+                    "ScrollView" : {
+                      "axis" : "vertical",
+                      "elements" : [
+                        {
+                          "Section" : {
+                            "header" : { "Text" : { "text" : "Sanntid", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                            "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                            "content" : [
+                              { "HStack" : { "spacing" : 16, "elements" : [
+                                { "Text" : { "keypath" : "networkSentinel.state.metrics.ppsText", "modifiers" : { "fontSize" : 22, "fontWeight" : "bold", "foregroundColor" : "#F5FBFF" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.metrics.mbpsText", "modifiers" : { "fontSize" : 22, "fontWeight" : "bold", "foregroundColor" : "#F5FBFF" } } }
+                              ] } },
+                              { "Text" : { "keypath" : "networkSentinel.state.interface", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#8FB6C8" } } },
+                              { "Text" : { "keypath" : "networkSentinel.state.updatedAt", "modifiers" : { "fontSize" : 11, "foregroundColor" : "#6E94A6" } } }
+                            ]
+                          }
+                        },
+                        {
+                          "Section" : {
+                            "header" : { "Text" : { "text" : "Trend (siste målinger)", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                            "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                            "content" : [
+                              {
+                                "List" : {
+                                  "keypath" : "networkSentinel.state.history",
+                                  "flowElementSkeleton" : {
+                                    "VStack" : { "spacing" : 1, "elements" : [
+                                      { "Text" : { "keypath" : "title", "modifiers" : { "fontSize" : 13, "foregroundColor" : "#F5FBFF" } } },
+                                      { "Text" : { "keypath" : "subtitle", "modifiers" : { "fontSize" : 10, "foregroundColor" : "#6E94A6" } } }
+                                    ] }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "id" : "devices",
+                "content" : [
+                  {
+                    "Section" : {
+                      "header" : { "Text" : { "text" : "Grensesnitt på denne maskinen", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                      "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                      "content" : [
+                        {
+                          "List" : {
+                            "keypath" : "networkSentinel.state.interfaces",
+                            "flowElementSkeleton" : {
+                              "VStack" : { "spacing" : 2, "elements" : [
+                                { "Text" : { "keypath" : "title", "modifiers" : { "fontSize" : 14, "fontWeight" : "bold", "foregroundColor" : "#F5FBFF" } } },
+                                { "Text" : { "keypath" : "subtitle", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "detail", "modifiers" : { "fontSize" : 11, "foregroundColor" : "#6E94A6" } } }
+                              ] }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "id" : "events",
+                "content" : [
+                  {
+                    "Section" : {
+                      "header" : { "Text" : { "text" : "Flom-hendelser", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                      "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                      "content" : [
+                        {
+                          "List" : {
+                            "keypath" : "networkSentinel.state.events",
+                            "flowElementSkeleton" : {
+                              "VStack" : { "spacing" : 2, "elements" : [
+                                { "Text" : { "keypath" : "title", "modifiers" : { "fontSize" : 13, "fontWeight" : "bold", "foregroundColor" : "#F5FBFF" } } },
+                                { "Text" : { "keypath" : "subtitle", "modifiers" : { "fontSize" : 11, "foregroundColor" : "#8DE1DA" } } },
+                                { "Text" : { "keypath" : "detail", "modifiers" : { "fontSize" : 10, "foregroundColor" : "#6E94A6" } } }
+                              ] }
+                            }
+                          }
+                        },
+                        {
+                          "Button" : {
+                            "url" : "cell:///agent/network/sentinel",
+                            "keypath" : "acknowledge",
+                            "label" : "Kvitter ut aktiv hendelse",
+                            "modifiers" : { "background" : "#173140", "borderColor" : "#2D566B", "borderWidth" : 1, "cornerRadius" : 8, "foregroundColor" : "#D9FBFF", "padding" : 8 }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "id" : "tools",
+                "content" : [
+                  {
+                    "ScrollView" : {
+                      "axis" : "vertical",
+                      "elements" : [
+                        {
+                          "Section" : {
+                            "header" : { "Text" : { "text" : "Tilkoblingstest (TCP)", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                            "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                            "content" : [
+                              { "Text" : { "text" : "Sjekk om en vert er nåbar og hvor raskt.", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                              { "TextField" : { "sourceKeypath" : "networkSentinel.state.probe.target", "targetKeypath" : "probeTarget", "placeholder" : "vert:port (f.eks. 1.1.1.1:443)", "modifiers" : { "background" : "#0C1A22", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 6, "padding" : 8, "foregroundColor" : "#F5FBFF" } } },
+                              { "Button" : { "url" : "cell:///agent/network/sentinel", "keypath" : "probe", "label" : "Test tilkobling", "modifiers" : { "background" : "#173140", "borderColor" : "#2D566B", "borderWidth" : 1, "cornerRadius" : 8, "foregroundColor" : "#D9FBFF", "padding" : 8 } } },
+                              { "Text" : { "keypath" : "networkSentinel.state.probe.result", "modifiers" : { "fontSize" : 13, "foregroundColor" : "#8DE1DA" } } }
+                            ]
+                          }
+                        },
+                        {
+                          "Section" : {
+                            "header" : { "Text" : { "text" : "Pakkefangst", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                            "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                            "content" : [
+                              { "Text" : { "text" : "Ta en tidsavgrenset pcap nå for analyse.", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                              { "Button" : { "url" : "cell:///agent/network/sentinel", "keypath" : "captureNow", "label" : "Capture nå", "modifiers" : { "background" : "#173140", "borderColor" : "#2D566B", "borderWidth" : 1, "cornerRadius" : 8, "foregroundColor" : "#D9FBFF", "padding" : 8 } } },
+                              { "Text" : { "keypath" : "networkSentinel.state.capture.summary", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#8FB6C8" } } }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "id" : "settings",
+                "content" : [
+                  {
+                    "ScrollView" : {
+                      "axis" : "vertical",
+                      "elements" : [
+                        {
+                          "Section" : {
+                            "header" : { "Text" : { "text" : "Varsler", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                            "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                            "content" : [
+                              { "Toggle" : { "label" : "Vis nettverksvarsler", "keypath" : "notificationsEnabled", "isOn" : true, "modifiers" : { "foregroundColor" : "#F5FBFF" } } },
+                              { "Text" : { "text" : "Av/på gjelder brukervarsel. Hendelser logges uansett.", "modifiers" : { "fontSize" : 11, "foregroundColor" : "#6E94A6" } } }
+                            ]
+                          }
+                        },
+                        {
+                          "Section" : {
+                            "header" : { "Text" : { "text" : "Terskler (styres i agentd-config)", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                            "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                            "content" : [
+                              { "HStack" : { "spacing" : 8, "elements" : [
+                                { "Text" : { "text" : "Pakker/s:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.thresholds.packetsPerSecond", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } }
+                              ] } },
+                              { "HStack" : { "spacing" : 8, "elements" : [
+                                { "Text" : { "text" : "Mbps:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.thresholds.megabitsPerSecond", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } }
+                              ] } },
+                              { "HStack" : { "spacing" : 8, "elements" : [
+                                { "Text" : { "text" : "Feil/s:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.thresholds.errorsPerSecond", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } }
+                              ] } },
+                              { "Text" : { "text" : "Endres i config: networkSentinel.thresholds", "modifiers" : { "fontSize" : 11, "foregroundColor" : "#6E94A6" } } }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

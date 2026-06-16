@@ -66,6 +66,13 @@ private struct ActiveCellRegistration {
     var cell: GeneralCell
 }
 
+/// Carries the (non-Sendable) cell into the service's `@Sendable` sink. The cell
+/// is only ever touched through its own async API, so the unchecked assertion is
+/// sound for this single-owner hand-off.
+private struct SentinelCellBox: @unchecked Sendable {
+    let cell: NetworkSentinelCell
+}
+
 private actor AgentCellRuntimeSnapshotStore {
     private let fileURL: URL
     private let encoder: JSONEncoder
@@ -109,6 +116,7 @@ public actor AgentCellRuntimeHost {
     private var installedGlobals: CellBaseGlobals?
     private var currentSnapshot: AgentCellRuntimeSnapshot?
     private var activeRegistrations: [ActiveCellRegistration] = []
+    private var networkSentinelService: NetworkSentinelService?
 
     public init(
         paths: RuntimePaths,
@@ -124,7 +132,8 @@ public actor AgentCellRuntimeHost {
 
     public func start(
         instanceName: String,
-        controlBridge configuration: LocalControlBridgeConfig? = nil
+        controlBridge configuration: LocalControlBridgeConfig? = nil,
+        networkSentinel: NetworkSentinelConfig? = nil
     ) async throws -> AgentCellRuntimeSnapshot {
         if currentSnapshot?.instanceName == instanceName, !activeRegistrations.isEmpty {
             return try await writeSnapshot(status: "running", instanceName: instanceName)
@@ -169,6 +178,7 @@ public actor AgentCellRuntimeHost {
         }
 
         activeRegistrations = registrations
+        await startNetworkSentinel(registrations: registrations, config: networkSentinel ?? NetworkSentinelConfig())
         let controlBridgeStatus: LocalControlBridgeStatus?
         if let configuration {
             do {
@@ -196,6 +206,12 @@ public actor AgentCellRuntimeHost {
     }
 
     public func stop() async {
+        if let networkSentinelService {
+            await networkSentinelService.stop()
+        }
+        networkSentinelService = nil
+        await AgentRuntimeBridge.shared.update(networkSentinelControl: nil)
+
         let instanceName = currentSnapshot?.instanceName ?? "unknown"
         let ownerUUID = currentSnapshot?.ownerUUID ?? "unknown"
         let ownerDisplayName = currentSnapshot?.ownerDisplayName ?? "unknown"
@@ -277,6 +293,42 @@ public actor AgentCellRuntimeHost {
         currentSnapshot = snapshot
         try await snapshotStore.write(snapshot)
         return snapshot
+    }
+
+    /// Constructs the native measurement service for the hosted
+    /// NetworkSentinelCell, wires its sink to (1) the cell's FlowElement emission
+    /// and (2) the macOS notification dispatcher, registers it as the bridge
+    /// control surface for runtime toggles, and starts it.
+    private func startNetworkSentinel(
+        registrations: [ActiveCellRegistration],
+        config: NetworkSentinelConfig
+    ) async {
+        guard config.enabled else { return }
+        guard let registration = registrations.first(where: { $0.descriptor.kind == .networkSentinel }),
+              let cell = registration.cell as? NetworkSentinelCell else {
+            return
+        }
+        let captureDirectory = paths.outputDirectory.appendingPathComponent("network-captures", isDirectory: true)
+        let service = NetworkSentinelService(
+            interface: config.interface,
+            thresholds: config.thresholds,
+            intervalSeconds: config.intervalSeconds,
+            notificationsEnabled: config.notificationsEnabled,
+            captureDirectory: captureDirectory,
+            captureEnabled: config.captureEnabled,
+            captureDurationSeconds: config.captureDurationSeconds,
+            capturePacketLimit: config.capturePacketLimit,
+            captureSnaplen: config.captureSnaplen
+        )
+        let cellBox = SentinelCellBox(cell: cell)
+        let dispatcher = NetworkAlertNotificationDispatcher()
+        await service.setSink { snapshot, transition in
+            await cellBox.cell.emitNetworkEvent(snapshot: snapshot, transition: transition)
+            await dispatcher.handle(snapshot: snapshot, transition: transition)
+        }
+        await AgentRuntimeBridge.shared.update(networkSentinelControl: service)
+        await service.start()
+        networkSentinelService = service
     }
 
     private static func iso8601String(_ date: Date) -> String {
