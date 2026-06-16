@@ -285,6 +285,14 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: PersonalMeetingCoordinatorContract.cellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalMeetingCoordinatorLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "PersonalPrivacyAudit",
             cellScope: .identityUnique,
             persistency: .persistant,
@@ -1059,6 +1067,366 @@ private final class PersonalMeetingIntentLocalCell: PersonalCopilotLocalCell {
         default:
             return await super.handleSet(key: key, value: value)
         }
+    }
+}
+
+private final class PersonalMeetingCoordinatorLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        refreshMeetingBridge(requesterUUID: owner.uuid)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        [
+            PersonalMeetingCoordinatorContract.stateKeypath,
+            PersonalMeetingCoordinatorContract.meetingBridgeKeypath
+        ]
+    }
+
+    override var writableKeys: [String] {
+        [
+            PersonalMeetingCoordinatorContract.proposeMeetingKeypath,
+            "proposeTimes",
+            "acceptTime",
+            "declineTime",
+            "updateMeetingIntent",
+            "clearMeetingIntent",
+            "draft.title",
+            "draft.targetProfileID",
+            "draft.proposedTimesText"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        let bridge = Self.defaultMeetingBridge(requesterUUID: "binding-local")
+        return [
+            "draft": .object(Self.emptyDraft()),
+            "currentIntent": .null,
+            "meetingIntent": .null,
+            "proposedTimes": .list([]),
+            "participants": .list([]),
+            "coordinationStatus": .string("draft"),
+            "meetingBridge": .object(bridge),
+            "nativePermissionRequests": .list([]),
+            "requiresExplicitCapabilityConsent": .bool(true),
+            "status": .string("Meeting intent is staged locally as metadata only."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "draft.title":
+            return updateDraft(field: "title", value: payloadString(value))
+        case "draft.targetProfileID":
+            return updateDraft(field: "targetProfileID", value: payloadString(value))
+        case "draft.proposedTimesText":
+            return updateDraft(field: "proposedTimesText", value: payloadString(value))
+        case PersonalMeetingCoordinatorContract.proposeMeetingKeypath, "proposeTimes", "updateMeetingIntent":
+            return proposeMeeting(payload: value)
+        case "acceptTime":
+            return updateCurrentIntent(status: "accepted", payload: value)
+        case "declineTime":
+            return updateCurrentIntent(status: "declined", payload: value)
+        case "clearMeetingIntent":
+            replaceState(initialState())
+            return .object([
+                "ok": .bool(true),
+                "status": .string("cleared"),
+                "meetingIntent": .null,
+                "state": .object(stateObject())
+            ])
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func updateDraft(field: String, value: String) -> ValueType {
+        var draft = currentDraft()
+        draft[field] = .string(value)
+        setStateValue(.object(draft), for: "draft")
+        mergeState([
+            "coordinationStatus": .string("draft"),
+            "lastAction": .string("draft.\(field)")
+        ])
+        return .object([
+            "ok": .bool(true),
+            "status": .string("ok"),
+            "draft": .object(draft),
+            "state": .object(stateObject())
+        ])
+    }
+
+    private func proposeMeeting(payload: ValueType) -> ValueType {
+        let object = objectValue(from: payload)
+        let draft = currentDraft()
+        let targetProfileID = stringValue("profileID", in: object)
+            ?? stringValue("targetProfileID", in: object)
+            ?? nonEmptyString(draft["targetProfileID"])
+        let title = stringValue("title", in: object)
+            ?? nonEmptyString(draft["title"])
+            ?? "Personal Co-Pilot meeting intent"
+        let proposedTimes = stringList("proposedTimes", in: object)
+        let proposedTimesText = stringValue("proposedTimesText", in: object)
+            ?? nonEmptyString(draft["proposedTimesText"])
+            ?? ""
+        let fallbackTimes = csvValues(proposedTimesText)
+        let scheduledAt = stringValue("scheduledAt", in: object)
+            ?? proposedTimes.first
+            ?? fallbackTimes.first
+            ?? Self.now()
+        let allTimes = proposedTimes.isEmpty
+            ? (fallbackTimes.isEmpty ? [scheduledAt] : fallbackTimes)
+            : proposedTimes
+        let requesterUUID = stringValue("requesterUUID", in: stateObject()) ?? "binding-local"
+        let roomName = "haven-personal-\(Self.safeSlug(requesterUUID + "-" + (targetProfileID ?? "solo")))"
+        let bridge = meetingBridge(
+            roomName: roomName,
+            scheduledAt: scheduledAt
+        )
+        var intent = meetingIntent(
+            id: "meeting-\(UUID().uuidString)",
+            requesterUUID: requesterUUID,
+            targetProfileID: targetProfileID,
+            title: title,
+            scheduledAt: scheduledAt,
+            createdAt: Self.now(),
+            bridge: bridge,
+            proposedTimes: allTimes,
+            participants: normalize([requesterUUID] + [targetProfileID].compactMap { $0 }),
+            acceptedTime: nil,
+            declinedTimes: [],
+            coordinationStatus: "proposed"
+        )
+        intent["ok"] = .bool(true)
+        intent["status"] = .string("proposed")
+        mergeState([
+            "currentIntent": .object(intent),
+            "meetingIntent": .object(intent),
+            "proposedTimes": .list(allTimes.map(ValueType.string)),
+            "participants": .list(strings(intent["participants"]).map(ValueType.string)),
+            "coordinationStatus": .string("proposed"),
+            "meetingBridge": .object(bridge),
+            "nativePermissionRequests": .list([]),
+            "lastAction": .string("proposeTimes")
+        ])
+        intent["state"] = .object(stateObject())
+        return .object(intent)
+    }
+
+    private func updateCurrentIntent(status: String, payload: ValueType) -> ValueType {
+        var state = stateObject()
+        let intent: Object
+        if case let .object(existing)? = state["currentIntent"] {
+            intent = existing
+        } else {
+            _ = proposeMeeting(payload: payload)
+            state = stateObject()
+            intent = object(state["currentIntent"]) ?? [:]
+        }
+
+        var updated = intent
+        let scheduledAt = stringValue("scheduledAt", in: objectValue(from: payload))
+            ?? stringValue("time", in: objectValue(from: payload))
+            ?? firstString(in: intent["proposedTimes"])
+            ?? stringValue("scheduledAt", in: intent)
+            ?? Self.now()
+        updated["coordinationStatus"] = .string(status)
+        updated["status"] = .string(status)
+        if status == "accepted" {
+            updated["acceptedTime"] = .string(scheduledAt)
+            updated["scheduledAt"] = .string(scheduledAt)
+        } else if status == "declined" {
+            var declinedTimes = strings(intent["declinedTimes"])
+            declinedTimes.append(scheduledAt)
+            updated["declinedTimes"] = .list(normalize(declinedTimes).map(ValueType.string))
+        }
+
+        if var bridge = object(updated["meetingBridge"]) {
+            bridge["scheduledAt"] = .string(scheduledAt)
+            updated["meetingBridge"] = .object(bridge)
+            state["meetingBridge"] = .object(bridge)
+        }
+
+        state["currentIntent"] = .object(updated)
+        state["meetingIntent"] = .object(updated)
+        state["coordinationStatus"] = .string(status)
+        state["lastAction"] = .string(status == "accepted" ? "acceptTime" : "declineTime")
+        replaceState(state)
+        updated["ok"] = .bool(true)
+        updated["state"] = .object(stateObject())
+        return .object(updated)
+    }
+
+    private func refreshMeetingBridge(requesterUUID: String) {
+        guard object(stateValue(for: "currentIntent")) == nil else { return }
+        mergeState([
+            "requesterUUID": .string(requesterUUID),
+            "meetingBridge": .object(Self.defaultMeetingBridge(requesterUUID: requesterUUID))
+        ])
+    }
+
+    private func currentDraft() -> Object {
+        object(stateValue(for: "draft")) ?? Self.emptyDraft()
+    }
+
+    private static func emptyDraft() -> Object {
+        [
+            "title": .string(""),
+            "targetProfileID": .string(""),
+            "proposedTimesText": .string("")
+        ]
+    }
+
+    private static func defaultMeetingBridge(requesterUUID: String) -> Object {
+        let roomName = "haven-personal-\(safeSlug(requesterUUID))"
+        return meetingBridge(roomName: roomName, scheduledAt: now())
+    }
+
+    private static func meetingBridge(roomName: String, scheduledAt: String) -> Object {
+        [
+            "provider": .string("jitsi"),
+            "joinURL": .string("https://meet.jit.si/\(roomName)"),
+            "roomName": .string(roomName),
+            "scheduledAt": .string(scheduledAt),
+            "requiresCameraMicrophoneConsent": .bool(true),
+            "nativePermissionRequests": .list([])
+        ]
+    }
+
+    private func meetingBridge(roomName: String, scheduledAt: String) -> Object {
+        Self.meetingBridge(roomName: roomName, scheduledAt: scheduledAt)
+    }
+
+    private func meetingIntent(
+        id: String,
+        requesterUUID: String,
+        targetProfileID: String?,
+        title: String,
+        scheduledAt: String,
+        createdAt: String,
+        bridge: Object,
+        proposedTimes: [String],
+        participants: [String],
+        acceptedTime: String?,
+        declinedTimes: [String],
+        coordinationStatus: String
+    ) -> Object {
+        [
+            "id": .string(id),
+            "requesterUUID": .string(requesterUUID),
+            "targetProfileID": targetProfileID.map(ValueType.string) ?? .null,
+            "title": .string(title),
+            "scheduledAt": .string(scheduledAt),
+            "createdAt": .string(createdAt),
+            "proposedTimes": .list(proposedTimes.map(ValueType.string)),
+            "participants": .list(participants.map(ValueType.string)),
+            "acceptedTime": acceptedTime.map(ValueType.string) ?? .null,
+            "declinedTimes": .list(declinedTimes.map(ValueType.string)),
+            "coordinationStatus": .string(coordinationStatus),
+            "meetingBridge": .object(bridge)
+        ]
+    }
+
+    private func payloadString(_ payload: ValueType) -> String {
+        switch payload {
+        case let .string(text):
+            return text
+        case let .object(object):
+            return stringValue("value", in: object)
+                ?? stringValue("text", in: object)
+                ?? stringValue("body", in: object)
+                ?? ""
+        default:
+            return stringValue(payload)
+        }
+    }
+
+    private func objectValue(from payload: ValueType) -> Object {
+        object(payload) ?? [:]
+    }
+
+    private func stringValue(_ key: String, in object: Object) -> String? {
+        nonEmptyString(object[key])
+    }
+
+    private func nonEmptyString(_ value: ValueType?) -> String? {
+        guard let value else { return nil }
+        let string: String?
+        switch value {
+        case let .string(text):
+            string = text
+        case let .integer(number):
+            string = String(number)
+        case let .number(number):
+            string = String(number)
+        case let .float(number):
+            string = String(number)
+        case let .bool(flag):
+            string = flag ? "true" : "false"
+        default:
+            string = nil
+        }
+        let trimmed = string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    private func firstString(in value: ValueType?) -> String? {
+        strings(value).first
+    }
+
+    private func stringList(_ key: String, in object: Object) -> [String] {
+        guard let value = object[key] else { return [] }
+        return strings(value)
+    }
+
+    private func object(_ value: ValueType?) -> Object? {
+        guard case let .object(object)? = value else { return nil }
+        return object
+    }
+
+    private func strings(_ value: ValueType?) -> [String] {
+        switch value {
+        case let .list(values):
+            return normalize(values.compactMap { nonEmptyString($0) })
+        case let .string(text):
+            return normalize(text.split(separator: ",").map(String.init))
+        default:
+            return []
+        }
+    }
+
+    private func csvValues(_ value: String) -> [String] {
+        normalize(value.split(separator: ",").map(String.init))
+    }
+
+    private func normalize(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        var normalized: [String] = []
+        for value in values {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
+            seen.insert(trimmed)
+            normalized.append(trimmed)
+        }
+        return normalized
+    }
+
+    private static func safeSlug(_ raw: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
+        let scalars = raw.lowercased().unicodeScalars.map { scalar -> Character in
+            allowed.contains(scalar) ? Character(scalar) : "-"
+        }
+        let slug = String(scalars).split(separator: "-").joined(separator: "-")
+        return slug.isEmpty ? UUID().uuidString.lowercased() : slug
+    }
+
+    private static func now() -> String {
+        ISO8601DateFormatter().string(from: Date())
     }
 }
 

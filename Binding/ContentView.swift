@@ -4957,6 +4957,10 @@ struct ContentView: View {
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
+                try await prepareRemoteReferenceAdmissionIfNeeded(
+                    for: configuration,
+                    requester: requester
+                )
                 try await porthole.loadCellConfiguration(configuration, requester: requester)
             }
             group.addTask {
@@ -4968,6 +4972,24 @@ struct ContentView: View {
                 throw ConfigurationLoadTimeoutError(configurationName: configuration.name)
             }
             group.cancelAll()
+        }
+    }
+
+    private func prepareRemoteReferenceAdmissionIfNeeded(
+        for configuration: CellConfiguration,
+        requester: Identity
+    ) async throws {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
+        for endpoint in remoteRegistrationEndpoints(in: configuration) {
+            guard await RemoteEndpointAccessSupport.authorizationKind(for: endpoint) != .none else {
+                continue
+            }
+            _ = try await RemoteEndpointAccessSupport.resolveEmit(
+                endpoint: endpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: "Binding load: \(configuration.name)"
+            )
         }
     }
 

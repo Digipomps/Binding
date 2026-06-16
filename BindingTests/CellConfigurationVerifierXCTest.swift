@@ -43,6 +43,74 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         return (resolver, identity)
     }
 
+    private static func spatialV2InspectorConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Spatial v2 AR Inspector")
+        configuration.description = "Portable Binding verifier for a CellScaffold-matured spatial AR contract."
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///BindingSpatialV2Fixture",
+            sourceCellName: "BindingSpatialV2FixtureCell",
+            purpose: "Inspect a platform-neutral Spatial v2 AR scene contract",
+            purposeDescription: "Binding renders and reads pose, asset references and access policy without owning AR protocol semantics.",
+            interests: ["spatial", "ar", "binding", "cellconfiguration"],
+            menuSlots: ["debug"]
+        )
+        configuration.addReference(CellReference(endpoint: "cell:///BindingSpatialV2Fixture", label: "spatial"))
+        configuration.skeleton = .ScrollView(
+            SkeletonScrollView(axis: "vertical", elements: [
+                .Text(SkeletonText(text: "Spatial v2 AR Inspector")),
+                .Text(SkeletonText(keypath: "spatial.state.summary")),
+                .Section(
+                    SkeletonSection(
+                        header: .Text(SkeletonText(text: "Anchor contract")),
+                        content: [
+                            .Text(SkeletonText(keypath: "spatial.state.schema")),
+                            .Text(SkeletonText(keypath: "spatial.state.anchor.anchorId")),
+                            .Text(SkeletonText(keypath: "spatial.state.anchor.coordinateFrame")),
+                            .Text(SkeletonText(keypath: "spatial.state.anchor.locationSummary")),
+                            .Text(SkeletonText(keypath: "spatial.state.anchor.poseSummary"))
+                        ]
+                    )
+                ),
+                .Section(
+                    SkeletonSection(
+                        header: .Text(SkeletonText(text: "Asset delivery")),
+                        content: [
+                            .Text(SkeletonText(keypath: "spatial.state.assetManifest.primaryAssetId")),
+                            .Text(SkeletonText(keypath: "spatial.state.assetManifest.primaryAssetRef")),
+                            .Text(SkeletonText(keypath: "spatial.state.assetManifest.primaryDigest")),
+                            .Text(SkeletonText(keypath: "spatial.state.assetManifest.cachePolicy"))
+                        ]
+                    )
+                ),
+                .Section(
+                    SkeletonSection(
+                        header: .Text(SkeletonText(text: "Access policy")),
+                        content: [
+                            .Text(SkeletonText(keypath: "spatial.state.accessPolicy.viewerRoles")),
+                            .Text(SkeletonText(keypath: "spatial.state.accessPolicy.policyRefs")),
+                            .Text(SkeletonText(keypath: "spatial.state.accessPolicy.denialBehavior")),
+                            .Text(SkeletonText(keypath: "spatial.state.accessPolicy.assetDeliverySummary"))
+                        ]
+                    )
+                ),
+                .Text(SkeletonText(keypath: "spatial.state.nativeAdapter")),
+                .Button(
+                    SkeletonButton(
+                        keypath: "spatial.dispatchAction",
+                        label: "Preview native AR adapter",
+                        payload: .object([
+                            "keypath": .string("ar.preview"),
+                            "payload": .object([
+                                "mode": .string("binding-native-adapter")
+                            ])
+                        ])
+                    )
+                )
+            ])
+        )
+        return configuration
+    }
+
     func testLocalConferenceDemoLauncherLoadsThroughStartupPorthole() async throws {
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
@@ -92,8 +160,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
             ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
         ] {
+            let localConfiguration = CellConfigurationEndpointRetargeting
+                .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
             let report = try await CellConfigurationVerifier.contractReport(
-                for: configuration,
+                for: localConfiguration,
                 identityMode: .startup
             )
 
@@ -455,6 +525,60 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             report.failedActions.isEmpty,
             "Failed actions: \(report.failedActions)"
         )
+    }
+
+    func testSpatialV2InspectorContractLoadsStateAndButton() async throws {
+        let configuration = Self.spatialV2InspectorConfiguration()
+
+        let report = try await CellConfigurationVerifier.contractReport(
+            for: configuration,
+            buttonsToExecute: [
+                "Preview native AR adapter"
+            ],
+            rootProbes: [
+                .init(label: "spatial", rootKeypath: "state")
+            ]
+        )
+
+        XCTAssertEqual(
+            report.validation.errorCount,
+            0,
+            "Validation issues: \(report.validation.issues)"
+        )
+        XCTAssertTrue(
+            report.unresolvedReferences.isEmpty,
+            "Unresolved references: \(report.unresolvedReferences)"
+        )
+        XCTAssertTrue(
+            report.unreadableRootProbes.isEmpty,
+            "Unreadable root probes: \(report.unreadableRootProbes)"
+        )
+        XCTAssertTrue(
+            report.failedActions.isEmpty,
+            "Failed actions: \(report.failedActions)"
+        )
+        XCTAssertTrue(
+            report.actionExecutions.contains { action in
+                action.label == "Preview native AR adapter" && action.succeeded
+            },
+            "Expected Preview native AR adapter button to execute: \(report.actionExecutions)"
+        )
+
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        let schema = try await context.porthole.get(keypath: "spatial.state.schema", requester: context.owner)
+        let anchorId = try await context.porthole.get(keypath: "spatial.state.anchor.anchorId", requester: context.owner)
+        let coordinateFrame = try await context.porthole.get(keypath: "spatial.state.anchor.coordinateFrame", requester: context.owner)
+        let assetDigest = try await context.porthole.get(keypath: "spatial.state.assetManifest.primaryDigest", requester: context.owner)
+        let denialBehavior = try await context.porthole.get(keypath: "spatial.state.accessPolicy.denialBehavior", requester: context.owner)
+
+        XCTAssertEqual(string(schema), "haven.spatial.feature.v2")
+        XCTAssertEqual(string(anchorId), "venue-ar-sign")
+        XCTAssertEqual(string(coordinateFrame), "wgs84")
+        XCTAssertEqual(string(assetDigest), "abc123spatialv2")
+        XCTAssertEqual(string(denialBehavior), "structured-denied")
     }
 
     func testConferenceIdentityLinkContract() async throws {
@@ -2256,6 +2380,33 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
 #if canImport(AppKit)
     @MainActor
+    func testSpatialV2InspectorRenderer() async throws {
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: Self.spatialV2InspectorConfiguration(),
+            expectedVisibleStrings: [
+                "Spatial v2 AR Inspector",
+                "Spatial v2 AR scene fixture",
+                "Anchor contract",
+                "haven.spatial.feature.v2",
+                "venue-ar-sign",
+                "wgs84",
+                "Oslo venue coarse · 120m accuracy",
+                "Asset delivery",
+                "vault://assets/venue-model.usdz",
+                "abc123spatialv2",
+                "Access policy",
+                "structured-denied",
+                "Binding native AR adapter candidate"
+            ]
+        )
+
+        XCTAssertGreaterThan(report.snapshotByteCount, 0, "Expected rendered snapshot bytes")
+        XCTAssertGreaterThan(report.subviewCount, 0, "Expected rendered subviews")
+        XCTAssertGreaterThan(report.totalRenderMilliseconds, 0, "Expected positive render duration")
+        XCTAssertEqual(report.unavailableNowCount, 0, "Spatial v2-inspektøren skal ikke rendre utilgjengelighets-tekster")
+    }
+
+    @MainActor
     func testConferenceDemoLauncherRenderer() async throws {
         let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
 
@@ -2611,5 +2762,12 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         for subscription in reference.subscriptions {
             collectRemoteEndpoints(from: subscription, into: &endpoints)
         }
+    }
+
+    private func string(_ value: ValueType?) -> String? {
+        guard case let .string(string)? = value else {
+            return nil
+        }
+        return string
     }
 }

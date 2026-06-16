@@ -1070,6 +1070,22 @@ struct BindingTests {
         #expect(json.contains("\"sourceCellEndpoint\":\"cell://preview.example.org/RemotePeer\""))
     }
 
+    @Test func localVerifierCanRetargetKnownStagingPersonalCopilotFallbacks() throws {
+        let configuration = ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration()
+        let retargeted = CellConfigurationEndpointRetargeting
+            .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
+
+        #expect(retargeted.discovery?.sourceCellEndpoint == "cell:///PersonalMeetingCoordinator")
+        #expect(retargeted.cellReferences?.contains(where: {
+            $0.label == "meetingCoordinator" && $0.endpoint == "cell:///PersonalMeetingCoordinator"
+        }) == true)
+        #expect(
+            BindingPersonalCopilotV1Policy
+                .referencedEndpoints(in: configuration)
+                .contains("cell://staging.haven.digipomps.org/PersonalMeetingCoordinator")
+        )
+    }
+
     @Test func fullLibraryCanPreferRemoteCatalogEndpointsBeforeLocalFallback() {
         let ordered = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(from: [
             "cell:///ConfigurationCatalog",
@@ -6940,8 +6956,94 @@ private final class EditableConfigurationSourceFixtureCell: GeneralCell {
     }
 }
 
+private final class BindingSpatialV2FixtureCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        agreementTemplate.addGrant("r---", for: "state")
+        agreementTemplate.addGrant("rw--", for: "dispatchAction")
+        await addInterceptForGet(requester: owner, key: "state") { _, _ in
+            .object(Self.stateObject)
+        }
+        await addInterceptForSet(requester: owner, key: "dispatchAction") { _, value, _ in
+            .object([
+                "ok": .bool(true),
+                "status": .string("preview-ready"),
+                "action": value,
+                "state": .object(Self.stateObject)
+            ])
+        }
+    }
+
+    required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
+
+    private static let stateObject: Object = [
+        "schema": .string("haven.spatial.feature.v2"),
+        "summary": .string("Spatial v2 AR scene fixture"),
+        "nativeAdapter": .string("Binding native AR adapter candidate"),
+        "anchor": .object([
+            "schema": .string("haven.spatial.anchor.v1"),
+            "anchorId": .string("venue-ar-sign"),
+            "coordinateFrame": .string("wgs84"),
+            "locationSummary": .string("Oslo venue coarse · 120m accuracy"),
+            "poseSummary": .string("Position 0, 1.4, -2 · confidence 0.82"),
+            "location": .object([
+                "geoRef": .string("wgs84"),
+                "lng": .float(10.7522),
+                "lat": .float(59.9139),
+                "altitudeMeters": .float(12.5),
+                "accuracyMeters": .float(120),
+                "disclosure": .string("coarse")
+            ]),
+            "pose": .object([
+                "positionMeters": .object([
+                    "x": .float(0),
+                    "y": .float(1.4),
+                    "z": .float(-2.0)
+                ]),
+                "orientationQuaternion": .object([
+                    "x": .float(0),
+                    "y": .float(0),
+                    "z": .float(0),
+                    "w": .float(1)
+                ]),
+                "scale": .object([
+                    "x": .float(1),
+                    "y": .float(1),
+                    "z": .float(1)
+                ]),
+                "confidence": .float(0.82)
+            ])
+        ]),
+        "assetManifest": .object([
+            "primaryAssetId": .string("venue-model"),
+            "primaryAssetRef": .string("vault://assets/venue-model.usdz"),
+            "primaryDigest": .string("abc123spatialv2"),
+            "primaryMimeType": .string("model/vnd.usdz+zip"),
+            "cachePolicy": .string("sha256-revision-ttl")
+        ]),
+        "accessPolicy": .object([
+            "viewerRoles": .string("guest, member"),
+            "policyRefs": .string("agreement://venue-ar-public"),
+            "denialBehavior": .string("structured-denied"),
+            "assetDeliverySummary": .string("Asset blobs stay in vault-backed refs")
+        ])
+    ]
+}
+
 enum ConferenceVerifierFixtureSupport {
     static func ensureRegistered(on resolver: CellResolver) async {
+        await register(
+            name: "BindingSpatialV2Fixture",
+            type: BindingSpatialV2FixtureCell.self,
+            scope: .identityUnique,
+            on: resolver
+        )
         await register(
             name: "ConferenceParticipantPreviewShellFixture",
             type: ConferenceParticipantPreviewShellFixtureCell.self,
@@ -8347,6 +8449,8 @@ enum CellConfigurationVerifier {
         }
 
         let repaired = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(configuration) ?? configuration
+        registerRemoteRoutes(for: repaired, resolver: resolver)
+        try await prepareRemoteReferenceAdmissionIfNeeded(for: repaired, resolver: resolver, requester: owner)
         let validation = await CellConfigurationValidationService.validate(repaired)
         return RuntimeContext(
             configuration: repaired,
@@ -8355,6 +8459,58 @@ enum CellConfigurationVerifier {
             owner: owner,
             porthole: porthole
         )
+    }
+
+    private static func prepareRemoteReferenceAdmissionIfNeeded(
+        for configuration: CellConfiguration,
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws {
+        for endpoint in remoteRegistrationEndpoints(in: configuration) {
+            guard await RemoteEndpointAccessSupport.authorizationKind(for: endpoint) != .none else {
+                continue
+            }
+            _ = try await RemoteEndpointAccessSupport.resolveEmit(
+                endpoint: endpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: "CellConfigurationVerifier: \(configuration.name)"
+            )
+        }
+    }
+
+    private static func registerRemoteRoutes(for configuration: CellConfiguration, resolver: CellResolver) {
+        for endpoint in remoteRegistrationEndpoints(in: configuration) {
+            RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
+        }
+    }
+
+    private static func remoteRegistrationEndpoints(in configuration: CellConfiguration) -> Set<String> {
+        var endpoints: Set<String> = []
+
+        if let sourceEndpoint = configuration.discovery?.sourceCellEndpoint {
+            endpoints.insert(sourceEndpoint)
+        }
+
+        for reference in configuration.cellReferences ?? [] {
+            collectRemoteRegistrationEndpoints(from: reference, into: &endpoints)
+        }
+
+        return endpoints
+    }
+
+    private static func collectRemoteRegistrationEndpoints(from reference: CellReference, into endpoints: inout Set<String>) {
+        endpoints.insert(reference.endpoint)
+
+        for item in reference.setKeysAndValues {
+            if let target = item.target {
+                endpoints.insert(target)
+            }
+        }
+
+        for subscription in reference.subscriptions {
+            collectRemoteRegistrationEndpoints(from: subscription, into: &endpoints)
+        }
     }
 
     fileprivate static func waitForPortholeLoadBridgeConfiguration(

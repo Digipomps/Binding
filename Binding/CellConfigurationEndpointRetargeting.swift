@@ -2,6 +2,38 @@ import Foundation
 import CellBase
 
 enum CellConfigurationEndpointRetargeting {
+    private static let stagingHost = "staging.haven.digipomps.org"
+    private static let localVerifierFallbackCellNames: Set<String> = [
+        "PersonalMeetingCoordinator"
+    ]
+
+    static func rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(
+        in configuration: CellConfiguration
+    ) -> CellConfiguration {
+        rewritingEndpoints(in: configuration) {
+            rewriteStagingPersonalCopilotEndpointToLocalFallback($0)
+        }
+    }
+
+    static func rewriteStagingPersonalCopilotEndpointToLocalFallback(_ endpoint: String) -> String {
+        guard var components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell",
+              components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == stagingHost
+        else {
+            return endpoint
+        }
+
+        let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard localVerifierFallbackCellNames.contains(normalizedPath) else {
+            return endpoint
+        }
+
+        components.host = nil
+        components.port = nil
+        components.path = "/" + normalizedPath
+        return components.string ?? endpoint
+    }
+
     static func rewritingLocalCellEndpoints(
         in configuration: CellConfiguration,
         toScaffoldEndpoint scaffoldEndpoint: String
