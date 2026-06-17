@@ -34,7 +34,10 @@ struct BindingChatIntentClassification: Codable, Equatable {
             "reason": .string(reason),
             "negativeIntent": negativeIntent.isEmpty ? .null : .string(negativeIntent),
             "status": .string(status),
-            "explanation": .string(explanation)
+            "explanation": .string(explanation),
+            "targetPhrase": .string(helperID.isEmpty ? intentKind : helperID),
+            "weightedScore": .float(confidence),
+            "availability": .string(shouldSuggest ? "available_in_chat_scope" : "not_selected")
         ]
     }
 
@@ -53,6 +56,10 @@ struct BindingChatIntentClassification: Codable, Equatable {
             return "Jeg kan apne poll-hjelperen uten aa opprette avstemning for du bekrefter."
         case "idea-capture":
             return "Jeg kan apne ide-hjelperen som et privat utkast."
+        case "work-item":
+            return "Jeg kan apne feil/work-item-hjelperen som et utkast. Ingenting registreres for du bekrefter."
+        case "docs-rag":
+            return "Jeg kan apne docs/RAG-hjelperen. Kilder eller RAG spors ikke for du klikker eksplisitt."
         case "todo":
             return "Jeg kan apne oppgave-hjelperen som et utkast."
         case "project":
@@ -518,9 +525,6 @@ enum BindingChatIntentClassifier {
             return negative("agent_codex_prompt", reason: "Brukeren vil ikke starte Codex-prompt.")
         }
 
-        if containsAny(normalized, ["hva sier"]) && containsAny(normalized, ["rag", "dokument", "kilde"]) {
-            return lowConfidence(reason: "Dette ser ut som et RAG-sporsmal, ikke en helper-sideeffekt.")
-        }
         if containsAny(normalized, ["apple"]) && containsAny(normalized, ["lokal", "privat", "private", "on-device", "assistant"]) {
             return lowConfidence(reason: "Dette er et provider-valg, ikke en helper-handling.")
         }
@@ -555,6 +559,29 @@ enum BindingChatIntentClassifier {
                 helperID: "agent-setup",
                 confidence: 0.82,
                 reason: "Meldingen ber om telefonvarsling eller tillatelse for en kodeassistent-jobb."
+            )
+        }
+        if looksLikeWorkItem(normalized) {
+            return positive(
+                kind: "work_item",
+                purposeRef: "personal.chat.assist.work-item.capture",
+                interests: ["work-item", "bug-report", "work-item-capture", "requires-user-approval"],
+                helperID: "work-item",
+                confidence: 0.86,
+                reason: "Meldingen beskriver en feil, observasjon eller oppgave som kan bli et work item etter eksplisitt brukerklikk."
+            )
+        }
+        if looksLikeExplicitRAGResourceQuery(normalized) {
+            return lowConfidence(reason: "Dette er et RAG-sporsmal mot en granted ressurs, ikke en handlende helper-suggestion.")
+        }
+        if looksLikeDocsRAG(normalized) {
+            return positive(
+                kind: "rag_query",
+                purposeRef: "personal.chat.assist.rag-query",
+                interests: ["rag-query", "documentation", "source-backed-answer", "requires-user-approval"],
+                helperID: "docs-rag",
+                confidence: 0.78,
+                reason: "Meldingen ber om kilder eller dokumentasjon. RAG kan foreslaas, men spors bare etter eksplisitt klikk."
             )
         }
         if containsAny(normalized, ["inviter", "invite"]) {
@@ -646,6 +673,46 @@ enum BindingChatIntentClassifier {
         }
 
         return lowConfidence(reason: "Ingen trygg chat-helper traff med hoy nok sikkerhet.")
+    }
+
+    nonisolated private static func looksLikeWorkItem(_ normalized: String) -> Bool {
+        containsAny(normalized, [
+            "registrer feil",
+            "rapporter feil",
+            "bug",
+            "feilrapport",
+            "work item",
+            "workitem",
+            "regresjon",
+            "repro",
+            "forventet oppførsel",
+            "forventet oppforsel",
+            "det virker ikke",
+            "går galt",
+            "gar galt"
+        ])
+    }
+
+    nonisolated private static func looksLikeExplicitRAGResourceQuery(_ normalized: String) -> Bool {
+        containsAny(normalized, ["rag"])
+            && containsAny(normalized, ["anskaffelser", "innovasjon", "case", "korpus"])
+    }
+
+    nonisolated private static func looksLikeDocsRAG(_ normalized: String) -> Bool {
+        containsAny(normalized, [
+            "hva sier docs",
+            "hva sier dokumentasjonen",
+            "hva sier dokumentene",
+            "rag",
+            "kilde",
+            "kilder",
+            "dokumentasjon",
+            "formålstre",
+            "formaalstre",
+            "interessetre",
+            "purpose tree",
+            "interest tree"
+        ])
     }
 
     nonisolated static func resourceMatches(
@@ -805,7 +872,7 @@ enum BindingChatIntentClassifier {
                 "requiresSignedIntent": .bool(true)
             ])
         }
-        if grantRAG, containsAny(normalized, ["rag", "dokument", "kilde", "anskaffelser"]) {
+        if grantRAG, containsAny(normalized, ["rag", "dokument", "dokumentasjon", "kilde", "kilder", "anskaffelser", "formål", "formaal", "interesse"]) {
             matches.append([
                 "kind": .string("rag_case"),
                 "title": .string("Tilgjengelig RAG-case"),
@@ -1114,11 +1181,13 @@ enum BindingChatProviderRouter {
                 "personal.chat.assist.project",
                 "personal.chat.assist.todo",
                 "personal.chat.assist.reminder",
+                "personal.chat.assist.work-item.capture",
+                "personal.chat.assist.rag-query",
                 "personal.chat.assist.capability-request",
                 "personal.chat.assist.entity-contact-request",
                 "personal.chat.assist.resource-router"
             ],
-            interests: ["chat-assistant", "invite-person", "poll", "todo-intent", "project-intent", "reminder-intent", "capability-gap", "contact-endpoint", "local", "no-network", "deterministic"],
+            interests: ["chat-assistant", "invite-person", "poll", "todo-intent", "project-intent", "reminder-intent", "work-item", "rag-query", "capability-gap", "contact-endpoint", "local", "no-network", "deterministic"],
             availability: "available_in_chat_cell",
             privacyLevel: "local_chat_state",
             executionScope: "chat_cell",
@@ -1201,7 +1270,7 @@ enum BindingChatProviderRouter {
             return contactEndpointProvider()
         }
         if suggestion.shouldSuggest,
-           ["invite", "poll", "idea-capture", "todo", "project", "reminder", "meeting", "capability-request", "resource-router"].contains(suggestion.helperID) {
+           ["invite", "poll", "idea-capture", "work-item", "docs-rag", "todo", "project", "reminder", "meeting", "capability-request", "resource-router"].contains(suggestion.helperID) {
             return localRulesProvider()
         }
         if suggestion.helperID == "agent-review"
@@ -2490,6 +2559,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "assistantPolicy",
             "assistantProviders",
             "providerRecommendation",
+            "docsRAG",
             "threads",
             "messages",
             "blockedUsers",
@@ -2522,6 +2592,11 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "assistant.queryResource",
             "assistant.provider.register",
             "assistant.provider.recommend",
+            "prompt.submit",
+            "docsRAG.setQuery",
+            "docsRAG.search",
+            "docsRAG.openTopDocument",
+            "docsRAG.askRAG",
             "assistant.setCandidateQuery",
             "assistant.selectCandidate",
             "entityExtension.scan",
@@ -2538,6 +2613,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "ui.restoreComponentSurface",
             "ui.dismissComponentSurface",
             "ui.pinComponentSurface",
+            "ui.openMatchedResourceLibrary",
+            "ui.clearPromptHistory",
+            "ui.clearComponentSurfaces",
             "ui.setActiveTab",
             "ui.setActiveHelper",
             "ui.setActiveMoreTab",
@@ -2563,6 +2641,20 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "idea.title",
             "idea.content",
             "idea.capture",
+            "workItem.title",
+            "workItem.summary",
+            "workItem.kind",
+            "workItem.project",
+            "workItem.repo",
+            "workItem.cell",
+            "workItem.surface",
+            "workItem.severity",
+            "workItem.priority",
+            "workItem.currentBehavior",
+            "workItem.expectedBehavior",
+            "workItem.nextAction",
+            "workItem.doneWhen",
+            "workItem.capture",
             "todo.title",
             "todo.note",
             "todo.dueAtText",
@@ -2598,16 +2690,45 @@ final class BindingPersonalChatHubCell: GeneralCell {
     private static let stateProjectionReadableKeys: [String] = [
         "state.assistant.assistantProviders",
         "state.assistant.candidateQuery",
+        "state.assistant.groundedActionPlan.explanation",
+        "state.assistant.groundedActionPlan.nextStep",
+        "state.assistant.groundedActionPlan.status",
         "state.assistant.latestSuggestion.candidates",
+        "state.assistant.latestSuggestion.confidence",
         "state.assistant.latestSuggestion.explanation",
+        "state.assistant.latestSuggestion.kind",
+        "state.assistant.latestSuggestion.purposeRef",
         "state.assistant.latestSuggestion.selectedCandidateProfileID",
+        "state.assistant.latestSuggestion.targetPhrase",
+        "state.assistant.promptUnderstanding.ambiguity",
+        "state.assistant.promptUnderstanding.knowledgeNeed",
+        "state.assistant.promptUnderstanding.negativeIntent",
+        "state.assistant.promptUnderstanding.polarity",
+        "state.assistant.promptUnderstanding.recommendedNextStep",
+        "state.assistant.promptUnderstanding.speechAct",
+        "state.assistant.promptUnderstanding.userGoal",
+        "state.assistant.purposeContext.interestTreeExcerpt",
+        "state.assistant.purposeContext.purposeTreeExcerpt",
+        "state.assistant.purposeContext.responseGuidance",
+        "state.assistant.purposeContext.summary",
         "state.assistant.providerRecommendation.executionScope",
         "state.assistant.providerRecommendation.kind",
         "state.assistant.providerRecommendation.reason",
         "state.assistant.providerRecommendation.title",
+        "state.assistant.resourceMatches",
         "state.assistant.whySummary",
         "state.capabilityRequests",
+        "state.composer.body",
         "state.currentThread.composer.body",
+        "state.docsRAG.answer",
+        "state.docsRAG.availableDocuments",
+        "state.docsRAG.documentationMatchCount",
+        "state.docsRAG.documentationMatches",
+        "state.docsRAG",
+        "state.docsRAG.query",
+        "state.docsRAG.ragMatchCount",
+        "state.docsRAG.ragMatches",
+        "state.docsRAG.summary",
         "state.inviteDraft.title",
         "state.invites",
         "state.messages",
@@ -2616,13 +2737,21 @@ final class BindingPersonalChatHubCell: GeneralCell {
         "state.polls",
         "state.ui.activeMoreTab",
         "state.ui.activeTab",
+        "state.ui.activeHelper",
+        "state.ui.activeHelpers",
+        "state.ui.activeHelperSummary",
         "state.ui.activeToolChips",
         "state.ui.componentSurfaces",
+        "state.ui.hasActiveHelperSurface",
+        "state.ui.hasPinnedComponentSurfaces",
         "state.ui.moreTabs",
+        "state.ui.pinnedComponentSurfaces",
+        "state.ui.promptMessages",
         "state.ui.tabs",
         "state.voice.finalTranscript",
         "state.voice.message",
         "state.workbench.agentReviewDraft.actionID",
+        "state.workbench.capabilityRequestDraft",
         "state.workbench.agentReviewDraft.reason",
         "state.workbench.capabilityRequestDraft.summary",
         "state.workbench.capabilityRequestDraft.title",
@@ -2632,9 +2761,24 @@ final class BindingPersonalChatHubCell: GeneralCell {
         "state.workbench.meetingDraft.title",
         "state.workbench.modules",
         "state.workbench.projectDraft.description",
+        "state.workbench.projectDraft.membersText",
         "state.workbench.projectDraft.title",
         "state.workbench.reminderDraft.scheduledAtText",
         "state.workbench.reminderDraft.title",
+        "state.workbench.workItemDraft.cell",
+        "state.workbench.workItemDraft.currentBehavior",
+        "state.workbench.workItemDraft.doneWhen",
+        "state.workbench.workItemDraft.expectedBehavior",
+        "state.workbench.workItemDraft",
+        "state.workbench.workItemDraft.kind",
+        "state.workbench.workItemDraft.nextAction",
+        "state.workbench.workItemDraft.priority",
+        "state.workbench.workItemDraft.project",
+        "state.workbench.workItemDraft.repo",
+        "state.workbench.workItemDraft.severity",
+        "state.workbench.workItemDraft.summary",
+        "state.workbench.workItemDraft.surface",
+        "state.workbench.workItemDraft.title",
         "state.workbench.todoDraft.dueAtText",
         "state.workbench.todoDraft.note",
         "state.workbench.todoDraft.title"
@@ -2692,9 +2836,12 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return setComposer(value)
         case "clearComposer":
             BindingChatValue.set(.string(""), for: "currentThread.composer.body", in: &cachedState)
+            BindingChatValue.set(.string(""), for: "composer.body", in: &cachedState)
             return response(status: "ok", message: "Composer cleared.")
         case "sendComposedMessage":
             return sendComposedMessage()
+        case "prompt.submit":
+            return await submitPrompt(value: value, requester: requester)
         case "assistant.analyzeDraft":
             return await analyzeDraft(value: value, requester: requester)
         case "assistant.dismissSuggestion":
@@ -2711,13 +2858,28 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return markSurface(value, state: "dismissed")
         case "ui.pinComponentSurface":
             return pinSurface(value)
+        case "ui.openMatchedResourceLibrary":
+            return openMatchedResourceLibrary(value)
+        case "ui.clearPromptHistory":
+            BindingChatValue.set(.list([]), for: "ui.promptMessages", in: &cachedState)
+            return .object(["ok": .bool(true), "sideEffect": .bool(false)])
+        case "ui.clearComponentSurfaces":
+            BindingChatValue.set(.list([]), for: "ui.componentSurfaces", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "ui.activeToolChips", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "ui.activeHelpers", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "ui.minimizedComponentSurfaces", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "ui.pinnedComponentSurfaces", in: &cachedState)
+            BindingChatValue.set(.bool(false), for: "ui.hasActiveHelperSurface", in: &cachedState)
+            BindingChatValue.set(.bool(false), for: "ui.hasPinnedComponentSurfaces", in: &cachedState)
+            BindingChatValue.set(.string(""), for: "ui.activeComponentSurfaceID", in: &cachedState)
+            return .object(["ok": .bool(true), "sideEffect": .bool(false)])
         case "ui.setActiveTab":
             BindingChatValue.set(.string(text(from: value)), for: "ui.activeTab", in: &cachedState)
             return response(status: "ok", message: "Tab updated.")
         case "ui.setActiveHelper":
             let helper = BindingChatValue.string(BindingChatValue.object(value)?["activeHelper"]) ?? text(from: value)
             BindingChatValue.set(.string(helper), for: "ui.activeHelper", in: &cachedState)
-            BindingChatValue.set(.string("mer"), for: "ui.activeTab", in: &cachedState)
+            BindingChatValue.set(.string("samtale"), for: "ui.activeTab", in: &cachedState)
             return response(status: "ok", message: "Helper updated.")
         case "ui.setActiveMoreTab":
             let tab = BindingChatValue.string(BindingChatValue.object(value)?["activeMoreTab"]) ?? text(from: value)
@@ -2743,6 +2905,15 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return registerProvider(value)
         case "assistant.provider.recommend":
             return recommendProvider(value)
+        case "docsRAG.setQuery":
+            BindingChatValue.set(.string(text(from: value)), for: "docsRAG.query", in: &cachedState)
+            return response(status: "ok", message: "Docs/RAG query updated.")
+        case "docsRAG.search":
+            return searchDocsRAG(value)
+        case "docsRAG.openTopDocument":
+            return openTopDocument(value)
+        case "docsRAG.askRAG":
+            return askRAG(value)
         case "assistant.setCandidateQuery":
             BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
             return response(status: "ok", message: "Candidate query updated.")
@@ -2811,6 +2982,45 @@ final class BindingPersonalChatHubCell: GeneralCell {
         case "idea.content":
             BindingChatValue.set(.string(text(from: value)), for: "workbench.ideaDraft.content", in: &cachedState)
             return response(status: "ok", message: "Idea content updated.")
+        case "workItem.title":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.title", in: &cachedState)
+            return response(status: "ok", message: "Work item title updated.")
+        case "workItem.summary":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.summary", in: &cachedState)
+            return response(status: "ok", message: "Work item summary updated.")
+        case "workItem.kind":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.kind", in: &cachedState)
+            return response(status: "ok", message: "Work item kind updated.")
+        case "workItem.project":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.project", in: &cachedState)
+            return response(status: "ok", message: "Work item project updated.")
+        case "workItem.repo":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.repo", in: &cachedState)
+            return response(status: "ok", message: "Work item repo updated.")
+        case "workItem.cell":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.cell", in: &cachedState)
+            return response(status: "ok", message: "Work item cell updated.")
+        case "workItem.surface":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.surface", in: &cachedState)
+            return response(status: "ok", message: "Work item surface updated.")
+        case "workItem.severity":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.severity", in: &cachedState)
+            return response(status: "ok", message: "Work item severity updated.")
+        case "workItem.priority":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.priority", in: &cachedState)
+            return response(status: "ok", message: "Work item priority updated.")
+        case "workItem.currentBehavior":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.currentBehavior", in: &cachedState)
+            return response(status: "ok", message: "Work item current behavior updated.")
+        case "workItem.expectedBehavior":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.expectedBehavior", in: &cachedState)
+            return response(status: "ok", message: "Work item expected behavior updated.")
+        case "workItem.nextAction":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.nextAction", in: &cachedState)
+            return response(status: "ok", message: "Work item next action updated.")
+        case "workItem.doneWhen":
+            BindingChatValue.set(.string(text(from: value)), for: "workbench.workItemDraft.doneWhen", in: &cachedState)
+            return response(status: "ok", message: "Work item done condition updated.")
         case "todo.title":
             BindingChatValue.set(.string(text(from: value)), for: "workbench.todoDraft.title", in: &cachedState)
             return response(status: "ok", message: "Todo title updated.")
@@ -2867,7 +3077,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return response(status: "ok", message: "Capability request category updated.")
         case "capabilityRequest.submit":
             return submitCapabilityRequest(value)
-        case "meeting.schedule", "idea.capture", "todo.create", "project.create", "reminder.create", "agent.review.create", "agent.review.execute", "agent.reviewIntent":
+        case "meeting.schedule", "idea.capture", "workItem.capture", "todo.create", "project.create", "reminder.create", "agent.review.create", "agent.review.execute", "agent.reviewIntent":
             return createWorkbenchModule(kind: key)
         case "reportMessage":
             BindingChatValue.set(.string("Latest message reported for review."), for: "moderationStatus", in: &cachedState)
@@ -2894,6 +3104,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         let draft = BindingChatValue.string(payload["text"])
             ?? BindingChatValue.string(payload["draft"])
             ?? BindingChatValue.string(payload["prompt"])
+            ?? BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
             ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
             ?? ""
         let capabilityDiscoveryEnabled = BindingChatValue.bool(BindingChatValue.nested("ui.capabilityDiscoveryEnabled", in: cachedState)) ?? false
@@ -2918,10 +3129,29 @@ final class BindingPersonalChatHubCell: GeneralCell {
             perspectiveSummary: perspective,
             agentStatus: agentStatus
         )
+        let purposeContext = purposeContextSummary(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches,
+            perspectiveSummary: perspective
+        )
+        let promptUnderstanding = promptUnderstandingFrame(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches
+        )
+        let groundedActionPlan = groundedActionPlan(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches,
+            providerRecommendation: recommendation
+        )
         let contextPack: Object = [
             "draft": .string(draft),
             "capabilityDiscoveryEnabled": .bool(capabilityDiscoveryEnabled),
             "perspectiveSummary": .object(perspective),
+            "purposeContext": .object(purposeContext),
+            "promptUnderstanding": .object(promptUnderstanding),
             "agentStatus": .object(agentStatus.objectValue()),
             "agentUseDecision": .object(agentUseDecision.objectValue()),
             "availableDescriptors": .list(providers.map { .object($0.objectValue()) }),
@@ -2963,6 +3193,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "providerCount": .integer(providers.count),
             "resourceMatches": .list(resourceObjects),
             "resourceMatchCount": .integer(resourceMatches.count),
+            "promptUnderstanding": .object(promptUnderstanding),
+            "groundedActionPlan": .object(groundedActionPlan),
+            "purposeContext": .object(purposeContext),
             "agentStatus": .object(agentStatusObject),
             "agentUseDecision": .object(agentUseDecisionObject),
             "priorityIntent": .object(suggestionObject),
@@ -2976,6 +3209,16 @@ final class BindingPersonalChatHubCell: GeneralCell {
         for (key, update) in assistantUpdates {
             BindingChatValue.set(update, for: "assistant.\(key)", in: &cachedState)
         }
+        updateDraftsFromAnalysis(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches
+        )
+        appendPromptMessage(
+            draft: draft,
+            suggestion: suggestion,
+            groundedActionPlan: groundedActionPlan
+        )
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
         var response: Object = [
@@ -2990,12 +3233,211 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "agentUseDecision": .object(agentUseDecisionObject),
             "intentCandidates": .list(suggestion.shouldSuggest ? [.object(suggestionObject)] : []),
             "contextPack": .object(contextPack),
+            "promptUnderstanding": .object(promptUnderstanding),
+            "groundedActionPlan": .object(groundedActionPlan),
+            "purposeContext": .object(purposeContext),
             "sideEffect": .bool(false)
         ]
         if let portholeUI {
             response["portholeUI"] = .object(portholeUI)
         }
         return .object(response)
+    }
+
+    private func submitPrompt(value: ValueType, requester: Identity) async -> ValueType {
+        let payload = BindingChatValue.object(value) ?? [:]
+        let prompt = BindingChatValue.string(payload["text"])
+            ?? BindingChatValue.string(payload["prompt"])
+            ?? BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
+            ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
+            ?? ""
+        return await analyzeDraft(
+            value: .object(["prompt": .string(prompt)]),
+            requester: requester
+        )
+    }
+
+    private func promptUnderstandingFrame(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object]
+    ) -> Object {
+        let normalized = BindingChatValue.normalized(draft)
+        let negative = suggestion.negativeIntent.isEmpty == false
+        let knowledgeNeed = suggestion.helperID == "docs-rag"
+            || resourceMatches.contains { BindingChatValue.string($0["kind"]) == "rag_case" }
+        let resourceNeed = suggestion.helperID == "resource-router"
+            || resourceMatches.contains { BindingChatValue.string($0["kind"]) == "cell_configuration" }
+        let speechAct: String
+        if normalized.contains("?") || normalized.contains("hva") || normalized.contains("kan du") {
+            speechAct = knowledgeNeed ? "question" : "request"
+        } else if normalized.contains("ikke") || normalized.contains("not ") {
+            speechAct = "constraint"
+        } else {
+            speechAct = suggestion.shouldSuggest ? "request" : "statement"
+        }
+        return [
+            "schema": .string("binding.prompt-understanding.v0"),
+            "speechAct": .string(speechAct),
+            "temporalFrame": .string(normalized.contains("i dag") || normalized.contains("today") ? "today" : "unspecified"),
+            "polarity": .string(negative ? "negative" : "positive"),
+            "activeSurfaceMode": .string("chat-first"),
+            "explicitObjects": .list(explicitObjects(from: draft).map(ValueType.string)),
+            "purposeCandidates": .list([
+                .object([
+                    "purposeRef": .string(suggestion.purposeRef),
+                    "helperID": .string(suggestion.helperID),
+                    "confidence": .float(suggestion.confidence),
+                    "directPurposeHit": .bool(suggestion.shouldSuggest)
+                ])
+            ]),
+            "knowledgeNeed": .bool(knowledgeNeed),
+            "resourceNeed": .bool(resourceNeed),
+            "ambiguity": .string(suggestion.status == "needs_candidate_selection" ? "needs_candidate_selection" : "low"),
+            "negativeIntent": suggestion.negativeIntent.isEmpty ? .null : .string(suggestion.negativeIntent),
+            "userGoal": .string(suggestion.shouldSuggest ? suggestion.explanation : "Ingen trygg handlende hjelper ble valgt."),
+            "recommendedNextStep": .string(suggestion.shouldSuggest ? "open_helper_after_user_click" : "ask_clarifying_or_continue_chat")
+        ]
+    }
+
+    private func purposeContextSummary(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object],
+        perspectiveSummary: Object
+    ) -> Object {
+        let purposeRefs = Array(Set(([suggestion.purposeRef] + resourceMatches.flatMap { resource in
+            BindingChatValue.stringList(resource["purposeRefs"]) + [BindingChatValue.string(resource["purposeRef"])].compactMap { $0 }
+        }).filter { $0.isEmpty == false })).sorted()
+        let interests = Array(Set((suggestion.interests + resourceMatches.flatMap {
+            BindingChatValue.stringList($0["interests"])
+        }).filter { $0.isEmpty == false })).sorted()
+        let activeStatus = BindingChatValue.string(perspectiveSummary["status"]) ?? "unavailable"
+        let compactPurposeText = purposeRefs.prefix(5).joined(separator: " -> ")
+        let compactInterestText = interests.prefix(8).joined(separator: ", ")
+        return [
+            "schema": .string("haven.purpose-context-pack.v0.binding-preview"),
+            "source": .string("PerspectiveCell + Binding deterministic classifier"),
+            "status": .string(activeStatus),
+            "summary": .string(compactPurposeText.isEmpty ? "Ingen direkte purpose-hit." : "Direkte purpose-hit: \(compactPurposeText)"),
+            "purposeRefs": .list(purposeRefs.map(ValueType.string)),
+            "interests": .list(interests.map(ValueType.string)),
+            "purposeTreeExcerpt": .string(compactPurposeText.isEmpty ? "purpose://prompt.unknown" : compactPurposeText),
+            "interestTreeExcerpt": .string(compactInterestText.isEmpty ? "chat-assistant, requires-user-approval" : compactInterestText),
+            "responseGuidance": .string("Svar med brukerord først, og vis formål bare som begrunnelse i avansert eller ved eksplisitt spørsmål."),
+            "progressiveHydration": .object([
+                "detail": .string("compact"),
+                "focusPurposeRef": purposeRefs.first.map(ValueType.string) ?? .string("purpose://prompt.unknown"),
+                "nextQuery": .string("purpose.context.pack")
+            ]),
+            "sideEffectFree": .bool(true),
+            "mutatesPerspective": .bool(false),
+            "mutatesEntity": .bool(false),
+            "draftPreview": .string(String(draft.prefix(180)))
+        ]
+    }
+
+    private func groundedActionPlan(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object],
+        providerRecommendation: BindingChatProviderDescriptor
+    ) -> Object {
+        let actionKeypath: String
+        switch suggestion.helperID {
+        case "invite": actionKeypath = "chatHub.invite"
+        case "poll": actionKeypath = "chatHub.poll.create"
+        case "idea-capture": actionKeypath = "chatHub.idea.capture"
+        case "work-item": actionKeypath = "chatHub.workItem.capture"
+        case "todo": actionKeypath = "chatHub.todo.create"
+        case "project": actionKeypath = "chatHub.project.create"
+        case "reminder": actionKeypath = "chatHub.reminder.create"
+        case "meeting": actionKeypath = "chatHub.meeting.schedule"
+        case "agent-review", "agent-setup": actionKeypath = "chatHub.agent.review.create"
+        case "docs-rag": actionKeypath = "chatHub.docsRAG.askRAG"
+        case "resource-router": actionKeypath = "chatHub.ui.openMatchedResourceLibrary"
+        case "capability-request": actionKeypath = "chatHub.capabilityRequest.submit"
+        default: actionKeypath = ""
+        }
+        let target = resourceMatches.first(where: { BindingChatValue.string($0["kind"]) == "cell_configuration" })
+        return [
+            "schema": .string("binding.grounded-action-plan.v0"),
+            "status": .string(suggestion.shouldSuggest ? "drafted" : "no_safe_action"),
+            "intentKind": .string(suggestion.intentKind),
+            "helperID": .string(suggestion.helperID),
+            "purposeRefs": .list([suggestion.purposeRef].filter { $0.isEmpty == false }.map(ValueType.string)),
+            "target": .object([
+                "configurationName": target.flatMap { BindingChatValue.string($0["title"]) }.map(ValueType.string) ?? .null,
+                "sourceCellEndpoint": target.flatMap { BindingChatValue.string($0["sourceCellEndpoint"]) }.map(ValueType.string) ?? .string("cell:///PersonalChatHub"),
+                "actionKeypath": .string(actionKeypath)
+            ]),
+            "provider": .object(providerRecommendation.objectValue()),
+            "requiresUserApproval": .bool(true),
+            "sideEffectBeforeUserAction": .bool(false),
+            "nextStep": .string(suggestion.shouldSuggest ? "open_helper" : "continue_chat"),
+            "explanation": .string(suggestion.explanation),
+            "draftPreview": .string(String(draft.prefix(180)))
+        ]
+    }
+
+    private func updateDraftsFromAnalysis(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object]
+    ) {
+        if suggestion.helperID == "docs-rag"
+            || resourceMatches.contains(where: { BindingChatValue.string($0["kind"]) == "rag_case" }) {
+            BindingChatValue.set(.string(draft), for: "docsRAG.query", in: &cachedState)
+        }
+        if suggestion.helperID == "work-item" {
+            let title = String(draft.prefix(80)).trimmingCharacters(in: .whitespacesAndNewlines)
+            BindingChatValue.set(.string(title.isEmpty ? "Nytt work item fra Co-Pilot Chat" : title), for: "workbench.workItemDraft.title", in: &cachedState)
+            BindingChatValue.set(.string(draft), for: "workbench.workItemDraft.summary", in: &cachedState)
+            BindingChatValue.set(.string(draft.lowercased().contains("bug") || draft.lowercased().contains("feil") ? "bug" : "task"), for: "workbench.workItemDraft.kind", in: &cachedState)
+            BindingChatValue.set(.string("Binding"), for: "workbench.workItemDraft.repo", in: &cachedState)
+            BindingChatValue.set(.string("Co-Pilot Chat"), for: "workbench.workItemDraft.surface", in: &cachedState)
+            BindingChatValue.set(.string("Registrer etter review"), for: "workbench.workItemDraft.nextAction", in: &cachedState)
+        }
+    }
+
+    private func appendPromptMessage(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        groundedActionPlan: Object
+    ) {
+        guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+        var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
+        let userMessage: Object = [
+            "id": .string(UUID().uuidString),
+            "speaker": .string("Du"),
+            "body": .string(draft),
+            "statusText": .string("Analysert lokalt"),
+            "kind": .string("user_prompt")
+        ]
+        let assistantMessage: Object = [
+            "id": .string(UUID().uuidString),
+            "speaker": .string("Co-Pilot"),
+            "body": .string(suggestion.explanation),
+            "statusText": .string(BindingChatValue.string(groundedActionPlan["nextStep"]) ?? "continue_chat"),
+            "kind": .string("assistant_suggestion"),
+            "helperID": .string(suggestion.helperID),
+            "sideEffect": .bool(false)
+        ]
+        messages.append(.object(userMessage))
+        messages.append(.object(assistantMessage))
+        BindingChatValue.set(.list(Array(messages.suffix(12))), for: "ui.promptMessages", in: &cachedState)
+    }
+
+    private func explicitObjects(from draft: String) -> [String] {
+        draft
+            .split(separator: " ")
+            .map(String.init)
+            .filter { token in
+                guard let first = token.first else { return false }
+                return first.isUppercase || token.contains("://")
+            }
+            .prefix(8)
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
     }
 
     private func scopedProviders(requester: Identity) async -> [BindingChatProviderDescriptor] {
@@ -3775,7 +4217,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
     }
 
     private func openSuggestedHelper() -> ValueType {
-        guard let suggestion = BindingChatValue.object(BindingChatValue.nested("assistant.latestSuggestion", in: cachedState)),
+        guard let suggestion = openableSuggestionForHelper(),
               let helper = BindingChatValue.string(suggestion["helperID"]),
               !helper.isEmpty,
               BindingChatValue.string(suggestion["status"]) != "low_confidence"
@@ -3793,6 +4235,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "ok": .bool(true),
             "helper": .string(helper),
             "surface": .object(surface),
+            "suggestion": .object(suggestion),
+            "ui": BindingChatValue.nested("ui", in: cachedState) ?? .null,
+            "state": .object(cachedState),
             "sideEffect": .bool(false)
         ])
     }
@@ -3806,8 +4251,90 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "ok": .bool(true),
             "helper": .string(kind),
             "surface": .object(surface),
+            "ui": BindingChatValue.nested("ui", in: cachedState) ?? .null,
+            "state": .object(cachedState),
             "sideEffect": .bool(false)
         ])
+    }
+
+    private func openableSuggestionForHelper() -> Object? {
+        if let suggestion = BindingChatValue.object(BindingChatValue.nested("assistant.latestSuggestion", in: cachedState)),
+           let helper = BindingChatValue.string(suggestion["helperID"]),
+           !helper.isEmpty,
+           BindingChatValue.string(suggestion["status"]) != "low_confidence" {
+            return suggestion
+        }
+
+        return stageDeterministicSuggestionFromComposer()
+    }
+
+    private func stageDeterministicSuggestionFromComposer() -> Object? {
+        let draft = currentComposerDraft()
+        guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            return nil
+        }
+
+        let capabilityDiscoveryEnabled = BindingChatValue.bool(BindingChatValue.nested("ui.capabilityDiscoveryEnabled", in: cachedState)) ?? false
+        let suggestion = BindingChatIntentClassifier.classify(
+            prompt: draft,
+            capabilityDiscoveryEnabled: capabilityDiscoveryEnabled
+        )
+        let resourceMatches = BindingChatIntentClassifier.resourceMatches(prompt: draft)
+        let provider = BindingChatProviderRouter.localRulesProvider()
+        let purposeContext = purposeContextSummary(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches,
+            perspectiveSummary: [
+                "status": .string("not_queried"),
+                "reason": .string("openSuggestedHelper used direct composer fallback")
+            ]
+        )
+        let promptUnderstanding = promptUnderstandingFrame(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches
+        )
+        let groundedActionPlan = groundedActionPlan(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches,
+            providerRecommendation: provider
+        )
+        let candidates = candidateRows(for: suggestion)
+        var suggestionObject = suggestion.objectValue()
+        suggestionObject["candidates"] = .list(candidates)
+        suggestionObject["selectedCandidateProfileID"] = candidates.first.flatMap { BindingChatValue.string(BindingChatValue.object($0)?["id"]) }.map(ValueType.string) ?? .null
+
+        BindingChatValue.set(.string(suggestion.shouldSuggest ? "suggested" : "low_confidence"), for: "assistant.status", in: &cachedState)
+        BindingChatValue.set(.object(suggestionObject), for: "assistant.latestSuggestion", in: &cachedState)
+        BindingChatValue.set(.list(suggestion.shouldSuggest ? [.object(suggestionObject)] : []), for: "assistant.suggestions", in: &cachedState)
+        BindingChatValue.set(.object(suggestionObject), for: "assistant.priorityIntent", in: &cachedState)
+        BindingChatValue.set(.list(suggestion.shouldSuggest ? [.object(suggestionObject)] : []), for: "assistant.intentCandidates", in: &cachedState)
+        BindingChatValue.set(.string(suggestion.reason), for: "assistant.whySummary", in: &cachedState)
+        BindingChatValue.set(.object(provider.objectValue()), for: "assistant.providerRecommendation", in: &cachedState)
+        BindingChatValue.set(.list([.object(provider.objectValue())]), for: "assistant.assistantProviders", in: &cachedState)
+        BindingChatValue.set(.list(resourceMatches.map(ValueType.object)), for: "assistant.resourceMatches", in: &cachedState)
+        BindingChatValue.set(.integer(resourceMatches.count), for: "assistant.resourceMatchCount", in: &cachedState)
+        BindingChatValue.set(.object(promptUnderstanding), for: "assistant.promptUnderstanding", in: &cachedState)
+        BindingChatValue.set(.object(groundedActionPlan), for: "assistant.groundedActionPlan", in: &cachedState)
+        BindingChatValue.set(.object(purposeContext), for: "assistant.purposeContext", in: &cachedState)
+        BindingChatValue.set(.bool(true), for: "assistant.requiresUserApproval", in: &cachedState)
+        updateDraftsFromAnalysis(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches
+        )
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+
+        guard suggestion.shouldSuggest else { return nil }
+        return suggestionObject
+    }
+
+    private func currentComposerDraft() -> String {
+        BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
+            ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
+            ?? ""
     }
 
     private func appendSurface(_ surface: Object) {
@@ -3815,9 +4342,10 @@ final class BindingPersonalChatHubCell: GeneralCell {
         surfaces.removeAll { BindingChatValue.string(BindingChatValue.object($0)?["id"]) == BindingChatValue.string(surface["id"]) }
         surfaces.append(.object(surface))
         BindingChatValue.set(.list(surfaces), for: "ui.componentSurfaces", in: &cachedState)
-        BindingChatValue.set(.string("aktivt"), for: "ui.activeTab", in: &cachedState)
+        BindingChatValue.set(.string("samtale"), for: "ui.activeTab", in: &cachedState)
         if let kind = BindingChatValue.string(surface["kind"]) {
             BindingChatValue.set(.string(kind), for: "ui.activeHelper", in: &cachedState)
+            BindingChatValue.set(.string("\(helperTitle(kind)) er åpnet som utkast. Handling krever eget klikk."), for: "ui.activeHelperSummary", in: &cachedState)
         }
         if let id = BindingChatValue.string(surface["id"]) {
             BindingChatValue.set(.string(id), for: "ui.activeComponentSurfaceID", in: &cachedState)
@@ -3826,7 +4354,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "hint": .string("appear"),
             "sourceRole": .string("suggestion-card")
         ]), for: "ui.lastMotionEvent", in: &cachedState)
-        refreshActiveToolChips(from: surfaces)
+        refreshActiveToolState(from: surfaces)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
     }
 
@@ -3851,7 +4379,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "hint": .string(state == "minimized" ? "minimize" : state == "open" ? "restore" : "collapse"),
             "sourceRole": .string("component-surface")
         ]), for: "ui.lastMotionEvent", in: &cachedState)
-        refreshActiveToolChips(from: surfaces)
+        refreshActiveToolState(from: surfaces)
         if state == "dismissed" {
             let visibleSurfaceID = surfaces.compactMap { item -> String? in
                 guard let surface = BindingChatValue.object(item),
@@ -3886,14 +4414,36 @@ final class BindingPersonalChatHubCell: GeneralCell {
         return ""
     }
 
-    private func refreshActiveToolChips(from surfaces: [ValueType]? = nil) {
+    private func refreshActiveToolState(from surfaces: [ValueType]? = nil) {
         let sourceSurfaces = surfaces ?? BindingChatValue.list(BindingChatValue.nested("ui.componentSurfaces", in: cachedState)) ?? []
-        let chips = sourceSurfaces.compactMap { item -> ValueType? in
+        let visibleSurfaces = sourceSurfaces.filter {
+            BindingChatValue.string(BindingChatValue.object($0)?["state"]) != "dismissed"
+        }
+        let chips = visibleSurfaces.compactMap { item -> ValueType? in
             guard let surface = BindingChatValue.object(item),
                   BindingChatValue.string(surface["state"]) != "dismissed" else { return nil }
             return .object(activeToolChip(from: surface))
         }
+        let helpers = visibleSurfaces.compactMap { item -> ValueType? in
+            guard let surface = BindingChatValue.object(item),
+                  let kind = BindingChatValue.string(surface["kind"]) else { return nil }
+            return .object([
+                "id": .string(kind),
+                "title": .string(helperTitle(kind)),
+                "surfaceID": BindingChatValue.string(surface["id"]).map(ValueType.string) ?? .string(kind)
+            ])
+        }
+        let pinned = visibleSurfaces.filter {
+            BindingChatValue.bool(BindingChatValue.object($0)?["pinned"]) == true
+        }
         BindingChatValue.set(.list(chips), for: "ui.activeToolChips", in: &cachedState)
+        BindingChatValue.set(.list(helpers), for: "ui.activeHelpers", in: &cachedState)
+        BindingChatValue.set(.bool(helpers.isEmpty == false), for: "ui.hasActiveHelperSurface", in: &cachedState)
+        BindingChatValue.set(.list(pinned), for: "ui.pinnedComponentSurfaces", in: &cachedState)
+        BindingChatValue.set(.bool(pinned.isEmpty == false), for: "ui.hasPinnedComponentSurfaces", in: &cachedState)
+        if helpers.isEmpty {
+            BindingChatValue.set(.string(""), for: "ui.activeHelperSummary", in: &cachedState)
+        }
     }
 
     private func activeToolChip(from surface: Object) -> Object {
@@ -3925,6 +4475,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return .object(surface)
         }
         BindingChatValue.set(.list(surfaces), for: "ui.componentSurfaces", in: &cachedState)
+        refreshActiveToolState(from: surfaces)
         return .object(["ok": .bool(true), "sideEffect": .bool(false)])
     }
 
@@ -4003,6 +4554,150 @@ final class BindingPersonalChatHubCell: GeneralCell {
         ])
     }
 
+    private func searchDocsRAG(_ value: ValueType) -> ValueType {
+        let query = docsRAGQuery(from: value)
+        let matches = docsRAGMatches(for: query)
+        BindingChatValue.set(.string(query), for: "docsRAG.query", in: &cachedState)
+        BindingChatValue.set(.list(matches.documentation.map(ValueType.object)), for: "docsRAG.documentationMatches", in: &cachedState)
+        BindingChatValue.set(.integer(matches.documentation.count), for: "docsRAG.documentationMatchCount", in: &cachedState)
+        BindingChatValue.set(.list(matches.rag.map(ValueType.object)), for: "docsRAG.ragMatches", in: &cachedState)
+        BindingChatValue.set(.integer(matches.rag.count), for: "docsRAG.ragMatchCount", in: &cachedState)
+        BindingChatValue.set(.string(matches.summary), for: "docsRAG.summary", in: &cachedState)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("matched"),
+            "query": .string(query),
+            "documentationMatches": .list(matches.documentation.map(ValueType.object)),
+            "ragMatches": .list(matches.rag.map(ValueType.object)),
+            "summary": .string(matches.summary),
+            "sideEffect": .bool(false)
+        ])
+    }
+
+    private func openTopDocument(_ value: ValueType) -> ValueType {
+        let query = docsRAGQuery(from: value)
+        let matches = docsRAGMatches(for: query)
+        let document = matches.documentation.first ?? Self.defaultDocsRAGDocuments().first ?? [:]
+        BindingChatValue.set(.object(document), for: "docsRAG.selectedDocument", in: &cachedState)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("document_selected"),
+            "document": .object(document),
+            "sideEffect": .bool(false)
+        ])
+    }
+
+    private func askRAG(_ value: ValueType) -> ValueType {
+        let query = docsRAGQuery(from: value)
+        let matches = docsRAGMatches(for: query)
+        let answer = matches.rag.first.flatMap { BindingChatValue.string($0["summary"]) }
+            ?? "Ingen granted RAG-case ble funnet. Du kan bruke docs-treffene eller avklare spørsmålet."
+        BindingChatValue.set(.string(answer), for: "docsRAG.answer", in: &cachedState)
+        BindingChatValue.set(.string(query), for: "docsRAG.query", in: &cachedState)
+        BindingChatValue.set(.list(matches.rag.map(ValueType.object)), for: "docsRAG.ragMatches", in: &cachedState)
+        BindingChatValue.set(.integer(matches.rag.count), for: "docsRAG.ragMatchCount", in: &cachedState)
+        return .object([
+            "ok": .bool(true),
+            "status": .string(matches.rag.isEmpty ? "no_granted_rag_case" : "answer_staged"),
+            "answer": .string(answer),
+            "sideEffect": .bool(false)
+        ])
+    }
+
+    private func openMatchedResourceLibrary(_ value: ValueType) -> ValueType {
+        let object = BindingChatValue.object(value) ?? [:]
+        let autoOpen = BindingChatValue.bool(object["autoOpen"]) ?? true
+        let resourceID = BindingChatValue.string(object["resourceID"])
+            ?? BindingChatValue.string(object["id"])
+            ?? BindingChatValue.string(object["selectedValue"])
+        let matches = (BindingChatValue.list(BindingChatValue.nested("assistant.resourceMatches", in: cachedState)) ?? [])
+            .compactMap(BindingChatValue.object)
+        let selected = resourceID.flatMap { id in
+            matches.first {
+                BindingChatValue.string($0["id"]) == id
+                    || BindingChatValue.string($0["title"]) == id
+                    || BindingChatValue.string($0["sourceCellEndpoint"]) == id
+            }
+        } ?? matches.first(where: { BindingChatValue.string($0["kind"]) == "cell_configuration" })
+        let resource: Object
+        if let selected {
+            resource = selected
+        } else {
+            resource = [
+                "id": object["resourceID"] ?? .string("configuration:copilot-chat"),
+                "title": object["configurationName"] ?? .string("Co-Pilot Chat"),
+                "sourceCellEndpoint": object["sourceCellEndpoint"] ?? .string("cell:///PersonalChatHub")
+            ]
+        }
+        let portholeUI = BindingChatIntentClassifier.libraryUIRequest(for: resource, autoOpen: autoOpen)
+        BindingChatValue.set(.object(portholeUI), for: "assistant.portholeUI", in: &cachedState)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("library_open_requested"),
+            "resource": .object(resource),
+            "portholeUI": .object(portholeUI),
+            "sideEffect": .bool(false)
+        ])
+    }
+
+    private func docsRAGQuery(from value: ValueType) -> String {
+        let payload = BindingChatValue.object(value) ?? [:]
+        return BindingChatValue.string(payload["query"])
+            ?? BindingChatValue.string(payload["text"])
+            ?? BindingChatValue.string(payload["prompt"])
+            ?? BindingChatValue.string(value)
+            ?? BindingChatValue.string(BindingChatValue.nested("docsRAG.query", in: cachedState))
+            ?? BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
+            ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
+            ?? ""
+    }
+
+    private func docsRAGMatches(for query: String) -> (documentation: [Object], rag: [Object], summary: String) {
+        let normalized = BindingChatValue.normalized(query)
+        let documents = Self.defaultDocsRAGDocuments()
+        let documentation = documents.filter { doc in
+            let haystack = BindingChatValue.normalized(
+                [
+                    BindingChatValue.string(doc["title"]) ?? "",
+                    BindingChatValue.string(doc["summary"]) ?? "",
+                    BindingChatValue.string(doc["group"]) ?? ""
+                ].joined(separator: " ")
+            )
+            return normalized.isEmpty
+                || normalized.split(separator: " ").contains { haystack.contains($0) }
+        }
+        let rag: [Object] = BindingChatIntentClassifier.resourceMatches(prompt: query)
+            .filter { BindingChatValue.string($0["kind"]) == "rag_case" }
+        let filteredDocs = documentation.isEmpty ? documents : documentation
+        let summary = rag.isEmpty
+            ? "Fant \(filteredDocs.count) dokumenttreff. Ingen granted RAG-case blir spurt automatisk."
+            : "Fant \(filteredDocs.count) dokumenttreff og \(rag.count) granted RAG-case. Spør RAG krever eget klikk."
+        return (filteredDocs, rag, summary)
+    }
+
+    nonisolated private static func defaultDocsRAGDocuments() -> [Object] {
+        [
+            [
+                "id": .string("personal-copilot-v1-chat-assistant"),
+                "title": .string("PersonalCopilotV1 Chat Assistant"),
+                "summary": .string("CellScaffold-kontrakt for chat-first Co-Pilot, helperflater, provider-routing og sideeffektgrenser."),
+                "group": .string("CellScaffold")
+            ],
+            [
+                "id": .string("copilot-prompt-decomposition"),
+                "title": .string("Co-Pilot Prompt Decomposition Strategy"),
+                "summary": .string("Kompakt PromptUnderstandingFrame med formål, interesser, kunnskapsbehov og anbefalt neste steg."),
+                "group": .string("PromptPurposeLab")
+            ],
+            [
+                "id": .string("purpose-context-pack"),
+                "title": .string("Purpose Context Pack"),
+                "summary": .string("Kompakt purpose.context.pack med progressive hydration og brukerrettet response guidance."),
+                "group": .string("CellProtocolDocuments")
+            ]
+        ]
+    }
+
     private func setComposer(_ value: ValueType) -> ValueType {
         let body: String
         if let object = BindingChatValue.object(value) {
@@ -4010,13 +4705,16 @@ final class BindingPersonalChatHubCell: GeneralCell {
         } else {
             body = text(from: value)
         }
+        BindingChatValue.set(.string(body), for: "composer.body", in: &cachedState)
         BindingChatValue.set(.string(body), for: "currentThread.composer.body", in: &cachedState)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
         return response(status: "ok", message: "Composer draft updated.")
     }
 
     private func sendComposedMessage() -> ValueType {
-        let body = BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState)) ?? ""
+        let body = BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
+            ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
+            ?? ""
         guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return response(status: "blocked", message: "Write a message before sending.")
         }
@@ -4036,6 +4734,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         BindingChatValue.set(.list(messages), for: "messages", in: &cachedState)
         BindingChatValue.set(.integer(messages.count), for: "messageCount", in: &cachedState)
         BindingChatValue.set(.string(""), for: "currentThread.composer.body", in: &cachedState)
+        BindingChatValue.set(.string(""), for: "composer.body", in: &cachedState)
         return response(status: "ok", message: "Message sent locally.")
     }
 
@@ -4062,7 +4761,13 @@ final class BindingPersonalChatHubCell: GeneralCell {
         ]))
         BindingChatValue.set(.list(invites), for: "invites", in: &cachedState)
         BindingChatValue.set(.integer(invites.count), for: "threadCount", in: &cachedState)
-        return response(status: "ok", message: "Invite created after explicit confirmation.")
+        return .object([
+            "status": .string("ok"),
+            "message": .string("Invite created after explicit confirmation."),
+            "userMessage": .string("Invite created after explicit confirmation."),
+            "sideEffect": .bool(true),
+            "state": .object(cachedState)
+        ])
     }
 
     private func createPoll() -> ValueType {
@@ -4074,7 +4779,13 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "status": .string("open")
         ]))
         BindingChatValue.set(.list(polls), for: "polls", in: &cachedState)
-        return response(status: "ok", message: "Poll created after explicit confirmation.")
+        return .object([
+            "status": .string("ok"),
+            "message": .string("Poll created after explicit confirmation."),
+            "userMessage": .string("Poll created after explicit confirmation."),
+            "sideEffect": .bool(true),
+            "state": .object(cachedState)
+        ])
     }
 
     private func createWorkbenchModule(kind: String) -> ValueType {
@@ -4088,7 +4799,13 @@ final class BindingPersonalChatHubCell: GeneralCell {
         ]))
         BindingChatValue.set(.list(modules), for: "workbench.modules", in: &cachedState)
         BindingChatValue.set(.integer(modules.count), for: "workbench.moduleCount", in: &cachedState)
-        return response(status: "ok", message: "Workbench module created after explicit confirmation.")
+        return .object([
+            "status": .string("ok"),
+            "message": .string("Workbench module created after explicit confirmation."),
+            "userMessage": .string("Workbench module created after explicit confirmation."),
+            "sideEffect": .bool(true),
+            "state": .object(cachedState)
+        ])
     }
 
     private func submitCapabilityRequest(_ value: ValueType) -> ValueType {
@@ -4128,6 +4845,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return "meeting"
         case "idea.capture", "idea", "idea-capture":
             return "idea-capture"
+        case "workItem.capture", "work-item", "work_item":
+            return "work-item"
         case "todo.create", "todo":
             return "todo"
         case "project.create", "project":
@@ -4192,6 +4911,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
         case "invite": return "Inviter person"
         case "poll": return "Lag avstemning"
         case "idea-capture": return "Lagre ide"
+        case "work-item": return "Feil / work item"
+        case "docs-rag": return "Spør docs/RAG"
         case "todo": return "Oppgave"
         case "project": return "Prosjekt"
         case "reminder": return "Paaminnelse"
@@ -4246,6 +4967,10 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     "contentType": .string("text/plain")
                 ])
             ]),
+            "composer": .object([
+                "body": .string(""),
+                "contentType": .string("text/plain")
+            ]),
             "threads": .list([]),
             "messages": .list([]),
             "invites": .list([]),
@@ -4268,6 +4993,21 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     "content": .string(""),
                     "targetCellEndpoint": .string("cell:///Vault"),
                     "targetActionKeypath": .string("idea.capture")
+                ]),
+                "workItemDraft": .object([
+                    "title": .string(""),
+                    "summary": .string(""),
+                    "kind": .string("bug"),
+                    "project": .string(""),
+                    "repo": .string("Binding"),
+                    "cell": .string("cell:///PersonalChatHub"),
+                    "surface": .string("Co-Pilot Chat"),
+                    "severity": .string("medium"),
+                    "priority": .string("normal"),
+                    "currentBehavior": .string(""),
+                    "expectedBehavior": .string(""),
+                    "nextAction": .string(""),
+                    "doneWhen": .string("")
                 ]),
                 "todoDraft": .object([
                     "title": .string(""),
@@ -4304,6 +5044,17 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 ])
             ]),
             "capabilityRequests": .list([]),
+            "docsRAG": .object([
+                "query": .string(""),
+                "summary": .string("Ingen docs/RAG-spørring ennå."),
+                "documentationMatches": .list(Self.defaultDocsRAGDocuments().map(ValueType.object)),
+                "documentationMatchCount": .integer(Self.defaultDocsRAGDocuments().count),
+                "ragMatches": .list([]),
+                "ragMatchCount": .integer(0),
+                "answer": .string(""),
+                "availableDocuments": .list(Self.defaultDocsRAGDocuments().map(ValueType.object)),
+                "selectedDocument": .null
+            ]),
             "entityExtension": .object(Self.initialEntityExtensionState()),
             "voice": .object(Self.initialVoiceState()),
             "drop": .object([
@@ -4321,6 +5072,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "activeTab": .string("samtale"),
                 "activeMoreTab": .string("verktoy"),
                 "activeHelper": .string("invite"),
+                "activeHelpers": .list([]),
+                "activeHelperSummary": .string(""),
+                "hasActiveHelperSurface": .bool(false),
                 "activeComponentSurfaceID": .string(""),
                 "combinedChatView": .bool(true),
                 "showAdvanced": .bool(false),
@@ -4345,7 +5099,10 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "helpers": .list([
                     .object(["id": .string("invite"), "title": .string("Inviter")]),
                     .object(["id": .string("poll"), "title": .string("Avstemning")]),
+                    .object(["id": .string("resource-router"), "title": .string("Finn verktøy")]),
+                    .object(["id": .string("docs-rag"), "title": .string("Docs/RAG")]),
                     .object(["id": .string("idea-capture"), "title": .string("Fang ide")]),
+                    .object(["id": .string("work-item"), "title": .string("Work item")]),
                     .object(["id": .string("todo"), "title": .string("Oppgave")]),
                     .object(["id": .string("project"), "title": .string("Prosjekt")]),
                     .object(["id": .string("reminder"), "title": .string("Paaminnelse")]),
@@ -4358,7 +5115,19 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "componentSurfaces": .list([]),
                 "activeToolChips": .list([]),
                 "minimizedComponentSurfaces": .list([]),
+                "pinnedComponentSurfaces": .list([]),
+                "hasPinnedComponentSurfaces": .bool(false),
                 "absorbedChats": .list([]),
+                "promptMessages": .list([
+                    .object([
+                        "id": .string("welcome"),
+                        "speaker": .string("Co-Pilot"),
+                        "body": .string("Hva vil du få gjort? Skriv én prompt, så finner jeg forslag uten å utføre sideeffekter."),
+                        "statusText": .string("Klar"),
+                        "kind": .string("assistant_welcome"),
+                        "sideEffect": .bool(false)
+                    ])
+                ]),
                 "promptParticipants": .list([
                     .object([
                         "badge": .string("Privat"),
@@ -4387,6 +5156,33 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "providerCount": .integer(1),
                 "resourceMatches": .list([]),
                 "resourceMatchCount": .integer(0),
+                "promptUnderstanding": .object([
+                    "schema": .string("binding.prompt-understanding.v0"),
+                    "speechAct": .string("none"),
+                    "polarity": .string("neutral"),
+                    "knowledgeNeed": .bool(false),
+                    "resourceNeed": .bool(false),
+                    "ambiguity": .string("none"),
+                    "userGoal": .string("Skriv et utkast og trykk Send eller Finn forslag."),
+                    "recommendedNextStep": .string("compose_prompt")
+                ]),
+                "groundedActionPlan": .object([
+                    "schema": .string("binding.grounded-action-plan.v0"),
+                    "status": .string("idle"),
+                    "nextStep": .string("compose_prompt"),
+                    "explanation": .string("Ingen prompt analysert ennå."),
+                    "sideEffectBeforeUserAction": .bool(false)
+                ]),
+                "purposeContext": .object([
+                    "schema": .string("haven.purpose-context-pack.v0.binding-preview"),
+                    "source": .string("PerspectiveCell + Binding deterministic classifier"),
+                    "status": .string("idle"),
+                    "summary": .string("Ingen purpose-kontekst hentet ennå."),
+                    "purposeTreeExcerpt": .string("purpose://prompt.unknown"),
+                    "interestTreeExcerpt": .string("chat-assistant, requires-user-approval"),
+                    "responseGuidance": .string("Svar med brukerord først; tekniske purpose-detaljer vises i Avansert."),
+                    "sideEffectFree": .bool(true)
+                ]),
                 "requiresUserApproval": .bool(true),
                 "sideEffectsRequireClick": .bool(true),
                 "policy": .object([
@@ -4414,6 +5210,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     .string("personal.chat.assist.project"),
                     .string("personal.chat.assist.todo"),
                     .string("personal.chat.assist.reminder"),
+                    .string("personal.chat.assist.work-item.capture"),
+                    .string("personal.chat.assist.rag-query"),
+                    .string("personal.chat.assist.provider-route"),
                     .string("personal.chat.assist.capability-request"),
                     .string("personal.chat.assist.entity-contact-request"),
                     .string("personal.chat.assist.moderation"),

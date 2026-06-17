@@ -8271,6 +8271,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         var configuration = CellConfiguration(name: "Co-Pilot Chat")
         configuration.description = "Chat-first Co-Pilot arbeidsflate. Skriv naturlig hva du vil oppnaa, finn forslag, og apne bare de hjelperne du ber om. Alle sideeffekter krever eget trykk."
         configuration.addReference(CellReference(endpoint: chatHubEndpoint, label: "chatHub"))
+        configuration.addReference(CellReference(endpoint: "cell:///Perspective", subscribeFeed: false, label: "perspective"))
         configuration = withPersonalCopilotMetadata(
             configuration,
             sourceCellEndpoint: chatHubEndpoint,
@@ -8291,7 +8292,15 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "project-intent",
                 "todo-intent",
                 "reminder-intent",
+                "work-item",
+                "bug-report",
+                "work-item-capture",
+                "guided-onboarding",
+                "entity-enrichment",
+                "profile-visibility",
                 "capability-gap",
+                "feature-request",
+                "user-controlled-submission",
                 "resource-router",
                 "rag-query",
                 "cell-scoped-ai-provider",
@@ -8314,6 +8323,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "purposeRef=personal.chat.assist.project",
                 "purposeRef=personal.chat.assist.todo",
                 "purposeRef=personal.chat.assist.reminder",
+                "purposeRef=personal.chat.assist.work-item.capture",
+                "purposeRef=personal.chat.assist.guided-onboarding",
                 "purposeRef=personal.chat.assist.capability-request",
                 "purposeRef=personal.chat.assist.local-agent-action",
                 "purposeRef=personal.agent.local.gui.finder.close-windows"
@@ -8342,9 +8353,9 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         let composer = SkeletonTextArea(
             text: nil,
-            sourceKeypath: "chatHub.state.currentThread.composer.body",
+            sourceKeypath: "chatHub.state.composer.body",
             targetKeypath: "chatHub.setComposer",
-            placeholder: "Skriv naturlig, f.eks. \"Inviter Anna til en liten chat om lunsj i dag\"",
+            placeholder: "F.eks. \"inviter Anna\", \"vi trenger avstemning\", \"registrer feil\" eller \"hva sier docs om formål?\"",
             minLines: 3,
             maxLines: 8,
             submitOnEnter: false,
@@ -8501,6 +8512,60 @@ final class ConfigurationCatalogCell: GeneralCell {
             submitOnEnter: false,
             modifiers: fieldCard
         )
+        let docsRAGQueryField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.docsRAG.query",
+            targetKeypath: "chatHub.docsRAG.setQuery",
+            placeholder: "Spør om dokumentasjon, arkitektur, skeleton, formål/interesser eller et tilgjengelig RAG-case",
+            minLines: 3,
+            maxLines: 7,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+        let workItemTitleField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.workItemDraft.title",
+            targetKeypath: "chatHub.workItem.title",
+            placeholder: "Kort tittel",
+            modifiers: fieldCard
+        )
+        let workItemSummaryField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.workItemDraft.summary",
+            targetKeypath: "chatHub.workItem.summary",
+            placeholder: "Hva skjer, hvor skjer det, og hvorfor betyr det noe?",
+            minLines: 3,
+            maxLines: 8,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+        let workItemKindField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.workItemDraft.kind",
+            targetKeypath: "chatHub.workItem.kind",
+            placeholder: "bug, feature, docs, chore ...",
+            modifiers: fieldCard
+        )
+        let workItemCurrentField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.workItemDraft.currentBehavior",
+            targetKeypath: "chatHub.workItem.currentBehavior",
+            placeholder: "Observerte symptomer / repro",
+            minLines: 2,
+            maxLines: 6,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
+        let workItemExpectedField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.workbench.workItemDraft.expectedBehavior",
+            targetKeypath: "chatHub.workItem.expectedBehavior",
+            placeholder: "Forventet oppførsel",
+            minLines: 2,
+            maxLines: 5,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
 
         var messageRow = SkeletonVStack(elements: [
             .Text(personalBoundText("authorDisplayName", lineLimit: 1)),
@@ -8509,6 +8574,20 @@ final class ConfigurationCatalogCell: GeneralCell {
         messageRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-message-bubble")
         var messages = SkeletonList(topic: nil, keypath: "chatHub.state.messages", flowElementSkeleton: messageRow)
         messages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 220, role: "personal-message-bubble")
+
+        var promptMessageRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("speaker", lineLimit: 1)),
+            .Text(personalBoundText("body", lineLimit: 5)),
+            .Text(personalBoundText("statusText", lineLimit: 2)),
+            .HStack(SkeletonHStack(elements: [
+                .Button(button("chatHub.ui.openSuggestedHelper", "Apne forslag", style: .secondary)),
+                .Button(button("chatHub.ui.openMatchedResourceLibrary", "Last inn flaten", payload: .object(["autoOpen": .bool(true)]), style: .secondary)),
+                .Button(button("chatHub.assistant.dismissSuggestion", "Avvis", style: .secondary))
+            ], spacing: 8))
+        ], spacing: 6)
+        promptMessageRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "chat-prompt-message")
+        var promptMessages = SkeletonList(topic: nil, keypath: "chatHub.state.ui.promptMessages", flowElementSkeleton: promptMessageRow)
+        promptMessages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 280, role: "chat-prompt-log")
 
         var candidateRow = SkeletonVStack(elements: [
             .Text(personalBoundText("displayName", lineLimit: 1)),
@@ -8578,6 +8657,38 @@ final class ConfigurationCatalogCell: GeneralCell {
         var componentSurfaces = SkeletonList(topic: nil, keypath: "chatHub.state.ui.componentSurfaces", flowElementSkeleton: surfaceRow)
         componentSurfaces.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
 
+        var resourceRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("kind", lineLimit: 1)),
+            .Text(personalBoundText("actionKeypath", lineLimit: 1))
+        ], spacing: 4)
+        resourceRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var resourceMatches = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.resourceMatches", flowElementSkeleton: resourceRow)
+        resourceMatches.selectionMode = .single
+        resourceMatches.selectionValueKeypath = "id"
+        resourceMatches.selectionActionKeypath = "chatHub.ui.openMatchedResourceLibrary"
+        resourceMatches.selectionPayloadMode = .itemID
+        resourceMatches.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
+
+        var docsRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("summary", lineLimit: 3))
+        ], spacing: 4)
+        docsRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var docsMatches = SkeletonList(topic: nil, keypath: "chatHub.state.docsRAG.documentationMatches", flowElementSkeleton: docsRow)
+        docsMatches.selectionMode = .single
+        docsMatches.selectionValueKeypath = "id"
+        docsMatches.selectionActionKeypath = "chatHub.docsRAG.openTopDocument"
+        docsMatches.selectionPayloadMode = .itemID
+        docsMatches.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-list-row")
+
+        var ragMatches = SkeletonList(topic: nil, keypath: "chatHub.state.docsRAG.ragMatches", flowElementSkeleton: docsRow)
+        ragMatches.selectionMode = .single
+        ragMatches.selectionValueKeypath = "id"
+        ragMatches.selectionActionKeypath = "chatHub.docsRAG.askRAG"
+        ragMatches.selectionPayloadMode = .itemID
+        ragMatches.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-list-row")
+
         var activeToolChipRow = SkeletonVStack(elements: [
             .HStack(SkeletonHStack(elements: [
                 .Text(personalBoundText("title", lineLimit: 1)),
@@ -8615,68 +8726,251 @@ final class ConfigurationCatalogCell: GeneralCell {
         var providerList = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.assistantProviders", flowElementSkeleton: providerRow)
         providerList.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
 
-        let helpPanel = personalSection(
-            "Hjelp",
+        let inviteHelper = personalSection(
+            "Inviter",
+            role: "personal-consent-prompt",
             content: [
-                .Text(personalBodyText("Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt.")),
-                .Text(personalBodyText("Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene."))
+                .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 3)),
+                .TextField(candidateField),
+                .List(candidates),
+                .TextField(inviteTitleField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.invite", "Send invitasjon")),
+                    .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary))
+                ], spacing: 8))
+            ],
+            modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-consent-prompt")
+        )
+
+        let pollHelper = personalSection(
+            "Avstemning",
+            content: [
+                .Text(personalBoundText("chatHub.state.assistant.pollPrerequisite", lineLimit: 2)),
+                .TextField(pollQuestionField),
+                .TextArea(pollOptionsField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.poll.create", "Publiser avstemning")),
+                    .Button(button("chatHub.poll.vote", "Stem forste", payload: .object(["optionID": .string("option-1")]), style: .secondary)),
+                    .Button(button("chatHub.poll.close", "Lukk", style: .secondary))
+                ], spacing: 8))
             ]
+        )
+
+        let resourceRouterHelper = personalSection(
+            "Finn verktøy",
+            content: [
+                .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.targetPhrase", lineLimit: 2)),
+                .List(resourceMatches),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.ui.openMatchedResourceLibrary", "Last inn flaten", payload: .object(["autoOpen": .bool(true)]))),
+                    .Button(button("chatHub.ui.openMatchedResourceLibrary", "Velg selv", payload: .object(["autoOpen": .bool(false)]), style: .secondary)),
+                    .Button(button("chatHub.entityExtension.scan", "Skann tilgang", style: .secondary))
+                ], spacing: 8))
+            ]
+        )
+
+        let docsRAGHelper = personalSection(
+            "Spør docs/RAG",
+            content: [
+                .TextArea(docsRAGQueryField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.docsRAG.search", "Finn kilder")),
+                    .Button(button("chatHub.docsRAG.openTopDocument", "Apne dokument", style: .secondary)),
+                    .Button(button("chatHub.docsRAG.askRAG", "Spør RAG", style: .secondary))
+                ], spacing: 8)),
+                .Text(personalBoundText("chatHub.state.docsRAG.summary", lineLimit: 3)),
+                .List(docsMatches),
+                .Text(personalBoundText("chatHub.state.docsRAG.answer", lineLimit: 4)),
+                .List(ragMatches)
+            ]
+        )
+
+        let ideaHelper = personalSection(
+            "Ide",
+            content: [
+                .TextField(ideaTitleField),
+                .TextArea(ideaContentField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.idea.capture", "Lagre ide")),
+                    .Button(button("chatHub.ui.openMatchedResourceLibrary", "Apne ideflate", payload: .object([
+                        "configurationName": .string("Idea Task Workspace"),
+                        "sourceCellEndpoint": .string("cell:///IdeaTaskWorkspace"),
+                        "autoOpen": .bool(true)
+                    ]), style: .secondary))
+                ], spacing: 8))
+            ]
+        )
+
+        let workItemHelper = personalSection(
+            "Feil / work item",
+            content: [
+                .TextField(workItemTitleField),
+                .TextArea(workItemSummaryField),
+                .TextField(workItemKindField),
+                .TextArea(workItemCurrentField),
+                .TextArea(workItemExpectedField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.workItem.capture", "Registrer feil")),
+                    .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary))
+                ], spacing: 8))
+            ]
+        )
+
+        let todoHelper = personalSection(
+            "Oppgave",
+            content: [
+                .TextField(todoTitleField),
+                .TextArea(todoNoteField),
+                .TextField(todoDueField),
+                .Button(button("chatHub.todo.create", "Opprett oppgave"))
+            ]
+        )
+
+        let projectHelper = personalSection(
+            "Prosjekt / ide",
+            content: [
+                .TextField(projectTitleField),
+                .TextArea(projectDescriptionField),
+                .Button(button("chatHub.project.create", "Opprett ide"))
+            ]
+        )
+
+        let reminderHelper = personalSection(
+            "Påminnelse",
+            content: [
+                .TextField(reminderTitleField),
+                .TextField(reminderTimeField),
+                .Button(button("chatHub.reminder.create", "Lagre paaminnelse"))
+            ]
+        )
+
+        let meetingHelper = personalSection(
+            "Møte / video",
+            content: [
+                .TextField(meetingTitleField),
+                .TextField(meetingTimesField),
+                .Button(button("chatHub.meeting.schedule", "Foresla mote"))
+            ]
+        )
+
+        let voiceHelper = personalSection(
+            "Tale",
+            content: [
+                .Text(personalBoundText("chatHub.state.voice.message", lineLimit: 2)),
+                .Text(personalBoundText("chatHub.state.voice.finalTranscript", lineLimit: 3)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.voice.requestPermission", "Mikrofon", style: .secondary)),
+                    .Button(button("chatHub.voice.startListening", "Snakk", style: .secondary)),
+                    .Button(button("chatHub.voice.stopListening", "Stopp", style: .secondary))
+                ], spacing: 8)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.voice.acceptTranscript", "Bruk tekst", style: .secondary)),
+                    .Button(button("chatHub.voice.acceptTranscriptAndAnalyze", "Bruk + finn forslag", style: .secondary)),
+                    .Button(button("chatHub.voice.clearTranscript", "Tøm tale", style: .secondary))
+                ], spacing: 8))
+            ]
+        )
+
+        let agentReviewHelper = personalSection(
+            "Agent-review",
+            content: [
+                .TextField(agentActionField),
+                .TextArea(agentReasonField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.agent.review.create", "Lag review")),
+                    .Button(button("chatHub.agent.review.execute", "Send til lokal review", style: .secondary))
+                ], spacing: 8))
+            ]
+        )
+
+        let capabilityHelper = personalSection(
+            "Meld behov",
+            content: [
+                .TextField(capabilityTitleField),
+                .TextArea(capabilitySummaryField),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.ui.setCapabilityDiscoveryEnabled", "Skru paa behovsradar", payload: .bool(true), style: .secondary)),
+                    .Button(button("chatHub.capabilityRequest.submit", "Send behov"))
+                ], spacing: 8))
+            ]
+        )
+
+        func helperTabs(activeOnly: Bool = false, compact: Bool = false) -> SkeletonTabs {
+            var tabs = SkeletonTabs(
+                tabsKeypath: activeOnly ? "chatHub.state.ui.activeHelpers" : "chatHub.state.ui.helpers",
+                activeTabStateKeypath: "chatHub.state.ui.activeHelper",
+                selectionActionKeypath: "chatHub.ui.setActiveHelper",
+                idKeypath: "id",
+                labelKeypath: "title",
+                panels: [
+                    SkeletonTabPanel(id: "invite", content: [inviteHelper]),
+                    SkeletonTabPanel(id: "poll", content: [pollHelper]),
+                    SkeletonTabPanel(id: "resource-router", content: [resourceRouterHelper]),
+                    SkeletonTabPanel(id: "docs-rag", content: [docsRAGHelper]),
+                    SkeletonTabPanel(id: "idea-capture", content: [ideaHelper]),
+                    SkeletonTabPanel(id: "work-item", content: [workItemHelper]),
+                    SkeletonTabPanel(id: "todo", content: [todoHelper]),
+                    SkeletonTabPanel(id: "project", content: [projectHelper]),
+                    SkeletonTabPanel(id: "reminder", content: [reminderHelper]),
+                    SkeletonTabPanel(id: "meeting", content: [meetingHelper]),
+                    SkeletonTabPanel(id: "voice-input", content: [voiceHelper]),
+                    SkeletonTabPanel(id: "agent-review", content: [agentReviewHelper]),
+                    SkeletonTabPanel(id: "capability-request", content: [capabilityHelper])
+                ]
+            )
+            tabs.modifiers = modifier {
+                $0.styleRole = compact ? "chat-helper-tabs-compact" : "chat-helper-tabs"
+                $0.styleClasses = compact ? ["chat-helper-tabs", "chat-helper-tabs-compact"] : ["chat-helper-tabs"]
+            }
+            return tabs
+        }
+
+        var activeHelperModifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "component-surface")
+        activeHelperModifiers.motionHint = .expand
+        activeHelperModifiers.motionSourceRole = "assistant-response-bubble"
+        activeHelperModifiers.visibility = SkeletonVisibilityRule(
+            when: SkeletonCondition(
+                scope: .root,
+                keypath: "chatHub.state.ui.hasActiveHelperSurface",
+                equals: .bool(true)
+            )
         )
 
         let conversationPanel: [SkeletonElement] = [
             personalSection(
-                "Samtale",
+                "Co-Pilot Chat",
                 role: "personal-draft-composer",
                 content: [
-                    .List(messages),
+                    .List(promptMessages),
+                    .Text(personalBodyText("Hva vil du få gjort?", lineLimit: 1)),
                     .List(activeToolChips),
                     .TextArea(composer),
                     .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.sendComposedMessage", "Send melding")),
-                        .Button(button("chatHub.clearComposer", "Tom", style: .secondary))
-                    ])),
-                    .Text(personalBoundText("chatHub.state.voice.message", lineLimit: 2)),
-                    .Text(personalBoundText("chatHub.state.voice.finalTranscript", lineLimit: 3)),
+                        .Button(button("chatHub.prompt.submit", "Send")),
+                        .Button(button("chatHub.assistant.analyzeDraft", "Finn forslag", style: .secondary)),
+                        .Button(button("chatHub.clearComposer", "Rydd utkast", style: .secondary))
+                    ], spacing: 8)),
+                    .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 3)),
                     .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.voice.requestPermission", "Mikrofon", style: .secondary)),
-                        .Button(button("chatHub.voice.startListening", "Snakk", style: .secondary)),
-                        .Button(button("chatHub.voice.stopListening", "Stopp", style: .secondary))
-                    ])),
-                    .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.voice.acceptTranscript", "Bruk tekst", style: .secondary)),
-                        .Button(button("chatHub.voice.acceptTranscriptAndAnalyze", "Bruk + finn forslag", style: .secondary)),
-                        .Button(button("chatHub.voice.clearTranscript", "Tøm tale", style: .secondary))
-                    ]))
+                        .Button(button("chatHub.ui.openSuggestedHelper", "Apne hjelper", style: .secondary)),
+                        .Button(button("chatHub.assistant.dismissSuggestion", "Avvis", style: .secondary))
+                    ], spacing: 8))
                 ],
                 modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-draft-composer")
             ),
             personalSection(
-                "Neste steg",
+                "Aktiv hjelper",
+                role: "component-surface",
                 content: [
-                    .Text(personalBodyText("La assistenten lese utkastet ditt bare naar du ber om det. Resultatet skal hjelpe deg videre, ikke overta.")),
-                    .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 4)),
-                    .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 4)),
+                    .Text(personalBoundText("chatHub.state.ui.activeHelperSummary", lineLimit: 2)),
+                    .Tabs(helperTabs(activeOnly: true, compact: true)),
                     .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.assistant.analyzeDraft", "Finn forslag")),
-                        .Button(button("chatHub.ui.setActiveHelper", "Inviter mennesker", payload: .object(["activeHelper": .string("invite")]), style: .secondary)),
-                        .Button(button("chatHub.ui.openSuggestedHelper", "Apne hjelper", style: .secondary)),
-                        .Button(button("chatHub.assistant.dismissSuggestion", "Avvis", style: .secondary))
-                    ]))
-                ]
-            ),
-            personalSection(
-                "Inviter person",
-                role: "personal-consent-prompt",
-                content: [
-                    .Text(personalBodyText("Etter at du har skrevet hvem du vil invitere i meldingsfeltet, kan du bruke soket her for aa avgrense trefflisten og velge riktig person.")),
-                    .TextField(candidateField),
-                    .List(candidates),
-                    .TextField(inviteTitleField),
-                    .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.invite", "Send invitasjon"))
-                    ]))
+                        .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary)),
+                        .Button(button("chatHub.ui.restoreComponentSurface", "Hent", style: .secondary)),
+                        .Button(button("chatHub.ui.clearComponentSurfaces", "Rydd hjelpere", style: .secondary))
+                    ], spacing: 8))
                 ],
-                modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-consent-prompt")
+                modifiers: activeHelperModifiers
             )
         ]
 
@@ -8734,35 +9028,15 @@ final class ConfigurationCatalogCell: GeneralCell {
         let toolsPanel = personalSection(
             "Verktoy",
             content: [
-                .Text(personalBodyText("Velg hjelperen som passer til det du vil gjore. Alle knapper peker til implementerte keypaths.")),
-                .TextField(pollQuestionField),
-                .TextArea(pollOptionsField),
-                .Button(button("chatHub.poll.create", "Opprett avstemning")),
-                .TextField(ideaTitleField),
-                .TextArea(ideaContentField),
-                .Button(button("chatHub.idea.capture", "Fang ide")),
-                .TextField(todoTitleField),
-                .TextArea(todoNoteField),
-                .TextField(todoDueField),
-                .Button(button("chatHub.todo.create", "Opprett oppgave")),
-                .TextField(projectTitleField),
-                .TextArea(projectDescriptionField),
-                .Button(button("chatHub.project.create", "Opprett ide")),
-                .TextField(reminderTitleField),
-                .TextField(reminderTimeField),
-                .Button(button("chatHub.reminder.create", "Lagre paaminnelse")),
-                .TextField(meetingTitleField),
-                .TextField(meetingTimesField),
-                .Button(button("chatHub.meeting.schedule", "Foresla mote")),
-                .TextField(agentActionField),
-                .TextArea(agentReasonField),
-                .Button(button("chatHub.agent.review.create", "Lag agent-review")),
-                .TextField(capabilityTitleField),
-                .TextArea(capabilitySummaryField),
-                .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.ui.setCapabilityDiscoveryEnabled", "Skru paa behovsradar", payload: .bool(true), style: .secondary)),
-                    .Button(button("chatHub.capabilityRequest.submit", "Send behov"))
-                ]))
+                .Tabs(helperTabs())
+            ]
+        )
+
+        let helpPanel = personalSection(
+            "Hjelp",
+            content: [
+                .Text(personalBodyText("Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt.")),
+                .Text(personalBodyText("Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene."))
             ]
         )
 
@@ -8813,6 +9087,11 @@ final class ConfigurationCatalogCell: GeneralCell {
                 .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.kind", lineLimit: 1)),
                 .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.executionScope", lineLimit: 1)),
                 .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 4)),
+                .Text(personalBoundText("chatHub.state.assistant.promptUnderstanding.userGoal", lineLimit: 3)),
+                .Text(personalBoundText("chatHub.state.assistant.groundedActionPlan.explanation", lineLimit: 4)),
+                .Text(personalBoundText("chatHub.state.assistant.purposeContext.summary", lineLimit: 3)),
+                .Text(personalBoundText("chatHub.state.assistant.purposeContext.purposeTreeExcerpt", lineLimit: 4)),
+                .Text(personalBoundText("chatHub.state.assistant.purposeContext.interestTreeExcerpt", lineLimit: 4)),
                 .List(providerList)
             ]
         )
