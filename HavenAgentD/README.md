@@ -66,6 +66,8 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - [Docs/BindingBoundary.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/BindingBoundary.md): current Binding vs agent boundary
 - [Docs/SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md): security model
 - [Docs/LocalModels.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/LocalModels.md): local model cell contract and phone/iPad access path
+- [Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md): provisioning pack format and the request/import round trip
+- [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md): signed + notarized .pkg build and install
 - [Docs/HavenAgentDMCPServerSurface.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/HavenAgentDMCPServerSurface.md): proposed MCP adapter surface for local AI hosts
 - [../Documentation/HavenAgentPhoneApprovalLoopRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/HavenAgentPhoneApprovalLoopRunbook.md): physical iPhone install + notification approval loop runbook with current verification state
 - [Docs/Legacy/BindingProvisioningRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md): archived Binding-embedded provisioning flow
@@ -98,6 +100,33 @@ When `haven-agentd run` starts, it now installs a narrow local `CellBase` host b
 - `AgentCellBlueprints`: retains the next planned cells, including dedicated action cells, before they are promoted to executable runtime components
 
 ## CLI
+
+One-shot operator setup (creates the runtime tree, writes `config.json` with a
+generated loopback token, installs the per-user LaunchAgent). This is the
+recommended path for a pkg-installed agent; see [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md):
+
+```bash
+haven-agentd setup --domain staging.haven.digipomps.org \
+  --resolver-url https://staging.haven.digipomps.org \
+  --sprout-path /usr/local/libexec/havenagent/sprout
+```
+
+`setup` defaults to `startupMode = disabled` (local-only, safe), prints
+provisioning readiness, and is idempotent — re-running without `--force` keeps
+the existing config and token. Pass `--load` to bootstrap launchd once the
+agent is local-only or fully provisioned; it refuses to load an unprovisioned
+scaffold-bound startup so `KeepAlive` cannot crashloop it.
+
+Install scaffold-join evidence with a provisioning pack (format and round trip
+in [Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md)):
+
+```bash
+haven-agentd provisioning-request                 # emit agent identity for the operator
+haven-agentd provisioning-import --pack pack.json # verify + install the operator's signed pack
+```
+
+`provisioning-import` refuses a pack bound to a different agent key, verifies
+every artifact before writing anything, and reports `readyForBootstrap`.
 
 Print example config:
 

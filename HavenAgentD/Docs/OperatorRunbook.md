@@ -6,18 +6,38 @@ It is intentionally narrower than the older Binding-embedded runbook:
 
 - `Binding` no longer installs or exposes agent setup UX by default
 - `HavenAgentD` is now the product boundary for agent runtime and operator workflows
-- pairing/bootstrap evidence may still come from separate operator tooling, but agent install/run/review now lives here
+- pairing/bootstrap evidence is delivered as a signed **provisioning pack** that the agent imports itself (no more "operator tooling drops files by hand")
+
+## Two install paths
+
+There are two ways to get `haven-agentd` onto a machine. Pick one deliberately.
+
+| | **Recommended: pkg + `setup` + `provisioning-import`** | **Dev-only: `swift run` + manual copy** |
+|---|---|---|
+| Audience | pilot users (e.g. Victoria), real installs | developers iterating on this machine |
+| Binary delivery | signed + notarized `.pkg` → `/usr/local/libexec/havenagent/` | `swift build` + `cp` into the runtime root |
+| Config + LaunchAgent | one `haven-agentd setup` command | hand-edited config + `print-launch-agent` |
+| Provisioning | `provisioning-request` / `provisioning-import` | same (or pre-placed artifacts) |
+| Gatekeeper | passes on a clean Mac | unsigned, local only |
+
+The recommended path folds what used to be separate runbook phases (create config, edit config, install binary, render/install the LaunchAgent) into the package install plus a single `setup` command. The dev-only path keeps the old manual steps for local iteration and is documented in [Part B](#part-b--dev-only-manual-flow).
+
+Cross-references:
+
+- **Building/signing the pkg:** [/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md)
+- **Provisioning pack format + round trip:** [/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md)
 
 ## Scope
 
 Use this runbook for:
 
-- local package verification
-- isolated development runs under `--root`
-- real local installation under `~/Library/Application Support/HAVENAgent`
-- validating config before first start
+- building, signing, and notarizing the installer pkg
+- installing `haven-agentd` on a clean target Mac
+- running `setup` to create the runtime tree, config, token, and LaunchAgent
+- provisioning the agent so it can join the scaffold
+- validating config and preflighting bootstrap before first real start
 - inspecting and deciding queued remote intents
-- rendering and installing the per-user `LaunchAgent`
+- local development runs under `--root`
 
 Do not use this runbook as proof that scaffold admission is complete unless `bootstrap-probe --run-bootstrap` succeeds with real pairing artifacts and a real `sprout` binary.
 
@@ -26,6 +46,9 @@ Do not use this runbook as proof that scaffold admission is complete unless `boo
 What is fully supported and verified now:
 
 - `swift test`, `swift build`, and the deterministic smoke test
+- the signed + notarized `.pkg` (`Packaging/build_pkg.sh`, `Packaging/notarize_pkg.sh`)
+- `setup` (creates dirs, config + generated token, LaunchAgent, provisioning readiness)
+- `provisioning-request` and `provisioning-import`
 - `print-example-config`
 - `validate-config`
 - `run --once`
@@ -36,14 +59,24 @@ What is fully supported and verified now:
 
 What still depends on external operator material:
 
-- `starter-auth.json`
-- `Out/agent-enrollment-pairing.json`
-- `Out/agent-operator-entity-link.json`
+- the signed **provisioning pack** (`pack.json`) carrying:
+  - the agent-enrollment pairing artifact
+  - `starter-auth`
+  - the mutually signed entity-link contract
 - a real executable `sproutBinaryPath`
 
-Those artifacts are not created by `haven-agentd` alone today. They must already exist before a real scaffold bootstrap can succeed.
+`haven-agentd` imports and verifies the pack, but **minting** it (signing pairing approval, issuing starter-auth, building the mutually signed entity-link, updating the scaffold entity-anchor snapshot) is operator-side tooling and is **not** part of `haven-agentd`. See [ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md) for the format that tooling must produce.
 
 ## Prerequisites
+
+For the **recommended (pkg)** path:
+
+- an operator/build machine with the Developer ID certs and a notarytool keychain profile (see [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md))
+- a built `sprout` release binary matching the target arch
+- the target Mac: macOS with a logged-in user session
+- for real bootstrap: a signed provisioning pack for that exact agent identity
+
+For the **dev-only** path:
 
 - macOS with a logged-in user session
 - Xcode command line tools
@@ -59,7 +92,21 @@ Workspace root used below:
 
 ## Important paths
 
-Default installed runtime root:
+Binaries installed by the **pkg**:
+
+```text
+/usr/local/libexec/havenagent/haven-agentd
+/usr/local/libexec/havenagent/sprout
+/usr/local/share/havenagent/io.digipomps.haven.agentd.plist.template
+```
+
+LaunchAgent installed by `setup` (standard per-user location):
+
+```text
+~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
+```
+
+Per-user runtime root (both paths — config, state, evidence, logs live here):
 
 ```text
 ~/Library/Application Support/HAVENAgent/
@@ -69,7 +116,6 @@ Important files under that root:
 
 ```text
 ~/Library/Application Support/HAVENAgent/config.json
-~/Library/Application Support/HAVENAgent/haven-agentd
 ~/Library/Application Support/HAVENAgent/starter-auth.json
 ~/Library/Application Support/HAVENAgent/State/agent-state.json
 ~/Library/Application Support/HAVENAgent/State/cell-runtime.json
@@ -79,6 +125,12 @@ Important files under that root:
 ~/Library/Application Support/HAVENAgent/Out/agent-operator-entity-link.json
 ~/Library/Application Support/HAVENAgent/Logs/stdout.log
 ~/Library/Application Support/HAVENAgent/Logs/stderr.log
+```
+
+Dev-only manual-copy binary location (NOT used by the pkg path):
+
+```text
+~/Library/Application Support/HAVENAgent/haven-agentd
 ~/Library/Application Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
 ```
 
@@ -88,9 +140,13 @@ Disposable development root:
 /tmp/haven-dev/HAVENAgent/
 ```
 
-## Phase 1: Verify the package
+---
 
-From the workspace root:
+# Part A — Recommended flow (pkg + `setup` + `provisioning-import`)
+
+## Phase 1: Verify the package (build machine)
+
+Before producing an installer, confirm the package is healthy. From the workspace root:
 
 ```bash
 cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
@@ -103,9 +159,170 @@ Expected result:
 - package tests pass
 - the smoke test finishes with JSON showing `finalPhase = connected`
 
-Do not continue to installation until this passes.
+Do not continue to packaging until this passes.
 
-## Phase 2: Create config
+## Phase 2: Build, sign, and notarize the pkg
+
+This produces the first-install artifact for a clean Mac. Full prerequisites, env overrides, and the architecture note live in [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md); the short form:
+
+```bash
+cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+
+# Build + sign (produces dist/HAVENAgentD-<version>-<arch>.pkg + SHA256SUMS + manifest)
+VERSION=0.1.0 ./Packaging/build_pkg.sh
+
+# Notarize + staple (passes Gatekeeper on a Mac that has never seen our dev account)
+./Packaging/notarize_pkg.sh dist/HAVENAgentD-0.1.0-arm64.pkg
+```
+
+The pkg installs **binaries only**. It does not start the agent — a usable agent still needs a `config.json` plus per-user provisioning, which the next phases create.
+
+## Phase 3: Install the pkg on the target Mac
+
+```bash
+sudo installer -pkg HAVENAgentD-0.1.0-arm64.pkg -target /
+```
+
+This places `haven-agentd` and `sprout` under `/usr/local/libexec/havenagent/` and the LaunchAgent template under `/usr/local/share/havenagent/`. No runtime state is created yet.
+
+## Phase 4: Run `setup` (folds old phases 2–5 and 9)
+
+`setup` is idempotent and folds what used to be four separate manual phases — create config, edit config, install binary path into the LaunchAgent, install the LaunchAgent — into one command. It creates the runtime directory tree, writes `config.json` with a freshly generated loopback bridge token, installs the per-user LaunchAgent pointing at the installed binary, and reports provisioning readiness.
+
+```bash
+/usr/local/libexec/havenagent/haven-agentd setup \
+  --domain staging.haven.digipomps.org \
+  --resolver-url https://staging.haven.digipomps.org \
+  --discovery-url https://staging.haven.digipomps.org/v1/bridges/query \
+  --instance-name victoria-mac \
+  --sprout-path /usr/local/libexec/havenagent/sprout
+```
+
+What `setup` guarantees:
+
+- creates `~/Library/Application Support/HAVENAgent/` and its `State/`, `Out/`, `Logs/` tree
+- writes `config.json` and generates a strong `localControlBridge.accessToken` (no placeholder left behind)
+- installs `~/Library/LaunchAgents/io.digipomps.haven.agentd.plist` pointing at the installed binary
+- keeps `startupMode = disabled` by default — local-only and safe to load before provisioning
+- runs a `bootstrap-probe` and prints provisioning readiness + next steps as JSON
+- **refuses `--load`** for a scaffold-bound startup that has no provisioning yet (it would crashloop under `KeepAlive`)
+
+`setup` is idempotent: re-running without `--force` keeps the existing config and token and just re-installs the LaunchAgent. Use `--force` to regenerate config + token. Other useful flags: `--purpose`, `--access-token`, `--startup-mode disabled|plan|join`, `--executable-path`, `--no-launch-agent`, `--load`, and `--root` (dev roots).
+
+Validation is folded into `setup`, but you can re-check at any time:
+
+```bash
+/usr/local/libexec/havenagent/haven-agentd validate-config \
+  --config ~/Library/Application\ Support/HAVENAgent/config.json
+```
+
+Expected result:
+
+```text
+Config OK: ...
+```
+
+> `config.json` is local admin policy, not remote content. Edit it directly if you need to change automation/remote-intent policy after `setup`.
+
+## Phase 5: Provision the agent (`provisioning-request` / `provisioning-import`)
+
+This replaces the old "operator tooling drops files into `Out/`" step. The agent prints its own identity, the operator mints a pack bound to that exact key, and the agent imports it. The full format, binding rules, and what import verifies are in [ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md).
+
+1. Print the request and send it to the operator:
+
+   ```bash
+   haven-agentd provisioning-request \
+     --config ~/Library/Application\ Support/HAVENAgent/config.json
+   ```
+
+   This prints the agent's stable identity (`agentPublicKeyBase64URL` + UUID + DID) plus the configured scaffold domain / purpose / interests. It materializes the identity if the agent has never run.
+
+2. The operator mints a `pack.json` bound to that exact agent public key, signs the three artifacts (pairing, starter-auth, entity-link), and returns it. **Minting is operator-side tooling, not part of `haven-agentd`.**
+
+3. Import and verify the pack:
+
+   ```bash
+   haven-agentd provisioning-import \
+     --pack pack.json \
+     --config ~/Library/Application\ Support/HAVENAgent/config.json
+   ```
+
+   Import refuses any pack whose `boundAgent.agentPublicKeyBase64URL` does not match the local identity, verifies every embedded artifact against that key and the configured scaffold domain *before* writing anything, then runs a `bootstrap-probe` and reports `readyForBootstrap`. A failure installs nothing. Until a pack is imported, the agent runs local-only.
+
+## Phase 6: Preflight and real bootstrap probe (security gate)
+
+This security gate is unchanged and must stay intact. Even though `setup` and `provisioning-import` both run a preflight probe, run it explicitly before any real bootstrap.
+
+Preflight only (no bootstrap attempted):
+
+```bash
+haven-agentd bootstrap-probe \
+  --config ~/Library/Application\ Support/HAVENAgent/config.json
+```
+
+Expected result when evidence is ready:
+
+- `readyForBootstrap = true`
+- pairing artifact present and valid
+- starter auth present and valid
+- entity-link evidence present and valid
+
+Expected result when evidence is not ready:
+
+- JSON report with `readyForBootstrap = false`
+- explicit summaries such as `Pairing artifact is missing.`, `Starter auth is not configured.`, `Entity-link evidence is not configured.`
+
+This is the correct stopping point if provisioning has not completed yet.
+
+Run a **real** bootstrap probe only when `scaffold.sproutBinaryPath` is real and pairing + starter-auth + entity-link are all installed:
+
+```bash
+haven-agentd bootstrap-probe \
+  --config ~/Library/Application\ Support/HAVENAgent/config.json \
+  --run-bootstrap
+```
+
+Interpretation:
+
+- `readyForBootstrap = false` — local operator setup is incomplete.
+- `readyForBootstrap = true` and bootstrap succeeds — agent admission and native contract bootstrap succeeded.
+- `readyForBootstrap = true` and bootstrap fails — local evidence is valid, but scaffold admission or resolver-side state still blocks the agent.
+
+If the resolver reports `identity not found in accepted anchor snapshot`, the remaining action is scaffold-side admission of the paired contract (e.g. `sprout-admin entity-anchor accept-entity-link`; see [README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/README.md)).
+
+## Phase 7: Activate at login
+
+`setup` installed the LaunchAgent but left it unloaded (and refuses to load an unprovisioned scaffold-bound startup). Once provisioning is ready — or for a local-only agent — activate it:
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.digipomps.haven.agentd.plist
+launchctl kickstart -k gui/$(id -u)/io.digipomps.haven.agentd
+```
+
+Alternatively, re-run `setup --load` once provisioned (or for a `startupMode = disabled` local-only agent) and it will load the LaunchAgent for you.
+
+Verify:
+
+```bash
+launchctl list | grep io.digipomps.haven.agentd
+```
+
+Check logs:
+
+```bash
+tail -n 200 ~/Library/Application\ Support/HAVENAgent/Logs/stdout.log
+tail -n 200 ~/Library/Application\ Support/HAVENAgent/Logs/stderr.log
+```
+
+Grant Automation / Accessibility consent in the logged-in user session the first time an action runs.
+
+---
+
+# Part B — Dev-only manual flow
+
+> **Dev-only.** These steps use `swift run` and a hand-copied unsigned binary. They are for developers iterating on this machine. Do **not** use them for pilot installs — use the pkg + `setup` flow in Part A. Each manual step below has a one-line note pointing at the `setup` step it replaces.
+
+## D1: Create config (replaces `setup` config creation)
 
 ### Option A: disposable local dev root
 
@@ -124,7 +341,7 @@ cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
 swift run haven-agentd print-example-config > ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
-## Phase 3: Edit config before first run
+## D2: Edit config before first run (replaces `setup` flags + generated token)
 
 At minimum, update these fields in `config.json`:
 
@@ -140,8 +357,8 @@ At minimum, update these fields in `config.json`:
 Important notes:
 
 - `scaffold.sproutBinaryPath` must be an absolute path to an executable binary
-- the example config placeholder `/absolute/path/to/sprout` will fail at runtime until replaced
-- `localControlBridge.accessToken` should be changed from the example placeholder before a real install
+- the placeholder `/absolute/path/to/sprout` will fail at runtime until replaced
+- `localControlBridge.accessToken` must be changed from the placeholder before a real install (`setup` generates this automatically)
 - `config.json` is local policy, not remote content
 
 Validate after editing:
@@ -149,11 +366,7 @@ Validate after editing:
 ```bash
 cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
 swift run haven-agentd validate-config --config ~/Library/Application\ Support/HAVENAgent/config.json
-```
-
-For a disposable root:
-
-```bash
+# disposable root:
 swift run haven-agentd validate-config --config /tmp/haven-dev/HAVENAgent/config.json
 ```
 
@@ -163,34 +376,21 @@ Expected result:
 Config OK: ...
 ```
 
-## Phase 4: Install the binary for a real local agent
-
-Build the executable:
+## D3: Build and install the binary (replaces the pkg)
 
 ```bash
 cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
 swift build --product haven-agentd
-```
 
-Install it under the agent root:
-
-```bash
 mkdir -p ~/Library/Application\ Support/HAVENAgent
 cp .build/debug/haven-agentd ~/Library/Application\ Support/HAVENAgent/haven-agentd
 chmod 755 ~/Library/Application\ Support/HAVENAgent/haven-agentd
-```
-
-Sanity check:
-
-```bash
 test -x ~/Library/Application\ Support/HAVENAgent/haven-agentd
 ```
 
-## Phase 5: Run the agent locally before launchd
+## D4: Run the agent locally before launchd
 
-### Disposable root validation
-
-This is the safest first run:
+### Disposable root validation (safest first run)
 
 ```bash
 cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
@@ -210,82 +410,45 @@ cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
 swift run haven-agentd run --config ~/Library/Application\ Support/HAVENAgent/config.json --once
 ```
 
-Expected result:
+Expected result: `State/agent-state.json`, `State/cell-runtime.json`, `State/agent-identity.json`. If this fails with `Sprout binary is not executable`, fix `scaffold.sproutBinaryPath` first.
 
-- `State/agent-state.json`
-- `State/cell-runtime.json`
-- `State/agent-identity.json`
-
-If this fails with `Sprout binary is not executable`, fix `scaffold.sproutBinaryPath` first.
-
-## Phase 6: Preflight pairing and bootstrap evidence
-
-Run preflight only:
+## D5: Render and install the LaunchAgent (replaces `setup` LaunchAgent install)
 
 ```bash
 cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
-swift run haven-agentd bootstrap-probe --config ~/Library/Application\ Support/HAVENAgent/config.json
+swift run haven-agentd print-launch-agent > /tmp/io.digipomps.haven.agentd.plist
 ```
 
-Expected result when evidence is ready:
-
-- `readyForBootstrap = true`
-- pairing artifact is present and valid
-- starter auth is present and valid
-- entity-link evidence is present and valid
-
-Expected result when evidence is not ready:
-
-- JSON report with `readyForBootstrap = false`
-- explicit summaries such as:
-  - `Pairing artifact is missing.`
-  - `Starter auth is not configured.`
-  - `Entity-link evidence is not configured.`
-
-This is the correct stopping point if operator provisioning has not been completed yet.
-
-## Phase 7: Run a real bootstrap probe
-
-Only do this when:
-
-- `scaffold.sproutBinaryPath` is real
-- pairing artifact exists
-- `starter-auth.json` exists
-- entity-link contract exists
-
-Command:
+Review it, then install and load:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
-swift run haven-agentd bootstrap-probe \
-  --config ~/Library/Application\ Support/HAVENAgent/config.json \
-  --run-bootstrap
+mkdir -p ~/Library/Application\ Support/HAVENAgent/Launchd
+cp /tmp/io.digipomps.haven.agentd.plist ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
+launchctl bootout gui/$(id -u)/io.digipomps.haven.agentd >/dev/null 2>&1 || true
+launchctl bootstrap gui/$(id -u) ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
+launchctl kickstart -k gui/$(id -u)/io.digipomps.haven.agentd
 ```
 
-Interpretation:
+Provisioning (Part A, Phase 5) and the bootstrap-probe gate (Part A, Phase 6) apply identically to the dev path — run them with `swift run haven-agentd ...` against your dev config.
 
-- `readyForBootstrap = false`
-  Local operator setup is incomplete.
-- `readyForBootstrap = true` and bootstrap succeeds
-  Agent admission and native contract bootstrap succeeded.
-- `readyForBootstrap = true` and bootstrap fails
-  Local evidence is valid, but scaffold admission or resolver-side state still blocks the agent.
+---
 
-If the resolver reports `identity not found in accepted anchor snapshot`, the remaining action is scaffold-side admission of the paired contract.
+# Operating the agent (both paths)
 
-## Phase 8: Inspect and decide queued intents
+## Inspect and decide queued intents (security gate)
+
+This review gate is unchanged and must stay intact. Substitute the installed binary (`/usr/local/libexec/havenagent/haven-agentd`) or `swift run haven-agentd` as appropriate for your path.
 
 Inspect queue and audit:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
-swift run haven-agentd review-state --config ~/Library/Application\ Support/HAVENAgent/config.json
+haven-agentd review-state --config ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
 Approve a verified intent:
 
 ```bash
-swift run haven-agentd review-approve \
+haven-agentd review-approve \
   --config ~/Library/Application\ Support/HAVENAgent/config.json \
   --intent-id <intent-id> \
   --reviewer "Local Operator" \
@@ -295,7 +458,7 @@ swift run haven-agentd review-approve \
 Reject a verified intent:
 
 ```bash
-swift run haven-agentd review-reject \
+haven-agentd review-reject \
   --config ~/Library/Application\ Support/HAVENAgent/config.json \
   --intent-id <intent-id> \
   --reviewer "Local Operator" \
@@ -308,43 +471,9 @@ Expected behavior:
 - `review-reject` removes the pending item and appends an audit record
 - `review-approve` appends audit and attempts local execution through the configured allowlist
 
-Important note:
+An `approved_failed` outcome means the review path itself worked, but execution failed against local policy or action lookup.
 
-- an `approved_failed` outcome means the review path itself worked, but execution failed against local policy or action lookup
-
-## Phase 9: Install as LaunchAgent
-
-Render the plist:
-
-```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
-swift run haven-agentd print-launch-agent > /tmp/io.digipomps.haven.agentd.plist
-```
-
-Review it, then install:
-
-```bash
-mkdir -p ~/Library/Application\ Support/HAVENAgent/Launchd
-cp /tmp/io.digipomps.haven.agentd.plist ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
-launchctl bootout gui/$(id -u)/io.digipomps.haven.agentd >/dev/null 2>&1 || true
-launchctl bootstrap gui/$(id -u) ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
-launchctl kickstart -k gui/$(id -u)/io.digipomps.haven.agentd
-```
-
-Verify:
-
-```bash
-launchctl list | grep io.digipomps.haven.agentd
-```
-
-Check logs:
-
-```bash
-tail -n 200 ~/Library/Application\ Support/HAVENAgent/Logs/stdout.log
-tail -n 200 ~/Library/Application\ Support/HAVENAgent/Logs/stderr.log
-```
-
-## Phase 10: Health checks after install
+## Health checks after install
 
 After first successful start, verify these files exist:
 
@@ -367,15 +496,25 @@ plutil -p ~/Library/Application\ Support/HAVENAgent/State/remote-intent-state.js
 - check `scaffold.sproutBinaryPath`
 - ensure the binary is absolute and executable
 
+`setup` warns about a placeholder token or sprout path:
+
+- the existing config still has the example token/sprout path; re-run with `--force` to regenerate, or edit `config.json` and set `scaffold.sproutBinaryPath`
+
 `bootstrap-probe` says pairing artifact missing:
 
 - check `Out/agent-enrollment-pairing.json`
-- check that the config path points to the intended agent root
+- confirm the config path points to the intended agent root
+- if you have a `pack.json`, run `provisioning-import` instead of placing files by hand
 
 `bootstrap-probe` says starter auth or entity-link missing:
 
-- operator provisioning has not completed yet
+- provisioning has not completed yet — import the provisioning pack
 - do not proceed to real bootstrap until those files exist
+
+`provisioning-import` refuses the pack:
+
+- the pack's `boundAgent.agentPublicKeyBase64URL` must match this agent; re-run `provisioning-request` and have the operator mint a pack bound to the printed key
+- the pack's `scaffoldDomain` must equal `config.scaffold.domain`
 
 `review-state` shows no pending intents when you expected some:
 
@@ -384,8 +523,7 @@ plutil -p ~/Library/Application\ Support/HAVENAgent/State/remote-intent-state.js
 
 `review-approve` returns `approved_failed`:
 
-- the intent was reviewable
-- the action was not executable under current local allowlist or policy
+- the intent was reviewable, but the action was not executable under current local allowlist or policy
 - inspect `errorMessage` in the returned audit record
 
 `launchctl` starts the agent but GUI automation does not work:
@@ -398,16 +536,21 @@ plutil -p ~/Library/Application\ Support/HAVENAgent/State/remote-intent-state.js
 Before calling the operator flow healthy, require all of these:
 
 1. `./Scripts/test_haven_agentd.sh`
-2. `validate-config`
-3. `run --once`
-4. `bootstrap-probe`
-5. `review-state`
-6. one real `review-reject` or `review-approve` decision against a queued test intent
-7. `print-launch-agent` and one successful local launchd start
+2. a signed + notarized pkg that passes `stapler validate` and `spctl --assess --type install` (Part A, Phase 2)
+3. `installer -pkg ...` on a clean target, then `setup` produces config + token + LaunchAgent
+4. `validate-config`
+5. `provisioning-request` → `provisioning-import` of a real pack
+6. `bootstrap-probe` (preflight) reporting `readyForBootstrap = true`
+7. `review-state` plus one real `review-reject` or `review-approve` decision against a queued test intent
+8. one successful local launchd start via the installed LaunchAgent
 
 ## Related docs
 
 - [README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/README.md)
+- [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md)
+- [Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md)
 - [SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md)
 - [BindingBoundary.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/BindingBoundary.md)
 - [Legacy/BindingProvisioningRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md)
+</content>
+</invoke>

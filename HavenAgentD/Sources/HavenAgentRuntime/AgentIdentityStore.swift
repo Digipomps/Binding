@@ -120,6 +120,16 @@ public actor AgentIdentityStore {
         return material
     }
 
+    /// Loads and validates the persisted identity without creating one. Returns
+    /// nil when no identity exists yet (e.g. the agent has never run). Useful for
+    /// provisioning flows that must bind to an already-established agent key.
+    public func loadExistingDescriptor() throws -> AgentIdentityDescriptor? {
+        guard let material = try load() else {
+            return nil
+        }
+        return try validate(material).descriptor
+    }
+
     private func load() throws -> AgentIdentityMaterial? {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return nil

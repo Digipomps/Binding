@@ -10,6 +10,9 @@ import Darwin
 enum HavenAgentCommand {
     case printExampleConfig(rootPath: String?)
     case printLaunchAgent(rootPath: String?)
+    case setup(SetupOptions)
+    case provisioningRequest(configPath: String?, rootPath: String?)
+    case provisioningImport(packPath: String, configPath: String?, rootPath: String?)
     case validateConfig(configPath: String?, rootPath: String?)
     case bootstrapProbe(configPath: String?, rootPath: String?, runBootstrap: Bool)
     case refreshStarterAuth(configPath: String?, rootPath: String?, ttlSeconds: Int)
@@ -32,6 +35,23 @@ enum HavenAgentCommand {
         build: Bool,
         timeoutSeconds: Int
     )
+}
+
+struct SetupOptions {
+    var configPath: String?
+    var rootPath: String?
+    var instanceName: String?
+    var domain: String?
+    var resolverBaseURL: String?
+    var discoveryURL: String?
+    var purpose: String?
+    var sproutBinaryPath: String?
+    var accessToken: String?
+    var startupMode: String?
+    var executablePath: String?
+    var force: Bool
+    var skipLaunchAgent: Bool
+    var load: Bool
 }
 
 @main
@@ -58,6 +78,44 @@ struct HavenAgentMain {
                     logDirectory: paths.logsDirectory.path
                 )
                 print(plist)
+
+            case .setup(let options):
+                let paths = try resolvePaths(rootPath: options.rootPath, configPath: options.configPath)
+                let configURL = resolveConfigURL(options.configPath, paths: paths)
+                let startupMode = options.startupMode.flatMap { SproutStartupMode(rawValue: $0) }
+                if let raw = options.startupMode, startupMode == nil {
+                    throw UsageError.invalidArguments("Unknown --startup-mode '\(raw)'. Use disabled, plan, or join.")
+                }
+                let setupOptions = AgentSetupOptions(
+                    instanceName: options.instanceName,
+                    domain: options.domain,
+                    resolverBaseURL: options.resolverBaseURL,
+                    discoveryURL: options.discoveryURL,
+                    purpose: options.purpose,
+                    sproutBinaryPath: options.sproutBinaryPath.map { NSString(string: $0).expandingTildeInPath },
+                    accessToken: options.accessToken,
+                    startupMode: startupMode,
+                    executablePath: resolveExecutablePath(override: options.executablePath),
+                    force: options.force,
+                    installLaunchAgent: !options.skipLaunchAgent,
+                    loadLaunchAgent: options.load
+                )
+                let report = try await AgentSetupService(paths: paths, configURL: configURL).run(options: setupOptions)
+                try printJSON(report)
+
+            case .provisioningRequest(let configPath, let rootPath):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let request = try await ProvisioningPackImporter(paths: paths).makeRequest(configURL: configURL)
+                try printJSON(request)
+
+            case .provisioningImport(let packPath, let configPath, let rootPath):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let packURL = URL(fileURLWithPath: NSString(string: packPath).expandingTildeInPath)
+                let report = try await ProvisioningPackImporter(paths: paths)
+                    .performImport(packURL: packURL, configURL: configURL)
+                try printJSON(report)
 
             case .validateConfig(let configPath, let rootPath):
                 let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
@@ -228,6 +286,40 @@ struct HavenAgentMain {
             return .printExampleConfig(rootPath: argumentValue(for: "--root", in: Array(arguments.dropFirst())))
         case "print-launch-agent":
             return .printLaunchAgent(rootPath: argumentValue(for: "--root", in: Array(arguments.dropFirst())))
+        case "setup":
+            let remaining = Array(arguments.dropFirst())
+            return .setup(SetupOptions(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining),
+                instanceName: argumentValue(for: "--instance-name", in: remaining),
+                domain: argumentValue(for: "--domain", in: remaining),
+                resolverBaseURL: argumentValue(for: "--resolver-url", in: remaining),
+                discoveryURL: argumentValue(for: "--discovery-url", in: remaining),
+                purpose: argumentValue(for: "--purpose", in: remaining),
+                sproutBinaryPath: argumentValue(for: "--sprout-path", in: remaining),
+                accessToken: argumentValue(for: "--access-token", in: remaining),
+                startupMode: argumentValue(for: "--startup-mode", in: remaining),
+                executablePath: argumentValue(for: "--executable-path", in: remaining),
+                force: remaining.contains("--force"),
+                skipLaunchAgent: remaining.contains("--no-launch-agent"),
+                load: remaining.contains("--load")
+            ))
+        case "provisioning-request":
+            let remaining = Array(arguments.dropFirst())
+            return .provisioningRequest(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "provisioning-import":
+            let remaining = Array(arguments.dropFirst())
+            guard let packPath = argumentValue(for: "--pack", in: remaining) else {
+                throw UsageError.invalidArguments("provisioning-import requires --pack /path/to/pack.json")
+            }
+            return .provisioningImport(
+                packPath: packPath,
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
         case "validate-config":
             let remaining = Array(arguments.dropFirst())
             return .validateConfig(
@@ -334,6 +426,19 @@ struct HavenAgentMain {
         return Int(value)
     }
 
+    /// The absolute path the LaunchAgent should run. Defaults to the running
+    /// binary (so a pkg-installed agent points at its libexec location), but an
+    /// override is useful for dev runs and tests.
+    private static func resolveExecutablePath(override: String?) -> String {
+        if let override, !override.isEmpty {
+            return NSString(string: override).expandingTildeInPath
+        }
+        if let executableURL = Bundle.main.executableURL {
+            return executableURL.resolvingSymlinksInPath().path
+        }
+        return CommandLine.arguments.first ?? "haven-agentd"
+    }
+
     private static func resolveConfigURL(_ configPath: String?, paths: RuntimePaths) -> URL {
         guard let configPath else {
             return paths.configFile
@@ -359,6 +464,9 @@ struct HavenAgentMain {
         Usage:
           haven-agentd print-example-config [--root /path/to/dev-root]
           haven-agentd print-launch-agent [--root /path/to/dev-root]
+          haven-agentd setup [--config /path/to/config.json] [--root /path/to/dev-root] [--domain d] [--resolver-url URL] [--discovery-url URL] [--purpose p] [--instance-name name] [--sprout-path /abs/sprout] [--access-token TOKEN] [--startup-mode disabled|plan|join] [--executable-path /abs/haven-agentd] [--force] [--no-launch-agent] [--load]
+          haven-agentd provisioning-request [--config /path/to/config.json] [--root /path/to/dev-root]
+          haven-agentd provisioning-import --pack /path/to/pack.json [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd validate-config [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd bootstrap-probe [--config /path/to/config.json] [--root /path/to/dev-root] [--run-bootstrap]
           haven-agentd refresh-starter-auth [--config /path/to/config.json] [--root /path/to/dev-root] [--ttl-seconds N]
