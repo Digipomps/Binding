@@ -3451,8 +3451,15 @@ struct BindingTests {
               case let .object(secondModeChoice)? = modeChoices.dropFirst().first,
               case let .list(trackChoices)? = object["trackChoices"],
               case let .object(firstTrackChoice)? = trackChoices.first,
-              case let .object(secondTrackChoice)? = trackChoices.dropFirst().first else {
-            Issue.record("Expected agenda snapshot state with mode and track choices")
+              case let .object(secondTrackChoice)? = trackChoices.dropFirst().first,
+              case let .list(trackOptions)? = object["trackOptions"],
+              case let .object(firstTrackOption)? = trackOptions.first,
+              case let .object(thirdTrackOption)? = trackOptions.dropFirst(2).first,
+              case let .list(recommendedSessions)? = object["recommendedSessions"],
+              case let .object(firstRecommendedSession)? = recommendedSessions.first,
+              case let .list(timelineSessions)? = object["timelineSessions"],
+              case let .object(firstTimelineSession)? = timelineSessions.first else {
+            Issue.record("Expected agenda snapshot state with choices and session cards")
             return
         }
 
@@ -3465,6 +3472,10 @@ struct BindingTests {
         #expect(firstTrackChoice["label"] == .string("Vis alle spor"))
         #expect(secondTrackChoice["selectionBadge"] == .string("FOKUS NÅ"))
         #expect(secondTrackChoice["label"] == .string("Viser nå"))
+        #expect(firstTrackOption["selectionBadge"] == .string("SPOR"))
+        #expect(thirdTrackOption["selectionBadge"] == .string("AKTIVT FOKUS"))
+        #expect(firstRecommendedSession["selectionBadge"] == .string("FOR DEG"))
+        #expect(firstTimelineSession["selectionBadge"] == .string("VISES NÅ"))
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceDiscoverySnapshotReadable() async throws {

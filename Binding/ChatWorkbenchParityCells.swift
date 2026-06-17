@@ -164,7 +164,7 @@ enum BindingHavenAgentDStatusProvider {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         now: Date = Date()
     ) -> BindingHavenAgentDStatusSnapshot {
-        let home = environment["HOME"] ?? fileManager.homeDirectoryForCurrentUser.path
+        let home = environment["HOME"] ?? defaultHomeDirectoryPath(fileManager: fileManager)
         let repoRoot = environment["BINDING_REPO_ROOT"]
             ?? "/Users/kjetil/Build/Digipomps/HAVEN/Binding"
         let agentBinaryPath = normalizedPath(
@@ -253,6 +253,18 @@ enum BindingHavenAgentDStatusProvider {
             recommendedNextStep: nextStep,
             instructions: instructions
         )
+    }
+
+    nonisolated private static func defaultHomeDirectoryPath(fileManager: FileManager) -> String {
+        #if os(macOS)
+        return fileManager.homeDirectoryForCurrentUser.path
+        #else
+        let fallbackHome = NSHomeDirectory().trimmingCharacters(in: .whitespacesAndNewlines)
+        if fallbackHome.isEmpty == false {
+            return fallbackHome
+        }
+        return fileManager.currentDirectoryPath
+        #endif
     }
 
     nonisolated private static func normalizedPath(_ path: String) -> String {

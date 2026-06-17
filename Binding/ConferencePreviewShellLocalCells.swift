@@ -517,11 +517,35 @@ final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
 
     private func sessionCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {
         .object([
+            "selectionBadge": .string(sessionBadge(for: note)),
             "title": .string(title),
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note)
         ])
+    }
+
+    private func sessionBadge(for note: String) -> String {
+        let normalized = note.lowercased()
+        if normalized.contains("focused") {
+            return "AKTIVT FOKUS"
+        }
+        if normalized.contains("available") {
+            return "SPOR"
+        }
+        if normalized.contains("matches") {
+            return "MATCH"
+        }
+        if normalized.contains("recommended") {
+            return "ANBEFALT"
+        }
+        if normalized.contains("saved") {
+            return "LAGRET"
+        }
+        if normalized.contains("timeline") || normalized.contains("visible") {
+            return "VISES NÅ"
+        }
+        return "AGENDA"
     }
 
     private func recommendationCard(title: String, subtitle: String, detail: String, note: String) -> ValueType {

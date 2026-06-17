@@ -1244,8 +1244,15 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
               case let .object(secondModeChoice)? = modeChoices.dropFirst().first,
               case let .list(trackChoices)? = object["trackChoices"],
               case let .object(firstTrackChoice)? = trackChoices.first,
-              case let .object(secondTrackChoice)? = trackChoices.dropFirst().first else {
-            XCTFail("Expected agenda snapshot state with mode and track choices")
+              case let .object(secondTrackChoice)? = trackChoices.dropFirst().first,
+              case let .list(trackOptions)? = object["trackOptions"],
+              case let .object(firstTrackOption)? = trackOptions.first,
+              case let .object(thirdTrackOption)? = trackOptions.dropFirst(2).first,
+              case let .list(recommendedSessions)? = object["recommendedSessions"],
+              case let .object(firstRecommendedSession)? = recommendedSessions.first,
+              case let .list(timelineSessions)? = object["timelineSessions"],
+              case let .object(firstTimelineSession)? = timelineSessions.first else {
+            XCTFail("Expected agenda snapshot state with choices and session cards")
             return
         }
 
@@ -1258,6 +1265,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(firstTrackChoice["label"], ValueType.string("Vis alle spor"))
         XCTAssertEqual(secondTrackChoice["selectionBadge"], ValueType.string("FOKUS NÅ"))
         XCTAssertEqual(secondTrackChoice["label"], ValueType.string("Viser nå"))
+        XCTAssertEqual(firstTrackOption["selectionBadge"], ValueType.string("SPOR"))
+        XCTAssertEqual(thirdTrackOption["selectionBadge"], ValueType.string("AKTIVT FOKUS"))
+        XCTAssertEqual(firstRecommendedSession["selectionBadge"], ValueType.string("FOR DEG"))
+        XCTAssertEqual(firstTimelineSession["selectionBadge"], ValueType.string("VISES NÅ"))
     }
 
     func testConferenceParticipantPortalProxyActionsCanOpenChatWorkbench() async throws {

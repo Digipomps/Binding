@@ -5434,8 +5434,10 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
         } else {
             note = "Tilgjengelig, men ikke i aktivt fokus nå."
         }
+        let selectionBadge = trackID == activeTrackID ? "AKTIVT FOKUS" : "SPOR"
 
         return .object([
+            "selectionBadge": .string(selectionBadge),
             "title": .string(title),
             "subtitle": .string(subtitle),
             "detail": .string(detail),
@@ -5454,13 +5456,26 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
         let subtitle = cardSubtitle(from: raw)
         let detail = cardDetail(from: raw)
         let note = sessionNote(baseNote: cardNote(from: raw), category: category)
+        let selectionBadge = sessionBadge(for: category)
 
         return .object([
+            "selectionBadge": .string(selectionBadge),
             "title": .string(title),
             "subtitle": .string(subtitle),
             "detail": .string(detail),
             "note": .string(note)
         ])
+    }
+
+    private func sessionBadge(for category: SessionCategory) -> String {
+        switch category {
+        case .recommended:
+            return activeView == "forYou" ? "VISES NÅ" : "FOR DEG"
+        case .saved:
+            return activeView == "saved" ? "VISES NÅ" : "LAGRET"
+        case .timeline:
+            return activeView == "timeline" ? "VISES NÅ" : "TIMELINE"
+        }
     }
 
     private func sessionNote(baseNote: String, category: SessionCategory) -> String {
