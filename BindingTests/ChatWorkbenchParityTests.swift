@@ -444,6 +444,160 @@ struct ChatWorkbenchParityTests {
         )) != "denied")
     }
 
+    @Test func promptSubmitProducesPurposeContextAndPromptLogWithoutDomainSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-prompt-submit")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let before = counters(try await chat.get(keypath: "state", requester: owner))
+
+        _ = try await chat.set(
+            keypath: "chatHub.setComposer",
+            value: .string("registrer feil: Co-Pilot Chat viser denied under forslag"),
+            requester: owner
+        )
+        let result = try #require(asObject(try await chat.set(
+            keypath: "chatHub.prompt.submit",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asBool(result["sideEffect"]) == false)
+        let suggestion = try #require(asObject(result["suggestion"]))
+        #expect(asString(suggestion["helperID"]) == "work-item")
+        let purposeContext = try #require(asObject(result["purposeContext"]))
+        #expect(asString(purposeContext["schema"]) == "haven.purpose-context-pack.v0.binding-preview")
+        #expect(asString(purposeContext["purposeTreeExcerpt"])?.contains("personal.chat.assist.work-item.capture") == true)
+        let understanding = try #require(asObject(result["promptUnderstanding"]))
+        #expect(asString(understanding["recommendedNextStep"]) == "open_helper_after_user_click")
+        let plan = try #require(asObject(result["groundedActionPlan"]))
+        #expect(asString(asObject(plan["target"])?["actionKeypath"]) == "chatHub.workItem.capture")
+
+        let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let ui = try #require(asObject(state["ui"]))
+        #expect(asString(ui["activeTab"]) == "samtale")
+        #expect((asList(ui["promptMessages"]) ?? []).count >= 3)
+        #expect(asString(try await chat.get(keypath: "chatHub.state.assistant.purposeContext.summary", requester: owner)) != "denied")
+        #expect(counters(.object(state)) == before)
+    }
+
+    @Test func docsRAGHelperIsDiscoverableAndSideEffectFreeUntilExplicitAsk() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-docs-rag")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let before = counters(try await chat.get(keypath: "state", requester: owner))
+
+        let analyze = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object(["text": .string("hva sier dokumentasjonen om formålstre i Co-Pilot Chat?")]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(analyze["sideEffect"]) == false)
+        #expect(asString(asObject(analyze["suggestion"])?["helperID"]) == "docs-rag")
+
+        let open = try #require(asObject(try await chat.set(
+            keypath: "chatHub.ui.openSuggestedHelper",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(open["sideEffect"]) == false)
+        #expect(asString(open["helper"]) == "docs-rag")
+        let openedState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let openedUI = try #require(asObject(openedState["ui"]))
+        #expect(asString(openedUI["activeTab"]) == "samtale")
+        #expect(asBool(openedUI["hasActiveHelperSurface"]) == true)
+        #expect((asList(openedUI["activeHelpers"]) ?? []).contains { asString(asObject($0)?["id"]) == "docs-rag" })
+        #expect(counters(.object(openedState)) == before)
+
+        let search = try #require(asObject(try await chat.set(
+            keypath: "chatHub.docsRAG.search",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(search["sideEffect"]) == false)
+        #expect((asList(search["documentationMatches"]) ?? []).isEmpty == false)
+
+        let ask = try #require(asObject(try await chat.set(
+            keypath: "chatHub.docsRAG.askRAG",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(ask["sideEffect"]) == false)
+        #expect(asString(ask["status"]) != "error")
+        #expect(counters(try await chat.get(keypath: "chatHub.state", requester: owner)) == before)
+    }
+
+    @Test func openHelperDirectlyFromComposerStagesSuggestionAndSurface() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-direct-open-helper")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let before = counters(try await chat.get(keypath: "state", requester: owner))
+
+        _ = try await chat.set(
+            keypath: "chatHub.setComposer",
+            value: .object(["body": .string("vi trenger avstemning om lunsj")]),
+            requester: owner
+        )
+        let open = try #require(asObject(try await chat.set(
+            keypath: "chatHub.ui.openSuggestedHelper",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asBool(open["ok"]) == true)
+        #expect(asBool(open["sideEffect"]) == false)
+        #expect(asString(open["helper"]) == "poll")
+        #expect(asString(asObject(open["suggestion"])?["helperID"]) == "poll")
+
+        let openedState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let openedUI = try #require(asObject(openedState["ui"]))
+        #expect(asBool(openedUI["hasActiveHelperSurface"]) == true)
+        #expect((asList(openedUI["activeHelpers"]) ?? []).contains { asString(asObject($0)?["id"]) == "poll" })
+        #expect(counters(.object(openedState)) == before)
+    }
+
+    @Test func workItemHelperOnlyCreatesModuleOnExplicitCapture() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-work-item")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let prompt = "registrer feil: Co-Pilot Chat på mac viser denied under Finn forslag, forventet vanlig norsk forslagstekst"
+        let before = counters(try await chat.get(keypath: "chatHub.state", requester: owner))
+
+        let analyze = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object(["text": .string(prompt)]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(analyze["sideEffect"]) == false)
+        #expect(asString(asObject(analyze["suggestion"])?["helperID"]) == "work-item")
+        #expect(counters(try await chat.get(keypath: "chatHub.state", requester: owner)) == before)
+
+        let draft = try #require(asObject(try await chat.get(
+            keypath: "chatHub.state.workbench.workItemDraft",
+            requester: owner
+        )))
+        #expect(asString(draft["kind"]) == "bug")
+        #expect(asString(draft["summary"])?.contains("denied") == true)
+
+        _ = try await chat.set(keypath: "chatHub.ui.openSuggestedHelper", value: .object([:]), requester: owner)
+        #expect(counters(try await chat.get(keypath: "chatHub.state", requester: owner)) == before)
+
+        _ = try await chat.set(keypath: "chatHub.workItem.capture", value: .object([:]), requester: owner)
+        let afterCapture = counters(try await chat.get(keypath: "chatHub.state", requester: owner))
+        #expect(afterCapture.workbenchModuleCount == before.workbenchModuleCount + 1)
+    }
+
     @Test func chatDropReceiveStagesInviteDraftOnly() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
