@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Production LaunchAgent template for a pkg-installed HavenAgentD.
+  Unlike `haven-agentd print-launch-agent` (which points at a binary copied
+  into Application Support), this points at the pkg install location under
+  /usr/local/libexec/havenagent. The setup step substitutes __HOME__ with the
+  target user's home directory and installs the result to
+  ~/Library/LaunchAgents/io.digipomps.haven.agentd.plist.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.digipomps.haven.agentd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/libexec/havenagent/haven-agentd</string>
+        <string>run</string>
+        <string>--config</string>
+        <string>__HOME__/Library/Application Support/HAVENAgent/config.json</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Application Support/HAVENAgent/Logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Application Support/HAVENAgent/Logs/stderr.log</string>
+</dict>
+</plist>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      HavenAgentD runs under the hardened runtime (required for notarization).
+      It sends Apple Events to automate Safari / Shortcuts / other GUI apps,
+      which the hardened runtime blocks unless this entitlement is present.
+      The user must still grant per-target Automation consent in TCC.
+      No JIT / unsigned-memory / disable-library-validation entitlements are
+      requested: the agent only spawns its own signed sprout binary plus
+      system tools (osascript, shortcuts).
+    -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+</dict>
+</plist>
