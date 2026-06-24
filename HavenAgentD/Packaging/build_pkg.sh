@@ -24,7 +24,7 @@ set -euo pipefail
 PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # HavenAgentD root
 PACKAGING_DIR="$PKG_DIR/Packaging"
 
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.2.1}"
 DIST_DIR="${DIST_DIR:-$PKG_DIR/dist}"
 ARCH="$(uname -m)"   # arm64 on Apple Silicon
 PKG_IDENTIFIER="io.digipomps.haven.agentd"
@@ -79,6 +79,7 @@ if [[ "$STRIP" == "1" ]]; then
 fi
 
 cp "$PLIST_TEMPLATE" "$PAYLOAD_SHARE/io.digipomps.haven.agentd.plist.template"
+cp "$PACKAGING_DIR/Resources/QUICKSTART.md" "$PAYLOAD_SHARE/QUICKSTART.md"
 # sprout has no --version flag (it prints usage), so record the source revision
 # of the sprout repo the binary came from. Falls back to "unknown".
 SPROUT_SRC_DIR="$(cd "$(dirname "$SPROUT_BIN")/../.." 2>/dev/null && pwd || true)"
@@ -119,21 +120,46 @@ cat > "$DIST_DIR/release-manifest.json" <<JSON
 }
 JSON
 
-# --- build component pkg, then sign with Developer ID Installer --------------
+# --- build component pkg, then wrap in a signed distribution with GUI panes --
 COMPONENT_PKG="$DIST_DIR/havenagent-component.pkg"
 FINAL_PKG="$DIST_DIR/HAVENAgentD-$VERSION-$ARCH.pkg"
+DIST_XML="$STAGE/Distribution.xml"
+chmod +x "$PACKAGING_DIR/scripts/postinstall"
 
-log "pkgbuild (component, unsigned)"
+log "pkgbuild (component, unsigned, with postinstall script)"
 pkgbuild \
   --root "$STAGE/root" \
   --identifier "$PKG_IDENTIFIER" \
   --version "$VERSION" \
+  --scripts "$PACKAGING_DIR/scripts" \
   --install-location / \
   "$COMPONENT_PKG"
 
-log "productbuild (signed product archive)"
+# Distribution wrapper: shows Welcome / ReadMe / Conclusion panes in the GUI
+# installer so the user understands what was installed and what to do next.
+cat > "$DIST_XML" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="1">
+  <title>HAVEN Agent (haven-agentd)</title>
+  <welcome file="Welcome.html"/>
+  <readme file="ReadMe.html"/>
+  <conclusion file="Conclusion.html"/>
+  <options customize="never" require-scripts="false" hostArchitectures="$ARCH"/>
+  <choices-outline>
+    <line choice="default"/>
+  </choices-outline>
+  <choice id="default" title="HAVEN Agent">
+    <pkg-ref id="$PKG_IDENTIFIER"/>
+  </choice>
+  <pkg-ref id="$PKG_IDENTIFIER" version="$VERSION">havenagent-component.pkg</pkg-ref>
+</installer-gui-script>
+XML
+
+log "productbuild (signed distribution archive with GUI panes)"
 productbuild \
-  --package "$COMPONENT_PKG" \
+  --distribution "$DIST_XML" \
+  --package-path "$DIST_DIR" \
+  --resources "$PACKAGING_DIR/Resources" \
   --sign "$INSTALLER_IDENTITY" \
   "$FINAL_PKG"
 rm -f "$COMPONENT_PKG"

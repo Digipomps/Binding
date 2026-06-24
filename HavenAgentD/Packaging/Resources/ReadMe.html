@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><style>
+  body { font: -apple-system-body, sans-serif; margin: 16px; color: #1d1d1f; line-height: 1.45; }
+  h2 { font-size: 15px; margin: 14px 0 6px; }
+  code { background: #f2f2f2; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+  ul { margin: 4px 0 4px -8px; }
+  .muted { color: #6e6e73; font-size: 12px; }
+</style></head>
+<body>
+  <h2>What this installs</h2>
+  <ul>
+    <li><code>/usr/local/libexec/havenagent/haven-agentd</code> &mdash; the agent</li>
+    <li><code>/usr/local/libexec/havenagent/sprout</code> &mdash; scaffold join/bootstrap helper</li>
+    <li><code>/usr/local/share/havenagent/</code> &mdash; LaunchAgent template + <code>QUICKSTART.md</code></li>
+    <li>a symlink so <code>haven-agentd</code> works from any Terminal</li>
+  </ul>
+  <p>Your per-user data lives under
+  <code>~/Library/Application&nbsp;Support/HAVENAgent/</code> and is created the
+  first time you run setup.</p>
+
+  <h2>What it does NOT do</h2>
+  <ul>
+    <li>It does not start automatically after install &mdash; you run setup first.</li>
+    <li>It does not connect anywhere until you import provisioning evidence.</li>
+    <li>It cannot run arbitrary scripts from the cloud &mdash; only locally
+        allow-listed actions.</li>
+  </ul>
+  <p class="muted">Binaries are signed and notarized by Stiftelsen Digipomps.</p>
+</body>
+</html>

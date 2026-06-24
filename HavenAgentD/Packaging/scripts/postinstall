@@ -1,0 +1,39 @@
+#!/bin/bash
+# Runs as root after payload is laid down. Two jobs:
+#  1. Put `haven-agentd` on PATH via a symlink in /usr/local/bin (the libexec
+#     dir is not on PATH, which is a common "what do I even run?" stumble).
+#  2. Print a clear summary so the `installer` CLI / install.log explains what
+#     happened and what to do next (the GUI installer shows Conclusion.html).
+set -e
+
+LIBEXEC="/usr/local/libexec/havenagent"
+BINDIR="/usr/local/bin"
+
+mkdir -p "$BINDIR"
+ln -sf "$LIBEXEC/haven-agentd" "$BINDIR/haven-agentd"
+
+cat <<'EOF'
+
+============================================================
+ HAVEN Agent (haven-agentd) installed
+============================================================
+ Tools:    /usr/local/libexec/havenagent/{haven-agentd,sprout}
+ Command:  haven-agentd   (now on PATH via /usr/local/bin)
+ Guide:    /usr/local/share/havenagent/QUICKSTART.md
+
+ This is a background tool with no app window. Next, in Terminal:
+
+   1. haven-agentd setup --domain <scaffold> \
+        --resolver-url <https://scaffold> \
+        --sprout-path /usr/local/libexec/havenagent/sprout
+   2. haven-agentd provisioning-request   # send output to operator
+      haven-agentd provisioning-import --pack <pack.json>
+   3. haven-agentd bootstrap-probe         # check readiness
+
+ Until provisioning is imported it runs local-only and
+ connects to nothing.
+============================================================
+
+EOF
+
+exit 0

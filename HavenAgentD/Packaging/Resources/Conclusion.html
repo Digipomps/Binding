@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><style>
+  body { font: -apple-system-body, sans-serif; margin: 16px; color: #1d1d1f; line-height: 1.5; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  ol { margin: 4px 0 4px -8px; }
+  li { margin-bottom: 8px; }
+  code { background: #f2f2f2; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+  pre { background: #f2f2f2; padding: 8px 10px; border-radius: 6px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; }
+  .muted { color: #6e6e73; font-size: 12px; }
+</style></head>
+<body>
+  <h2>Installed. Here is what to do next</h2>
+  <p>haven-agentd is a background tool with no window. Open <b>Terminal</b> and
+  run these three steps. Each prints a clear status report.</p>
+  <ol>
+    <li><b>Set it up</b> (creates config + background service, generates a local token):
+      <pre>haven-agentd setup \
+  --domain staging.haven.digipomps.org \
+  --resolver-url https://staging.haven.digipomps.org \
+  --sprout-path /usr/local/libexec/havenagent/sprout</pre>
+    </li>
+    <li><b>Request provisioning</b> &mdash; send the output to your operator, who
+      returns a <code>pack.json</code>, then import it:
+      <pre>haven-agentd provisioning-request
+haven-agentd provisioning-import --pack ~/Downloads/pack.json</pre>
+    </li>
+    <li><b>Check readiness</b> at any time:
+      <pre>haven-agentd bootstrap-probe</pre>
+    </li>
+  </ol>
+  <p class="muted">Full guide: <code>open /usr/local/share/havenagent/QUICKSTART.md</code>.
+  Until provisioning is imported, the agent runs local-only and connects to nothing.</p>
+</body>
+</html>
