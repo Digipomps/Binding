@@ -132,6 +132,7 @@ public actor AgentCellRuntimeHost {
 
     public func start(
         instanceName: String,
+        configURL: URL? = nil,
         controlBridge configuration: LocalControlBridgeConfig? = nil,
         networkSentinel: NetworkSentinelConfig? = nil
     ) async throws -> AgentCellRuntimeSnapshot {
@@ -182,7 +183,15 @@ public actor AgentCellRuntimeHost {
         let controlBridgeStatus: LocalControlBridgeStatus?
         if let configuration {
             do {
-                controlBridgeStatus = try await controlBridgeServer.start(owner: owner, configuration: configuration)
+                controlBridgeStatus = try await controlBridgeServer.start(
+                    owner: owner,
+                    configuration: configuration,
+                    paths: paths,
+                    configURL: configURL ?? paths.configFile,
+                    runtimeSnapshotProvider: { [weak self] in
+                        await self?.snapshot()
+                    }
+                )
             } catch {
                 controlBridgeStatus = LocalControlBridgeStatus(
                     configuration: configuration,

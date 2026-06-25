@@ -2,11 +2,13 @@ import Foundation
 @preconcurrency import CellBase
 import CellVapor
 import HavenAgentRuntime
+import HavenRuntimeBootstrap
 @preconcurrency import Vapor
 
 private struct AgentControlBridgeRoutes: RouteCollection {
     let owner: Identity
     let routeLookup: [String: LocalControlBridgeRoute]
+    let onboardingContext: AgentControlBridgeOnboardingContext?
     let expectedAccessToken: String?
     let trackWebSocket: @Sendable (WebSocket) async -> Void
     let untrackWebSocket: @Sendable (WebSocket) async -> Void
@@ -26,6 +28,35 @@ private struct AgentControlBridgeRoutes: RouteCollection {
         routes.get("health") { req async throws -> HTTPStatus in
             try authorize(req)
             return .ok
+        }
+
+        routes.get("onboard") { req async throws -> Response in
+            try authorize(req)
+            _ = try requireOnboardingContext()
+            let html = try AgentOnboardingAssetLoader.loadIndexHTML()
+            var headers = HTTPHeaders()
+            headers.add(name: .contentType, value: "text/html; charset=utf-8")
+            headers.add(name: "cache-control", value: "no-store")
+            return Response(status: .ok, headers: headers, body: .init(string: html))
+        }
+
+        routes.get("onboard", "status.json") { req async throws -> Response in
+            try authorize(req)
+            let context = try requireOnboardingContext()
+            let report = await AgentOnboardingStatusBuilder(
+                paths: context.paths,
+                configURL: context.configURL,
+                owner: owner,
+                routes: routeLookup.values.sorted { $0.name < $1.name },
+                runtimeSnapshot: await context.runtimeSnapshotProvider()
+            ).build()
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(report)
+            var headers = HTTPHeaders()
+            headers.add(name: .contentType, value: "application/json; charset=utf-8")
+            headers.add(name: "cache-control", value: "no-store")
+            return Response(status: .ok, headers: headers, body: .init(data: data))
         }
 
         let bridgehead = routes.grouped("bridgehead")
@@ -77,6 +108,19 @@ private struct AgentControlBridgeRoutes: RouteCollection {
             }
         }
     }
+
+    private func requireOnboardingContext() throws -> AgentControlBridgeOnboardingContext {
+        guard let onboardingContext else {
+            throw Abort(.notFound, reason: "Onboarding surface is not configured.")
+        }
+        return onboardingContext
+    }
+}
+
+struct AgentControlBridgeOnboardingContext {
+    var paths: RuntimePaths
+    var configURL: URL
+    var runtimeSnapshotProvider: @Sendable () async -> AgentCellRuntimeSnapshot?
 }
 
 enum AgentControlBridgeServerError: Error, LocalizedError {
@@ -99,7 +143,10 @@ public actor AgentControlBridgeServer {
 
     public func start(
         owner: Identity,
-        configuration: LocalControlBridgeConfig
+        configuration: LocalControlBridgeConfig,
+        paths: RuntimePaths? = nil,
+        configURL: URL? = nil,
+        runtimeSnapshotProvider: (@Sendable () async -> AgentCellRuntimeSnapshot?)? = nil
     ) async throws -> LocalControlBridgeStatus {
         guard configuration.enabled else {
             let disabled = LocalControlBridgeStatus(configuration: configuration, phase: .disabled)
@@ -126,6 +173,13 @@ public actor AgentControlBridgeServer {
         let routes = AgentControlBridgeRoutes(
             owner: owner,
             routeLookup: Dictionary(uniqueKeysWithValues: configuration.routes.map { ($0.name, $0) }),
+            onboardingContext: paths.map { paths in
+                AgentControlBridgeOnboardingContext(
+                    paths: paths,
+                    configURL: (configURL ?? paths.configFile).standardizedFileURL,
+                    runtimeSnapshotProvider: runtimeSnapshotProvider ?? { nil }
+                )
+            },
             expectedAccessToken: configuration.accessToken,
             trackWebSocket: { [weak self] webSocket in
                 await self?.track(webSocket: webSocket)

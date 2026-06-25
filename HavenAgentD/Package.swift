@@ -70,6 +70,9 @@ let package = Package(
                 .product(name: "CellBase", package: "CellProtocol"),
                 .product(name: "CellVapor", package: "CellProtocol"),
                 .product(name: "Vapor", package: "vapor")
+            ],
+            resources: [
+                .copy("Resources")
             ]
         ),
         .executableTarget(

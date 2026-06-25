@@ -113,6 +113,26 @@ struct AgentCellRuntimeHostTests {
         let authorizedHealthURL = URL(string: "http://\(controlBridge.host):\(controlBridge.port)/health?token=\(bridgeConfiguration.accessToken ?? "")")!
         let authorizedStatus = try await Self.fetchHTTPStatus(authorizedHealthURL)
         #expect(authorizedStatus == 200)
+
+        let unauthorizedOnboardURL = URL(string: "http://\(controlBridge.host):\(controlBridge.port)/onboard")!
+        let unauthorizedOnboardStatus = try await Self.fetchHTTPStatus(unauthorizedOnboardURL)
+        #expect(unauthorizedOnboardStatus == 401)
+
+        let authorizedOnboardURL = URL(string: "http://\(controlBridge.host):\(controlBridge.port)/onboard?token=\(bridgeConfiguration.accessToken ?? "")")!
+        let onboardResponse = try await Self.fetchHTTPBody(authorizedOnboardURL)
+        #expect(onboardResponse.statusCode == 200)
+        #expect(onboardResponse.body.contains("HAVEN Agent Onboarding"))
+
+        let unauthorizedStatusURL = URL(string: "http://\(controlBridge.host):\(controlBridge.port)/onboard/status.json")!
+        let unauthorizedStatusJSON = try await Self.fetchHTTPStatus(unauthorizedStatusURL)
+        #expect(unauthorizedStatusJSON == 401)
+
+        let authorizedStatusURL = URL(string: "http://\(controlBridge.host):\(controlBridge.port)/onboard/status.json?token=\(bridgeConfiguration.accessToken ?? "")")!
+        let statusResponse = try await Self.fetchHTTPBody(authorizedStatusURL)
+        #expect(statusResponse.statusCode == 200)
+        #expect(statusResponse.body.contains("\"steps\""))
+        #expect(statusResponse.body.contains("\"agent-supervisor\""))
+        #expect(statusResponse.body.contains("\"provisioningRequest\""))
         await host.stop()
     }
 
@@ -187,5 +207,13 @@ struct AgentCellRuntimeHostTests {
             throw NSError(domain: "AgentCellRuntimeHostTests", code: 2)
         }
         return httpResponse.statusCode
+    }
+
+    private static func fetchHTTPBody(_ url: URL) async throws -> (statusCode: Int, body: String) {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "AgentCellRuntimeHostTests", code: 3)
+        }
+        return (httpResponse.statusCode, String(decoding: data, as: UTF8.self))
     }
 }

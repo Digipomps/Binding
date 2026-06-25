@@ -16,6 +16,7 @@ enum HavenAgentCommand {
     case validateConfig(configPath: String?, rootPath: String?)
     case bootstrapProbe(configPath: String?, rootPath: String?, runBootstrap: Bool)
     case refreshStarterAuth(configPath: String?, rootPath: String?, ttlSeconds: Int)
+    case onboard(configPath: String?, rootPath: String?, openBrowser: Bool, bridgePort: Int?)
     case run(configPath: String?, once: Bool, rootPath: String?)
     case reviewState(configPath: String?, rootPath: String?)
     case reviewApprove(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
@@ -147,6 +148,43 @@ struct HavenAgentMain {
                 )
                 try printJSON(summary)
 
+            case .onboard(let configPath, let rootPath, let openBrowser, let bridgePort):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                var config = try AgentConfig.load(from: configURL)
+                if let bridgePort {
+                    config.localControlBridge.port = bridgePort
+                }
+                try validateOnboardingBridgeConfiguration(config.localControlBridge)
+                let url = try onboardingURL(for: config.localControlBridge)
+
+                if await localControlBridgeIsHealthy(config.localControlBridge) {
+                    print("Onboarding: \(url.absoluteString)")
+                    if openBrowser {
+                        try openBrowserURL(url)
+                    }
+                } else {
+                    let host = AgentCellRuntimeHost(paths: paths)
+                    let snapshot = try await host.start(
+                        instanceName: config.instanceName,
+                        configURL: configURL,
+                        controlBridge: config.localControlBridge,
+                        networkSentinel: config.networkSentinel
+                    )
+                    guard snapshot.controlBridge?.phase == .running else {
+                        let detail = snapshot.controlBridge?.lastError ?? "control bridge did not enter running state"
+                        await host.stop()
+                        throw UsageError.invalidArguments("Unable to start onboarding server: \(detail)")
+                    }
+                    print("Onboarding: \(url.absoluteString)")
+                    print("Serving onboarding locally. Press Ctrl-C to stop.")
+                    if openBrowser {
+                        try openBrowserURL(url)
+                    }
+                    await AgentMonitorShutdown().wait()
+                    await host.stop()
+                }
+
             case .run(let configPath, let once, let rootPath):
                 let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
                 let configURL = resolveConfigURL(configPath, paths: paths)
@@ -156,6 +194,7 @@ struct HavenAgentMain {
                 do {
                     let snapshot = try await cellRuntimeHost.start(
                         instanceName: config.instanceName,
+                        configURL: configURL,
                         controlBridge: once ? nil : config.localControlBridge,
                         networkSentinel: config.networkSentinel
                     )
@@ -209,6 +248,7 @@ struct HavenAgentMain {
                 let host = AgentCellRuntimeHost(paths: paths)
                 let snapshot = try await host.start(
                     instanceName: config.instanceName,
+                    configURL: configURL,
                     controlBridge: config.localControlBridge,
                     networkSentinel: config.networkSentinel
                 )
@@ -340,6 +380,14 @@ struct HavenAgentMain {
                 rootPath: argumentValue(for: "--root", in: remaining),
                 ttlSeconds: intArgumentValue(for: "--ttl-seconds", in: remaining) ?? 900
             )
+        case "onboard":
+            let remaining = Array(arguments.dropFirst())
+            return .onboard(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining),
+                openBrowser: remaining.contains("--open"),
+                bridgePort: intArgumentValue(for: "--bridge-port", in: remaining)
+            )
         case "run":
             let remaining = Array(arguments.dropFirst())
             return .run(
@@ -470,6 +518,7 @@ struct HavenAgentMain {
           haven-agentd validate-config [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd bootstrap-probe [--config /path/to/config.json] [--root /path/to/dev-root] [--run-bootstrap]
           haven-agentd refresh-starter-auth [--config /path/to/config.json] [--root /path/to/dev-root] [--ttl-seconds N]
+          haven-agentd onboard [--config /path/to/config.json] [--root /path/to/dev-root] [--bridge-port N] [--open]
           haven-agentd run [--config /path/to/config.json] [--once] [--root /path/to/dev-root]
           haven-agentd review-state [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd review-approve --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
@@ -487,6 +536,74 @@ struct HavenAgentMain {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(value)
         print(String(decoding: data, as: UTF8.self))
+    }
+
+    private static func validateOnboardingBridgeConfiguration(_ bridge: LocalControlBridgeConfig) throws {
+        guard bridge.enabled else {
+            throw UsageError.invalidArguments("localControlBridge is disabled. Run `haven-agentd setup` or enable the bridge before using onboard.")
+        }
+        guard bridge.loopbackOnly else {
+            throw UsageError.invalidArguments("localControlBridge.host must be loopback-only for onboard.")
+        }
+        guard let token = bridge.accessToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              token.isEmpty == false else {
+            throw UsageError.invalidArguments("localControlBridge.accessToken is missing. Run `haven-agentd setup --force` or set a token before using onboard.")
+        }
+    }
+
+    private static func onboardingURL(for bridge: LocalControlBridgeConfig) throws -> URL {
+        guard let token = bridge.accessToken, token.isEmpty == false else {
+            throw UsageError.invalidArguments("localControlBridge.accessToken is missing.")
+        }
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = bridge.host
+        components.port = bridge.port
+        components.path = "/onboard"
+        components.queryItems = [
+            URLQueryItem(name: "token", value: token)
+        ]
+        guard let url = components.url else {
+            throw UsageError.invalidArguments("Unable to build onboarding URL for \(bridge.host):\(bridge.port).")
+        }
+        return url
+    }
+
+    private static func healthURL(for bridge: LocalControlBridgeConfig) -> URL? {
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = bridge.host
+        components.port = bridge.port
+        components.path = "/health"
+        if let token = bridge.accessToken, token.isEmpty == false {
+            components.queryItems = [
+                URLQueryItem(name: "token", value: token)
+            ]
+        }
+        return components.url
+    }
+
+    private static func localControlBridgeIsHealthy(_ bridge: LocalControlBridgeConfig) async -> Bool {
+        guard let url = healthURL(for: bridge) else {
+            return false
+        }
+        do {
+            let (_, response) = try await URLSession.shared.data(from: url)
+            return (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            return false
+        }
+    }
+
+    private static func openBrowserURL(_ url: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = [url.absoluteString]
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw UsageError.invalidArguments("/usr/bin/open failed for \(url.absoluteString).")
+        }
     }
 
     private static func refreshStarterAuth(
