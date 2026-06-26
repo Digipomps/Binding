@@ -9,6 +9,7 @@ Related docs:
 - [../HavenAgentD/Docs/HavenAgentDMCPServerSurface.md](../HavenAgentD/Docs/HavenAgentDMCPServerSurface.md)
 - [../HavenAgentD/Docs/DeviceActionRelay.md](../HavenAgentD/Docs/DeviceActionRelay.md)
 - [../HavenAgentD/Docs/OperatorRunbook.md](../HavenAgentD/Docs/OperatorRunbook.md)
+- [StagingResourceLocations.md](StagingResourceLocations.md)
 
 ## Goal
 
@@ -180,6 +181,39 @@ Required next external step:
 
 - Use a paid Apple Developer Program team/App ID for `org.digipomps.Binding.dev`, enable Push Notifications on that App ID, regenerate/download the development provisioning profile, then rerun the physical device build.
 - After that succeeds, the phone can obtain a real APNS token and Binding can register it with staging `DeviceRegistrationCell`.
+
+## Update As Of 2026-06-21
+
+Physical-device dev-build fallback:
+
+- `aps-environment` was removed from `Binding/Binding-iOS.entitlements` so Xcode-managed personal-team profiles can build and install Binding on an iPhone without Push Notifications.
+- The Xcode target no longer marks Push Notifications as an enabled capability.
+- This fallback is build-only for APNS: the app will not obtain a real APNS token until a paid Apple Developer Program App ID/profile enables Push Notifications and `aps-environment` is restored.
+
+## Update As Of 2026-06-23
+
+APNS development provisioning restored:
+
+- Binding now builds with `aps-environment=development` restored through `Binding/Binding-iOS.entitlements`.
+- The active app signing settings use team `5UT5HQTCV9` and bundle identifier `org.digipomps.havenplayground`.
+- `iOS Team Provisioning Profile: org.digipomps.havenplayground` signs the physical iPhone build and includes the APNS development entitlement.
+- `xcodebuild -project Binding.xcodeproj -scheme Binding -configuration Debug -destination id=00008150-00050C200ED8401C -derivedDataPath /private/tmp/binding-apns-signed-dd -allowProvisioningUpdates build` succeeded for `iKjetil17 Pro`.
+
+## Update As Of 2026-06-25
+
+APNS staging relay status:
+
+- CellScaffold staging is deployed at `app_revision=961bdeaa7ece49c9b3b4f6a47efa313a6ad2c61e`.
+- `POST /conference-mvp/api/agent/device-action` is mounted and rejects missing/invalid relay tokens with `401`.
+- `POST /conference-mvp/api/device/register` is mounted and rejects malformed payloads with `400`.
+- APNS provider key is present on the staging host and mounted into the running container. Exact paths are documented in [StagingResourceLocations.md](StagingResourceLocations.md).
+- `APNS_BUNDLE_ID=org.digipomps.havenplayground` and `APNS_USE_SANDBOX=true` match the current Xcode-installed development build.
+
+Current live blocker:
+
+- A staging relay test for `binding-participant` created a `NotificationOutbox` ticket, but the ticket failed with `Unable to resolve an active device with a push token for participant binding-participant.`
+- App logs after the deploy showed only the local malformed curl probe hitting `/conference-mvp/api/device/register`; no real phone registration was observed after staging was corrected.
+- Binding now keeps explicit registration-success state and shows a retry prompt when notification permission exists but the phone is not registered with staging.
 
 ## What Was Proven Today
 

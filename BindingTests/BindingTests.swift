@@ -6685,6 +6685,8 @@ struct BindingTests {
             }
         case .Visualization(let visualization):
             append(visualization.modifiers)
+        case .Unsupported(let unsupported):
+            append(unsupported.modifiers)
         case .Object(let object):
             append(object.modifiers)
             object.elements.values.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }

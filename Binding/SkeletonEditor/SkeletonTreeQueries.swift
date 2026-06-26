@@ -38,6 +38,7 @@ enum SkeletonTreeQueries {
         case .Picker(let picker): return picker.modifiers
         case .Tabs(let tabs): return tabs.modifiers
         case .Visualization(let visualization): return visualization.modifiers
+        case .Unsupported(let unsupported): return unsupported.modifiers
         }
     }
 
@@ -71,6 +72,8 @@ enum SkeletonTreeQueries {
         case .Picker: return "Picker"
         case .Tabs: return "Tabs"
         case .Visualization: return "Visualization"
+        case .Unsupported(let unsupported):
+            return "Unsupported(\(unsupported.elementType))"
         }
     }
 

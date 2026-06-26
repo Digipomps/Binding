@@ -80,3 +80,19 @@ Viktig:
 - eldre `publishURL`-konfig blir fortsatt lest som fallback og mappes til riktig staging-host
 - approval-/prompt-svar kommer tilbake gjennom `AgentConversationInbox`, ikke gjennom `callback/submit`
 - ved live-feil pakkes remote resolver-/`createTicket`-feil med endpoint-kontekst slik at `Inbox/Failed/*.json` viser om feilen skjedde før eller under `NotificationOutbox.createTicket`
+
+## Staging-Ressurser
+
+Runtime-only ressursfiler og secrets for APNS/staging er dokumentert i:
+
+```text
+Documentation/StagingResourceLocations.md
+```
+
+Viktigste APNS-plasseringer:
+
+- lokal kilde: `/Users/Shared/Apple Connect/AuthKey_ZPJC567ND5.p8`
+- staging host: `/home/ops/CellScaffold/.secrets/AuthKey_ZPJC567ND5.p8`
+- container runtime path: `/run/secrets/apns-auth-key.p8`
+
+Ikke logg eller commit innholdet i `.p8`-filen eller relay-tokenet.

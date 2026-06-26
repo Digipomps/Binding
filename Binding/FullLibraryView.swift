@@ -275,6 +275,13 @@ nonisolated enum LibraryPreviewSkeletonSupport {
                 modifiers: visualization.modifiers
             )
 
+        case .Unsupported(let unsupported):
+            return placeholderCollection(
+                title: "Unsupported \(unsupported.elementType)",
+                detail: unsupported.reason ?? "Skeleton-elementet kan ikke rendres av denne Binding-versjonen.",
+                modifiers: unsupported.modifiers
+            )
+
         case .Image(var image):
             let hadRemoteImage = image.url != nil
             if image.url != nil && image.name == nil {

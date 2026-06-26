@@ -14,6 +14,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     @Published private(set) var needsTermsAcceptance: Bool = true
     @Published private(set) var pushPermissionGranted: Bool = false
     @Published private(set) var lastRegistrationError: String?
+    @Published private(set) var isDeviceRegistered: Bool = false
 
     private let defaults = UserDefaults.standard
 
@@ -21,6 +22,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let termsVersionKey = "binding.notifications.termsVersion"
     private let termsAcceptedAtKey = "binding.notifications.termsAcceptedAt"
     private let legacyAPNSTokenKey = "binding.notifications.apnsToken"
+    private let registrationSucceededAtKey = "binding.notifications.registrationSucceededAt"
     private let participantIDKey = "binding.notifications.participantId"
     private var participantID: String?
     private var deviceID: String?
@@ -56,6 +58,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         let currentTermsVersion = termsVersion()
         needsTermsAcceptance = defaults.string(forKey: termsVersionKey) != currentTermsVersion || defaults.double(forKey: termsAcceptedAtKey) <= 0
         defaults.removeObject(forKey: legacyAPNSTokenKey)
+        isDeviceRegistered = defaults.double(forKey: registrationSucceededAtKey) > 0
 
         Task { @MainActor in
             #if os(iOS)
@@ -79,6 +82,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func acceptTermsAndEnableNotifications() async {
+        lastRegistrationError = nil
         let acceptedAt = Date().timeIntervalSince1970
         defaults.set(termsVersion(), forKey: termsVersionKey)
         defaults.set(acceptedAt, forKey: termsAcceptedAtKey)
@@ -90,12 +94,31 @@ final class NotificationEnrollmentManager: ObservableObject {
             pushPermissionGranted = granted
             if granted {
                 UIApplication.shared.registerForRemoteNotifications()
+            } else {
+                isDeviceRegistered = false
+                lastRegistrationError = "Varslingstillatelse mangler. Slå på varsler for Binding i iOS Settings."
             }
         } catch {
+            isDeviceRegistered = false
             lastRegistrationError = "Permission request failed: \(error.localizedDescription)"
         }
         #endif
 
+        await registerCurrentDeviceIfReady()
+    }
+
+    func retryDeviceRegistration() async {
+        lastRegistrationError = nil
+        #if os(iOS)
+        await refreshPushAuthorizationStatus()
+        if pushPermissionGranted {
+            UIApplication.shared.registerForRemoteNotifications()
+        } else if !needsTermsAcceptance {
+            lastRegistrationError = "Varslingstillatelse mangler. Slå på varsler for Binding i iOS Settings."
+            isDeviceRegistered = false
+            return
+        }
+        #endif
         await registerCurrentDeviceIfReady()
     }
 
@@ -109,6 +132,12 @@ final class NotificationEnrollmentManager: ObservableObject {
         pendingAPNSToken = normalizedToken
         defaults.removeObject(forKey: legacyAPNSTokenKey)
         await registerCurrentDeviceIfReady()
+    }
+
+    func recordAPNSRegistrationFailure(_ error: Error) {
+        pushPermissionGranted = false
+        isDeviceRegistered = false
+        lastRegistrationError = "APNS registration failed: \(error.localizedDescription)"
     }
 
     func registerCurrentDeviceIfReady() async {
@@ -136,9 +165,13 @@ final class NotificationEnrollmentManager: ObservableObject {
             _ = try await NotificationCallbackClient.shared.registerDevice(payload: payload)
             pendingAPNSToken = nil
             defaults.removeObject(forKey: legacyAPNSTokenKey)
+            defaults.set(Date().timeIntervalSince1970, forKey: registrationSucceededAtKey)
+            isDeviceRegistered = true
             lastRegistrationError = nil
         } catch {
             lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
+            isDeviceRegistered = false
+            print("Binding notification device registration failed: \(error)")
         }
     }
 

@@ -197,7 +197,7 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
         Task { @MainActor in
-            NotificationEnrollmentManager.shared.declineTerms()
+            NotificationEnrollmentManager.shared.recordAPNSRegistrationFailure(error)
         }
         print("APNS registration failed: \(error)")
     }

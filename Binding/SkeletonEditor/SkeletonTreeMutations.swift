@@ -269,6 +269,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             visualization.modifiers = modifiers
             return .Visualization(visualization)
+        case .Unsupported(var unsupported):
+            var modifiers = unsupported.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            unsupported.modifiers = modifiers
+            return .Unsupported(unsupported)
         }
     }
 
