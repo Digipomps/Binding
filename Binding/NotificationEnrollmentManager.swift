@@ -7,6 +7,14 @@ import UIKit
 import UserNotifications
 #endif
 
+enum NotificationRegistrationValidationError: LocalizedError {
+    case invalidServerResponse
+
+    var errorDescription: String? {
+        "Staging returned an invalid notification device registration response."
+    }
+}
+
 @MainActor
 final class NotificationEnrollmentManager: ObservableObject {
     static let shared = NotificationEnrollmentManager()
@@ -162,7 +170,12 @@ final class NotificationEnrollmentManager: ObservableObject {
         )
 
         do {
-            _ = try await NotificationCallbackClient.shared.registerDevice(payload: payload)
+            let response = try await NotificationCallbackClient.shared.registerDevice(payload: payload)
+            try Self.validateRegistrationResponse(
+                response,
+                expectedParticipantID: participantID,
+                expectedDeviceID: deviceID
+            )
             pendingAPNSToken = nil
             defaults.removeObject(forKey: legacyAPNSTokenKey)
             defaults.set(Date().timeIntervalSince1970, forKey: registrationSucceededAtKey)
@@ -172,6 +185,24 @@ final class NotificationEnrollmentManager: ObservableObject {
             lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
             isDeviceRegistered = false
             print("Binding notification device registration failed: \(error)")
+        }
+    }
+
+    nonisolated static func validateRegistrationResponse(
+        _ response: [String: JSONValue],
+        expectedParticipantID: String,
+        expectedDeviceID: String
+    ) throws {
+        guard case let .string(participantID)? = response["participantId"],
+              participantID == expectedParticipantID,
+              case let .string(deviceID)? = response["deviceId"],
+              deviceID == expectedDeviceID,
+              case let .bool(isActive)? = response["isActive"],
+              isActive,
+              case let .string(pushTokenHash)? = response["pushTokenHash"],
+              !pushTokenHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw NotificationRegistrationValidationError.invalidServerResponse
         }
     }
 

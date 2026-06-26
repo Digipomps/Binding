@@ -47,6 +47,29 @@ struct NotificationEnrollmentManagerTests {
         #expect(normalized == ["workflow.run", "workflow.review", "conference.broadcast"])
     }
 
+    @Test func registrationResponseValidationAcceptsActiveMatchingDevice() throws {
+        try NotificationEnrollmentManager.validateRegistrationResponse(
+            [
+                "participantId": .string("participant-1"),
+                "deviceId": .string("device-1"),
+                "isActive": .bool(true),
+                "pushTokenHash": .string("abc123")
+            ],
+            expectedParticipantID: "participant-1",
+            expectedDeviceID: "device-1"
+        )
+    }
+
+    @Test func registrationResponseValidationRejectsCellErrorPayload() {
+        #expect(throws: NotificationRegistrationValidationError.invalidServerResponse) {
+            try NotificationEnrollmentManager.validateRegistrationResponse(
+                [:],
+                expectedParticipantID: "participant-1",
+                expectedDeviceID: "device-1"
+            )
+        }
+    }
+
     private func stringArray(_ value: JSONValue?) -> [String] {
         guard case let .array(items)? = value else { return [] }
         return items.compactMap { item in
