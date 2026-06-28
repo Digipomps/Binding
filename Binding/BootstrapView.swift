@@ -55,10 +55,12 @@ actor BindingLocalCellRegistration {
             let resolver = CellResolver.sharedInstance
             await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
             await Self.registerVaultGraphLocalCells(on: resolver)
-            // Keep the launch path free of LocalAuthentication and keychain
-            // prompts. Ask CellApple to prepare its core runtime using the
-            // existing startup vault instead of forcing IdentityVault.init.
-            await AppInitializer.prepareLocalRuntime()
+            // Keep the launch path free of eager Porthole setup, owner-access
+            // checks, LocalAuthentication and keychain prompts. Binding owns
+            // local startup registration explicitly; AppInitializer.prepareLocalRuntime()
+            // also schedules setupPorthole(), which is only safe once a user
+            // surface asks for authenticated runtime work.
+            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
             await Self.registerAll(on: resolver)
         }
         localRegistrationTask = task
@@ -185,6 +187,7 @@ actor BindingLocalCellRegistration {
     }
 
     private static func registerAll(on resolver: CellResolver) async {
+        await registerCellAppleUtilityCells(on: resolver)
         await registerChatWorkbenchParityCells(on: resolver)
         await register(
             name: "EventEmitter",
@@ -434,6 +437,115 @@ actor BindingLocalCellRegistration {
             cellScope: .scaffoldUnique,
             identityDomain: "private",
             type: GeneralCell.self,
+            resolver: resolver
+        )
+    }
+
+    private static func registerCellAppleUtilityCells(on resolver: CellResolver) async {
+        await register(
+            name: "GeneralCell",
+            cellScope: .template,
+            identityDomain: "private",
+            type: GeneralCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "GeneralCellTemplate",
+            cellScope: .template,
+            identityDomain: "private",
+            type: GeneralCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "CloudBridge",
+            cellScope: .template,
+            identityDomain: "private",
+            type: BridgeBase.self,
+            resolver: resolver
+        )
+        await register(
+            name: "EntityAnchor",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: EntityAnchorCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "ShoppingHandler",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: ShoppingHandlerCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "FileCrypto",
+            cellScope: .template,
+            identityDomain: "private",
+            type: FileCryptoCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "CommonsResolver",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: CommonsResolverCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "CommonsTaxonomy",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: CommonsTaxonomyCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "EntityAtlas",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: EntityAtlasInspectorCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "FlowProbe",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: FlowProbeCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "StateSnapshot",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: StateSnapshotCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "TrustedIssuers",
+            cellScope: .scaffoldUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: TrustedIssuerCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "Chat",
+            cellScope: .scaffoldUnique,
+            identityDomain: "private",
+            type: ChatCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "Identities",
+            cellScope: .scaffoldUnique,
+            identityDomain: "private",
+            type: IdentitiesCell.self,
             resolver: resolver
         )
     }

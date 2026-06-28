@@ -3208,6 +3208,40 @@ struct BindingTests {
         #expect(!(CellBase.defaultIdentityVault is IdentityVault))
     }
 
+    @Test func localBootstrapPathRegistersUtilityCellsWithoutAuthenticatedVault() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        #expect(CellBase.defaultIdentityVault is BindingStartupIdentityVault)
+        #expect(!(CellBase.defaultIdentityVault is IdentityVault))
+
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            Issue.record("Expected CellResolver after local bootstrap path")
+            return
+        }
+        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+            Issue.record("Expected startup identity after local bootstrap path")
+            return
+        }
+
+        for endpoint in [
+            "cell:///GeneralCell",
+            "cell:///EntityAnchor",
+            "cell:///Identities"
+        ] {
+            let cell = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: owner)
+            #expect(cell.uuid.isEmpty == false)
+        }
+    }
+
     @Test func bindingStartupVaultRetainsPreviewIdentityAcrossAuthenticatedBootstrap() async {
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
