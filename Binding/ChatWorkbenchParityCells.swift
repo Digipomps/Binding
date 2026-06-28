@@ -82,6 +82,223 @@ struct BindingChatIntentClassification: Codable, Equatable {
     }
 }
 
+struct BindingChatPurposeContext: Codable, Equatable {
+    var purposeRefs: [String]
+    var interests: [String]
+    var weights: [String: Double]
+    var source: String
+
+    nonisolated static let empty = BindingChatPurposeContext(
+        purposeRefs: [],
+        interests: [],
+        weights: [:],
+        source: "none"
+    )
+
+    nonisolated var isEmpty: Bool {
+        purposeRefs.isEmpty && interests.isEmpty
+    }
+
+    nonisolated func merging(_ other: BindingChatPurposeContext) -> BindingChatPurposeContext {
+        guard other.isEmpty == false else { return self }
+        guard isEmpty == false else { return other }
+        var mergedWeights = weights
+        for (key, value) in other.weights {
+            mergedWeights[key] = max(mergedWeights[key] ?? 0, value)
+        }
+        let mergedSources = [source, other.source]
+            .filter { $0.isEmpty == false && $0 != "none" }
+        return BindingChatPurposeContext(
+            purposeRefs: Array(Set(purposeRefs + other.purposeRefs)).sorted(),
+            interests: Array(Set(interests + other.interests)).sorted(),
+            weights: mergedWeights,
+            source: mergedSources.isEmpty ? "none" : mergedSources.joined(separator: " + ")
+        )
+    }
+
+    nonisolated func objectValue() -> Object {
+        [
+            "source": .string(source),
+            "purposeRefs": .list(purposeRefs.map(ValueType.string)),
+            "interests": .list(interests.map(ValueType.string)),
+            "weights": .object(weights.reduce(into: Object()) { partial, pair in
+                partial[pair.key] = .float(pair.value)
+            }),
+            "isEmpty": .bool(isEmpty)
+        ]
+    }
+
+    nonisolated func matchesPurpose(_ needles: [String]) -> Bool {
+        matches(values: purposeRefs, needles: needles)
+    }
+
+    nonisolated func matchesInterest(_ needles: [String]) -> Bool {
+        matches(values: interests, needles: needles)
+    }
+
+    nonisolated func contextBoost(purposeRefs targetPurposeRefs: [String], interests targetInterests: [String]) -> Double {
+        let purposeBoost = overlapScore(
+            values: purposeRefs,
+            targets: targetPurposeRefs,
+            exactWeight: 0.16,
+            tokenWeight: 0.05
+        )
+        let interestBoost = overlapScore(
+            values: interests,
+            targets: targetInterests,
+            exactWeight: 0.07,
+            tokenWeight: 0.03
+        )
+        return min(0.24, purposeBoost + interestBoost)
+    }
+
+    nonisolated static func from(value: ValueType?, source: String) -> BindingChatPurposeContext {
+        guard let value else { return .empty }
+        var builder = Builder()
+        builder.collect(value, explicitHint: nil, inheritedWeight: nil)
+        return builder.build(source: source)
+    }
+
+    nonisolated private func matches(values: [String], needles: [String]) -> Bool {
+        let normalizedValues = values.map(Self.normalizedToken)
+        return needles.contains { needle in
+            let normalizedNeedle = Self.normalizedToken(needle)
+            return normalizedValues.contains { value in
+                value == normalizedNeedle
+                    || value.contains(normalizedNeedle)
+                    || normalizedNeedle.contains(value)
+            }
+        }
+    }
+
+    nonisolated private func overlapScore(
+        values: [String],
+        targets: [String],
+        exactWeight: Double,
+        tokenWeight: Double
+    ) -> Double {
+        let normalizedValues = values.map(Self.normalizedToken)
+        let normalizedTargets = targets.map(Self.normalizedToken)
+        var score = 0.0
+        for target in normalizedTargets {
+            if normalizedValues.contains(target) {
+                score += exactWeight
+            } else if normalizedValues.contains(where: { value in
+                value.contains(target) || target.contains(value)
+            }) {
+                score += tokenWeight
+            }
+        }
+        return score
+    }
+
+    nonisolated private static func normalizedToken(_ value: String) -> String {
+        value
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private enum FieldHint {
+        case purpose
+        case interest
+    }
+
+    private struct Builder {
+        var purposeRefs: Set<String> = []
+        var interests: Set<String> = []
+        var weights: [String: Double] = [:]
+
+        mutating func collect(_ value: ValueType, explicitHint: FieldHint?, inheritedWeight: Double?) {
+            switch value {
+            case let .string(text):
+                add(text, hint: explicitHint, weight: inheritedWeight)
+            case let .list(values):
+                for child in values {
+                    collect(child, explicitHint: explicitHint, inheritedWeight: inheritedWeight)
+                }
+            case let .object(object):
+                let localWeight = numeric(object["purposeWeight"])
+                    ?? numeric(object["interestWeight"])
+                    ?? numeric(object["weight"])
+                    ?? inheritedWeight
+                for (key, child) in object {
+                    let hint = Self.hint(for: key)
+                    if let hint {
+                        collect(child, explicitHint: hint, inheritedWeight: localWeight)
+                    } else if case .object = child {
+                        collect(child, explicitHint: nil, inheritedWeight: localWeight)
+                    } else if case .list = child {
+                        collect(child, explicitHint: nil, inheritedWeight: localWeight)
+                    }
+                }
+            default:
+                break
+            }
+        }
+
+        func build(source: String) -> BindingChatPurposeContext {
+            BindingChatPurposeContext(
+                purposeRefs: Array(purposeRefs).sorted(),
+                interests: Array(interests).sorted(),
+                weights: weights,
+                source: source
+            )
+        }
+
+        mutating private func add(_ text: String, hint: FieldHint?, weight: Double?) {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { return }
+            switch hint {
+            case .purpose:
+                purposeRefs.insert(trimmed)
+                if let weight {
+                    weights[trimmed] = max(weights[trimmed] ?? 0, weight)
+                }
+            case .interest:
+                interests.insert(trimmed)
+                if let weight {
+                    weights[trimmed] = max(weights[trimmed] ?? 0, weight)
+                }
+            case .none:
+                break
+            }
+        }
+
+        private func numeric(_ value: ValueType?) -> Double? {
+            BindingChatValue.double(value)
+        }
+
+        private static func hint(for key: String) -> FieldHint? {
+            let normalized = key
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                .lowercased()
+                .replacingOccurrences(of: "_", with: "")
+                .replacingOccurrences(of: "-", with: "")
+            if [
+                "purposeref",
+                "portablepurposeref",
+                "purposerefs",
+                "activepurposes",
+                "purposes"
+            ].contains(normalized) {
+                return .purpose
+            }
+            if [
+                "interestref",
+                "portableinterestref",
+                "interestrefs",
+                "activeinterests",
+                "interests"
+            ].contains(normalized) {
+                return .interest
+            }
+            return nil
+        }
+    }
+}
+
 struct BindingChatProviderDescriptor: Codable, Equatable {
     var id: String
     var kind: String
@@ -501,7 +718,8 @@ enum BindingChatValue {
 enum BindingChatIntentClassifier {
     nonisolated static func classify(
         prompt: String,
-        capabilityDiscoveryEnabled: Bool = false
+        capabilityDiscoveryEnabled: Bool = false,
+        perspectiveContext: BindingChatPurposeContext = .empty
     ) -> BindingChatIntentClassification {
         let normalized = BindingChatValue.normalized(prompt)
         let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -523,6 +741,9 @@ enum BindingChatIntentClassifier {
         }
         if isNegated(normalized, keywords: ["codex", "start codex", "kodeassistent", "kode assistent", "prompt"]) {
             return negative("agent_codex_prompt", reason: "Brukeren vil ikke starte Codex-prompt.")
+        }
+        if isNegated(normalized, keywords: ["e-post", "epost", "email", "mail"]) {
+            return negative("agent_email_draft", reason: "Brukeren vil ikke forberede e-post.")
         }
 
         if containsAny(normalized, ["apple"]) && containsAny(normalized, ["lokal", "privat", "private", "on-device", "assistant"]) {
@@ -561,6 +782,16 @@ enum BindingChatIntentClassifier {
                 reason: "Meldingen ber om telefonvarsling eller tillatelse for en kodeassistent-jobb."
             )
         }
+        if looksLikeAgentEmailDraft(normalized) {
+            return positive(
+                kind: "agent_email_draft",
+                purposeRef: "personal.agent.email.compose-draft",
+                interests: ["agentd", "email", "e-post", "external-contact", "contact-fallback", "draft-only", "local-review", "requires-user-approval"],
+                helperID: "agent-review",
+                confidence: 0.84,
+                reason: "Meldingen ber om aa forberede et e-postutkast via HAVENAgentD review, ikke sende direkte."
+            )
+        }
         if looksLikeWorkItem(normalized) {
             return positive(
                 kind: "work_item",
@@ -583,6 +814,10 @@ enum BindingChatIntentClassifier {
                 confidence: 0.78,
                 reason: "Meldingen ber om kilder eller dokumentasjon. RAG kan foreslaas, men spors bare etter eksplisitt klikk."
             )
+        }
+        if looksLikeLocalResourceSurfaceRequest(normalized),
+           let resource = bestCellConfigurationResourceMatch(prompt: prompt) {
+            return resourceMatchClassification(resource)
         }
         if containsAny(normalized, ["inviter", "invite"]) {
             let ambiguous = containsAny(normalized, ["kollega"]) && !containsAny(normalized, ["nærmeste", "naermeste", "narmeste", "anna"])
@@ -608,7 +843,7 @@ enum BindingChatIntentClassifier {
                 reason: "Meldingen ber om aa lage et valg for gruppen."
             )
         }
-        if containsAny(normalized, ["jeg har en ide", "jeg har en idea", "ide jeg ma", "ide jeg maa"]) {
+        if looksLikeIdeaCapture(normalized) {
             return positive(
                 kind: "idea_capture",
                 purposeRef: "personal.chat.assist.idea.capture",
@@ -618,7 +853,7 @@ enum BindingChatIntentClassifier {
                 reason: "Meldingen inneholder et nytt ideutkast."
             )
         }
-        if normalized.hasPrefix("oppgave:") || containsAny(normalized, ["todo:", "ma gjore", "maa gjore"]) {
+        if looksLikeTodo(normalized) {
             return positive(
                 kind: "todo",
                 purposeRef: "personal.chat.assist.todo",
@@ -628,7 +863,7 @@ enum BindingChatIntentClassifier {
                 reason: "Meldingen beskriver en oppgave."
             )
         }
-        if containsAny(normalized, ["lag prosjekt", "opprett prosjekt", "prosjekt for"]) {
+        if looksLikeProject(normalized) {
             return positive(
                 kind: "project",
                 purposeRef: "personal.chat.assist.project",
@@ -668,6 +903,12 @@ enum BindingChatIntentClassifier {
                 reason: "Meldingen matcher en lokal agenthandling som bare kan bli et review/signering-utkast."
             )
         }
+        if let contextual = contextualPurposeClassification(
+            normalized: normalized,
+            perspectiveContext: perspectiveContext
+        ) {
+            return contextual
+        }
         if let resource = bestCellConfigurationResourceMatch(prompt: prompt) {
             return resourceMatchClassification(resource)
         }
@@ -693,6 +934,67 @@ enum BindingChatIntentClassifier {
         ])
     }
 
+    nonisolated private static func looksLikeIdeaCapture(_ normalized: String) -> Bool {
+        containsAny(normalized, [
+            "jeg har en ide",
+            "jeg har en idé",
+            "jeg har en idea",
+            "ide:",
+            "idé:",
+            "idea:",
+            "ny ide",
+            "ny idé",
+            "fang ide",
+            "fang idé",
+            "fang idea",
+            "lagre ide",
+            "lagre idé",
+            "skriv ned ide",
+            "skriv ned idé",
+            "noter ide",
+            "noter idé",
+            "ide jeg ma",
+            "ide jeg maa",
+            "idé jeg må",
+            "idé jeg maa"
+        ])
+    }
+
+    nonisolated private static func looksLikeTodo(_ normalized: String) -> Bool {
+        normalized.hasPrefix("oppgave:")
+            || containsAny(normalized, [
+                "todo:",
+                "task:",
+                "oppgave:",
+                "ny oppgave",
+                "lag oppgave",
+                "opprett oppgave",
+                "legg til oppgave",
+                "ma gjore",
+                "maa gjore",
+                "må gjøre",
+                "gjøremål",
+                "gjeremal",
+                "to-do",
+                "todo"
+            ])
+    }
+
+    nonisolated private static func looksLikeProject(_ normalized: String) -> Bool {
+        containsAny(normalized, [
+            "lag prosjekt",
+            "opprett prosjekt",
+            "nytt prosjekt",
+            "start prosjekt",
+            "prosjekt for",
+            "prosjektplan",
+            "prosjekt plan",
+            "prosjektstyring",
+            "project management",
+            "project plan"
+        ])
+    }
+
     nonisolated private static func looksLikeExplicitRAGResourceQuery(_ normalized: String) -> Bool {
         containsAny(normalized, ["rag"])
             && containsAny(normalized, ["anskaffelser", "innovasjon", "case", "korpus"])
@@ -715,6 +1017,31 @@ enum BindingChatIntentClassifier {
         ])
     }
 
+    nonisolated private static func looksLikeLocalResourceSurfaceRequest(_ normalized: String) -> Bool {
+        containsAny(normalized, [
+            "vis",
+            "apne",
+            "åpne",
+            "hent",
+            "last",
+            "load",
+            "rendre",
+            "render",
+            "finn",
+            "bruk"
+        ]) && containsAny(normalized, [
+            "vault",
+            "obsidian",
+            "graf",
+            "graph",
+            "knowledge graph",
+            "flate",
+            "surface",
+            "bibliotek",
+            "library"
+        ])
+    }
+
     nonisolated static func resourceMatches(
         prompt: String,
         grantRAG: Bool = true,
@@ -722,6 +1049,30 @@ enum BindingChatIntentClassifier {
     ) -> [Object] {
         let normalized = BindingChatValue.normalized(prompt)
         var matches: [Object] = []
+        if looksLikeVaultIdeas(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:vault-ideas",
+                title: "Vault / Ideas",
+                summary: "Lokal Obsidian-lignende flate for ideer, prosjektnotater, markdown og knowledge graph.",
+                sourceCellEndpoint: "cell:///Vault",
+                sourceCellName: "VaultCell",
+                purposeRef: "personal.vault.ideas.projects",
+                interests: ["vault", "obsidian", "ideas", "projects", "notes", "markdown", "knowledge-graph", "resource-router"],
+                score: 0.9
+            ))
+        }
+        if looksLikeGraphIndex(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:graph-index",
+                title: "Graph Index",
+                summary: "Lokal grafindeks for Obsidian-lignende wiki-lenker, nabolag og inn-/utgående kanter.",
+                sourceCellEndpoint: "cell:///GraphIndex",
+                sourceCellName: "GraphIndexCell",
+                purposeRef: "personal.knowledge.graph.index",
+                interests: ["graph", "graf", "obsidian", "knowledge-graph", "relations", "vault", "resource-router"],
+                score: 0.91
+            ))
+        }
         if looksLikeMusicPublishing(normalized) {
             matches.append(cellConfigurationResource(
                 id: "configuration:music-publishing-console",
@@ -807,12 +1158,42 @@ enum BindingChatIntentClassifier {
                 "sideEffectUntilExplicitRequest": .bool(false)
             ])
         }
+        if looksLikeAgentEmailDraft(normalized),
+           isNegated(normalized, keywords: ["e-post", "epost", "email", "mail"]) == false {
+            matches.append([
+                "kind": .string("agent_action"),
+                "title": .string("E-postutkast via HAVENAgentD"),
+                "summary": .string("Forbereder signert/reviewet intent til Mail.app-utkast for kontakter uten celle-endepunkt."),
+                "sourceCellEndpoint": .string("cell:///agent/email/outbox"),
+                "sourceCellName": .string("AgentMailDraftCell"),
+                "purposeRef": .string("personal.agent.email.compose-draft"),
+                "purposeRefs": .list([
+                    .string("personal.agent.email.compose-draft"),
+                    .string("personal.chat.assist.external-email-contact"),
+                    .string("personal.chat.assist.entity-contact-request")
+                ]),
+                "interests": .list([
+                    .string("agentd"),
+                    .string("email"),
+                    .string("e-post"),
+                    .string("external-contact"),
+                    .string("contact-fallback"),
+                    .string("draft-only"),
+                    .string("local-review"),
+                    .string("requires-user-approval")
+                ]),
+                "actionKeypath": .string("draftIntent"),
+                "requiresSignedIntent": .bool(true),
+                "requiresLocalReview": .bool(true),
+                "sideEffectUntilExplicitRequest": .bool(false)
+            ])
+        }
         if containsAny(normalized, ["tilgang", "enhet", "enheter", "sky", "capability", "kapabilitet", "tjeneste", "tjenester", "kva har jeg", "hva har jeg"]) {
             matches.append(contentsOf: [
                 [
                     "kind": .string("cell_configuration"),
-                    "title": .string("Co-Pilot Chat"),
-                    "summary": .string("Requester-visible Co-Pilot Chat CellConfiguration i Binding."),
+                    "title": .string("Co-Pilot"),
+                    "summary": .string("Requester-visible Co-Pilot CellConfiguration i Binding."),
                     "sourceCellEndpoint": .string("cell:///PersonalChatHub"),
                     "purposeRef": .string("personal.chat.assist.resource-router"),
                     "purposeRefs": .list([.string("personal.chat.assist.resource-router")]),
@@ -887,8 +1268,10 @@ enum BindingChatIntentClassifier {
     }
 
     nonisolated static func bestCellConfigurationResourceMatch(prompt: String) -> Object? {
-        resourceMatches(prompt: prompt).first {
+        resourceMatches(prompt: prompt).filter {
             BindingChatValue.string($0["kind"]) == "cell_configuration"
+        }.max {
+            (BindingChatValue.double($0["score"]) ?? 0) < (BindingChatValue.double($1["score"]) ?? 0)
         }
     }
 
@@ -971,11 +1354,102 @@ enum BindingChatIntentClassifier {
         return request
     }
 
+    nonisolated private static func contextualPurposeClassification(
+        normalized: String,
+        perspectiveContext: BindingChatPurposeContext
+    ) -> BindingChatIntentClassification? {
+        guard perspectiveContext.isEmpty == false,
+              looksLikeContextualFollowUp(normalized)
+        else {
+            return nil
+        }
+
+        let todoPurposeRefs = ["personal.chat.assist.todo", "personal.todo.manage", "personal.tasks.manage"]
+        let todoInterests = ["todo", "task", "tasks", "oppgave", "gjoremal", "gjøremål"]
+        if perspectiveContext.matchesPurpose(todoPurposeRefs) || perspectiveContext.matchesInterest(todoInterests) {
+            let confidence = min(0.9, 0.7 + perspectiveContext.contextBoost(purposeRefs: todoPurposeRefs, interests: todoInterests))
+            return positive(
+                kind: "todo",
+                purposeRef: "personal.chat.assist.todo",
+                interests: ["todo", "task", "private", "perspective-context"],
+                helperID: "todo",
+                confidence: confidence,
+                reason: "Aktiv Perspective peker paa oppgaver; jeg kan apne oppgave-hjelperen uten aa opprette noe for du bekrefter."
+            )
+        }
+
+        let projectPurposeRefs = ["personal.chat.assist.project", "personal.vault.ideas.projects", "personal.project.manage"]
+        let projectInterests = ["project", "projects", "prosjekt", "planning", "planlegging", "project-management"]
+        if perspectiveContext.matchesPurpose(projectPurposeRefs) || perspectiveContext.matchesInterest(projectInterests) {
+            let confidence = min(0.9, 0.7 + perspectiveContext.contextBoost(purposeRefs: projectPurposeRefs, interests: projectInterests))
+            return positive(
+                kind: "project",
+                purposeRef: "personal.chat.assist.project",
+                interests: ["project", "planning", "perspective-context"],
+                helperID: "project",
+                confidence: confidence,
+                reason: "Aktiv Perspective peker paa prosjekt/planlegging; jeg kan apne prosjekt-hjelperen som et privat utkast."
+            )
+        }
+
+        let ideaPurposeRefs = ["personal.chat.assist.idea.capture", "personal.vault.ideas", "personal.idea.capture"]
+        let ideaInterests = ["idea", "ideas", "ide", "ideer", "capture", "vault"]
+        if perspectiveContext.matchesPurpose(ideaPurposeRefs) || perspectiveContext.matchesInterest(ideaInterests) {
+            let confidence = min(0.88, 0.68 + perspectiveContext.contextBoost(purposeRefs: ideaPurposeRefs, interests: ideaInterests))
+            return positive(
+                kind: "idea_capture",
+                purposeRef: "personal.chat.assist.idea.capture",
+                interests: ["idea", "capture", "private", "perspective-context"],
+                helperID: "idea-capture",
+                confidence: confidence,
+                reason: "Aktiv Perspective peker paa idefangst; jeg kan apne ide-hjelperen som et privat utkast."
+            )
+        }
+
+        let graphPurposeRefs = ["personal.knowledge.graph.index", "personal.vault.ideas.projects"]
+        let graphInterests = ["graph", "graf", "knowledge-graph", "obsidian", "vault"]
+        if perspectiveContext.matchesPurpose(graphPurposeRefs) || perspectiveContext.matchesInterest(graphInterests) {
+            let confidence = min(0.86, 0.68 + perspectiveContext.contextBoost(purposeRefs: graphPurposeRefs, interests: graphInterests))
+            return positive(
+                kind: "resource_match",
+                purposeRef: "personal.knowledge.graph.index",
+                interests: ["graph", "vault", "resource-router", "perspective-context", "requires-user-approval"],
+                helperID: "resource-router",
+                confidence: confidence,
+                reason: "Aktiv Perspective peker paa graf/vault-kontekst; jeg kan foreslaa synlig flate uten aa laste den automatisk."
+            )
+        }
+
+        return nil
+    }
+
+    nonisolated private static func looksLikeContextualFollowUp(_ normalized: String) -> Bool {
+        containsAny(normalized, [
+            "legg dette inn",
+            "legg inn dette",
+            "legg til dette",
+            "lagre dette",
+            "ta vare pa dette",
+            "ta vare paa dette",
+            "bruk dette videre",
+            "bruk denne videre",
+            "som neste steg",
+            "neste steg",
+            "gjor dette til",
+            "gjør dette til",
+            "organiser dette",
+            "koble dette",
+            "sett dette opp",
+            "ta dette videre"
+        ])
+    }
+
     nonisolated private static func resourceMatchClassification(_ resource: Object) -> BindingChatIntentClassification {
         let title = BindingChatValue.string(resource["title"]) ?? "synlig flate"
         let purposeRef = BindingChatValue.stringList(resource["purposeRefs"]).first
             ?? BindingChatValue.string(resource["purposeRef"])
             ?? "personal.chat.assist.resource-router"
+        let helperID = directHelperID(forResource: resource)
         return BindingChatIntentClassification(
             intentKind: "resource_match",
             purposeRef: purposeRef,
@@ -984,13 +1458,28 @@ enum BindingChatIntentClassifier {
                 "visible-cellconfiguration",
                 "requires-user-approval"
             ])).sorted(),
-            helperID: "resource-router",
+            helperID: helperID,
             confidence: BindingChatValue.double(resource["score"]) ?? 0.78,
             requiresUserApproval: true,
             reason: "Fant en synlig CellConfiguration som matcher formaalet: \(title).",
             negativeIntent: "",
             status: "suggested"
         )
+    }
+
+    nonisolated private static func directHelperID(forResource resource: Object) -> String {
+        let purposeRefs = Set(
+            BindingChatValue.stringList(resource["purposeRefs"])
+                + [BindingChatValue.string(resource["purposeRef"])].compactMap { $0 }
+        )
+        let interests = Set(BindingChatValue.stringList(resource["interests"]))
+        let endpoint = BindingChatValue.string(resource["sourceCellEndpoint"]) ?? ""
+        if purposeRefs.contains("personal.diagram.mermaid.render")
+            || interests.contains("mermaid")
+            || endpoint == "cell:///MermaidRenderer" {
+            return "mermaid-diagram"
+        }
+        return "resource-router"
     }
 
     nonisolated private static func positive(
@@ -1070,6 +1559,33 @@ enum BindingChatIntentClassifier {
             && containsAny(text, ["telefon", "phone", "kode", "codex", "agent"])
     }
 
+    nonisolated private static func looksLikeAgentEmailDraft(_ text: String) -> Bool {
+        containsAny(text, [
+            "send e-post",
+            "sende e-post",
+            "send epost",
+            "sende epost",
+            "send email",
+            "send mail",
+            "skriv e-post",
+            "skrive e-post",
+            "skriv epost",
+            "skrive epost",
+            "lag e-post",
+            "lage e-post",
+            "lag epost",
+            "mail til",
+            "epost til",
+            "e-post til",
+            "email til",
+            "email to"
+        ])
+        || (
+            containsAny(text, ["e-post", "epost", "email", "mail"])
+            && containsAny(text, ["send", "sende", "skriv", "skrive", "utkast", "draft", "kontakt", "foresporsel", "forespørsel"])
+        )
+    }
+
     nonisolated private static func looksLikeContactEndpoint(_ text: String) -> Bool {
         containsAny(text, [
             "contact.request",
@@ -1122,6 +1638,49 @@ enum BindingChatIntentClassifier {
     nonisolated private static func looksLikeConferenceAgenda(_ text: String) -> Bool {
         containsAny(text, ["konferanse", "conference"])
             && containsAny(text, ["agenda", "program", "sesjon", "session", "i dag", "today"])
+    }
+
+    nonisolated private static func looksLikeVaultIdeas(_ text: String) -> Bool {
+        containsAny(text, [
+            "vault",
+            "obsidian",
+            "ide",
+            "idea",
+            "ideer",
+            "ideas",
+            "prosjekt",
+            "project",
+            "prosjektstyring",
+            "project management",
+            "markdown",
+            "notat",
+            "notater",
+            "notes"
+        ]) && containsAny(text, [
+            "vis",
+            "apne",
+            "åpne",
+            "last",
+            "load",
+            "render",
+            "rendre",
+            "organiser",
+            "styring",
+            "management",
+            "finn",
+            "fa",
+            "få",
+            "hent",
+            "bruk",
+            "graf",
+            "graph",
+            "knowledge"
+        ])
+    }
+
+    nonisolated private static func looksLikeGraphIndex(_ text: String) -> Bool {
+        containsAny(text, ["graf", "graph", "knowledge graph", "obsidian"])
+            && containsAny(text, ["index", "indeks", "render", "rendre", "vis", "apne", "åpne", "nabo", "neighbors", "relations", "relasjoner"])
     }
 
     nonisolated private static func cellConfigurationResource(
@@ -1185,9 +1744,10 @@ enum BindingChatProviderRouter {
                 "personal.chat.assist.rag-query",
                 "personal.chat.assist.capability-request",
                 "personal.chat.assist.entity-contact-request",
-                "personal.chat.assist.resource-router"
+                "personal.chat.assist.resource-router",
+                "personal.diagram.mermaid.render"
             ],
-            interests: ["chat-assistant", "invite-person", "poll", "todo-intent", "project-intent", "reminder-intent", "work-item", "rag-query", "capability-gap", "contact-endpoint", "local", "no-network", "deterministic"],
+            interests: ["chat-assistant", "invite-person", "poll", "todo-intent", "project-intent", "reminder-intent", "work-item", "rag-query", "capability-gap", "contact-endpoint", "mermaid", "diagram", "local", "no-network", "deterministic"],
             availability: "available_in_chat_cell",
             privacyLevel: "local_chat_state",
             executionScope: "chat_cell",
@@ -1342,8 +1902,13 @@ enum BindingChatProviderRouter {
             endpoint: status?.isReadyForPhoneCodexQueue == true ? "haven-agent://codex/prompt-requests" : "cell:///agent/intents/inbox",
             sourceCellName: status?.isReadyForPhoneCodexQueue == true ? "HavenAgentDMCP" : "RemoteIntentInboxCell",
             actionKeypath: status?.isReadyForPhoneCodexQueue == true ? "agent.codex.next_prompt" : nil,
-            purposeRefs: ["personal.ai.provider.agent-bridge", "personal.chat.assist.local-agent-action"],
-            interests: ["agentd", "signed-intent", "local-review", "automation", "mcp", "phone-approval"],
+            purposeRefs: [
+                "personal.ai.provider.agent-bridge",
+                "personal.chat.assist.local-agent-action",
+                "personal.agent.email.compose-draft",
+                "personal.chat.assist.external-email-contact"
+            ],
+            interests: ["agentd", "signed-intent", "local-review", "automation", "mcp", "phone-approval", "email", "contact-fallback"],
             availability: availability,
             privacyLevel: "local_review_required",
             executionScope: "local_agent",
@@ -2492,6 +3057,319 @@ final class BindingContactEndpointCell: GeneralCell {
     }
 }
 
+final class BindingGraphIndexCell: GeneralCell {
+    nonisolated(unsafe) private var notesByID: [String: String]
+    nonisolated(unsafe) private var outgoing: [String: Set<String>]
+    nonisolated(unsafe) private var incoming: [String: Set<String>]
+
+    private enum CodingKeys: String, CodingKey {
+        case notesByID
+        case outgoing
+        case incoming
+        case generalCell
+    }
+
+    private struct GraphDocument {
+        var id: String
+        var content: String
+    }
+
+    private static let wikiLinkRegex = try? NSRegularExpression(
+        pattern: #"\[\[([^\[\]\|#]+)(?:\|[^\]]*)?\]\]"#
+    )
+
+    required init(owner: Identity) async {
+        self.notesByID = [:]
+        self.outgoing = [:]
+        self.incoming = [:]
+        await super.init(owner: owner)
+        await setup(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.notesByID = try container.decodeIfPresent([String: String].self, forKey: .notesByID) ?? [:]
+        self.outgoing = try container.decodeIfPresent([String: Set<String>].self, forKey: .outgoing) ?? [:]
+        self.incoming = try container.decodeIfPresent([String: Set<String>].self, forKey: .incoming) ?? [:]
+        try super.init(from: decoder)
+
+        Task {
+            await setup(owner: self.storedOwnerIdentity)
+        }
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(notesByID, forKey: .notesByID)
+        try container.encode(outgoing, forKey: .outgoing)
+        try container.encode(incoming, forKey: .incoming)
+    }
+
+    private func setup(owner: Identity) async {
+        agreementTemplate.addGrant("rw--", for: "graph")
+
+        for key in ["graph.state", "state"] {
+            await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
+                guard let self else { return .string("failure") }
+                return await self.readState(requester: requester)
+            }
+        }
+
+        for key in ["graph.state.node_count", "state.node_count"] {
+            await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("r---", at: "graph", for: requester) else { return .string("denied") }
+                return .integer(self.notesByID.count)
+            }
+        }
+
+        for key in ["graph.state.edge_count", "state.edge_count"] {
+            await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("r---", at: "graph", for: requester) else { return .string("denied") }
+                return .integer(self.totalEdgeCount())
+            }
+        }
+
+        for key in ["graph.state.operations", "state.operations"] {
+            await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("r---", at: "graph", for: requester) else { return .string("denied") }
+                return .list(Self.operations.map(ValueType.string))
+            }
+        }
+
+        for key in ["graph.reindex", "reindex"] {
+            await addInterceptForSet(requester: owner, key: key) { [weak self] _, value, requester in
+                guard let self else { return .string("failure") }
+                return await self.handleReindex(value: value, requester: requester)
+            }
+        }
+
+        for key in ["graph.outgoing", "outgoing"] {
+            await addInterceptForSet(requester: owner, key: key) { [weak self] _, value, requester in
+                guard let self else { return .string("failure") }
+                return await self.handleOutgoing(value: value, requester: requester)
+            }
+        }
+
+        for key in ["graph.incoming", "incoming"] {
+            await addInterceptForSet(requester: owner, key: key) { [weak self] _, value, requester in
+                guard let self else { return .string("failure") }
+                return await self.handleIncoming(value: value, requester: requester)
+            }
+        }
+
+        for key in ["graph.neighbors", "neighbors"] {
+            await addInterceptForSet(requester: owner, key: key) { [weak self] _, value, requester in
+                guard let self else { return .string("failure") }
+                return await self.handleNeighbors(value: value, requester: requester)
+            }
+        }
+    }
+
+    private static let operations = [
+        "graph.reindex",
+        "graph.outgoing",
+        "graph.incoming",
+        "graph.neighbors"
+    ]
+
+    private func readState(requester: Identity) async -> ValueType {
+        guard await validateAccess("r---", at: "graph", for: requester) else { return .string("denied") }
+        return statePayload()
+    }
+
+    private func statePayload() -> ValueType {
+        .object([
+            "status": .string("ok"),
+            "cell": .string("BindingGraphIndexCell"),
+            "canonicalCell": .string("GraphIndexCell"),
+            "node_count": .integer(notesByID.count),
+            "edge_count": .integer(totalEdgeCount()),
+            "operations": .list(Self.operations.map(ValueType.string))
+        ])
+    }
+
+    private func handleReindex(value: ValueType, requester: Identity) async -> ValueType {
+        let operation = "graph.reindex"
+        guard await validateAccess("-w--", at: "graph", for: requester) else { return .string("denied") }
+        guard let documents = parseDocuments(from: value) else {
+            return error(
+                operation: operation,
+                code: "validation_error",
+                message: "Expected payload with notes list",
+                field: "notes"
+            )
+        }
+
+        var notes: [String: String] = [:]
+        var newOutgoing: [String: Set<String>] = [:]
+        var newIncoming: [String: Set<String>] = [:]
+
+        for document in documents {
+            let id = document.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty else { continue }
+            notes[id] = document.content
+            newOutgoing[id] = []
+            newIncoming[id] = []
+        }
+
+        let noteIDs = Set(notes.keys)
+        for (id, content) in notes {
+            for target in extractWikiLinks(from: content) where noteIDs.contains(target) {
+                newOutgoing[id, default: []].insert(target)
+                newIncoming[target, default: []].insert(id)
+            }
+        }
+
+        notesByID = notes
+        outgoing = newOutgoing
+        incoming = newIncoming
+
+        return success(
+            operation: operation,
+            payload: .object([
+                "node_count": .integer(notesByID.count),
+                "edge_count": .integer(totalEdgeCount())
+            ])
+        )
+    }
+
+    private func handleOutgoing(value: ValueType, requester: Identity) async -> ValueType {
+        guard await validateAccess("-w--", at: "graph", for: requester) else { return .string("denied") }
+        return nodeQuery(value: value, operation: "graph.outgoing") { id in
+            Array(outgoing[id] ?? []).sorted()
+        }
+    }
+
+    private func handleIncoming(value: ValueType, requester: Identity) async -> ValueType {
+        guard await validateAccess("-w--", at: "graph", for: requester) else { return .string("denied") }
+        return nodeQuery(value: value, operation: "graph.incoming") { id in
+            Array(incoming[id] ?? []).sorted()
+        }
+    }
+
+    private func handleNeighbors(value: ValueType, requester: Identity) async -> ValueType {
+        let operation = "graph.neighbors"
+        guard await validateAccess("-w--", at: "graph", for: requester) else { return .string("denied") }
+        guard let id = parseNodeID(from: value), !id.isEmpty else {
+            return error(operation: operation, code: "validation_error", message: "Missing node id", field: "id")
+        }
+
+        let neighbors = Array((outgoing[id] ?? []).union(incoming[id] ?? [])).sorted()
+        return success(
+            operation: operation,
+            payload: .object([
+                "id": .string(id),
+                "count": .integer(neighbors.count),
+                "neighbors": .list(neighbors.map(ValueType.string))
+            ])
+        )
+    }
+
+    private func nodeQuery(
+        value: ValueType,
+        operation: String,
+        linksProvider: (String) -> [String]
+    ) -> ValueType {
+        guard let id = parseNodeID(from: value), !id.isEmpty else {
+            return error(operation: operation, code: "validation_error", message: "Missing node id", field: "id")
+        }
+
+        let links = linksProvider(id)
+        return success(
+            operation: operation,
+            payload: .object([
+                "id": .string(id),
+                "count": .integer(links.count),
+                "links": .list(links.map(ValueType.string))
+            ])
+        )
+    }
+
+    private func parseDocuments(from value: ValueType) -> [GraphDocument]? {
+        if case let .object(object) = value,
+           let nested = object["notes"] {
+            return parseDocumentList(from: nested)
+        }
+        return parseDocumentList(from: value)
+    }
+
+    private func parseDocumentList(from value: ValueType) -> [GraphDocument]? {
+        guard case let .list(items) = value else { return nil }
+        let documents = items.compactMap(parseDocument(from:))
+        return documents.count == items.count ? documents : nil
+    }
+
+    private func parseDocument(from value: ValueType) -> GraphDocument? {
+        guard case let .object(object) = value,
+              let id = string(from: object["id"]),
+              let content = string(from: object["content"]) else {
+            return nil
+        }
+        return GraphDocument(id: id, content: content)
+    }
+
+    private func parseNodeID(from value: ValueType) -> String? {
+        if let direct = string(from: value) { return direct }
+        guard case let .object(object) = value else { return nil }
+        return string(from: object["id"]) ?? string(from: object["note_id"])
+    }
+
+    private func extractWikiLinks(from markdown: String) -> [String] {
+        guard let regex = Self.wikiLinkRegex else { return [] }
+        let range = NSRange(location: 0, length: (markdown as NSString).length)
+        return regex.matches(in: markdown, options: [], range: range).compactMap { match in
+            guard match.numberOfRanges > 1,
+                  let swiftRange = Range(match.range(at: 1), in: markdown) else {
+                return nil
+            }
+            let token = markdown[swiftRange].trimmingCharacters(in: .whitespacesAndNewlines)
+            return token.isEmpty ? nil : token
+        }
+    }
+
+    private func totalEdgeCount() -> Int {
+        outgoing.values.reduce(0) { partial, links in
+            partial + links.count
+        }
+    }
+
+    private func string(from value: ValueType?) -> String? {
+        guard let value else { return nil }
+        if case let .string(text) = value {
+            return text
+        }
+        return nil
+    }
+
+    private func success(operation: String, payload: ValueType) -> ValueType {
+        .object([
+            "status": .string("ok"),
+            "operation": .string(operation),
+            "result": payload
+        ])
+    }
+
+    private func error(operation: String, code: String, message: String, field: String) -> ValueType {
+        .object([
+            "status": .string("error"),
+            "operation": .string(operation),
+            "code": .string(code),
+            "message": .string(message),
+            "field_errors": .list([
+                .object([
+                    "field": .string(field),
+                    "code": .string(code),
+                    "message": .string(message)
+                ])
+            ])
+        ])
+    }
+}
+
 final class BindingPersonalChatHubCell: GeneralCell {
     private enum CodingKeys: String, CodingKey {
         case cachedState
@@ -2613,6 +3491,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "ui.restoreComponentSurface",
             "ui.dismissComponentSurface",
             "ui.pinComponentSurface",
+            "ui.setCurrentThread",
             "ui.openMatchedResourceLibrary",
             "ui.clearPromptHistory",
             "ui.clearComponentSurfaces",
@@ -2837,6 +3716,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
         case "clearComposer":
             BindingChatValue.set(.string(""), for: "currentThread.composer.body", in: &cachedState)
             BindingChatValue.set(.string(""), for: "composer.body", in: &cachedState)
+            BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
+            BindingChatValue.set(.string(Self.defaultPrimaryActionHint), for: "ui.primaryActionHint", in: &cachedState)
             return response(status: "ok", message: "Composer cleared.")
         case "sendComposedMessage":
             return sendComposedMessage()
@@ -2858,6 +3739,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return markSurface(value, state: "dismissed")
         case "ui.pinComponentSurface":
             return pinSurface(value)
+        case "ui.setCurrentThread":
+            return setCurrentThread(value)
         case "ui.openMatchedResourceLibrary":
             return openMatchedResourceLibrary(value)
         case "ui.clearPromptHistory":
@@ -3108,11 +3991,14 @@ final class BindingPersonalChatHubCell: GeneralCell {
             ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
             ?? ""
         let capabilityDiscoveryEnabled = BindingChatValue.bool(BindingChatValue.nested("ui.capabilityDiscoveryEnabled", in: cachedState)) ?? false
+        let perspective = await perspectiveSummary(requester: requester)
+        let perspectiveContext = BindingChatPurposeContext
+            .from(value: .object(perspective), source: "Binding.PerspectiveCell.summary")
         let suggestion = BindingChatIntentClassifier.classify(
             prompt: draft,
-            capabilityDiscoveryEnabled: capabilityDiscoveryEnabled
+            capabilityDiscoveryEnabled: capabilityDiscoveryEnabled,
+            perspectiveContext: perspectiveContext
         )
-        let perspective = await perspectiveSummary(requester: requester)
         let providers = await scopedProviders(requester: requester)
         let resourceMatches = BindingChatIntentClassifier.resourceMatches(prompt: draft)
         let agentStatus = BindingHavenAgentDStatusProvider.snapshot()
@@ -3133,7 +4019,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             draft: draft,
             suggestion: suggestion,
             resourceMatches: resourceMatches,
-            perspectiveSummary: perspective
+            perspectiveSummary: perspective,
+            perspectiveContext: perspectiveContext
         )
         let promptUnderstanding = promptUnderstandingFrame(
             draft: draft,
@@ -3150,6 +4037,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "draft": .string(draft),
             "capabilityDiscoveryEnabled": .bool(capabilityDiscoveryEnabled),
             "perspectiveSummary": .object(perspective),
+            "perspectiveContext": .object(perspectiveContext.objectValue()),
             "purposeContext": .object(purposeContext),
             "promptUnderstanding": .object(promptUnderstanding),
             "agentStatus": .object(agentStatus.objectValue()),
@@ -3175,12 +4063,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
         let recommendationObject = recommendation.objectValue()
         let agentStatusObject = agentStatus.objectValue()
         let agentUseDecisionObject = agentUseDecision.objectValue()
+        let matchedConfiguration = resourceMatches.first(where: { BindingChatValue.string($0["kind"]) == "cell_configuration" })
         let portholeUI = BindingChatIntentClassifier.portholeUIRequest(for: draft)
-            ?? (suggestion.helperID == "resource-router"
-                ? resourceMatches.first(where: { BindingChatValue.string($0["kind"]) == "cell_configuration" }).map {
-                    BindingChatIntentClassifier.libraryUIRequest(for: $0, autoOpen: false)
-                }
-                : nil)
+            ?? matchedConfiguration.map { BindingChatIntentClassifier.libraryUIRequest(for: $0, autoOpen: false) }
         var assistantUpdates: Object = [
             "status": .string(suggestion.shouldSuggest ? "suggested" : "low_confidence"),
             "mode": .string("suggestion_first"),
@@ -3209,6 +4094,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
         for (key, update) in assistantUpdates {
             BindingChatValue.set(update, for: "assistant.\(key)", in: &cachedState)
         }
+        BindingChatValue.set(.bool(suggestion.shouldSuggest), for: "ui.hasActionableSuggestion", in: &cachedState)
+        BindingChatValue.set(.string(primaryActionHint(for: suggestion)), for: "ui.primaryActionHint", in: &cachedState)
         updateDraftsFromAnalysis(
             draft: draft,
             suggestion: suggestion,
@@ -3217,7 +4104,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
         appendPromptMessage(
             draft: draft,
             suggestion: suggestion,
-            groundedActionPlan: groundedActionPlan
+            groundedActionPlan: groundedActionPlan,
+            resourceMatches: resourceMatches
         )
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
@@ -3267,6 +4155,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         let knowledgeNeed = suggestion.helperID == "docs-rag"
             || resourceMatches.contains { BindingChatValue.string($0["kind"]) == "rag_case" }
         let resourceNeed = suggestion.helperID == "resource-router"
+            || suggestion.helperID == "mermaid-diagram"
             || resourceMatches.contains { BindingChatValue.string($0["kind"]) == "cell_configuration" }
         let speechAct: String
         if normalized.contains("?") || normalized.contains("hva") || normalized.contains("kan du") {
@@ -3304,24 +4193,40 @@ final class BindingPersonalChatHubCell: GeneralCell {
         draft: String,
         suggestion: BindingChatIntentClassification,
         resourceMatches: [Object],
-        perspectiveSummary: Object
+        perspectiveSummary: Object,
+        perspectiveContext: BindingChatPurposeContext
     ) -> Object {
-        let purposeRefs = Array(Set(([suggestion.purposeRef] + resourceMatches.flatMap { resource in
+        let directPurposeRefs = Array(Set(([suggestion.purposeRef] + resourceMatches.flatMap { resource in
             BindingChatValue.stringList(resource["purposeRefs"]) + [BindingChatValue.string(resource["purposeRef"])].compactMap { $0 }
         }).filter { $0.isEmpty == false })).sorted()
-        let interests = Array(Set((suggestion.interests + resourceMatches.flatMap {
+        let directInterests = Array(Set((suggestion.interests + resourceMatches.flatMap {
             BindingChatValue.stringList($0["interests"])
         }).filter { $0.isEmpty == false })).sorted()
+        let purposeRefs = Array(Set(directPurposeRefs + perspectiveContext.purposeRefs)).sorted()
+        let interests = Array(Set(directInterests + perspectiveContext.interests)).sorted()
         let activeStatus = BindingChatValue.string(perspectiveSummary["status"]) ?? "unavailable"
         let compactPurposeText = purposeRefs.prefix(5).joined(separator: " -> ")
         let compactInterestText = interests.prefix(8).joined(separator: ", ")
+        let summary: String
+        if directPurposeRefs.isEmpty == false {
+            summary = "Direkte purpose-hit: \(directPurposeRefs.prefix(5).joined(separator: " -> "))"
+        } else if perspectiveContext.purposeRefs.isEmpty == false {
+            summary = "Aktiv Perspective: \(perspectiveContext.purposeRefs.prefix(5).joined(separator: " -> "))"
+        } else {
+            summary = "Ingen direkte purpose-hit."
+        }
         return [
             "schema": .string("haven.purpose-context-pack.v0.binding-preview"),
             "source": .string("PerspectiveCell + Binding deterministic classifier"),
             "status": .string(activeStatus),
-            "summary": .string(compactPurposeText.isEmpty ? "Ingen direkte purpose-hit." : "Direkte purpose-hit: \(compactPurposeText)"),
+            "summary": .string(summary),
             "purposeRefs": .list(purposeRefs.map(ValueType.string)),
             "interests": .list(interests.map(ValueType.string)),
+            "directPurposeRefs": .list(directPurposeRefs.map(ValueType.string)),
+            "directInterests": .list(directInterests.map(ValueType.string)),
+            "activePerspectivePurposeRefs": .list(perspectiveContext.purposeRefs.map(ValueType.string)),
+            "activePerspectiveInterests": .list(perspectiveContext.interests.map(ValueType.string)),
+            "perspectiveContextSource": .string(perspectiveContext.source),
             "purposeTreeExcerpt": .string(compactPurposeText.isEmpty ? "purpose://prompt.unknown" : compactPurposeText),
             "interestTreeExcerpt": .string(compactInterestText.isEmpty ? "chat-assistant, requires-user-approval" : compactInterestText),
             "responseGuidance": .string("Svar med brukerord først, og vis formål bare som begrunnelse i avansert eller ved eksplisitt spørsmål."),
@@ -3355,7 +4260,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         case "meeting": actionKeypath = "chatHub.meeting.schedule"
         case "agent-review", "agent-setup": actionKeypath = "chatHub.agent.review.create"
         case "docs-rag": actionKeypath = "chatHub.docsRAG.askRAG"
-        case "resource-router": actionKeypath = "chatHub.ui.openMatchedResourceLibrary"
+        case "resource-router", "mermaid-diagram": actionKeypath = "chatHub.ui.openMatchedResourceLibrary"
         case "capability-request": actionKeypath = "chatHub.capabilityRequest.submit"
         default: actionKeypath = ""
         }
@@ -3391,11 +4296,11 @@ final class BindingPersonalChatHubCell: GeneralCell {
         }
         if suggestion.helperID == "work-item" {
             let title = String(draft.prefix(80)).trimmingCharacters(in: .whitespacesAndNewlines)
-            BindingChatValue.set(.string(title.isEmpty ? "Nytt work item fra Co-Pilot Chat" : title), for: "workbench.workItemDraft.title", in: &cachedState)
+            BindingChatValue.set(.string(title.isEmpty ? "Nytt work item fra Co-Pilot" : title), for: "workbench.workItemDraft.title", in: &cachedState)
             BindingChatValue.set(.string(draft), for: "workbench.workItemDraft.summary", in: &cachedState)
             BindingChatValue.set(.string(draft.lowercased().contains("bug") || draft.lowercased().contains("feil") ? "bug" : "task"), for: "workbench.workItemDraft.kind", in: &cachedState)
             BindingChatValue.set(.string("Binding"), for: "workbench.workItemDraft.repo", in: &cachedState)
-            BindingChatValue.set(.string("Co-Pilot Chat"), for: "workbench.workItemDraft.surface", in: &cachedState)
+            BindingChatValue.set(.string("Co-Pilot"), for: "workbench.workItemDraft.surface", in: &cachedState)
             BindingChatValue.set(.string("Registrer etter review"), for: "workbench.workItemDraft.nextAction", in: &cachedState)
         }
     }
@@ -3403,29 +4308,41 @@ final class BindingPersonalChatHubCell: GeneralCell {
     private func appendPromptMessage(
         draft: String,
         suggestion: BindingChatIntentClassification,
-        groundedActionPlan: Object
+        groundedActionPlan: Object,
+        resourceMatches: [Object]
     ) {
         guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
+        let threadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread"
+        let topResourceTitles = resourceMatches.compactMap { BindingChatValue.string($0["title"]) }
+        let resourceSummary = topResourceTitles.isEmpty ? "" : " Treff: \(topResourceTitles.prefix(3).joined(separator: ", "))."
+        let nextStep = BindingChatValue.string(groundedActionPlan["nextStep"]) ?? "continue_chat"
+        let assistantStatus = suggestion.shouldSuggest
+            ? "\(helperTitle(suggestion.helperID)) · \(nextStep)"
+            : nextStep
         let userMessage: Object = [
             "id": .string(UUID().uuidString),
             "speaker": .string("Du"),
             "body": .string(draft),
             "statusText": .string("Analysert lokalt"),
-            "kind": .string("user_prompt")
+            "kind": .string("user_prompt"),
+            "threadID": .string(threadID)
         ]
         let assistantMessage: Object = [
             "id": .string(UUID().uuidString),
             "speaker": .string("Co-Pilot"),
-            "body": .string(suggestion.explanation),
-            "statusText": .string(BindingChatValue.string(groundedActionPlan["nextStep"]) ?? "continue_chat"),
+            "body": .string("\(suggestion.explanation)\(resourceSummary)"),
+            "statusText": .string(assistantStatus),
             "kind": .string("assistant_suggestion"),
             "helperID": .string(suggestion.helperID),
+            "resourceMatchCount": .integer(resourceMatches.count),
+            "resourceTitles": .list(topResourceTitles.prefix(5).map(ValueType.string)),
+            "threadID": .string(threadID),
             "sideEffect": .bool(false)
         ]
         messages.append(.object(userMessage))
         messages.append(.object(assistantMessage))
-        BindingChatValue.set(.list(Array(messages.suffix(12))), for: "ui.promptMessages", in: &cachedState)
+        BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
     }
 
     private func explicitObjects(from draft: String) -> [String] {
@@ -3467,6 +4384,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
         var summary: Object = [
             "source": .string("PerspectiveCell"),
             "queries": .list([
+                .string("activePurpose"),
+                .string("perspective.state"),
                 .string("perspective.query.activePurposes"),
                 .string("perspective.query.interestsFromActivePurposes"),
                 .string("perspective.query.match")
@@ -3479,6 +4398,14 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return summary
         }
 
+        let activePurpose = try? await perspective.get(
+            keypath: "activePurpose",
+            requester: requester
+        )
+        let perspectiveState = try? await perspective.get(
+            keypath: "perspective.state",
+            requester: requester
+        )
         let active = try? await perspective.set(
             keypath: "perspective.query.activePurposes",
             value: .object(["referenceMode": .string("both")]),
@@ -3490,6 +4417,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             requester: requester
         )
         summary["status"] = .string("queried")
+        summary["activePurpose"] = activePurpose ?? .null
+        summary["perspectiveState"] = perspectiveState ?? .null
         summary["activePurposes"] = active ?? .null
         summary["interests"] = interests ?? .null
         return summary
@@ -3786,7 +4715,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "schema": .string("haven.personal.entity-extension.v1"),
             "status": .string("ready"),
             "query": .string(query ?? "tilgang enheter tjenester sky lokal agent ai rag capability entity extension"),
-            "surface": .string("Co-Pilot Chat"),
+            "surface": .string("Co-Pilot"),
             "summary": .string(Self.entityExtensionSummary(counts: counts)),
             "extensionCount": .integer(rows.count),
             "counts": .object(counts),
@@ -3931,7 +4860,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
     private func auditEvent(type: String, subjectID: String, summary: String) -> Object {
         [
             "type": .string(type),
-            "surface": .string("Co-Pilot Chat"),
+            "surface": .string("Co-Pilot"),
             "subjectID": .string(subjectID),
             "summary": .string(summary),
             "createdAt": .float(Date().timeIntervalSince1970)
@@ -3946,7 +4875,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "schema": .string("haven.personal.entity-extension.v1"),
             "status": .string("ready"),
             "query": .string("tilgang enheter tjenester sky lokal agent ai rag capability entity extension"),
-            "surface": .string("Co-Pilot Chat"),
+            "surface": .string("Co-Pilot"),
             "summary": .string(entityExtensionSummary(counts: counts)),
             "extensionCount": .integer(rows.count),
             "counts": .object(counts),
@@ -4000,11 +4929,11 @@ final class BindingPersonalChatHubCell: GeneralCell {
             [
                 "id": .string("configuration:binding-copilot-chat"),
                 "kind": .string("cell_configuration"),
-                "title": .string("Co-Pilot Chat"),
+                "title": .string("Co-Pilot"),
                 "summary": .string("Binding sin requester-visible chat workbench for PersonalChatHub."),
                 "sourceCellEndpoint": .string("cell:///PersonalChatHub"),
                 "sourceCellName": .string("BindingPersonalChatHubCell"),
-                "configurationName": .string("Co-Pilot Chat"),
+                "configurationName": .string("Co-Pilot"),
                 "executionScope": .string("cell_scope"),
                 "grantStatus": .string("visible_in_requester_scope"),
                 "availability": .string("visible_configuration"),
@@ -4162,7 +5091,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "summary": .string(provider.summary),
             "sourceCellEndpoint": provider.endpoint.map(ValueType.string) ?? .null,
             "sourceCellName": .string(provider.sourceCellName ?? "ChatScopedAIProvider"),
-            "configurationName": .string("Co-Pilot Chat AI Provider"),
+            "configurationName": .string("Co-Pilot AI Provider"),
             "executionScope": .string(provider.executionScope),
             "grantStatus": .string(provider.availability),
             "availability": .string(provider.availability),
@@ -4231,6 +5160,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
 
         let surface = helperSurface(kind: helper, source: "suggestion")
         appendSurface(surface)
+        BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
+        BindingChatValue.set(.string("\(helperTitle(helper)) er åpnet. Neste klikk inne i hjelperen bestemmer om noe lagres, sendes eller opprettes."), for: "ui.primaryActionHint", in: &cachedState)
         return .object([
             "ok": .bool(true),
             "helper": .string(helper),
@@ -4288,7 +5219,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             perspectiveSummary: [
                 "status": .string("not_queried"),
                 "reason": .string("openSuggestedHelper used direct composer fallback")
-            ]
+            ],
+            perspectiveContext: .empty
         )
         let promptUnderstanding = promptUnderstandingFrame(
             draft: draft,
@@ -4323,6 +5255,12 @@ final class BindingPersonalChatHubCell: GeneralCell {
         updateDraftsFromAnalysis(
             draft: draft,
             suggestion: suggestion,
+            resourceMatches: resourceMatches
+        )
+        appendPromptMessage(
+            draft: draft,
+            suggestion: suggestion,
+            groundedActionPlan: groundedActionPlan,
             resourceMatches: resourceMatches
         )
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
@@ -4414,6 +5352,45 @@ final class BindingPersonalChatHubCell: GeneralCell {
         return ""
     }
 
+    private func setCurrentThread(_ value: ValueType) -> ValueType {
+        let object = BindingChatValue.object(value)
+        let threadID = BindingChatValue.string(value)
+            ?? BindingChatValue.string(object?["threadID"])
+            ?? BindingChatValue.string(object?["id"])
+            ?? BindingChatValue.string(object?["value"])
+            ?? BindingChatValue.string(object?["selected"])
+            ?? BindingChatValue.string(object?["selectedValue"])
+        guard let threadID, threadID.isEmpty == false else {
+            return response(status: "blocked", message: "Velg en tråd først.")
+        }
+        let threads = BindingChatValue.list(BindingChatValue.nested("threads", in: cachedState)) ?? []
+        guard let selected = threads.compactMap(BindingChatValue.object).first(where: {
+            BindingChatValue.string($0["id"]) == threadID
+        }) else {
+            return response(status: "blocked", message: "Fant ikke den tråden i chat-scope.")
+        }
+        var currentThread = BindingChatValue.object(BindingChatValue.nested("currentThread", in: cachedState)) ?? [:]
+        for key in ["id", "title", "kind", "lastMessagePreview", "messageCount", "statusText", "updatedAt"] {
+            if let value = selected[key] {
+                currentThread[key] = value
+            }
+        }
+        if currentThread["composer"] == nil {
+            currentThread["composer"] = .object([
+                "body": .string(""),
+                "contentType": .string("text/plain")
+            ])
+        }
+        BindingChatValue.set(.object(currentThread), for: "currentThread", in: &cachedState)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("selected"),
+            "threadID": .string(threadID),
+            "sideEffect": .bool(false),
+            "state": .object(cachedState)
+        ])
+    }
+
     private func refreshActiveToolState(from surfaces: [ValueType]? = nil) {
         let sourceSurfaces = surfaces ?? BindingChatValue.list(BindingChatValue.nested("ui.componentSurfaces", in: cachedState)) ?? []
         let visibleSurfaces = sourceSurfaces.filter {
@@ -4484,6 +5461,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
         BindingChatValue.set(.object(empty), for: "assistant.latestSuggestion", in: &cachedState)
         BindingChatValue.set(.list([]), for: "assistant.suggestions", in: &cachedState)
         BindingChatValue.set(.string("dismissed"), for: "assistant.status", in: &cachedState)
+        BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
+        BindingChatValue.set(.string(Self.defaultPrimaryActionHint), for: "ui.primaryActionHint", in: &cachedState)
         return .object(["ok": .bool(true), "sideEffect": .bool(false)])
     }
 
@@ -4625,7 +5604,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         } else {
             resource = [
                 "id": object["resourceID"] ?? .string("configuration:copilot-chat"),
-                "title": object["configurationName"] ?? .string("Co-Pilot Chat"),
+                "title": object["configurationName"] ?? .string("Co-Pilot"),
                 "sourceCellEndpoint": object["sourceCellEndpoint"] ?? .string("cell:///PersonalChatHub")
             ]
         }
@@ -4724,18 +5703,84 @@ final class BindingPersonalChatHubCell: GeneralCell {
         guard (BindingChatValue.list(BindingChatValue.nested("blockedUsers", in: cachedState)) ?? []).isEmpty else {
             return response(status: "blocked", message: "Blocked chat participants cannot continue in this thread.")
         }
+        let sentAt = Date().timeIntervalSince1970
+        let threadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread"
+        let threadTitle = BindingChatValue.string(BindingChatValue.nested("currentThread.title", in: cachedState)) ?? "Co-Pilot"
         var messages = BindingChatValue.list(BindingChatValue.nested("messages", in: cachedState)) ?? []
         messages.append(.object([
             "id": .string(UUID().uuidString),
+            "threadID": .string(threadID),
+            "threadTitle": .string(threadTitle),
             "authorDisplayName": .string("Deg"),
             "body": .string(body),
-            "sentAt": .float(Date().timeIntervalSince1970)
+            "sentAt": .float(sentAt),
+            "statusText": .string("Sendt lokalt"),
+            "kind": .string("chat_message")
         ]))
         BindingChatValue.set(.list(messages), for: "messages", in: &cachedState)
         BindingChatValue.set(.integer(messages.count), for: "messageCount", in: &cachedState)
+        let threadMessageCount = messages.filter {
+            BindingChatValue.string(BindingChatValue.object($0)?["threadID"]) == threadID
+        }.count
+        upsertCurrentThread(
+            id: threadID,
+            title: threadTitle,
+            lastMessagePreview: body,
+            messageCount: threadMessageCount,
+            updatedAt: sentAt
+        )
         BindingChatValue.set(.string(""), for: "currentThread.composer.body", in: &cachedState)
         BindingChatValue.set(.string(""), for: "composer.body", in: &cachedState)
         return response(status: "ok", message: "Message sent locally.")
+    }
+
+    private func upsertCurrentThread(
+        id: String,
+        title: String,
+        lastMessagePreview: String,
+        messageCount: Int,
+        updatedAt: TimeInterval
+    ) {
+        let preview = String(lastMessagePreview.trimmingCharacters(in: .whitespacesAndNewlines).prefix(140))
+        let statusText = messageCount == 1 ? "1 melding" : "\(messageCount) meldinger"
+        let threadPatch: Object = [
+            "id": .string(id),
+            "title": .string(title),
+            "kind": .string("copilot_chat"),
+            "lastMessagePreview": .string(preview),
+            "messageCount": .integer(messageCount),
+            "statusText": .string(statusText),
+            "updatedAt": .float(updatedAt)
+        ]
+        var threads = BindingChatValue.list(BindingChatValue.nested("threads", in: cachedState)) ?? []
+        var replacedExistingThread = false
+        threads = threads.map { item in
+            guard var thread = BindingChatValue.object(item),
+                  BindingChatValue.string(thread["id"]) == id else {
+                return item
+            }
+            for (key, value) in threadPatch {
+                thread[key] = value
+            }
+            replacedExistingThread = true
+            return .object(thread)
+        }
+        if replacedExistingThread == false {
+            threads.append(.object(threadPatch))
+        }
+        var currentThread = BindingChatValue.object(BindingChatValue.nested("currentThread", in: cachedState)) ?? [:]
+        for (key, value) in threadPatch {
+            currentThread[key] = value
+        }
+        if currentThread["composer"] == nil {
+            currentThread["composer"] = .object([
+                "body": .string(""),
+                "contentType": .string("text/plain")
+            ])
+        }
+        BindingChatValue.set(.list(threads), for: "threads", in: &cachedState)
+        BindingChatValue.set(.integer(threads.count), for: "threadCount", in: &cachedState)
+        BindingChatValue.set(.object(currentThread), for: "currentThread", in: &cachedState)
     }
 
     private func setMeetingBridgeMetadata(_ value: ValueType) -> ValueType {
@@ -4760,7 +5805,6 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "status": .string("pending")
         ]))
         BindingChatValue.set(.list(invites), for: "invites", in: &cachedState)
-        BindingChatValue.set(.integer(invites.count), for: "threadCount", in: &cachedState)
         return .object([
             "status": .string("ok"),
             "message": .string("Invite created after explicit confirmation."),
@@ -4816,7 +5860,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 draft[field] = .string(fieldValue)
             }
         }
-        let title = BindingChatValue.string(draft["title"]) ?? "Nytt behov fra Co-Pilot Chat"
+        let title = BindingChatValue.string(draft["title"]) ?? "Nytt behov fra Co-Pilot"
         let destination = BindingChatValue.string(draft["destination"]) ?? "local-review"
         let request: Object = [
             "id": .string(UUID().uuidString),
@@ -4857,6 +5901,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return "agent-review"
         case "capabilityRequest.submit", "capability-request":
             return "capability-request"
+        case "mermaid-diagram":
+            return "mermaid-diagram"
         default:
             return actionOrHelper
         }
@@ -4894,7 +5940,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "id": .string(id),
             "kind": .string(kind),
             "title": .string(helperTitle(kind)),
-            "summary": .string("Apnet fra Co-Pilot Chat. Handling skjer bare etter eksplisitt brukerklikk."),
+            "summary": .string("Apnet fra Co-Pilot. Handling skjer bare etter eksplisitt brukerklikk."),
             "state": .string("open"),
             "grantStatus": .string("granted_in_chat_scope"),
             "source": .string(source),
@@ -4922,9 +5968,19 @@ final class BindingPersonalChatHubCell: GeneralCell {
         case "agent-setup": return "Agent-oppsett"
         case "capability-request": return "Meld behov"
         case "contact-endpoint": return "Kontakt-endepunkt"
+        case "mermaid-diagram": return "Mermaid diagram"
         case "resource-router": return "Finn verktøy"
         default: return "Hjelper"
         }
+    }
+
+    nonisolated private static let defaultPrimaryActionHint = "Trykk hovedknappen for at Co-Pilot skal lese bare dette utkastet og foreslå neste trygge steg. Ingenting sendes eller lagres."
+
+    private func primaryActionHint(for suggestion: BindingChatIntentClassification) -> String {
+        guard suggestion.shouldSuggest else {
+            return "Jeg fant ikke en trygg hjelper ennå. Skriv litt mer, eller åpne Mer for verktøy og avanserte valg."
+        }
+        return "Trykk hovedknappen for å åpne \(helperTitle(suggestion.helperID)) som privat hjelper. Lagre, sende eller opprette skjer først etter et eget klikk der."
     }
 
     private func text(from value: ValueType) -> String {
@@ -4952,8 +6008,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
 
     nonisolated static func initialState() -> Object {
         return [
-            "title": .string("Co-Pilot Chat"),
-            "status": .string("Co-Pilot Chat is ready."),
+            "title": .string("Co-Pilot"),
+            "status": .string("Co-Pilot is ready."),
             "threadCount": .integer(0),
             "messageCount": .integer(0),
             "inviteStatus": .string("not invited"),
@@ -4961,7 +6017,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "moderationStatus": .string("ready"),
             "currentThread": .object([
                 "id": .string("local-copilot-thread"),
-                "title": .string("Co-Pilot Chat"),
+                "title": .string("Co-Pilot"),
                 "composer": .object([
                     "body": .string(""),
                     "contentType": .string("text/plain")
@@ -5001,7 +6057,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     "project": .string(""),
                     "repo": .string("Binding"),
                     "cell": .string("cell:///PersonalChatHub"),
-                    "surface": .string("Co-Pilot Chat"),
+                    "surface": .string("Co-Pilot"),
                     "severity": .string("medium"),
                     "priority": .string("normal"),
                     "currentBehavior": .string(""),
@@ -5074,6 +6130,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "activeHelper": .string("invite"),
                 "activeHelpers": .list([]),
                 "activeHelperSummary": .string(""),
+                "hasActionableSuggestion": .bool(false),
+                "primaryActionHint": .string(Self.defaultPrimaryActionHint),
                 "hasActiveHelperSurface": .bool(false),
                 "activeComponentSurfaceID": .string(""),
                 "combinedChatView": .bool(true),
@@ -5082,7 +6140,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "capabilityDiscoveryEnabled": .bool(false),
                 "capabilityDiscoveryStatus": .string("off"),
                 "humanPresenceSummary": .string("Privat forslag forst; menneskechat oppdateres bare naar du sender eller inviterer."),
-                "promptOnlyReason": .string("Co-piloten leser bare ditt aktive utkast naar du klikker Finn forslag."),
+                "promptOnlyReason": .string("Co-piloten leser bare ditt aktive utkast naar du trykker hovedknappen."),
                 "tabs": .list([
                     .object(["id": .string("samtale"), "title": .string("Samtale")]),
                     .object(["id": .string("aktivt"), "title": .string("Aktivt")]),
@@ -5100,6 +6158,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     .object(["id": .string("invite"), "title": .string("Inviter")]),
                     .object(["id": .string("poll"), "title": .string("Avstemning")]),
                     .object(["id": .string("resource-router"), "title": .string("Finn verktøy")]),
+                    .object(["id": .string("mermaid-diagram"), "title": .string("Mermaid")]),
                     .object(["id": .string("docs-rag"), "title": .string("Docs/RAG")]),
                     .object(["id": .string("idea-capture"), "title": .string("Fang ide")]),
                     .object(["id": .string("work-item"), "title": .string("Work item")]),
@@ -5132,7 +6191,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     .object([
                         "badge": .string("Privat"),
                         "title": .string("Ditt utkast"),
-                        "summary": .string("Leses bare ved Finn forslag.")
+                        "summary": .string("Leses bare når du trykker hovedknappen.")
                     ])
                 ]),
                 "lastMotionEvent": .object([
@@ -5150,7 +6209,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "suggestions": .list([]),
                 "intentCandidates": .list([]),
                 "priorityIntent": .null,
-                "whySummary": .string("Skriv et utkast og trykk Finn forslag."),
+                "whySummary": .string("Skriv et utkast og trykk hovedknappen."),
                 "assistantProviders": .list([.object(BindingChatProviderRouter.localRulesProvider().objectValue())]),
                 "providerRecommendation": .object(BindingChatProviderRouter.localRulesProvider().objectValue()),
                 "providerCount": .integer(1),
@@ -5163,7 +6222,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     "knowledgeNeed": .bool(false),
                     "resourceNeed": .bool(false),
                     "ambiguity": .string("none"),
-                    "userGoal": .string("Skriv et utkast og trykk Send eller Finn forslag."),
+                    "userGoal": .string("Skriv et utkast og trykk hovedknappen."),
                     "recommendedNextStep": .string("compose_prompt")
                 ]),
                 "groundedActionPlan": .object([
@@ -5220,7 +6279,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 ])
             ]),
             "skeletonConfiguration": .object([
-                "name": .string("Co-Pilot Chat"),
+                "name": .string("Co-Pilot"),
                 "endpoint": .string("cell:///PersonalChatHub")
             ]),
             "updatedAt": .float(Date().timeIntervalSince1970)

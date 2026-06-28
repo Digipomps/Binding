@@ -90,12 +90,26 @@ frameworket eller modellen ikke er tilgjengelig, returnerer state
 Foer provider-kall bygger Binding et context-pack med:
 
 - aktiv chat-draft
+- `cell:///Perspective/activePurpose`
+- `cell:///Perspective/perspective.state`
 - `perspective.query.activePurposes` med `referenceMode = "both"`
 - `perspective.query.interestsFromActivePurposes`
 - granted descriptors for celler/tools i scope
 
 Prompten matches med direct purpose hit over interest hit over lexical fallback.
 Utilgjengelige celler tas ikke med i context-pack eller UI.
+
+Binding bruker samme mentale modell som CellScaffold sin `chatPurposeContext`:
+`activePurpose` og `perspective.state` blir normalisert til et lite
+`purposeRefs`/`interests`/`weights`-context. Dette contextet kan booste
+tvetydige oppfoelgingsprompt som "legg dette inn" naar Perspective allerede
+peker paa prosjekt, todo, ide eller graf/vault. Contextet gir ikke nye grants,
+leser ikke skjulte celler og muterer ikke Perspective under analyze/open.
+
+Kvalitetsregel for nye Co-Pilot-endringer: legg til en foer/etter-test der en
+tvetydig prompt uten Perspective er `low_confidence`, men samme prompt med
+aktivt relevant Perspective-formaal gir riktig hjelper og fortsatt
+`sideEffect=false`.
 
 ## Local LLM Strategy For iPhone/iPad
 

@@ -94,7 +94,7 @@ enum BindingRuntimeBootstrap {
         CellBase.webSocketSecurityPolicy = .requireTLS
 #endif
 
-        CellBase.documentRootPath = documentsDirectoryPath()
+        CellBase.documentRootPath = documentRootPath()
 
         if resolver.tcUtility == nil {
             let utility = TypedCellUtility(storage: FileSystemCellStorage())
@@ -164,8 +164,57 @@ enum BindingRuntimeBootstrap {
         return FileManager.default.fileExists(atPath: localRuntimeOnlyVerifierFlagPath)
     }
 
-    private static func documentsDirectoryPath() -> String {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.path ?? ""
+    nonisolated static func documentRootPath(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments,
+        fileManager: FileManager = .default
+    ) -> String {
+        let rootURL: URL
+        if shouldUseTemporaryDocumentRoot(environment: environment, launchArguments: launchArguments) {
+            rootURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("Binding/CellDocumentRoot", isDirectory: true)
+        } else if let applicationSupportURL = fileManager.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first {
+            rootURL = applicationSupportURL
+                .appendingPathComponent("Binding/CellDocumentRoot", isDirectory: true)
+        } else {
+            rootURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("Binding/CellDocumentRoot", isDirectory: true)
+        }
+
+        try? fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        return rootURL.path
+    }
+
+    nonisolated private static func shouldUseTemporaryDocumentRoot(
+        environment: [String: String],
+        launchArguments: [String]
+    ) -> Bool {
+        if shouldUseLocalRuntimeOnlyForVerifier(environment: environment, launchArguments: launchArguments) {
+            return true
+        }
+        if environment["XCTestConfigurationFilePath"] != nil {
+            return true
+        }
+        if boolEnvironmentFlag("CODEX_CI", in: environment)
+            || boolEnvironmentFlag("BINDING_FORCE_TEMP_DOCUMENT_ROOT", in: environment) {
+            return true
+        }
+        return false
+    }
+
+    nonisolated private static func boolEnvironmentFlag(
+        _ key: String,
+        in environment: [String: String]
+    ) -> Bool {
+        guard let rawValue = environment[key]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() else {
+            return false
+        }
+        return ["1", "true", "yes"].contains(rawValue)
     }
 }
 

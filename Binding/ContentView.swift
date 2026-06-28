@@ -69,9 +69,10 @@ nonisolated enum SkeletonBindingProbeSupport {
     }
 
     private static let skeletonElementKinds: Set<String> = [
-        "Text", "TextField", "TextArea", "List", "Object", "Reference",
-        "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
-        "ScrollView", "Section", "ZStack", "Grid", "Divider"
+        "Text", "AttachmentField", "FileUpload", "TextField", "TextArea",
+        "List", "Object", "Reference", "Toggle", "Picker", "Image",
+        "Button", "Spacer", "HStack", "VStack", "ScrollView", "Section",
+        "Tabs", "ZStack", "Grid", "Visualization", "Divider", "Unsupported"
     ]
     private static let readableBindingKeys: Set<String> = [
         "keypath",
@@ -286,7 +287,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case publishPublicProfile = "Publish Public Profile"
     case publicProfileDirectory = "Public Profile Directory"
     case matches = "Matches"
-    case inviteChat = "Co-Pilot Chat"
+    case inviteChat = "Co-Pilot"
     case agendaContext = "Agenda Context"
     case vaultIdeas = "Vault / Ideas"
     case meetingIntent = "Meeting Intent"
@@ -377,7 +378,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     static func matching(configurationName: String?) -> BindingPersonalCopilotDestination? {
         guard let configurationName else { return nil }
         let normalized = configurationName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalized == "invite chat" {
+        if normalized == "invite chat" || normalized == "co-pilot chat" {
             return .inviteChat
         }
         return allCases.first { $0.rawValue.lowercased() == normalized }
@@ -388,7 +389,10 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     }
 
     static func defaultDestination(for tab: BindingPersonalCopilotPhoneTab) -> BindingPersonalCopilotDestination {
-        destinations(for: tab).first ?? .personalHome
+        if tab == .matches {
+            return .matches
+        }
+        return destinations(for: tab).first ?? .personalHome
     }
 }
 
@@ -3364,7 +3368,7 @@ struct ContentView: View {
             }
             diagnosticsStore.record(
                 domain: "binding.demo",
-                message: "Oppgraderte lagret demo-start til nyeste Co-Pilot Chat-konfigurasjon."
+                message: "Oppgraderte lagret demo-start til nyeste Co-Pilot-konfigurasjon."
             )
         } else if decodedStoredConfiguration == nil {
             if let data = try? JSONEncoder().encode(storedConfiguration) {
@@ -3453,7 +3457,7 @@ struct ContentView: View {
             .lowercased()
 
         guard storedName == defaultName else { return false }
-        return defaultName == "co-pilot chat"
+        return defaultName == "co-pilot" || defaultName == "co-pilot chat"
     }
 
     @MainActor

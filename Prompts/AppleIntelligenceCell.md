@@ -8,6 +8,22 @@ Denne siden beskriver hvordan AppleIntelligenceCell eksponerer funksjonalitet vi
 - Intern logikk kaller direkte Apple Intelligence-API (AIAssistant) og bruker ikke `Meddle.get/set`
 - Publisering skjer via `pushFlowElement` til relevante topics
 
+## Co-Pilot context-policy
+Når AppleIntelligenceCell brukes fra Co-Pilot Chat, skal modellen bare få et
+minimalt context-pack fra chat-scope:
+
+- aktiv chat-draft
+- kompakt Perspective-summary fra `cell:///Perspective/activePurpose` og
+  `cell:///Perspective/perspective.state`
+- granted cell/tool descriptors som requesteren faktisk kan se
+
+Perspective er et kvalitetssignal for intent og ranking, ikke en capability i
+seg selv. Det kan forklare og booste et forslag for tvetydige oppfoelgingsprompt
+som "legg dette inn", men det skal ikke gi tilgang til andre drafts, vault,
+native kontakter, kalender, mikrofon, kamera eller andre traader. `analyze` og
+`open helper` maa forbli sideeffektfrie; enhver effektfull handling maa skje
+etter eksplisitt brukerbekreftelse.
+
 ## State (AI-subtree)
 Følgende nøkler eksisterer logisk under `ai.*` (tilstand forvaltes av AIAssistant):
 - `ai.status` – `"idle" | "discovering" | "ready" | "error"`
@@ -35,4 +51,3 @@ Eksempel retur (forenklet):
   "purposeClusterRefs": ["purpose://running"],
   "candidates": [ /* .cellConfiguration ... */ ]
 }
-

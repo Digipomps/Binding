@@ -55,6 +55,141 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(localState["requiresNetwork"]) == false)
     }
 
+    @Test func ownerScopedChatAndProviderCellsRejectForeignRequesterWithoutDebugBypass() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let identityVault = await BindingStartupIdentityVault.shared.initialize()
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = identityVault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let owner = try #require(await identityVault.identity(
+            for: "binding-chat-owner-scope-owner-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        let foreignRequester = try #require(await identityVault.identity(
+            for: "binding-chat-owner-scope-foreign-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let localLLM = await BindingLocalLLMCell(owner: owner)
+
+        let ownerFingerprint = try #require(owner.signingPublicKeyFingerprint)
+        #expect(chat.storedOwnerIdentity.uuid == owner.uuid)
+        #expect(chat.storedOwnerIdentity.signingPublicKeyFingerprint == ownerFingerprint)
+        #expect(apple.storedOwnerIdentity.uuid == owner.uuid)
+        #expect(apple.storedOwnerIdentity.signingPublicKeyFingerprint == ownerFingerprint)
+        #expect(localLLM.storedOwnerIdentity.uuid == owner.uuid)
+        #expect(localLLM.storedOwnerIdentity.signingPublicKeyFingerprint == ownerFingerprint)
+
+        await expectDenied {
+            try await chat.get(keypath: "state", requester: foreignRequester)
+        }
+        await expectDenied {
+            try await chat.set(
+                keypath: "assistant.analyzeDraft",
+                value: .object(["text": .string("lag en avstemning")]),
+                requester: foreignRequester
+            )
+        }
+
+        await expectDenied {
+            try await apple.get(keypath: "ai.state", requester: foreignRequester)
+        }
+        await expectDenied {
+            try await apple.set(
+                keypath: "ai.classifyIntent",
+                value: .object(["draft": .string("lag en oppgave")]),
+                requester: foreignRequester
+            )
+        }
+
+        await expectDenied {
+            try await localLLM.get(keypath: "state", requester: foreignRequester)
+        }
+        await expectDenied {
+            try await localLLM.set(
+                keypath: "llm.classifyIntent",
+                value: .object(["draft": .string("lag et prosjekt")]),
+                requester: foreignRequester
+            )
+        }
+    }
+
+    @Test func analyzeContextPackExcludesNativePrivateScopesAndOnlyListsScopedProviders() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let identityVault = await BindingStartupIdentityVault.shared.initialize()
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = identityVault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let owner = try #require(await identityVault.identity(
+            for: "binding-chat-context-pack-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+
+        let result = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object([
+                "text": .string("legg til oppgave: rydd Co-Pilot Chat og finn neste trygge steg")
+            ]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(result["sideEffect"]) == false)
+
+        let contextPack = try #require(asObject(result["contextPack"]))
+        let excludedScopes = asStringList(contextPack["excluded"])
+        for scope in [
+            "other_participant_drafts",
+            "native_contacts",
+            "calendar",
+            "microphone",
+            "camera",
+            "vault",
+            "other_threads"
+        ] {
+            #expect(excludedScopes.contains(scope))
+        }
+
+        let descriptors = try #require(asList(contextPack["availableDescriptors"]))
+        let descriptorObjects = descriptors.compactMap(asObject)
+        #expect(descriptorObjects.isEmpty == false)
+
+        let allowedProviderIDs: Set<String> = [
+            "chat.local-rules",
+            "binding.apple-intelligence",
+            "binding.local-llm"
+        ]
+        let providerIDs = descriptorObjects.compactMap { descriptor in
+            asString(descriptor["providerID"]) ?? asString(descriptor["id"])
+        }
+        #expect(providerIDs.isEmpty == false)
+        #expect(providerIDs.allSatisfy { allowedProviderIDs.contains($0) })
+
+        let descriptorJSON = try ValueType.list(descriptors).jsonString()
+        for forbidden in [
+            "native_contacts",
+            "calendar",
+            "microphone",
+            "camera",
+            "vault",
+            "other_threads",
+            "openai.4o-mini",
+            "cell:///AIGateway"
+        ] {
+            #expect(!descriptorJSON.contains(forbidden))
+        }
+    }
+
     @Test func contactEndpointCellAcceptsSignedRequestsAndRejectsReplay() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
@@ -375,6 +510,37 @@ struct ChatWorkbenchParityTests {
         #expect(asString(recommendation["kind"]) == "agent_bridge")
     }
 
+    @Test func analyzeDraftSurfacesHavenAgentDEmailDraftPurpose() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-agent-email")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let result = try #require(asObject(try await chat.set(
+            keypath: "assistant.analyzeDraft",
+            value: .object(["text": .string("Send e-post til ane@example.com og spør om vi kan ta en prat om HAVENAgentD.")]),
+            requester: owner
+        ) ?? .null))
+
+        let suggestion = try #require(asObject(result["suggestion"]))
+        #expect(asString(suggestion["kind"]) == "agent_email_draft")
+        #expect(asString(suggestion["helperID"]) == "agent-review")
+        #expect(asString(suggestion["purposeRef"]) == "personal.agent.email.compose-draft")
+        #expect(asStringList(suggestion["interests"]).contains("contact-fallback"))
+
+        let recommendation = try #require(asObject(result["providerRecommendation"]))
+        #expect(asString(recommendation["kind"]) == "agent_bridge")
+        #expect(asStringList(recommendation["purposeRefs"]).contains("personal.agent.email.compose-draft"))
+
+        let resources = try #require(asList(result["resourceMatches"]))
+        let emailResource = resources.compactMap { asObject($0) }.first {
+            asString($0["sourceCellName"]) == "AgentMailDraftCell"
+        }
+        #expect(asString(emailResource?["sourceCellEndpoint"]) == "cell:///agent/email/outbox")
+        #expect(asString(emailResource?["actionKeypath"]) == "draftIntent")
+    }
+
     @Test func analyzeDraftDoesNotSuggestAgentForOrdinaryCodeExplanation() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
@@ -483,6 +649,82 @@ struct ChatWorkbenchParityTests {
         #expect(counters(.object(state)) == before)
     }
 
+    @Test func perspectiveActivePurposeImprovesAmbiguousPromptRoutingWithoutSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousResolver = CellBase.defaultCellResolver
+        let previousVault = CellBase.defaultIdentityVault
+        CellBase.debugValidateAccessForEverything = true
+        CellBase.defaultCellResolver = nil
+        CellBase.defaultIdentityVault = nil
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultCellResolver = previousResolver
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let plain = BindingChatIntentClassifier.classify(prompt: "legg dette inn")
+        #expect(plain.status == "low_confidence")
+        #expect(plain.helperID.isEmpty)
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        let resolver = try #require(CellBase.defaultCellResolver as? CellResolver)
+        let owner = try #require(await CellBase.defaultIdentityVault?.identity(
+            for: "binding-chat-perspective-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        let perspective = try #require(try await resolver.cellAtEndpoint(
+            endpoint: "cell:///Perspective",
+            requester: owner
+        ) as? Meddle)
+        let added = try #require(asObject(try await perspective.set(
+            keypath: "addPurpose",
+            value: .object([
+                "purpose": .object([
+                    "name": .string("personal.chat.assist.project"),
+                    "description": .string("Project planning context for ambiguous Co-Pilot follow-up prompts."),
+                    "types": .list([]),
+                    "subTypes": .list([]),
+                    "parts": .list([]),
+                    "partOf": .list([]),
+                    "purposes": .list([]),
+                    "interests": .list([]),
+                    "entities": .list([]),
+                    "states": .list([])
+                ]),
+                "purposeWeight": .float(0.92)
+            ]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(added["status"]) == "ok")
+
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let before = counters(try await chat.get(keypath: "state", requester: owner))
+        let analyzed = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object(["text": .string("legg dette inn")]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asBool(analyzed["sideEffect"]) == false)
+        let suggestion = try #require(asObject(analyzed["suggestion"]))
+        #expect(asString(suggestion["helperID"]) == "project")
+        #expect(asString(suggestion["purposeRef"]) == "personal.chat.assist.project")
+        #expect(asString(suggestion["status"]) == "suggested")
+        #expect((asString(suggestion["reason"]) ?? "").contains("Perspective"))
+
+        let purposeContext = try #require(asObject(analyzed["purposeContext"]))
+        #expect(asStringList(purposeContext["activePerspectivePurposeRefs"]).contains("personal.chat.assist.project"))
+        #expect(asString(purposeContext["purposeTreeExcerpt"])?.contains("personal.chat.assist.project") == true)
+        let contextPack = try #require(asObject(analyzed["contextPack"]))
+        let perspectiveContext = try #require(asObject(contextPack["perspectiveContext"]))
+        #expect(asBool(perspectiveContext["isEmpty"]) == false)
+        #expect(asStringList(perspectiveContext["purposeRefs"]).contains("personal.chat.assist.project"))
+
+        let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        #expect(counters(.object(state)) == before)
+    }
+
     @Test func docsRAGHelperIsDiscoverableAndSideEffectFreeUntilExplicitAsk() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = false
@@ -562,6 +804,168 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(openedUI["hasActiveHelperSurface"]) == true)
         #expect((asList(openedUI["activeHelpers"]) ?? []).contains { asString(asObject($0)?["id"]) == "poll" })
         #expect(counters(.object(openedState)) == before)
+    }
+
+    @Test func iOSStyleComposerAnalyzeAndOpenFindsCoreHelpers() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let scenarios: [(prompt: String, helper: String, purpose: String)] = [
+            ("lagre ide: iOS Co-Pilot bør finne hjelpere fra prompt", "idea-capture", "personal.chat.assist.idea.capture"),
+            ("legg til oppgave: test Åpne hjelper på iPhone", "todo", "personal.chat.assist.todo"),
+            ("lag prosjektplan for Binding Co-Pilot parity", "project", "personal.chat.assist.project"),
+            ("vis ideer prosjektstyring og Obsidian graf i vault", "resource-router", "personal.knowledge.graph.index")
+        ]
+
+        for scenario in scenarios {
+            let owner = await signedOwner("binding-chat-ios-helper-\(scenario.helper)")
+            let chat = await BindingPersonalChatHubCell(owner: owner)
+            let before = counters(try await chat.get(keypath: "state", requester: owner))
+
+            _ = try await chat.set(
+                keypath: "chatHub.setComposer",
+                value: .string(scenario.prompt),
+                requester: owner
+            )
+            let analyze = try #require(asObject(try await chat.set(
+                keypath: "chatHub.assistant.analyzeDraft",
+                value: .object([:]),
+                requester: owner
+            ) ?? .null))
+            #expect(asBool(analyze["sideEffect"]) == false)
+            #expect(asString(asObject(analyze["suggestion"])?["helperID"]) == scenario.helper)
+            #expect(asString(asObject(analyze["suggestion"])?["purposeRef"]) == scenario.purpose)
+            let analyzedState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+            let analyzedUI = try #require(asObject(analyzedState["ui"]))
+            #expect(asBool(analyzedUI["hasActionableSuggestion"]) == true)
+            #expect((asString(analyzedUI["primaryActionHint"]) ?? "").contains("Trykk hovedknappen"))
+
+            let open = try #require(asObject(try await chat.set(
+                keypath: "chatHub.ui.openSuggestedHelper",
+                value: .object([:]),
+                requester: owner
+            ) ?? .null))
+            #expect(asBool(open["ok"]) == true)
+            #expect(asBool(open["sideEffect"]) == false)
+            #expect(asString(open["helper"]) == scenario.helper)
+
+            let openedState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+            let openedUI = try #require(asObject(openedState["ui"]))
+            #expect(asBool(openedUI["hasActiveHelperSurface"]) == true)
+            #expect(asBool(openedUI["hasActionableSuggestion"]) == false)
+            #expect(asString(openedUI["activeTab"]) == "samtale")
+            #expect((asList(openedUI["activeHelpers"]) ?? []).contains { asString(asObject($0)?["id"]) == scenario.helper })
+            #expect(counters(.object(openedState)) == before)
+        }
+    }
+
+    @Test func vaultIdeasAndObsidianGraphPromptsRouteToLocalSurfaces() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-vault-graph-routing")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+
+        let vault = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object(["text": .string("vis ideer og prosjektstyring i vault")]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(vault["sideEffect"]) == false)
+        #expect(asString(asObject(vault["suggestion"])?["helperID"]) == "resource-router")
+        #expect(asString(asObject(vault["suggestion"])?["purposeRef"]) == "personal.vault.ideas.projects")
+        #expect((asList(vault["resourceMatches"]) ?? []).contains {
+            asString(asObject($0)?["id"]) == "configuration:vault-ideas"
+        })
+
+        let graph = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object(["text": .string("åpne obsidian grafen og render knowledge graph")]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(graph["sideEffect"]) == false)
+        #expect(asString(asObject(graph["suggestion"])?["helperID"]) == "resource-router")
+        #expect(asString(asObject(graph["suggestion"])?["purposeRef"]) == "personal.knowledge.graph.index")
+        #expect((asList(graph["resourceMatches"]) ?? []).contains {
+            asString(asObject($0)?["id"]) == "configuration:graph-index"
+        })
+    }
+
+    @Test func vaultAndGraphIndexResolveAndRenderInBindingContract() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousResolver = CellBase.defaultCellResolver
+        let previousVault = CellBase.defaultIdentityVault
+        CellBase.debugValidateAccessForEverything = true
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultCellResolver = previousResolver
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+        let identityVault = await BindingStartupIdentityVault.shared.initialize()
+        CellBase.defaultIdentityVault = identityVault
+        let ownerIdentity = await identityVault.identity(
+            for: "binding-vault-graph-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        )
+        let owner = try #require(ownerIdentity)
+
+        let vault = try #require(try await resolver.cellAtEndpoint(
+            endpoint: "cell:///Vault",
+            requester: owner
+        ) as? Meddle)
+        let graph = try #require(try await resolver.cellAtEndpoint(
+            endpoint: "cell:///GraphIndex",
+            requester: owner
+        ) as? Meddle)
+
+        let note = try #require(asObject(try await vault.set(
+            keypath: "vault.note.create",
+            value: .object([
+                "id": .string("binding-idea"),
+                "title": .string("Binding idea"),
+                "content": .string("Ide koblet til [[binding-project]]."),
+                "tags": .list([.string("idea"), .string("project")]),
+                "createdAtEpochMs": .integer(0),
+                "updatedAtEpochMs": .integer(0)
+            ]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(note["status"]) == "ok")
+        let vaultState = try #require(asObject(try await vault.get(keypath: "vault.state", requester: owner)))
+        #expect((asInt(vaultState["note_count"]) ?? 0) >= 1)
+
+        _ = try await graph.set(
+            keypath: "graph.reindex",
+            value: .object([
+                "notes": .list([
+                    .object(["id": .string("binding-idea"), "content": .string("Ide koblet til [[binding-project]].")]),
+                    .object(["id": .string("binding-project"), "content": .string("Prosjekt koblet til [[next-step]].")]),
+                    .object(["id": .string("next-step"), "content": .string("Neste steg.")])
+                ])
+            ]),
+            requester: owner
+        )
+        let graphState = try #require(asObject(try await graph.get(keypath: "graph.state", requester: owner)))
+        #expect(asInt(graphState["node_count"]) == 3)
+        #expect(asInt(graphState["edge_count"]) == 2)
+
+        let configuration = ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+        #expect(configuration.cellReferences?.contains {
+            $0.label == "vault" && $0.endpoint == "cell:///Vault"
+        } == true)
+        #expect(configuration.cellReferences?.contains {
+            $0.label == "graph" && $0.endpoint == "cell:///GraphIndex"
+        } == true)
+        let skeletonText = try #require(encodedSkeletonString(configuration.skeleton))
+        #expect(skeletonText.contains("\"kind\":\"graph\""))
+        #expect(skeletonText.contains("graph.reindex"))
+        #expect(skeletonText.contains("vault.vault.state.notes"))
     }
 
     @Test func workItemHelperOnlyCreatesModuleOnExplicitCapture() async throws {
@@ -840,7 +1244,7 @@ struct ChatWorkbenchParityTests {
         ) ?? .null))
         let suggestion = try #require(asObject(mermaid["suggestion"]))
         #expect(asString(suggestion["kind"]) == "resource_match")
-        #expect(asString(suggestion["helperID"]) == "resource-router")
+        #expect(asString(suggestion["helperID"]) == "mermaid-diagram")
         #expect(asString(suggestion["purposeRef"]) == "personal.diagram.mermaid.render")
         let matches = try #require(asList(mermaid["resourceMatches"]))
         #expect(matches.contains {
@@ -853,6 +1257,30 @@ struct ChatWorkbenchParityTests {
         let libraryPrompt = try #require(asObject(mermaid["portholeUI"]))
         #expect(asBool(libraryPrompt["openLibrary"]) == false)
         #expect(asString(libraryPrompt["configurationName"]) == "Mermaid Renderer Playground")
+        let stateAfterAnalysis = try #require(asObject(try await chat.get(keypath: "state", requester: owner)))
+        let promptMessages = asList(asObject(stateAfterAnalysis["ui"])?["promptMessages"]) ?? []
+        #expect(promptMessages.contains {
+            let row = asObject($0)
+            return asString(row?["helperID"]) == "mermaid-diagram"
+                && (asString(row?["body"]) ?? "").contains("Mermaid Renderer Playground")
+        })
+
+        let beforeOpen = counters(.object(stateAfterAnalysis))
+        let opened = try #require(asObject(try await chat.set(
+            keypath: "ui.openSuggestedHelper",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(opened["sideEffect"]) == false)
+        #expect(asString(opened["helper"]) == "mermaid-diagram")
+        let openedState = try #require(asObject(opened["state"]))
+        let openedUI = try #require(asObject(openedState["ui"]))
+        #expect(asString(openedUI["activeTab"]) == "samtale")
+        #expect(asString(openedUI["activeHelper"]) == "mermaid-diagram")
+        #expect(asList(openedUI["activeHelpers"])?.contains {
+            asString(asObject($0)?["id"]) == "mermaid-diagram"
+        } == true)
+        #expect(counters(.object(openedState)) == beforeOpen)
 
         let query = try #require(asObject(try await chat.set(
             keypath: "assistant.queryResource",
@@ -875,6 +1303,53 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(portholeUI["openLibrary"]) == true)
         #expect((asList(portholeUI["expandMenus"]) ?? []).count >= 3)
         #expect(asString(asObject(porthole["suggestion"])?["status"]) == "low_confidence")
+    }
+
+    @Test func sendComposedMessageCreatesThreadReadModel() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-thread-readmodel")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+
+        #expect(asList(try await chat.get(keypath: "threads", requester: owner))?.isEmpty == true)
+        _ = try await chat.set(keypath: "acceptInvite", value: .object([:]), requester: owner)
+        _ = try await chat.set(
+            keypath: "setComposer",
+            value: .string("Hei, la oss teste trådloggen"),
+            requester: owner
+        )
+        let sent = try #require(asObject(try await chat.set(
+            keypath: "sendComposedMessage",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(sent["status"]) == "ok")
+
+        let state = try #require(asObject(try await chat.get(keypath: "state", requester: owner)))
+        let messages = try #require(asList(state["messages"]))
+        let firstMessage = try #require(asObject(messages.first))
+        #expect(asString(firstMessage["threadID"]) == "local-copilot-thread")
+        #expect(asString(firstMessage["body"]) == "Hei, la oss teste trådloggen")
+        let threads = try #require(asList(state["threads"]))
+        #expect(threads.count == 1)
+        let firstThread = try #require(asObject(threads.first))
+        #expect(asString(firstThread["id"]) == "local-copilot-thread")
+        #expect(asString(firstThread["lastMessagePreview"])?.contains("teste trådloggen") == true)
+        #expect(asInt(firstThread["messageCount"]) == 1)
+        #expect(asInt(state["threadCount"]) == 1)
+        let currentThread = try #require(asObject(state["currentThread"]))
+        #expect(asInt(currentThread["messageCount"]) == 1)
+        #expect(asString(asObject(currentThread["composer"])?["body"]) == "")
+
+        let selected = try #require(asObject(try await chat.set(
+            keypath: "ui.setCurrentThread",
+            value: .string("local-copilot-thread"),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(selected["sideEffect"]) == false)
+        #expect(asString(selected["threadID"]) == "local-copilot-thread")
     }
 
     @Test func providerEvaluationRunnerUsesCellScaffoldFixtureForLocalProviders() async throws {
@@ -981,6 +1456,26 @@ struct ChatWorkbenchParityTests {
         let requester = await vault.identity(for: "binding-contact-requester-\(UUID().uuidString)", makeNewIfNotFound: true)!
         CellBase.defaultIdentityVault = previousVault
         return (owner, requester)
+    }
+}
+
+private func encodedSkeletonString(_ skeleton: SkeletonElement?) -> String? {
+    guard let skeleton,
+          let data = try? JSONEncoder().encode(skeleton) else {
+        return nil
+    }
+    return String(decoding: data, as: UTF8.self)
+}
+
+private func expectDenied(_ action: () async throws -> ValueType?) async {
+    do {
+        let value = try await action() ?? .null
+        #expect(asString(value) == "denied")
+    } catch CellAuthorizationError.denied(let decision) {
+        #expect(decision.allowed == false)
+        #expect(decision.requiredAction != nil)
+    } catch {
+        #expect(Bool(false))
     }
 }
 

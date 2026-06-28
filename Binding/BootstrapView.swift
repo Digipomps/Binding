@@ -14,6 +14,8 @@ actor BindingLocalCellRegistration {
     private static let warmupStateTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let safeConferenceWarmupEndpoints: [String] = [
         "cell:///Perspective",
+        "cell:///Vault",
+        "cell:///GraphIndex",
         "cell:///PersonalAgendaContext",
         "cell:///ConferenceParticipantPreviewShell",
         "cell:///ConferenceParticipantAgendaSnapshot",
@@ -52,6 +54,7 @@ actor BindingLocalCellRegistration {
         let task = Task {
             let resolver = CellResolver.sharedInstance
             await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
+            await Self.registerVaultGraphLocalCells(on: resolver)
             // Keep the launch path free of LocalAuthentication and keychain
             // prompts. Ask CellApple to prepare its core runtime using the
             // existing startup vault instead of forcing IdentityVault.init.
@@ -83,6 +86,7 @@ actor BindingLocalCellRegistration {
         let task = Task {
             let resolver = CellResolver.sharedInstance
             await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
+            await Self.registerVaultGraphLocalCells(on: resolver)
             await AppInitializer.initialize()
             await Self.registerAll(on: resolver)
             await ensureLocallyRegistered()
@@ -220,6 +224,7 @@ actor BindingLocalCellRegistration {
             type: PerspectiveCell.self,
             resolver: resolver
         )
+        await registerVaultGraphLocalCells(on: resolver)
         await register(
             name: "PersonalAgendaContext",
             cellScope: .identityUnique,
@@ -298,6 +303,14 @@ actor BindingLocalCellRegistration {
             persistency: .persistant,
             identityDomain: "private",
             type: PersonalPrivacyAuditLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "PersonalUsageQuota",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalUsageQuotaLocalCell.self,
             resolver: resolver
         )
         await register(
@@ -459,6 +472,25 @@ actor BindingLocalCellRegistration {
             persistency: persistency,
             identityDomain: "private",
             type: BindingContactEndpointCell.self,
+            resolver: resolver
+        )
+    }
+
+    private static func registerVaultGraphLocalCells(on resolver: CellResolver) async {
+        await register(
+            name: "Vault",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: VaultCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "GraphIndex",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingGraphIndexCell.self,
             resolver: resolver
         )
     }
@@ -1531,6 +1563,8 @@ private final class PersonalCopilotNavigatorLocalCell: PersonalCopilotLocalCell 
 
     private func configuration(for actionKeypath: String) -> CellConfiguration? {
         switch actionKeypath {
+        case "navigator.openCopilot":
+            return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         case "navigator.openMyProfile":
             return ConfigurationCatalogCell.personalProfileMenuConfiguration()
         case "navigator.openPublishPublicProfile":
@@ -1540,6 +1574,276 @@ private final class PersonalCopilotNavigatorLocalCell: PersonalCopilotLocalCell 
         default:
             return nil
         }
+    }
+}
+
+private final class PersonalUsageQuotaLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        ["state", "policy", "balance", "topUp"]
+    }
+
+    override var writableKeys: [String] {
+        ["requestTopUp", "recordRemoteSnapshot", "applyPolicyUpdate"]
+    }
+
+    nonisolated override func initialState() -> Object {
+        let now = Date().timeIntervalSince1970
+        return [
+            "title": .string("Brukskvote"),
+            "status": .string("Klar. Binding viser registrert brukskvote og rettighetsstatus."),
+            "productVariant": .string("usage_quota"),
+            "paymentRole": .string("entitlement_client"),
+            "transferability": .string("none"),
+            "cashOut": .bool(false),
+            "externalAcceptance": .bool(false),
+            "nativePurchaseCTA": .string("disabled"),
+            "unitModel": .object(Self.unitModelObject()),
+            "balance": .object(Self.defaultBalanceObject(updatedAt: now)),
+            "policy": .object(Self.defaultPolicyObject(updatedAt: now)),
+            "topUp": .object(Self.defaultTopUpObject(updatedAt: now)),
+            "hardStops": .list([
+                .string("no_p2p_transfer"),
+                .string("no_cash_out"),
+                .string("no_external_acceptance"),
+                .string("no_native_purchase_cta_in_app_store_mode"),
+                .string("no_psp_direct_wallet_write")
+            ]),
+            "updatedAt": .float(now)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "requestTopUp":
+            return handleTopUpRequest(value)
+        case "recordRemoteSnapshot":
+            return recordRemoteSnapshot(value)
+        case "applyPolicyUpdate":
+            return applyPolicyUpdate(value)
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func handleTopUpRequest(_ value: ValueType) -> ValueType {
+        let request = objectValue(value) ?? [:]
+        let amountMinorUnits = intValue(request["amountMinorUnits"]) ?? 0
+        let rail = normalizedRail(optionalStringValue(request["rail"]) ?? "stripe_checkout")
+        let now = Date().timeIntervalSince1970
+
+        guard amountMinorUnits > 0 else {
+            return response(status: "error", message: "Brukskvote-forespørsel krever et positivt beløp.")
+        }
+
+        var topUp = topUpObject()
+        topUp["lastRequestedAmountMinorUnits"] = .integer(amountMinorUnits)
+        topUp["lastRequestedRail"] = .string(rail)
+        topUp["lastRequestedAt"] = .float(now)
+        topUp["providerRole"] = .string("external_top_up_only")
+        topUp["checkoutEndpoint"] = .string("/chat-mvp/api/top-up/checkout")
+        topUp["nativePurchaseCTA"] = .string("disabled")
+
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            topUp["status"] = .string("blocked_in_app_store_mode")
+            topUp["nextStep"] = .string("Binding kan fortsette når en gyldig brukskvote er registrert.")
+            mergeState([
+                "topUp": .object(topUp),
+                "lastAction": .string("requestTopUp"),
+                "updatedAt": .float(now)
+            ])
+            return response(status: "blocked", message: "Brukskvote-påfyll er ikke tilgjengelig i denne Binding-flaten.")
+        }
+
+        topUp["status"] = .string("checkout_delegated")
+        topUp["nextStep"] = .string("Åpne påfyll i CellScaffold og registrer signert brukskvotehendelse når den er bekreftet.")
+        mergeState([
+            "topUp": .object(topUp),
+            "lastAction": .string("requestTopUp"),
+            "updatedAt": .float(now)
+        ])
+        return .object([
+            "status": .string("delegated"),
+            "providerRole": .string("external_top_up_only"),
+            "checkoutEndpoint": .string("/chat-mvp/api/top-up/checkout"),
+            "amountMinorUnits": .integer(amountMinorUnits),
+            "rail": .string(rail),
+            "requiresServerCheckout": .bool(true),
+            "state": .object(stateObject())
+        ])
+    }
+
+    private func recordRemoteSnapshot(_ value: ValueType) -> ValueType {
+        guard var snapshot = objectValue(value) else {
+            return response(status: "error", message: "Remote usage-quota snapshot must be an object.")
+        }
+
+        let variant = optionalStringValue(snapshot["productVariant"]) ?? "usage_quota"
+        guard variant == "usage_quota" || variant == "access_entitlement" else {
+            return response(status: "blocked", message: "Rejected money-like remote snapshot variant.")
+        }
+
+        snapshot["productVariant"] = .string(variant)
+        snapshot["transferability"] = .string("none")
+        snapshot["cashOut"] = .bool(false)
+        snapshot["externalAcceptance"] = .bool(false)
+        snapshot["updatedAt"] = .float(Date().timeIntervalSince1970)
+
+        var state = stateObject()
+        if let balance = objectValue(snapshot["balance"]) {
+            state["balance"] = .object(normalizedBalanceObject(balance))
+        }
+        state["remoteSnapshot"] = .object(snapshot)
+        state["lastAction"] = .string("recordRemoteSnapshot")
+        replaceState(state)
+        return response(status: "ok", message: "Remote usage-quota snapshot recorded.")
+    }
+
+    private func applyPolicyUpdate(_ value: ValueType) -> ValueType {
+        guard let update = objectValue(value) else {
+            return response(status: "error", message: "Policy update must be an object.")
+        }
+
+        var policy = policyObject()
+        for (key, value) in update {
+            switch key {
+            case "monthlyTopUpCapMinorUnits", "maxSpendPerActionMinorUnits", "receiptMode", "lowBalanceBehavior":
+                policy[key] = value
+            default:
+                continue
+            }
+        }
+        policy["productVariant"] = .string("usage_quota")
+        policy["transferability"] = .string("none")
+        policy["cashOut"] = .bool(false)
+        policy["externalAcceptance"] = .bool(false)
+        policy["autoTopUpEnabled"] = .bool(false)
+        policy["updatedAt"] = .float(Date().timeIntervalSince1970)
+
+        mergeState([
+            "policy": .object(policy),
+            "lastAction": .string("applyPolicyUpdate")
+        ])
+        return response(status: "ok", message: "Usage-quota policy updated locally.")
+    }
+
+    private func policyObject() -> Object {
+        objectValue(stateValue(for: "policy")) ?? Self.defaultPolicyObject(updatedAt: Date().timeIntervalSince1970)
+    }
+
+    private func topUpObject() -> Object {
+        objectValue(stateValue(for: "topUp")) ?? Self.defaultTopUpObject(updatedAt: Date().timeIntervalSince1970)
+    }
+
+    private func normalizedBalanceObject(_ raw: Object) -> Object {
+        let now = Date().timeIntervalSince1970
+        return [
+            "quotaUnits": .integer(max(0, intValue(raw["quotaUnits"]) ?? intValue(raw["tokenUnits"]) ?? 0)),
+            "settlementMinorUnits": .integer(max(0, intValue(raw["settlementMinorUnits"]) ?? intValue(raw["balanceMinorUnits"]) ?? 0)),
+            "currency": .string(optionalStringValue(raw["currency"]) ?? "NOK"),
+            "source": .string(optionalStringValue(raw["source"]) ?? "cellscaffold"),
+            "updatedAt": .float(now)
+        ]
+    }
+
+    private func normalizedRail(_ raw: String) -> String {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "stripe", "stripe_card", "stripe_apple_pay", "stripe_google_pay":
+            return "stripe_checkout"
+        case "vipps", "vipps_mobilepay":
+            return "vipps_mobilepay"
+        default:
+            return "stripe_checkout"
+        }
+    }
+
+    private func objectValue(_ value: ValueType?) -> Object? {
+        guard case let .object(object)? = value else { return nil }
+        return object
+    }
+
+    private func optionalStringValue(_ value: ValueType?) -> String? {
+        guard let value else { return nil }
+        return stringValue(value)
+    }
+
+    private func intValue(_ value: ValueType?) -> Int? {
+        switch value {
+        case let .integer(number)?:
+            return number
+        case let .number(number)?:
+            return number
+        case let .float(number)?:
+            return Int(number)
+        case let .string(text)?:
+            return Int(text)
+        default:
+            return nil
+        }
+    }
+
+    private static func unitModelObject() -> Object {
+        [
+            "settlementCurrency": .string("NOK"),
+            "settlementMinorUnitsPerMajorUnit": .integer(100),
+            "quotaUnitsPerSettlementMinorUnit": .integer(1_000),
+            "userFacingUnit": .string("usage_quota_unit"),
+            "internalLedgerUnit": .string("value_unit"),
+            "externalRailsRole": .string("top_up_only"),
+            "microtransactionSettlement": .string("internal_ledger"),
+            "productVariant": .string("usage_quota"),
+            "transferability": .string("none"),
+            "cashOut": .bool(false),
+            "externalAcceptance": .bool(false)
+        ]
+    }
+
+    private static func defaultBalanceObject(updatedAt: TimeInterval) -> Object {
+        [
+            "quotaUnits": .integer(0),
+            "settlementMinorUnits": .integer(0),
+            "currency": .string("NOK"),
+            "source": .string("local_empty"),
+            "updatedAt": .float(updatedAt)
+        ]
+    }
+
+    private static func defaultPolicyObject(updatedAt: TimeInterval) -> Object {
+        [
+            "productVariant": .string("usage_quota"),
+            "monthlyTopUpCapMinorUnits": .integer(20_000),
+            "maxSpendPerActionMinorUnits": .integer(10),
+            "receiptMode": .string("always"),
+            "lowBalanceBehavior": .string("ask_before_topup"),
+            "autoTopUpEnabled": .bool(false),
+            "transferability": .string("none"),
+            "cashOut": .bool(false),
+            "externalAcceptance": .bool(false),
+            "updatedAt": .float(updatedAt)
+        ]
+    }
+
+    private static func defaultTopUpObject(updatedAt: TimeInterval) -> Object {
+        [
+            "status": .string("not_requested"),
+            "providerRole": .string("external_top_up_only"),
+            "checkoutEndpoint": .string("/chat-mvp/api/top-up/checkout"),
+            "nativePurchaseCTA": .string("disabled"),
+            "appStoreCatalogGateEnabled": .bool(BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled),
+            "allowedRails": .list([
+                .string("stripe_checkout"),
+                .string("stripe_apple_pay"),
+                .string("vipps_mobilepay")
+            ]),
+            "updatedAt": .float(updatedAt)
+        ]
     }
 }
 

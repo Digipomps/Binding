@@ -167,8 +167,8 @@ actor PortableSurfaceCacheStore {
         let fileManager = FileManager.default
         let baseURL =
             fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        return baseURL?.appendingPathComponent("Binding/portable-surface-cache.json")
+            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        return baseURL.appendingPathComponent("Binding/portable-surface-cache.json")
     }
 
     private func cacheIdentity(for endpoint: String) -> String? {

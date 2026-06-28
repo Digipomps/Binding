@@ -162,8 +162,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         ] {
             let localConfiguration = CellConfigurationEndpointRetargeting
                 .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
+            let buttonsToExecute = personalCopilotButtonsToExecute(for: localConfiguration)
             let report = try await CellConfigurationVerifier.contractReport(
                 for: localConfiguration,
+                buttonsToExecute: buttonsToExecute,
                 identityMode: .startup
             )
 
@@ -184,7 +186,351 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 report.failedActions.isEmpty,
                 "Failed actions for \(configuration.name): \(report.failedActions)"
             )
+            for buttonLabel in buttonsToExecute {
+                XCTAssertTrue(
+                    report.actionExecutions.contains(where: { $0.label == buttonLabel && $0.succeeded }),
+                    "Expected \(configuration.name) to execute \(buttonLabel), got: \(report.actionExecutions)"
+                )
+            }
         }
+    }
+
+    private func personalCopilotButtonsToExecute(for configuration: CellConfiguration) -> Set<String> {
+        switch configuration.name {
+        case "Personal Home":
+            return [
+                "Request account export",
+                "Request account deletion",
+                "Cancel deletion request",
+                "Manage public identity",
+                "Open profile",
+                "Open privacy audit"
+            ]
+        case "Vault / Ideas":
+            return [
+                "Seed idea",
+                "Seed project",
+                "Reindex graf",
+                "Naboer"
+            ]
+        default:
+            return []
+        }
+    }
+
+    func testConfigurationCatalogSkeletonsPassStaticStructureAudit() async throws {
+        let owner = await makeStaticCatalogAuditOwnerIdentity()
+        let catalog = await ConfigurationCatalogCell(owner: owner)
+        _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
+
+        let value = try await catalog.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = value else {
+            XCTFail("Expected ConfigurationCatalog.configurations list, got \(value)")
+            return
+        }
+
+        let configurations = items.compactMap(Self.decodeCatalogConfiguration)
+            .filter { $0.skeleton != nil }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        XCTAssertGreaterThanOrEqual(
+            configurations.count,
+            12,
+            "Expected the audit to cover the seeded Binding catalog, got \(configurations.count)"
+        )
+
+        let reports = configurations.map(Self.staticSkeletonAudit)
+        let fatalIssues = reports.flatMap { report in
+            report.issues
+                .filter { $0.severity == .error }
+                .map { "\(report.configurationName): \($0.detail)" }
+        }
+        let summary = Self.formatStaticSkeletonAudit(reports)
+        print(summary)
+
+        XCTAssertTrue(
+            fatalIssues.isEmpty,
+            summary
+        )
+    }
+
+    private struct StaticSkeletonAuditIssue {
+        let severity: BindingDiagnosticSeverity
+        let detail: String
+    }
+
+    private struct StaticSkeletonAuditReport {
+        let configurationName: String
+        let referenceCount: Int
+        var elementCount: Int = 0
+        var buttonCount: Int = 0
+        var inputCount: Int = 0
+        var selectableCount: Int = 0
+        var visualizationCount: Int = 0
+        var issues: [StaticSkeletonAuditIssue] = []
+    }
+
+    private func makeStaticCatalogAuditOwnerIdentity() async -> Identity {
+        let vault = await BindingStartupIdentityVault.shared.initialize()
+        CellBase.defaultIdentityVault = vault
+        return await vault.identity(
+            for: "static-catalog-audit-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        )!
+    }
+
+    private static func decodeCatalogConfiguration(from value: ValueType) -> CellConfiguration? {
+        guard case let .cellConfiguration(configuration) = value else { return nil }
+        return configuration
+    }
+
+    private static func staticSkeletonAudit(_ configuration: CellConfiguration) -> StaticSkeletonAuditReport {
+        var report = StaticSkeletonAuditReport(
+            configurationName: configuration.name,
+            referenceCount: configuration.cellReferences?.count ?? 0
+        )
+        let validation = CellConfigurationValidationService.validate(configuration)
+        for issue in validation.issues where issue.severity == .error {
+            report.issues.append(
+                StaticSkeletonAuditIssue(
+                    severity: .error,
+                    detail: "validation: \(issue.title) - \(issue.detail)"
+                )
+            )
+        }
+        for issue in validation.issues where issue.severity == .warning {
+            report.issues.append(
+                StaticSkeletonAuditIssue(
+                    severity: .warning,
+                    detail: "validation: \(issue.title) - \(issue.detail)"
+                )
+            )
+        }
+
+        guard let skeleton = configuration.skeleton else {
+            report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "missing skeleton"))
+            return report
+        }
+
+        inspectSkeleton(skeleton, path: ["root"], report: &report)
+        return report
+    }
+
+    private static func inspectSkeleton(
+        _ element: SkeletonElement,
+        path: [String],
+        report: inout StaticSkeletonAuditReport
+    ) {
+        report.elementCount += 1
+
+        switch element {
+        case .Text(let text):
+            inspectVisibleText(text.text, at: path, report: &report)
+        case .AttachmentField:
+            report.inputCount += 1
+        case .FileUpload:
+            report.inputCount += 1
+        case .TextField(let field):
+            report.inputCount += 1
+            inspectVisibleText(field.placeholder, at: path + ["placeholder"], report: &report)
+            inspectInputBinding(
+                sourceKeypath: field.sourceKeypath,
+                targetKeypath: field.targetKeypath,
+                staticText: field.text,
+                elementName: "TextField",
+                path: path,
+                report: &report
+            )
+        case .TextArea(let field):
+            report.inputCount += 1
+            inspectVisibleText(field.placeholder, at: path + ["placeholder"], report: &report)
+            inspectInputBinding(
+                sourceKeypath: field.sourceKeypath,
+                targetKeypath: field.targetKeypath,
+                staticText: field.text,
+                elementName: "TextArea",
+                path: path,
+                report: &report
+            )
+        case .Button(let button):
+            report.buttonCount += 1
+            let label = button.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let keypath = button.keypath.trimmingCharacters(in: .whitespacesAndNewlines)
+            if label.isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) button has empty label"))
+            }
+            if keypath.isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) button has empty keypath"))
+            }
+            inspectVisibleText(label, at: path + ["label"], report: &report)
+        case .Toggle(let toggle):
+            report.inputCount += 1
+            if toggle.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) toggle has empty label"))
+            }
+            if toggle.keypath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) toggle has empty keypath"))
+            }
+            inspectVisibleText(toggle.label, at: path + ["label"], report: &report)
+        case .Picker(let picker):
+            report.selectableCount += 1
+            inspectVisibleText(picker.label, at: path + ["label"], report: &report)
+            inspectVisibleText(picker.placeholder, at: path + ["placeholder"], report: &report)
+            if picker.keypath == nil && picker.elements.isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .warning, detail: "\(pathString(path)) picker has neither keypath nor static options"))
+            }
+            if picker.selectionStateKeypath != nil && picker.selectionActionKeypath == nil {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .warning, detail: "\(pathString(path)) picker shows selection state without selection action"))
+            }
+        case .List(let list):
+            if list.keypath == nil && list.topic == nil && list.elements.isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .warning, detail: "\(pathString(path)) list has neither keypath, topic nor static elements"))
+            }
+            if list.selectionStateKeypath != nil && list.selectionActionKeypath == nil && list.activationActionKeypath == nil {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .warning, detail: "\(pathString(path)) selectable list shows state without selection or activation action"))
+            }
+            if let row = list.flowElementSkeleton {
+                inspectSkeleton(.VStack(row), path: path + ["row"], report: &report)
+            }
+        case .Reference(let reference):
+            if let row = reference.flowElementSkeleton {
+                inspectSkeleton(.VStack(row), path: path + ["referenceRow"], report: &report)
+            }
+        case .Section(let section):
+            if let header = section.header {
+                inspectSkeleton(header, path: path + ["header"], report: &report)
+            }
+            for (index, child) in section.content.enumerated() {
+                inspectSkeleton(child, path: path + ["content[\(index)]"], report: &report)
+            }
+            if let footer = section.footer {
+                inspectSkeleton(footer, path: path + ["footer"], report: &report)
+            }
+        case .HStack(let stack):
+            for (index, child) in stack.elements.enumerated() {
+                inspectSkeleton(child, path: path + ["h[\(index)]"], report: &report)
+            }
+        case .VStack(let stack):
+            for (index, child) in stack.elements.enumerated() {
+                inspectSkeleton(child, path: path + ["v[\(index)]"], report: &report)
+            }
+        case .ScrollView(let scroll):
+            for (index, child) in scroll.elements.enumerated() {
+                inspectSkeleton(child, path: path + ["scroll[\(index)]"], report: &report)
+            }
+        case .Tabs(let tabs):
+            if tabs.activeTabStateKeypath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) tabs has empty activeTabStateKeypath"))
+            }
+            if tabs.panels.isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) tabs has no panels"))
+            }
+            for panel in tabs.panels {
+                for (index, child) in panel.content.enumerated() {
+                    inspectSkeleton(child, path: path + ["tab:\(panel.id)", "content[\(index)]"], report: &report)
+                }
+            }
+        case .Grid(let grid):
+            for (index, child) in grid.elements.enumerated() {
+                inspectSkeleton(child, path: path + ["grid[\(index)]"], report: &report)
+            }
+        case .ZStack(let stack):
+            for (index, child) in stack.elements.enumerated() {
+                inspectSkeleton(child, path: path + ["z[\(index)]"], report: &report)
+            }
+        case .Object(let object):
+            for key in object.elements.keys.sorted() {
+                if let child = object.elements[key] {
+                    inspectSkeleton(child, path: path + ["object.\(key)"], report: &report)
+                }
+            }
+        case .Visualization(let visualization):
+            report.visualizationCount += 1
+            if visualization.kind.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) visualization has empty kind"))
+            }
+        case .Unsupported:
+            report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) contains Unsupported skeleton element"))
+        case .Spacer, .Image, .Divider:
+            break
+        }
+    }
+
+    private static func inspectInputBinding(
+        sourceKeypath: String?,
+        targetKeypath: String?,
+        staticText: String?,
+        elementName: String,
+        path: [String],
+        report: inout StaticSkeletonAuditReport
+    ) {
+        let hasSource = sourceKeypath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let hasTarget = targetKeypath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let hasStaticText = staticText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        if !hasSource && !hasTarget && !hasStaticText {
+            report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) \(elementName) has no source, target or static text"))
+        } else if hasSource && !hasTarget {
+            report.issues.append(StaticSkeletonAuditIssue(severity: .warning, detail: "\(pathString(path)) \(elementName) is source-only; user edits will not be written"))
+        }
+    }
+
+    private static func inspectVisibleText(
+        _ text: String?,
+        at path: [String],
+        report: inout StaticSkeletonAuditReport
+    ) {
+        guard let text else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if visibleTextLooksTechnical(trimmed) {
+            report.issues.append(
+                StaticSkeletonAuditIssue(
+                    severity: .warning,
+                    detail: "\(pathString(path)) visible text looks technical: \(trimmed)"
+                )
+            )
+        }
+    }
+
+    private static func visibleTextLooksTechnical(_ text: String) -> Bool {
+        let lowercased = text.lowercased()
+        if lowercased.contains("cell:///") ||
+            lowercased.contains("sourcekeypath") ||
+            lowercased.contains("targetkeypath") ||
+            lowercased.contains("dispatchaction") ||
+            lowercased.contains("keypath") {
+            return true
+        }
+        return lowercased.contains(".state") ||
+            lowercased.contains(".dispatch") ||
+            lowercased.contains(".query") ||
+            lowercased.contains(".draft")
+    }
+
+    private static func pathString(_ path: [String]) -> String {
+        path.joined(separator: "/")
+    }
+
+    private static func formatStaticSkeletonAudit(_ reports: [StaticSkeletonAuditReport]) -> String {
+        let totalIssues = reports.reduce(0) { $0 + $1.issues.count }
+        let totalErrors = reports.reduce(0) { count, report in
+            count + report.issues.filter { $0.severity == .error }.count
+        }
+        let totalWarnings = reports.reduce(0) { count, report in
+            count + report.issues.filter { $0.severity == .warning }.count
+        }
+        let header = "Static skeleton audit: \(reports.count) configs, \(totalErrors) errors, \(totalWarnings) warnings, \(totalIssues) total issues"
+        let rows = reports.map { report -> String in
+            let errorCount = report.issues.filter { $0.severity == .error }.count
+            let warningCount = report.issues.filter { $0.severity == .warning }.count
+            return "- \(report.configurationName): refs=\(report.referenceCount), elements=\(report.elementCount), buttons=\(report.buttonCount), inputs=\(report.inputCount), selectable=\(report.selectableCount), visualizations=\(report.visualizationCount), errors=\(errorCount), warnings=\(warningCount)"
+        }
+        let issueRows = reports.flatMap { report in
+            report.issues.prefix(6).map { issue in
+                "  \(issue.severity.rawValue.uppercased()) \(report.configurationName): \(issue.detail)"
+            }
+        }
+        return ([header] + rows + issueRows).joined(separator: "\n")
     }
 
     func testPersonalHomeNavigatorCanOpenProfileAuditAndPublishSurfaces() async throws {
@@ -192,12 +538,46 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+        guard let navigator = try await context.resolver.cellAtEndpoint(
+            endpoint: "cell:///PersonalCopilotNavigator",
+            requester: context.owner
+        ) as? Meddle else {
+            XCTFail("Expected PersonalCopilotNavigator to resolve")
+            return
+        }
+
+        let expectedCopilotLoad = Task {
+            await waitForPortholeLoadBridgeConfiguration(containingName: "Co-Pilot")
+        }
+        let openCopilotResponse = try await navigator.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("navigator.openCopilot"),
+                "payload": .bool(true)
+            ]),
+            requester: context.owner
+        )
+        guard let openCopilotResponse else {
+            XCTFail("Open Co-Pilot action returned nil response")
+            return
+        }
+        let openCopilotFailure = await MainActor.run {
+            SkeletonBindingProbeSupport.failureDetail(from: openCopilotResponse)
+        }
+        XCTAssertNil(openCopilotFailure)
+
+        guard let copilotConfiguration = await expectedCopilotLoad.value else {
+            XCTFail("Expected BindingPortholeLoadBridge request for Co-Pilot")
+            return
+        }
+        XCTAssertEqual(copilotConfiguration.name, "Co-Pilot")
+        XCTAssertTrue(copilotConfiguration.cellReferences?.contains(where: { $0.label == "chatHub" }) == true)
 
         let expectedProfileLoad = Task {
             await waitForPortholeLoadBridgeConfiguration(containingName: "My Profile")
         }
-        let openProfileResponse = try await context.porthole.set(
-            keypath: "personalNavigator.dispatchAction",
+        let openProfileResponse = try await navigator.set(
+            keypath: "dispatchAction",
             value: .object([
                 "keypath": .string("navigator.openMyProfile"),
                 "payload": .bool(true)
@@ -223,8 +603,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let expectedAuditLoad = Task {
             await waitForPortholeLoadBridgeConfiguration(containingName: "Privacy Audit")
         }
-        let openAuditResponse = try await context.porthole.set(
-            keypath: "personalNavigator.dispatchAction",
+        let openAuditResponse = try await navigator.set(
+            keypath: "dispatchAction",
             value: .object([
                 "keypath": .string("navigator.openPrivacyAudit"),
                 "payload": .bool(true)
@@ -250,8 +630,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let expectedPublishLoad = Task {
             await waitForPortholeLoadBridgeConfiguration(containingName: "Publish Public Profile")
         }
-        let openPublishResponse = try await context.porthole.set(
-            keypath: "personalNavigator.dispatchAction",
+        let openPublishResponse = try await navigator.set(
+            keypath: "dispatchAction",
             value: .object([
                 "keypath": .string("navigator.openPublishPublicProfile"),
                 "payload": .bool(true)
@@ -376,7 +756,6 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         }
 
         for expected in [
-            "\"keypath\":\"chatHub.assistant.analyzeDraft\"",
             "\"keypath\":\"chatHub.assistant.dismissSuggestion\"",
             "\"keypath\":\"chatHub.ui.openSuggestedHelper\"",
             "\"targetKeypath\":\"chatHub.assistant.setCandidateQuery\"",

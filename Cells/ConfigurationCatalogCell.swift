@@ -75,7 +75,11 @@ enum BindingPersonalCopilotV1Policy {
         "personal-message-bubble",
         "personal-audit-row",
         "personal-scanner-result",
-        "personal-workflow-step"
+        "personal-workflow-step",
+        "personal-graph-preview",
+        "personal-knowledge-graph",
+        "chat-primary-action",
+        "chat-safety-hint"
     ]
 
     nonisolated static var appStoreCatalogGateEnabled: Bool {
@@ -510,6 +514,22 @@ enum BindingPersonalCopilotDesignSystem {
             $0.borderWidth = 1
             $0.borderColor = brandStrong
             $0.foregroundColor = "#FFFFFF"
+        }
+    }
+
+    nonisolated static func promptIconButton() -> SkeletonModifiers {
+        modifier {
+            $0.padding = 10
+            $0.width = 58
+            $0.height = 58
+            $0.background = brandPrimary
+            $0.cornerRadius = 29
+            $0.borderWidth = 1
+            $0.borderColor = brandStrong
+            $0.foregroundColor = "#FFFFFF"
+            $0.fontSize = 28
+            $0.fontWeight = "semibold"
+            $0.styleRole = "chat-primary-action"
         }
     }
 
@@ -5785,7 +5805,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///PersonalChatHub",
                 sourceCellName: "PersonalChatHubCell",
-                displayName: "Co-Pilot Chat",
+                displayName: "Co-Pilot",
                 purpose: "Central purpose-driven co-pilot chat",
                 purposeDescription: "Kompakt chat-first arbeidsflate som matcher naturlig sprak mot formaal, interesser, CellConfigurations, RAG-cases og trygge agent-action metadata. Alle sideeffekter krever klikk.",
                 interests: scopedInterests([
@@ -5829,7 +5849,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                     "purposeRef=personal.chat.assist.local-agent-action",
                     "purposeRef=personal.agent.local.gui.finder.close-windows"
                 ], policyCategory: "purpose-driven-chat"),
-                summary: "Cell-scoped Co-Pilot Chat hub for Personal Co-Pilot.",
+                summary: "Cell-scoped chat hub for Personal Co-Pilot.",
                 categoryPath: ["personal-copilot", "chat"],
                 tags: ["chat", "moderation", "invite", "poll", "assistant", "copilot"],
                 menuSlots: [.upperLeft, .lowerLeft],
@@ -5839,7 +5859,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 flowDriven: true,
                 recommendedContexts: ["personal-copilot", "chat", "safety"],
                 ioGetKeys: ["state", "assistantState", "assistantSuggestions", "assistantPolicy", "assistantProviders", "providerRecommendation", "threads", "messages", "blockedUsers", "moderationStatus", "meetingBridge", "polls", "pollDraft", "workbenchState", "workbenchModules", "capabilityRequestDraft", "capabilityRequests", "entityExtension", "voiceState", "purposeWeights", "purposeGoal", "skeletonConfiguration"],
-                ioSetKeys: ["invite", "acceptInvite", "declineInvite", "setComposer", "sendComposedMessage", "clearComposer", "reportMessage", "blockUser", "unblockUser", "assistant.analyzeDraft", "assistant.acceptSuggestion", "assistant.dismissSuggestion", "assistant.queryResource", "assistant.provider.register", "assistant.provider.recommend", "assistant.setCandidateQuery", "assistant.selectCandidate", "entityExtension.scan", "voice.requestPermission", "voice.startListening", "voice.stopListening", "voice.acceptTranscript", "voice.acceptTranscriptAndAnalyze", "voice.clearTranscript", "ui.openSuggestedHelper", "ui.openComponentSurface", "ui.minimizeComponentSurface", "ui.restoreComponentSurface", "ui.dismissComponentSurface", "ui.pinComponentSurface", "ui.setActiveHelper", "ui.setActiveMoreTab", "ui.setCapabilityDiscoveryEnabled", "poll.setQuestion", "poll.setOptions", "poll.create", "poll.vote", "poll.close", "idea.title", "idea.content", "idea.capture", "todo.title", "todo.note", "todo.dueAtText", "todo.assigneeUUID", "todo.create", "project.title", "project.description", "project.membersText", "project.create", "reminder.title", "reminder.scheduledAtText", "reminder.scope", "reminder.create", "meeting.title", "meeting.targetProfileID", "meeting.proposedTimesText", "meeting.setBridgeMetadata", "meeting.schedule", "agent.review.actionID", "agent.review.reason", "agent.review.argumentsText", "agent.review.signatureBase64", "agent.review.create", "agent.review.execute", "capabilityRequest.title", "capabilityRequest.summary", "capabilityRequest.destination", "capabilityRequest.category", "capabilityRequest.submit"],
+                ioSetKeys: ["invite", "acceptInvite", "declineInvite", "setComposer", "sendComposedMessage", "clearComposer", "reportMessage", "blockUser", "unblockUser", "assistant.analyzeDraft", "assistant.acceptSuggestion", "assistant.dismissSuggestion", "assistant.queryResource", "assistant.provider.register", "assistant.provider.recommend", "assistant.setCandidateQuery", "assistant.selectCandidate", "entityExtension.scan", "voice.requestPermission", "voice.startListening", "voice.stopListening", "voice.acceptTranscript", "voice.acceptTranscriptAndAnalyze", "voice.clearTranscript", "ui.openSuggestedHelper", "ui.openComponentSurface", "ui.minimizeComponentSurface", "ui.restoreComponentSurface", "ui.dismissComponentSurface", "ui.pinComponentSurface", "ui.setCurrentThread", "ui.setActiveHelper", "ui.setActiveMoreTab", "ui.setCapabilityDiscoveryEnabled", "poll.setQuestion", "poll.setOptions", "poll.create", "poll.vote", "poll.close", "idea.title", "idea.content", "idea.capture", "todo.title", "todo.note", "todo.dueAtText", "todo.assigneeUUID", "todo.create", "project.title", "project.description", "project.membersText", "project.create", "reminder.title", "reminder.scheduledAtText", "reminder.scope", "reminder.create", "meeting.title", "meeting.targetProfileID", "meeting.proposedTimesText", "meeting.setBridgeMetadata", "meeting.schedule", "agent.review.actionID", "agent.review.reason", "agent.review.argumentsText", "agent.review.signatureBase64", "agent.review.create", "agent.review.execute", "capabilityRequest.title", "capabilityRequest.summary", "capabilityRequest.destination", "capabilityRequest.category", "capabilityRequest.submit"],
                 forceRefreshExisting: true
             ),
             StaticCatalogDescriptor(
@@ -5849,7 +5869,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Dagens agenda for personlig co-pilot",
                 purposeDescription: "Lokal agenda-context som leser Calendar og Reminders etter eksplisitt samtykke, svarer på dagens/neste agenda, og kan dele purpose-signaler med Perspective.",
                 interests: scopedInterests(["agenda", "calendar", "reminders", "daily-planning", "agenda-aspects", "purpose-interest-weighted"], policyCategory: "agenda-context"),
-                summary: "Lokal agenda over kalender og påminnelser for Co-Pilot Chat.",
+                summary: "Lokal agenda over kalender og påminnelser for Co-Pilot.",
                 categoryPath: ["personal-copilot", "agenda"],
                 tags: ["agenda", "calendar", "reminders", "planning"],
                 menuSlots: [.upperRight, .lowerRight],
@@ -5895,7 +5915,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 chip: "LOCAL",
                 borderColor: "#9333EA",
                 policyHints: hints("local-vault", nativePermissionRequests: ["vault"], universalLinkPath: "personal/vault"),
-                recommendedContexts: ["personal-copilot", "knowledge-work", "projects"]
+                recommendedContexts: ["personal-copilot", "knowledge-work", "projects"],
+                forceRefreshExisting: true
             ),
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell://staging.haven.digipomps.org/PersonalMeetingCoordinator",
@@ -6946,6 +6967,9 @@ final class ConfigurationCatalogCell: GeneralCell {
         case "cell:///entityanchor":
             return entityAnchorWorkbenchConfiguration()
         case "cell:///vault":
+            if descriptor.displayName == "Vault / Ideas" {
+                return personalVaultIdeasMenuConfiguration()
+            }
             return vaultWorkbenchConfiguration()
         case "cell:///porthole":
             return portholeWorkbenchConfiguration()
@@ -8004,13 +8028,6 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
         configuration.addReference(CellReference(endpoint: "cell:///PersonalProfileDraft", subscribeFeed: false, label: "profileDraft"))
         configuration.addReference(CellReference(endpoint: "cell:///PersonalPrivacyAudit", subscribeFeed: false, label: "privacyAudit"))
-        var navigatorReference = CellReference(
-            endpoint: "cell:///PersonalCopilotNavigator",
-            subscribeFeed: false,
-            label: "personalNavigator"
-        )
-        navigatorReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
-        configuration.addReference(navigatorReference)
         configuration.skeleton = personalIdentitySurfaceSkeleton()
         return configuration
     }
@@ -8127,6 +8144,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             policyCategory: "local-vault",
             nativePermissionRequests: ["vault"]
         )
+        configuration.addReference(CellReference(endpoint: "cell:///GraphIndex", subscribeFeed: false, label: "graph"))
         configuration.skeleton = personalVaultIdeasSurfaceSkeleton()
         return configuration
     }
@@ -8155,7 +8173,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     nonisolated static func personalAgendaContextMenuConfiguration() -> CellConfiguration {
-        withPersonalCopilotMetadata(
+        let configuration = withPersonalCopilotMetadata(
             PersonalAgendaContextCell.menuConfiguration(),
             sourceCellEndpoint: "cell:///PersonalAgendaContext",
             sourceCellName: "PersonalAgendaContextCell",
@@ -8167,10 +8185,11 @@ final class ConfigurationCatalogCell: GeneralCell {
             nativePermissionRequests: ["calendar", "reminders"],
             universalLinkPath: "personal/agenda"
         )
+        return withPersonalCopilotRecoveryAction(configuration)
     }
 
     nonisolated static func personalCalendarStoreMenuConfiguration() -> CellConfiguration {
-        withPersonalCopilotMetadata(
+        let configuration = withPersonalCopilotMetadata(
             CalendarConfigurationFactory.makeStoreConfiguration(),
             sourceCellEndpoint: CalendarContract.endpoint,
             sourceCellName: CalendarContract.storeCellName,
@@ -8181,6 +8200,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             policyCategory: "calendar-store",
             universalLinkPath: "personal/calendar"
         )
+        return withPersonalCopilotRecoveryAction(configuration)
     }
 
     nonisolated static func personalPrivacyAuditMenuConfiguration() -> CellConfiguration {
@@ -8253,7 +8273,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     }
 
     nonisolated static func workflowStudioForPersonalCopilotConfiguration() -> CellConfiguration {
-        withPersonalCopilotMetadata(
+        let configuration = withPersonalCopilotMetadata(
             workflowStudioWorkbenchMenuConfiguration(),
             sourceCellEndpoint: "cell:///WorkflowStudio",
             sourceCellName: "WorkflowStudioCell",
@@ -8263,13 +8283,14 @@ final class ConfigurationCatalogCell: GeneralCell {
             menuSlots: [.upperMid, .lowerMid],
             policyCategory: "workflow-studio"
         )
+        return withPersonalCopilotRecoveryAction(configuration)
     }
 
     nonisolated static func personalInviteChatMenuConfiguration(
         chatHubEndpoint: String = "cell:///PersonalChatHub"
     ) -> CellConfiguration {
-        var configuration = CellConfiguration(name: "Co-Pilot Chat")
-        configuration.description = "Chat-first Co-Pilot arbeidsflate. Skriv naturlig hva du vil oppnaa, finn forslag, og apne bare de hjelperne du ber om. Alle sideeffekter krever eget trykk."
+        var configuration = CellConfiguration(name: "Co-Pilot")
+        configuration.description = "Chat-first arbeidsflate. Skriv naturlig hva du vil oppnaa, finn forslag, og apne bare de hjelperne du ber om. Alle sideeffekter krever eget trykk."
         configuration.addReference(CellReference(endpoint: chatHubEndpoint, label: "chatHub"))
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", subscribeFeed: false, label: "perspective"))
         configuration = withPersonalCopilotMetadata(
@@ -8350,14 +8371,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 style: style
             )
         }
-
         let composer = SkeletonTextArea(
             text: nil,
             sourceKeypath: "chatHub.state.composer.body",
             targetKeypath: "chatHub.setComposer",
             placeholder: "F.eks. \"inviter Anna\", \"vi trenger avstemning\", \"registrer feil\" eller \"hva sier docs om formål?\"",
-            minLines: 3,
-            maxLines: 8,
+            minLines: 2,
+            maxLines: 4,
             submitOnEnter: false,
             modifiers: fieldCard
         )
@@ -8575,19 +8595,28 @@ final class ConfigurationCatalogCell: GeneralCell {
         var messages = SkeletonList(topic: nil, keypath: "chatHub.state.messages", flowElementSkeleton: messageRow)
         messages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 220, role: "personal-message-bubble")
 
+        var threadRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("lastMessagePreview", lineLimit: 3)),
+            .Text(personalBoundText("statusText", lineLimit: 1))
+        ], spacing: 4)
+        threadRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var threads = SkeletonList(topic: nil, keypath: "chatHub.state.threads", flowElementSkeleton: threadRow)
+        threads.selectionMode = .single
+        threads.selectionStateKeypath = "chatHub.state.currentThread.id"
+        threads.selectionValueKeypath = "id"
+        threads.selectionActionKeypath = "chatHub.ui.setCurrentThread"
+        threads.selectionPayloadMode = .itemID
+        threads.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-list-row")
+
         var promptMessageRow = SkeletonVStack(elements: [
             .Text(personalBoundText("speaker", lineLimit: 1)),
             .Text(personalBoundText("body", lineLimit: 5)),
-            .Text(personalBoundText("statusText", lineLimit: 2)),
-            .HStack(SkeletonHStack(elements: [
-                .Button(button("chatHub.ui.openSuggestedHelper", "Apne forslag", style: .secondary)),
-                .Button(button("chatHub.ui.openMatchedResourceLibrary", "Last inn flaten", payload: .object(["autoOpen": .bool(true)]), style: .secondary)),
-                .Button(button("chatHub.assistant.dismissSuggestion", "Avvis", style: .secondary))
-            ], spacing: 8))
+            .Text(personalBoundText("statusText", lineLimit: 2))
         ], spacing: 6)
         promptMessageRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "chat-prompt-message")
         var promptMessages = SkeletonList(topic: nil, keypath: "chatHub.state.ui.promptMessages", flowElementSkeleton: promptMessageRow)
-        promptMessages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 280, role: "chat-prompt-log")
+        promptMessages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "chat-prompt-log")
 
         var candidateRow = SkeletonVStack(elements: [
             .Text(personalBoundText("displayName", lineLimit: 1)),
@@ -8769,6 +8798,24 @@ final class ConfigurationCatalogCell: GeneralCell {
             ]
         )
 
+        let mermaidHelper = personalSection(
+            "Mermaid diagram",
+            content: [
+                .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 3)),
+                .List(resourceMatches),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.ui.openMatchedResourceLibrary", "Last inn Mermaid", payload: .object([
+                        "resourceID": .string("configuration:mermaid-renderer-playground"),
+                        "autoOpen": .bool(true)
+                    ]))),
+                    .Button(button("chatHub.ui.openMatchedResourceLibrary", "Velg i Library", payload: .object([
+                        "resourceID": .string("configuration:mermaid-renderer-playground"),
+                        "autoOpen": .bool(false)
+                    ]), style: .secondary))
+                ], spacing: 8))
+            ]
+        )
+
         let docsRAGHelper = personalSection(
             "Spør docs/RAG",
             content: [
@@ -8896,27 +8943,31 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
 
         func helperTabs(activeOnly: Bool = false, compact: Bool = false) -> SkeletonTabs {
+            var panels = [
+                SkeletonTabPanel(id: "invite", content: [inviteHelper]),
+                SkeletonTabPanel(id: "poll", content: [pollHelper]),
+                SkeletonTabPanel(id: "resource-router", content: [resourceRouterHelper]),
+                SkeletonTabPanel(id: "mermaid-diagram", content: [mermaidHelper]),
+                SkeletonTabPanel(id: "docs-rag", content: [docsRAGHelper]),
+                SkeletonTabPanel(id: "idea-capture", content: [ideaHelper]),
+                SkeletonTabPanel(id: "work-item", content: [workItemHelper]),
+                SkeletonTabPanel(id: "todo", content: [todoHelper]),
+                SkeletonTabPanel(id: "project", content: [projectHelper]),
+                SkeletonTabPanel(id: "reminder", content: [reminderHelper]),
+                SkeletonTabPanel(id: "meeting", content: [meetingHelper]),
+                SkeletonTabPanel(id: "agent-review", content: [agentReviewHelper]),
+                SkeletonTabPanel(id: "capability-request", content: [capabilityHelper])
+            ]
+            if activeOnly == false {
+                panels.insert(SkeletonTabPanel(id: "voice-input", content: [voiceHelper]), at: 11)
+            }
             var tabs = SkeletonTabs(
                 tabsKeypath: activeOnly ? "chatHub.state.ui.activeHelpers" : "chatHub.state.ui.helpers",
                 activeTabStateKeypath: "chatHub.state.ui.activeHelper",
                 selectionActionKeypath: "chatHub.ui.setActiveHelper",
                 idKeypath: "id",
                 labelKeypath: "title",
-                panels: [
-                    SkeletonTabPanel(id: "invite", content: [inviteHelper]),
-                    SkeletonTabPanel(id: "poll", content: [pollHelper]),
-                    SkeletonTabPanel(id: "resource-router", content: [resourceRouterHelper]),
-                    SkeletonTabPanel(id: "docs-rag", content: [docsRAGHelper]),
-                    SkeletonTabPanel(id: "idea-capture", content: [ideaHelper]),
-                    SkeletonTabPanel(id: "work-item", content: [workItemHelper]),
-                    SkeletonTabPanel(id: "todo", content: [todoHelper]),
-                    SkeletonTabPanel(id: "project", content: [projectHelper]),
-                    SkeletonTabPanel(id: "reminder", content: [reminderHelper]),
-                    SkeletonTabPanel(id: "meeting", content: [meetingHelper]),
-                    SkeletonTabPanel(id: "voice-input", content: [voiceHelper]),
-                    SkeletonTabPanel(id: "agent-review", content: [agentReviewHelper]),
-                    SkeletonTabPanel(id: "capability-request", content: [capabilityHelper])
-                ]
+                panels: panels
             )
             tabs.modifiers = modifier {
                 $0.styleRole = compact ? "chat-helper-tabs-compact" : "chat-helper-tabs"
@@ -8925,60 +8976,65 @@ final class ConfigurationCatalogCell: GeneralCell {
             return tabs
         }
 
-        var activeHelperModifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "component-surface")
-        activeHelperModifiers.motionHint = .expand
-        activeHelperModifiers.motionSourceRole = "assistant-response-bubble"
-        activeHelperModifiers.visibility = SkeletonVisibilityRule(
-            when: SkeletonCondition(
-                scope: .root,
-                keypath: "chatHub.state.ui.hasActiveHelperSurface",
-                equals: .bool(true)
-            )
+        var primaryActionHint = personalBoundText("chatHub.state.ui.primaryActionHint", lineLimit: 3)
+        primaryActionHint.modifiers?.foregroundColor = BindingPersonalCopilotDesignSystem.textSecondary
+        primaryActionHint.modifiers?.styleRole = "chat-safety-hint"
+        primaryActionHint.modifiers?.fontSize = 12
+
+        let primaryPromptButton = button(
+            "chatHub.ui.openSuggestedHelper",
+            "↑",
+            style: .iconPrimary
         )
+        var primaryActionStack = SkeletonVStack(
+            elements: [
+                .Button(primaryPromptButton)
+            ],
+            spacing: 0
+        )
+        primaryActionStack.modifiers = modifier {
+            $0.hAlignment = "trailing"
+            $0.styleRole = "chat-primary-action"
+        }
+        var composerStack = SkeletonVStack(elements: [
+            .TextArea(composer),
+            .VStack(primaryActionStack)
+        ], spacing: 10)
+        composerStack.modifiers = modifier {
+            $0.maxWidthInfinity = true
+            $0.styleRole = "personal-draft-composer"
+        }
 
         let conversationPanel: [SkeletonElement] = [
             personalSection(
-                "Co-Pilot Chat",
+                "Skriv",
                 role: "personal-draft-composer",
                 content: [
                     .List(promptMessages),
                     .Text(personalBodyText("Hva vil du få gjort?", lineLimit: 1)),
-                    .List(activeToolChips),
-                    .TextArea(composer),
-                    .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.prompt.submit", "Send")),
-                        .Button(button("chatHub.assistant.analyzeDraft", "Finn forslag", style: .secondary)),
-                        .Button(button("chatHub.clearComposer", "Rydd utkast", style: .secondary))
-                    ], spacing: 8)),
+                    .VStack(composerStack),
+                    .Text(primaryActionHint),
                     .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 3)),
-                    .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.ui.openSuggestedHelper", "Apne hjelper", style: .secondary)),
-                        .Button(button("chatHub.assistant.dismissSuggestion", "Avvis", style: .secondary))
-                    ], spacing: 8))
+                    .Tabs(helperTabs(activeOnly: true, compact: true))
                 ],
                 modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-draft-composer")
-            ),
-            personalSection(
-                "Aktiv hjelper",
-                role: "component-surface",
-                content: [
-                    .Text(personalBoundText("chatHub.state.ui.activeHelperSummary", lineLimit: 2)),
-                    .Tabs(helperTabs(activeOnly: true, compact: true)),
-                    .HStack(SkeletonHStack(elements: [
-                        .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary)),
-                        .Button(button("chatHub.ui.restoreComponentSurface", "Hent", style: .secondary)),
-                        .Button(button("chatHub.ui.clearComponentSurfaces", "Rydd hjelpere", style: .secondary))
-                    ], spacing: 8))
-                ],
-                modifiers: activeHelperModifiers
             )
         ]
 
         let activePanel: [SkeletonElement] = [
             personalSection(
+                "Chat-tråder",
+                content: [
+                    .Text(personalBodyText("Sendte chatmeldinger grupperes her. Forslag og helperåpning ligger i promptloggen og sender ikke melding.")),
+                    .List(threads),
+                    .List(messages)
+                ]
+            ),
+            personalSection(
                 "Apne hjelpere",
                 content: [
                     .Text(personalBodyText("Hjelpere som apnes fra forslag vises her som UI-flater. De oppretter ikke poll, invite eller agentjobb uten eget bekreftelsestrinn.")),
+                    .List(activeToolChips),
                     .List(componentSurfaces),
                     .HStack(SkeletonHStack(elements: [
                         .Button(button("chatHub.ui.minimizeComponentSurface", "Minimer", style: .secondary)),
@@ -9028,6 +9084,10 @@ final class ConfigurationCatalogCell: GeneralCell {
         let toolsPanel = personalSection(
             "Verktoy",
             content: [
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.clearComposer", "Rydd utkast", style: .secondary)),
+                    .Button(button("chatHub.assistant.dismissSuggestion", "Avvis forslag", style: .secondary))
+                ], spacing: 8)),
                 .Tabs(helperTabs())
             ]
         )
@@ -9136,48 +9196,55 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         configuration.skeleton = personalSurfacePage(
-            title: "Co-Pilot Chat",
-            subtitle: "Skriv naturlig hva du vil oppnaa. Chatten finner formål og apner bare hjelpere du ber om.",
+            title: "Co-Pilot",
+            subtitle: "Skriv hva du vil oppnaa. Jeg foreslaar riktig hjelper før noe skjer.",
             chip: "CHAT",
             content: [
                 .Tabs(tabs)
-            ]
+            ],
+            showsCopilotReturnAction: false
         )
         return configuration
     }
 
     nonisolated private static func personalIdentitySurfaceSkeleton() -> SkeletonElement {
         let exportButton = personalActionButton(
-            keypath: "identity.requestExport",
+            keypath: "requestExport",
             label: "Request account export",
+            url: "cell:///PersonalIdentity",
             payload: .bool(true)
         )
         let deleteButton = personalActionButton(
-            keypath: "identity.requestAccountDelete",
+            keypath: "requestAccountDelete",
             label: "Request account deletion",
+            url: "cell:///PersonalIdentity",
             payload: .bool(true),
             style: .warning
         )
         let cancelDeleteButton = personalActionButton(
-            keypath: "identity.cancelAccountDelete",
+            keypath: "cancelAccountDelete",
             label: "Cancel deletion request",
+            url: "cell:///PersonalIdentity",
             payload: .bool(true),
             style: .secondary
         )
         let openPublishButton = personalDispatchActionButton(
             "personalNavigator",
+            endpoint: "cell:///PersonalCopilotNavigator",
             actionKeypath: "navigator.openPublishPublicProfile",
             label: "Manage public identity",
             style: .secondary
         )
         let openProfileButton = personalDispatchActionButton(
             "personalNavigator",
+            endpoint: "cell:///PersonalCopilotNavigator",
             actionKeypath: "navigator.openMyProfile",
             label: "Open profile",
             style: .secondary
         )
         let openPrivacyAuditButton = personalDispatchActionButton(
             "personalNavigator",
+            endpoint: "cell:///PersonalCopilotNavigator",
             actionKeypath: "navigator.openPrivacyAudit",
             label: "Open privacy audit",
             style: .secondary
@@ -9585,7 +9652,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             flowElementSkeleton: suggestionRow
         )
         suggestions.selectionMode = .single
-        suggestions.selectionValueKeypath = "profile.id"
+        suggestions.selectionValueKeypath = "id"
         suggestions.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 260, role: "personal-match-card")
 
         return personalSurfacePage(
@@ -9639,26 +9706,114 @@ final class ConfigurationCatalogCell: GeneralCell {
         let projectPayload: ValueType = .object([
             "id": .string("personal-project-seed"),
             "title": .string("Personal project seed"),
-            "content": .string("Et lokalt prosjektkort med neste steg, notater og koblinger."),
+            "content": .string("Et lokalt prosjektkort med neste steg, notater og koblinger til [[personal-idea-seed]]."),
             "tags": .list([.string("personal"), .string("project")]),
             "createdAtEpochMs": .integer(0),
             "updatedAtEpochMs": .integer(0)
         ])
+        let graphPayload: ValueType = .object([
+            "notes": .list([
+                ideaPayload,
+                projectPayload,
+                .object([
+                    "id": .string("next-step-seed"),
+                    "title": .string("Next step"),
+                    "content": .string("Avklar første leveranse og koble den til [[personal-project-seed]]."),
+                    "tags": .list([.string("personal"), .string("next-step")]),
+                    "createdAtEpochMs": .integer(0),
+                    "updatedAtEpochMs": .integer(0)
+                ])
+            ])
+        ])
+        let graphSpec: ValueType = .object([
+            "nodes": .list([
+                .object([
+                    "id": .string("personal-idea-seed"),
+                    "label": .string("Ide"),
+                    "x": .float(0.2),
+                    "y": .float(0.35),
+                    "color": .string("#9333EA")
+                ]),
+                .object([
+                    "id": .string("personal-project-seed"),
+                    "label": .string("Prosjekt"),
+                    "x": .float(0.55),
+                    "y": .float(0.5),
+                    "color": .string("#2563EB")
+                ]),
+                .object([
+                    "id": .string("next-step-seed"),
+                    "label": .string("Neste steg"),
+                    "x": .float(0.82),
+                    "y": .float(0.32),
+                    "color": .string("#059669")
+                ])
+            ]),
+            "edges": .list([
+                .object([
+                    "id": .string("idea-project"),
+                    "source": .string("personal-idea-seed"),
+                    "target": .string("personal-project-seed")
+                ]),
+                .object([
+                    "id": .string("project-next-step"),
+                    "source": .string("personal-project-seed"),
+                    "target": .string("next-step-seed")
+                ])
+            ])
+        ])
         let seedIdea = personalActionButton(
-            keypath: "vault.vault.note.create",
+            keypath: "vault.note.create",
             label: "Seed idea",
+            url: "cell:///Vault",
             payload: ideaPayload
         )
         let seedProject = personalActionButton(
-            keypath: "vault.vault.note.create",
+            keypath: "vault.note.create",
             label: "Seed project",
+            url: "cell:///Vault",
             payload: projectPayload,
             style: .secondary
         )
+        let reindexGraph = personalActionButton(
+            keypath: "graph.reindex",
+            label: "Reindex graf",
+            url: "cell:///GraphIndex",
+            payload: graphPayload
+        )
+        let neighbors = personalActionButton(
+            keypath: "graph.neighbors",
+            label: "Naboer",
+            url: "cell:///GraphIndex",
+            payload: .string("personal-project-seed"),
+            style: .secondary
+        )
+        let noteRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("content", lineLimit: 3))
+        ], spacing: 4)
+        var noteList = SkeletonList(topic: nil, keypath: "vault.vault.state.notes", flowElementSkeleton: noteRow)
+        noteList.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
+        var graphPreview = SkeletonVisualization(
+            kind: "graph",
+            keypath: nil,
+            stateKeypath: nil,
+            actionKeypath: nil,
+            spec: graphSpec
+        )
+        graphPreview.modifiers = modifier {
+            $0.styleRole = "personal-knowledge-graph"
+            $0.styleClasses = ["personal-knowledge-graph", "obsidian-graph-preview"]
+            $0.background = "#F8FAFC"
+            $0.borderColor = "#CBD5E1"
+            $0.borderWidth = 1
+            $0.cornerRadius = 12
+            $0.padding = 8
+        }
 
         return personalSurfacePage(
             title: "Vault / Ideas",
-            subtitle: "Opprett lokale ideer og prosjektnotater. Remote flater faar ikke vault-innhold uten eksplisitt eksport eller deling.",
+            subtitle: "Opprett lokale ideer, prosjektnotater og en Obsidian-lignende graf. Remote flater faar ikke vault-innhold uten eksplisitt eksport eller deling.",
             chip: "LOCAL VAULT",
             content: [
                 personalSection(
@@ -9675,6 +9830,24 @@ final class ConfigurationCatalogCell: GeneralCell {
                         .Text(personalBodyText("Seed-knappene skriver bare til lokal VaultCell. Dette gir flaten en faktisk testbar ide/prosjekt-flyt i stedet for et statisk kort.")),
                         .HStack(SkeletonHStack(elements: [.Button(seedIdea), .Button(seedProject)], spacing: 8))
                     ]
+                ),
+                personalSection(
+                    "Prosjektstyring",
+                    role: "personal-list-row",
+                    content: [
+                        .Text(personalBodyText("Ideer og prosjekter vises fra lokal vault-state etter eksplisitt seed eller senere capture.")),
+                        .List(noteList)
+                    ]
+                ),
+                personalSection(
+                    "Obsidian graph",
+                    role: "personal-graph-preview",
+                    content: [
+                        .Visualization(graphPreview),
+                        .HStack(SkeletonHStack(elements: [.Button(reindexGraph), .Button(neighbors)], spacing: 8)),
+                        personalKeyValueRow("Nodes", keypath: "graph.state.node_count", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
+                        personalKeyValueRow("Edges", keypath: "graph.state.edge_count", accent: BindingPersonalCopilotDesignSystem.success)
+                    ]
                 )
             ]
         )
@@ -9685,43 +9858,43 @@ final class ConfigurationCatalogCell: GeneralCell {
             text: nil,
             sourceKeypath: "meetingCoordinator.state.draft.title",
             targetKeypath: "meetingCoordinator.draft.title",
-            placeholder: "Meeting title",
+            placeholder: "Skriv en kort møtetittel",
             modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
         )
         let targetProfileField = SkeletonTextField(
             text: nil,
             sourceKeypath: "meetingCoordinator.state.draft.targetProfileID",
             targetKeypath: "meetingCoordinator.draft.targetProfileID",
-            placeholder: "Optional target profile ID",
+            placeholder: "Navn eller profil du vil avtale med",
             modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
         )
         let proposedTimesField = SkeletonTextField(
             text: nil,
             sourceKeypath: "meetingCoordinator.state.draft.proposedTimesText",
             targetKeypath: "meetingCoordinator.draft.proposedTimesText",
-            placeholder: "Proposed times, comma separated ISO-8601",
+            placeholder: "Foreslå tider i vanlig tekst",
             modifiers: BindingPersonalCopilotDesignSystem.fieldCard()
         )
         let proposeButton = personalActionButton(
             keypath: "meetingCoordinator.proposeTimes",
-            label: "Propose times",
+            label: "Foreslå tider",
             payload: .object([:])
         )
         let acceptButton = personalActionButton(
             keypath: "meetingCoordinator.acceptTime",
-            label: "Accept first time",
+            label: "Godta første forslag",
             payload: .object([:]),
             style: .secondary
         )
         let declineButton = personalActionButton(
             keypath: "meetingCoordinator.declineTime",
-            label: "Decline first time",
+            label: "Avslå første forslag",
             payload: .object([:]),
             style: .warning
         )
         let clearButton = personalActionButton(
             keypath: "meetingCoordinator.clearMeetingIntent",
-            label: "Clear intent",
+            label: "Tøm utkast",
             payload: .object([:]),
             style: .secondary
         )
@@ -9732,14 +9905,14 @@ final class ConfigurationCatalogCell: GeneralCell {
             chip: "HYBRID INTENT",
             content: [
                 personalSection(
-                    "Intent draft",
+                    "Møteutkast",
                     role: "personal-draft-composer",
                     content: [
-                        .Text(personalLabelText("MEETING TITLE")),
+                        .Text(personalLabelText("TITTEL")),
                         .TextField(titleField),
-                        .Text(personalLabelText("TARGET PROFILE")),
+                        .Text(personalLabelText("HVEM")),
                         .TextField(targetProfileField),
-                        .Text(personalLabelText("PROPOSED TIMES")),
+                        .Text(personalLabelText("TIDER")),
                         .TextField(proposedTimesField),
                         .HStack(SkeletonHStack(elements: [
                             .Button(proposeButton),
@@ -9750,14 +9923,14 @@ final class ConfigurationCatalogCell: GeneralCell {
                     ]
                 ),
                 personalSection(
-                    "Proposal context",
+                    "Forslag",
                     role: "personal-key-value-block",
                     content: [
                         personalKeyValueRow("Status", keypath: "meetingCoordinator.state.coordinationStatus", accent: BindingPersonalCopilotDesignSystem.brandPrimary),
-                        personalKeyValueRow("Bridge", keypath: "meetingCoordinator.state.meetingBridge.provider", accent: BindingPersonalCopilotDesignSystem.success),
-                        personalKeyValueRow("Join URL", keypath: "meetingCoordinator.state.meetingBridge.joinURL", accent: BindingPersonalCopilotDesignSystem.textTertiary),
-                        personalKeyValueRow("Consent", keypath: "meetingCoordinator.state.meetingBridge.requiresCameraMicrophoneConsent", accent: BindingPersonalCopilotDesignSystem.warning),
-                        personalKeyValueRow("Native permissions", keypath: "meetingCoordinator.state.nativePermissionRequests", accent: BindingPersonalCopilotDesignSystem.warning)
+                        personalKeyValueRow("Video", keypath: "meetingCoordinator.state.meetingBridge.provider", accent: BindingPersonalCopilotDesignSystem.success),
+                        personalKeyValueRow("Lenke", keypath: "meetingCoordinator.state.meetingBridge.joinURL", accent: BindingPersonalCopilotDesignSystem.textTertiary),
+                        personalKeyValueRow("Samtykke", keypath: "meetingCoordinator.state.meetingBridge.requiresCameraMicrophoneConsent", accent: BindingPersonalCopilotDesignSystem.warning),
+                        personalKeyValueRow("Enhetstilganger", keypath: "meetingCoordinator.state.nativePermissionRequests", accent: BindingPersonalCopilotDesignSystem.warning)
                     ]
                 )
             ]
@@ -9868,6 +10041,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     private enum PersonalButtonStyle {
         case primary
+        case iconPrimary
         case secondary
         case warning
     }
@@ -9875,13 +10049,16 @@ final class ConfigurationCatalogCell: GeneralCell {
     nonisolated private static func personalActionButton(
         keypath: String,
         label: String,
+        url: String? = nil,
         payload: ValueType?,
         style: PersonalButtonStyle = .primary
     ) -> SkeletonButton {
-        var button = SkeletonButton(keypath: keypath, label: label, payload: payload)
+        var button = SkeletonButton(keypath: keypath, label: label, url: url, payload: payload)
         switch style {
         case .primary:
             button.modifiers = BindingPersonalCopilotDesignSystem.primaryButton()
+        case .iconPrimary:
+            button.modifiers = BindingPersonalCopilotDesignSystem.promptIconButton()
         case .secondary:
             button.modifiers = BindingPersonalCopilotDesignSystem.secondaryButton()
         case .warning:
@@ -9892,14 +10069,16 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated private static func personalDispatchActionButton(
         _ referenceLabel: String,
+        endpoint: String? = nil,
         actionKeypath: String,
         label: String,
         payload: ValueType = .bool(true),
         style: PersonalButtonStyle = .secondary
     ) -> SkeletonButton {
         personalActionButton(
-            keypath: "\(referenceLabel).dispatchAction",
+            keypath: endpoint == nil ? "\(referenceLabel).dispatchAction" : "dispatchAction",
             label: label,
+            url: endpoint,
             payload: .object([
                 "keypath": .string(actionKeypath),
                 "payload": payload
@@ -9912,7 +10091,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         title: String,
         subtitle: String,
         chip: String,
-        content: [SkeletonElement]
+        content: [SkeletonElement],
+        showsCopilotReturnAction: Bool = true
     ) -> SkeletonElement {
         var titleText = BindingPersonalCopilotDesignSystem.headingText(title)
         titleText.modifiers?.styleRole = "personal-hero"
@@ -9920,12 +10100,24 @@ final class ConfigurationCatalogCell: GeneralCell {
         var chipText = SkeletonText(text: chip)
         chipText.modifiers = BindingPersonalCopilotDesignSystem.badgeModifier()
         let subtitleText = personalBodyText(subtitle, lineLimit: 2)
+        let assistantButton = personalDispatchActionButton(
+            "personalNavigator",
+            endpoint: "cell:///PersonalCopilotNavigator",
+            actionKeypath: "navigator.openCopilot",
+            label: "Assistent",
+            style: .secondary
+        )
 
-        var heroHeader = SkeletonHStack(elements: [
+        var heroHeaderElements: [SkeletonElement] = [
             .Text(titleText),
             .Spacer(SkeletonSpacer()),
             .Text(chipText)
-        ], spacing: 10)
+        ]
+        if showsCopilotReturnAction {
+            heroHeaderElements.append(.Button(assistantButton))
+        }
+
+        var heroHeader = SkeletonHStack(elements: heroHeaderElements, spacing: 10)
         heroHeader.modifiers = modifier {
             $0.maxWidthInfinity = true
         }
@@ -9949,6 +10141,28 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.maxWidthInfinity = true
         }
         return .ScrollView(scroll)
+    }
+
+    nonisolated private static func withPersonalCopilotRecoveryAction(_ configuration: CellConfiguration) -> CellConfiguration {
+        guard let skeleton = configuration.skeleton else { return configuration }
+
+        var updated = configuration
+        let assistantButton = personalDispatchActionButton(
+            "personalNavigator",
+            endpoint: "cell:///PersonalCopilotNavigator",
+            actionKeypath: "navigator.openCopilot",
+            label: "Assistent",
+            style: .secondary
+        )
+        var container = SkeletonVStack(elements: [
+            skeleton,
+            .Button(assistantButton)
+        ], spacing: 12)
+        container.modifiers = modifier {
+            $0.maxWidthInfinity = true
+        }
+        updated.skeleton = .VStack(container)
+        return updated
     }
 
     nonisolated private static func personalSection(
@@ -9976,10 +10190,10 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontSize = 11
             $0.fontWeight = "medium"
             $0.styleRole = "personal-section-header"
-            $0.width = 112
         }
         var valueText = personalBoundText(keypath, lineLimit: 3)
         valueText.modifiers?.fontSize = 14
+        valueText.modifiers?.maxWidthInfinity = true
         var accentText = SkeletonText(text: " ")
         accentText.modifiers = modifier {
             $0.width = 4
@@ -9987,10 +10201,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.background = accent
             $0.cornerRadius = 99
         }
+        var textColumn = SkeletonVStack(elements: [
+            .Text(keyText),
+            .Text(valueText)
+        ], spacing: 3)
+        textColumn.modifiers = modifier {
+            $0.maxWidthInfinity = true
+        }
         var row = SkeletonHStack(elements: [
             .Text(accentText),
-            .Text(keyText),
-            .Text(valueText),
+            .VStack(textColumn),
             .Spacer(SkeletonSpacer())
         ], spacing: 8)
         row.modifiers = modifier {
@@ -14857,7 +15077,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         stopButton.modifiers = neutralButton
 
         var clearButton = SkeletonButton(
-            keypath: "proofs.encounters",
+            keypath: "encounters",
             label: "Clear encounter proofs",
             url: "cell:///EntityAnchor",
             payload: .object(Object())
@@ -17320,13 +17540,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.fontSize = 12
             $0.lineLimit = 3
         }
-        var nodeCount = SkeletonText(keypath: "graph.graph.state.node_count")
+        var nodeCount = SkeletonText(keypath: "graph.state.node_count")
         nodeCount.modifiers = modifier {
             $0.foregroundColor = "#0369A1"
             $0.fontWeight = "semibold"
             $0.fontSize = 18
         }
-        var edgeCount = SkeletonText(keypath: "graph.graph.state.edge_count")
+        var edgeCount = SkeletonText(keypath: "graph.state.edge_count")
         edgeCount.modifiers = modifier {
             $0.foregroundColor = "#0284C7"
             $0.fontWeight = "semibold"
@@ -17339,16 +17559,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.lineLimit = 8
         }
 
-        var reindexDemo = SkeletonButton(keypath: "graph.graph.reindex", label: "Reindex demo graph", payload: demoNotes)
+        var reindexDemo = SkeletonButton(keypath: "graph.reindex", label: "Reindex demo graph", payload: demoNotes)
         reindexDemo.modifiers = primaryButton
-        var clearGraph = SkeletonButton(keypath: "graph.graph.reindex", label: "Clear graph", payload: .object(["notes": .list([])]))
+        var clearGraph = SkeletonButton(keypath: "graph.reindex", label: "Clear graph", payload: .object(["notes": .list([])]))
         clearGraph.modifiers = neutralButton
 
-        var queryOutgoing = SkeletonButton(keypath: "graph.graph.outgoing", label: "Outgoing from Home", payload: .string("Home"))
+        var queryOutgoing = SkeletonButton(keypath: "graph.outgoing", label: "Outgoing from Home", payload: .string("Home"))
         queryOutgoing.modifiers = neutralButton
-        var queryIncoming = SkeletonButton(keypath: "graph.graph.incoming", label: "Incoming to Scanner", payload: .string("Scanner"))
+        var queryIncoming = SkeletonButton(keypath: "graph.incoming", label: "Incoming to Scanner", payload: .string("Scanner"))
         queryIncoming.modifiers = neutralButton
-        var queryNeighbors = SkeletonButton(keypath: "graph.graph.neighbors", label: "Neighbors of Trust", payload: .string("Trust"))
+        var queryNeighbors = SkeletonButton(keypath: "graph.neighbors", label: "Neighbors of Trust", payload: .string("Trust"))
         queryNeighbors.modifiers = neutralButton
 
         var operationText = SkeletonText(keypath: ".")
@@ -17356,7 +17576,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = "#0369A1"
             $0.fontSize = 12
         }
-        var operationsList = SkeletonList(keypath: "graph.graph.state.operations", flowElementSkeleton: SkeletonVStack(elements: [.Text(operationText)]))
+        var operationsList = SkeletonList(keypath: "graph.state.operations", flowElementSkeleton: SkeletonVStack(elements: [.Text(operationText)]))
         operationsList.modifiers = listCard
 
         var hero = SkeletonVStack(elements: [

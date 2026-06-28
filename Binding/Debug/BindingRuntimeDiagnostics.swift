@@ -84,6 +84,48 @@ enum CellConfigurationValidationService {
         "activationActionKeypath"
     ]
 
+    private static let ownerAccessAffordanceElements: Set<String> = [
+        "Button",
+        "Reference",
+        "TextArea",
+        "TextField",
+        "List",
+        "Grid",
+        "Picker",
+        "Tabs"
+    ]
+
+    private static let ownerAccessAffordanceKeys: Set<String> = [
+        "label",
+        "keypath",
+        "url",
+        "payload",
+        "placeholder",
+        "sourceKeypath",
+        "targetKeypath",
+        "topic",
+        "tabsKeypath",
+        "selectionActionKeypath",
+        "activationActionKeypath"
+    ]
+
+    private static let ownerAccessAffordanceNeedles: [String] = [
+        "co-pilot",
+        "copilot",
+        "chat",
+        "chathub",
+        "entity",
+        "entityanchor",
+        "entityextension",
+        "owner",
+        "ownentity",
+        "egen entitet",
+        "min entitet",
+        "eier-entitet",
+        "eierentitet",
+        "assistent"
+    ]
+
     static func validate(_ configuration: CellConfiguration) -> CellConfigurationValidationReport {
         let references = configuration.cellReferences ?? []
         let trimmedLabels = references
@@ -196,6 +238,18 @@ enum CellConfigurationValidationService {
             )
         }
 
+        if configuration.skeleton != nil,
+           !hasOwnerEntityAccessAffordance(in: configuration)
+        {
+            issues.append(
+                CellConfigurationValidationIssue(
+                    severity: .warning,
+                    title: "Mangler eier-entitet tilgang",
+                    detail: "Produksjons-skeletons bør ha en synlig vei til egen entitet, Co-Pilot eller en dokumentert shell-affordance, ellers kan AI-/brukerredigert UI låse brukeren ute."
+                )
+            )
+        }
+
         if issues.isEmpty {
             issues.append(
                 CellConfigurationValidationIssue(
@@ -252,6 +306,87 @@ enum CellConfigurationValidationService {
 
     private static func endpointIdentity(_ endpoint: String) -> String {
         endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func hasOwnerEntityAccessAffordance(in configuration: CellConfiguration) -> Bool {
+        guard let skeleton = configuration.skeleton,
+              let rawObject = rawObject(from: skeleton)
+        else {
+            return false
+        }
+        return containsOwnerEntityAccessAffordance(in: rawObject)
+    }
+
+    private static func containsOwnerEntityAccessAffordance(in value: Any) -> Bool {
+        switch value {
+        case let dictionary as [String: Any]:
+            if dictionary.count == 1,
+               let elementName = dictionary.keys.first,
+               let payload = dictionary[elementName] as? [String: Any]
+            {
+                if payloadIsHidden(payload) {
+                    return false
+                }
+                if ownerAccessAffordanceElements.contains(elementName),
+                   payloadContainsOwnerAccessSignal(payload)
+                {
+                    return true
+                }
+            }
+
+            for child in dictionary.values {
+                if containsOwnerEntityAccessAffordance(in: child) {
+                    return true
+                }
+            }
+            return false
+        case let array as [Any]:
+            return array.contains { containsOwnerEntityAccessAffordance(in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private static func payloadIsHidden(_ payload: [String: Any]) -> Bool {
+        guard let modifiers = payload["modifiers"] as? [String: Any] else {
+            return false
+        }
+        return modifiers["hidden"] as? Bool == true
+    }
+
+    private static func payloadContainsOwnerAccessSignal(_ payload: [String: Any]) -> Bool {
+        for (key, value) in payload where ownerAccessAffordanceKeys.contains(key) {
+            if valueContainsOwnerAccessSignal(value) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func valueContainsOwnerAccessSignal(_ value: Any) -> Bool {
+        switch value {
+        case let string as String:
+            let normalized = normalizeOwnerAccessSignal(string)
+            return ownerAccessAffordanceNeedles
+                .map { normalizeOwnerAccessSignal($0) }
+                .contains(where: { needle in
+                    !needle.isEmpty && normalized.contains(needle)
+                })
+        case let dictionary as [String: Any]:
+            return dictionary.values.contains { valueContainsOwnerAccessSignal($0) }
+        case let array as [Any]:
+            return array.contains { valueContainsOwnerAccessSignal($0) }
+        default:
+            return false
+        }
+    }
+
+    private static func normalizeOwnerAccessSignal(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
     }
 
     private static func referencedValues(in skeleton: SkeletonElement?) -> [CollectedBindingValue] {

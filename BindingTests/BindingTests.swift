@@ -203,6 +203,268 @@ final class RemoteEndpointAccessAgreementXCTest: XCTestCase {
     }
 }
 
+final class PersonalUsageQuotaCellXCTest: XCTestCase {
+    func testKeepsTopUpInsideEntitlementBoundary() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+
+        let vault = BindingStartupIdentityVault.shared
+        _ = await vault.initialize()
+        CellBase.defaultIdentityVault = vault
+        let owner = await vault.identity(
+            for: "personal-usage-quota-test-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        )!
+
+        guard let quota = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///PersonalUsageQuota",
+            requester: owner
+        ) as? Meddle else {
+            return XCTFail("Could not resolve PersonalUsageQuota as Meddle")
+        }
+
+        guard case let .object(initialState) = try await quota.get(keypath: "state", requester: owner) else {
+            return XCTFail("PersonalUsageQuota state was not an object")
+        }
+
+        XCTAssertEqual(bindingTestValueString(initialState["productVariant"]), "usage_quota")
+        XCTAssertEqual(bindingTestValueString(initialState["transferability"]), "none")
+        XCTAssertEqual(bindingTestValueBool(initialState["cashOut"]), false)
+        XCTAssertEqual(bindingTestValueBool(initialState["externalAcceptance"]), false)
+
+        guard case let .object(topUp)? = initialState["topUp"] else {
+            return XCTFail("PersonalUsageQuota topUp state was not an object")
+        }
+        XCTAssertEqual(bindingTestValueString(topUp["providerRole"]), "external_top_up_only")
+        XCTAssertEqual(bindingTestValueString(topUp["nativePurchaseCTA"]), "disabled")
+
+        let blockedSnapshotResponse = try await quota.set(
+            keypath: "recordRemoteSnapshot",
+            value: .object([
+                "productVariant": .string("wallet_value"),
+                "transferability": .string("p2p"),
+                "cashOut": .bool(true),
+                "externalAcceptance": .bool(true)
+            ]),
+            requester: owner
+        )
+        guard case let .object(blockedSnapshot) = blockedSnapshotResponse else {
+            return XCTFail("Blocked snapshot response was not an object")
+        }
+        XCTAssertEqual(bindingTestValueString(blockedSnapshot["status"]), "blocked")
+
+        let acceptedSnapshotResponse = try await quota.set(
+            keypath: "recordRemoteSnapshot",
+            value: .object([
+                "productVariant": .string("usage_quota"),
+                "transferability": .string("p2p"),
+                "cashOut": .bool(true),
+                "externalAcceptance": .bool(true),
+                "balance": .object([
+                    "quotaUnits": .integer(50_000),
+                    "settlementMinorUnits": .integer(50),
+                    "currency": .string("NOK")
+                ])
+            ]),
+            requester: owner
+        )
+        guard case let .object(acceptedSnapshot) = acceptedSnapshotResponse,
+              case let .object(updatedState)? = acceptedSnapshot["state"],
+              case let .object(remoteSnapshot)? = updatedState["remoteSnapshot"],
+              case let .object(balance)? = updatedState["balance"] else {
+            return XCTFail("Accepted snapshot response did not contain normalized state")
+        }
+
+        XCTAssertEqual(bindingTestValueString(acceptedSnapshot["status"]), "ok")
+        XCTAssertEqual(bindingTestValueString(remoteSnapshot["transferability"]), "none")
+        XCTAssertEqual(bindingTestValueBool(remoteSnapshot["cashOut"]), false)
+        XCTAssertEqual(bindingTestValueBool(remoteSnapshot["externalAcceptance"]), false)
+        XCTAssertEqual(bindingTestValueDouble(balance["quotaUnits"]), 50_000)
+        XCTAssertEqual(bindingTestValueString(balance["currency"]), "NOK")
+
+        let topUpResponse = try await quota.set(
+            keypath: "requestTopUp",
+            value: .object([
+                "amountMinorUnits": .integer(5_000),
+                "rail": .string("stripe_apple_pay")
+            ]),
+            requester: owner
+        )
+        guard case let .object(topUpRequest) = topUpResponse else {
+            return XCTFail("Top-up request response was not an object")
+        }
+        XCTAssertTrue(["blocked", "delegated"].contains(bindingTestValueString(topUpRequest["status"]) ?? ""))
+    }
+
+    func testAppStoreTopUpResponseKeepsVisibleCopyInsideUsageQuotaFrame() async throws {
+        guard BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else {
+            throw XCTSkip("App Store catalog gate is disabled for this process.")
+        }
+
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+
+        let vault = BindingStartupIdentityVault.shared
+        _ = await vault.initialize()
+        CellBase.defaultIdentityVault = vault
+        let owner = await vault.identity(
+            for: "personal-usage-quota-copy-test-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        )!
+
+        guard let quota = try await resolver.cellAtEndpoint(
+            endpoint: "cell:///PersonalUsageQuota",
+            requester: owner
+        ) as? Meddle else {
+            return XCTFail("Could not resolve PersonalUsageQuota as Meddle")
+        }
+
+        let topUpResponse = try await quota.set(
+            keypath: "requestTopUp",
+            value: .object([
+                "amountMinorUnits": .integer(5_000),
+                "rail": .string("stripe_apple_pay")
+            ]),
+            requester: owner
+        )
+        guard case let .object(response) = topUpResponse,
+              case let .object(state)? = response["state"],
+              case let .object(topUp)? = state["topUp"] else {
+            return XCTFail("Top-up response did not contain normalized state")
+        }
+
+        XCTAssertEqual(bindingTestValueString(response["status"]), "blocked")
+        XCTAssertEqual(bindingTestValueString(topUp["nativePurchaseCTA"]), "disabled")
+
+        let visibleCopy = Self.userFacingStrings(in: response)
+        XCTAssertTrue(
+            visibleCopy.contains { $0.localizedCaseInsensitiveContains("brukskvote") },
+            "Visible usage-quota copy should keep the user inside brukskvote language."
+        )
+
+        let combinedCopy = visibleCopy.joined(separator: "\n").lowercased()
+        for forbiddenTerm in [
+            "prepaid",
+            "wallet",
+            "saldo",
+            "balance",
+            "token",
+            "micropayment",
+            "issueprepaid",
+            "external purchase",
+            "purchase cta",
+            "native external",
+            "checkout"
+        ] {
+            XCTAssertFalse(
+                combinedCopy.contains(forbiddenTerm),
+                "Visible usage-quota copy leaked '\(forbiddenTerm)':\n\(visibleCopy.joined(separator: "\n"))"
+            )
+        }
+    }
+
+    private static let userFacingTextKeys: Set<String> = [
+        "title",
+        "subtitle",
+        "headline",
+        "summary",
+        "status",
+        "message",
+        "nextStep",
+        "label",
+        "description",
+        "helperText"
+    ]
+
+    private static func userFacingStrings(in object: Object) -> [String] {
+        object.flatMap { key, value -> [String] in
+            var strings: [String] = []
+            if userFacingTextKeys.contains(key),
+               let string = bindingTestValueString(value),
+               !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                strings.append(string)
+            }
+
+            switch value {
+            case let .object(child):
+                strings.append(contentsOf: userFacingStrings(in: child))
+            case let .list(values):
+                for entry in values {
+                    if case let .object(child) = entry {
+                        strings.append(contentsOf: userFacingStrings(in: child))
+                    } else if userFacingTextKeys.contains(key),
+                              case let .string(string) = entry,
+                              !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        strings.append(string)
+                    }
+                }
+            default:
+                break
+            }
+
+            return strings
+        }
+    }
+}
+
+final class SkeletonOwnerEntityAccessValidationXCTest: XCTestCase {
+    func testValidationServiceWarnsWhenSkeletonLacksOwnerEntityAccess() {
+        var configuration = CellConfiguration(name: "No Owner Access")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Prosjektstatus")),
+            .Text(SkeletonText(text: "Utestående arbeid"))
+        ]))
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        XCTAssertGreaterThan(report.warningCount, 0)
+        XCTAssertTrue(report.issues.contains(where: { $0.title == "Mangler eier-entitet tilgang" }))
+    }
+
+    func testValidationServiceAcceptsVisibleCopilotOwnerEntityAccess() {
+        var configuration = CellConfiguration(name: "With Owner Access")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Prosjektstatus")),
+            .Button(SkeletonButton(
+                keypath: "cell:///PersonalChatHub/chatHub.ui.openOwnEntity",
+                label: "Co-Pilot"
+            ))
+        ]))
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        XCTAssertFalse(report.issues.contains(where: { $0.title == "Mangler eier-entitet tilgang" }))
+    }
+}
+
+final class BindingRuntimeBootstrapXCTest: XCTestCase {
+    func testDocumentRootDoesNotUseUserDocuments() {
+        let defaultPath = BindingRuntimeBootstrap.documentRootPath(
+            environment: [:],
+            launchArguments: ["Binding"]
+        )
+        let verifierPath = BindingRuntimeBootstrap.documentRootPath(
+            environment: ["BINDING_VERIFIER_IDENTITY_MODE": "startup"],
+            launchArguments: ["Binding"]
+        )
+
+        XCTAssertFalse(defaultPath.contains("/Documents"))
+        XCTAssertFalse(verifierPath.contains("/Documents"))
+        XCTAssertTrue(verifierPath.hasPrefix(NSTemporaryDirectory()))
+        XCTAssertTrue(verifierPath.hasSuffix("Binding/CellDocumentRoot"))
+    }
+}
+
 @Suite(.serialized)
 struct BindingTests {
 
@@ -231,19 +493,21 @@ struct BindingTests {
             "Publish Public Profile",
             "Public Profile Directory",
             "Matches",
-            "Co-Pilot Chat",
+            "Co-Pilot",
+            "Agenda Context",
+            "Calendar",
             "Vault / Ideas",
             "Meeting Intent",
             "Privacy Audit",
             "Personal Co-Pilot Catalog",
-            "Apple Intelligence",
+            "Apple Intelligence Purpose Matcher",
             "Entity Scanner",
             "Workflow Studio"
         ] {
             #expect(names.contains(requiredName))
         }
 
-        #expect(configurations.count == 13)
+        #expect(configurations.count == 15)
         #expect(configurations.allSatisfy(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1))
 
         let visibleText = configurations.flatMap { configuration in
@@ -400,7 +664,7 @@ struct BindingTests {
         )
     }
 
-    @Test func personalCopilotInviteChatStaysChatFirstAndDropsTechnicalInviteFields() {
+    @Test func personalCopilotInviteChatStaysChatFirstAndDropsTechnicalInviteFields() throws {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
 
         #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(configuration))
@@ -414,11 +678,42 @@ struct BindingTests {
         let helpIntro = "Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt."
         let helpFollowup = "Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene."
         if let conversationPanel = skeletonTabPanel(id: "samtale", in: skeleton) {
-            #expect(!skeletonContainsLiteralText("Start her", in: conversationPanel))
+            let conversationElement = SkeletonElement.VStack(SkeletonVStack(elements: conversationPanel))
+            #expect(topLevelSectionHasHeader("Skriv", in: conversationPanel))
+            #expect(!topLevelSectionHasHeader("Start her", in: conversationPanel))
+            #expect(!topLevelSectionHasHeader("Co-Pilot Chat", in: conversationPanel))
             #expect(!skeletonContainsLiteralText(helpIntro, in: conversationPanel))
             #expect(!skeletonContainsLiteralText(helpFollowup, in: conversationPanel))
+            if let promptLogRow = skeletonListFlowElement(
+                keypath: "chatHub.state.ui.promptMessages",
+                in: conversationPanel
+            ) {
+                #expect(!skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", in: promptLogRow))
+                #expect(!skeletonContainsButton(keypath: "chatHub.ui.openMatchedResourceLibrary", in: promptLogRow))
+                #expect(!skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: promptLogRow))
+            } else {
+                Issue.record("Co-Pilot Chat Samtale tab should render the prompt log")
+            }
+            #expect(!skeletonContainsButton(keypath: "chatHub.assistant.analyzeDraft", in: conversationPanel))
+            #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: conversationPanel))
+            #expect(skeletonContainsTextKeypath("chatHub.state.ui.primaryActionHint", in: conversationPanel))
+            #expect(skeletonContainsTabs(tabsKeypath: "chatHub.state.ui.activeHelpers", in: conversationElement))
+            #expect(!skeletonContainsLiteralText("Trykk pilen", in: conversationPanel))
+            #expect(!skeletonContainsButton(keypath: "chatHub.prompt.submit", in: conversationPanel))
+            #expect(!skeletonContainsButton(keypath: "chatHub.clearComposer", in: conversationPanel))
+            #expect(!skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: conversationPanel))
+            #expect(!skeletonContainsButton(keypath: "chatHub.voice.requestPermission", in: conversationPanel))
+            #expect(!skeletonContainsButton(keypath: "chatHub.voice.startListening", in: conversationPanel))
+            #expect(!skeletonContainsButton(keypath: "chatHub.voice.stopListening", in: conversationPanel))
         } else {
             Issue.record("Co-Pilot Chat should expose a Samtale tab panel")
+        }
+        if let activePanel = skeletonTabPanel(id: "aktivt", in: skeleton) {
+            let activeElement = SkeletonElement.VStack(SkeletonVStack(elements: activePanel))
+            #expect(skeletonContainsList(keypath: "chatHub.state.threads", topic: nil, in: activeElement))
+            #expect(skeletonContainsList(keypath: "chatHub.state.messages", topic: nil, in: activeElement))
+        } else {
+            Issue.record("Co-Pilot Chat should expose an Aktivt tab panel")
         }
         if let helpPanel = skeletonTabPanel(id: "hjelp", in: skeleton) {
             #expect(skeletonContainsLiteralText("Hjelp", in: helpPanel))
@@ -432,15 +727,12 @@ struct BindingTests {
             "chatHub.invite",
             "chatHub.acceptInvite",
             "chatHub.declineInvite",
-            "chatHub.sendComposedMessage",
             "chatHub.clearComposer",
             "chatHub.reportMessage",
             "chatHub.blockUser",
             "chatHub.unblockUser",
-            "chatHub.assistant.analyzeDraft",
             "chatHub.assistant.dismissSuggestion",
             "chatHub.ui.openSuggestedHelper",
-            "chatHub.ui.setActiveHelper",
             "chatHub.ui.setCapabilityDiscoveryEnabled",
             "chatHub.voice.requestPermission",
             "chatHub.voice.startListening",
@@ -461,6 +753,7 @@ struct BindingTests {
         ] {
             #expect(skeletonContainsButton(keypath: keypath, in: skeleton))
         }
+        #expect(skeletonContainsTabsSelectionAction(keypath: "chatHub.ui.setActiveHelper", in: skeleton))
 
         #expect(skeletonContainsTextField(targetKeypath: "chatHub.assistant.setCandidateQuery", in: skeleton))
         #expect(skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.title", in: skeleton))
@@ -484,6 +777,7 @@ struct BindingTests {
         #expect(!skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.profileID", in: skeleton))
         #expect(!skeletonContainsTextKeypath("chatHub.state.blockedUsers", in: skeleton))
         #expect(!skeletonContainsTextKeypath("chatHub.state.purposeWeights", in: skeleton))
+        _ = try JSONEncoder().encode(skeleton)
     }
 
     @Test func personalCopilotV1PolicyRejectsConferenceAndUnapprovedHosts() {
@@ -650,6 +944,7 @@ struct BindingTests {
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
+        #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Invite Chat") == .inviteChat)
     }
@@ -2135,6 +2430,34 @@ struct BindingTests {
         #expect(report.issues.contains(where: { $0.title == "Bindings uten matchende reference" }))
     }
 
+    @Test func validationServiceWarnsWhenSkeletonLacksOwnerEntityAccess() {
+        var configuration = CellConfiguration(name: "No Owner Access")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Prosjektstatus")),
+            .Text(SkeletonText(text: "Utestående arbeid"))
+        ]))
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        #expect(report.warningCount > 0)
+        #expect(report.issues.contains(where: { $0.title == "Mangler eier-entitet tilgang" }))
+    }
+
+    @Test func validationServiceAcceptsVisibleCopilotOwnerEntityAccess() {
+        var configuration = CellConfiguration(name: "With Owner Access")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Prosjektstatus")),
+            .Button(SkeletonButton(
+                keypath: "cell:///PersonalChatHub/chatHub.ui.openOwnEntity",
+                label: "Co-Pilot"
+            ))
+        ]))
+
+        let report = CellConfigurationValidationService.validate(configuration)
+
+        #expect(!report.issues.contains(where: { $0.title == "Mangler eier-entitet tilgang" }))
+    }
+
     @Test func validationServiceIgnoresDispatchActionPayloadKeypaths() {
         var configuration = CellConfiguration(name: "Dispatch Action")
         configuration.addReference(
@@ -2525,7 +2848,7 @@ struct BindingTests {
     }
 
     @Test func personalCopilotLocalSurfacesExposeRuntimePurposeBindings() {
-        let cases: [(configuration: CellConfiguration, keypaths: [String], buttons: [String], textAreaTargets: [String])] = [
+        let cases: [(configuration: CellConfiguration, keypaths: [String], buttons: [(keypath: String, url: String?)], textAreaTargets: [String])] = [
             (
                 ConfigurationCatalogCell.personalHomeMenuConfiguration(),
                 [
@@ -2536,10 +2859,10 @@ struct BindingTests {
                     "identity.state.status"
                 ],
                 [
-                    "identity.requestExport",
-                    "identity.requestAccountDelete",
-                    "identity.cancelAccountDelete",
-                    "personalNavigator.dispatchAction"
+                    ("requestExport", "cell:///PersonalIdentity"),
+                    ("requestAccountDelete", "cell:///PersonalIdentity"),
+                    ("cancelAccountDelete", "cell:///PersonalIdentity"),
+                    ("dispatchAction", "cell:///PersonalCopilotNavigator")
                 ],
                 []
             ),
@@ -2552,9 +2875,9 @@ struct BindingTests {
                     "profileDraft.state.status"
                 ],
                 [
-                    "profileDraft.preparePublishPreview",
-                    "profileDraft.recordPublishConsent",
-                    "profileDraft.resetDraft"
+                    ("profileDraft.preparePublishPreview", nil),
+                    ("profileDraft.recordPublishConsent", nil),
+                    ("profileDraft.resetDraft", nil)
                 ],
                 [
                     "profileDraft.profile.summary"
@@ -2566,25 +2889,27 @@ struct BindingTests {
                     "vault.vault.state"
                 ],
                 [
-                    "vault.vault.note.create"
+                    ("vault.note.create", "cell:///Vault"),
+                    ("graph.reindex", "cell:///GraphIndex"),
+                    ("graph.neighbors", "cell:///GraphIndex")
                 ],
                 []
             ),
             (
                 ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
                 [
-                    "meetingIntent.state.proposalStatus",
-                    "meetingIntent.state.calendarPermissionStatus",
-                    "meetingIntent.state.nativeMediaPermissionStatus",
-                    "meetingIntent.state.meetingBridge.provider"
+                    "meetingCoordinator.state.coordinationStatus",
+                    "meetingCoordinator.state.meetingBridge.provider",
+                    "meetingCoordinator.state.meetingBridge.requiresCameraMicrophoneConsent",
+                    "meetingCoordinator.state.nativePermissionRequests"
                 ],
                 [
-                    "meetingIntent.meeting.propose",
-                    "meetingIntent.meeting.clear"
+                    ("meetingCoordinator.proposeTimes", nil),
+                    ("meetingCoordinator.acceptTime", nil),
+                    ("meetingCoordinator.declineTime", nil),
+                    ("meetingCoordinator.clearMeetingIntent", nil)
                 ],
-                [
-                    "meetingIntent.meeting.intent"
-                ]
+                []
             ),
             (
                 ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration(),
@@ -2593,7 +2918,7 @@ struct BindingTests {
                     "privacyAudit.state.updatedAt"
                 ],
                 [
-                    "privacyAudit.audit.record"
+                    ("privacyAudit.audit.record", nil)
                 ],
                 []
             )
@@ -2609,7 +2934,10 @@ struct BindingTests {
                 #expect(skeletonContainsTextKeypath(keypath, in: skeleton), "\(item.configuration.name) missing \(keypath)")
             }
             for button in item.buttons {
-                #expect(skeletonContainsButton(keypath: button, in: skeleton), "\(item.configuration.name) missing \(button)")
+                #expect(
+                    skeletonContainsButton(keypath: button.keypath, url: button.url, in: skeleton),
+                    "\(item.configuration.name) missing \(button.keypath) at \(button.url ?? "porthole")"
+                )
             }
             for target in item.textAreaTargets {
                 #expect(skeletonContainsTextArea(targetKeypath: target, in: skeleton), "\(item.configuration.name) missing TextArea \(target)")
@@ -2617,12 +2945,19 @@ struct BindingTests {
         }
     }
 
-    @Test func personalHomeIncludesLocalNavigatorReference() {
+    @Test func personalHomeUsesDirectCopilotNavigatorDispatchActions() {
         let configuration = ConfigurationCatalogCell.personalHomeMenuConfiguration()
 
         #expect(configuration.cellReferences?.contains(where: {
-            $0.label == "personalNavigator" && $0.endpoint == "cell:///PersonalCopilotNavigator"
-        }) == true)
+            $0.label == "personalNavigator" || $0.endpoint == "cell:///PersonalCopilotNavigator"
+        }) != true)
+
+        guard let skeleton = configuration.skeleton else {
+            Issue.record("Personal Home should have a skeleton")
+            return
+        }
+
+        #expect(skeletonContainsButton(keypath: "dispatchAction", url: "cell:///PersonalCopilotNavigator", in: skeleton))
     }
 
     @Test func storedCopilotDemoStartRefreshesToCurrentFactorySkeleton() {
@@ -2634,7 +2969,7 @@ struct BindingTests {
         let effective = ContentView.effectiveDemoStartConfiguration(storedConfiguration: stale)
 
         #expect(ContentView.shouldRefreshStoredDemoStartConfiguration(stale))
-        #expect(effective.name == "Co-Pilot Chat")
+        #expect(effective.name == "Co-Pilot")
         if let skeleton = effective.skeleton {
             #expect(!skeletonContainsLiteralText("Start her", in: skeleton))
             #expect(skeletonTabPanel(id: "hjelp", in: skeleton) != nil)
@@ -2657,7 +2992,7 @@ struct BindingTests {
         let configuration = ContentView.defaultDemoStartConfiguration()
 
         if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
-            #expect(configuration.name == "Co-Pilot Chat")
+            #expect(configuration.name == "Co-Pilot")
             #expect(configuration.cellReferences?.contains(where: {
                 $0.label == "chatHub" && $0.endpoint == "cell:///PersonalChatHub"
             }) == true)
@@ -5767,11 +6102,11 @@ struct BindingTests {
 
         let chatConfiguration = items.compactMap { value -> CellConfiguration? in
             guard case let .cellConfiguration(configuration) = value else { return nil }
-            return configuration.name == "Co-Pilot Chat" ? configuration : nil
+            return configuration.name == "Co-Pilot" ? configuration : nil
         }.first
 
         guard let chatConfiguration else {
-            Issue.record("Fant ikke Co-Pilot Chat i configurations")
+            Issue.record("Fant ikke Co-Pilot i configurations")
             return
         }
 
@@ -5779,15 +6114,15 @@ struct BindingTests {
         #expect(endpoints.contains("cell:///PersonalChatHub"))
 
         guard let skeleton = chatConfiguration.skeleton else {
-            Issue.record("Co-Pilot Chat mangler skeleton")
+            Issue.record("Co-Pilot mangler skeleton")
             return
         }
 
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: skeleton))
-        #expect(skeletonContainsButton(keypath: "chatHub.assistant.analyzeDraft", in: skeleton))
         #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", in: skeleton))
         #expect(skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: skeleton))
-        #expect(skeletonContainsList(keypath: "chatHub.state.messages", topic: nil, in: skeleton))
+        #expect(!skeletonContainsLiteralText("Trykk pilen", in: skeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.ui.promptMessages", topic: nil, in: skeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.workbench.modules", topic: nil, in: skeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.ui.componentSurfaces", topic: nil, in: skeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.ui.activeToolChips", topic: nil, in: skeleton))
@@ -5825,11 +6160,11 @@ struct BindingTests {
 
         let chatConfiguration = items.compactMap { value -> CellConfiguration? in
             guard case let .cellConfiguration(configuration) = value else { return nil }
-            return configuration.name == "Co-Pilot Chat" ? configuration : nil
+            return configuration.name == "Co-Pilot" ? configuration : nil
         }.first
 
         guard let skeleton = chatConfiguration?.skeleton else {
-            Issue.record("Co-Pilot Chat mangler skeleton etter sync")
+            Issue.record("Co-Pilot mangler skeleton etter sync")
             return
         }
 
@@ -6014,6 +6349,47 @@ struct BindingTests {
         return configuration
     }
 
+    private func skeletonContainsButton(keypath: String, url: String? = nil, in elements: [SkeletonElement]) -> Bool {
+        elements.contains { skeletonContainsButton(keypath: keypath, url: url, in: $0) }
+    }
+
+    private func skeletonContainsButton(keypath: String, label: String, in elements: [SkeletonElement]) -> Bool {
+        elements.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+    }
+
+    private func skeletonContainsButton(keypath: String, label: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .Button(let button):
+            return button.keypath == keypath && button.label == label
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsButton(keypath: keypath, label: label, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) } ||
+                (section.footer.map { skeletonContainsButton(keypath: keypath, label: label, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, label: label, in: .VStack($0)) } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map { skeletonContainsButton(keypath: keypath, label: label, in: .VStack($0)) } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+        case .Tabs(let tabs):
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsButton(keypath: keypath, label: label, in: $0) }
+            }
+        default:
+            return false
+        }
+    }
+
     private func skeletonContainsButton(keypath: String, url: String? = nil, in element: SkeletonElement) -> Bool {
         switch element {
         case .Button(let button):
@@ -6044,6 +6420,73 @@ struct BindingTests {
             }
         default:
             return false
+        }
+    }
+
+    private func topLevelSectionHasHeader(_ text: String, in elements: [SkeletonElement]) -> Bool {
+        elements.contains { element in
+            guard case .Section(let section) = element,
+                  let header = section.header else {
+                return false
+            }
+            return skeletonContainsLiteralText(text, in: header)
+        }
+    }
+
+    private func skeletonListFlowElement(keypath: String, in elements: [SkeletonElement]) -> SkeletonElement? {
+        for element in elements {
+            if let match = skeletonListFlowElement(keypath: keypath, in: element) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    private func skeletonListFlowElement(keypath: String, in element: SkeletonElement) -> SkeletonElement? {
+        switch element {
+        case .List(let list):
+            guard list.keypath == keypath,
+                  let flowElementSkeleton = list.flowElementSkeleton else {
+                return nil
+            }
+            return .VStack(flowElementSkeleton)
+        case .VStack(let stack):
+            return skeletonListFlowElement(keypath: keypath, in: stack.elements)
+        case .HStack(let stack):
+            return skeletonListFlowElement(keypath: keypath, in: stack.elements)
+        case .ScrollView(let scroll):
+            return skeletonListFlowElement(keypath: keypath, in: scroll.elements)
+        case .Section(let section):
+            if let header = section.header,
+               let match = skeletonListFlowElement(keypath: keypath, in: header) {
+                return match
+            }
+            if let match = skeletonListFlowElement(keypath: keypath, in: section.content) {
+                return match
+            }
+            if let footer = section.footer {
+                return skeletonListFlowElement(keypath: keypath, in: footer)
+            }
+            return nil
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.flatMap {
+                skeletonListFlowElement(keypath: keypath, in: .VStack($0))
+            }
+        case .Grid(let grid):
+            return skeletonListFlowElement(keypath: keypath, in: grid.elements)
+        case .ZStack(let stack):
+            return skeletonListFlowElement(keypath: keypath, in: stack.elements)
+        case .Object(let object):
+            return skeletonListFlowElement(keypath: keypath, in: Array(object.elements.values))
+        case .Tabs(let tabs):
+            for panel in tabs.panels {
+                if let match = skeletonListFlowElement(keypath: keypath, in: panel.content) {
+                    return match
+                }
+            }
+            return nil
+        default:
+            return nil
         }
     }
 
@@ -6304,6 +6747,82 @@ struct BindingTests {
         }
     }
 
+    private func skeletonContainsTabs(tabsKeypath: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .Tabs(let tabs):
+            if tabs.tabsKeypath == tabsKeypath {
+                return true
+            }
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) }
+            }
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) } ||
+                (section.footer.map { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map {
+                skeletonContainsTabs(tabsKeypath: tabsKeypath, in: .VStack($0))
+            } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map {
+                skeletonContainsTabs(tabsKeypath: tabsKeypath, in: .VStack($0))
+            } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsTabs(tabsKeypath: tabsKeypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
+    private func skeletonContainsTabsSelectionAction(keypath: String, in element: SkeletonElement) -> Bool {
+        switch element {
+        case .Tabs(let tabs):
+            if tabs.selectionActionKeypath == keypath {
+                return true
+            }
+            return tabs.panels.contains { panel in
+                panel.content.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) }
+            }
+        case .VStack(let stack):
+            return stack.elements.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) }
+        case .HStack(let stack):
+            return stack.elements.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) }
+        case .ScrollView(let scroll):
+            return scroll.elements.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) }
+        case .Section(let section):
+            return (section.header.map { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) } ?? false) ||
+                section.content.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) } ||
+                (section.footer.map { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) } ?? false)
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.map {
+                skeletonContainsTabsSelectionAction(keypath: keypath, in: .VStack($0))
+            } ?? false
+        case .List(let list):
+            return list.flowElementSkeleton.map {
+                skeletonContainsTabsSelectionAction(keypath: keypath, in: .VStack($0))
+            } ?? false
+        case .Grid(let grid):
+            return grid.elements.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) }
+        case .ZStack(let stack):
+            return stack.elements.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) }
+        case .Object(let object):
+            return object.elements.values.contains { skeletonContainsTabsSelectionAction(keypath: keypath, in: $0) }
+        default:
+            return false
+        }
+    }
+
     private func skeletonContainsSelectableList(
         keypath: String,
         topic: String?,
@@ -6472,6 +6991,10 @@ struct BindingTests {
         default:
             return false
         }
+    }
+
+    private func skeletonContainsTextKeypath(_ keypath: String, in elements: [SkeletonElement]) -> Bool {
+        elements.contains { skeletonContainsTextKeypath(keypath, in: $0) }
     }
 
     private func skeletonContainsTextKeypath(_ keypath: String, in element: SkeletonElement) -> Bool {
@@ -8908,8 +9431,8 @@ enum CellConfigurationVerifier {
     ) {
         let skeletonElementKinds: Set<String> = [
             "Text", "AttachmentField", "FileUpload", "TextField", "TextArea", "List", "Object", "Reference",
-            "Toggle", "Image", "Button", "Spacer", "HStack", "VStack",
-            "ScrollView", "Section", "ZStack", "Grid", "Divider"
+            "Toggle", "Picker", "Image", "Button", "Spacer", "HStack", "VStack",
+            "ScrollView", "Section", "Tabs", "ZStack", "Grid", "Visualization", "Divider", "Unsupported"
         ]
         let readableBindingKeys: Set<String> = ["keypath", "sourceKeypath"]
 
@@ -9137,6 +9660,25 @@ private func bindingTestValueDouble(_ value: ValueType?) -> Double? {
         return Double(number)
     case let .string(string):
         return Double(string)
+    default:
+        return nil
+    }
+}
+
+private func bindingTestValueBool(_ value: ValueType?) -> Bool? {
+    guard let value else { return nil }
+    switch value {
+    case let .bool(flag):
+        return flag
+    case let .string(string):
+        let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if ["1", "true", "yes", "on"].contains(normalized) {
+            return true
+        }
+        if ["0", "false", "no", "off"].contains(normalized) {
+            return false
+        }
+        return nil
     default:
         return nil
     }
