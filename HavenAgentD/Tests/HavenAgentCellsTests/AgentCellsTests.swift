@@ -52,6 +52,26 @@ private actor StubAgentLocalModelClient: AgentLocalModelInvoking {
     }
 }
 
+private actor RecordingSecureCredentialStore: SecureCredentialStore {
+    private var values: [String: Data] = [:]
+
+    func store(secret: Data, handleID: String) async throws {
+        values[handleID] = secret
+    }
+
+    func loadSecret(handleID: String) async throws -> Data? {
+        values[handleID]
+    }
+
+    func deleteSecret(handleID: String) async throws {
+        values[handleID] = nil
+    }
+
+    func storedValue(handleID: String) -> Data? {
+        values[handleID]
+    }
+}
+
 private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendable {
     private var identities: [String: Identity] = [:]
     private var privateKeys: [String: Curve25519.Signing.PrivateKey] = [:]
@@ -143,13 +163,151 @@ struct AgentCellsTests {
         let cells = await AgentCellRegistry.instantiateDefaultCells(owner: owner)
 
         #expect(cells.count == AgentCellRegistry.concreteDescriptors.count)
-        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel])
+        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox])
         #expect(cells.contains { $0 is AgentSupervisorCell })
         #expect(cells.contains { $0 is AgentIdentityCell })
         #expect(cells.contains { $0 is RemoteIntentInboxCell })
         #expect(cells.contains { $0 is RemoteIntentReviewCell })
         #expect(cells.contains { $0 is AgentLocalModelCell })
         #expect(cells.contains { $0 is NetworkSentinelCell })
+        #expect(cells.contains { $0 is SecretCredentialCell })
+        #expect(cells.contains { $0 is AgentMailDraftCell })
+    }
+
+    @Test
+    func mailDraftCellPreparesReviewIntentWithoutDispatching() async throws {
+        let vault = MockIdentityVault()
+        let owner = try #require(await vault.identity(for: "owner", makeNewIfNotFound: true))
+        let cell = await AgentMailDraftCell(owner: owner)
+
+        let state = try await cell.get(keypath: "state", requester: owner)
+        guard case let .object(stateObject) = state else {
+            Issue.record("Expected mail draft state object.")
+            return
+        }
+        #expect(stateObject["actionID"] == .string(AgentMailDraftAutomation.actionID))
+        #expect(stateObject["requiresLocalReview"] == .bool(true))
+
+        let result = try await cell.set(
+            keypath: "draftIntent",
+            value: .object([
+                "to": .string("ane@example.com"),
+                "subject": .string("Oppfolging"),
+                "body": .string("Hei Ane,\n\nSkal vi ta en prat?"),
+                "correlationID": .string("mail-test-1")
+            ]),
+            requester: owner
+        )
+        guard case let .object(resultObject)? = result,
+              case let .object(intent)? = resultObject["intent"],
+              case let .object(arguments)? = intent["arguments"] else {
+            Issue.record("Expected prepared draft intent object.")
+            return
+        }
+
+        #expect(resultObject["status"] == .string("draft_intent_prepared"))
+        #expect(intent["actionID"] == .string(AgentMailDraftAutomation.actionID))
+        #expect(intent["topic"] == .string(AgentMailDraftAutomation.topic))
+        #expect(intent["requiresLocalReview"] == .bool(true))
+        #expect(intent["sideEffectUntilReview"] == .bool(false))
+        #expect(arguments["to"] == .string("ane@example.com"))
+        #expect(arguments["body"] == .string("Hei Ane,\n\nSkal vi ta en prat?"))
+    }
+
+    @Test
+    func secretCredentialCellStoresEncryptedBlobAndAuthorizesWithoutReturningRawSecret() async throws {
+        let previousMetadataStoreFactory = SecretCredentialCell.metadataStoreFactory
+        let previousSecureStoreFactory = SecretCredentialCell.secureStoreFactory
+        let previousRuntimeVaultFactory = SecretCredentialCell.runtimeVaultFactory
+        let metadataStore = InMemorySecretCredentialMetadataStore()
+        let secureStore = RecordingSecureCredentialStore()
+        let runtimeVault = SecretCredentialRuntimeVault()
+        SecretCredentialCell.metadataStoreFactory = { metadataStore }
+        SecretCredentialCell.secureStoreFactory = { secureStore }
+        SecretCredentialCell.runtimeVaultFactory = { runtimeVault }
+        defer {
+            SecretCredentialCell.metadataStoreFactory = previousMetadataStoreFactory
+            SecretCredentialCell.secureStoreFactory = previousSecureStoreFactory
+            SecretCredentialCell.runtimeVaultFactory = previousRuntimeVaultFactory
+        }
+
+        let rawSecret = "mistral-test-api-key-material"
+        let unlockKey = "unlock-key-with-enough-entropy-123456"
+        let vault = MockIdentityVault()
+        let owner = try #require(await vault.identity(for: "owner", makeNewIfNotFound: true))
+        let cell = await SecretCredentialCell(owner: owner)
+
+        let registration = try await cell.set(
+            keypath: "credential.register",
+            value: .object([
+                "credentialID": .string("mistral-primary"),
+                "providerID": .string("mistral"),
+                "credentialLabel": .string("Mistral primary"),
+                "secret": .string(rawSecret),
+                "unlockKey": .string(unlockKey),
+                "allowedPurposeRefs": .list([.string("purpose://model.provider-discovery")]),
+                "allowedScaffolds": .list([.string("agentd")]),
+                "allowedDataClasses": .list([.string("synthetic"), .string("public")]),
+                "blockedDataClasses": .list([.string("private-contact-info")]),
+                "requiresUserApproval": .bool(false),
+                "dpaStatus": .string("needs-review"),
+                "sourceURLs": .list([.string("https://console.mistral.ai")])
+            ]),
+            requester: owner
+        )
+
+        guard case let .object(registrationObject) = registration else {
+            Issue.record("Expected registration object.")
+            return
+        }
+        #expect(registrationObject["status"] == .string("registered"))
+        #expect(String(describing: registration).contains(rawSecret) == false)
+
+        let encrypted = try #require(await secureStore.storedValue(handleID: "haven.agentd.secretcredential.v1.mistral-primary"))
+        #expect(String(decoding: encrypted, as: UTF8.self).contains(rawSecret) == false)
+
+        let credentials = try await cell.get(keypath: "credentials", requester: owner)
+        #expect(String(describing: credentials).contains(rawSecret) == false)
+        #expect(String(describing: credentials).contains("mistral-primary"))
+
+        let wrongUnlock = try await cell.set(
+            keypath: "credential.authorizeUse",
+            value: .object([
+                "credentialID": .string("mistral-primary"),
+                "unlockKey": .string("wrong-unlock-key-with-enough-entropy"),
+                "purposeRef": .string("purpose://model.provider-discovery"),
+                "requestingScaffold": .string("agentd"),
+                "dataClass": .string("synthetic")
+            ]),
+            requester: owner
+        )
+        guard case let .object(wrongObject) = wrongUnlock else {
+            Issue.record("Expected wrong unlock object.")
+            return
+        }
+        #expect(wrongObject["status"] == .string("invalidUnlockKey"))
+
+        let authorized = try await cell.set(
+            keypath: "credential.authorizeUse",
+            value: .object([
+                "credentialID": .string("mistral-primary"),
+                "unlockKey": .string(unlockKey),
+                "purposeRef": .string("purpose://model.provider-discovery"),
+                "requestingScaffold": .string("agentd"),
+                "dataClass": .string("synthetic"),
+                "ttlSeconds": .integer(60)
+            ]),
+            requester: owner
+        )
+        guard case let .object(authorizedObject) = authorized,
+              case let .string(authorizedUseID)? = authorizedObject["authorizedUseID"] else {
+            Issue.record("Expected authorizedUseID.")
+            return
+        }
+        #expect(authorizedObject["status"] == .string("authorized"))
+        #expect(String(describing: authorized).contains(rawSecret) == false)
+        let openedSecret = try #require(await runtimeVault.secretData(for: authorizedUseID))
+        #expect(String(decoding: openedSecret, as: UTF8.self) == rawSecret)
     }
 
     @Test

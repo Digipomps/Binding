@@ -155,6 +155,74 @@ public struct InterfaceInfo: Codable, Sendable, Equatable {
     }
 }
 
+/// One minute's average rate inside a listen window.
+public struct PerMinuteRate: Codable, Sendable, Equatable {
+    public var minute: Int
+    public var packetsPerSecond: Int
+    public var megabitsPerSecond: Double
+
+    public init(minute: Int, packetsPerSecond: Int, megabitsPerSecond: Double) {
+        self.minute = minute
+        self.packetsPerSecond = packetsPerSecond
+        self.megabitsPerSecond = megabitsPerSecond
+    }
+}
+
+/// Result of a native windowed self-test (`runListen`). Covers rate/volume and
+/// flood events from the sentinel's own samples — no external tooling. Per-talker
+/// / retransmit analysis is deliberately out of scope (needs packet inspection).
+public struct NetworkListenSummary: Codable, Sendable, Equatable {
+    public var interface: String
+    public var status: String            // "running" | "complete"
+    public var startedAt: String
+    public var finishedAt: String?
+    public var durationSeconds: Int
+    public var totalSamples: Int
+    public var averagePacketsPerSecond: Int
+    public var peakPacketsPerSecond: Int
+    public var peakAt: String?
+    public var averageMegabitsPerSecond: Double
+    public var peakMegabitsPerSecond: Double
+    public var perMinute: [PerMinuteRate]
+    public var floodEventCount: Int
+    public var floodSummaries: [String]
+    public var capturePaths: [String]
+
+    public init(
+        interface: String,
+        status: String,
+        startedAt: String,
+        finishedAt: String? = nil,
+        durationSeconds: Int,
+        totalSamples: Int = 0,
+        averagePacketsPerSecond: Int = 0,
+        peakPacketsPerSecond: Int = 0,
+        peakAt: String? = nil,
+        averageMegabitsPerSecond: Double = 0,
+        peakMegabitsPerSecond: Double = 0,
+        perMinute: [PerMinuteRate] = [],
+        floodEventCount: Int = 0,
+        floodSummaries: [String] = [],
+        capturePaths: [String] = []
+    ) {
+        self.interface = interface
+        self.status = status
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
+        self.durationSeconds = durationSeconds
+        self.totalSamples = totalSamples
+        self.averagePacketsPerSecond = averagePacketsPerSecond
+        self.peakPacketsPerSecond = peakPacketsPerSecond
+        self.peakAt = peakAt
+        self.averageMegabitsPerSecond = averageMegabitsPerSecond
+        self.peakMegabitsPerSecond = peakMegabitsPerSecond
+        self.perMinute = perMinute
+        self.floodEventCount = floodEventCount
+        self.floodSummaries = floodSummaries
+        self.capturePaths = capturePaths
+    }
+}
+
 /// The full read-only projection the cell exposes and the bridge stores.
 public struct NetworkHealthSnapshot: Codable, Sendable, Equatable {
     public var interface: String
@@ -170,6 +238,7 @@ public struct NetworkHealthSnapshot: Codable, Sendable, Equatable {
     public var probeTarget: String
     public var probeResult: String?
     public var lastCaptureSummary: String?
+    public var listenSummary: NetworkListenSummary?
     public var updatedAt: String
 
     public init(
@@ -186,6 +255,7 @@ public struct NetworkHealthSnapshot: Codable, Sendable, Equatable {
         probeTarget: String = "192.168.1.1:443",
         probeResult: String? = nil,
         lastCaptureSummary: String? = nil,
+        listenSummary: NetworkListenSummary? = nil,
         updatedAt: String
     ) {
         self.interface = interface
@@ -201,6 +271,7 @@ public struct NetworkHealthSnapshot: Codable, Sendable, Equatable {
         self.probeTarget = probeTarget
         self.probeResult = probeResult
         self.lastCaptureSummary = lastCaptureSummary
+        self.listenSummary = listenSummary
         self.updatedAt = updatedAt
     }
 }
@@ -231,4 +302,7 @@ public protocol NetworkSentinelControlling: Sendable {
     func runProbe() async -> String
     /// Triggers an immediate bounded packet capture and returns a summary line.
     func captureNow() async -> String
+    /// Starts a native windowed self-test; the summary lands in `listenSummary`
+    /// when the window elapses. Returns a confirmation line.
+    func runListen(minutes: Int) async -> String
 }

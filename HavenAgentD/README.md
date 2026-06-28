@@ -18,6 +18,7 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - writes agent heartbeat and latest action state to disk
 - writes a local cell-runtime snapshot to `State/cell-runtime.json`
 - writes remote-intent queue/audit/nonce state to `State/remote-intent-state.json`
+- writes redacted SecretCredentialCell metadata to `State/secret-credentials.json`
 - persists a stable local agent signing identity to `State/agent-identity.json`
 - renders a `launchd` plist for per-user startup
 - supports `--root /path/to/dev-root` so runtime state can be isolated away from the user's real `Application Support`
@@ -26,6 +27,8 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - exposes real CellProtocol `GeneralCell` subclasses for supervisor state and remote-intent inboxing
 - exposes `AgentIdentityCell` so local operator tooling can attest a stable device identity and request a signed starter-auth payload over the loopback CellProtocol bridge
 - exposes `AgentLocalModelCell` for a configured loopback local language model backend such as `llama-server`
+- exposes `SecretCredentialCell` for entity-scoped AI provider credentials, with redacted metadata in cell state and encrypted secret blobs in Keychain/vault storage
+- exposes `AgentMailDraftCell` for purpose-aware email/contact fallback that prepares reviewable Mail.app draft intents without sending automatically
 - verifies the persisted Binding<->agent pairing artifact before treating an operator identity as paired
 - lets `sprout bootstrap join` consume purpose-bound entity-link evidence generated from the Binding<->agent pairing flow
 - installs those cells into a local `CellResolver` graph during `run`
@@ -86,6 +89,7 @@ The same principle also applies to the first real cells: `RemoteIntentInboxCell`
 The same principle now also applies to live ingress: only native contracts produced by `sprout bootstrap join` are accepted, and only flow payloads that decode into the signed-envelope shape are handed to remote-intent verification. Other porthole traffic is ignored.
 The reconnect/renewal loop follows the same boundary: on failure or near-expiry it re-runs the same local `sprout bootstrap join` path, instead of accepting a remotely supplied websocket or contract override.
 The local model cell follows the same boundary: it calls only the configured loopback model backend by default, and exposes generation through CellProtocol actions and flow events instead of opening a raw model socket to remote clients.
+The credential cell follows the same boundary: callers can register redacted provider metadata and encrypted secret blobs, but raw API keys are never returned through CellProtocol reads, action responses or flow events.
 When `haven-agentd run` starts, it now installs a narrow local `CellBase` host backed by an in-memory vault and a dedicated `CellDocuments` root under `~/Library/Application Support/HAVENAgent/`.
 
 ## Current cells
@@ -95,6 +99,9 @@ When `haven-agentd run` starts, it now installs a narrow local `CellBase` host b
 - `RemoteIntentInboxCell`: accepts structured local intents or signed remote envelopes, validates payload shape, signature, expiry and nonce, and appends only accepted intents to a local queue
 - `RemoteIntentReviewCell`: approves or rejects verified queued intents and dispatches only locally allowlisted remote actions
 - `AgentLocalModelCell`: exposes `state`, `contracts`, `llm.health` and `llm.generate` for a configured loopback local model backend, emitting `agent.localModel` flow events
+- `SecretCredentialCell`: exposes `state`, `credentials`, `contracts`, `credential.register`, `credential.authorizeUse`, `credential.rotate` and `credential.revoke`; metadata is redacted and raw secrets are ChaChaPoly-sealed before secure-store persistence
+- `AgentMailDraftCell`: exposes `state`, `contracts`, `purposeProfiles` and `draftIntent`; it returns a review-intent for the allowlisted `mail.compose-draft` action and does not open Mail.app or send mail by itself
+- Local control bridge command `POST /commands/mail/compose-draft`: forwards a token-authenticated local request into HAVENAgentD, where the configured `AutomationPolicy` and Mail.app automation create a visible draft. MCP clients use `agent.mail.compose_draft` only as a thin forwarder to this daemon-owned command surface.
 - `AgentCellRegistry`: instantiates the current safe default cell set for a local owner identity
 - `AgentCellRuntimeHost`: installs the local owner/vault, registers the current cells into `CellResolver.sharedInstance`, and persists a runtime snapshot
 - `AgentCellBlueprints`: retains the next planned cells, including dedicated action cells, before they are promoted to executable runtime components
@@ -181,6 +188,7 @@ During `run`, the executable now also creates:
 - `~/Library/Application Support/HAVENAgent/State/cell-runtime.json` for the registered cell snapshot
 - `~/Library/Application Support/HAVENAgent/State/remote-intent-state.json` for queued intents, review audit and nonce replay window
 - `~/Library/Application Support/HAVENAgent/State/agent-identity.json` for the stable local agent signing identity used by `AgentIdentityCell`
+- `~/Library/Application Support/HAVENAgent/State/secret-credentials.json` for redacted provider credential metadata; encrypted blobs are stored separately through `SecureCredentialStore`/Keychain
 
 When `localControlBridge.accessToken` is configured, the bridge only accepts websocket and health requests that present the matching `token` query item. The example config ships with a placeholder token, and any future operator tool should supply its own explicit local token instead of relying on ambient localhost authority.
 

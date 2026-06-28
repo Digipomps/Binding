@@ -10,6 +10,7 @@ import Darwin
 enum HavenAgentCommand {
     case printExampleConfig(rootPath: String?)
     case printLaunchAgent(rootPath: String?)
+    case status(configPath: String?, rootPath: String?, json: Bool)
     case setup(SetupOptions)
     case provisioningRequest(configPath: String?, rootPath: String?)
     case provisioningImport(packPath: String, configPath: String?, rootPath: String?)
@@ -23,6 +24,7 @@ enum HavenAgentCommand {
     case reviewReject(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
     case listCellBlueprints
     case networkStatus(secondsToObserve: Int)
+    case networkListen(minutes: Int)
     case monitor(configPath: String?, rootPath: String?, bridgePort: Int?)
     case smokeTest(rootPath: String?)
     case xcodeEnsureWorkspace(
@@ -79,6 +81,22 @@ struct HavenAgentMain {
                     logDirectory: paths.logsDirectory.path
                 )
                 print(plist)
+
+            case .status(let configPath, let rootPath, let json):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let report = await StatusService(paths: paths, configURL: configURL).report(
+                    options: AgentStatusOptions(
+                        executablePath: resolveExecutablePath(override: nil),
+                        rootPathArgument: rootPath,
+                        configPathArgument: configPath
+                    )
+                )
+                if json {
+                    try printJSON(report)
+                } else {
+                    print(AgentStatusTextRenderer.render(report))
+                }
 
             case .setup(let options):
                 let paths = try resolvePaths(rootPath: options.rootPath, configPath: options.configPath)
@@ -169,7 +187,8 @@ struct HavenAgentMain {
                         instanceName: config.instanceName,
                         configURL: configURL,
                         controlBridge: config.localControlBridge,
-                        networkSentinel: config.networkSentinel
+                        networkSentinel: config.networkSentinel,
+                        automationPolicy: config.automationPolicy
                     )
                     guard snapshot.controlBridge?.phase == .running else {
                         let detail = snapshot.controlBridge?.lastError ?? "control bridge did not enter running state"
@@ -196,7 +215,8 @@ struct HavenAgentMain {
                         instanceName: config.instanceName,
                         configURL: configURL,
                         controlBridge: once ? nil : config.localControlBridge,
-                        networkSentinel: config.networkSentinel
+                        networkSentinel: config.networkSentinel,
+                        automationPolicy: config.automationPolicy
                     )
                     try await runtime.run(config: config, once: once)
                     await cellRuntimeHost.stop()
@@ -250,7 +270,8 @@ struct HavenAgentMain {
                     instanceName: config.instanceName,
                     configURL: configURL,
                     controlBridge: config.localControlBridge,
-                    networkSentinel: config.networkSentinel
+                    networkSentinel: config.networkSentinel,
+                    automationPolicy: config.automationPolicy
                 )
                 let bridge = snapshot.controlBridge
                 FileHandle.standardError.write(Data(
@@ -276,6 +297,29 @@ struct HavenAgentMain {
                 }
                 await service.stop()
                 try printJSON(snapshot)
+
+            case .networkListen(let minutes):
+                // Native windowed self-test: runs the sentinel engine standalone for N
+                // minutes and prints the NetworkListenSummary (rate/volume/flood events).
+                // No tshark — this is the in-cell measurement engine doing the listen.
+                let captureDirectory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("haven-network-listen-captures", isDirectory: true)
+                let service = NetworkSentinelService(captureDirectory: captureDirectory, captureEnabled: true)
+                await service.start()
+                let started = await service.runListen(minutes: minutes)
+                FileHandle.standardError.write(Data((started + "\n").utf8))
+                let deadline = Date().addingTimeInterval(Double(max(1, minutes)) * 60.0 + 30.0)
+                var summary = await service.snapshot().listenSummary
+                while Date() < deadline, summary?.status != "complete" {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    summary = await service.snapshot().listenSummary
+                }
+                await service.stop()
+                if let summary {
+                    try printJSON(summary)
+                } else {
+                    print("{\"status\":\"ingen oppsummering\"}")
+                }
 
             case .smokeTest(let rootPath):
                 let summary = try await SmokeTestHarness.run(rootPath: rootPath)
@@ -326,6 +370,13 @@ struct HavenAgentMain {
             return .printExampleConfig(rootPath: argumentValue(for: "--root", in: Array(arguments.dropFirst())))
         case "print-launch-agent":
             return .printLaunchAgent(rootPath: argumentValue(for: "--root", in: Array(arguments.dropFirst())))
+        case "status":
+            let remaining = Array(arguments.dropFirst())
+            return .status(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining),
+                json: remaining.contains("--json")
+            )
         case "setup":
             let remaining = Array(arguments.dropFirst())
             return .setup(SetupOptions(
@@ -430,6 +481,9 @@ struct HavenAgentMain {
         case "network-status":
             let remaining = Array(arguments.dropFirst())
             return .networkStatus(secondsToObserve: intArgumentValue(for: "--seconds", in: remaining) ?? 6)
+        case "network-listen":
+            let remaining = Array(arguments.dropFirst())
+            return .networkListen(minutes: intArgumentValue(for: "--minutes", in: remaining) ?? 30)
         case "monitor":
             let remaining = Array(arguments.dropFirst())
             return .monitor(
@@ -512,6 +566,7 @@ struct HavenAgentMain {
         Usage:
           haven-agentd print-example-config [--root /path/to/dev-root]
           haven-agentd print-launch-agent [--root /path/to/dev-root]
+          haven-agentd status [--config /path/to/config.json] [--root /path/to/dev-root] [--json]
           haven-agentd setup [--config /path/to/config.json] [--root /path/to/dev-root] [--domain d] [--resolver-url URL] [--discovery-url URL] [--purpose p] [--instance-name name] [--sprout-path /abs/sprout] [--access-token TOKEN] [--startup-mode disabled|plan|join] [--executable-path /abs/haven-agentd] [--force] [--no-launch-agent] [--load]
           haven-agentd provisioning-request [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd provisioning-import --pack /path/to/pack.json [--config /path/to/config.json] [--root /path/to/dev-root]
@@ -525,6 +580,7 @@ struct HavenAgentMain {
           haven-agentd review-reject --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd list-cell-blueprints
           haven-agentd network-status [--seconds N]
+          haven-agentd network-listen [--minutes N]
           haven-agentd monitor [--config /path/to/config.json] [--root /path/to/dev-root] [--bridge-port N]
           haven-agentd smoke-test [--root /path/to/dev-root]
           haven-agentd xcode-ensure-workspace --workspace /path/App.xcworkspace [--exclusive-package /path/CellProtocol] [--scheme Run] [--destination-name "My Mac (arm64)"] [--destination-platform macosx] [--destination-architecture arm64] [--keep-other-workspaces] [--no-build] [--timeout-seconds N]

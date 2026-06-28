@@ -87,4 +87,53 @@ struct AutomationPolicyTests {
             #expect(error == .invalidArgument("url", "Value does not match expected pattern"))
         }
     }
+
+    @Test
+    func allowsNewlinesOnlyWhenConstraintOptsIn() throws {
+        let policy = AutomationPolicy(
+            appleScripts: [
+                AppleScriptDefinition(
+                    id: "mail.compose-draft",
+                    description: "Prepare email draft.",
+                    source: "on run argv\nreturn argv\nend run",
+                    argumentOrder: ["body"],
+                    argumentConstraints: [
+                        "body": StringConstraint(maxLength: 500, allowsNewlines: true)
+                    ],
+                    allowedForRemoteExecution: true
+                ),
+                AppleScriptDefinition(
+                    id: "single-line",
+                    description: "Single line only.",
+                    source: "on run argv\nreturn argv\nend run",
+                    argumentOrder: ["body"],
+                    argumentConstraints: [
+                        "body": StringConstraint(maxLength: 500)
+                    ]
+                )
+            ]
+        )
+
+        let authorized = try policy.authorize(
+            AppleScriptInvocation(
+                id: "mail.compose-draft",
+                origin: .trustedRemote,
+                arguments: ["body": "Line 1\nLine 2"]
+            )
+        )
+        #expect(authorized.orderedArgumentValues == ["Line 1\nLine 2"])
+
+        do {
+            _ = try policy.authorize(
+                AppleScriptInvocation(
+                    id: "single-line",
+                    origin: .local,
+                    arguments: ["body": "Line 1\nLine 2"]
+                )
+            )
+            Issue.record("Expected newline to be denied for default StringConstraint.")
+        } catch let error as AutomationPolicyError {
+            #expect(error == .invalidArgument("body", "Value contains a newline"))
+        }
+    }
 }

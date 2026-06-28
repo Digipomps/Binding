@@ -52,17 +52,20 @@ public struct StringConstraint: Codable, Equatable, Sendable {
     public var maxLength: Int
     public var allowedValues: [String]
     public var pattern: String?
+    public var allowsNewlines: Bool?
 
     public init(
         required: Bool = true,
         maxLength: Int = 512,
         allowedValues: [String] = [],
-        pattern: String? = nil
+        pattern: String? = nil,
+        allowsNewlines: Bool? = nil
     ) {
         self.required = required
         self.maxLength = maxLength
         self.allowedValues = allowedValues
         self.pattern = pattern
+        self.allowsNewlines = allowsNewlines
     }
 }
 
@@ -181,7 +184,7 @@ public struct AutomationPolicy: Codable, Equatable, Sendable {
         if value.count > constraint.maxLength {
             throw AutomationPolicyError.invalidArgument(field, "Value exceeds maxLength \(constraint.maxLength)")
         }
-        if value.contains(where: \.isNewline) {
+        if constraint.allowsNewlines != true && value.contains(where: \.isNewline) {
             throw AutomationPolicyError.invalidArgument(field, "Value contains a newline")
         }
         if !constraint.allowedValues.isEmpty && !constraint.allowedValues.contains(value) {

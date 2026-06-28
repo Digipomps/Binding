@@ -174,4 +174,39 @@ struct NetworkSentinelServiceTests {
         let enabled = await service.snapshot()
         #expect(enabled.notificationsEnabled == true)
     }
+
+    @Test
+    func byteRateHandles32BitCounterWrap() async {
+        let service = makeService(thresholds: NetworkSentinelThresholds())
+        // Prime just below the 32-bit boundary.
+        await service.ingest(reading: reading(ibytes: 4_200_000_000), monotonicNanos: 0, wallClock: wall)
+        // 1s later the 32-bit byte counter wrapped after +200 MB.
+        let wrapped: UInt64 = (4_200_000_000 + 200_000_000) % 0x1_0000_0000
+        await service.ingest(reading: reading(ibytes: wrapped), monotonicNanos: 1_000_000_000, wallClock: wall)
+
+        let mbps = await service.snapshot().latest?.megabitsPerSecond ?? 0
+        // 200 MB/s ≈ 1600 Mbps — a real rate, not an astronomical underflow.
+        #expect(mbps > 1_000 && mbps < 2_000)
+    }
+
+    @Test
+    func runListenProducesNativeSummaryAfterWindow() async {
+        let service = makeService(thresholds: NetworkSentinelThresholds())
+        let started = await service.runListen(minutes: 1) // 60s window
+        #expect(started.contains("1 min"))
+
+        // Samples 2s apart, +1000 packets/tick => 500 pps, fed past the 60s window.
+        var nanos: UInt64 = 0
+        for i in 0..<40 {
+            await service.ingest(reading: reading(ipackets: UInt64(i) * 1000), monotonicNanos: nanos, wallClock: wall)
+            nanos += 2_000_000_000
+        }
+
+        let summary = await service.snapshot().listenSummary
+        #expect(summary?.status == "complete")
+        #expect((summary?.totalSamples ?? 0) > 0)
+        #expect((summary?.perMinute.count ?? 0) >= 1)
+        #expect(summary?.averagePacketsPerSecond == 500)
+        #expect(summary?.peakPacketsPerSecond == 500)
+    }
 }

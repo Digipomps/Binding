@@ -10,6 +10,8 @@ public enum AgentCellKind: String, Codable, CaseIterable, Sendable {
     case agentIdentity
     case localModel
     case networkSentinel
+    case secretCredential
+    case emailOutbox
 }
 
 public struct AgentCellBlueprint: Codable, Equatable, Sendable {
@@ -86,6 +88,18 @@ public enum AgentCellCatalog {
             suggestedCellName: "NetworkSentinelCell",
             purpose: "Watch local link health and surface flood alerts the operator actually cares about.",
             sideEffectBoundary: "Read-only interface counter observation; emits FlowElements; may trigger a bounded local packet capture and a user notification when enabled."
+        ),
+        AgentCellBlueprint(
+            kind: .secretCredential,
+            suggestedCellName: "SecretCredentialCell",
+            purpose: "Keep entity-scoped provider credentials as redacted metadata while raw secrets stay encrypted in the local vault.",
+            sideEffectBoundary: "May store encrypted credential blobs in Keychain and open them only after explicit unlock-key authorization."
+        ),
+        AgentCellBlueprint(
+            kind: .emailOutbox,
+            suggestedCellName: "AgentMailDraftCell",
+            purpose: "Prepare locally reviewed email draft intents for contacts that do not have a CellProtocol endpoint.",
+            sideEffectBoundary: "Prepares review-intents only; approved execution may create a visible Mail.app draft but never sends automatically."
         )
     ]
 }

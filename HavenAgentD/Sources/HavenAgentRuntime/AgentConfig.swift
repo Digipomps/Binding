@@ -173,9 +173,19 @@ public struct LocalControlBridgeConfig: Codable, Equatable, Sendable {
             description: "Local language model surface backed by the configured HAVENAgentD local model runtime."
         ),
         LocalControlBridgeRoute(
+            name: "credentials",
+            targetCellReference: "agent/credentials",
+            description: "Entity-scoped provider credential metadata and unlock-gated authorization surface."
+        ),
+        LocalControlBridgeRoute(
             name: "network-sentinel",
             targetCellReference: "agent/network/sentinel",
             description: "Local network health sentinel: live link metrics, flood events, interfaces, and on-demand probe/capture. Lets a local GUI (Binding) render the network tool."
+        ),
+        LocalControlBridgeRoute(
+            name: AgentMailDraftAutomation.controlBridgeRouteName,
+            targetCellReference: "agent/email/outbox",
+            description: "Local email draft outbox: prepares reviewed Mail.app draft intents for contacts without a CellProtocol endpoint."
         )
     ]
 
@@ -426,7 +436,9 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     "haven.core.bootstrap",
                     "haven.core.bridge",
                     "haven.local.automation",
-                    "haven.local.models"
+                    "haven.local.models",
+                    "haven.external.email",
+                    "contact.fallback.email"
                 ],
                 resolverBaseURL: "https://staging.haven.example",
                 starterAuthPath: paths.agentDirectory.appendingPathComponent("starter-auth.json").path,
@@ -441,7 +453,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     "cap.discover",
                     "cap.native_porthole",
                     "cap.local_automation",
-                    "cap.local_model.generate"
+                    "cap.local_model.generate",
+                    AgentMailDraftAutomation.capabilityRef
                 ],
                 requestedPortholeKind: "native",
                 renewalLeadTimeSeconds: 60,
@@ -466,7 +479,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
             ],
             deviceActionRelay: DeviceActionRelayConfig(
                 enabled: false,
-                notificationOutboxEndpoint: "cell://staging.haven.example/NotificationOutbox",
+                notificationOutboxEndpoint: "https://staging.haven.example/conference-mvp/api/agent/device-action",
                 defaultParticipantID: "replace-with-binding-participant-id",
                 defaultDeviceID: "replace-with-binding-device-id"
             ),
@@ -497,7 +510,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                         ],
                         allowedForRemoteExecution: false,
                         requiresUserSession: true
-                    )
+                    ),
+                    AgentMailDraftAutomation.appleScriptDefinition
                 ]
             ),
             remoteIntentPolicy: RemoteIntentPolicy(
@@ -506,7 +520,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                         issuerID: "scaffold-entity.example",
                         publicSigningKeyBase64: "BASE64_PUBLIC_KEY_HERE",
                         allowedTopics: ["intent.inbox"],
-                        allowedActionIDs: ["open-url-in-safari"]
+                        allowedActionIDs: ["open-url-in-safari", AgentMailDraftAutomation.actionID]
                     )
                 ],
                 requireExpiry: true,

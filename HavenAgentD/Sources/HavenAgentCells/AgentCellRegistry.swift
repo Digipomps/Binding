@@ -1,5 +1,6 @@
 import Foundation
 import CellBase
+import HavenAgentRuntime
 
 public struct AgentCellDescriptor: Equatable, Sendable {
     public var kind: AgentCellKind
@@ -52,6 +53,18 @@ public enum AgentCellRegistry {
             endpoint: "cell:///agent/network/sentinel",
             typeName: "NetworkSentinelCell",
             sideEffectBoundary: "Read-only link-health projection; emits flood FlowElements; optional bounded capture and notification when enabled."
+        ),
+        AgentCellDescriptor(
+            kind: .secretCredential,
+            endpoint: "cell:///agent/credentials",
+            typeName: "SecretCredentialCell",
+            sideEffectBoundary: "Stores only redacted credential metadata in cell state and encrypted secret blobs in the local vault."
+        ),
+        AgentCellDescriptor(
+            kind: .emailOutbox,
+            endpoint: AgentMailDraftAutomation.endpoint,
+            typeName: "AgentMailDraftCell",
+            sideEffectBoundary: "Prepares reviewed email draft intents; approved execution creates a visible Mail.app draft and does not send automatically."
         )
     ]
 
@@ -69,6 +82,10 @@ public enum AgentCellRegistry {
             return await AgentLocalModelCell(owner: owner)
         case .networkSentinel:
             return await NetworkSentinelCell(owner: owner)
+        case .secretCredential:
+            return await SecretCredentialCell(owner: owner)
+        case .emailOutbox:
+            return await AgentMailDraftCell(owner: owner)
         default:
             throw AgentCellRegistryError.unsupportedConcreteKind(kind)
         }

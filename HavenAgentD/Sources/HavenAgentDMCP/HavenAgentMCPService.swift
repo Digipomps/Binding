@@ -195,6 +195,9 @@ final class HavenAgentMCPService {
             case "agent.review.reject":
                 return try await reviewMutationTool(arguments: arguments, action: .reject)
 
+            case "agent.mail.compose_draft":
+                return try await mailComposeDraftTool(arguments: arguments)
+
             case "agent.operator.request":
                 return try operatorRequestTool(arguments: arguments)
 
@@ -414,6 +417,27 @@ final class HavenAgentMCPService {
                 title: "Reject Intent",
                 description: "Reject one pending remote intent using the existing review boundary.",
                 inputSchema: reviewMutationSchema()
+            ),
+            MCPToolDescriptor(
+                name: "agent.mail.compose_draft",
+                title: "Compose Mail Draft",
+                description: "Forward a local mail-draft request to the running HAVENAgentD control bridge. HAVENAgentD owns policy and Mail.app automation.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "to": [
+                            "type": "string"
+                        ],
+                        "subject": [
+                            "type": "string"
+                        ],
+                        "body": [
+                            "type": "string"
+                        ]
+                    ],
+                    "required": ["to", "subject", "body"],
+                    "additionalProperties": false
+                ]
             ),
             MCPToolDescriptor(
                 name: "agent.operator.request",
@@ -773,6 +797,61 @@ final class HavenAgentMCPService {
             text: "Intent \(intentID) processed with outcome \(outcome). Pending intents: \(summary.pendingCount).",
             isError: false
         )
+    }
+
+    private func mailComposeDraftTool(arguments: JSONObject) async throws -> MCPToolCallOutput {
+        let request = AgentMailDraftCommandRequest(
+            to: try requiredStringArgument(arguments, key: "to", message: "mail compose_draft requires to"),
+            subject: try requiredStringArgument(arguments, key: "subject", message: "mail compose_draft requires subject"),
+            body: try requiredStringArgument(arguments, key: "body", message: "mail compose_draft requires body")
+        )
+        let result = try await forwardMailDraftRequestToLocalAgent(request)
+        let object = try jsonObject(from: result)
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "HAVENAgentD created a Mail.app draft for \(request.to).",
+            isError: false
+        )
+    }
+
+    private func forwardMailDraftRequestToLocalAgent(
+        _ request: AgentMailDraftCommandRequest
+    ) async throws -> AgentMailDraftCommandResult {
+        let config = try AgentConfig.load(from: configURL)
+        let bridge = config.localControlBridge
+        guard bridge.enabled else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge is disabled in the active agent config.")
+        }
+        guard bridge.loopbackOnly else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge must be loopback-only for MCP forwarding.")
+        }
+        guard let accessToken = bridge.accessToken, !accessToken.isEmpty else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge accessToken is missing.")
+        }
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = bridge.host
+        components.port = bridge.port
+        components.path = "/commands/mail/compose-draft"
+        components.queryItems = [URLQueryItem(name: "token", value: accessToken)]
+        guard let url = components.url else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Could not construct local control bridge command URL.")
+        }
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge returned a non-HTTP response.")
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let detail = String(decoding: data, as: UTF8.self)
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge mail command failed with HTTP \(httpResponse.statusCode): \(detail)")
+        }
+        return try JSONDecoder().decode(AgentMailDraftCommandResult.self, from: data)
     }
 
     private func operatorRequestTool(arguments: JSONObject) throws -> MCPToolCallOutput {

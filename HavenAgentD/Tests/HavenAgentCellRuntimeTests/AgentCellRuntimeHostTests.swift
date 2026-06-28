@@ -137,6 +137,68 @@ struct AgentCellRuntimeHostTests {
     }
 
     @Test
+    func hostForwardsMailDraftCommandThroughLocalControlBridge() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.documentRootPath = nil
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HavenAgentDMailCommandBridgeTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let host = AgentCellRuntimeHost(paths: paths)
+        let bridgePort = try Self.allocateLoopbackPort()
+        let bridgeConfiguration = LocalControlBridgeConfig(
+            host: "127.0.0.1",
+            port: bridgePort,
+            accessToken: "mail-command-token"
+        )
+        let snapshot = try await host.start(
+            instanceName: "agent",
+            controlBridge: bridgeConfiguration,
+            mailDraftCommandHandler: { request in
+                #expect(request.to == "kjetilh@mac.com")
+                #expect(request.subject == "HAVENAgentD test")
+                #expect(request.body == "Bridge forwarded request")
+                return AgentMailDraftCommandResult(
+                    status: "draft_created",
+                    actionID: AgentMailDraftAutomation.actionID,
+                    deliveryMode: "visible_mail_app_draft",
+                    message: "forwarded"
+                )
+            }
+        )
+
+        let unauthorizedURL = URL(string: "http://\(snapshot.controlBridge?.host ?? "127.0.0.1"):\(bridgePort)/commands/mail/compose-draft")!
+        let unauthorizedStatus = try await Self.postJSON(
+            unauthorizedURL,
+            object: AgentMailDraftCommandRequest(
+                to: "kjetilh@mac.com",
+                subject: "HAVENAgentD test",
+                body: "Bridge forwarded request"
+            )
+        ).statusCode
+        #expect(unauthorizedStatus == 401)
+
+        let authorizedURL = URL(string: "http://\(snapshot.controlBridge?.host ?? "127.0.0.1"):\(bridgePort)/commands/mail/compose-draft?token=\(bridgeConfiguration.accessToken ?? "")")!
+        let response = try await Self.postJSON(
+            authorizedURL,
+            object: AgentMailDraftCommandRequest(
+                to: "kjetilh@mac.com",
+                subject: "HAVENAgentD test",
+                body: "Bridge forwarded request"
+            )
+        )
+        #expect(response.statusCode == 200)
+        #expect(response.body.contains("\"status\" : \"draft_created\""))
+        #expect(response.body.contains("\"deliveryMode\" : \"visible_mail_app_draft\""))
+
+        await host.stop()
+    }
+
+    @Test
     func hostRejectsNonLoopbackControlBridgeBinding() async throws {
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
@@ -213,6 +275,18 @@ struct AgentCellRuntimeHostTests {
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(domain: "AgentCellRuntimeHostTests", code: 3)
+        }
+        return (httpResponse.statusCode, String(decoding: data, as: UTF8.self))
+    }
+
+    private static func postJSON<T: Encodable>(_ url: URL, object: T) async throws -> (statusCode: Int, body: String) {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(object)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "AgentCellRuntimeHostTests", code: 4)
         }
         return (httpResponse.statusCode, String(decoding: data, as: UTF8.self))
     }

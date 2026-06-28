@@ -59,6 +59,8 @@ public final class NetworkSentinelCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "probe")
         agreementTemplate.addGrant("rw--", for: "probeTarget")
         agreementTemplate.addGrant("rw--", for: "captureNow")
+        agreementTemplate.addGrant("rw--", for: "runListen")
+        agreementTemplate.addGrant("r---", for: "lastListenSummary")
         agreementTemplate.addGrant("r---", for: "flow")
     }
 
@@ -163,6 +165,22 @@ public final class NetworkSentinelCell: GeneralCell {
                 return .string("Sensor ikke tilgjengelig.")
             }
             return .string(await control.captureNow())
+        })
+
+        await addInterceptForSet(requester: owner, key: "runListen", setValueIntercept: { [weak self] _, newValue, requester in
+            guard let self else { return nil }
+            guard await self.authorized("rw--", "runListen", requester) else { return .string("denied") }
+            guard let control = await AgentRuntimeBridge.shared.networkSentinelControlSnapshot() else {
+                return .string("Sensor ikke tilgjengelig.")
+            }
+            let minutes = Self.intValue(newValue) ?? 30
+            return .string(await control.runListen(minutes: minutes))
+        })
+
+        await addInterceptForGet(requester: owner, key: "lastListenSummary", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.authorized("r---", "lastListenSummary", requester) else { return .string("denied") }
+            return await self.makeListenValue()
         })
     }
 
@@ -271,6 +289,7 @@ public final class NetworkSentinelCell: GeneralCell {
             "capture": .object([
                 "summary": .string(snapshot.lastCaptureSummary ?? "Ingen manuell capture ennå.")
             ]),
+            "listen": snapshot.listenSummary.map { listenSummaryValue($0) } ?? .object(["status": .string("none")]),
             "events": .list(snapshot.recentEvents.reversed().map { eventRowValue($0) }),
             "interfaces": .list(snapshot.interfaces.map { interfaceRowValue($0) }),
             "history": .list(snapshot.recentSamples.suffix(20).reversed().map { historyRowValue($0) })
@@ -434,6 +453,40 @@ public final class NetworkSentinelCell: GeneralCell {
             "sustainedSamples": .integer(thresholds.sustainedSamples),
             "resolveSamples": .integer(thresholds.resolveSamples)
         ])
+    }
+
+    private func makeListenValue() async -> ValueType {
+        guard let summary = await AgentRuntimeBridge.shared.networkHealthSnapshot()?.listenSummary else {
+            return .object(["status": .string("none")])
+        }
+        return listenSummaryValue(summary)
+    }
+
+    private func listenSummaryValue(_ summary: NetworkListenSummary) -> ValueType {
+        var object: Object = [
+            "interface": .string(summary.interface),
+            "status": .string(summary.status),
+            "startedAt": .string(summary.startedAt),
+            "durationSeconds": .integer(summary.durationSeconds),
+            "totalSamples": .integer(summary.totalSamples),
+            "averagePacketsPerSecond": .integer(summary.averagePacketsPerSecond),
+            "peakPacketsPerSecond": .integer(summary.peakPacketsPerSecond),
+            "averageMegabitsPerSecond": .float(summary.averageMegabitsPerSecond),
+            "peakMegabitsPerSecond": .float(summary.peakMegabitsPerSecond),
+            "floodEventCount": .integer(summary.floodEventCount),
+            "perMinute": .list(summary.perMinute.map { rate in
+                .object([
+                    "minute": .integer(rate.minute),
+                    "packetsPerSecond": .integer(rate.packetsPerSecond),
+                    "megabitsPerSecond": .float(rate.megabitsPerSecond)
+                ])
+            }),
+            "floodSummaries": .list(summary.floodSummaries.map { .string($0) }),
+            "capturePaths": .list(summary.capturePaths.map { .string($0) })
+        ]
+        object["finishedAt"] = summary.finishedAt.map(ValueType.string) ?? .null
+        object["peakAt"] = summary.peakAt.map(ValueType.string) ?? .null
+        return .object(object)
     }
 
     // MARK: - Parsing

@@ -258,8 +258,9 @@ final class AgentProvisioningCell: GeneralCell {
     nonisolated private static let defaultPurposeName = "Operate local HAVEN agent"
     nonisolated private static let defaultPurposeRef = "purpose://operate-local-haven-agent"
     nonisolated private static let defaultGoal = "Install, start and connect a local HAVEN agent without bypassing CellProtocol review boundaries."
-    nonisolated private static let defaultInterests = "cellprotocol, agent, automation, review"
+    nonisolated private static let defaultInterests = "cellprotocol, agent, automation, review, email, contact-fallback"
     nonisolated private static let defaultTestAppleScriptID = "binding-test-open-url-in-safari"
+    nonisolated private static let defaultEmailDraftActionID = "mail.compose-draft"
     nonisolated private static let defaultTestIssuerPrefix = "binding-operator"
     private static let runtimeAccessBookmarkKey = "Binding.AgentRuntimeAccess.applicationSupportBookmark"
     private static let runtimeAccessLock = NSLock()
@@ -275,7 +276,8 @@ final class AgentProvisioningCell: GeneralCell {
             "agent/supervisor": "agent-supervisor",
             "agent/intents/inbox": "intent-inbox",
             "agent/intents/review": "intent-review",
-            "agent/network/sentinel": "network-sentinel"
+            "agent/network/sentinel": "network-sentinel",
+            "agent/email/outbox": "email-outbox"
         ]
     )
     nonisolated private static let repositoryRoot: URL = {
@@ -1772,7 +1774,8 @@ final class AgentProvisioningCell: GeneralCell {
                 "requestedCapabilities": [
                     "cap.discover",
                     "cap.native_porthole",
-                    "cap.local_automation"
+                    "cap.local_automation",
+                    "cap.local_email_draft"
                 ],
                 "requestedPortholeKind": "native",
                 "renewalLeadTimeSeconds": 900,
@@ -1805,6 +1808,11 @@ final class AgentProvisioningCell: GeneralCell {
                         "name": Self.defaultControlBridge.routeNamesByTarget["agent/intents/review"] ?? "intent-review",
                         "targetCellReference": "agent/intents/review",
                         "description": "Operator review boundary for verified intents."
+                    ],
+                    [
+                        "name": Self.defaultControlBridge.routeNamesByTarget["agent/email/outbox"] ?? "email-outbox",
+                        "targetCellReference": "agent/email/outbox",
+                        "description": "Local email draft outbox for reviewed Mail.app draft intents."
                     ]
                 ]
             ],
@@ -1949,7 +1957,7 @@ final class AgentProvisioningCell: GeneralCell {
             "issuerID": "\(defaultTestIssuerPrefix).\(requester.uuid.lowercased())",
             "publicSigningKeyBase64": publicKey.base64EncodedString(),
             "allowedTopics": ["intent.inbox"],
-            "allowedActionIDs": [defaultTestAppleScriptID]
+            "allowedActionIDs": [defaultTestAppleScriptID, defaultEmailDraftActionID]
         ]
     }
 
@@ -1962,6 +1970,9 @@ final class AgentProvisioningCell: GeneralCell {
         var appleScripts = (existingPolicy["appleScripts"] as? [[String: Any]]) ?? []
         if !appleScripts.contains(where: { stringValue(fromAny: $0["id"]) == defaultTestAppleScriptID }) {
             appleScripts.append(defaultSafariTestAppleScriptDefinition(defaultDomain: defaultDomain))
+        }
+        if !appleScripts.contains(where: { stringValue(fromAny: $0["id"]) == defaultEmailDraftActionID }) {
+            appleScripts.append(defaultEmailDraftAppleScriptDefinition())
         }
         return [
             "shortcuts": shortcuts,
@@ -2015,6 +2026,52 @@ final class AgentProvisioningCell: GeneralCell {
             "allowedForRemoteExecution": true,
             "requiresUserSession": true,
             "defaultPreviewURL": defaultDomain
+        ]
+    }
+
+    private static func defaultEmailDraftAppleScriptDefinition() -> [String: Any] {
+        let script = """
+        on run argv
+            if (count of argv) is less than 3 then error "Expected recipient, subject and body"
+            set recipientAddress to item 1 of argv
+            set subjectLine to item 2 of argv
+            set bodyText to item 3 of argv
+            tell application "Mail"
+                activate
+                set draftMessage to make new outgoing message with properties {subject:subjectLine, content:bodyText, visible:true}
+                tell draftMessage
+                    make new to recipient at end of to recipients with properties {address:recipientAddress}
+                end tell
+            end tell
+            return "draft-created"
+        end run
+        """
+        return [
+            "id": defaultEmailDraftActionID,
+            "description": "Create a visible Mail.app email draft for local operator review. Does not send automatically.",
+            "source": script,
+            "argumentOrder": ["to", "subject", "body"],
+            "argumentConstraints": [
+                "to": [
+                    "required": true,
+                    "maxLength": 320,
+                    "allowedValues": [],
+                    "pattern": #"[^@\s]+@[^@\s]+\.[^@\s]+"#
+                ],
+                "subject": [
+                    "required": true,
+                    "maxLength": 180,
+                    "allowedValues": []
+                ],
+                "body": [
+                    "required": true,
+                    "maxLength": 8000,
+                    "allowedValues": [],
+                    "allowsNewlines": true
+                ]
+            ],
+            "allowedForRemoteExecution": true,
+            "requiresUserSession": true
         ]
     }
 

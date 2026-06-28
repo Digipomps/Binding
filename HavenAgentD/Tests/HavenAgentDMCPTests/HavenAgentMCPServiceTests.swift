@@ -1,4 +1,6 @@
 import Foundation
+@preconcurrency import CellBase
+import HavenAgentCellRuntime
 import HavenMacAutomation
 import Testing
 @testable import HavenAgentDMCP
@@ -6,6 +8,65 @@ import Testing
 @testable import HavenRuntimeBootstrap
 
 struct HavenAgentMCPServiceTests {
+    @Test
+    func mailComposeDraftToolForwardsToRunningAgentControlBridge() async throws {
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.documentRootPath = nil
+
+        let root = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let bridgePort = try Self.allocateLoopbackPort()
+        let configURL = try writeConfig(
+            paths: paths,
+            configure: { config in
+                config.localControlBridge = LocalControlBridgeConfig(
+                    host: "127.0.0.1",
+                    port: bridgePort,
+                    accessToken: "mcp-mail-token"
+                )
+            }
+        )
+        let host = AgentCellRuntimeHost(paths: paths)
+        _ = try await host.start(
+            instanceName: "agent",
+            configURL: configURL,
+            controlBridge: AgentConfig.load(from: configURL).localControlBridge,
+            mailDraftCommandHandler: { request in
+                #expect(request.to == "kjetilh@mac.com")
+                #expect(request.subject == "HAVENAgentD test")
+                #expect(request.body == "Forwarded by MCP")
+                return AgentMailDraftCommandResult(
+                    status: "draft_created",
+                    actionID: AgentMailDraftAutomation.actionID,
+                    deliveryMode: "visible_mail_app_draft",
+                    message: "forwarded"
+                )
+            }
+        )
+        defer {
+            Task { await host.stop() }
+        }
+
+        let service = HavenAgentMCPService(paths: paths, configURL: configURL)
+        let output = await service.callTool(
+            name: "agent.mail.compose_draft",
+            arguments: [
+                "to": "kjetilh@mac.com",
+                "subject": "HAVENAgentD test",
+                "body": "Forwarded by MCP"
+            ]
+        )
+
+        #expect(output.isError == false)
+        let structured = try #require(output.structuredContent)
+        #expect(structured["status"] as? String == "draft_created")
+        #expect(structured["actionID"] as? String == AgentMailDraftAutomation.actionID)
+        #expect(structured["deliveryMode"] as? String == "visible_mail_app_draft")
+    }
+
     @Test
     func waitForReplyReturnsMatchingRequestReply() async throws {
         let root = makeTemporaryRoot()
@@ -282,7 +343,10 @@ struct HavenAgentMCPServiceTests {
         return directory
     }
 
-    private func writeConfig(paths: RuntimePaths) throws -> URL {
+    private func writeConfig(
+        paths: RuntimePaths,
+        configure: ((inout AgentConfig) -> Void)? = nil
+    ) throws -> URL {
         var config = AgentConfig.example(paths: paths)
         config.deviceActionRelay = DeviceActionRelayConfig(
             enabled: true,
@@ -290,6 +354,7 @@ struct HavenAgentMCPServiceTests {
             defaultParticipantID: "participant-phone",
             defaultDeviceID: "device-phone"
         )
+        configure?(&config)
 
         let configURL = paths.configFile
         try FileManager.default.createDirectory(
@@ -305,6 +370,38 @@ struct HavenAgentMCPServiceTests {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(value).write(to: fileURL, options: [.atomic])
+    }
+
+    private static func allocateLoopbackPort() throws -> Int {
+        let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+        #expect(descriptor >= 0)
+        defer { close(descriptor) }
+
+        var value: Int32 = 1
+        setsockopt(descriptor, SOL_SOCKET, SO_REUSEADDR, &value, socklen_t(MemoryLayout<Int32>.size))
+
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = in_port_t(0).bigEndian
+        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+
+        let bindResult = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        #expect(bindResult == 0)
+
+        var boundAddress = sockaddr_in()
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let nameResult = withUnsafeMutablePointer(to: &boundAddress) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                getsockname(descriptor, $0, &length)
+            }
+        }
+        #expect(nameResult == 0)
+        return Int(UInt16(bigEndian: boundAddress.sin_port))
     }
 }
 

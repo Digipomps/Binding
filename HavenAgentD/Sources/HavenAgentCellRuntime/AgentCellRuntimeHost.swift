@@ -2,6 +2,7 @@ import Foundation
 @preconcurrency import CellBase
 import HavenAgentCells
 import HavenAgentRuntime
+import HavenMacAutomation
 import HavenRuntimeBootstrap
 
 public struct AgentCellRuntimeSnapshot: Codable, Equatable, Sendable {
@@ -134,7 +135,9 @@ public actor AgentCellRuntimeHost {
         instanceName: String,
         configURL: URL? = nil,
         controlBridge configuration: LocalControlBridgeConfig? = nil,
-        networkSentinel: NetworkSentinelConfig? = nil
+        networkSentinel: NetworkSentinelConfig? = nil,
+        automationPolicy: AutomationPolicy? = nil,
+        mailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)? = nil
     ) async throws -> AgentCellRuntimeSnapshot {
         if currentSnapshot?.instanceName == instanceName, !activeRegistrations.isEmpty {
             return try await writeSnapshot(status: "running", instanceName: instanceName)
@@ -153,6 +156,11 @@ public actor AgentCellRuntimeHost {
             descriptor: identityMaterial.descriptor,
             privateKey: try identityMaterial.privateKey()
         )
+        SecretCredentialCell.metadataStoreFactory = { [paths] in
+            FileSecretCredentialMetadataStore(
+                fileURL: paths.stateDirectory.appendingPathComponent("secret-credentials.json")
+            )
+        }
 
         let previousGlobals = CellBaseGlobals(
             defaultIdentityVault: CellBase.defaultIdentityVault,
@@ -182,12 +190,24 @@ public actor AgentCellRuntimeHost {
         await startNetworkSentinel(registrations: registrations, config: networkSentinel ?? NetworkSentinelConfig())
         let controlBridgeStatus: LocalControlBridgeStatus?
         if let configuration {
+            let resolvedMailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)?
+            if let mailDraftCommandHandler {
+                resolvedMailDraftCommandHandler = mailDraftCommandHandler
+            } else if let automationPolicy {
+                let service = AgentMailDraftCommandService(policy: automationPolicy)
+                resolvedMailDraftCommandHandler = { request in
+                    try await service.composeDraft(request)
+                }
+            } else {
+                resolvedMailDraftCommandHandler = nil
+            }
             do {
                 controlBridgeStatus = try await controlBridgeServer.start(
                     owner: owner,
                     configuration: configuration,
                     paths: paths,
                     configURL: configURL ?? paths.configFile,
+                    mailDraftCommandHandler: resolvedMailDraftCommandHandler,
                     runtimeSnapshotProvider: { [weak self] in
                         await self?.snapshot()
                     }

@@ -58,12 +58,14 @@ let package = Package(
                 "HavenAgentRuntime",
                 "HavenMacAutomation",
                 .product(name: "CellBase", package: "CellProtocol"),
+                .product(name: "CellApple", package: "CellProtocol"),
                 .product(name: "SproutCrypto", package: "sprout")
             ]
         ),
         .target(
             name: "HavenAgentCellRuntime",
             dependencies: [
+                "HavenMacAutomation",
                 "HavenAgentRuntime",
                 "HavenAgentCells",
                 "HavenRuntimeBootstrap",
@@ -135,6 +137,7 @@ let package = Package(
             name: "HavenAgentDMCPTests",
             dependencies: [
                 "HavenAgentDMCP",
+                "HavenAgentCellRuntime",
                 "HavenMacAutomation",
                 "HavenAgentRuntime",
                 "HavenRuntimeBootstrap"

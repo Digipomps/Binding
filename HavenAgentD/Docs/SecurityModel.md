@@ -61,10 +61,42 @@ The first concrete `GeneralCell` implementations are intentionally low-risk:
 - `AgentSupervisorCell` projects local runtime state outward
 - `RemoteIntentInboxCell` accepts structured intent payloads and queues them
 - `AgentLocalModelCell` calls only the configured loopback local model backend by default
+- `AgentMailDraftCell` prepares a typed review-intent for a visible Mail.app draft
 - none of these cells executes local automation as part of remote input handling
 
 That split is deliberate. It keeps "receive intent" separate from "perform effect", so policy, audit and approval can sit between them.
 Local model generation is treated as advisory compute, not device automation: it emits CellProtocol flow events and returns text, but it does not grant tool, file, sensor or GUI authority to the model.
+The email draft path follows the same rule: the cell can prepare a `mail.compose-draft` intent with purpose/interests, but Mail.app is opened only after the intent is signed/queued, locally reviewed, and dispatched through the allowlisted automation policy. The first version creates a visible draft and does not send automatically.
+
+For local operator tooling, HAVENAgentD also owns the token-authenticated
+`POST /commands/mail/compose-draft` control-bridge command. MCP adapters may
+forward to that command, but they must not run AppleScript, mutate automation
+policy, sign intents, or decide whether Mail.app actions are allowed. The
+daemon process remains the policy and side-effect boundary.
+
+## Why provider credentials are split into metadata and encrypted blobs
+
+`SecretCredentialCell` keeps provider credentials entity-scoped without making
+raw API keys part of normal Cell state:
+
+- `state` and `credentials` expose only redacted metadata such as provider ID,
+  purpose policy, scaffold allowlists, data-class policy and a `secretRef`
+- the raw secret is sealed with `ChaChaPoly` before it is handed to
+  `SecureCredentialStore`
+- the production secure store is Apple Keychain-backed, so the sealed blob gets
+  OS keychain protection in addition to the application-level envelope
+- the unlock key is caller-supplied and is not written to metadata, flow, action
+  responses or runtime snapshots
+- `credential.authorizeUse` verifies purpose/scaffold/data-class policy and
+  unlocks only into a short-lived in-process authorization ID; the raw secret is
+  not returned over CellProtocol
+
+The current key derivation is `HKDF-SHA256` from the supplied unlock key plus a
+per-credential salt and authenticated data. That is appropriate when the unlock
+key is generated high-entropy material. If the operator wants human-memorable
+passwords, the next hardening step should be Argon2id or scrypt before HKDF, or
+a Secure Enclave/Keychain access-control mode such as user presence for flows
+where interactive approval is acceptable.
 
 ## Why signed remote intents use a local issuer trust store
 

@@ -30,7 +30,15 @@ struct AgentConfigTests {
         #expect(decoded == config)
         #expect(config.localControlBridge.accessToken == "replace-with-strong-local-token")
         #expect(config.localControlBridge.routes.contains { $0.name == "local-model" })
+        #expect(config.localControlBridge.routes.contains { $0.name == AgentMailDraftAutomation.controlBridgeRouteName })
         #expect(config.scaffold.requestedCapabilities.contains("cap.local_model.generate"))
+        #expect(config.scaffold.requestedCapabilities.contains(AgentMailDraftAutomation.capabilityRef))
+        #expect(config.scaffold.interests.contains("contact.fallback.email"))
+        #expect(config.automationPolicy.appleScripts.contains { $0.id == AgentMailDraftAutomation.actionID })
+        let mailDefinition = try #require(config.automationPolicy.appleScripts.first { $0.id == AgentMailDraftAutomation.actionID })
+        #expect(mailDefinition.allowedForRemoteExecution == true)
+        #expect(mailDefinition.argumentConstraints["body"]?.allowsNewlines == true)
+        #expect(config.remoteIntentPolicy.issuers.first?.allowedActionIDs.contains(AgentMailDraftAutomation.actionID) == true)
     }
 
     @Test
