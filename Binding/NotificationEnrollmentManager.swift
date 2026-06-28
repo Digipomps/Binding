@@ -35,6 +35,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     private var participantID: String?
     private var deviceID: String?
     private var pendingAPNSToken: String?
+    private var lastTokenRefreshRequestedAt: Date?
 
     private init() {
         bootstrapIfNeeded()
@@ -129,6 +130,35 @@ final class NotificationEnrollmentManager: ObservableObject {
         #endif
         await registerCurrentDeviceIfReady()
     }
+
+    #if os(iOS)
+    func refreshDeviceRegistrationOnActivation() async {
+        if participantID == nil || deviceID == nil {
+            bootstrapIfNeeded()
+        }
+        guard !needsTermsAcceptance else { return }
+
+        await refreshPushAuthorizationStatus()
+        guard pushPermissionGranted else {
+            isDeviceRegistered = false
+            return
+        }
+
+        let now = Date()
+        guard Self.shouldRequestTokenRefresh(
+            now: now,
+            lastRequestedAt: lastTokenRefreshRequestedAt,
+            minimumInterval: 30
+        ) else {
+            await registerCurrentDeviceIfReady()
+            return
+        }
+
+        lastTokenRefreshRequestedAt = now
+        UIApplication.shared.registerForRemoteNotifications()
+        await registerCurrentDeviceIfReady()
+    }
+    #endif
 
     func declineTerms() {
         needsTermsAcceptance = false
@@ -316,6 +346,15 @@ final class NotificationEnrollmentManager: ObservableObject {
             ordered.append(normalized)
         }
         return ordered
+    }
+
+    nonisolated static func shouldRequestTokenRefresh(
+        now: Date,
+        lastRequestedAt: Date?,
+        minimumInterval: TimeInterval
+    ) -> Bool {
+        guard let lastRequestedAt else { return true }
+        return now.timeIntervalSince(lastRequestedAt) >= minimumInterval
     }
 
     private nonisolated static func normalizedIdentifier(_ value: String?) -> String? {

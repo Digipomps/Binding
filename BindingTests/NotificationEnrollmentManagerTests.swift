@@ -47,6 +47,26 @@ struct NotificationEnrollmentManagerTests {
         #expect(normalized == ["workflow.run", "workflow.review", "conference.broadcast"])
     }
 
+    @Test func tokenRefreshThrottleAllowsFirstAndStaleRequestsOnly() {
+        let now = Date(timeIntervalSince1970: 1_000)
+
+        #expect(NotificationEnrollmentManager.shouldRequestTokenRefresh(
+            now: now,
+            lastRequestedAt: nil,
+            minimumInterval: 30
+        ))
+        #expect(!NotificationEnrollmentManager.shouldRequestTokenRefresh(
+            now: now,
+            lastRequestedAt: now.addingTimeInterval(-10),
+            minimumInterval: 30
+        ))
+        #expect(NotificationEnrollmentManager.shouldRequestTokenRefresh(
+            now: now,
+            lastRequestedAt: now.addingTimeInterval(-31),
+            minimumInterval: 30
+        ))
+    }
+
     @Test func registrationResponseValidationAcceptsActiveMatchingDevice() throws {
         try NotificationEnrollmentManager.validateRegistrationResponse(
             [
