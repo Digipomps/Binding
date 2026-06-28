@@ -54,7 +54,16 @@ struct PendingAgentActionOverlay: View {
         sendingTicketID = action.ticketId
         errorMessage = nil
         do {
-            try await AgentConversationClient.shared.postPrompt(action: action, prompt: prompt)
+            if AgentConversationClient.shouldRouteToAgentInbox(action: action) {
+                try await AgentConversationClient.shared.postPrompt(action: action, prompt: prompt)
+            } else {
+                try await NotificationCallbackClient.shared.submitTicketResult(
+                    participantId: action.participantId,
+                    deviceId: action.deviceId,
+                    ticketId: action.ticketId,
+                    result: NotificationCallbackClient.ticketPromptResult(action: action, prompt: prompt)
+                )
+            }
             drafts[action.ticketId] = ""
             inbox.remove(ticketId: action.ticketId)
         } catch {
@@ -68,7 +77,16 @@ struct PendingAgentActionOverlay: View {
         sendingTicketID = action.ticketId
         errorMessage = nil
         do {
-            try await AgentConversationClient.shared.postDecision(action: action, decision: decision)
+            if AgentConversationClient.shouldRouteToAgentInbox(action: action) {
+                try await AgentConversationClient.shared.postDecision(action: action, decision: decision)
+            } else {
+                try await NotificationCallbackClient.shared.submitTicketResult(
+                    participantId: action.participantId,
+                    deviceId: action.deviceId,
+                    ticketId: action.ticketId,
+                    result: NotificationCallbackClient.ticketDecisionResult(action: action, decision: decision)
+                )
+            }
             drafts[action.ticketId] = ""
             inbox.remove(ticketId: action.ticketId)
         } catch {

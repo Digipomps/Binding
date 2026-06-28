@@ -137,6 +137,20 @@ final class AgentConversationClient {
         return configured?.isEmpty == false ? configured! : defaultEndpoint
     }
 
+    nonisolated static func shouldRouteToAgentInbox(action: PendingDeviceAction) -> Bool {
+        if action.requiredActionKey == requiredActionKey
+            || action.requiredActionKey == codexStartPromptActionKey
+            || action.requiredActionKey.hasPrefix("haven.agent.") {
+            return true
+        }
+        if stringValue(action.payload["sourceCellEndpoint"])?.contains("AgentConversationInbox") == true {
+            return true
+        }
+        return stringValue(action.payload["conversationId"]) != nil
+            || stringValue(action.payload["requestId"]) != nil
+            || stringValue(action.payload["jobId"]) != nil
+    }
+
     nonisolated static func postPromptPayload(
         action: PendingDeviceAction,
         prompt: String,
@@ -321,6 +335,15 @@ final class AgentConversationClient {
 enum AgentConversationDecision: String {
     case approved
     case rejected
+
+    var defaultPrompt: String {
+        switch self {
+        case .approved:
+            return "Approved"
+        case .rejected:
+            return "Rejected"
+        }
+    }
 }
 
 enum AgentConversationClientError: Error, LocalizedError {

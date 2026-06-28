@@ -113,6 +113,35 @@ final class NotificationCallbackClient {
         return response
     }
 
+    nonisolated static func ticketPromptResult(
+        action: PendingDeviceAction,
+        prompt: String
+    ) -> [String: JSONValue] {
+        [
+            "requiredActionKey": .string(action.requiredActionKey),
+            "responseKind": .string("prompt"),
+            "prompt": .string(prompt)
+        ]
+    }
+
+    nonisolated static func ticketDecisionResult(
+        action: PendingDeviceAction,
+        decision: AgentConversationDecision,
+        note: String? = nil
+    ) -> [String: JSONValue] {
+        var result: [String: JSONValue] = [
+            "requiredActionKey": .string(action.requiredActionKey),
+            "responseKind": .string("decision"),
+            "decision": .string(decision.rawValue),
+            "prompt": .string(decision.defaultPrompt)
+        ]
+        if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines),
+           note.isEmpty == false {
+            result["note"] = .string(note)
+        }
+        return result
+    }
+
     @discardableResult
     func registerDevice(payload: [String: JSONValue]) async throws -> [String: JSONValue] {
         try await post(path: "register", payload: payload)

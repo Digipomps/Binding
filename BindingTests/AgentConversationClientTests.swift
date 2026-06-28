@@ -143,6 +143,31 @@ struct AgentConversationClientTests {
     }
 
     @Test
+    func routeSelectionKeepsGenericNotificationTicketsOutOfAgentInbox() {
+        let genericAction = PendingDeviceAction(
+            id: "ticket-generic",
+            participantId: "participant-1",
+            deviceId: "phone-1",
+            ticketId: "ticket-generic",
+            requiredActionKey: "binding.notification.staging.test",
+            payload: ["title": .string("HAVEN staging")],
+            receivedAt: .init(timeIntervalSince1970: 0)
+        )
+        let agentAction = PendingDeviceAction(
+            id: "ticket-agent",
+            participantId: "participant-1",
+            deviceId: "phone-1",
+            ticketId: "ticket-agent",
+            requiredActionKey: "haven.agent.followup.approval",
+            payload: ["conversationId": .string("conversation-2")],
+            receivedAt: .init(timeIntervalSince1970: 0)
+        )
+
+        #expect(!AgentConversationClient.shouldRouteToAgentInbox(action: genericAction))
+        #expect(AgentConversationClient.shouldRouteToAgentInbox(action: agentAction))
+    }
+
+    @Test
     func codexPromptPayloadCarriesPhoneOriginatedPromptContext() {
         let payload = AgentConversationClient.codexPromptPayload(
             id: "codex-request-1",
