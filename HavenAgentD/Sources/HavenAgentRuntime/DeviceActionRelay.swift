@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @preconcurrency import CellBase
 import HavenRuntimeBootstrap
 
@@ -92,7 +95,7 @@ public enum DeviceActionResponseMode: String, Codable, Equatable, Sendable {
 }
 
 private enum DeviceActionRelayContract {
-    static let defaultNotificationOutboxEndpoint = "cell://staging.haven.digipomps.org/NotificationOutbox"
+    static let defaultNotificationOutboxEndpoint = "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action"
     static let defaultPromptTriggerEvent = "workflow.remote.prompt.requested"
     static let defaultApprovalTriggerEvent = "workflow.review.pending"
     static let defaultTTLSeconds = 900
@@ -128,7 +131,7 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
 
     public init(
         enabled: Bool = false,
-        notificationOutboxEndpoint: String = "cell://staging.haven.digipomps.org/NotificationOutbox",
+        notificationOutboxEndpoint: String = "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action",
         defaultParticipantID: String? = nil,
         defaultDeviceID: String? = nil,
         defaultTTLSeconds: Int = 900,
@@ -197,6 +200,9 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         }
         if let legacyValue = normalizedNonEmpty(legacyPublishURL) {
             if legacyValue.lowercased().hasPrefix("cell://") {
+                return legacyValue
+            }
+            if legacyValue.lowercased().hasPrefix("http://") || legacyValue.lowercased().hasPrefix("https://") {
                 return legacyValue
             }
             if let url = URL(string: legacyValue),
@@ -437,10 +443,21 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
 
     public func publish(_ action: PublishedDeviceAction, requester: Identity) async throws -> DeviceActionPublishReceipt {
         guard let url = URL(string: notificationOutboxEndpoint),
-              url.scheme?.lowercased() == "cell" else {
+              let scheme = url.scheme?.lowercased() else {
             throw DeviceActionRelayError.invalidNotificationOutboxEndpoint(notificationOutboxEndpoint)
         }
 
+        switch scheme {
+        case "cell":
+            return try await publishToCell(action, requester: requester)
+        case "http", "https":
+            return try await publishToHTTP(action, url: url)
+        default:
+            throw DeviceActionRelayError.invalidNotificationOutboxEndpoint(notificationOutboxEndpoint)
+        }
+    }
+
+    private func publishToCell(_ action: PublishedDeviceAction, requester: Identity) async throws -> DeviceActionPublishReceipt {
         Self.registerRemoteHostIfNeeded(for: notificationOutboxEndpoint)
 
         guard let resolver = CellBase.defaultCellResolver else {
@@ -477,10 +494,69 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
         }
 
         guard case let .object(object)? = response else {
-            throw DeviceActionRelayError.publishRejected("NotificationOutbox returned an unexpected response.")
+            throw DeviceActionRelayError.publishRejected(
+                "NotificationOutbox returned an unexpected response: \(String(describing: response))"
+            )
         }
 
         let responseObject = Self.decodeJSONObject(from: object)
+        return try Self.receipt(from: responseObject, fallbackTicketID: action.ticketId)
+    }
+
+    private func publishToHTTP(_ action: PublishedDeviceAction, url: URL) async throws -> DeviceActionPublishReceipt {
+        guard let token = Self.agentRelayToken() else {
+            throw DeviceActionRelayError.publishRejected(
+                "HTTP relay requires HAVEN_AGENT_RELAY_TOKEN or AGENT_NOTIFICATION_RELAY_TOKEN."
+            )
+        }
+
+        guard case let .object(object) = action.notificationOutboxValue else {
+            throw DeviceActionRelayError.publishRejected("Device action could not be encoded for HTTP relay.")
+        }
+
+        let body = Self.decodeJSONObject(from: object)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw DeviceActionRelayError.publishRejected(
+                "HTTP relay request to \(url.absoluteString) failed: \(error.localizedDescription)"
+            )
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw DeviceActionRelayError.publishRejected("HTTP relay returned a non-HTTP response.")
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let responseBody = String(data: data.prefix(512), encoding: .utf8) ?? ""
+            throw DeviceActionRelayError.publishRejected(
+                "HTTP relay returned \(httpResponse.statusCode): \(responseBody)"
+            )
+        }
+
+        let responseObject: [String: RelayJSONValue]
+        do {
+            responseObject = try JSONDecoder().decode([String: RelayJSONValue].self, from: data)
+        } catch {
+            throw DeviceActionRelayError.publishRejected(
+                "HTTP relay returned invalid JSON: \(error.localizedDescription)"
+            )
+        }
+
+        return try Self.receipt(from: responseObject, fallbackTicketID: action.ticketId)
+    }
+
+    private static func receipt(
+        from responseObject: [String: RelayJSONValue],
+        fallbackTicketID: String
+    ) throws -> DeviceActionPublishReceipt {
         if responseObject["status"]?.stringValue == "failed" {
             let message = responseObject["diagnosticMessage"]?.stringValue
                 ?? responseObject["message"]?.stringValue
@@ -490,11 +566,22 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
 
         let resolvedTicketID = responseObject["id"]?.stringValue
             ?? responseObject["ticketId"]?.stringValue
-            ?? action.ticketId
+            ?? fallbackTicketID
         return DeviceActionPublishReceipt(
             ticketId: resolvedTicketID,
             response: responseObject
         )
+    }
+
+    private static func agentRelayToken() -> String? {
+        let environment = ProcessInfo.processInfo.environment
+        return normalizedNonEmpty(environment["HAVEN_AGENT_RELAY_TOKEN"])
+            ?? normalizedNonEmpty(environment["AGENT_NOTIFICATION_RELAY_TOKEN"])
+    }
+
+    private static func normalizedNonEmpty(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     static func registerRemoteHostIfNeeded(for endpoint: String) {
