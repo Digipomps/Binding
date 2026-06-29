@@ -717,9 +717,14 @@ struct BindingTests {
             Issue.record("Co-Pilot Chat should expose an Aktivt tab panel")
         }
         if let helpPanel = skeletonTabPanel(id: "hjelp", in: skeleton) {
+            let helpElement = SkeletonElement.VStack(SkeletonVStack(elements: helpPanel))
             #expect(skeletonContainsLiteralText("Hjelp", in: helpPanel))
+            #expect(skeletonContainsLiteralText("Kontekst", in: helpPanel))
             #expect(skeletonContainsLiteralText(helpIntro, in: helpPanel))
             #expect(skeletonContainsLiteralText(helpFollowup, in: helpPanel))
+            #expect(skeletonContainsTextKeypath("perspective.perspective.state.activePurposeCount", in: helpPanel))
+            #expect(skeletonContainsTextKeypath("perspective.perspective.state.activeInterestCount", in: helpPanel))
+            #expect(skeletonContainsList(keypath: "perspective.activePurpose.purposes", topic: nil, in: helpElement))
         } else {
             Issue.record("Co-Pilot Chat should expose a Mer > Hjelp tab panel")
         }
@@ -775,10 +780,13 @@ struct BindingTests {
         #expect(skeletonContainsList(keypath: "chatHub.state.capabilityRequests", topic: nil, in: skeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.assistant.assistantProviders", topic: nil, in: skeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.assistant.latestSuggestion.candidates", topic: nil, in: skeleton))
+        #expect(skeletonContainsList(keypath: "perspective.activePurpose.purposes", topic: nil, in: skeleton))
         #expect(!skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.userUUID", in: skeleton))
         #expect(!skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.profileID", in: skeleton))
         #expect(!skeletonContainsTextKeypath("chatHub.state.blockedUsers", in: skeleton))
         #expect(!skeletonContainsTextKeypath("chatHub.state.purposeWeights", in: skeleton))
+        let validationReport = CellConfigurationValidationService.validate(configuration)
+        #expect(!validationReport.unusedLabels.contains("perspective"))
         if let mermaidPanel = skeletonTabPanel(id: "mermaid-diagram", in: skeleton) {
             let mermaidElement = SkeletonElement.VStack(SkeletonVStack(elements: mermaidPanel))
             #expect(skeletonContainsTextArea(targetKeypath: "chatHub.assistant.setCandidateQuery", in: mermaidElement))

@@ -778,6 +778,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let references = Set((configuration.cellReferences ?? []).map(\.endpoint))
 
         XCTAssertTrue(references.contains("cell:///PersonalChatHub"))
+        XCTAssertTrue(references.contains("cell:///Perspective"))
+        XCTAssertFalse(
+            CellConfigurationValidationService.validate(configuration).unusedLabels.contains("perspective"),
+            "Co-Pilot should use its Perspective reference for scoped context instead of carrying an unused grant."
+        )
         XCTAssertEqual(
             CellConfigurationValidationService.validate(configuration).errorCount,
             0
@@ -814,7 +819,10 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             "\"keypath\":\"chatHub.ui.setCapabilityDiscoveryEnabled\"",
             "\"keypath\":\"chatHub.unblockUser\"",
             "\"targetKeypath\":\"chatHub.setComposer\"",
-            "\"keypath\":\"chatHub.state.assistant.whySummary\""
+            "\"keypath\":\"chatHub.state.assistant.whySummary\"",
+            "\"keypath\":\"perspective.perspective.state.activePurposeCount\"",
+            "\"keypath\":\"perspective.perspective.state.activeInterestCount\"",
+            "\"keypath\":\"perspective.activePurpose.purposes\""
         ] {
             XCTAssertTrue(json.contains(expected), "Co-Pilot Chat JSON missing \(expected)")
         }

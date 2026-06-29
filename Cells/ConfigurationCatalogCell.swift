@@ -8770,6 +8770,48 @@ final class ConfigurationCatalogCell: GeneralCell {
         var providerList = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.assistantProviders", flowElementSkeleton: providerRow)
         providerList.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
 
+        var perspectivePurposeName = SkeletonText(keypath: "purposeName")
+        perspectivePurposeName.modifiers = modifier {
+            $0.fontWeight = "semibold"
+            $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
+            $0.lineLimit = 1
+        }
+        var perspectivePurposeWeight = SkeletonText(keypath: "purposeWeight")
+        perspectivePurposeWeight.modifiers = modifier {
+            $0.foregroundColor = BindingPersonalCopilotDesignSystem.textSecondary
+            $0.fontSize = 11
+            $0.lineLimit = 1
+        }
+        var perspectivePurposeRow = SkeletonVStack(elements: [
+            .Text(perspectivePurposeName),
+            .Text(perspectivePurposeWeight)
+        ], spacing: 4)
+        perspectivePurposeRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var activePerspectivePurposes = SkeletonList(
+            topic: nil,
+            keypath: "perspective.activePurpose.purposes",
+            flowElementSkeleton: perspectivePurposeRow
+        )
+        activePerspectivePurposes.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 140, role: "personal-list-row")
+
+        let perspectiveContextPanel = personalSection(
+            "Kontekst",
+            content: [
+                .Text(personalBodyText("Co-Pilot bruker lokal Perspective-kontekst for aa tolke utkastet mot formaal og interesser.")),
+                .HStack(SkeletonHStack(elements: [
+                    .VStack(SkeletonVStack(elements: [
+                        .Text(personalLabelText("Aktive formål")),
+                        .Text(personalBoundText("perspective.perspective.state.activePurposeCount", lineLimit: 1))
+                    ], spacing: 2)),
+                    .VStack(SkeletonVStack(elements: [
+                        .Text(personalLabelText("Aktive interesser")),
+                        .Text(personalBoundText("perspective.perspective.state.activeInterestCount", lineLimit: 1))
+                    ], spacing: 2))
+                ], spacing: 10)),
+                .List(activePerspectivePurposes)
+            ]
+        )
+
         let inviteHelper = personalSection(
             "Inviter",
             role: "personal-consent-prompt",
@@ -9113,7 +9155,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             "Hjelp",
             content: [
                 .Text(personalBodyText("Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt.")),
-                .Text(personalBodyText("Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene."))
+                .Text(personalBodyText("Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene.")),
+                perspectiveContextPanel
             ]
         )
 
