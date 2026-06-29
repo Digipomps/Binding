@@ -504,8 +504,11 @@ struct FullLibraryView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Ferdig") {
+                    Button {
                         dismissKeyboard()
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            .accessibilityLabel("Skjul tastatur")
                     }
                 }
             }

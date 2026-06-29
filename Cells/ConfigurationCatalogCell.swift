@@ -8542,6 +8542,16 @@ final class ConfigurationCatalogCell: GeneralCell {
             submitOnEnter: false,
             modifiers: fieldCard
         )
+        let mermaidSourceField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.assistant.candidateQuery",
+            targetKeypath: "chatHub.assistant.setCandidateQuery",
+            placeholder: "Lim inn eller skriv Mermaid-kode, for eksempel: flowchart TD\\n  A[Idé] --> B[Prosjekt]",
+            minLines: 5,
+            maxLines: 10,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
         let workItemTitleField = SkeletonTextField(
             text: nil,
             sourceKeypath: "chatHub.state.workbench.workItemDraft.title",
@@ -8802,9 +8812,10 @@ final class ConfigurationCatalogCell: GeneralCell {
             "Mermaid diagram",
             content: [
                 .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 3)),
+                .TextArea(mermaidSourceField),
                 .List(resourceMatches),
                 .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.ui.openMatchedResourceLibrary", "Last inn Mermaid", payload: .object([
+                    .Button(button("chatHub.ui.openMatchedResourceLibrary", "Åpne diagramflate", payload: .object([
                         "resourceID": .string("configuration:mermaid-renderer-playground"),
                         "autoOpen": .bool(true)
                     ]))),
@@ -9010,12 +9021,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Skriv",
                 role: "personal-draft-composer",
                 content: [
-                    .List(promptMessages),
                     .Text(personalBodyText("Hva vil du få gjort?", lineLimit: 1)),
                     .VStack(composerStack),
                     .Text(primaryActionHint),
                     .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 3)),
-                    .Tabs(helperTabs(activeOnly: true, compact: true))
+                    .Tabs(helperTabs(activeOnly: true, compact: true)),
+                    .Text(personalLabelText("Logg")),
+                    .List(promptMessages)
                 ],
                 modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-draft-composer")
             )

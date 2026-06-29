@@ -698,6 +698,7 @@ struct BindingTests {
             #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: conversationPanel))
             #expect(skeletonContainsTextKeypath("chatHub.state.ui.primaryActionHint", in: conversationPanel))
             #expect(skeletonContainsTabs(tabsKeypath: "chatHub.state.ui.activeHelpers", in: conversationElement))
+            #expect(skeletonContainsLiteralText("Logg", in: conversationPanel))
             #expect(!skeletonContainsLiteralText("Trykk pilen", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.prompt.submit", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.clearComposer", in: conversationPanel))
@@ -756,6 +757,7 @@ struct BindingTests {
         #expect(skeletonContainsTabsSelectionAction(keypath: "chatHub.ui.setActiveHelper", in: skeleton))
 
         #expect(skeletonContainsTextField(targetKeypath: "chatHub.assistant.setCandidateQuery", in: skeleton))
+        #expect(skeletonContainsTextArea(targetKeypath: "chatHub.assistant.setCandidateQuery", in: skeleton))
         #expect(skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.title", in: skeleton))
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: skeleton))
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.poll.setOptions", in: skeleton))
@@ -777,7 +779,31 @@ struct BindingTests {
         #expect(!skeletonContainsTextField(targetKeypath: "chatHub.inviteDraft.profileID", in: skeleton))
         #expect(!skeletonContainsTextKeypath("chatHub.state.blockedUsers", in: skeleton))
         #expect(!skeletonContainsTextKeypath("chatHub.state.purposeWeights", in: skeleton))
+        if let mermaidPanel = skeletonTabPanel(id: "mermaid-diagram", in: skeleton) {
+            let mermaidElement = SkeletonElement.VStack(SkeletonVStack(elements: mermaidPanel))
+            #expect(skeletonContainsTextArea(targetKeypath: "chatHub.assistant.setCandidateQuery", in: mermaidElement))
+            #expect(skeletonContainsButton(keypath: "chatHub.ui.openMatchedResourceLibrary", label: "Åpne diagramflate", in: mermaidPanel))
+        } else {
+            Issue.record("Co-Pilot Chat should expose the Mermaid helper panel")
+        }
         _ = try JSONEncoder().encode(skeleton)
+    }
+
+    @Test func skeletonTextDoesNotExposeTechnicalAuthorizationFailures() async {
+        let text = SkeletonText(keypath: "state.draft.title")
+        let rendered = await text.asyncContent(
+            userInfoValue: .object([
+                "state": .object([
+                    "draft": .object([
+                        "title": .string("failure: Consume command get failed for get(state.draft.title): denied(CellBase.CellAuthorizationDecision(allowed: false, reason: \"No verified owner proof\"))")
+                    ])
+                ])
+            ])
+        )
+
+        #expect(rendered == "Innholdet er ikke tilgjengelig akkurat nå.")
+        #expect(!rendered.contains("CellAuthorizationDecision"))
+        #expect(!rendered.contains("Consume command"))
     }
 
     @Test func personalCopilotV1PolicyRejectsConferenceAndUnapprovedHosts() {

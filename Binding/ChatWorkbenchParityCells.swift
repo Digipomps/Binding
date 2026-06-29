@@ -4317,14 +4317,15 @@ final class BindingPersonalChatHubCell: GeneralCell {
         let topResourceTitles = resourceMatches.compactMap { BindingChatValue.string($0["title"]) }
         let resourceSummary = topResourceTitles.isEmpty ? "" : " Treff: \(topResourceTitles.prefix(3).joined(separator: ", "))."
         let nextStep = BindingChatValue.string(groundedActionPlan["nextStep"]) ?? "continue_chat"
+        let nextStepTitle = promptLogNextStepTitle(nextStep)
         let assistantStatus = suggestion.shouldSuggest
-            ? "\(helperTitle(suggestion.helperID)) · \(nextStep)"
-            : nextStep
+            ? "\(helperTitle(suggestion.helperID)) · \(nextStepTitle)"
+            : nextStepTitle
         let userMessage: Object = [
             "id": .string(UUID().uuidString),
             "speaker": .string("Du"),
             "body": .string(draft),
-            "statusText": .string("Analysert lokalt"),
+            "statusText": .string("Lest lokalt fra denne chatten"),
             "kind": .string("user_prompt"),
             "threadID": .string(threadID)
         ]
@@ -4343,6 +4344,23 @@ final class BindingPersonalChatHubCell: GeneralCell {
         messages.append(.object(userMessage))
         messages.append(.object(assistantMessage))
         BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
+    }
+
+    private func promptLogNextStepTitle(_ nextStep: String) -> String {
+        switch nextStep {
+        case "open_helper":
+            return "klar til å åpne hjelper"
+        case "open_helper_after_user_click":
+            return "åpnes bare etter ditt klikk"
+        case "continue_chat", "ask_clarifying_or_continue_chat":
+            return "fortsett som vanlig chat"
+        case "query_resource":
+            return "klar til å søke i valgt ressurs"
+        case "review_signed_intent":
+            return "krever review og signering"
+        default:
+            return nextStep.replacingOccurrences(of: "_", with: " ")
+        }
     }
 
     private func explicitObjects(from draft: String) -> [String] {

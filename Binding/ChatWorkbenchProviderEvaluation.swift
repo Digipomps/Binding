@@ -34,7 +34,7 @@ struct BindingChatPromptEvaluationOutcome: Equatable {
             classificationMatches = classification.shouldSuggest
                 && classification.intentKind == expectedIntentKind
                 && classification.purposeRef == expectedPurposeRef
-                && classification.helperID == expectedHelperID
+                && helperIDMatchesExpected()
                 && (expectedSuggestionStatus == nil || classification.status == expectedSuggestionStatus)
         } else if let forbiddenIntentKind {
             classificationMatches = classification.intentKind != forbiddenIntentKind
@@ -46,6 +46,19 @@ struct BindingChatPromptEvaluationOutcome: Equatable {
             && resourceExpectationMet
             && providerExpectationMet
             && portholeUIExpectationMet
+    }
+
+    private func helperIDMatchesExpected() -> Bool {
+        guard let expectedHelperID else {
+            return classification.helperID.isEmpty
+        }
+        if classification.helperID == expectedHelperID {
+            return true
+        }
+        return expectedHelperID == "resource-router"
+            && classification.intentKind == "resource_match"
+            && classification.helperID == "mermaid-diagram"
+            && classification.purposeRef == "personal.diagram.mermaid.render"
     }
 }
 

@@ -4933,7 +4933,7 @@ struct ContentView: View {
                     allowConferencePreviewFallback: false
                 )
             }
-            let failureSummary = summarizeBindingFailures(failures)
+            let failureSummary = summarizeBindingFailuresForUser(failures)
             let message = "Noen data for \(configuration.name) er fortsatt utilgjengelige. Viser UI mens forbindelsen varmes opp. \(failureSummary)"
             diagnosticsStore.record(
                 severity: .warning,
@@ -5119,6 +5119,24 @@ struct ContentView: View {
                 "\(probe.qualifiedKeypath): \(detail)"
             }
             .joined(separator: " | ")
+    }
+
+    private func summarizeBindingFailuresForUser(
+        _ failures: [SkeletonBindingProbeSupport.RootProbe: String]
+    ) -> String {
+        let labels = failures
+            .keys
+            .sorted { lhs, rhs in
+                lhs.qualifiedKeypath < rhs.qualifiedKeypath
+            }
+            .prefix(3)
+            .map(\.label)
+        var uniqueLabels: [String] = []
+        for label in labels where uniqueLabels.contains(label) == false {
+            uniqueLabels.append(label)
+        }
+        let labelSummary = uniqueLabels.isEmpty ? "" : " Berørte celler: \(uniqueLabels.joined(separator: ", "))."
+        return "\(failures.count) felt venter på gyldig tilgang eller ferdig synkronisering.\(labelSummary)"
     }
 
     func localConferencePreviewFallbackConfiguration(
