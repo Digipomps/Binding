@@ -4,7 +4,11 @@ import CellBase
 enum CellConfigurationEndpointRetargeting {
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let localVerifierFallbackCellNames: Set<String> = [
-        "PersonalMeetingCoordinator"
+        "PersonalProfilePublisher",
+        "PublicProfileDirectory",
+        "PersonalMatchmaking",
+        "PersonalMeetingCoordinator",
+        "PersonalCopilotConfigurationCatalog"
     ]
 
     static func rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(

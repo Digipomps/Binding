@@ -1392,19 +1392,43 @@ struct BindingTests {
     }
 
     @Test func localVerifierCanRetargetKnownStagingPersonalCopilotFallbacks() throws {
-        let configuration = ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration()
-        let retargeted = CellConfigurationEndpointRetargeting
-            .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
+        let cases: [(CellConfiguration, String, String)] = [
+            (
+                ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
+                "cell://staging.haven.digipomps.org/PersonalProfilePublisher",
+                "cell:///PersonalProfilePublisher"
+            ),
+            (
+                ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+                "cell://staging.haven.digipomps.org/PublicProfileDirectory",
+                "cell:///PublicProfileDirectory"
+            ),
+            (
+                ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
+                "cell://staging.haven.digipomps.org/PersonalMatchmaking",
+                "cell:///PersonalMatchmaking"
+            ),
+            (
+                ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
+                "cell://staging.haven.digipomps.org/PersonalMeetingCoordinator",
+                "cell:///PersonalMeetingCoordinator"
+            ),
+            (
+                ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration(),
+                "cell://staging.haven.digipomps.org/PersonalCopilotConfigurationCatalog",
+                "cell:///PersonalCopilotConfigurationCatalog"
+            )
+        ]
 
-        #expect(retargeted.discovery?.sourceCellEndpoint == "cell:///PersonalMeetingCoordinator")
-        #expect(retargeted.cellReferences?.contains(where: {
-            $0.label == "meetingCoordinator" && $0.endpoint == "cell:///PersonalMeetingCoordinator"
-        }) == true)
-        #expect(
-            BindingPersonalCopilotV1Policy
-                .referencedEndpoints(in: configuration)
-                .contains("cell://staging.haven.digipomps.org/PersonalMeetingCoordinator")
-        )
+        for (configuration, stagingEndpoint, localEndpoint) in cases {
+            let retargeted = CellConfigurationEndpointRetargeting
+                .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
+
+            #expect(retargeted.discovery?.sourceCellEndpoint == localEndpoint)
+            #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: configuration).contains(stagingEndpoint))
+            #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: retargeted).contains(localEndpoint))
+            #expect(!BindingPersonalCopilotV1Policy.referencedEndpoints(in: retargeted).contains(stagingEndpoint))
+        }
     }
 
     @Test func fullLibraryCanPreferRemoteCatalogEndpointsBeforeLocalFallback() {

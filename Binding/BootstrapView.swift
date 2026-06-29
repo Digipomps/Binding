@@ -277,6 +277,30 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: PersonalProfilePublisherContract.cellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalProfilePublisherLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: PublicProfileDirectoryContract.cellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PublicProfileDirectoryLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: PersonalMatchmakingContract.cellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalMatchmakingLocalCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "PersonalChatClient",
             cellScope: .identityUnique,
             persistency: .persistant,
@@ -298,6 +322,14 @@ actor BindingLocalCellRegistration {
             persistency: .persistant,
             identityDomain: "private",
             type: PersonalMeetingCoordinatorLocalCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: PersonalCopilotAppStoreV1Contract.catalogCellName,
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PersonalCopilotCatalogLocalCell.self,
             resolver: resolver
         )
         await register(
@@ -1012,6 +1044,462 @@ private final class PersonalProfileDraftLocalCell: PersonalCopilotLocalCell {
     }
 }
 
+private final class PersonalProfilePublisherLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        [
+            PersonalProfilePublisherContract.stateKeypath,
+            PersonalProfilePublisherContract.publicReadModelKeypath,
+            "profileStatus",
+            "purposeGoal",
+            "skeletonConfiguration"
+        ]
+    }
+
+    override var writableKeys: [String] {
+        [
+            PersonalProfilePublisherContract.publishKeypath,
+            "publishProfile",
+            PersonalProfilePublisherContract.unpublishKeypath,
+            "unpublishProfile",
+            PersonalProfilePublisherContract.deleteKeypath,
+            "deleteProfile",
+            "publishDraft.displayName",
+            "publishDraft.headline",
+            "publishDraft.summary",
+            "publishDraft.interestsText"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "publishDraft": .object(Self.emptyDraft()),
+            "publicReadModel": .object(Self.emptyReadModel()),
+            "publishStatus": .string("local draft only"),
+            "profileStatus": .string("not published"),
+            "visibility": .string("private"),
+            "requiresExplicitPublishConsent": .bool(true),
+            "status": .string("Profile publishing is staged locally until an explicit signed cloud publish is available."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "publishDraft.displayName":
+            return updateDraft(field: "displayName", value: payloadString(value))
+        case "publishDraft.headline":
+            return updateDraft(field: "headline", value: payloadString(value))
+        case "publishDraft.summary":
+            return updateDraft(field: "summary", value: payloadString(value))
+        case "publishDraft.interestsText":
+            return updateDraft(field: "interestsText", value: payloadString(value))
+        case PersonalProfilePublisherContract.publishKeypath, "publishProfile":
+            let draft = currentDraft()
+            mergeState([
+                "publicReadModel": .object(Self.readModel(from: draft)),
+                "publishStatus": .string("ready for signed cloud publish"),
+                "profileStatus": .string("publish consent staged locally"),
+                "visibility": .string("pending signed publish"),
+                "lastAction": .string("publishProfile")
+            ])
+            return response(status: "ok", message: "Publish consent staged locally. No cloud profile was published without a signed contract.")
+        case PersonalProfilePublisherContract.unpublishKeypath, "unpublishProfile":
+            mergeState([
+                "publishStatus": .string("unpublish staged locally"),
+                "profileStatus": .string("unpublish requested"),
+                "visibility": .string("private"),
+                "lastAction": .string("unpublishProfile")
+            ])
+            return response(status: "ok", message: "Unpublish request staged locally.")
+        case PersonalProfilePublisherContract.deleteKeypath, "deleteProfile":
+            replaceState(initialState())
+            return response(status: "ok", message: "Local publish draft and read model cleared.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func updateDraft(field: String, value: String) -> ValueType {
+        var draft = currentDraft()
+        draft[field] = .string(value)
+        setStateValue(.object(draft), for: "publishDraft")
+        return response(status: "ok", message: "Publish draft updated locally.")
+    }
+
+    private func currentDraft() -> Object {
+        if case let .object(draft)? = stateValue(for: "publishDraft") {
+            return draft
+        }
+        return Self.emptyDraft()
+    }
+
+    private func payloadString(_ value: ValueType) -> String {
+        if case let .object(object) = value {
+            if case let .string(text)? = object["text"] ?? object["value"] {
+                return text
+            }
+            return ""
+        }
+        return stringValue(value)
+    }
+
+    private static func emptyDraft() -> Object {
+        [
+            "displayName": .string(""),
+            "headline": .string(""),
+            "summary": .string(""),
+            "interestsText": .string("")
+        ]
+    }
+
+    private static func emptyReadModel() -> Object {
+        [
+            "displayName": .string(""),
+            "headline": .string(""),
+            "summary": .string("")
+        ]
+    }
+
+    private static func readModel(from draft: Object) -> Object {
+        [
+            "displayName": draft["displayName"] ?? .string(""),
+            "headline": draft["headline"] ?? .string(""),
+            "summary": draft["summary"] ?? .string(""),
+            "moderationStatus": .string("pending signed publish")
+        ]
+    }
+}
+
+private final class PublicProfileDirectoryLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        [
+            PublicProfileDirectoryContract.stateKeypath,
+            PublicProfileDirectoryContract.blockedProfilesKeypath,
+            "directoryModerationStatus",
+            "purposeGoal",
+            "skeletonConfiguration"
+        ]
+    }
+
+    override var writableKeys: [String] {
+        [
+            "query",
+            PublicProfileDirectoryContract.searchKeypath,
+            "searchProfiles",
+            "profileDetail",
+            PublicProfileDirectoryContract.reportProfileKeypath,
+            PublicProfileDirectoryContract.hideProfileKeypath,
+            PublicProfileDirectoryContract.blockProfileKeypath
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "query": .string(""),
+            "lastSearch": .object([
+                "results": .list([]),
+                "status": .string("No signed public directory scope has been loaded yet.")
+            ]),
+            "selectedProfileID": .string(""),
+            "blockedProfiles": .list([]),
+            "blockedProfileCount": .integer(0),
+            "moderationStatus": .string("local safe mode"),
+            "status": .string("Directory is available as an owner-scoped local surface until a signed remote directory grant is active."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "query":
+            let query = payloadString(value)
+            setStateValue(.string(query), for: "query")
+            return response(status: "ok", message: "Directory query updated locally.")
+        case PublicProfileDirectoryContract.searchKeypath, "searchProfiles":
+            return searchProfiles(payload: value)
+        case "profileDetail":
+            return profileDetail(payload: value)
+        case PublicProfileDirectoryContract.reportProfileKeypath:
+            return markSelectedProfile(action: "reported", payload: value)
+        case PublicProfileDirectoryContract.hideProfileKeypath:
+            return markSelectedProfile(action: "hidden", payload: value)
+        case PublicProfileDirectoryContract.blockProfileKeypath:
+            return blockSelectedProfile(payload: value)
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func searchProfiles(payload: ValueType) -> ValueType {
+        let query = payloadString(payload).isEmpty ? currentQuery() : payloadString(payload)
+        setStateValue(.string(query), for: "query")
+        let results = Self.localProfiles.filter { profile in
+            guard !query.isEmpty else { return true }
+            return profile.values.contains { value in
+                if case let .string(text) = value {
+                    return text.localizedCaseInsensitiveContains(query)
+                }
+                return false
+            }
+        }
+        let selectedID = Self.firstID(in: results) ?? ""
+        mergeState([
+            "lastSearch": .object([
+                "results": .list(results.map(ValueType.object)),
+                "status": .string(results.isEmpty ? "No local public profiles matched." : "Local public-safe profiles matched.")
+            ]),
+            "selectedProfileID": .string(selectedID),
+            "lastAction": .string("searchProfiles")
+        ])
+        return .object([
+            "ok": .bool(true),
+            "status": .string("ok"),
+            "results": .list(results.map(ValueType.object)),
+            "state": .object(stateObject())
+        ])
+    }
+
+    private func profileDetail(payload: ValueType) -> ValueType {
+        let selectedID = profileID(from: payload) ?? selectedProfileID() ?? Self.firstID(in: Self.localProfiles) ?? ""
+        setStateValue(.string(selectedID), for: "selectedProfileID")
+        let profile = Self.localProfiles.first { Self.string("id", in: $0) == selectedID } ?? [:]
+        return .object([
+            "ok": .bool(true),
+            "status": .string(profile.isEmpty ? "not_found" : "ok"),
+            "profile": .object(profile),
+            "state": .object(stateObject())
+        ])
+    }
+
+    private func markSelectedProfile(action: String, payload: ValueType) -> ValueType {
+        let selectedID = profileID(from: payload) ?? selectedProfileID() ?? Self.firstID(in: Self.localProfiles) ?? ""
+        setStateValue(.string(selectedID), for: "selectedProfileID")
+        mergeState([
+            "moderationStatus": .string("\(action): \(selectedID)"),
+            "lastAction": .string(action)
+        ])
+        return response(status: "ok", message: "Directory \(action) action recorded locally for review.")
+    }
+
+    private func blockSelectedProfile(payload: ValueType) -> ValueType {
+        let selectedID = profileID(from: payload) ?? selectedProfileID() ?? Self.firstID(in: Self.localProfiles) ?? ""
+        var blocked = strings(stateValue(for: "blockedProfiles"))
+        if !selectedID.isEmpty, !blocked.contains(selectedID) {
+            blocked.append(selectedID)
+        }
+        mergeState([
+            "selectedProfileID": .string(selectedID),
+            "blockedProfiles": .list(blocked.map(ValueType.string)),
+            "blockedProfileCount": .integer(blocked.count),
+            "moderationStatus": .string("blocked locally: \(selectedID)"),
+            "lastAction": .string("blockProfile")
+        ])
+        return response(status: "ok", message: "Profile block recorded locally.")
+    }
+
+    private func currentQuery() -> String {
+        if case let .string(query)? = stateValue(for: "query") {
+            return query
+        }
+        return ""
+    }
+
+    private func selectedProfileID() -> String? {
+        if case let .string(id)? = stateValue(for: "selectedProfileID"), !id.isEmpty {
+            return id
+        }
+        return nil
+    }
+
+    private func payloadString(_ value: ValueType) -> String {
+        if case let .object(object) = value {
+            if case let .string(text)? = object["query"] ?? object["text"] ?? object["value"] {
+                return text
+            }
+            return ""
+        }
+        return stringValue(value)
+    }
+
+    private func profileID(from value: ValueType) -> String? {
+        if case let .object(object) = value,
+           case let .string(id)? = object["profileID"] ?? object["id"] {
+            return id
+        }
+        if case let .string(id) = value, !id.isEmpty {
+            return id
+        }
+        return nil
+    }
+
+    private func strings(_ value: ValueType?) -> [String] {
+        guard case let .list(values)? = value else { return [] }
+        return values.compactMap {
+            if case let .string(text) = $0 { return text }
+            return nil
+        }
+    }
+
+    private static func firstID(in profiles: [Object]) -> String? {
+        profiles.compactMap { string("id", in: $0) }.first
+    }
+
+    private static func string(_ key: String, in object: Object) -> String? {
+        if case let .string(text)? = object[key] {
+            return text
+        }
+        return nil
+    }
+
+    private static let localProfiles: [Object] = [
+        [
+            "id": .string("local-profile-example"),
+            "displayName": .string("Lokal eksempelprofil"),
+            "headline": .string("Public-safe preview"),
+            "summary": .string("Viser hvordan katalogen fungerer uten aa hente privat eller usignert skydata."),
+            "moderationStatus": .string("local-safe")
+        ]
+    ]
+}
+
+private final class PersonalMatchmakingLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        [
+            PersonalMatchmakingContract.stateKeypath,
+            PersonalMatchmakingContract.preferencesKeypath,
+            PersonalMatchmakingContract.suggestionsKeypath,
+            "purposeGoal",
+            "skeletonConfiguration"
+        ]
+    }
+
+    override var writableKeys: [String] {
+        [
+            "preferencesText",
+            PersonalMatchmakingContract.setPreferencesKeypath,
+            "refreshSuggestions",
+            PersonalMatchmakingContract.requestConsentKeypath,
+            "requestMatchConsent",
+            PersonalMatchmakingContract.approveMatchKeypath,
+            "acceptMatchConsent",
+            PersonalMatchmakingContract.declineMatchKeypath,
+            "declineMatchConsent",
+            "clearMatchSuggestion"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        [
+            "preferencesText": .string(""),
+            "preferences": .list([]),
+            "matchSuggestions": .list([]),
+            "suggestions": .list([]),
+            "requiresMutualApprovalForChat": .bool(true),
+            "matchConsentStatus": .string("not requested"),
+            "status": .string("Matching is owner-scoped locally until a signed remote matching grant is active."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    override func handleSet(key: String, value: ValueType) async -> ValueType {
+        switch key {
+        case "preferencesText", PersonalMatchmakingContract.setPreferencesKeypath:
+            let text = payloadString(value)
+            let preferences = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            mergeState([
+                "preferencesText": .string(text),
+                "preferences": .list(preferences.map(ValueType.string)),
+                "lastAction": .string("setPreferences")
+            ])
+            return response(status: "ok", message: "Match preferences updated locally.")
+        case "refreshSuggestions":
+            let suggestion = localSuggestion()
+            mergeState([
+                "matchSuggestions": .list([.object(suggestion)]),
+                "suggestions": .list([.object(suggestion)]),
+                "matchConsentStatus": .string("suggestion requires explicit consent"),
+                "lastAction": .string("refreshSuggestions")
+            ])
+            return response(status: "ok", message: "Local match suggestion prepared without starting a chat.")
+        case PersonalMatchmakingContract.requestConsentKeypath, "requestMatchConsent":
+            mergeState([
+                "matchConsentStatus": .string("consent requested locally"),
+                "lastAction": .string("requestMatchConsent")
+            ])
+            return response(status: "ok", message: "Consent request staged locally.")
+        case PersonalMatchmakingContract.approveMatchKeypath, "acceptMatchConsent":
+            mergeState([
+                "matchConsentStatus": .string("local approval recorded"),
+                "lastAction": .string("acceptMatchConsent")
+            ])
+            return response(status: "ok", message: "Local match approval recorded. Chat still requires the other party.")
+        case PersonalMatchmakingContract.declineMatchKeypath, "declineMatchConsent":
+            mergeState([
+                "matchConsentStatus": .string("declined locally"),
+                "lastAction": .string("declineMatchConsent")
+            ])
+            return response(status: "ok", message: "Match declined locally.")
+        case "clearMatchSuggestion":
+            mergeState([
+                "matchSuggestions": .list([]),
+                "suggestions": .list([]),
+                "matchConsentStatus": .string("cleared"),
+                "lastAction": .string("clearMatchSuggestion")
+            ])
+            return response(status: "ok", message: "Local match suggestion cleared.")
+        default:
+            return await super.handleSet(key: key, value: value)
+        }
+    }
+
+    private func payloadString(_ value: ValueType) -> String {
+        if case let .object(object) = value {
+            if case let .string(text)? = object["preferencesText"] ?? object["text"] ?? object["value"] {
+                return text
+            }
+            return ""
+        }
+        return stringValue(value)
+    }
+
+    private func localSuggestion() -> Object {
+        [
+            "id": .string("local-match-review"),
+            "profile": .object([
+                "displayName": .string("Lokal match-vurdering"),
+                "headline": .string("Samtykke kreves"),
+                "summary": .string("Forslaget er lokalt og starter ingen chat.")
+            ]),
+            "reasons": .string("Basert paa lokale preferanser. Krever eksplisitt godkjenning fra begge parter."),
+            "chatEligible": .bool(false)
+        ]
+    }
+}
+
 private final class PersonalChatClientLocalCell: PersonalCopilotLocalCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -1571,6 +2059,73 @@ private final class PersonalMeetingCoordinatorLocalCell: PersonalCopilotLocalCel
 
     private static func now() -> String {
         ISO8601DateFormatter().string(from: Date())
+    }
+}
+
+private final class PersonalCopilotCatalogLocalCell: PersonalCopilotLocalCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override var readableKeys: [String] {
+        [
+            PersonalCopilotAppStoreV1Contract.catalogStateKeypath,
+            PersonalCopilotAppStoreV1Contract.catalogEntriesKeypath,
+            PersonalCopilotAppStoreV1Contract.catalogConfigurationsKeypath,
+            "policySummary",
+            "purposeGoal",
+            "skeletonConfiguration"
+        ]
+    }
+
+    nonisolated override func initialState() -> Object {
+        let configurations = ConfigurationCatalogCell.personalCopilotV1MenuConfigurations()
+        let entries = configurations.map(Self.catalogEntry)
+        return [
+            "appStoreScope": .string(PersonalCopilotAppStoreV1Contract.appStoreScope),
+            "configurationCount": .integer(configurations.count),
+            "policySummary": .string("Binding viser kun allowlistede Personal Co-Pilot V1-flater i lokal katalog."),
+            "catalogEntries": .list(entries.map(ValueType.object)),
+            "configurations": .list(configurations.map(ValueType.cellConfiguration)),
+            "status": .string("Local Personal Co-Pilot catalog is ready."),
+            "updatedAt": .float(Date().timeIntervalSince1970)
+        ]
+    }
+
+    private static func catalogEntry(_ configuration: CellConfiguration) -> Object {
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+        return [
+            "id": .string(configuration.uuid),
+            "displayName": .string(configuration.name),
+            "summary": .string(configuration.description ?? configuration.discovery?.purposeDescription ?? ""),
+            "sourceCellEndpoint": .string(configuration.discovery?.sourceCellEndpoint ?? ""),
+            "configuration": .object(configurationObject(configuration)),
+            "metadata": .object([
+                "appStoreScope": .string(metadata.appStoreScope ?? ""),
+                "policyCategory": .string(metadata.policyCategory ?? ""),
+                "surfaceFamily": .string(metadata.surfaceFamily ?? ""),
+                "presentationClass": .string(metadata.presentationClass ?? ""),
+                "executionScope": .string(metadata.sourceKind.rawValue),
+                "reviewSummary": .string(metadata.reviewSummary ?? "")
+            ])
+        ]
+    }
+
+    private static func configurationObject(_ configuration: CellConfiguration) -> Object {
+        guard let data = try? JSONEncoder().encode(configuration),
+              let decoded = try? JSONDecoder().decode(ValueType.self, from: data),
+              case let .object(object) = decoded
+        else {
+            return [
+                "name": .string(configuration.name),
+                "uuid": .string(configuration.uuid)
+            ]
+        }
+        return object
     }
 }
 

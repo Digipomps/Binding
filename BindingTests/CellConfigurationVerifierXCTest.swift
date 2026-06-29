@@ -156,9 +156,13 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         for configuration in [
             ConfigurationCatalogCell.personalHomeMenuConfiguration(),
             ConfigurationCatalogCell.personalProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
+            ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
             ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
             ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
-            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration()
+            ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration(),
+            ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration()
         ] {
             let localConfiguration = CellConfigurationEndpointRetargeting
                 .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
@@ -212,6 +216,38 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 "Seed project",
                 "Reindex graf",
                 "Naboer"
+            ]
+        case "Publish Public Profile":
+            return [
+                "Prepare preview",
+                "Record consent",
+                "Record audit",
+                "Publish approved preview",
+                "Unpublish",
+                "Delete public profile"
+            ]
+        case "Public Profile Directory":
+            return [
+                "Search",
+                "Profile detail",
+                "Report result",
+                "Hide result",
+                "Block result"
+            ]
+        case "Matches":
+            return [
+                "Refresh suggestions",
+                "Request consent",
+                "Approve match",
+                "Decline",
+                "Clear suggestion"
+            ]
+        case "Meeting Intent":
+            return [
+                "Foreslå tider",
+                "Godta første forslag",
+                "Avslå første forslag",
+                "Tøm utkast"
             ]
         default:
             return []

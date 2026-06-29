@@ -7185,7 +7185,9 @@ struct ContentView: View {
     }
 
     private func retargetConfigurationToStagingIfNeeded(_ configuration: CellConfiguration) -> CellConfiguration {
-        CellConfigurationEndpointRetargeting.rewritingEndpoints(in: configuration) {
+        let ownerScopedPersonalCopilotConfiguration = CellConfigurationEndpointRetargeting
+            .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
+        return CellConfigurationEndpointRetargeting.rewritingEndpoints(in: ownerScopedPersonalCopilotConfiguration) {
             maybeRetargetLocalEndpointToStaging($0)
         }
     }
