@@ -30,6 +30,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let termsVersionKey = "binding.notifications.termsVersion"
     private let termsAcceptedAtKey = "binding.notifications.termsAcceptedAt"
     private let legacyAPNSTokenKey = "binding.notifications.apnsToken"
+    private let currentAPNSTokenKey = "binding.notifications.currentAPNSToken"
     private let registrationSucceededAtKey = "binding.notifications.registrationSucceededAt"
     private let participantIDKey = "binding.notifications.participantId"
     private var participantID: String?
@@ -66,6 +67,10 @@ final class NotificationEnrollmentManager: ObservableObject {
 
         let currentTermsVersion = termsVersion()
         needsTermsAcceptance = defaults.string(forKey: termsVersionKey) != currentTermsVersion || defaults.double(forKey: termsAcceptedAtKey) <= 0
+        pendingAPNSToken = Self.preferredAPNSToken(
+            pending: pendingAPNSToken,
+            stored: defaults.string(forKey: currentAPNSTokenKey) ?? defaults.string(forKey: legacyAPNSTokenKey)
+        )
         defaults.removeObject(forKey: legacyAPNSTokenKey)
         isDeviceRegistered = defaults.double(forKey: registrationSucceededAtKey) > 0
 
@@ -168,6 +173,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         let normalizedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedToken.isEmpty else { return }
         pendingAPNSToken = normalizedToken
+        defaults.set(normalizedToken, forKey: currentAPNSTokenKey)
         defaults.removeObject(forKey: legacyAPNSTokenKey)
         await registerCurrentDeviceIfReady()
     }
@@ -179,6 +185,10 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func registerCurrentDeviceIfReady() async {
+        pendingAPNSToken = Self.preferredAPNSToken(
+            pending: pendingAPNSToken,
+            stored: defaults.string(forKey: currentAPNSTokenKey)
+        )
         guard !needsTermsAcceptance,
               let participantID,
               let deviceID,
@@ -207,7 +217,7 @@ final class NotificationEnrollmentManager: ObservableObject {
                 expectedDeviceID: deviceID
             )
             pendingAPNSToken = nil
-            defaults.removeObject(forKey: legacyAPNSTokenKey)
+            defaults.set(token, forKey: currentAPNSTokenKey)
             defaults.set(Date().timeIntervalSince1970, forKey: registrationSucceededAtKey)
             isDeviceRegistered = true
             lastRegistrationError = nil
@@ -355,6 +365,10 @@ final class NotificationEnrollmentManager: ObservableObject {
     ) -> Bool {
         guard let lastRequestedAt else { return true }
         return now.timeIntervalSince(lastRequestedAt) >= minimumInterval
+    }
+
+    nonisolated static func preferredAPNSToken(pending: String?, stored: String?) -> String? {
+        normalizedIdentifier(pending) ?? normalizedIdentifier(stored)
     }
 
     private nonisolated static func normalizedIdentifier(_ value: String?) -> String? {

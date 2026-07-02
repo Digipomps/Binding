@@ -1,7 +1,8 @@
 import Foundation
-@preconcurrency import CellBase
+import CryptoKit
 import HavenAgentCellRuntime
 import HavenMacAutomation
+import SproutCrypto
 import Testing
 @testable import HavenAgentDMCP
 @testable import HavenAgentRuntime
@@ -10,10 +11,6 @@ import Testing
 struct HavenAgentMCPServiceTests {
     @Test
     func mailComposeDraftToolForwardsToRunningAgentControlBridge() async throws {
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.documentRootPath = nil
-
         let root = makeTemporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -65,6 +62,64 @@ struct HavenAgentMCPServiceTests {
         #expect(structured["status"] as? String == "draft_created")
         #expect(structured["actionID"] as? String == AgentMailDraftAutomation.actionID)
         #expect(structured["deliveryMode"] as? String == "visible_mail_app_draft")
+    }
+
+    @Test
+    func identitySignStatementToolForwardsToRunningAgentControlBridge() async throws {
+        let root = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let bridgePort = try Self.allocateLoopbackPort()
+        let configURL = try writeConfig(
+            paths: paths,
+            configure: { config in
+                config.localControlBridge = LocalControlBridgeConfig(
+                    host: "127.0.0.1",
+                    port: bridgePort,
+                    accessToken: "mcp-sign-token"
+                )
+            }
+        )
+        let host = AgentCellRuntimeHost(paths: paths)
+        _ = try await host.start(
+            instanceName: "agent",
+            configURL: configURL,
+            controlBridge: AgentConfig.load(from: configURL).localControlBridge,
+            signStatementCommandHandler: { request in
+                #expect(request.purposeRef == AgentSignatureStatement.purposeRef)
+                #expect(request.payloadSHA256Base64URL == Base64URL.encode(Data(SHA256.hash(data: Data("Forwarded by MCP".utf8)))))
+                #expect(request.audience.entityRef == "entity:victoria")
+                #expect(request.audience.publicKeyFingerprint == "sha256:victoria-key")
+                #expect(request.nonce == "mcp-sign-nonce-12345")
+                return Self.stubSignedStatementResult(request: request)
+            }
+        )
+        defer {
+            Task { await host.stop() }
+        }
+
+        let service = HavenAgentMCPService(paths: paths, configURL: configURL)
+        let output = await service.callTool(
+            name: "agent.identity.sign_statement",
+            arguments: [
+                "payloadSHA256Base64URL": Base64URL.encode(Data(SHA256.hash(data: Data("Forwarded by MCP".utf8)))),
+                "payloadMediaType": "text/plain",
+                "payloadDescription": "MCP forwarding test",
+                "audience": [
+                    "entityRef": "entity:victoria",
+                    "publicKeyFingerprint": "sha256:victoria-key"
+                ],
+                "expiresAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(3_600)),
+                "nonce": "mcp-sign-nonce-12345"
+            ]
+        )
+
+        #expect(output.isError == false)
+        let structured = try #require(output.structuredContent)
+        #expect(structured["status"] as? String == "signed_statement_created")
+        #expect(structured["actionID"] as? String == "identity.sign-statement")
+        #expect(structured["deliveryMode"] as? String == "detached_signed_statement")
     }
 
     @Test
@@ -140,6 +195,71 @@ struct HavenAgentMCPServiceTests {
     }
 
     @Test
+    func waitForReplyPullsRemoteOwnerInboxWhenLocalReplyIsMissing() async throws {
+        let root = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let configURL = try writeConfig(
+            paths: paths,
+            configure: { config in
+                config.deviceActionRelay = DeviceActionRelayConfig(
+                    enabled: true,
+                    notificationOutboxEndpoint: "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action",
+                    defaultParticipantID: "participant-phone",
+                    defaultDeviceID: "device-phone"
+                )
+            }
+        )
+        let remoteReply = AgentConversationPrompt(
+            id: "remote-reply-1",
+            requestId: "remote-request-1",
+            conversationId: "remote-conversation-1",
+            jobId: "remote-job-1",
+            participantId: "participant-phone",
+            deviceId: "device-phone",
+            ticketId: "remote-ticket-1",
+            requiredActionKey: AgentConversationFlowContract.requiredActionKey,
+            title: "Remote reply",
+            message: "Pulled from owner inbox",
+            responseKind: "prompt",
+            decision: nil,
+            note: nil,
+            prompt: "Run the next focused verification step.",
+            receivedAt: "2026-05-05T10:00:02Z"
+        )
+        let service = HavenAgentMCPService(
+            paths: paths,
+            configURL: configURL,
+            remoteReplyPuller: { relay, filter in
+                #expect(relay.conversationRepliesEndpoint == "https://staging.haven.digipomps.org/conference-mvp/api/agent/conversation-replies")
+                #expect(filter.requestId == "remote-request-1")
+                #expect(filter.status == "prompt_received")
+                return remoteReply
+            }
+        )
+
+        let output = await service.callTool(
+            name: "agent.operator.wait_for_reply",
+            arguments: [
+                "requestId": "remote-request-1",
+                "timeoutSeconds": 0
+            ]
+        )
+
+        #expect(output.isError == false)
+        let structured = try #require(output.structuredContent)
+        #expect((structured["matched"] as? Bool) == true)
+        #expect((structured["timedOut"] as? Bool) == false)
+        #expect(structured["source"] as? String == "remoteOwnerInboxPull")
+        let reply = try #require(structured["reply"] as? [String: Any])
+        #expect(reply["requestId"] as? String == "remote-request-1")
+        #expect(reply["prompt"] as? String == "Run the next focused verification step.")
+        let replyFilePath = try #require(structured["replyFilePath"] as? String)
+        #expect(FileManager.default.fileExists(atPath: replyFilePath))
+    }
+
+    @Test
     func requestAndWaitQueuesRequestAndReturnsReply() async throws {
         let root = makeTemporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -204,6 +324,82 @@ struct HavenAgentMCPServiceTests {
         let reply = try #require(structured["reply"] as? [String: Any])
         #expect(reply["requestId"] as? String == queuedRequestID)
         #expect(reply["decision"] as? String == "approved")
+    }
+
+    @Test
+    func operatorRequestAcceptsRouteAndDeliveryGoalFields() async throws {
+        let root = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let configURL = try writeConfig(paths: paths)
+        let service = HavenAgentMCPService(paths: paths, configURL: configURL)
+
+        let output = await service.callTool(
+            name: "agent.operator.request",
+            arguments: [
+                "responseMode": "prompt",
+                "title": "Need next prompt",
+                "message": "Svar med neste trygge steg.",
+                "participantId": "binding-participant",
+                "deviceId": "iphone-primary",
+                "requiredActionKey": AgentConversationFlowContract.requiredActionKey,
+                "sourceCellEndpoint": "cell://staging.haven.digipomps.org/AgentConversationInbox",
+                "ttlSeconds": 120,
+                "deliveryGoal": [
+                    "goalID": "goal-reach-user-test",
+                    "reachPurposeRef": DeviceActionDeliveryPurposes.reachUser,
+                    "responsePurposeRef": DeviceActionDeliveryPurposes.obtainUserResponse,
+                    "diagnosticPurposeRef": DeviceActionDeliveryPurposes.diagnoseDeliveryRoute,
+                    "repairPurposeRef": DeviceActionDeliveryPurposes.repairBridgeUptime,
+                    "requiredOutcome": "user_response_received",
+                    "successSignal": "reply file written",
+                    "failureSignal": "timeout without reply",
+                    "timeoutSeconds": 120,
+                    "fallbackAfterSeconds": 30,
+                    "maxRouteAttempts": 4,
+                    "routePolicy": "prefer-phone-then-local-agent",
+                    "routeHints": [
+                        [
+                            "routeID": "iphone-primary",
+                            "kind": "device_owner_route",
+                            "participantId": "binding-participant",
+                            "deviceId": "iphone-primary",
+                            "priority": 0,
+                            "reason": "preferred phone"
+                        ],
+                        [
+                            "routeID": "mac-agent",
+                            "kind": "local_agent_bridge",
+                            "endpoint": "cell://staging.haven.digipomps.org/AgentConversationInbox",
+                            "priority": 10,
+                            "reason": "fallback local bridge"
+                        ]
+                    ]
+                ],
+                "payload": [
+                    "source": "mcp-test"
+                ]
+            ]
+        )
+
+        #expect(output.isError == false)
+        let structured = try #require(output.structuredContent)
+        let requestFilePath = try #require(structured["requestFilePath"] as? String)
+        let requestData = try Data(contentsOf: URL(fileURLWithPath: requestFilePath))
+        let request = try JSONDecoder().decode(DeviceActionRequest.self, from: requestData)
+
+        #expect(request.participantId == "binding-participant")
+        #expect(request.deviceId == "iphone-primary")
+        #expect(request.requiredActionKey == AgentConversationFlowContract.requiredActionKey)
+        #expect(request.sourceCellEndpoint == "cell://staging.haven.digipomps.org/AgentConversationInbox")
+        #expect(request.ttlSeconds == 120)
+        #expect(request.deliveryGoal?.goalID == "goal-reach-user-test")
+        #expect(request.deliveryGoal?.reachPurposeRef == DeviceActionDeliveryPurposes.reachUser)
+        #expect(request.deliveryGoal?.responsePurposeRef == DeviceActionDeliveryPurposes.obtainUserResponse)
+        #expect(request.deliveryGoal?.diagnosticPurposeRef == DeviceActionDeliveryPurposes.diagnoseDeliveryRoute)
+        #expect(request.deliveryGoal?.repairPurposeRef == DeviceActionDeliveryPurposes.repairBridgeUptime)
+        #expect(request.deliveryGoal?.routeHints.map(\.kind) == ["device_owner_route", "local_agent_bridge"])
     }
 
     @Test
@@ -370,6 +566,42 @@ struct HavenAgentMCPServiceTests {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(value).write(to: fileURL, options: [.atomic])
+    }
+
+    private static func stubSignedStatementResult(request: AgentSignStatementRequest) -> AgentSignStatementResult {
+        let signed = AgentSignedStatementSigningPayload(
+            purposeRef: request.purposeRef,
+            signerIdentity: AgentSignedStatementSignerIdentity(
+                identityUUID: "agent-identity",
+                displayName: "HAVEN Agent (agent)",
+                didKey: "did:key:test-agent",
+                domain: "haven.agent.owner.agent",
+                publicKeyBase64URL: "agent-public-key"
+            ),
+            audience: request.audience,
+            payload: AgentSignedStatementPayloadDescriptor(
+                encoding: "detached-sha256",
+                sha256Base64URL: request.payloadSHA256Base64URL ?? "payload-hash",
+                mediaType: request.payloadMediaType,
+                description: request.payloadDescription
+            ),
+            issuedAt: ISO8601DateFormatter().string(from: Date()),
+            expiresAt: request.expiresAt,
+            nonce: request.nonce,
+            correlationID: request.correlationID
+        )
+        let envelope = AgentSignedStatementEnvelope(
+            signed: signed,
+            signatureBase64URL: "signature",
+            signingInputSHA256Base64URL: "signing-input-hash"
+        )
+        return AgentSignStatementResult(
+            status: "signed_statement_created",
+            actionID: "identity.sign-statement",
+            deliveryMode: "detached_signed_statement",
+            envelope: envelope,
+            message: "forwarded"
+        )
     }
 
     private static func allocateLoopbackPort() throws -> Int {

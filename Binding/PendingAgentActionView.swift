@@ -55,7 +55,7 @@ struct PendingAgentActionOverlay: View {
         errorMessage = nil
         do {
             if AgentConversationClient.shouldRouteToAgentInbox(action: action) {
-                try await AgentConversationClient.shared.postPrompt(action: action, prompt: prompt)
+                try await submitAgentPrompt(action: action, prompt: prompt)
             } else {
                 try await NotificationCallbackClient.shared.submitTicketResult(
                     participantId: action.participantId,
@@ -78,7 +78,7 @@ struct PendingAgentActionOverlay: View {
         errorMessage = nil
         do {
             if AgentConversationClient.shouldRouteToAgentInbox(action: action) {
-                try await AgentConversationClient.shared.postDecision(action: action, decision: decision)
+                try await submitAgentDecision(action: action, decision: decision)
             } else {
                 try await NotificationCallbackClient.shared.submitTicketResult(
                     participantId: action.participantId,
@@ -93,6 +93,32 @@ struct PendingAgentActionOverlay: View {
             errorMessage = error.localizedDescription
         }
         sendingTicketID = nil
+    }
+
+    private func submitAgentPrompt(action: PendingDeviceAction, prompt: String) async throws {
+        do {
+            try await NotificationCallbackClient.shared.submitTicketResult(
+                participantId: action.participantId,
+                deviceId: action.deviceId,
+                ticketId: action.ticketId,
+                result: NotificationCallbackClient.ticketPromptResult(action: action, prompt: prompt)
+            )
+        } catch {
+            try await AgentConversationClient.shared.postPrompt(action: action, prompt: prompt)
+        }
+    }
+
+    private func submitAgentDecision(action: PendingDeviceAction, decision: AgentConversationDecision) async throws {
+        do {
+            try await NotificationCallbackClient.shared.submitTicketResult(
+                participantId: action.participantId,
+                deviceId: action.deviceId,
+                ticketId: action.ticketId,
+                result: NotificationCallbackClient.ticketDecisionResult(action: action, decision: decision)
+            )
+        } catch {
+            try await AgentConversationClient.shared.postDecision(action: action, decision: decision)
+        }
     }
 }
 

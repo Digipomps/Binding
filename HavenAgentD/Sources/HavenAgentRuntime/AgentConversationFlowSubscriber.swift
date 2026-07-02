@@ -102,8 +102,10 @@ public actor AgentConversationFlowSubscriber {
     private var currentRequester: Identity?
     private var currentEmit: Emit?
     private var prompts: [AgentConversationPrompt] = []
+    private var consumedPromptIDs: Set<String> = []
     private let maxPromptBufferSize: Int
     private var promptHandler: (@Sendable (AgentConversationPrompt) async -> Void)?
+    private var lastReplayErrorDescription: String?
 
     public init(maxPromptBufferSize: Int = 50) {
         self.maxPromptBufferSize = max(1, maxPromptBufferSize)
@@ -127,6 +129,7 @@ public actor AgentConversationFlowSubscriber {
         let publisher = try await remoteInbox.flow(requester: requester)
         let subscriber = self
 
+        lastReplayErrorDescription = nil
         currentRequester = requester
         currentEmit = remoteInbox
         flowCancellable = publisher.sink(
@@ -141,6 +144,13 @@ public actor AgentConversationFlowSubscriber {
                 }
             }
         )
+        if let remoteMeddle = remoteInbox as? Meddle {
+            do {
+                try await consumeExistingPrompts(from: remoteMeddle, requester: requester)
+            } catch {
+                lastReplayErrorDescription = error.localizedDescription
+            }
+        }
     }
 
     public func disconnect() async {
@@ -159,6 +169,9 @@ public actor AgentConversationFlowSubscriber {
         guard let prompt = Self.parsePrompt(from: flowElement) else {
             return
         }
+        guard consumedPromptIDs.insert(prompt.id).inserted else {
+            return
+        }
 
         prompts.append(prompt)
         if prompts.count > maxPromptBufferSize {
@@ -169,12 +182,29 @@ public actor AgentConversationFlowSubscriber {
         }
     }
 
+    private func consumeExistingPrompts(from inbox: Meddle, requester: Identity) async throws {
+        let messages = try await inbox.get(keypath: "messages", requester: requester)
+        for record in Self.promptRecords(from: messages) {
+            var event = FlowElement(
+                title: AgentConversationFlowContract.promptReceivedEvent,
+                content: .object(record),
+                properties: FlowElement.Properties(type: .event, contentType: .object)
+            )
+            event.topic = AgentConversationFlowContract.flowTopic
+            await consume(flowElement: event)
+        }
+    }
+
     public func promptSnapshot() -> [AgentConversationPrompt] {
         prompts
     }
 
     public func lastPromptSnapshot() -> AgentConversationPrompt? {
         prompts.last
+    }
+
+    public func lastReplayError() -> String? {
+        lastReplayErrorDescription
     }
 
     public static func parsePrompt(from flowElement: FlowElement) -> AgentConversationPrompt? {
@@ -233,6 +263,37 @@ public actor AgentConversationFlowSubscriber {
             prompt: prompt,
             receivedAt: receivedAt
         )
+    }
+
+    private static func promptRecords(from value: ValueType) -> [Object] {
+        let records: [Object]
+        switch value {
+        case .list(let items):
+            records = items.compactMap { item in
+                guard case let .object(object) = item else {
+                    return nil
+                }
+                return object
+            }
+        case .object(let object):
+            if case let .list(messages)? = object["messages"] {
+                records = messages.compactMap { item in
+                    guard case let .object(object) = item else {
+                        return nil
+                    }
+                    return object
+                }
+            } else {
+                records = [object]
+            }
+        default:
+            records = []
+        }
+
+        return records.filter { record in
+            stringValue(record["status"]) == "prompt_received"
+                || stringValue(record["prompt"]) != nil
+        }
     }
 
     private func runtimeResolver() async -> CellResolver? {

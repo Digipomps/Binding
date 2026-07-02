@@ -74,6 +74,19 @@ struct AgentConversationFlowSubscriberTests {
     }
 
     @Test
+    func consumeDeduplicatesReplayedPromptRecords() async {
+        let subscriber = AgentConversationFlowSubscriber()
+        let flowElement = makePromptFlowElement(id: "record-1", prompt: "Fortsett med neste steg")
+
+        await subscriber.consume(flowElement: flowElement)
+        await subscriber.consume(flowElement: flowElement)
+
+        let prompts = await subscriber.promptSnapshot()
+        #expect(prompts.count == 1)
+        #expect(prompts.first?.id == "record-1")
+    }
+
+    @Test
     func parserRejectsUnrelatedTopics() {
         let flowElement = makePromptFlowElement(topic: "other.topic", prompt: "Ignorer denne")
 
@@ -83,15 +96,20 @@ struct AgentConversationFlowSubscriberTests {
     }
 
     private func makePromptFlowElement(
+        id: String? = nil,
         topic: String = AgentConversationFlowContract.flowTopic,
         prompt: String
     ) -> FlowElement {
+        var content: [String: ValueType] = [
+            "conversationId": .string("conversation-test"),
+            "prompt": .string(prompt)
+        ]
+        if let id {
+            content["id"] = .string(id)
+        }
         let flowElement = FlowElement(
             title: AgentConversationFlowContract.promptReceivedEvent,
-            content: .object([
-                "conversationId": .string("conversation-test"),
-                "prompt": .string(prompt)
-            ]),
+            content: .object(content),
             properties: FlowElement.Properties(type: .content, contentType: .object)
         )
         var event = flowElement

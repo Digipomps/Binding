@@ -19,7 +19,10 @@ struct AgentConversationClientTests {
                 "jobId": .string("job-1"),
                 "title": .string("Agent completed"),
                 "message": .string("What next?"),
-                "sourceCellEndpoint": .string("cell:///AgentConversationInbox")
+                "sourceCellEndpoint": .string("cell:///AgentConversationInbox"),
+                "purpose": .string("purpose://agent-operator-notification-test"),
+                "purposeDescription": .string("End-to-end test."),
+                "interests": .array([.string("codex"), .string("binding")])
             ],
             receivedAt: .init(timeIntervalSince1970: 0)
         )
@@ -34,6 +37,9 @@ struct AgentConversationClientTests {
         #expect(payload["ticketId"] == .string("ticket-1"))
         #expect(payload["conversationId"] == .string("conversation-1"))
         #expect(payload["jobId"] == .string("job-1"))
+        #expect(payload["purpose"] == .string("purpose://agent-operator-notification-test"))
+        #expect(payload["purposeDescription"] == .string("End-to-end test."))
+        #expect(payload["interests"] == .array([.string("codex"), .string("binding")]))
         #expect(payload["prompt"] == .string("Open Safari and summarize the page."))
     }
 
@@ -108,6 +114,41 @@ struct AgentConversationClientTests {
             AgentConversationClient.endpoint(environment: [:])
                 == "cell://staging.haven.digipomps.org/AgentConversationInbox"
         )
+    }
+
+    @Test
+    func agentConversationRegistersSecureStagingBridgeRoute() {
+        let resolver = CellResolver.sharedInstance
+        let stagingHost = "staging.haven.digipomps.org"
+        let previousRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        defer {
+            if let previousRoute {
+                resolver.registerRemoteCellHost(stagingHost, route: previousRoute)
+            } else {
+                resolver.unregisterRemoteCellHost(stagingHost)
+            }
+        }
+
+        resolver.registerRemoteCellHost(
+            stagingHost,
+            route: RemoteCellHostRoute(websocketEndpoint: "bridgehead", schemePreference: .automatic)
+        )
+
+        AgentConversationClient.registerRemoteRouteIfNeeded(
+            for: AgentConversationClient.defaultEndpoint,
+            resolver: resolver
+        )
+
+        let repairedRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        #expect(repairedRoute?.websocketEndpoint == "bridgehead")
+        #expect(repairedRoute?.schemePreference == .wss)
+        let usesEndpointFirstPath: Bool
+        if case .some(.endpointThenPublisherUUID) = repairedRoute?.pathLayout {
+            usesEndpointFirstPath = true
+        } else {
+            usesEndpointFirstPath = false
+        }
+        #expect(usesEndpointFirstPath)
     }
 
     @Test

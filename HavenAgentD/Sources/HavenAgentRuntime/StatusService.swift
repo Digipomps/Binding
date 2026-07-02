@@ -55,6 +55,7 @@ public struct AgentStatusIdentityReport: Codable, Equatable, Sendable {
     public var identityUUID: String?
     public var didKey: String?
     public var publicKeyShort: String?
+    public var storageKind: String?
     public var error: String?
 }
 
@@ -225,6 +226,7 @@ public actor StatusService {
                     identityUUID: nil,
                     didKey: nil,
                     publicKeyShort: nil,
+                    storageKind: nil,
                     error: nil
                 )
             }
@@ -234,6 +236,7 @@ public actor StatusService {
                 identityUUID: descriptor.identityUUID,
                 didKey: descriptor.didKey,
                 publicKeyShort: Self.shortKey(descriptor.publicKeyBase64URL),
+                storageKind: descriptor.storageKind,
                 error: nil
             )
         } catch {
@@ -243,6 +246,7 @@ public actor StatusService {
                 identityUUID: nil,
                 didKey: nil,
                 publicKeyShort: nil,
+                storageKind: nil,
                 error: exists ? error.localizedDescription : nil
             )
         }
@@ -590,7 +594,7 @@ public enum AgentStatusTextRenderer {
         guard identity.present else {
             return "not present at \(identity.path)\(identity.error.map { " (\($0))" } ?? "")"
         }
-        return "present; UUID \(identity.identityUUID ?? "unknown"); DID \(identity.didKey ?? "unknown"); pubkey \(identity.publicKeyShort ?? "unknown")"
+        return "present; UUID \(identity.identityUUID ?? "unknown"); DID \(identity.didKey ?? "unknown"); pubkey \(identity.publicKeyShort ?? "unknown"); storage \(identity.storageKind ?? "unknown")"
     }
 
     private static func validityLine(_ artifact: BootstrapProbeArtifactStatus) -> String {

@@ -65,6 +65,12 @@ public enum AgentCellRegistry {
             endpoint: AgentMailDraftAutomation.endpoint,
             typeName: "AgentMailDraftCell",
             sideEffectBoundary: "Prepares reviewed email draft intents; approved execution creates a visible Mail.app draft and does not send automatically."
+        ),
+        AgentCellDescriptor(
+            kind: .signatureStatements,
+            endpoint: AgentSignatureStatement.endpoint,
+            typeName: "AgentSignatureCell",
+            sideEffectBoundary: "Prepares audience-bound signing intents; daemon-owned execution signs detached payload hashes with nonce and expiry enforcement."
         )
     ]
 
@@ -86,6 +92,8 @@ public enum AgentCellRegistry {
             return await SecretCredentialCell(owner: owner)
         case .emailOutbox:
             return await AgentMailDraftCell(owner: owner)
+        case .signatureStatements:
+            return await AgentSignatureCell(owner: owner)
         default:
             throw AgentCellRegistryError.unsupportedConcreteKind(kind)
         }

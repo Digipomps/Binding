@@ -62,17 +62,50 @@ The first concrete `GeneralCell` implementations are intentionally low-risk:
 - `RemoteIntentInboxCell` accepts structured intent payloads and queues them
 - `AgentLocalModelCell` calls only the configured loopback local model backend by default
 - `AgentMailDraftCell` prepares a typed review-intent for a visible Mail.app draft
+- `AgentSignatureCell` prepares redacted local identity-signing intents for detached signed statements
 - none of these cells executes local automation as part of remote input handling
 
 That split is deliberate. It keeps "receive intent" separate from "perform effect", so policy, audit and approval can sit between them.
 Local model generation is treated as advisory compute, not device automation: it emits CellProtocol flow events and returns text, but it does not grant tool, file, sensor or GUI authority to the model.
 The email draft path follows the same rule: the cell can prepare a `mail.compose-draft` intent with purpose/interests, but Mail.app is opened only after the intent is signed/queued, locally reviewed, and dispatched through the allowlisted automation policy. The first version creates a visible draft and does not send automatically.
+The identity-signature path follows the same rule: the cell can prepare an `identity.sign-statement` intent with purpose/interests, but actual key use happens only in the daemon-owned command service after strict purpose, signer, audience, expiry, payload-hash and nonce validation.
 
 For local operator tooling, HAVENAgentD also owns the token-authenticated
 `POST /commands/mail/compose-draft` control-bridge command. MCP adapters may
 forward to that command, but they must not run AppleScript, mutate automation
 policy, sign intents, or decide whether Mail.app actions are allowed. The
 daemon process remains the policy and side-effect boundary.
+
+For local identity signatures, HAVENAgentD also owns the token-authenticated
+`POST /commands/identity/sign-statement` control-bridge command. MCP adapters
+may forward to that command, but they must not sign locally, mutate the nonce
+ledger, substitute another signer identity, or decide that a purpose is
+acceptable. The daemon process remains the key-use and replay boundary.
+
+## Why identity signatures are detached, purpose-bound statements
+
+Signing raw caller bytes would make the local agent identity a generic oracle.
+The current implementation signs a canonical statement instead.
+
+That statement includes:
+
+- a supported purpose ref
+- the local signer identity and public key
+- an audience entity/key/fingerprint
+- a detached SHA-256 payload descriptor
+- issue and expiry timestamps
+- a caller-provided nonce
+- the canonicalization mode used before Ed25519 signing
+
+This keeps the signature useful to another entity that has the user's public
+key, while still making the local intent legible to Co-Pilot/chat, audit tools
+and recipient-side verification. `AgentSignatureCell` does not emit the raw
+payload or signature in flow events; it only prepares a redacted intent.
+
+The local nonce ledger lives in `State/identity-signature-nonces.json` and
+survives normal restarts. Recipients still need their own replay cache because
+local issuance replay protection does not prove that an envelope was not
+replayed after it left the machine.
 
 ## Why provider credentials are split into metadata and encrypted blobs
 
@@ -224,7 +257,7 @@ That matters because `CellBase.defaultIdentityVault`, `CellBase.defaultCellResol
 
 `LocalIdentityVault` exists to give the local cell graph a stable owner identity for the life of the process and to provide real signing primitives where the `IdentityVaultProtocol` expects them.
 
-The runtime now persists long-lived agent identity material separately in `~/Library/Application Support/HAVENAgent/State/agent-identity.json`.
+The runtime now persists long-lived agent identity metadata separately in `~/Library/Application Support/HAVENAgent/State/agent-identity.json`.
 
 That split is intentional at this stage:
 
@@ -233,10 +266,12 @@ That split is intentional at this stage:
 - Binding can verify an `AgentIdentityCell` attestation against stable public key material without sharing the same vault file as the agent
 - Binding now also verifies the signed starter-auth payload that comes back over CellProtocol before writing it to disk for `sprout`
 
-The current hardening gap is storage class, not identity continuity:
+The current storage split is:
 
-- the persisted agent seed is file-backed today for deterministic local development and pairing flows
-- it should move to Keychain or equivalent secure storage before this is treated as production-grade device identity storage
+- `State/agent-identity.json` stores the public descriptor only: identity UUID, DID/public key, context and `storageKind`
+- production roots store the private Ed25519 seed in Apple Keychain as a generic password item under service `no.haven.agentd.identity`
+- legacy descriptor files that still contain `privateKeySeedBase64URL` are migrated on load: the seed is moved into the configured seed store and the descriptor file is rewritten without inline private material
+- isolated temporary roots use a file-backed seed store so tests and disposable `--root` runs do not write long-lived items into the user's Keychain
 
 The pairing/evidence side is now explicit too:
 
@@ -292,8 +327,7 @@ Recommended controls:
 - add a local approval state machine for high-risk side effects
 - bind runtime audit logs to immutable append-only storage
 - split heartbeat state from side-effect audit trail
-- move persisted agent seed storage from the state file to Keychain-backed material handling
 - move from raw folder watches to richer FSEvents handling where tree coverage matters
-- persist and rotate local agent signing material only after recovery and revocation semantics are defined
+- add explicit rotation/recovery UX for the Keychain-backed local agent signing seed
 - harden replay-protection retention and pruning rules for the persisted nonce window
 - add dedicated action cells only after intent signature checks, approval state and audit hooks are in place

@@ -33,6 +33,7 @@ struct NotificationEnrollmentManagerTests {
         #expect(items.first(where: { $0.name == "participantId" })?.value == "participant-1")
         #expect(items.first(where: { $0.name == "deviceId" })?.value == "device-1")
         #expect(items.filter { $0.name == "bridgeTopic" }.compactMap(\.value) == WorkflowNotificationPreferences.activeBridgeTopics)
+        #expect(WorkflowNotificationPreferences.activeBridgeTopics.contains(WorkflowNotificationPreferences.contactRequestReceivedTopic))
     }
 
     @Test func normalizeTopicsDeduplicatesAndTrimsValues() {
@@ -65,6 +66,12 @@ struct NotificationEnrollmentManagerTests {
             lastRequestedAt: now.addingTimeInterval(-31),
             minimumInterval: 30
         ))
+    }
+
+    @Test func preferredAPNSTokenUsesPendingBeforeStoredAndTrimsEmptyValues() {
+        #expect(NotificationEnrollmentManager.preferredAPNSToken(pending: " pending-token ", stored: "stored-token") == "pending-token")
+        #expect(NotificationEnrollmentManager.preferredAPNSToken(pending: " ", stored: " stored-token ") == "stored-token")
+        #expect(NotificationEnrollmentManager.preferredAPNSToken(pending: nil, stored: " ") == nil)
     }
 
     @Test func registrationResponseValidationAcceptsActiveMatchingDevice() throws {

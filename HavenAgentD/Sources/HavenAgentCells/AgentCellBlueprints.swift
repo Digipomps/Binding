@@ -12,6 +12,7 @@ public enum AgentCellKind: String, Codable, CaseIterable, Sendable {
     case networkSentinel
     case secretCredential
     case emailOutbox
+    case signatureStatements
 }
 
 public struct AgentCellBlueprint: Codable, Equatable, Sendable {
@@ -100,6 +101,12 @@ public enum AgentCellCatalog {
             suggestedCellName: "AgentMailDraftCell",
             purpose: "Prepare locally reviewed email draft intents for contacts that do not have a CellProtocol endpoint.",
             sideEffectBoundary: "Prepares review-intents only; approved execution may create a visible Mail.app draft but never sends automatically."
+        ),
+        AgentCellBlueprint(
+            kind: .signatureStatements,
+            suggestedCellName: "AgentSignatureCell",
+            purpose: "Prepare audience-bound detached signed statements using the stable local agent identity.",
+            sideEffectBoundary: "Prepares redacted signing intents only; daemon-owned execution signs canonical metadata plus payload hash after purpose, audience, expiry and nonce validation."
         )
     ]
 }

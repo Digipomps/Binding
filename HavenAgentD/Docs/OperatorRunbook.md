@@ -127,6 +127,12 @@ Important files under that root:
 ~/Library/Application Support/HAVENAgent/Logs/stderr.log
 ```
 
+`State/agent-identity.json` is descriptor metadata only in the production path.
+The private agent signing seed is stored in Apple Keychain under service
+`no.haven.agentd.identity`; `haven-agentd status` reports the descriptor
+`storageKind` so operator tooling and GUI surfaces can show whether the agent is
+using the hardened path.
+
 Dev-only manual-copy binary location (NOT used by the pkg path):
 
 ```text

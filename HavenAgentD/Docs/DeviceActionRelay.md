@@ -65,11 +65,11 @@ participant/platform-match.
 {
   "deviceActionRelay": {
     "enabled": true,
-    "notificationOutboxEndpoint": "cell://staging.haven.digipomps.org/NotificationOutbox",
+    "notificationOutboxEndpoint": "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action",
     "defaultParticipantID": "binding-participant",
-    "defaultDeviceID": "binding-phone",
     "defaultTTLSeconds": 900,
-    "conversationEndpoint": "cell://staging.haven.digipomps.org/AgentConversationInbox"
+    "conversationEndpoint": "cell://staging.haven.digipomps.org/AgentConversationInbox",
+    "agentRelayTokenPath": "/Users/kjetil/Library/Application Support/HAVENAgent/Secrets/agent-relay-token"
   }
 }
 ```
@@ -78,6 +78,8 @@ Viktig:
 
 - relayet oppretter tickets direkte i staging-kontrakten, ikke via en lokal/mock adapter
 - eldre `publishURL`-konfig blir fortsatt lest som fallback og mappes til riktig staging-host
+- `https://.../api/agent/device-action` er anbefalt live-bane for ticket-opprettelse fordi den unngår at lokal agent må resolve `cell://.../NotificationOutbox` over remote bridge før APNS-runden starter
+- `agentRelayTokenPath` peker på en lokal runtime-secret; legg aldri selve tokenet i repo eller `config.json`
 - approval-/prompt-svar kommer tilbake gjennom `AgentConversationInbox`, ikke gjennom `callback/submit`
 - ved live-feil pakkes remote resolver-/`createTicket`-feil med endpoint-kontekst slik at `Inbox/Failed/*.json` viser om feilen skjedde før eller under `NotificationOutbox.createTicket`
 
@@ -94,5 +96,6 @@ Viktigste APNS-plasseringer:
 - lokal kilde: `/Users/Shared/Apple Connect/AuthKey_ZPJC567ND5.p8`
 - staging host: `/home/ops/CellScaffold/.secrets/AuthKey_ZPJC567ND5.p8`
 - container runtime path: `/run/secrets/apns-auth-key.p8`
+- lokal relay-token secret: `/Users/kjetil/Library/Application Support/HAVENAgent/Secrets/agent-relay-token`
 
 Ikke logg eller commit innholdet i `.p8`-filen eller relay-tokenet.

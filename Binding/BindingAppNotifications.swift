@@ -231,12 +231,14 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
         }
         Task { @MainActor in
             NotificationEnrollmentManager.shared.bootstrapIfNeeded()
+            PendingActionInboxViewModel.shared.reloadPersistedActions()
         }
         return true
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         Task { @MainActor in
+            PendingActionInboxViewModel.shared.reloadPersistedActions()
             await NotificationEnrollmentManager.shared.refreshDeviceRegistrationOnActivation()
         }
     }

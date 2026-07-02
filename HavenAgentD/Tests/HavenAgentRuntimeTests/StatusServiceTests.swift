@@ -129,6 +129,7 @@ private func makeStatusTempRoot() -> URL {
         #expect(report.identity.present)
         #expect(report.identity.identityUUID == material.descriptor.identityUUID)
         #expect(report.identity.didKey == material.descriptor.didKey)
+        #expect(report.identity.storageKind == material.descriptor.storageKind)
         #expect(report.identity.publicKeyShort?.contains("...") == true)
         #expect(report.sprout.configuredPath == sproutPath)
         #expect(report.sprout.executable)

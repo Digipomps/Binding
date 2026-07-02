@@ -61,10 +61,25 @@ enum JSONValue: Codable, Equatable {
 @MainActor
 final class PendingActionInboxViewModel: ObservableObject {
     static let shared = PendingActionInboxViewModel()
+    static let defaultStorageKey = "binding.pendingDeviceActions.v1"
 
-    @Published private(set) var actions: [PendingDeviceAction] = []
+    @Published private(set) var actions: [PendingDeviceAction]
 
-    private init() {}
+    private let defaults: UserDefaults
+    private let storageKey: String
+
+    init(
+        defaults: UserDefaults = .standard,
+        storageKey: String = PendingActionInboxViewModel.defaultStorageKey
+    ) {
+        self.defaults = defaults
+        self.storageKey = storageKey
+        self.actions = Self.loadActions(defaults: defaults, storageKey: storageKey)
+    }
+
+    func reloadPersistedActions() {
+        actions = Self.normalized(Self.loadActions(defaults: defaults, storageKey: storageKey))
+    }
 
     func upsert(_ action: PendingDeviceAction) {
         if let index = actions.firstIndex(where: { $0.id == action.id }) {
@@ -72,9 +87,59 @@ final class PendingActionInboxViewModel: ObservableObject {
         } else {
             actions.insert(action, at: 0)
         }
+        actions = Self.normalized(actions)
+        persist()
     }
 
     func remove(ticketId: String) {
         actions.removeAll { $0.ticketId == ticketId }
+        persist()
+    }
+
+    func removeAll() {
+        actions.removeAll()
+        persist()
+    }
+
+    private func persist() {
+        if actions.isEmpty {
+            defaults.removeObject(forKey: storageKey)
+            return
+        }
+
+        do {
+            let data = try JSONEncoder().encode(actions)
+            defaults.set(data, forKey: storageKey)
+        } catch {
+            print("Binding pending action persistence failed: \(error)")
+        }
+    }
+
+    private static func loadActions(
+        defaults: UserDefaults,
+        storageKey: String
+    ) -> [PendingDeviceAction] {
+        guard let data = defaults.data(forKey: storageKey) else {
+            return []
+        }
+        do {
+            return normalized(try JSONDecoder().decode([PendingDeviceAction].self, from: data))
+        } catch {
+            defaults.removeObject(forKey: storageKey)
+            print("Binding pending action restore failed: \(error)")
+            return []
+        }
+    }
+
+    private static func normalized(_ actions: [PendingDeviceAction]) -> [PendingDeviceAction] {
+        var actionsByTicketID: [String: PendingDeviceAction] = [:]
+        for action in actions {
+            if let existing = actionsByTicketID[action.ticketId],
+               existing.receivedAt >= action.receivedAt {
+                continue
+            }
+            actionsByTicketID[action.ticketId] = action
+        }
+        return actionsByTicketID.values.sorted { $0.receivedAt > $1.receivedAt }
     }
 }

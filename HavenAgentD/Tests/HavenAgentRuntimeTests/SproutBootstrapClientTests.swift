@@ -52,6 +52,7 @@ struct SproutBootstrapClientTests {
                 goal: "Join scaffold",
                 interests: ["haven.core.bootstrap", "haven.core.bridge"],
                 resolverBaseURL: "https://example.haven.local",
+                trustRootPath: "/tmp/trust-root.json",
                 starterAuthPath: "/tmp/starter.json",
                 entityLinkPath: "/tmp/entity-link.json",
                 continuityProofPath: nil,
@@ -79,6 +80,8 @@ struct SproutBootstrapClientTests {
         #expect(invocation.arguments.contains("--enable-live-resolver"))
         #expect(invocation.arguments.contains("--resolver-base-url"))
         #expect(invocation.arguments.contains("https://example.haven.local"))
+        #expect(invocation.arguments.contains("--trust-root"))
+        #expect(invocation.arguments.contains("/tmp/trust-root.json"))
         #expect(invocation.arguments.contains("--entity-link"))
         #expect(invocation.arguments.contains("/tmp/entity-link.json"))
         #expect(invocation.arguments.contains("--trust-root-out"))

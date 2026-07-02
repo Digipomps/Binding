@@ -11,6 +11,7 @@ private struct AgentControlBridgeRoutes: RouteCollection {
     let onboardingContext: AgentControlBridgeOnboardingContext?
     let expectedAccessToken: String?
     let mailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)?
+    let signStatementCommandHandler: (@Sendable (AgentSignStatementRequest) async throws -> AgentSignStatementResult)?
     let trackWebSocket: @Sendable (WebSocket) async -> Void
     let untrackWebSocket: @Sendable (WebSocket) async -> Void
 
@@ -67,6 +68,22 @@ private struct AgentControlBridgeRoutes: RouteCollection {
             }
             let request = try req.content.decode(AgentMailDraftCommandRequest.self)
             let result = try await mailDraftCommandHandler(request)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(result)
+            var headers = HTTPHeaders()
+            headers.add(name: .contentType, value: "application/json; charset=utf-8")
+            headers.add(name: "cache-control", value: "no-store")
+            return Response(status: .ok, headers: headers, body: .init(data: data))
+        }
+
+        routes.post("commands", "identity", "sign-statement") { req async throws -> Response in
+            try authorize(req)
+            guard let signStatementCommandHandler else {
+                throw Abort(.notFound, reason: "Identity sign-statement command handler is not configured.")
+            }
+            let request = try req.content.decode(AgentSignStatementRequest.self)
+            let result = try await signStatementCommandHandler(request)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(result)
@@ -164,6 +181,7 @@ public actor AgentControlBridgeServer {
         paths: RuntimePaths? = nil,
         configURL: URL? = nil,
         mailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)? = nil,
+        signStatementCommandHandler: (@Sendable (AgentSignStatementRequest) async throws -> AgentSignStatementResult)? = nil,
         runtimeSnapshotProvider: (@Sendable () async -> AgentCellRuntimeSnapshot?)? = nil
     ) async throws -> LocalControlBridgeStatus {
         guard configuration.enabled else {
@@ -200,6 +218,7 @@ public actor AgentControlBridgeServer {
             },
             expectedAccessToken: configuration.accessToken,
             mailDraftCommandHandler: mailDraftCommandHandler,
+            signStatementCommandHandler: signStatementCommandHandler,
             trackWebSocket: { [weak self] webSocket in
                 await self?.track(webSocket: webSocket)
             },

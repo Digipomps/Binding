@@ -138,6 +138,9 @@ public final class SproutBootstrapClient: @unchecked Sendable {
         if let starterAuthPath = scaffold.starterAuthPath {
             arguments.append(contentsOf: ["--starter", expandPath(starterAuthPath)])
         }
+        if let trustRootPath = scaffold.trustRootPath {
+            arguments.append(contentsOf: ["--trust-root", expandPath(trustRootPath)])
+        }
         if let entityLinkPath = scaffold.entityLinkPath {
             arguments.append(contentsOf: ["--entity-link", expandPath(entityLinkPath)])
         }

@@ -130,7 +130,8 @@ let package = Package(
                 "HavenAgentCellRuntime",
                 "HavenAgentCells",
                 "HavenRuntimeBootstrap",
-                .product(name: "CellBase", package: "CellProtocol")
+                .product(name: "CellBase", package: "CellProtocol"),
+                .product(name: "SproutCrypto", package: "sprout")
             ]
         ),
         .testTarget(
@@ -140,7 +141,8 @@ let package = Package(
                 "HavenAgentCellRuntime",
                 "HavenMacAutomation",
                 "HavenAgentRuntime",
-                "HavenRuntimeBootstrap"
+                "HavenRuntimeBootstrap",
+                .product(name: "SproutCrypto", package: "sprout")
             ]
         )
     ]

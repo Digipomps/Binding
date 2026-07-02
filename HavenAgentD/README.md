@@ -19,7 +19,7 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - writes a local cell-runtime snapshot to `State/cell-runtime.json`
 - writes remote-intent queue/audit/nonce state to `State/remote-intent-state.json`
 - writes redacted SecretCredentialCell metadata to `State/secret-credentials.json`
-- persists a stable local agent signing identity to `State/agent-identity.json`
+- persists a stable local agent identity descriptor to `State/agent-identity.json` while keeping production seed material in Keychain
 - renders a `launchd` plist for per-user startup
 - supports `--root /path/to/dev-root` so runtime state can be isolated away from the user's real `Application Support`
 - ships a deterministic smoke-test path that exercises retry + renewal without a live scaffold
@@ -29,6 +29,7 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - exposes `AgentLocalModelCell` for a configured loopback local language model backend such as `llama-server`
 - exposes `SecretCredentialCell` for entity-scoped AI provider credentials, with redacted metadata in cell state and encrypted secret blobs in Keychain/vault storage
 - exposes `AgentMailDraftCell` for purpose-aware email/contact fallback that prepares reviewable Mail.app draft intents without sending automatically
+- exposes `AgentSignatureCell` and a daemon-owned `identity.sign-statement` command for detached, audience-bound signed statements using the local agent identity
 - verifies the persisted Binding<->agent pairing artifact before treating an operator identity as paired
 - lets `sprout bootstrap join` consume purpose-bound entity-link evidence generated from the Binding<->agent pairing flow
 - installs those cells into a local `CellResolver` graph during `run`
@@ -42,7 +43,6 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - it does not yet call `sprout` APIs directly
 - it does not yet bind native porthole ingress to a richer resolver/session lifecycle than the bootstrap artifact alone
 - it does not yet auto-execute queued remote intents without explicit review
-- it does not yet store the persisted agent seed in Keychain
 - it does not yet run language models directly on iPhone or iPad; phone access goes through the paired agent/porthole path first
 
 Those boundaries are intentional. This package gives a safe executable skeleton first, so that `sprout` and `CellProtocol` can be added behind explicit interfaces instead of collapsing bootstrap, policy and local automation into one process with unclear trust rules.
@@ -56,6 +56,7 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - `Sources/HavenAgentRuntime/SproutBootstrapArtifactLoader.swift`: bootstrap artifact loader that materializes native porthole sessions
 - `Sources/HavenAgentRuntime/PortholeIngressSession.swift`: live native porthole ingress that extracts signed remote intents from flow events
 - `Sources/HavenAgentRuntime/PortholeLifecycleController.swift`: reconnect/renewal orchestration around bootstrap join + ingress lifecycle
+- `Sources/HavenAgentRuntime/AgentSignatureStatement.swift`: detached signed-statement request/result model, validation, nonce ledger and Ed25519 signing command service
 - `Sources/HavenMacAutomation`: policy engine, subprocess runner, `shortcuts` and `osascript` bridges
 - `Sources/HavenAgentCells`: concrete supervisor/inbox cells, a default cell registry, plus blueprint catalog for the next cells
 - `Sources/HavenAgentCellRuntime`: local identity vault, `CellBase` host installation, resolver registration, runtime snapshotting
@@ -70,6 +71,7 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - [Docs/SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md): security model
 - [Docs/LocalModels.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/LocalModels.md): local model cell contract and phone/iPad access path
 - [Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md): provisioning pack format and the request/import round trip
+- [Docs/IdentitySignatures.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/IdentitySignatures.md): detached signed-statement contract for sending verifiable data to another entity
 - [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md): signed + notarized .pkg build and install
 - [Docs/HavenAgentDMCPServerSurface.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/HavenAgentDMCPServerSurface.md): proposed MCP adapter surface for local AI hosts
 - [../Documentation/HavenAgentPhoneApprovalLoopRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/HavenAgentPhoneApprovalLoopRunbook.md): physical iPhone install + notification approval loop runbook with current verification state
@@ -90,6 +92,7 @@ The same principle now also applies to live ingress: only native contracts produ
 The reconnect/renewal loop follows the same boundary: on failure or near-expiry it re-runs the same local `sprout bootstrap join` path, instead of accepting a remotely supplied websocket or contract override.
 The local model cell follows the same boundary: it calls only the configured loopback model backend by default, and exposes generation through CellProtocol actions and flow events instead of opening a raw model socket to remote clients.
 The credential cell follows the same boundary: callers can register redacted provider metadata and encrypted secret blobs, but raw API keys are never returned through CellProtocol reads, action responses or flow events.
+The identity-signature path follows the same boundary: cells and MCP expose purpose-aware intent/forwarding surfaces, but the local daemon owns the actual key use, nonce ledger and signed envelope creation.
 When `haven-agentd run` starts, it now installs a narrow local `CellBase` host backed by an in-memory vault and a dedicated `CellDocuments` root under `~/Library/Application Support/HAVENAgent/`.
 
 ## Current cells
@@ -101,7 +104,9 @@ When `haven-agentd run` starts, it now installs a narrow local `CellBase` host b
 - `AgentLocalModelCell`: exposes `state`, `contracts`, `llm.health` and `llm.generate` for a configured loopback local model backend, emitting `agent.localModel` flow events
 - `SecretCredentialCell`: exposes `state`, `credentials`, `contracts`, `credential.register`, `credential.authorizeUse`, `credential.rotate` and `credential.revoke`; metadata is redacted and raw secrets are ChaChaPoly-sealed before secure-store persistence
 - `AgentMailDraftCell`: exposes `state`, `contracts`, `purposeProfiles` and `draftIntent`; it returns a review-intent for the allowlisted `mail.compose-draft` action and does not open Mail.app or send mail by itself
+- `AgentSignatureCell`: exposes `state`, `contracts`, `purposeProfiles` and `signIntent`; it prepares redacted signed-statement intents for Co-Pilot/chat and does not sign directly
 - Local control bridge command `POST /commands/mail/compose-draft`: forwards a token-authenticated local request into HAVENAgentD, where the configured `AutomationPolicy` and Mail.app automation create a visible draft. MCP clients use `agent.mail.compose_draft` only as a thin forwarder to this daemon-owned command surface.
+- Local control bridge command `POST /commands/identity/sign-statement`: forwards a token-authenticated local request into HAVENAgentD, where the local agent identity signs a canonical, audience-bound statement after purpose, audience, expiry, payload-hash and nonce validation. MCP clients use `agent.identity.sign_statement` only as a thin forwarder to this daemon-owned command surface.
 - `AgentCellRegistry`: instantiates the current safe default cell set for a local owner identity
 - `AgentCellRuntimeHost`: installs the local owner/vault, registers the current cells into `CellResolver.sharedInstance`, and persists a runtime snapshot
 - `AgentCellBlueprints`: retains the next planned cells, including dedicated action cells, before they are promoted to executable runtime components
@@ -187,7 +192,8 @@ During `run`, the executable now also creates:
 - `~/Library/Application Support/HAVENAgent/CellDocuments/` for local CellProtocol document-root data
 - `~/Library/Application Support/HAVENAgent/State/cell-runtime.json` for the registered cell snapshot
 - `~/Library/Application Support/HAVENAgent/State/remote-intent-state.json` for queued intents, review audit and nonce replay window
-- `~/Library/Application Support/HAVENAgent/State/agent-identity.json` for the stable local agent signing identity used by `AgentIdentityCell`
+- `~/Library/Application Support/HAVENAgent/State/agent-identity.json` for the stable local agent identity descriptor used by `AgentIdentityCell`; the production private seed is stored as a Keychain generic password item under `no.haven.agentd.identity`
+- `~/Library/Application Support/HAVENAgent/State/identity-signature-nonces.json` for the local signed-statement nonce ledger
 - `~/Library/Application Support/HAVENAgent/State/secret-credentials.json` for redacted provider credential metadata; encrypted blobs are stored separately through `SecureCredentialStore`/Keychain
 
 When `localControlBridge.accessToken` is configured, the bridge only accepts websocket and health requests that present the matching `token` query item. The example config ships with a placeholder token, and any future operator tool should supply its own explicit local token instead of relying on ambient localhost authority.

@@ -249,6 +249,7 @@ public actor AgentRuntime {
     private var portholeLifecycleController: PortholeLifecycleController?
     private var monitors: [FolderMonitor] = []
     private var deviceActionRelay: DeviceActionRelay?
+    private var conversationReplyConnectionKey: String?
     private var state: AgentRuntimeState?
 
     public init(
@@ -306,6 +307,7 @@ public actor AgentRuntime {
             await deviceActionRelay.stop()
             self.deviceActionRelay = nil
         }
+        conversationReplyConnectionKey = nil
         stopMonitors()
         state?.status = "stopped"
         try await persistState()
@@ -376,6 +378,7 @@ public actor AgentRuntime {
                 monitors.append(relayMonitor)
                 _ = try await relay.scanPendingRequests()
                 try await relay.connectConversationReplies()
+                conversationReplyConnectionKey = conversationReplyConnectionKey(for: state?.portholeIngress)
             } catch {
                 await recordDeviceActionRelayError(error)
             }
@@ -481,6 +484,7 @@ public actor AgentRuntime {
             state?.lastError = nil
         }
         try? await persistState()
+        await refreshConversationReplyConnectionIfNeeded(for: status)
     }
 
     private func shouldEnablePortholeIngress(for config: AgentConfig) -> Bool {
@@ -498,6 +502,9 @@ public actor AgentRuntime {
         }
 
         do {
+            if let portholeIngress = state?.portholeIngress {
+                await refreshConversationReplyConnectionIfNeeded(for: portholeIngress, force: true)
+            }
             let records = try await deviceActionRelay.scanPendingRequests()
             if let lastRecord = records.last {
                 state?.lastEventSummary = "Device action published for \(lastRecord.action.participantId) (\(lastRecord.receipt.ticketId))"
@@ -512,6 +519,52 @@ public actor AgentRuntime {
     private func recordDeviceActionRelayError(_ error: Error) async {
         state?.lastError = error.localizedDescription
         try? await persistState()
+    }
+
+    private func refreshConversationReplyConnectionIfNeeded(
+        for status: PortholeIngressStatus,
+        force: Bool = false
+    ) async {
+        guard status.phase == .connected else {
+            conversationReplyConnectionKey = nil
+            return
+        }
+        guard let deviceActionRelay else {
+            return
+        }
+        guard let key = conversationReplyConnectionKey(for: status) else {
+            return
+        }
+        guard force || conversationReplyConnectionKey != key else {
+            return
+        }
+
+        do {
+            try await deviceActionRelay.connectConversationReplies()
+            conversationReplyConnectionKey = key
+            state?.lastError = nil
+            try? await persistState()
+        } catch {
+            await recordDeviceActionRelayError(error)
+        }
+    }
+
+    private func conversationReplyConnectionKey(for status: PortholeIngressStatus?) -> String? {
+        guard let status, status.phase == .connected else {
+            return nil
+        }
+
+        let parts = [
+            status.contractID,
+            status.artifactExpiresAt,
+            status.lastRenewedAt,
+            status.bridgeEndpoint
+        ].compactMap { value -> String? in
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed?.isEmpty == false ? trimmed : nil
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: "|")
     }
 
     private static func iso8601String(_ date: Date) -> String {

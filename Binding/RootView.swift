@@ -35,6 +35,7 @@ struct RootView: View {
 
                 await MainActor.run {
                     NotificationEnrollmentManager.shared.bootstrapIfNeeded()
+                    PendingActionInboxViewModel.shared.reloadPersistedActions()
                     initialized = true
                 }
             }

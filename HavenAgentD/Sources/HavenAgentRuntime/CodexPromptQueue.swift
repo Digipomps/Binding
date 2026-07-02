@@ -6,6 +6,8 @@ public enum CodexPromptQueueContract {
     public static let queuedDirectoryName = "CodexPromptRequests"
     public static let startedDirectoryName = "CodexPromptStarted"
     public static let completedDirectoryName = "CodexPromptDone"
+    public static let defaultMaxCompletedRecords = 200
+    public static let maximumCompletedRecords = 10_000
 }
 
 public enum CodexPromptRequestStatus: String, Codable, Equatable, Sendable {
@@ -181,10 +183,16 @@ public struct CodexPromptQueue {
     private let fileManager: FileManager
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let maxCompletedRecords: Int
 
-    public init(paths: RuntimePaths, fileManager: FileManager = .default) {
+    public init(
+        paths: RuntimePaths,
+        fileManager: FileManager = .default,
+        maxCompletedRecords: Int = CodexPromptQueueContract.defaultMaxCompletedRecords
+    ) {
         self.paths = paths
         self.fileManager = fileManager
+        self.maxCompletedRecords = max(1, min(CodexPromptQueueContract.maximumCompletedRecords, maxCompletedRecords))
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         self.encoder = encoder
@@ -311,6 +319,7 @@ public struct CodexPromptQueue {
         if located.fileURL != targetURL, fileManager.fileExists(atPath: located.fileURL.path) {
             try fileManager.removeItem(at: located.fileURL)
         }
+        try pruneCompletedArchive()
         return CodexPromptRequestRecord(queue: "completed", filePath: targetURL.path, request: request)
     }
 
@@ -414,6 +423,41 @@ public struct CodexPromptQueue {
             attributes: nil
         )
         try data.write(to: fileURL, options: [.atomic])
+    }
+
+    public func pruneCompletedArchive() throws {
+        let directory = completedDirectoryURL()
+        guard fileManager.fileExists(atPath: directory.path) else {
+            return
+        }
+        let urls = try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        let files = urls
+            .filter { url in
+                (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            }
+            .sorted { lhs, rhs in
+                let lhsDate = archiveSortDate(lhs)
+                let rhsDate = archiveSortDate(rhs)
+                if lhsDate == rhsDate {
+                    return lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent) == .orderedAscending
+                }
+                return lhsDate < rhsDate
+            }
+        guard files.count > maxCompletedRecords else {
+            return
+        }
+        for url in files.prefix(files.count - maxCompletedRecords) {
+            try? fileManager.removeItem(at: url)
+        }
+    }
+
+    private func archiveSortDate(_ url: URL) -> Date {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
+        return values?.contentModificationDate ?? values?.creationDate ?? .distantPast
     }
 
     private func sanitizedFileComponent(_ value: String) -> String {

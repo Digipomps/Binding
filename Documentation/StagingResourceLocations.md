@@ -90,6 +90,19 @@ Relevant env key:
 HAVEN_AGENT_RELAY_TOKEN=<set in staging .env>
 ```
 
+Local `HAVENAgentD` runtime config should not contain the token value. For
+local operator smoke tests, store only the secret file path in
+`deviceActionRelay.agentRelayTokenPath`:
+
+| Location | Path |
+| --- | --- |
+| Staging source | `/home/ops/CellScaffold/.env` |
+| Local runtime secret | `/Users/kjetil/Library/Application Support/HAVENAgent/Secrets/agent-relay-token` |
+| Local config reference | `deviceActionRelay.agentRelayTokenPath` |
+
+The local secret file must contain only the relay token, with no extra JSON or
+shell syntax. Keep permissions restricted to the local user.
+
 Verification without printing the token:
 
 ```bash
@@ -103,6 +116,45 @@ Expected result:
 
 - `401 Unauthorized`
 - JSON reason says `Invalid agent relay token.`
+
+Local secret verification without printing the token:
+
+```bash
+test -s "$HOME/Library/Application Support/HAVENAgent/Secrets/agent-relay-token"
+```
+
+Expected result:
+
+- command exits `0`
+- no token contents are printed
+
+## Sprout Trust And Anchor Artifacts
+
+Staging publishes Sprout trust and entity-anchor evidence from the mounted
+CellsContainer volume:
+
+| Artifact | Staging host path | Container path | Local HAVENAgentD path |
+| --- | --- | --- | --- |
+| Scaffold admin trust root | `/mnt/disk1/app/CellsContainer/sprout/scaffold-admin-trust-root.json` | `/app/CellsContainer/sprout/scaffold-admin-trust-root.json` | `/Users/kjetil/Library/Application Support/HAVENAgent/State/scaffold-admin-trust-root.json` |
+| Entity anchor snapshot | `/mnt/disk1/app/CellsContainer/sprout/entity-anchor-snapshot.json` | `/app/CellsContainer/sprout/entity-anchor-snapshot.json` | n/a |
+| Agent/operator entity link input | `/mnt/disk1/app/CellsContainer/sprout/agent-operator-entity-link.elc_5Wp8fRWa3LY7sru6.json` | `/app/CellsContainer/sprout/agent-operator-entity-link.elc_5Wp8fRWa3LY7sru6.json` | `/Users/kjetil/Library/Application Support/HAVENAgent/Out/agent-operator-entity-link.json` |
+
+Local `HAVENAgentD` can pin the trust root by setting:
+
+```json
+{
+  "scaffold": {
+    "trustRootPath": "/Users/kjetil/Library/Application Support/HAVENAgent/State/scaffold-admin-trust-root.json"
+  }
+}
+```
+
+Non-secret verification:
+
+```bash
+sprout verify "$HOME/Library/Application Support/HAVENAgent/State/scaffold-admin-trust-root.json"
+curl -ksS https://staging.haven.digipomps.org/.well-known/haven-scaffold-admin-trust-root.json
+```
 
 ## Binding Device Registration
 

@@ -67,6 +67,7 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
     public var goal: String?
     public var interests: [String]
     public var resolverBaseURL: String?
+    public var trustRootPath: String?
     public var starterAuthPath: String?
     public var entityLinkPath: String?
     public var continuityProofPath: String?
@@ -91,6 +92,7 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
         goal: String? = nil,
         interests: [String] = [],
         resolverBaseURL: String? = nil,
+        trustRootPath: String? = nil,
         starterAuthPath: String? = nil,
         entityLinkPath: String? = nil,
         continuityProofPath: String? = nil,
@@ -114,6 +116,7 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
         self.goal = goal
         self.interests = interests
         self.resolverBaseURL = resolverBaseURL
+        self.trustRootPath = trustRootPath
         self.starterAuthPath = starterAuthPath
         self.entityLinkPath = entityLinkPath
         self.continuityProofPath = continuityProofPath
@@ -186,6 +189,11 @@ public struct LocalControlBridgeConfig: Codable, Equatable, Sendable {
             name: AgentMailDraftAutomation.controlBridgeRouteName,
             targetCellReference: "agent/email/outbox",
             description: "Local email draft outbox: prepares reviewed Mail.app draft intents for contacts without a CellProtocol endpoint."
+        ),
+        LocalControlBridgeRoute(
+            name: AgentSignatureStatement.controlBridgeRouteName,
+            targetCellReference: "agent/identity/signatures",
+            description: "Local identity signature surface: prepares and issues audience-bound detached signed statements through HAVENAgentD."
         )
     ]
 
@@ -438,7 +446,9 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     "haven.local.automation",
                     "haven.local.models",
                     "haven.external.email",
-                    "contact.fallback.email"
+                    "contact.fallback.email",
+                    "haven.identity.signature",
+                    "haven.verifiable.statement"
                 ],
                 resolverBaseURL: "https://staging.haven.example",
                 starterAuthPath: paths.agentDirectory.appendingPathComponent("starter-auth.json").path,
@@ -454,7 +464,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     "cap.native_porthole",
                     "cap.local_automation",
                     "cap.local_model.generate",
-                    AgentMailDraftAutomation.capabilityRef
+                    AgentMailDraftAutomation.capabilityRef,
+                    AgentSignatureStatement.capabilityRef
                 ],
                 requestedPortholeKind: "native",
                 renewalLeadTimeSeconds: 60,

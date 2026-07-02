@@ -221,6 +221,7 @@ Sensitive tools should be treated by the host as confirmation-required.
 | `agent.codex.next_prompt` | Return and optionally claim the next phone-originated Codex prompt request. | No |
 | `agent.codex.mark_prompt_started` | Claim a queued phone-originated Codex prompt request for the current coding host. | No |
 | `agent.codex.mark_prompt_done` | Record a done, blocked, or failed outcome for a phone-originated Codex prompt request. | No |
+| `agent.identity.sign_statement` | Forward a detached signed-statement request to the running local `HavenAgentD` control bridge. | Yes |
 
 ### Tool schemas
 
@@ -404,6 +405,79 @@ Output:
   "auditCount": 3
 }
 ```
+
+#### `agent.identity.sign_statement`
+
+Input:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "purposeRef": {
+      "type": "string",
+      "default": "personal.identity.sign.statement"
+    },
+    "payloadBase64URL": {
+      "type": "string"
+    },
+    "payloadSHA256Base64URL": {
+      "type": "string"
+    },
+    "payloadMediaType": {
+      "type": "string"
+    },
+    "payloadDescription": {
+      "type": "string"
+    },
+    "signerIdentityUUID": {
+      "type": "string"
+    },
+    "audience": {
+      "type": "object",
+      "properties": {
+        "entityRef": {
+          "type": "string"
+        },
+        "publicKeyBase64URL": {
+          "type": "string"
+        },
+        "publicKeyFingerprint": {
+          "type": "string"
+        }
+      },
+      "required": ["entityRef"]
+    },
+    "expiresAt": {
+      "type": "string"
+    },
+    "nonce": {
+      "type": "string"
+    },
+    "correlationID": {
+      "type": "string"
+    }
+  },
+  "required": ["audience", "expiresAt", "nonce"],
+  "additionalProperties": false
+}
+```
+
+Output:
+
+- `AgentSignStatementResult` with `status`, `actionID`,
+  `deliveryMode`, and an `AgentSignedStatementEnvelope`
+
+Important restrictions:
+
+- the MCP server must forward to `/commands/identity/sign-statement` on the
+  loopback local control bridge
+- the MCP server must require the active bridge token from local config
+- the MCP server must not sign, keep nonce state, or choose a replacement
+  identity
+- callers must provide exactly one payload input:
+  `payloadBase64URL` or `payloadSHA256Base64URL`
+- host UX should treat this as confirmation-required key use
 
 #### `agent.operator.request`
 

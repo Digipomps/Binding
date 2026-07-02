@@ -104,17 +104,17 @@ final class AgentConversationClient {
 
     private func postPayload(_ payload: [String: JSONValue]) async throws {
         let endpoint = Self.endpointOverrideForTesting ?? Self.endpoint()
-        registerRemoteHostIfNeeded(for: endpoint)
         guard let resolver = CellBase.defaultCellResolver else {
             throw AgentConversationClientError.missingResolver
         }
-
         let requester = try await requesterIdentity()
-        let cell = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester)
-        let meddle = cell as? Meddle
-        guard let meddle else {
-            throw AgentConversationClientError.targetNotWritable
-        }
+        let cellResolver = (resolver as? CellResolver) ?? CellResolver.sharedInstance
+        let meddle = try await RemoteEndpointAccessSupport.resolveMeddle(
+            endpoint: endpoint,
+            resolver: cellResolver,
+            requester: requester,
+            accessLabel: "binding.agentConversation"
+        )
 
         let response = try await meddle.set(
             keypath: "postPrompt",
@@ -191,6 +191,15 @@ final class AgentConversationClient {
         }
         if let sourceCellEndpoint = stringValue(action.payload["sourceCellEndpoint"]) {
             payload["sourceCellEndpoint"] = .string(sourceCellEndpoint)
+        }
+        if let purpose = stringValue(action.payload["purpose"]) {
+            payload["purpose"] = .string(purpose)
+        }
+        if let purposeDescription = stringValue(action.payload["purposeDescription"]) {
+            payload["purposeDescription"] = .string(purposeDescription)
+        }
+        if case let .array(interests)? = action.payload["interests"] {
+            payload["interests"] = .array(interests)
         }
         return payload
     }
@@ -271,22 +280,8 @@ final class AgentConversationClient {
         )
     }
 
-    private func registerRemoteHostIfNeeded(for endpoint: String) {
-        guard let url = URL(string: endpoint),
-              let host = url.host,
-              host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            return
-        }
-        let resolver = CellResolver.sharedInstance
-        let route = RemoteCellHostRoute(
-            websocketEndpoint: "bridgehead",
-            schemePreference: .automatic
-        )
-        let normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let existing = resolver.remoteCellHostRoutesSnapshot()[normalizedHost]
-        if existing == nil {
-            resolver.registerRemoteCellHost(host, route: route)
-        }
+    static func registerRemoteRouteIfNeeded(for endpoint: String, resolver: CellResolver) {
+        RemoteEndpointAccessSupport.registerRemoteRouteIfNeeded(for: endpoint, resolver: resolver)
     }
 
     private func requesterIdentity() async throws -> Identity {

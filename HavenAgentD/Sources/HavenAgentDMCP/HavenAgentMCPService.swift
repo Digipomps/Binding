@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import HavenAgentCellRuntime
 import HavenAgentRuntime
 import HavenMacAutomation
@@ -86,6 +89,8 @@ enum HavenAgentMCPServiceError: Error, LocalizedError {
 }
 
 final class HavenAgentMCPService {
+    typealias RemoteReplyPuller = @Sendable (DeviceActionRelayConfig, AgentConversationReplyPullFilter) async throws -> AgentConversationPrompt?
+
     private let paths: RuntimePaths
     private let configURL: URL
     private let fileManager: FileManager
@@ -93,17 +98,20 @@ final class HavenAgentMCPService {
     private let encoder: JSONEncoder
     private let docsDirectory: URL
     private let xcodeController: any XcodeWorkspaceControlling
+    private let remoteReplyPuller: RemoteReplyPuller?
 
     init(
         paths: RuntimePaths,
         configURL: URL,
         fileManager: FileManager = .default,
-        xcodeController: any XcodeWorkspaceControlling = XcodeWorkspaceController()
+        xcodeController: any XcodeWorkspaceControlling = XcodeWorkspaceController(),
+        remoteReplyPuller: RemoteReplyPuller? = nil
     ) {
         self.paths = paths
         self.configURL = configURL.standardizedFileURL
         self.fileManager = fileManager
         self.xcodeController = xcodeController
+        self.remoteReplyPuller = remoteReplyPuller
         self.decoder = JSONDecoder()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -197,6 +205,9 @@ final class HavenAgentMCPService {
 
             case "agent.mail.compose_draft":
                 return try await mailComposeDraftTool(arguments: arguments)
+
+            case "agent.identity.sign_statement":
+                return try await identitySignStatementTool(arguments: arguments)
 
             case "agent.operator.request":
                 return try operatorRequestTool(arguments: arguments)
@@ -440,6 +451,62 @@ final class HavenAgentMCPService {
                 ]
             ),
             MCPToolDescriptor(
+                name: "agent.identity.sign_statement",
+                title: "Sign Identity Statement",
+                description: "Forward an audience-bound detached signing request to the running HAVENAgentD control bridge. HAVENAgentD owns identity policy, nonce enforcement and signing.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "purposeRef": [
+                            "type": "string",
+                            "default": AgentSignatureStatement.purposeRef
+                        ],
+                        "payloadBase64URL": [
+                            "type": "string"
+                        ],
+                        "payloadSHA256Base64URL": [
+                            "type": "string"
+                        ],
+                        "payloadMediaType": [
+                            "type": "string"
+                        ],
+                        "payloadDescription": [
+                            "type": "string"
+                        ],
+                        "signerIdentityUUID": [
+                            "type": "string"
+                        ],
+                        "audience": [
+                            "type": "object",
+                            "properties": [
+                                "entityRef": [
+                                    "type": "string"
+                                ],
+                                "publicKeyBase64URL": [
+                                    "type": "string"
+                                ],
+                                "publicKeyFingerprint": [
+                                    "type": "string"
+                                ]
+                            ],
+                            "required": ["entityRef"],
+                            "additionalProperties": false
+                        ],
+                        "expiresAt": [
+                            "type": "string"
+                        ],
+                        "nonce": [
+                            "type": "string"
+                        ],
+                        "correlationID": [
+                            "type": "string"
+                        ]
+                    ],
+                    "required": ["audience", "expiresAt", "nonce"],
+                    "additionalProperties": false
+                ]
+            ),
+            MCPToolDescriptor(
                 name: "agent.operator.request",
                 title: "Queue Operator Request",
                 description: "Write a structured prompt or approval request for DeviceActionRelay to publish.",
@@ -468,11 +535,29 @@ final class HavenAgentMCPService {
                                 "type": "string"
                             ]
                         ],
+                        "participantId": [
+                            "type": "string"
+                        ],
+                        "deviceId": [
+                            "type": "string"
+                        ],
+                        "requiredActionKey": [
+                            "type": "string"
+                        ],
                         "conversationId": [
                             "type": "string"
                         ],
                         "jobId": [
                             "type": "string"
+                        ],
+                        "sourceCellEndpoint": [
+                            "type": "string"
+                        ],
+                        "ttlSeconds": [
+                            "type": "number"
+                        ],
+                        "deliveryGoal": [
+                            "type": "object"
                         ],
                         "payload": [
                             "type": "object"
@@ -542,11 +627,29 @@ final class HavenAgentMCPService {
                                 "type": "string"
                             ]
                         ],
+                        "participantId": [
+                            "type": "string"
+                        ],
+                        "deviceId": [
+                            "type": "string"
+                        ],
+                        "requiredActionKey": [
+                            "type": "string"
+                        ],
                         "conversationId": [
                             "type": "string"
                         ],
                         "jobId": [
                             "type": "string"
+                        ],
+                        "sourceCellEndpoint": [
+                            "type": "string"
+                        ],
+                        "ttlSeconds": [
+                            "type": "number"
+                        ],
+                        "deliveryGoal": [
+                            "type": "object"
                         ],
                         "payload": [
                             "type": "object"
@@ -854,6 +957,76 @@ final class HavenAgentMCPService {
         return try JSONDecoder().decode(AgentMailDraftCommandResult.self, from: data)
     }
 
+    private func identitySignStatementTool(arguments: JSONObject) async throws -> MCPToolCallOutput {
+        guard let audienceObject = objectValue(arguments["audience"]) else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("identity sign_statement requires audience.")
+        }
+        let audience = AgentSignatureAudience(
+            entityRef: try requiredStringArgument(audienceObject, key: "entityRef", message: "identity sign_statement audience requires entityRef"),
+            publicKeyBase64URL: normalizedFilterValue(audienceObject["publicKeyBase64URL"]),
+            publicKeyFingerprint: normalizedFilterValue(audienceObject["publicKeyFingerprint"])
+        )
+        let request = AgentSignStatementRequest(
+            purposeRef: normalizedFilterValue(arguments["purposeRef"]) ?? AgentSignatureStatement.purposeRef,
+            payloadBase64URL: normalizedFilterValue(arguments["payloadBase64URL"]),
+            payloadSHA256Base64URL: normalizedFilterValue(arguments["payloadSHA256Base64URL"]),
+            payloadMediaType: normalizedFilterValue(arguments["payloadMediaType"]),
+            payloadDescription: normalizedFilterValue(arguments["payloadDescription"]),
+            signerIdentityUUID: normalizedFilterValue(arguments["signerIdentityUUID"]),
+            audience: audience,
+            expiresAt: try requiredStringArgument(arguments, key: "expiresAt", message: "identity sign_statement requires expiresAt"),
+            nonce: try requiredStringArgument(arguments, key: "nonce", message: "identity sign_statement requires nonce"),
+            correlationID: normalizedFilterValue(arguments["correlationID"])
+        )
+        let result = try await forwardSignStatementRequestToLocalAgent(request)
+        let object = try jsonObject(from: result)
+        return MCPToolCallOutput(
+            structuredContent: object,
+            text: "HAVENAgentD created an audience-bound signed statement for \(request.audience.entityRef).",
+            isError: false
+        )
+    }
+
+    private func forwardSignStatementRequestToLocalAgent(
+        _ request: AgentSignStatementRequest
+    ) async throws -> AgentSignStatementResult {
+        let config = try AgentConfig.load(from: configURL)
+        let bridge = config.localControlBridge
+        guard bridge.enabled else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge is disabled in the active agent config.")
+        }
+        guard bridge.loopbackOnly else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge must be loopback-only for MCP forwarding.")
+        }
+        guard let accessToken = bridge.accessToken, !accessToken.isEmpty else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge accessToken is missing.")
+        }
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = bridge.host
+        components.port = bridge.port
+        components.path = "/commands/identity/sign-statement"
+        components.queryItems = [URLQueryItem(name: "token", value: accessToken)]
+        guard let url = components.url else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Could not construct local control bridge identity signing URL.")
+        }
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge returned a non-HTTP response.")
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let detail = String(decoding: data, as: UTF8.self)
+            throw HavenAgentMCPServiceError.invalidToolArguments("Local control bridge identity signing command failed with HTTP \(httpResponse.statusCode): \(detail)")
+        }
+        return try JSONDecoder().decode(AgentSignStatementResult.self, from: data)
+    }
+
     private func operatorRequestTool(arguments: JSONObject) throws -> MCPToolCallOutput {
         let queuedRequest = try queueOperatorRequest(arguments: arguments)
         let object = queuedRequest.jsonObject()
@@ -889,8 +1062,13 @@ final class HavenAgentMCPService {
             ?? requestID
         let interests = stringArrayValue(arguments["interests"]) ?? []
         let payload = try relayPayload(from: objectValue(arguments["payload"]) ?? [:])
+        let ttlSeconds = doubleValue(arguments["ttlSeconds"]).map { Int($0.rounded()) }
+        let deliveryGoal = try deliveryGoal(from: objectValue(arguments["deliveryGoal"]))
         let request = DeviceActionRequest(
             id: requestID,
+            participantId: normalizedFilterValue(arguments["participantId"]),
+            deviceId: normalizedFilterValue(arguments["deviceId"]),
+            requiredActionKey: normalizedFilterValue(arguments["requiredActionKey"]),
             responseMode: responseMode,
             title: title,
             message: message,
@@ -899,6 +1077,9 @@ final class HavenAgentMCPService {
             interests: interests,
             conversationId: conversationID,
             jobId: jobID,
+            sourceCellEndpoint: normalizedFilterValue(arguments["sourceCellEndpoint"]),
+            ttlSeconds: ttlSeconds,
+            deliveryGoal: deliveryGoal,
             payload: payload
         )
 
@@ -970,6 +1151,31 @@ final class HavenAgentMCPService {
                 return MCPToolCallOutput(
                     structuredContent: result,
                     text: replySummary(for: match.reply),
+                    isError: false
+                )
+            }
+
+            if let remoteMatch = await remoteMatchingReply(
+                requestID: requestID,
+                conversationID: conversationID,
+                jobID: jobID,
+                ticketID: ticketID
+            ) {
+                let replyObject = try jsonObject(from: remoteMatch.reply)
+                let result: JSONObject = [
+                    "matched": true,
+                    "timedOut": false,
+                    "source": "remoteOwnerInboxPull",
+                    "replyFilePath": remoteMatch.fileURL.path,
+                    "reply": replyObject,
+                    "requestId": (remoteMatch.reply.requestId ?? requestID) as Any,
+                    "conversationId": remoteMatch.reply.conversationId,
+                    "jobId": remoteMatch.reply.jobId ?? NSNull(),
+                    "ticketId": remoteMatch.reply.ticketId ?? NSNull()
+                ]
+                return MCPToolCallOutput(
+                    structuredContent: result,
+                    text: replySummary(for: remoteMatch.reply),
                     isError: false
                 )
             }
@@ -1302,6 +1508,52 @@ final class HavenAgentMCPService {
         return true
     }
 
+    private func remoteMatchingReply(
+        requestID: String?,
+        conversationID: String?,
+        jobID: String?,
+        ticketID: String?
+    ) async -> StoredConversationReply? {
+        guard let relay = try? loadRelayConfig() else {
+            return nil
+        }
+        let filter = AgentConversationReplyPullFilter(
+            requestId: requestID,
+            conversationId: conversationID,
+            jobId: jobID,
+            ticketId: ticketID
+        )
+        let puller = remoteReplyPuller ?? { relay, filter in
+            try await AgentConversationReplyPullClient(config: relay).pullLatestMatchingReply(filter: filter)
+        }
+        guard let reply = try? await puller(relay, filter),
+              replyMatches(reply, requestID: requestID, conversationID: conversationID, jobID: jobID, ticketID: ticketID),
+              let fileURL = try? storeRemoteConversationReply(reply, relay: relay) else {
+            return nil
+        }
+        return StoredConversationReply(fileURL: fileURL, reply: reply)
+    }
+
+    private func storeRemoteConversationReply(_ reply: AgentConversationPrompt, relay: DeviceActionRelayConfig) throws -> URL {
+        let repliesDirectory = paths.inboxDirectory.appendingPathComponent(relay.repliesDirectoryName, isDirectory: true)
+        if !fileManager.fileExists(atPath: repliesDirectory.path) {
+            try fileManager.createDirectory(at: repliesDirectory, withIntermediateDirectories: true, attributes: nil)
+        }
+        let fileURL = repliesDirectory.appendingPathComponent("\(sanitizedFileComponent(reply.id)).json")
+        let data = try encoder.encode(reply)
+        try data.write(to: fileURL, options: [.atomic])
+        return fileURL
+    }
+
+    private func sanitizedFileComponent(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        let scalars = value.unicodeScalars.map { scalar -> String in
+            allowed.contains(scalar) ? String(scalar) : "-"
+        }
+        let joined = scalars.joined()
+        return joined.isEmpty ? UUID().uuidString : joined
+    }
+
     private func pairedOperatorValue() -> Any {
         do {
             if let paired = try AgentPairingArtifactLoader.loadPairedOperator(from: paths.pairingArtifactFile),
@@ -1340,6 +1592,21 @@ final class HavenAgentMCPService {
             payload[key] = relayValue
         }
         return payload
+    }
+
+    private func deliveryGoal(from object: JSONObject?) throws -> DeviceActionDeliveryGoal? {
+        guard let object else {
+            return nil
+        }
+        guard JSONSerialization.isValidJSONObject(object) else {
+            throw HavenAgentMCPServiceError.invalidToolArguments("deliveryGoal must be a JSON object.")
+        }
+        let data = try JSONSerialization.data(withJSONObject: object, options: [])
+        do {
+            return try JSONDecoder().decode(DeviceActionDeliveryGoal.self, from: data)
+        } catch {
+            throw HavenAgentMCPServiceError.invalidToolArguments("deliveryGoal is invalid: \(error.localizedDescription)")
+        }
     }
 
     private func loadRemoteIntentState() async throws -> PersistedRemoteIntentState? {

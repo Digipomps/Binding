@@ -67,6 +67,40 @@ private struct ActiveCellRegistration {
     var cell: GeneralCell
 }
 
+private actor AgentCellRuntimeGlobalStateLock {
+    static let shared = AgentCellRuntimeGlobalStateLock()
+
+    private var activeToken: UUID?
+    private var waiters: [CheckedContinuation<UUID, Never>] = []
+
+    func acquire() async -> UUID {
+        if activeToken == nil {
+            let token = UUID()
+            activeToken = token
+            return token
+        }
+
+        return await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release(_ token: UUID) {
+        guard activeToken == token else {
+            return
+        }
+        guard waiters.isEmpty == false else {
+            activeToken = nil
+            return
+        }
+
+        let nextToken = UUID()
+        activeToken = nextToken
+        let continuation = waiters.removeFirst()
+        continuation.resume(returning: nextToken)
+    }
+}
+
 /// Carries the (non-Sendable) cell into the service's `@Sendable` sink. The cell
 /// is only ever touched through its own async API, so the unchecked assertion is
 /// sound for this single-owner hand-off.
@@ -118,6 +152,7 @@ public actor AgentCellRuntimeHost {
     private var currentSnapshot: AgentCellRuntimeSnapshot?
     private var activeRegistrations: [ActiveCellRegistration] = []
     private var networkSentinelService: NetworkSentinelService?
+    private var globalStateLockToken: UUID?
 
     public init(
         paths: RuntimePaths,
@@ -137,7 +172,8 @@ public actor AgentCellRuntimeHost {
         controlBridge configuration: LocalControlBridgeConfig? = nil,
         networkSentinel: NetworkSentinelConfig? = nil,
         automationPolicy: AutomationPolicy? = nil,
-        mailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)? = nil
+        mailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)? = nil,
+        signStatementCommandHandler: (@Sendable (AgentSignStatementRequest) async throws -> AgentSignStatementResult)? = nil
     ) async throws -> AgentCellRuntimeSnapshot {
         if currentSnapshot?.instanceName == instanceName, !activeRegistrations.isEmpty {
             return try await writeSnapshot(status: "running", instanceName: instanceName)
@@ -146,92 +182,115 @@ public actor AgentCellRuntimeHost {
             await stop()
         }
 
-        _ = try bootstrap.bootstrap(paths: paths)
-        await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: paths.pairingArtifactFile)
+        globalStateLockToken = await AgentCellRuntimeGlobalStateLock.shared.acquire()
+        do {
+            _ = try bootstrap.bootstrap(paths: paths)
+            await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: paths.pairingArtifactFile)
 
-        let identityStore = AgentIdentityStore(fileURL: paths.agentIdentityFile)
-        let identityMaterial = try await identityStore.loadOrCreate(instanceName: instanceName)
-        let vault = LocalIdentityVault()
-        let owner = await vault.installIdentity(
-            descriptor: identityMaterial.descriptor,
-            privateKey: try identityMaterial.privateKey()
-        )
-        SecretCredentialCell.metadataStoreFactory = { [paths] in
-            FileSecretCredentialMetadataStore(
-                fileURL: paths.stateDirectory.appendingPathComponent("secret-credentials.json")
+            let identityStore = AgentIdentityStore(fileURL: paths.agentIdentityFile)
+            let identityMaterial = try await identityStore.loadOrCreate(instanceName: instanceName)
+            let vault = LocalIdentityVault()
+            let owner = await vault.installIdentity(
+                descriptor: identityMaterial.descriptor,
+                privateKey: try identityMaterial.privateKey()
             )
-        }
+            SecretCredentialCell.metadataStoreFactory = { [paths] in
+                FileSecretCredentialMetadataStore(
+                    fileURL: paths.stateDirectory.appendingPathComponent("secret-credentials.json")
+                )
+            }
 
-        let previousGlobals = CellBaseGlobals(
-            defaultIdentityVault: CellBase.defaultIdentityVault,
-            defaultCellResolver: CellBase.defaultCellResolver,
-            documentRootPath: CellBase.documentRootPath
-        )
-        installedGlobals = previousGlobals
-        CellBase.defaultIdentityVault = vault
-        CellBase.defaultCellResolver = resolver
-        CellBase.documentRootPath = paths.cellDocumentDirectory.path
-        try await resolver.registerDefaultWebSocketBridgeTransports()
-
-        var registrations: [ActiveCellRegistration] = []
-        for descriptor in AgentCellRegistry.concreteDescriptors {
-            let cell = try await AgentCellRegistry.instantiate(kind: descriptor.kind, owner: owner)
-            let registrationName = Self.registrationName(for: descriptor.endpoint)
-            try await resolver.registerNamedEmitCell(
-                name: registrationName,
-                emitCell: cell,
-                scope: .scaffoldUnique,
-                identity: owner
+            let previousGlobals = CellBaseGlobals(
+                defaultIdentityVault: CellBase.defaultIdentityVault,
+                defaultCellResolver: CellBase.defaultCellResolver,
+                documentRootPath: CellBase.documentRootPath
             )
-            registrations.append(ActiveCellRegistration(descriptor: descriptor, cell: cell))
-        }
+            installedGlobals = previousGlobals
+            CellBase.defaultIdentityVault = vault
+            CellBase.defaultCellResolver = resolver
+            CellBase.documentRootPath = paths.cellDocumentDirectory.path
+            try await resolver.registerDefaultWebSocketBridgeTransports()
 
-        activeRegistrations = registrations
-        await startNetworkSentinel(registrations: registrations, config: networkSentinel ?? NetworkSentinelConfig())
-        let controlBridgeStatus: LocalControlBridgeStatus?
-        if let configuration {
-            let resolvedMailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)?
-            if let mailDraftCommandHandler {
-                resolvedMailDraftCommandHandler = mailDraftCommandHandler
-            } else if let automationPolicy {
-                let service = AgentMailDraftCommandService(policy: automationPolicy)
-                resolvedMailDraftCommandHandler = { request in
-                    try await service.composeDraft(request)
+            var registrations: [ActiveCellRegistration] = []
+            for descriptor in AgentCellRegistry.concreteDescriptors {
+                let cell = try await AgentCellRegistry.instantiate(kind: descriptor.kind, owner: owner)
+                let registrationName = Self.registrationName(for: descriptor.endpoint)
+                try await resolver.registerNamedEmitCell(
+                    name: registrationName,
+                    emitCell: cell,
+                    scope: .scaffoldUnique,
+                    identity: owner
+                )
+                registrations.append(ActiveCellRegistration(descriptor: descriptor, cell: cell))
+            }
+
+            activeRegistrations = registrations
+            await startNetworkSentinel(registrations: registrations, config: networkSentinel ?? NetworkSentinelConfig())
+            let controlBridgeStatus: LocalControlBridgeStatus?
+            if let configuration {
+                let resolvedMailDraftCommandHandler: (@Sendable (AgentMailDraftCommandRequest) async throws -> AgentMailDraftCommandResult)?
+                if let mailDraftCommandHandler {
+                    resolvedMailDraftCommandHandler = mailDraftCommandHandler
+                } else if let automationPolicy {
+                    let service = AgentMailDraftCommandService(policy: automationPolicy)
+                    resolvedMailDraftCommandHandler = { request in
+                        try await service.composeDraft(request)
+                    }
+                } else {
+                    resolvedMailDraftCommandHandler = nil
+                }
+                let resolvedSignStatementCommandHandler: (@Sendable (AgentSignStatementRequest) async throws -> AgentSignStatementResult)?
+                if let signStatementCommandHandler {
+                    resolvedSignStatementCommandHandler = signStatementCommandHandler
+                } else {
+                    let nonceStore = AgentSignatureNonceStore(
+                        fileURL: paths.stateDirectory.appendingPathComponent("identity-signature-nonces.json")
+                    )
+                    let service = AgentSignStatementCommandService(
+                        owner: owner,
+                        identityDescriptor: identityMaterial.descriptor,
+                        nonceStore: nonceStore
+                    )
+                    resolvedSignStatementCommandHandler = { request in
+                        try await service.signStatement(request)
+                    }
+                }
+                do {
+                    controlBridgeStatus = try await controlBridgeServer.start(
+                        owner: owner,
+                        configuration: configuration,
+                        paths: paths,
+                        configURL: configURL ?? paths.configFile,
+                        mailDraftCommandHandler: resolvedMailDraftCommandHandler,
+                        signStatementCommandHandler: resolvedSignStatementCommandHandler,
+                        runtimeSnapshotProvider: { [weak self] in
+                            await self?.snapshot()
+                        }
+                    )
+                } catch {
+                    controlBridgeStatus = LocalControlBridgeStatus(
+                        configuration: configuration,
+                        phase: .failed,
+                        lastError: error.localizedDescription
+                    )
                 }
             } else {
-                resolvedMailDraftCommandHandler = nil
+                controlBridgeStatus = nil
             }
-            do {
-                controlBridgeStatus = try await controlBridgeServer.start(
-                    owner: owner,
-                    configuration: configuration,
-                    paths: paths,
-                    configURL: configURL ?? paths.configFile,
-                    mailDraftCommandHandler: resolvedMailDraftCommandHandler,
-                    runtimeSnapshotProvider: { [weak self] in
-                        await self?.snapshot()
-                    }
-                )
-            } catch {
-                controlBridgeStatus = LocalControlBridgeStatus(
-                    configuration: configuration,
-                    phase: .failed,
-                    lastError: error.localizedDescription
-                )
-            }
-        } else {
-            controlBridgeStatus = nil
-        }
 
-        await AgentRuntimeBridge.shared.update(localControlBridgeStatus: controlBridgeStatus)
-        await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: identityMaterial.descriptor)
-        return try await writeSnapshot(
-            status: "running",
-            instanceName: instanceName,
-            owner: owner,
-            identityDescriptor: identityMaterial.descriptor,
-            controlBridge: controlBridgeStatus
-        )
+            await AgentRuntimeBridge.shared.update(localControlBridgeStatus: controlBridgeStatus)
+            await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: identityMaterial.descriptor)
+            return try await writeSnapshot(
+                status: "running",
+                instanceName: instanceName,
+                owner: owner,
+                identityDescriptor: identityMaterial.descriptor,
+                controlBridge: controlBridgeStatus
+            )
+        } catch {
+            await stop()
+            throw error
+        }
     }
 
     public func stop() async {
@@ -277,6 +336,11 @@ public actor AgentCellRuntimeHost {
         )
         currentSnapshot = stoppedSnapshot
         try? await snapshotStore.write(stoppedSnapshot)
+
+        if let globalStateLockToken {
+            await AgentCellRuntimeGlobalStateLock.shared.release(globalStateLockToken)
+            self.globalStateLockToken = nil
+        }
     }
 
     public func snapshot() -> AgentCellRuntimeSnapshot? {

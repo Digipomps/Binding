@@ -163,7 +163,7 @@ struct AgentCellsTests {
         let cells = await AgentCellRegistry.instantiateDefaultCells(owner: owner)
 
         #expect(cells.count == AgentCellRegistry.concreteDescriptors.count)
-        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox])
+        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox, .signatureStatements])
         #expect(cells.contains { $0 is AgentSupervisorCell })
         #expect(cells.contains { $0 is AgentIdentityCell })
         #expect(cells.contains { $0 is RemoteIntentInboxCell })
@@ -172,6 +172,7 @@ struct AgentCellsTests {
         #expect(cells.contains { $0 is NetworkSentinelCell })
         #expect(cells.contains { $0 is SecretCredentialCell })
         #expect(cells.contains { $0 is AgentMailDraftCell })
+        #expect(cells.contains { $0 is AgentSignatureCell })
     }
 
     @Test
@@ -212,6 +213,56 @@ struct AgentCellsTests {
         #expect(intent["sideEffectUntilReview"] == .bool(false))
         #expect(arguments["to"] == .string("ane@example.com"))
         #expect(arguments["body"] == .string("Hei Ane,\n\nSkal vi ta en prat?"))
+    }
+
+    @Test
+    func signatureCellPreparesRedactedSigningIntentWithoutSigning() async throws {
+        let vault = MockIdentityVault()
+        let owner = try #require(await vault.identity(for: "owner", makeNewIfNotFound: true))
+        let cell = await AgentSignatureCell(owner: owner)
+
+        let state = try await cell.get(keypath: "state", requester: owner)
+        guard case let .object(stateObject) = state else {
+            Issue.record("Expected signature state object.")
+            return
+        }
+        #expect(stateObject["actionID"] == .string("identity.sign-statement"))
+        #expect(stateObject["requiresAudience"] == .bool(true))
+        #expect(stateObject["requiresNonce"] == .bool(true))
+
+        let payload = Data("Signer denne teksten".utf8)
+        let payloadBase64URL = Self.base64URLEncode(payload)
+        let result = try await cell.set(
+            keypath: "signIntent",
+            value: .object([
+                "purposeRef": .string(AgentSignatureStatement.purposeRef),
+                "payloadBase64URL": .string(payloadBase64URL),
+                "payloadMediaType": .string("text/plain"),
+                "payloadDescription": .string("Kort testtekst"),
+                "audience": .object([
+                    "entityRef": .string("entity:victoria"),
+                    "publicKeyFingerprint": .string("sha256:victoria-key")
+                ]),
+                "expiresAt": .string(ISO8601DateFormatter().string(from: Date().addingTimeInterval(3_600))),
+                "nonce": .string("signature-cell-nonce-123")
+            ]),
+            requester: owner
+        )
+
+        guard case let .object(resultObject)? = result,
+              case let .object(intent)? = resultObject["intent"],
+              case let .object(payloadDescriptor)? = intent["payload"] else {
+            Issue.record("Expected prepared signing intent object.")
+            return
+        }
+
+        #expect(resultObject["status"] == .string("sign_intent_prepared"))
+        #expect(intent["actionID"] == .string("identity.sign-statement"))
+        #expect(intent["topic"] == .string(AgentSignatureStatement.topic))
+        #expect(payloadDescriptor["sha256Base64URL"] == .string(Self.base64URLEncode(Data(SHA256.hash(data: payload)))))
+        #expect(payloadDescriptor["sizeBytes"] == .number(payload.count))
+        #expect(String(describing: intent).contains(payloadBase64URL) == false)
+        #expect(String(describing: resultObject).contains("signatureBase64URL") == false)
     }
 
     @Test

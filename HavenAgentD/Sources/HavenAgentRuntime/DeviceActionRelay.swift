@@ -94,6 +94,136 @@ public enum DeviceActionResponseMode: String, Codable, Equatable, Sendable {
     case approval
 }
 
+public enum DeviceActionDeliveryPurposes {
+    public static let reachUser = "purpose://reach-user"
+    public static let obtainUserResponse = "purpose://obtain-user-response"
+    public static let diagnoseDeliveryRoute = "purpose://diagnose-delivery-route"
+    public static let repairBridgeUptime = "purpose://repair-bridge-uptime"
+}
+
+public struct DeviceActionRouteHint: Codable, Equatable, Sendable {
+    public var routeID: String
+    public var kind: String
+    public var participantId: String?
+    public var deviceId: String?
+    public var endpoint: String?
+    public var priority: Int
+    public var reason: String?
+
+    public init(
+        routeID: String,
+        kind: String,
+        participantId: String? = nil,
+        deviceId: String? = nil,
+        endpoint: String? = nil,
+        priority: Int = 0,
+        reason: String? = nil
+    ) {
+        self.routeID = routeID
+        self.kind = kind
+        self.participantId = participantId
+        self.deviceId = deviceId
+        self.endpoint = endpoint
+        self.priority = priority
+        self.reason = reason
+    }
+}
+
+public struct DeviceActionDeliveryGoal: Codable, Equatable, Sendable {
+    public var goalID: String
+    public var reachPurposeRef: String
+    public var responsePurposeRef: String
+    public var diagnosticPurposeRef: String
+    public var repairPurposeRef: String
+    public var requiredOutcome: String
+    public var successSignal: String
+    public var failureSignal: String
+    public var timeoutSeconds: Int
+    public var fallbackAfterSeconds: Int
+    public var maxRouteAttempts: Int
+    public var routePolicy: String
+    public var routeHints: [DeviceActionRouteHint]
+
+    public init(
+        goalID: String = UUID().uuidString,
+        reachPurposeRef: String = DeviceActionDeliveryPurposes.reachUser,
+        responsePurposeRef: String = DeviceActionDeliveryPurposes.obtainUserResponse,
+        diagnosticPurposeRef: String = DeviceActionDeliveryPurposes.diagnoseDeliveryRoute,
+        repairPurposeRef: String = DeviceActionDeliveryPurposes.repairBridgeUptime,
+        requiredOutcome: String = "user_response_received",
+        successSignal: String = "AgentConversationInbox emits haven.agent.prompt.received for this request.",
+        failureSignal: String = "No callback or conversation reply before timeout.",
+        timeoutSeconds: Int,
+        fallbackAfterSeconds: Int? = nil,
+        maxRouteAttempts: Int = 3,
+        routePolicy: String = "prefer-private-owner-scoped-route-then-fallback",
+        routeHints: [DeviceActionRouteHint] = []
+    ) {
+        self.goalID = goalID
+        self.reachPurposeRef = reachPurposeRef
+        self.responsePurposeRef = responsePurposeRef
+        self.diagnosticPurposeRef = diagnosticPurposeRef
+        self.repairPurposeRef = repairPurposeRef
+        self.requiredOutcome = requiredOutcome
+        self.successSignal = successSignal
+        self.failureSignal = failureSignal
+        self.timeoutSeconds = Self.clampedTimeout(timeoutSeconds)
+        self.fallbackAfterSeconds = Self.clampedFallback(
+            fallbackAfterSeconds ?? max(30, min(Self.clampedTimeout(timeoutSeconds) / 2, 180)),
+            timeoutSeconds: Self.clampedTimeout(timeoutSeconds)
+        )
+        self.maxRouteAttempts = max(1, min(maxRouteAttempts, 10))
+        self.routePolicy = routePolicy
+        self.routeHints = routeHints
+    }
+
+    public static func operatorResponse(
+        timeoutSeconds: Int,
+        participantId: String,
+        deviceId: String?,
+        endpoint: String?
+    ) -> DeviceActionDeliveryGoal {
+        let primaryKind = deviceId == nil ? "participant_owner_route" : "device_owner_route"
+        let primaryRouteID = deviceId ?? participantId
+        return DeviceActionDeliveryGoal(
+            timeoutSeconds: timeoutSeconds,
+            routeHints: [
+                DeviceActionRouteHint(
+                    routeID: primaryRouteID,
+                    kind: primaryKind,
+                    participantId: participantId,
+                    deviceId: deviceId,
+                    endpoint: endpoint,
+                    priority: 0,
+                    reason: "Preferred owner-scoped route from the request or relay configuration."
+                ),
+                DeviceActionRouteHint(
+                    routeID: "owner-alternate-device",
+                    kind: "alternate_owner_device",
+                    participantId: participantId,
+                    priority: 10,
+                    reason: "Use another owner device if the preferred route does not produce a response in time."
+                ),
+                DeviceActionRouteHint(
+                    routeID: "local-haven-agentd",
+                    kind: "local_agent_bridge",
+                    endpoint: endpoint,
+                    priority: 20,
+                    reason: "Inspect or repair the local HAVENAgentD/bridge path when notification delivery succeeded but response replay did not."
+                )
+            ]
+        )
+    }
+
+    private static func clampedTimeout(_ value: Int) -> Int {
+        max(DeviceActionRelayContract.minimumTTLSeconds, min(DeviceActionRelayContract.maximumTTLSeconds, value))
+    }
+
+    private static func clampedFallback(_ value: Int, timeoutSeconds: Int) -> Int {
+        max(5, min(value, max(5, timeoutSeconds)))
+    }
+}
+
 private enum DeviceActionRelayContract {
     static let defaultNotificationOutboxEndpoint = "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action"
     static let defaultPromptTriggerEvent = "workflow.remote.prompt.requested"
@@ -101,11 +231,17 @@ private enum DeviceActionRelayContract {
     static let defaultTTLSeconds = 900
     static let minimumTTLSeconds = 60
     static let maximumTTLSeconds = 24 * 3600
+    static let defaultMaxArchivedFilesPerDirectory = 200
+    static let maximumArchivedFilesPerDirectory = 10_000
+    static let defaultProcessingClaimTimeoutSeconds = 900
+    static let minimumProcessingClaimTimeoutSeconds = 30
+    static let maximumProcessingClaimTimeoutSeconds = 24 * 3600
 }
 
 public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
     public var enabled: Bool
     public var notificationOutboxEndpoint: String
+    public var conversationRepliesEndpoint: String?
     public var defaultParticipantID: String?
     public var defaultDeviceID: String?
     public var defaultTTLSeconds: Int
@@ -114,10 +250,14 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
     public var failedDirectoryName: String
     public var repliesDirectoryName: String
     public var conversationEndpoint: String
+    public var agentRelayTokenPath: String?
+    public var maxArchivedFilesPerDirectory: Int
+    public var processingClaimTimeoutSeconds: Int
 
     enum CodingKeys: String, CodingKey {
         case enabled
         case notificationOutboxEndpoint
+        case conversationRepliesEndpoint
         case publishURL
         case defaultParticipantID
         case defaultDeviceID
@@ -127,11 +267,15 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         case failedDirectoryName
         case repliesDirectoryName
         case conversationEndpoint
+        case agentRelayTokenPath
+        case maxArchivedFilesPerDirectory
+        case processingClaimTimeoutSeconds
     }
 
     public init(
         enabled: Bool = false,
         notificationOutboxEndpoint: String = "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action",
+        conversationRepliesEndpoint: String? = nil,
         defaultParticipantID: String? = nil,
         defaultDeviceID: String? = nil,
         defaultTTLSeconds: Int = 900,
@@ -139,12 +283,19 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         processedDirectoryName: String = "Processed",
         failedDirectoryName: String = "Failed",
         repliesDirectoryName: String = "Replies",
-        conversationEndpoint: String = AgentConversationFlowContract.defaultEndpoint
+        conversationEndpoint: String = AgentConversationFlowContract.defaultEndpoint,
+        agentRelayTokenPath: String? = nil,
+        maxArchivedFilesPerDirectory: Int = 200,
+        processingClaimTimeoutSeconds: Int = 900
     ) {
         self.enabled = enabled
         self.notificationOutboxEndpoint = Self.normalizedNotificationOutboxEndpoint(
             notificationOutboxEndpoint,
             legacyPublishURL: nil
+        )
+        self.conversationRepliesEndpoint = Self.normalizedConversationRepliesEndpoint(
+            conversationRepliesEndpoint,
+            notificationOutboxEndpoint: self.notificationOutboxEndpoint
         )
         self.defaultParticipantID = defaultParticipantID
         self.defaultDeviceID = defaultDeviceID
@@ -154,6 +305,9 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         self.failedDirectoryName = failedDirectoryName
         self.repliesDirectoryName = repliesDirectoryName
         self.conversationEndpoint = conversationEndpoint
+        self.agentRelayTokenPath = Self.normalizedNonEmpty(agentRelayTokenPath)
+        self.maxArchivedFilesPerDirectory = Self.clampedMaxArchivedFilesPerDirectory(maxArchivedFilesPerDirectory)
+        self.processingClaimTimeoutSeconds = Self.clampedProcessingClaimTimeoutSeconds(processingClaimTimeoutSeconds)
     }
 
     public init(from decoder: Decoder) throws {
@@ -162,6 +316,10 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         notificationOutboxEndpoint = Self.normalizedNotificationOutboxEndpoint(
             try container.decodeIfPresent(String.self, forKey: .notificationOutboxEndpoint),
             legacyPublishURL: try container.decodeIfPresent(String.self, forKey: .publishURL)
+        )
+        conversationRepliesEndpoint = Self.normalizedConversationRepliesEndpoint(
+            try container.decodeIfPresent(String.self, forKey: .conversationRepliesEndpoint),
+            notificationOutboxEndpoint: notificationOutboxEndpoint
         )
         defaultParticipantID = try container.decodeIfPresent(String.self, forKey: .defaultParticipantID)
         defaultDeviceID = try container.decodeIfPresent(String.self, forKey: .defaultDeviceID)
@@ -175,12 +333,22 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         repliesDirectoryName = try container.decodeIfPresent(String.self, forKey: .repliesDirectoryName) ?? "Replies"
         conversationEndpoint = try container.decodeIfPresent(String.self, forKey: .conversationEndpoint)
             ?? AgentConversationFlowContract.defaultEndpoint
+        agentRelayTokenPath = Self.normalizedNonEmpty(try container.decodeIfPresent(String.self, forKey: .agentRelayTokenPath))
+        maxArchivedFilesPerDirectory = Self.clampedMaxArchivedFilesPerDirectory(
+            try container.decodeIfPresent(Int.self, forKey: .maxArchivedFilesPerDirectory)
+                ?? DeviceActionRelayContract.defaultMaxArchivedFilesPerDirectory
+        )
+        processingClaimTimeoutSeconds = Self.clampedProcessingClaimTimeoutSeconds(
+            try container.decodeIfPresent(Int.self, forKey: .processingClaimTimeoutSeconds)
+                ?? DeviceActionRelayContract.defaultProcessingClaimTimeoutSeconds
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(enabled, forKey: .enabled)
         try container.encode(notificationOutboxEndpoint, forKey: .notificationOutboxEndpoint)
+        try container.encodeIfPresent(conversationRepliesEndpoint, forKey: .conversationRepliesEndpoint)
         try container.encodeIfPresent(defaultParticipantID, forKey: .defaultParticipantID)
         try container.encodeIfPresent(defaultDeviceID, forKey: .defaultDeviceID)
         try container.encode(defaultTTLSeconds, forKey: .defaultTTLSeconds)
@@ -189,6 +357,9 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         try container.encode(failedDirectoryName, forKey: .failedDirectoryName)
         try container.encode(repliesDirectoryName, forKey: .repliesDirectoryName)
         try container.encode(conversationEndpoint, forKey: .conversationEndpoint)
+        try container.encodeIfPresent(agentRelayTokenPath, forKey: .agentRelayTokenPath)
+        try container.encode(maxArchivedFilesPerDirectory, forKey: .maxArchivedFilesPerDirectory)
+        try container.encode(processingClaimTimeoutSeconds, forKey: .processingClaimTimeoutSeconds)
     }
 
     private static func normalizedNotificationOutboxEndpoint(
@@ -213,10 +384,47 @@ public struct DeviceActionRelayConfig: Codable, Equatable, Sendable {
         return DeviceActionRelayContract.defaultNotificationOutboxEndpoint
     }
 
+    static func normalizedConversationRepliesEndpoint(
+        _ conversationRepliesEndpoint: String?,
+        notificationOutboxEndpoint: String
+    ) -> String? {
+        if let endpoint = normalizedNonEmpty(conversationRepliesEndpoint) {
+            return endpoint
+        }
+        guard let url = URL(string: notificationOutboxEndpoint),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return nil
+        }
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let path = components?.path ?? ""
+        if path.hasSuffix("/device-action") {
+            components?.path = String(path.dropLast("/device-action".count)) + "/conversation-replies"
+        } else {
+            components?.path = path.hasSuffix("/")
+                ? path + "conversation-replies"
+                : path + "/conversation-replies"
+        }
+        components?.query = nil
+        return components?.url?.absoluteString
+    }
+
     private static func clampedTTLSeconds(_ value: Int) -> Int {
         max(
             DeviceActionRelayContract.minimumTTLSeconds,
             min(DeviceActionRelayContract.maximumTTLSeconds, value)
+        )
+    }
+
+    private static func clampedMaxArchivedFilesPerDirectory(_ value: Int) -> Int {
+        max(1, min(DeviceActionRelayContract.maximumArchivedFilesPerDirectory, value))
+    }
+
+    private static func clampedProcessingClaimTimeoutSeconds(_ value: Int) -> Int {
+        max(
+            DeviceActionRelayContract.minimumProcessingClaimTimeoutSeconds,
+            min(DeviceActionRelayContract.maximumProcessingClaimTimeoutSeconds, value)
         )
     }
 
@@ -251,6 +459,7 @@ public struct DeviceActionRequest: Codable, Equatable, Sendable, Identifiable {
     public var sourceEventTopic: String?
     public var triggerEvent: String?
     public var ttlSeconds: Int?
+    public var deliveryGoal: DeviceActionDeliveryGoal?
     public var payload: [String: RelayJSONValue]
     public var createdAt: String
 
@@ -274,6 +483,7 @@ public struct DeviceActionRequest: Codable, Equatable, Sendable, Identifiable {
         sourceEventTopic: String? = nil,
         triggerEvent: String? = nil,
         ttlSeconds: Int? = nil,
+        deliveryGoal: DeviceActionDeliveryGoal? = nil,
         payload: [String: RelayJSONValue] = [:],
         createdAt: String = ISO8601DateFormatter().string(from: Date())
     ) {
@@ -296,6 +506,7 @@ public struct DeviceActionRequest: Codable, Equatable, Sendable, Identifiable {
         self.sourceEventTopic = sourceEventTopic
         self.triggerEvent = triggerEvent
         self.ttlSeconds = ttlSeconds
+        self.deliveryGoal = deliveryGoal
         self.payload = payload
         self.createdAt = createdAt
     }
@@ -322,6 +533,7 @@ public struct PublishedDeviceAction: Codable, Equatable, Sendable {
     public var sourceCellEndpoint: String?
     public var sourceEventPath: String?
     public var sourceEventTopic: String?
+    public var deliveryGoal: DeviceActionDeliveryGoal?
     public var payload: [String: RelayJSONValue]
     public var createdAt: String
 
@@ -346,6 +558,7 @@ public struct PublishedDeviceAction: Codable, Equatable, Sendable {
         sourceCellEndpoint: String?,
         sourceEventPath: String?,
         sourceEventTopic: String?,
+        deliveryGoal: DeviceActionDeliveryGoal?,
         payload: [String: RelayJSONValue],
         createdAt: String
     ) {
@@ -369,6 +582,7 @@ public struct PublishedDeviceAction: Codable, Equatable, Sendable {
         self.sourceCellEndpoint = sourceCellEndpoint
         self.sourceEventPath = sourceEventPath
         self.sourceEventTopic = sourceEventTopic
+        self.deliveryGoal = deliveryGoal
         self.payload = payload
         self.createdAt = createdAt
     }
@@ -399,6 +613,9 @@ public struct DeviceActionDispatchRecord: Codable, Equatable, Sendable {
 public struct DeviceActionFailureRecord: Codable, Equatable, Sendable {
     public var requestFileName: String
     public var request: DeviceActionRequest?
+    public var deliveryGoal: DeviceActionDeliveryGoal?
+    public var diagnosticPurposeRefs: [String]
+    public var suggestedNextActions: [String]
     public var rawRequest: String?
     public var failedAt: String
     public var errorMessage: String
@@ -436,9 +653,11 @@ public enum DeviceActionRelayError: Error, LocalizedError, Equatable, Sendable {
 
 public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
     private let notificationOutboxEndpoint: String
+    private let agentRelayTokenPath: String?
 
     public init(config: DeviceActionRelayConfig) {
         self.notificationOutboxEndpoint = config.notificationOutboxEndpoint
+        self.agentRelayTokenPath = config.agentRelayTokenPath
     }
 
     public func publish(_ action: PublishedDeviceAction, requester: Identity) async throws -> DeviceActionPublishReceipt {
@@ -504,9 +723,9 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
     }
 
     private func publishToHTTP(_ action: PublishedDeviceAction, url: URL) async throws -> DeviceActionPublishReceipt {
-        guard let token = Self.agentRelayToken() else {
+        guard let token = Self.agentRelayToken(tokenFilePath: agentRelayTokenPath) else {
             throw DeviceActionRelayError.publishRejected(
-                "HTTP relay requires HAVEN_AGENT_RELAY_TOKEN or AGENT_NOTIFICATION_RELAY_TOKEN."
+                "HTTP relay requires HAVEN_AGENT_RELAY_TOKEN, AGENT_NOTIFICATION_RELAY_TOKEN, or deviceActionRelay.agentRelayTokenPath."
             )
         }
 
@@ -573,10 +792,22 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
         )
     }
 
-    private static func agentRelayToken() -> String? {
-        let environment = ProcessInfo.processInfo.environment
-        return normalizedNonEmpty(environment["HAVEN_AGENT_RELAY_TOKEN"])
-            ?? normalizedNonEmpty(environment["AGENT_NOTIFICATION_RELAY_TOKEN"])
+    static func agentRelayToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        tokenFilePath: String? = nil,
+        fileManager: FileManager = .default
+    ) -> String? {
+        if let environmentToken = normalizedNonEmpty(environment["HAVEN_AGENT_RELAY_TOKEN"])
+            ?? normalizedNonEmpty(environment["AGENT_NOTIFICATION_RELAY_TOKEN"]) {
+            return environmentToken
+        }
+
+        guard let tokenFilePath = normalizedNonEmpty(tokenFilePath),
+              fileManager.fileExists(atPath: tokenFilePath),
+              let token = try? String(contentsOfFile: tokenFilePath, encoding: .utf8) else {
+            return nil
+        }
+        return normalizedNonEmpty(token)
     }
 
     private static func normalizedNonEmpty(_ value: String?) -> String? {
@@ -655,6 +886,53 @@ private extension RelayJSONValue {
     }
 }
 
+private extension DeviceActionRouteHint {
+    var relayObject: [String: RelayJSONValue] {
+        var object: [String: RelayJSONValue] = [
+            "routeID": .string(routeID),
+            "kind": .string(kind),
+            "priority": .number(Double(priority))
+        ]
+        if let participantId {
+            object["participantId"] = .string(participantId)
+        }
+        if let deviceId {
+            object["deviceId"] = .string(deviceId)
+        }
+        if let endpoint {
+            object["endpoint"] = .string(endpoint)
+        }
+        if let reason {
+            object["reason"] = .string(reason)
+        }
+        return object
+    }
+}
+
+private extension DeviceActionDeliveryGoal {
+    var relayObject: [String: RelayJSONValue] {
+        [
+            "goalID": .string(goalID),
+            "reachPurposeRef": .string(reachPurposeRef),
+            "responsePurposeRef": .string(responsePurposeRef),
+            "diagnosticPurposeRef": .string(diagnosticPurposeRef),
+            "repairPurposeRef": .string(repairPurposeRef),
+            "requiredOutcome": .string(requiredOutcome),
+            "successSignal": .string(successSignal),
+            "failureSignal": .string(failureSignal),
+            "timeoutSeconds": .number(Double(timeoutSeconds)),
+            "fallbackAfterSeconds": .number(Double(fallbackAfterSeconds)),
+            "maxRouteAttempts": .number(Double(maxRouteAttempts)),
+            "routePolicy": .string(routePolicy),
+            "routeHints": .array(routeHints.map { .object($0.relayObject) })
+        ]
+    }
+
+    var valueTypeObject: [String: ValueType] {
+        relayObject.mapValues(\.valueType)
+    }
+}
+
 private extension PublishedDeviceAction {
     var notificationOutboxValue: ValueType {
         .object([
@@ -664,6 +942,7 @@ private extension PublishedDeviceAction {
             "requiredActionKey": .string(requiredActionKey),
             "platform": .string("ios"),
             "ttlSeconds": .integer(ttlSeconds),
+            "deliveryGoal": deliveryGoal.map { .object($0.valueTypeObject) } ?? .null,
             "payload": .object(payload.mapValues(\.valueType))
         ])
     }
@@ -701,6 +980,7 @@ public actor DeviceActionRelay {
     public func bootstrap() throws {
         for directory in [
             requestsDirectoryURL(),
+            processingDirectoryURL(),
             processedDirectoryURL(),
             failedDirectoryURL(),
             repliesDirectoryURL(),
@@ -712,6 +992,7 @@ public actor DeviceActionRelay {
                 try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
             }
         }
+        try pruneArchiveDirectories()
     }
 
     public func connectConversationReplies() async throws {
@@ -734,6 +1015,7 @@ public actor DeviceActionRelay {
 
     public func scanPendingRequests() async throws -> [DeviceActionDispatchRecord] {
         try bootstrap()
+        try recoverStaleProcessingRequests(relativeTo: Date())
         let requestFiles = try pendingRequestFiles()
         var records: [DeviceActionDispatchRecord] = []
         for fileURL in requestFiles {
@@ -753,10 +1035,15 @@ public actor DeviceActionRelay {
         }
         let fileURL = repliesDirectoryURL().appendingPathComponent("\(sanitizedFileComponent(prompt.id)).json")
         try writeJSON(prompt, to: fileURL)
+        try pruneArchiveDirectory(repliesDirectoryURL())
     }
 
     public nonisolated func requestsDirectoryURL() -> URL {
         paths.inboxDirectory.appendingPathComponent(config.requestsDirectoryName, isDirectory: true)
+    }
+
+    private nonisolated func processingDirectoryURL() -> URL {
+        paths.inboxDirectory.appendingPathComponent("Processing", isDirectory: true)
     }
 
     public nonisolated func processedDirectoryURL() -> URL {
@@ -784,7 +1071,10 @@ public actor DeviceActionRelay {
     }
 
     private func processRequestFile(_ fileURL: URL) async throws -> DeviceActionDispatchRecord? {
-        let rawData = try Data(contentsOf: fileURL)
+        guard let claimedFileURL = try claimRequestFile(fileURL) else {
+            return nil
+        }
+        let rawData = try Data(contentsOf: claimedFileURL)
 
         do {
             let request = try decoder.decode(DeviceActionRequest.self, from: rawData)
@@ -802,14 +1092,25 @@ public actor DeviceActionRelay {
                 record,
                 to: processedDirectoryURL().appendingPathComponent(fileURL.lastPathComponent)
             )
-            try fileManager.removeItem(at: fileURL)
+            try pruneArchiveDirectory(processedDirectoryURL())
+            try? fileManager.removeItem(at: claimedFileURL)
             return record
         } catch {
             let rawRequest = String(data: rawData, encoding: .utf8)
             let request = try? decoder.decode(DeviceActionRequest.self, from: rawData)
+            let deliveryGoal = request.flatMap { fallbackDeliveryGoal(for: $0) }
             let failure = DeviceActionFailureRecord(
                 requestFileName: fileURL.lastPathComponent,
                 request: request,
+                deliveryGoal: deliveryGoal,
+                diagnosticPurposeRefs: [
+                    DeviceActionDeliveryPurposes.diagnoseDeliveryRoute,
+                    DeviceActionDeliveryPurposes.repairBridgeUptime
+                ],
+                suggestedNextActions: Self.suggestedNextActions(
+                    error: error,
+                    deliveryGoal: deliveryGoal
+                ),
                 rawRequest: rawRequest,
                 failedAt: iso8601String(Date()),
                 errorMessage: error.localizedDescription
@@ -818,9 +1119,128 @@ public actor DeviceActionRelay {
                 failure,
                 to: failedDirectoryURL().appendingPathComponent(fileURL.lastPathComponent)
             )
-            try fileManager.removeItem(at: fileURL)
+            try pruneArchiveDirectory(failedDirectoryURL())
+            try? fileManager.removeItem(at: claimedFileURL)
             return nil
         }
+    }
+
+    private func recoverStaleProcessingRequests(relativeTo now: Date) throws {
+        let directory = processingDirectoryURL()
+        guard fileManager.fileExists(atPath: directory.path) else {
+            return
+        }
+        let urls = try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        for fileURL in urls where fileURL.pathExtension.lowercased() == "json" {
+            let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey, .isRegularFileKey])
+            guard values?.isRegularFile == true else {
+                continue
+            }
+            let claimedAt = values?.contentModificationDate ?? values?.creationDate ?? .distantPast
+            guard now.timeIntervalSince(claimedAt) >= TimeInterval(config.processingClaimTimeoutSeconds) else {
+                continue
+            }
+            try recoverStaleProcessingRequest(fileURL)
+        }
+    }
+
+    private func recoverStaleProcessingRequest(_ fileURL: URL) throws {
+        let destination = requestsDirectoryURL().appendingPathComponent(fileURL.lastPathComponent)
+        if !fileManager.fileExists(atPath: destination.path) {
+            try fileManager.moveItem(at: fileURL, to: destination)
+            return
+        }
+
+        let rawData = try? Data(contentsOf: fileURL)
+        let rawRequest = rawData.flatMap { String(data: $0, encoding: .utf8) }
+        let request = rawData.flatMap { try? decoder.decode(DeviceActionRequest.self, from: $0) }
+        let failure = DeviceActionFailureRecord(
+            requestFileName: fileURL.lastPathComponent,
+            request: request,
+            deliveryGoal: request.flatMap { fallbackDeliveryGoal(for: $0) },
+            diagnosticPurposeRefs: [DeviceActionDeliveryPurposes.diagnoseDeliveryRoute],
+            suggestedNextActions: [
+                "A pending request with the same file name already exists; the stale processing claim was archived instead of retried.",
+                "Inspect the pending request before enqueueing another owner notification."
+            ],
+            rawRequest: rawRequest,
+            failedAt: iso8601String(Date()),
+            errorMessage: "Stale processing claim collided with an existing pending request."
+        )
+        try writeJSON(
+            failure,
+            to: uniqueArchiveURL(
+                in: failedDirectoryURL(),
+                preferredFileName: "stale-processing-\(fileURL.lastPathComponent)"
+            )
+        )
+        try? fileManager.removeItem(at: fileURL)
+        try pruneArchiveDirectory(failedDirectoryURL())
+    }
+
+    private func claimRequestFile(_ fileURL: URL) throws -> URL? {
+        let destination = processingDirectoryURL().appendingPathComponent(fileURL.lastPathComponent)
+        try fileManager.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        do {
+            try fileManager.moveItem(at: fileURL, to: destination)
+            return destination
+        } catch {
+            if !fileManager.fileExists(atPath: fileURL.path) {
+                return nil
+            }
+            if fileManager.fileExists(atPath: destination.path) {
+                return nil
+            }
+            throw error
+        }
+    }
+
+    private func fallbackDeliveryGoal(for request: DeviceActionRequest) -> DeviceActionDeliveryGoal? {
+        if let deliveryGoal = request.deliveryGoal {
+            return deliveryGoal
+        }
+        guard let participantId = trimmed(request.participantId) ?? trimmed(config.defaultParticipantID) else {
+            return nil
+        }
+        let ttlSeconds = clampedTTLSeconds(request.ttlSeconds ?? config.defaultTTLSeconds)
+        let resolvedDeviceID = trimmed(request.deviceId) ?? trimmed(config.defaultDeviceID)
+        let resolvedSourceCellEndpoint = trimmed(request.sourceCellEndpoint) ?? trimmed(config.conversationEndpoint)
+        return DeviceActionDeliveryGoal.operatorResponse(
+            timeoutSeconds: ttlSeconds,
+            participantId: participantId,
+            deviceId: resolvedDeviceID,
+            endpoint: resolvedSourceCellEndpoint
+        )
+    }
+
+    private static func suggestedNextActions(
+        error: Error,
+        deliveryGoal: DeviceActionDeliveryGoal?
+    ) -> [String] {
+        var actions = [
+            "Record the route attempt as failed for \(DeviceActionDeliveryPurposes.diagnoseDeliveryRoute).",
+            "Check staging relay reachability and whether a notification ticket was created before retrying.",
+            "If APNS accepted the push but no reply arrives, inspect AgentConversationInbox feed/replay grants before sending another notification."
+        ]
+        let message = error.localizedDescription.lowercased()
+        if message.contains("timed out") || message.contains("timeout") {
+            actions.append("Try an alternate owner-scoped route after the fallback window rather than waiting for the same route indefinitely.")
+        }
+        if let deliveryGoal, deliveryGoal.routeHints.contains(where: { $0.kind == "alternate_owner_device" }) {
+            actions.append("Consider another owner device route if one is registered and consented.")
+        }
+        if let deliveryGoal, deliveryGoal.routeHints.contains(where: { $0.kind == "local_agent_bridge" }) {
+            actions.append("Run local bridge repair or subscription diagnostics for \(DeviceActionDeliveryPurposes.repairBridgeUptime).")
+        }
+        return actions
     }
 
     private func publishedAction(from request: DeviceActionRequest) throws -> PublishedDeviceAction {
@@ -836,6 +1256,12 @@ public actor DeviceActionRelay {
         let requiredActionKey = trimmed(request.requiredActionKey) ?? defaultRequiredActionKey(for: request.responseMode)
         let triggerEvent = trimmed(request.triggerEvent) ?? defaultTriggerEvent(for: request.responseMode)
         let ttlSeconds = clampedTTLSeconds(request.ttlSeconds ?? config.defaultTTLSeconds)
+        let deliveryGoal = request.deliveryGoal ?? DeviceActionDeliveryGoal.operatorResponse(
+            timeoutSeconds: ttlSeconds,
+            participantId: participantId,
+            deviceId: resolvedDeviceID,
+            endpoint: resolvedSourceCellEndpoint
+        )
 
         var payload = request.payload
         payload["requestId"] = .string(request.id)
@@ -863,6 +1289,7 @@ public actor DeviceActionRelay {
         if request.interests.isEmpty == false {
             payload["interests"] = .array(request.interests.map(RelayJSONValue.string))
         }
+        payload["deliveryGoal"] = .object(deliveryGoal.relayObject)
 
         return PublishedDeviceAction(
             id: request.id,
@@ -884,6 +1311,7 @@ public actor DeviceActionRelay {
             sourceCellEndpoint: resolvedSourceCellEndpoint,
             sourceEventPath: trimmed(request.sourceEventPath),
             sourceEventTopic: trimmed(request.sourceEventTopic),
+            deliveryGoal: deliveryGoal,
             payload: payload,
             createdAt: request.createdAt
         )
@@ -921,6 +1349,70 @@ public actor DeviceActionRelay {
             attributes: nil
         )
         try data.write(to: fileURL, options: [.atomic])
+    }
+
+    private func pruneArchiveDirectories() throws {
+        try pruneArchiveDirectory(processedDirectoryURL())
+        try pruneArchiveDirectory(failedDirectoryURL())
+        try pruneArchiveDirectory(repliesDirectoryURL())
+    }
+
+    private func pruneArchiveDirectory(_ directory: URL) throws {
+        let limit = config.maxArchivedFilesPerDirectory
+        guard fileManager.fileExists(atPath: directory.path) else {
+            return
+        }
+        let urls = try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        let files = urls
+            .filter { url in
+                (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            }
+            .sorted { lhs, rhs in
+                let lhsDate = archiveSortDate(lhs)
+                let rhsDate = archiveSortDate(rhs)
+                if lhsDate == rhsDate {
+                    return lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent) == .orderedAscending
+                }
+                return lhsDate < rhsDate
+            }
+        guard files.count > limit else {
+            return
+        }
+        for url in files.prefix(files.count - limit) {
+            try? fileManager.removeItem(at: url)
+        }
+    }
+
+    private func uniqueArchiveURL(in directory: URL, preferredFileName: String) -> URL {
+        let preferredURL = directory.appendingPathComponent(preferredFileName)
+        guard fileManager.fileExists(atPath: preferredURL.path) else {
+            return preferredURL
+        }
+
+        let baseName = preferredURL.deletingPathExtension().lastPathComponent
+        let pathExtension = preferredURL.pathExtension
+        for index in 1...1_000 {
+            let candidateName = pathExtension.isEmpty
+                ? "\(baseName)-\(index)"
+                : "\(baseName)-\(index).\(pathExtension)"
+            let candidateURL = directory.appendingPathComponent(candidateName)
+            if !fileManager.fileExists(atPath: candidateURL.path) {
+                return candidateURL
+            }
+        }
+        let fallbackName = pathExtension.isEmpty
+            ? "\(baseName)-\(UUID().uuidString.lowercased())"
+            : "\(baseName)-\(UUID().uuidString.lowercased()).\(pathExtension)"
+        return directory.appendingPathComponent(fallbackName)
+    }
+
+    private func archiveSortDate(_ url: URL) -> Date {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
+        return values?.contentModificationDate ?? values?.creationDate ?? .distantPast
     }
 
     private func defaultRequiredActionKey(for responseMode: DeviceActionResponseMode) -> String {

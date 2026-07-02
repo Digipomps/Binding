@@ -1,6 +1,8 @@
 import Foundation
 @preconcurrency import CellBase
+import CryptoKit
 import Darwin
+import SproutCrypto
 import Testing
 @testable import HavenAgentCellRuntime
 @testable import HavenAgentCells
@@ -11,10 +13,6 @@ import Testing
 struct AgentCellRuntimeHostTests {
     @Test
     func hostRegistersConcreteCellsIntoResolverAndWritesSnapshot() async throws {
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.documentRootPath = nil
-
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("HavenAgentDTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
@@ -64,15 +62,10 @@ struct AgentCellRuntimeHostTests {
         let stoppedSnapshot = await host.snapshot()
         #expect(stoppedSnapshot?.status == "stopped")
         #expect(stoppedSnapshot?.cells.isEmpty == true)
-        #expect(CellBase.documentRootPath == nil)
     }
 
     @Test
     func hostExposesAgentSupervisorOverLocalControlBridge() async throws {
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.documentRootPath = nil
-
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("HavenAgentDBridgeTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
@@ -138,10 +131,6 @@ struct AgentCellRuntimeHostTests {
 
     @Test
     func hostForwardsMailDraftCommandThroughLocalControlBridge() async throws {
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.documentRootPath = nil
-
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("HavenAgentDMailCommandBridgeTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
@@ -199,11 +188,58 @@ struct AgentCellRuntimeHostTests {
     }
 
     @Test
-    func hostRejectsNonLoopbackControlBridgeBinding() async throws {
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.documentRootPath = nil
+    func hostSignsStatementThroughLocalControlBridge() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HavenAgentDSignatureCommandBridgeTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
+        defer { try? FileManager.default.removeItem(at: root) }
 
+        let paths = RuntimePaths.rooted(at: root)
+        let host = AgentCellRuntimeHost(paths: paths)
+        let bridgePort = try Self.allocateLoopbackPort()
+        let bridgeConfiguration = LocalControlBridgeConfig(
+            host: "127.0.0.1",
+            port: bridgePort,
+            accessToken: "signature-command-token"
+        )
+        let snapshot = try await host.start(
+            instanceName: "agent",
+            controlBridge: bridgeConfiguration
+        )
+
+        let payload = Data("Bridge signed request".utf8)
+        let expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3_600))
+        let signRequest = AgentSignStatementRequest(
+            payloadSHA256Base64URL: Base64URL.encode(Data(SHA256.hash(data: payload))),
+            payloadMediaType: "text/plain",
+            payloadDescription: "Bridge integration test",
+            audience: AgentSignatureAudience(
+                entityRef: "entity:test-recipient",
+                publicKeyFingerprint: "sha256:test-recipient-key"
+            ),
+            expiresAt: expiresAt,
+            nonce: "bridge-signature-nonce-\(UUID().uuidString)"
+        )
+
+        let unauthorizedURL = URL(string: "http://\(snapshot.controlBridge?.host ?? "127.0.0.1"):\(bridgePort)/commands/identity/sign-statement")!
+        let unauthorizedStatus = try await Self.postJSON(unauthorizedURL, object: signRequest).statusCode
+        #expect(unauthorizedStatus == 401)
+
+        let authorizedURL = URL(string: "http://\(snapshot.controlBridge?.host ?? "127.0.0.1"):\(bridgePort)/commands/identity/sign-statement?token=\(bridgeConfiguration.accessToken ?? "")")!
+        let response = try await Self.postJSON(authorizedURL, object: signRequest)
+        #expect(response.statusCode == 200)
+        #expect(response.body.contains("\"status\" : \"signed_statement_created\""))
+
+        let result = try JSONDecoder().decode(AgentSignStatementResult.self, from: Data(response.body.utf8))
+        #expect(try AgentSignStatementCommandService.verifyEnvelope(result.envelope) == true)
+        #expect(result.envelope.signed.audience.entityRef == "entity:test-recipient")
+        #expect(result.envelope.signed.signerIdentity.identityUUID == snapshot.ownerUUID)
+
+        await host.stop()
+    }
+
+    @Test
+    func hostRejectsNonLoopbackControlBridgeBinding() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("HavenAgentDBridgeLoopbackTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
