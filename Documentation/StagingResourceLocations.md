@@ -128,6 +128,58 @@ Expected result:
 - command exits `0`
 - no token contents are printed
 
+## Staging Nginx Proxy Config
+
+Purpose:
+
+- Terminates HTTPS for `staging.haven.digipomps.org` and proxies CellScaffold
+  traffic to the Vapor app on `127.0.0.1:8081`.
+- Must not force `Connection: upgrade` for ordinary POST requests. That caused
+  larger `agent/device-action` request bodies to stall in nginx/proxying before
+  Vapor collected the body.
+
+Current file locations:
+
+| Location | Path |
+| --- | --- |
+| Active nginx include | `/etc/nginx/sites-enabled/staging_haven.conf` |
+| Matching source copy | `/etc/nginx/sites-available/staging_haven.conf` |
+| Active-file backup from 2026-07-03 fix | `/etc/nginx/backups/staging_haven.conf.bak-device-action-20260703T075725Z` |
+| Source-copy backup from 2026-07-03 fix | `/etc/nginx/sites-available/staging_haven.conf.bak-device-action-20260703T075603Z` |
+
+The staging vhost should define:
+
+```nginx
+map $http_upgrade $staging_connection_upgrade {
+    default upgrade;
+    "" close;
+}
+```
+
+and the `location /` proxy block should use:
+
+```nginx
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $staging_connection_upgrade;
+```
+
+Do not leave backup files in `/etc/nginx/sites-enabled/`; this nginx
+installation includes every file in that directory, so backups there can create
+duplicate `server_name staging.haven.digipomps.org` blocks.
+
+Non-secret verification:
+
+```bash
+ssh -i "$HOME/.ssh/id_ed25519_hetzner" -o IdentitiesOnly=yes root@89.167.90.101 \
+  'nginx -t &&
+   nginx -T 2>/dev/null | grep -n -A20 "server_name staging.haven.digipomps.org" | sed -n "1,35p"'
+```
+
+Expected result:
+
+- `nginx -t` reports syntax ok and successful
+- the staging vhost shows `proxy_set_header Connection $staging_connection_upgrade;`
+
 ## Sprout Trust And Anchor Artifacts
 
 Staging publishes Sprout trust and entity-anchor evidence from the mounted
