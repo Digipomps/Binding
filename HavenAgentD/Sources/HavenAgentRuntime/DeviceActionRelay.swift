@@ -654,6 +654,8 @@ public enum DeviceActionRelayError: Error, LocalizedError, Equatable, Sendable {
 public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
     private let notificationOutboxEndpoint: String
     private let agentRelayTokenPath: String?
+    private let requestTimeoutSeconds: TimeInterval = 30
+    private let resourceTimeoutSeconds: TimeInterval = 45
 
     public init(config: DeviceActionRelayConfig) {
         self.notificationOutboxEndpoint = config.notificationOutboxEndpoint
@@ -729,24 +731,27 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
             )
         }
 
-        guard case let .object(object) = action.notificationOutboxValue else {
-            throw DeviceActionRelayError.publishRejected("Device action could not be encoded for HTTP relay.")
-        }
-
-        let body = Self.decodeJSONObject(from: object)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(body)
+        let body = Self.notificationOutboxRelayBody(for: action)
+        let relayRequest = try Self.httpRelayRequest(
+            url: url,
+            token: token,
+            body: body,
+            timeoutSeconds: requestTimeoutSeconds
+        )
 
         let data: Data
         let response: URLResponse
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        sessionConfig.timeoutIntervalForRequest = requestTimeoutSeconds
+        sessionConfig.timeoutIntervalForResource = resourceTimeoutSeconds
+        sessionConfig.waitsForConnectivity = false
+        let session = URLSession(configuration: sessionConfig)
+        defer { session.finishTasksAndInvalidate() }
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await session.upload(for: relayRequest.request, from: relayRequest.bodyData)
         } catch {
             throw DeviceActionRelayError.publishRejected(
-                "HTTP relay request to \(url.absoluteString) failed: \(error.localizedDescription)"
+                "HTTP relay request to \(url.absoluteString) failed after sending \(relayRequest.bodyData.count) bytes: \(error.localizedDescription)"
             )
         }
 
@@ -770,6 +775,36 @@ public struct NotificationOutboxDeviceActionPublisher: DeviceActionPublishing {
         }
 
         return try Self.receipt(from: responseObject, fallbackTicketID: action.ticketId)
+    }
+
+    static func notificationOutboxRelayBody(for action: PublishedDeviceAction) -> [String: RelayJSONValue] {
+        guard case let .object(object) = action.notificationOutboxValue else {
+            return [:]
+        }
+        return Self.decodeJSONObject(from: object)
+    }
+
+    struct HTTPRelayRequest: Sendable {
+        var request: URLRequest
+        var bodyData: Data
+    }
+
+    static func httpRelayRequest(
+        url: URL,
+        token: String,
+        body: [String: RelayJSONValue],
+        timeoutSeconds: TimeInterval = 30,
+        encoder: JSONEncoder = JSONEncoder()
+    ) throws -> HTTPRelayRequest {
+        let bodyData = try encoder.encode(body)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = timeoutSeconds
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(String(bodyData.count), forHTTPHeaderField: "Content-Length")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return HTTPRelayRequest(request: request, bodyData: bodyData)
     }
 
     private static func receipt(
@@ -928,9 +963,6 @@ private extension DeviceActionDeliveryGoal {
         ]
     }
 
-    var valueTypeObject: [String: ValueType] {
-        relayObject.mapValues(\.valueType)
-    }
 }
 
 private extension PublishedDeviceAction {
@@ -942,9 +974,14 @@ private extension PublishedDeviceAction {
             "requiredActionKey": .string(requiredActionKey),
             "platform": .string("ios"),
             "ttlSeconds": .integer(ttlSeconds),
-            "deliveryGoal": deliveryGoal.map { .object($0.valueTypeObject) } ?? .null,
-            "payload": .object(payload.mapValues(\.valueType))
+            "payload": .object(notificationOutboxPayload.mapValues(\.valueType))
         ])
+    }
+
+    var notificationOutboxPayload: [String: RelayJSONValue] {
+        payload.filter { entry in
+            entry.key != "deliveryGoal"
+        }
     }
 }
 

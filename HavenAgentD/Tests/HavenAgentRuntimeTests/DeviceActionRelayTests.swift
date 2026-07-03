@@ -605,6 +605,111 @@ struct DeviceActionRelayTests {
     }
 
     @Test
+    func httpRelayRequestUsesFixedJSONBodyAndContentLength() throws {
+        let url = try #require(URL(string: "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action"))
+        let relay = try NotificationOutboxDeviceActionPublisher.httpRelayRequest(
+            url: url,
+            token: "relay-token",
+            body: [
+                "participantId": .string("binding-participant"),
+                "triggerEvent": .string("workflow.remote.prompt.requested"),
+                "requiredActionKey": .string("haven.agent.followup.prompt"),
+                "ttlSeconds": .number(900),
+                "payload": .object([
+                    "conversationId": .string("conversation-1"),
+                    "message": .string("Skriv tilbake")
+                ])
+            ]
+        )
+
+        #expect(relay.request.httpMethod == "POST")
+        #expect(relay.request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(relay.request.value(forHTTPHeaderField: "Accept") == "application/json")
+        #expect(relay.request.value(forHTTPHeaderField: "Authorization") == "Bearer relay-token")
+        #expect(relay.request.value(forHTTPHeaderField: "Content-Length") == String(relay.bodyData.count))
+        #expect(relay.request.timeoutInterval == 30)
+
+        let decoded = try JSONDecoder().decode([String: RelayJSONValue].self, from: relay.bodyData)
+        #expect(decoded["participantId"] == .string("binding-participant"))
+        #expect(decoded["payload"] == .object([
+            "conversationId": .string("conversation-1"),
+            "message": .string("Skriv tilbake")
+        ]))
+    }
+
+    @Test
+    func httpRelayBodyOmitsLocalDeliveryGoalMetadata() throws {
+        let sourceEndpoint = "cell://staging.haven.digipomps.org/AgentConversationInbox"
+        let deliveryGoal = DeviceActionDeliveryGoal.operatorResponse(
+            timeoutSeconds: 900,
+            participantId: "binding-participant",
+            deviceId: nil,
+            endpoint: sourceEndpoint
+        )
+        let action = PublishedDeviceAction(
+            id: "request-1",
+            participantId: "binding-participant",
+            deviceId: nil,
+            ticketId: "request-1",
+            triggerEvent: "workflow.remote.prompt.requested",
+            ttlSeconds: 900,
+            requiredActionKey: "haven.agent.followup.prompt",
+            responseMode: "prompt",
+            title: "Codex phone loop test",
+            message: "Skriv tilbake: phone-loop-ok request-1",
+            purpose: "purpose://agent-operator-notification-test",
+            purposeDescription: "End-to-end test av agent, staging og Binding.",
+            interests: ["codex", "haven-agentd", "staging", "apns", "binding"],
+            naturalLanguageIntent: nil,
+            conversationId: "request-1",
+            jobId: "request-1",
+            sourceCellEndpoint: sourceEndpoint,
+            sourceEventPath: nil,
+            sourceEventTopic: nil,
+            deliveryGoal: deliveryGoal,
+            payload: [
+                "requestId": .string("request-1"),
+                "title": .string("Codex phone loop test"),
+                "message": .string("Skriv tilbake: phone-loop-ok request-1"),
+                "responseMode": .string("prompt"),
+                "conversationId": .string("request-1"),
+                "jobId": .string("request-1"),
+                "triggerEvent": .string("workflow.remote.prompt.requested"),
+                "sourceCellEndpoint": .string(sourceEndpoint),
+                "purpose": .string("purpose://agent-operator-notification-test"),
+                "deliveryGoal": .object([
+                    "routePolicy": .string("prefer-private-owner-scoped-route-then-fallback"),
+                    "routeHints": .array([
+                        .object([
+                            "routeID": .string("binding-participant"),
+                            "kind": .string("participant_owner_route")
+                        ])
+                    ])
+                ])
+            ],
+            createdAt: "2026-07-02T20:00:00Z"
+        )
+
+        let body = NotificationOutboxDeviceActionPublisher.notificationOutboxRelayBody(for: action)
+
+        #expect(body["deliveryGoal"] == nil)
+        guard case let .object(payload)? = body["payload"] else {
+            Issue.record("Expected relay payload object")
+            return
+        }
+        #expect(payload["deliveryGoal"] == nil)
+        #expect(payload["sourceCellEndpoint"] == .string(sourceEndpoint))
+
+        let url = try #require(URL(string: "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action"))
+        let relay = try NotificationOutboxDeviceActionPublisher.httpRelayRequest(
+            url: url,
+            token: "relay-token",
+            body: body
+        )
+        #expect(relay.bodyData.count < 1_500)
+    }
+
+    @Test
     func replyPullClientParsesRemoteRecordWithSamePromptContractAsFlow() throws {
         let prompt = try #require(AgentConversationReplyPullClient.prompt(from: [
             "id": .string("conversation-1::job-1"),
