@@ -102,7 +102,7 @@ struct EditorSelectableSkeletonView: View {
                 AnyView(
                     VStack(alignment: .center, spacing: 8) {
                         if let header = section.header {
-                            SkeletonView(element: header)
+                            BindingSkeletonView(element: header)
                         }
                         ForEach(Array(section.content.enumerated()), id: \.offset) { index, child in
                             EditorSelectableSkeletonView(
@@ -114,7 +114,7 @@ struct EditorSelectableSkeletonView: View {
                             )
                         }
                         if let footer = section.footer {
-                            SkeletonView(element: footer)
+                            BindingSkeletonView(element: footer)
                         }
                     }
                     .editorApplyModifiers(section.modifiers)
@@ -163,7 +163,7 @@ struct EditorSelectableSkeletonView: View {
         default:
             return decorate(
                 AnyView(
-                    SkeletonView(element: element)
+                    BindingSkeletonView(element: element)
                 ),
                 path: path
             )

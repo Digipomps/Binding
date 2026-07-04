@@ -45,6 +45,8 @@ nonisolated struct PortableSurfaceCacheMetadata: Codable, Equatable {
 
 actor PortableSurfaceCacheStore {
     static let shared = PortableSurfaceCacheStore()
+    nonisolated static let maximumRetainedEntries = 64
+    nonisolated static let maximumSnapshotsPerEntry = 16
 
     private struct Entry: Codable {
         var endpoint: String
@@ -78,6 +80,7 @@ actor PortableSurfaceCacheStore {
         entry.configurationUpdatedAtEpochMs = timestamp
         entry.lastUpdatedAtEpochMs = timestamp
         entries[identity] = entry
+        prune()
         persist()
     }
 
@@ -102,6 +105,7 @@ actor PortableSurfaceCacheStore {
         entry.snapshotUpdatedAtEpochMs[normalizedKeypath] = timestamp
         entry.lastUpdatedAtEpochMs = timestamp
         entries[identity] = entry
+        prune()
         persist()
     }
 
@@ -150,6 +154,7 @@ actor PortableSurfaceCacheStore {
             return
         }
         entries = decoded
+        prune()
     }
 
     private func persist() {
@@ -179,6 +184,43 @@ actor PortableSurfaceCacheStore {
 
     private func normalizedSnapshotKeypath(_ keypath: String) -> String {
         keypath.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func prune() {
+        for (identity, var entry) in entries {
+            if entry.snapshots.count > Self.maximumSnapshotsPerEntry {
+                let retainedKeypaths = Set(
+                    entry.snapshots.keys
+                        .sorted { lhs, rhs in
+                            let lhsUpdated = entry.snapshotUpdatedAtEpochMs[lhs] ?? 0
+                            let rhsUpdated = entry.snapshotUpdatedAtEpochMs[rhs] ?? 0
+                            if lhsUpdated == rhsUpdated {
+                                return lhs.localizedStandardCompare(rhs) == .orderedDescending
+                            }
+                            return lhsUpdated > rhsUpdated
+                        }
+                        .prefix(Self.maximumSnapshotsPerEntry)
+                )
+                entry.snapshots = entry.snapshots.filter { retainedKeypaths.contains($0.key) }
+                entry.snapshotUpdatedAtEpochMs = entry.snapshotUpdatedAtEpochMs.filter { retainedKeypaths.contains($0.key) }
+                entries[identity] = entry
+            }
+        }
+
+        if entries.count > Self.maximumRetainedEntries {
+            let retainedIdentities = Set(
+                entries.values
+                    .sorted { lhs, rhs in
+                        if lhs.lastUpdatedAtEpochMs == rhs.lastUpdatedAtEpochMs {
+                            return lhs.endpointIdentity.localizedStandardCompare(rhs.endpointIdentity) == .orderedDescending
+                        }
+                        return lhs.lastUpdatedAtEpochMs > rhs.lastUpdatedAtEpochMs
+                    }
+                    .prefix(Self.maximumRetainedEntries)
+                    .map(\.endpointIdentity)
+            )
+            entries = entries.filter { retainedIdentities.contains($0.key) }
+        }
     }
 }
 

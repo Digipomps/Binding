@@ -1148,7 +1148,7 @@ struct FullLibraryView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            SkeletonView(element: preparedPreview.element)
+                            BindingSkeletonView(element: preparedPreview.element)
                                 .allowsHitTesting(false)
                                 .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 420, alignment: .topLeading)
                                 .padding(8)

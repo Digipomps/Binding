@@ -34,6 +34,10 @@ repoen heter `CellProtocolDocuments`; jeg fant ikke et separat
   (`v1RenderMode=placeholder`) og ber ikke om kamera/mikrofon.
 - `entityExtension.scan` og ContactEndpoint resource matching er sideeffektfri
   discovery. Selve `contact.request` krever eksplisitt signert foresporsel.
+- `help.openContextual` er Binding-shellens sideeffektfrie hjelpeseam. Den kan
+  aapne Co-Pilot Chat med aktiv GUI-flate, editor-modus, bruker-/scope-summary
+  og kilde/RAG-policy som kontekst, men spoer ikke RAG eller provider foer
+  brukeren klikker eksplisitt.
 - `entityExtension` bruker CellScaffold sin snapshot-shape:
   `schema=haven.personal.entity-extension.v1`, `extensions`,
   `extensionCount`, `counts`, `assistantProviders`,
@@ -80,6 +84,9 @@ Provider state eksponeres gjennom cellene:
 - `cell:///LocalLLM` GET `state`
 - `cell:///ContactEndpoint` GET `state`, SET `publishEndpoint`,
   SET `contact.request`, SET `ticket.resolve`, SET `ticket.respond`
+- `cell:///PersonalChatHub` SET `help.openContextual` for aa stage
+  bruker-/GUI-kontekst i chatten og preutfylle docs/RAG-sporsmal uten
+  sideeffekt.
 
 Apple provider bruker Foundation Models availability-check foer generering. Naar
 frameworket eller modellen ikke er tilgjengelig, returnerer state
@@ -159,6 +166,9 @@ Smoke:
 - Les direkte `assistantState.*` keypaths etter analyse.
 - Kjor `drop.receive` med public-safe person payload og verifiser invite draft
   uten thread/invite-sideeffekt.
+- Kjor `help.openContextual` fra en ikke-chat-flate og verifiser at composer,
+  `help.context` og `docsRAG.query` faar aktiv GUI-kontekst uten aa opprette
+  thread, poll eller workbench-modul.
 - Kjor `voice.acceptTranscriptAndAnalyze` med test-transcript og verifiser at
   composer fylles, analyse er sideeffektfri, og ingen melding sendes.
 - Publiser lokal `ContactEndpoint`, send signert `contact.request`, verifiser

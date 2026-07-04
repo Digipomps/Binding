@@ -1392,6 +1392,20 @@ enum BindingChatIntentClassifier {
             )
         }
 
+        let graphPurposeRefs = ["personal.knowledge.graph.index", "personal.vault.ideas.projects"]
+        let graphInterests = ["graph", "graf", "knowledge-graph", "obsidian"]
+        if perspectiveContext.matchesPurpose(graphPurposeRefs) || perspectiveContext.matchesInterest(graphInterests) {
+            let confidence = min(0.86, 0.68 + perspectiveContext.contextBoost(purposeRefs: graphPurposeRefs, interests: graphInterests))
+            return positive(
+                kind: "resource_match",
+                purposeRef: "personal.knowledge.graph.index",
+                interests: ["graph", "vault", "resource-router", "perspective-context", "requires-user-approval"],
+                helperID: "resource-router",
+                confidence: confidence,
+                reason: "Aktiv Perspective peker paa graf/vault-kontekst; jeg kan foreslaa synlig flate uten aa laste den automatisk."
+            )
+        }
+
         let ideaPurposeRefs = ["personal.chat.assist.idea.capture", "personal.vault.ideas", "personal.idea.capture"]
         let ideaInterests = ["idea", "ideas", "ide", "ideer", "capture", "vault"]
         if perspectiveContext.matchesPurpose(ideaPurposeRefs) || perspectiveContext.matchesInterest(ideaInterests) {
@@ -1403,20 +1417,6 @@ enum BindingChatIntentClassifier {
                 helperID: "idea-capture",
                 confidence: confidence,
                 reason: "Aktiv Perspective peker paa idefangst; jeg kan apne ide-hjelperen som et privat utkast."
-            )
-        }
-
-        let graphPurposeRefs = ["personal.knowledge.graph.index", "personal.vault.ideas.projects"]
-        let graphInterests = ["graph", "graf", "knowledge-graph", "obsidian", "vault"]
-        if perspectiveContext.matchesPurpose(graphPurposeRefs) || perspectiveContext.matchesInterest(graphInterests) {
-            let confidence = min(0.86, 0.68 + perspectiveContext.contextBoost(purposeRefs: graphPurposeRefs, interests: graphInterests))
-            return positive(
-                kind: "resource_match",
-                purposeRef: "personal.knowledge.graph.index",
-                interests: ["graph", "vault", "resource-router", "perspective-context", "requires-user-approval"],
-                helperID: "resource-router",
-                confidence: confidence,
-                reason: "Aktiv Perspective peker paa graf/vault-kontekst; jeg kan foreslaa synlig flate uten aa laste den automatisk."
             )
         }
 
@@ -1535,7 +1535,12 @@ enum BindingChatIntentClassifier {
         let negators = ["ikke", "not", "do not", "don't", "dont", "aldri"]
         return keywords.contains { keyword in
             negators.contains { negator in
-                text.contains("\(negator) \(keyword)") || text.contains("\(negator) lag \(keyword)") || text.contains("\(negator) lukk")
+                text.contains("\(negator) \(keyword)")
+                    || text.contains("\(negator) lag \(keyword)")
+                    || text.contains("\(negator) lagre \(keyword)")
+                    || text.contains("\(negator) opprett \(keyword)")
+                    || text.contains("\(negator) start \(keyword)")
+                    || text.contains("\(negator) lukk")
             }
         }
     }
@@ -3438,6 +3443,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "assistantProviders",
             "providerRecommendation",
             "docsRAG",
+            "help",
             "threads",
             "messages",
             "blockedUsers",
@@ -3475,6 +3481,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "docsRAG.search",
             "docsRAG.openTopDocument",
             "docsRAG.askRAG",
+            "help.openContextual",
             "assistant.setCandidateQuery",
             "assistant.selectCandidate",
             "entityExtension.scan",
@@ -3608,6 +3615,12 @@ final class BindingPersonalChatHubCell: GeneralCell {
         "state.docsRAG.ragMatchCount",
         "state.docsRAG.ragMatches",
         "state.docsRAG.summary",
+        "state.help.availableSources",
+        "state.help.context",
+        "state.help.question",
+        "state.help.status",
+        "state.help.summary",
+        "state.help.suggestedPrompt",
         "state.inviteDraft.title",
         "state.invites",
         "state.messages",
@@ -3691,6 +3704,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return BindingChatValue.nested("assistant.assistantProviders", in: cachedState) ?? .list([])
         case "providerRecommendation":
             return BindingChatValue.nested("assistant.providerRecommendation", in: cachedState) ?? .null
+        case "help":
+            return BindingChatValue.nested("help", in: cachedState) ?? .object(Self.initialHelpState())
         case "workbenchState":
             return BindingChatValue.nested("workbench", in: cachedState) ?? .object([:])
         case "workbenchModules":
@@ -3797,6 +3812,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return openTopDocument(value)
         case "docsRAG.askRAG":
             return askRAG(value)
+        case "help.openContextual":
+            return openContextualHelp(value)
         case "assistant.setCandidateQuery":
             BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
             return response(status: "ok", message: "Candidate query updated.")
@@ -5571,6 +5588,40 @@ final class BindingPersonalChatHubCell: GeneralCell {
         ])
     }
 
+    private func openContextualHelp(_ value: ValueType) -> ValueType {
+        let payload = BindingChatValue.object(value) ?? [:]
+        let context = contextualHelpContext(from: payload)
+        let prompt = contextualHelpPrompt(from: context)
+        let summary = contextualHelpSummary(from: context)
+        let availableSources = contextualHelpSources(from: context)
+
+        BindingChatValue.set(.object(context), for: "help.context", in: &cachedState)
+        BindingChatValue.set(.string(prompt), for: "help.question", in: &cachedState)
+        BindingChatValue.set(.string(prompt), for: "help.suggestedPrompt", in: &cachedState)
+        BindingChatValue.set(.string(summary), for: "help.summary", in: &cachedState)
+        BindingChatValue.set(.string("context_staged"), for: "help.status", in: &cachedState)
+        BindingChatValue.set(.list(availableSources.map(ValueType.object)), for: "help.availableSources", in: &cachedState)
+        BindingChatValue.set(.string(prompt), for: "composer.body", in: &cachedState)
+        BindingChatValue.set(.string(prompt), for: "currentThread.composer.body", in: &cachedState)
+        BindingChatValue.set(.string(prompt), for: "docsRAG.query", in: &cachedState)
+        BindingChatValue.set(.string("samtale"), for: "ui.activeTab", in: &cachedState)
+        BindingChatValue.set(.string("hjelp"), for: "ui.activeMoreTab", in: &cachedState)
+        BindingChatValue.set(.string("docs-rag"), for: "ui.activeHelper", in: &cachedState)
+        BindingChatValue.set(.string("Hjelpekontekst er lagt i chatten. Finn forslag eller spør docs/RAG krever eget klikk."), for: "ui.primaryActionHint", in: &cachedState)
+        appendHelpPromptMessage(prompt: prompt, summary: summary)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+
+        return .object([
+            "ok": .bool(true),
+            "status": .string("context_staged"),
+            "sideEffect": .bool(false),
+            "context": .object(context),
+            "prompt": .string(prompt),
+            "availableSources": .list(availableSources.map(ValueType.object)),
+            "state": .object(cachedState)
+        ])
+    }
+
     private func openTopDocument(_ value: ValueType) -> ValueType {
         let query = docsRAGQuery(from: value)
         let matches = docsRAGMatches(for: query)
@@ -5670,6 +5721,138 @@ final class BindingPersonalChatHubCell: GeneralCell {
             ? "Fant \(filteredDocs.count) dokumenttreff. Ingen granted RAG-case blir spurt automatisk."
             : "Fant \(filteredDocs.count) dokumenttreff og \(rag.count) granted RAG-case. Spør RAG krever eget klikk."
         return (filteredDocs, rag, summary)
+    }
+
+    private func contextualHelpContext(from payload: Object) -> Object {
+        let activeSurfaceName = contextualHelpString(
+            payload,
+            keys: ["activeSurfaceName", "surfaceName", "configurationName"],
+            fallback: "Ukjent flate"
+        )
+        let surfaceDescription = contextualHelpString(
+            payload,
+            keys: ["surfaceDescription", "description", "purposeDescription"],
+            fallback: ""
+        )
+        let editorMode = contextualHelpString(payload, keys: ["editorMode", "mode"], fallback: "view")
+        let destination = contextualHelpString(payload, keys: ["destination", "visibleDestination"], fallback: "Binding")
+        let sourceKind = contextualHelpString(payload, keys: ["sourceKind"], fallback: "local")
+        let sourceEndpoint = contextualHelpString(payload, keys: ["sourceEndpoint", "sourceCellEndpoint"], fallback: "")
+        let userContextSummary = contextualHelpString(
+            payload,
+            keys: ["userContextSummary", "userContext", "scopeSummary"],
+            fallback: "Privat Binding/Personal Co-Pilot-scope."
+        )
+        let permissionSummary = contextualHelpString(
+            payload,
+            keys: ["permissionSummary", "permissionGateSummary"],
+            fallback: "Ingen nye tillatelser gis av hjelpespørsmålet."
+        )
+        let sourceBacked = BindingChatValue.bool(payload["sourceBacked"])
+            ?? BindingChatValue.bool(payload["isSourceBacked"])
+            ?? false
+        return [
+            "schema": .string("binding.contextual-help.v0"),
+            "activeSurfaceName": .string(activeSurfaceName),
+            "surfaceDescription": surfaceDescription.isEmpty ? .null : .string(surfaceDescription),
+            "editorMode": .string(editorMode),
+            "destination": .string(destination),
+            "sourceKind": .string(sourceKind),
+            "sourceEndpoint": sourceEndpoint.isEmpty ? .null : .string(sourceEndpoint),
+            "sourceBacked": .bool(sourceBacked),
+            "userContextSummary": .string(userContextSummary),
+            "permissionSummary": .string(permissionSummary),
+            "ragPolicy": .string("Docs/RAG og andre kilder kan bare brukes etter eksplisitt brukerklikk og granted scope."),
+            "sideEffectFree": .bool(true)
+        ]
+    }
+
+    private func contextualHelpPrompt(from context: Object) -> String {
+        let activeSurfaceName = BindingChatValue.string(context["activeSurfaceName"]) ?? "denne flaten"
+        let surfaceDescription = BindingChatValue.string(context["surfaceDescription"]) ?? ""
+        let editorMode = BindingChatValue.string(context["editorMode"]) ?? "view"
+        let userContextSummary = BindingChatValue.string(context["userContextSummary"]) ?? "Privat Binding-scope."
+        let permissionSummary = BindingChatValue.string(context["permissionSummary"]) ?? "Ingen nye tillatelser gis."
+        var parts = [
+            "Jeg trenger hjelp i Binding.",
+            "Aktiv flate: \(activeSurfaceName).",
+            "GUI-modus: \(editorMode)."
+        ]
+        if !surfaceDescription.isEmpty {
+            parts.append("Hva flaten er til for: \(surfaceDescription).")
+        }
+        parts.append("Brukerkontekst: \(userContextSummary)")
+        parts.append("Tillatelser: \(permissionSummary)")
+        parts.append("Gi meg neste trygge steg i vanlig språk. Bruk docs/RAG eller andre granted kilder hvis det trengs, men ikke utfør sideeffekter uten eget klikk.")
+        return parts.joined(separator: " ")
+    }
+
+    private func contextualHelpSummary(from context: Object) -> String {
+        let activeSurfaceName = BindingChatValue.string(context["activeSurfaceName"]) ?? "aktiv flate"
+        let editorMode = BindingChatValue.string(context["editorMode"]) ?? "view"
+        return "Hjelp er klargjort for \(activeSurfaceName) i \(editorMode)-modus. Co-Pilot kan bruke GUI-kontekst, Perspective, docs og granted RAG etter eksplisitt klikk."
+    }
+
+    private func contextualHelpSources(from context: Object) -> [Object] {
+        let activeSurfaceName = BindingChatValue.string(context["activeSurfaceName"]) ?? "aktiv flate"
+        let sourceEndpoint = BindingChatValue.string(context["sourceEndpoint"])
+        let ragSummary = sourceEndpoint.map { endpoint in
+            "Kilder knyttet til \(endpoint) kan bare brukes hvis de er granted."
+        } ?? "Bare RAG-cases synlige i chat-scope kan spørres."
+        return [
+            [
+                "id": .string("gui-context"),
+                "title": .string("GUI-kontekst"),
+                "status": .string("staged"),
+                "summary": .string("Aktiv flate, modus og brukerrettet beskrivelse for \(activeSurfaceName).")
+            ],
+            [
+                "id": .string("perspective-context"),
+                "title": .string("Perspective"),
+                "status": .string("available_in_chat_scope"),
+                "summary": .string("Aktive formål og interesser kan brukes til å tolke spørsmålet, men gir ikke nye grants.")
+            ],
+            [
+                "id": .string("docs"),
+                "title": .string("Dokumentasjon"),
+                "status": .string("explicit_click_required"),
+                "summary": .string("Docs/RAG-panelet kan finne relevante interne dokumenttreff.")
+            ],
+            [
+                "id": .string("granted-rag"),
+                "title": .string("Granted RAG"),
+                "status": .string("explicit_click_required"),
+                "summary": .string(ragSummary)
+            ],
+            [
+                "id": .string("scoped-providers"),
+                "title": .string("Scoped providers"),
+                "status": .string("recommendation_only"),
+                "summary": .string("Provider-valg er anbefaling, ikke automatisk modellkall.")
+            ]
+        ]
+    }
+
+    private func contextualHelpString(_ payload: Object, keys: [String], fallback: String) -> String {
+        for key in keys {
+            if let value = BindingChatValue.string(payload[key]) {
+                return value
+            }
+        }
+        return fallback
+    }
+
+    private func appendHelpPromptMessage(prompt: String, summary: String) {
+        var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
+        messages.append(.object([
+            "id": .string(UUID().uuidString),
+            "speaker": .string("Co-Pilot"),
+            "body": .string(prompt),
+            "statusText": .string(summary),
+            "kind": .string("contextual_help"),
+            "sideEffect": .bool(false)
+        ]))
+        BindingChatValue.set(.list(messages), for: "ui.promptMessages", in: &cachedState)
     }
 
     nonisolated private static func defaultDocsRAGDocuments() -> [Object] {
@@ -6024,6 +6207,40 @@ final class BindingPersonalChatHubCell: GeneralCell {
         }
     }
 
+    nonisolated private static func initialHelpState() -> Object {
+        [
+            "status": .string("idle"),
+            "summary": .string("Trykk hjelp fra en flate for aa legge GUI-kontekst inn i Co-Pilot Chat."),
+            "question": .string(""),
+            "suggestedPrompt": .string(""),
+            "context": .object([
+                "schema": .string("binding.contextual-help.v0"),
+                "activeSurfaceName": .string("Ingen flate valgt"),
+                "editorMode": .string("view"),
+                "userContextSummary": .string("Privat Binding/Personal Co-Pilot-scope."),
+                "ragPolicy": .string("Docs/RAG og andre kilder krever eksplisitt brukerklikk og granted scope."),
+                "sideEffectFree": .bool(true)
+            ]),
+            "availableSources": .list([
+                .object([
+                    "id": .string("gui-context"),
+                    "title": .string("GUI-kontekst"),
+                    "status": .string("waiting_for_help_button")
+                ]),
+                .object([
+                    "id": .string("docs"),
+                    "title": .string("Dokumentasjon"),
+                    "status": .string("explicit_click_required")
+                ]),
+                .object([
+                    "id": .string("granted-rag"),
+                    "title": .string("Granted RAG"),
+                    "status": .string("explicit_click_required")
+                ])
+            ])
+        ]
+    }
+
     nonisolated static func initialState() -> Object {
         return [
             "title": .string("Co-Pilot"),
@@ -6129,6 +6346,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "availableDocuments": .list(Self.defaultDocsRAGDocuments().map(ValueType.object)),
                 "selectedDocument": .null
             ]),
+            "help": .object(Self.initialHelpState()),
             "entityExtension": .object(Self.initialEntityExtensionState()),
             "voice": .object(Self.initialVoiceState()),
             "drop": .object([

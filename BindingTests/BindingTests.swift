@@ -675,10 +675,19 @@ struct BindingTests {
             return
         }
 
+        let styleRoles = skeletonStyleRoles(in: skeleton)
+        #expect(styleRoles.contains("personal-chat-page"))
+        #expect(styleRoles.contains("personal-chat-hero"))
+
         let helpIntro = "Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt."
         let helpFollowup = "Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene."
         if let conversationPanel = skeletonTabPanel(id: "samtale", in: skeleton) {
             let conversationElement = SkeletonElement.VStack(SkeletonVStack(elements: conversationPanel))
+            let composerTextArea = try #require(skeletonTextArea(targetKeypath: "chatHub.setComposer", in: conversationElement))
+            #expect(composerTextArea.placeholder == nil)
+            #expect(composerTextArea.maxLines == 3)
+            #expect(composerTextArea.modifiers?.styleRole == "personal-chat-composer-field")
+            #expect(skeletonStyleRoles(in: conversationElement).contains("personal-chat-section"))
             #expect(topLevelSectionHasHeader("Skriv", in: conversationPanel))
             #expect(!topLevelSectionHasHeader("Start her", in: conversationPanel))
             #expect(!topLevelSectionHasHeader("Co-Pilot Chat", in: conversationPanel))
@@ -1019,9 +1028,11 @@ struct BindingTests {
 
         #expect(mergeResult.mergedReferences.count == 1)
         #expect(mergeResult.mergedReferences.first?.label == "teamChat")
-        #expect(skeletonContainsTextArea(targetKeypath: "teamChat.compose.body", in: mergeResult.rewrittenFragment))
-        #expect(!skeletonContainsTextArea(targetKeypath: "chat.compose.body", in: mergeResult.rewrittenFragment))
-        #expect(skeletonContainsList(keypath: "teamChat.messages", topic: nil, in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsTextArea(targetKeypath: "teamChat.setComposer", in: mergeResult.rewrittenFragment))
+        #expect(!skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsList(keypath: "teamChat.state.ui.promptMessages", topic: nil, in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsButton(keypath: "teamChat.ui.openSuggestedHelper", label: "↑", in: mergeResult.rewrittenFragment))
+        #expect(!skeletonContainsButton(keypath: "teamChat.sendComposedMessage", in: mergeResult.rewrittenFragment))
     }
 
     @Test func componentMergeRewritesListSelectionKeypathsForAssistantComponent() {
@@ -1265,9 +1276,11 @@ struct BindingTests {
         }
 
         let references = editorState.workingConfiguration?.cellReferences ?? []
-        #expect(references.contains(where: { $0.endpoint == "cell://staging.haven.digipomps.org/Chat" && $0.label == "chat" }))
-        #expect(skeletonContainsTextArea(targetKeypath: "chat.compose.body", in: workingSkeleton))
-        #expect(skeletonContainsList(keypath: "chat.messages", topic: nil, in: workingSkeleton))
+        #expect(references.contains(where: { $0.endpoint == "cell:///PersonalChatHub" && $0.label == "chatHub" }))
+        #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: workingSkeleton))
+        #expect(skeletonContainsList(keypath: "chatHub.state.ui.promptMessages", topic: nil, in: workingSkeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: workingSkeleton))
+        #expect(!skeletonContainsButton(keypath: "chatHub.sendComposedMessage", in: workingSkeleton))
     }
 
     @Test func localOnlyCellsAreNotRetargetedToStaging() {
@@ -1397,6 +1410,99 @@ struct BindingTests {
         let data = try encoder.encode(retargeted)
         let json = String(decoding: data, as: UTF8.self)
         #expect(json.contains("\"sourceCellEndpoint\":\"cell://preview.example.org/RemotePeer\""))
+    }
+
+    @Test func remoteHavenWorkbenchConfigurationRetargetsToFetchedScaffoldOrigin() throws {
+        let remoteHost = "agent.binding.test"
+        let remoteCatalogEndpoint = "cell://\(remoteHost)/ConfigurationCatalog"
+        let configuration = Self.remoteHavenWorkbenchFixtureConfiguration()
+
+        let retargeted = CellConfigurationEndpointRetargeting.rewritingLocalCellEndpoints(
+            in: configuration,
+            toScaffoldEndpoint: remoteCatalogEndpoint
+        )
+        let endpoints = try Self.cellEndpointStrings(in: retargeted)
+
+        #expect(retargeted.name == "HAVEN Workbench")
+        #expect(retargeted.discovery?.sourceCellEndpoint == "cell://\(remoteHost)/WorkItem")
+        #expect(endpoints.contains("cell://\(remoteHost)/WorkItem"))
+        #expect(endpoints.contains("cell://\(remoteHost)/ProjectPortfolio"))
+        #expect(endpoints.contains("cell://\(remoteHost)/GitHubWorkSync"))
+        #expect(endpoints.contains("cell://\(remoteHost)/IdeaTaskWorkspace"))
+        #expect(!endpoints.contains(where: Self.isLocalCellEndpoint))
+
+        let resolver = CellResolver.sharedInstance
+        let previousRoute = resolver.remoteCellHostRoutesSnapshot()[remoteHost]
+        defer {
+            if let previousRoute {
+                resolver.registerRemoteCellHost(remoteHost, route: previousRoute)
+            } else {
+                resolver.unregisterRemoteCellHost(remoteHost)
+            }
+        }
+        resolver.unregisterRemoteCellHost(remoteHost)
+
+        ContentView().registerRemoteRoutesIfNeeded(for: retargeted, resolver: resolver)
+
+        let route = resolver.remoteCellHostRoutesSnapshot()[remoteHost]
+        #expect(route?.websocketEndpoint == "bridgehead")
+    }
+
+    @Test func remoteArendalsukaConfigurationsRespectCatalogPublicationAndRetargetWhenPresent() throws {
+        let remoteCatalogWithoutEventAccess = [
+            Self.remoteHavenWorkbenchFixtureConfiguration()
+        ]
+        #expect(!remoteCatalogWithoutEventAccess.contains { $0.name == "Arendalsuka Participant Program" })
+        #expect(!remoteCatalogWithoutEventAccess.contains { $0.name == "Arendalsuka Event Atlas" })
+
+        let remoteCatalogEndpoint = "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+        let publishedArendalsuka = [
+            Self.remoteArendalsukaParticipantProgramFixtureConfiguration(),
+            Self.remoteArendalsukaEventAtlasFixtureConfiguration()
+        ].map {
+            CellConfigurationEndpointRetargeting.rewritingLocalCellEndpoints(
+                in: $0,
+                toScaffoldEndpoint: remoteCatalogEndpoint
+            )
+        }
+
+        let publishedNames = Set(publishedArendalsuka.map(\.name))
+        #expect(publishedNames.contains("Arendalsuka Participant Program"))
+        #expect(publishedNames.contains("Arendalsuka Event Atlas"))
+
+        let participantEndpoints = try Self.cellEndpointStrings(in: publishedArendalsuka[0])
+        #expect(publishedArendalsuka[0].discovery?.sourceCellEndpoint == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
+        #expect(participantEndpoints.contains("cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram"))
+        #expect(participantEndpoints.contains("cell://staging.haven.digipomps.org/ArendalsukaEventAtlas"))
+        #expect(!participantEndpoints.contains(where: Self.isLocalCellEndpoint))
+        #expect(participantEndpoints.allSatisfy {
+            RemoteEndpointAccessSupport.authorizationKind(for: $0) == .scaffoldAdmission
+        })
+
+        let resolver = CellResolver.sharedInstance
+        let stagingHost = "staging.haven.digipomps.org"
+        let previousRoute = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        defer {
+            if let previousRoute {
+                resolver.registerRemoteCellHost(stagingHost, route: previousRoute)
+            } else {
+                resolver.unregisterRemoteCellHost(stagingHost)
+            }
+        }
+        resolver.unregisterRemoteCellHost(stagingHost)
+
+        ContentView().registerRemoteRoutesIfNeeded(for: publishedArendalsuka[0], resolver: resolver)
+
+        let route = resolver.remoteCellHostRoutesSnapshot()[stagingHost]
+        #expect(route?.websocketEndpoint == "bridgehead")
+        #expect(route?.schemePreference == .wss)
+        let usesEndpointFirstPath: Bool
+        if case .some(.endpointThenPublisherUUID) = route?.pathLayout {
+            usesEndpointFirstPath = true
+        } else {
+            usesEndpointFirstPath = false
+        }
+        #expect(usesEndpointFirstPath)
     }
 
     @Test func localVerifierCanRetargetKnownStagingPersonalCopilotFallbacks() throws {
@@ -1869,6 +1975,54 @@ struct BindingTests {
         }
         #expect(restoredSetup["statusLabel"] == .string("Ready"))
         #expect(restoredDraft["cachePolicy"] == .string("useCache"))
+
+        await PortableSurfaceCacheStore.shared.clearAll()
+    }
+
+    @Test func portableSurfaceCacheStorePrunesOldEntriesAndSnapshots() async {
+        await PortableSurfaceCacheStore.shared.clearAll()
+
+        let oldestEndpoint = "cell://staging.haven.digipomps.org/cache-entry-oldest"
+        await PortableSurfaceCacheStore.shared.storeConfiguration(
+            CellConfiguration(name: "Oldest cached surface"),
+            endpoint: oldestEndpoint
+        )
+        try? await Task.sleep(nanoseconds: 2_000_000)
+
+        for index in 0..<PortableSurfaceCacheStore.maximumRetainedEntries {
+            await PortableSurfaceCacheStore.shared.storeConfiguration(
+                CellConfiguration(name: "Cached surface \(index)"),
+                endpoint: "cell://staging.haven.digipomps.org/cache-entry-\(index)"
+            )
+        }
+
+        #expect(await PortableSurfaceCacheStore.shared.configuration(for: oldestEndpoint) == nil)
+        #expect(
+            await PortableSurfaceCacheStore.shared.configuration(
+                for: "cell://staging.haven.digipomps.org/cache-entry-\(PortableSurfaceCacheStore.maximumRetainedEntries - 1)"
+            )?.name == "Cached surface \(PortableSurfaceCacheStore.maximumRetainedEntries - 1)"
+        )
+
+        let snapshotEndpoint = "cell://staging.haven.digipomps.org/cache-snapshots"
+        await PortableSurfaceCacheStore.shared.storeSnapshot(.string("oldest"), endpoint: snapshotEndpoint, keypath: "state.0")
+        try? await Task.sleep(nanoseconds: 2_000_000)
+        for index in 1...PortableSurfaceCacheStore.maximumSnapshotsPerEntry {
+            await PortableSurfaceCacheStore.shared.storeSnapshot(
+                .string("snapshot-\(index)"),
+                endpoint: snapshotEndpoint,
+                keypath: "state.\(index)"
+            )
+        }
+
+        let metadata = await PortableSurfaceCacheStore.shared.metadata(for: snapshotEndpoint)
+        #expect(metadata?.cachedKeypaths.count == PortableSurfaceCacheStore.maximumSnapshotsPerEntry)
+        #expect(await PortableSurfaceCacheStore.shared.snapshot(for: snapshotEndpoint, keypath: "state.0") == nil)
+        #expect(
+            await PortableSurfaceCacheStore.shared.snapshot(
+                for: snapshotEndpoint,
+                keypath: "state.\(PortableSurfaceCacheStore.maximumSnapshotsPerEntry)"
+            ) == .string("snapshot-\(PortableSurfaceCacheStore.maximumSnapshotsPerEntry)")
+        )
 
         await PortableSurfaceCacheStore.shared.clearAll()
     }
@@ -6648,6 +6802,54 @@ struct BindingTests {
         }
     }
 
+    private func skeletonTextArea(targetKeypath: String, in element: SkeletonElement) -> SkeletonTextArea? {
+        switch element {
+        case .TextArea(let textArea):
+            return textArea.targetKeypath == targetKeypath ? textArea : nil
+        case .VStack(let stack):
+            return stack.elements.lazy.compactMap { skeletonTextArea(targetKeypath: targetKeypath, in: $0) }.first
+        case .HStack(let stack):
+            return stack.elements.lazy.compactMap { skeletonTextArea(targetKeypath: targetKeypath, in: $0) }.first
+        case .ScrollView(let scroll):
+            return scroll.elements.lazy.compactMap { skeletonTextArea(targetKeypath: targetKeypath, in: $0) }.first
+        case .Section(let section):
+            if let header = section.header,
+               let match = skeletonTextArea(targetKeypath: targetKeypath, in: header) {
+                return match
+            }
+            if let match = section.content.lazy.compactMap({ skeletonTextArea(targetKeypath: targetKeypath, in: $0) }).first {
+                return match
+            }
+            if let footer = section.footer {
+                return skeletonTextArea(targetKeypath: targetKeypath, in: footer)
+            }
+            return nil
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.flatMap { skeletonTextArea(targetKeypath: targetKeypath, in: .VStack($0)) }
+        case .List(let list):
+            return list.flowElementSkeleton.flatMap { skeletonTextArea(targetKeypath: targetKeypath, in: .VStack($0)) }
+        case .Grid(let grid):
+            if let itemSkeleton = grid.itemSkeleton,
+               let match = skeletonTextArea(targetKeypath: targetKeypath, in: itemSkeleton) {
+                return match
+            }
+            return grid.elements.lazy.compactMap { skeletonTextArea(targetKeypath: targetKeypath, in: $0) }.first
+        case .ZStack(let stack):
+            return stack.elements.lazy.compactMap { skeletonTextArea(targetKeypath: targetKeypath, in: $0) }.first
+        case .Object(let object):
+            return object.elements.values.lazy.compactMap { skeletonTextArea(targetKeypath: targetKeypath, in: $0) }.first
+        case .Tabs(let tabs):
+            for panel in tabs.panels {
+                if let match = panel.content.lazy.compactMap({ skeletonTextArea(targetKeypath: targetKeypath, in: $0) }).first {
+                    return match
+                }
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
     private func skeletonContainsTextField(targetKeypath: String, in element: SkeletonElement) -> Bool {
         switch element {
         case .TextField(let textField):
@@ -7215,7 +7417,11 @@ struct BindingTests {
         return nil
     }
 
-    private func skeletonStyleRoles(in element: SkeletonElement) -> [String] {
+    private func skeletonStyleRoles(in element: SkeletonElement, depth: Int = 0) -> [String] {
+        guard depth < 64 else {
+            return []
+        }
+
         var roles: [String] = []
 
         func append(_ modifiers: SkeletonModifiers?) {
@@ -7224,6 +7430,10 @@ struct BindingTests {
                 return
             }
             roles.append(role)
+        }
+
+        func child(_ element: SkeletonElement) -> [String] {
+            skeletonStyleRoles(in: element, depth: depth + 1)
         }
 
         switch element {
@@ -7243,47 +7453,35 @@ struct BindingTests {
             append(spacer.modifiers)
         case .VStack(let stack):
             append(stack.modifiers)
-            stack.elements.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            stack.elements.forEach { roles.append(contentsOf: child($0)) }
         case .HStack(let stack):
             append(stack.modifiers)
-            stack.elements.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            stack.elements.forEach { roles.append(contentsOf: child($0)) }
         case .ZStack(let stack):
             append(stack.modifiers)
-            stack.elements.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            stack.elements.forEach { roles.append(contentsOf: child($0)) }
         case .ScrollView(let scroll):
             append(scroll.modifiers)
-            scroll.elements.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            scroll.elements.forEach { roles.append(contentsOf: child($0)) }
         case .Section(let section):
             append(section.modifiers)
             if let header = section.header {
-                roles.append(contentsOf: skeletonStyleRoles(in: header))
+                roles.append(contentsOf: child(header))
             }
-            section.content.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            section.content.forEach { roles.append(contentsOf: child($0)) }
             if let footer = section.footer {
-                roles.append(contentsOf: skeletonStyleRoles(in: footer))
+                roles.append(contentsOf: child(footer))
             }
         case .List(let list):
             append(list.modifiers)
-            if let flowElementSkeleton = list.flowElementSkeleton {
-                roles.append(contentsOf: skeletonStyleRoles(in: .VStack(flowElementSkeleton)))
-            }
-            list.elements.forEach { element in
-                if let configuration = PortableSurfaceContractSupport.extractConfiguration(from: element),
-                   let skeleton = configuration.skeleton {
-                    roles.append(contentsOf: skeletonStyleRoles(in: skeleton))
-                }
-            }
         case .Reference(let reference):
             append(reference.modifiers)
-            if let flowElementSkeleton = reference.flowElementSkeleton {
-                roles.append(contentsOf: skeletonStyleRoles(in: .VStack(flowElementSkeleton)))
-            }
         case .Grid(let grid):
             append(grid.modifiers)
             if let itemSkeleton = grid.itemSkeleton {
-                roles.append(contentsOf: skeletonStyleRoles(in: itemSkeleton))
+                roles.append(contentsOf: child(itemSkeleton))
             }
-            grid.elements.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            grid.elements.forEach { roles.append(contentsOf: child($0)) }
         case .Button(let button):
             append(button.modifiers)
         case .Divider(let divider):
@@ -7292,24 +7490,18 @@ struct BindingTests {
             append(toggle.modifiers)
         case .Picker(let picker):
             append(picker.modifiers)
-            picker.elements.forEach { element in
-                if let configuration = PortableSurfaceContractSupport.extractConfiguration(from: element),
-                   let skeleton = configuration.skeleton {
-                    roles.append(contentsOf: skeletonStyleRoles(in: skeleton))
-                }
-            }
         case .Visualization(let visualization):
             append(visualization.modifiers)
         case .Unsupported(let unsupported):
             append(unsupported.modifiers)
         case .Object(let object):
             append(object.modifiers)
-            object.elements.values.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+            object.elements.values.forEach { roles.append(contentsOf: child($0)) }
         case .Tabs(let tabs):
             append(tabs.modifiers)
             tabs.panels.forEach { panel in
                 append(panel.modifiers)
-                panel.content.forEach { roles.append(contentsOf: skeletonStyleRoles(in: $0)) }
+                panel.content.forEach { roles.append(contentsOf: child($0)) }
             }
         }
 
@@ -7486,6 +7678,184 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
 
 private extension BindingTests {
     static let testIdentityVault = BindingTestIdentityVault()
+
+    static func remoteHavenWorkbenchFixtureConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "HAVEN Workbench")
+        configuration.description = "Remote CellScaffold workbench fixture for Binding catalog import regression coverage."
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///WorkItem",
+            sourceCellName: "WorkItemCell",
+            purpose: "HAVEN project workbench",
+            purposeDescription: "Project workbench with WorkItem, portfolio, GitHub sync, vault and AI references.",
+            interests: [
+                "haven",
+                "projects",
+                "work-items",
+                "portfolio",
+                "github",
+                "docs",
+                "purposeRef=haven.work.board.view"
+            ],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var workItemsReference = CellReference(endpoint: "cell:///WorkItem", label: "workItems")
+        workItemsReference.setKeysAndValues = [
+            KeyValue(key: "state", value: nil),
+            KeyValue(key: "syncStatus", value: nil)
+        ]
+        configuration.addReference(workItemsReference)
+
+        var projectPortfolioReference = CellReference(endpoint: "cell:///ProjectPortfolio", label: "projectPortfolio")
+        projectPortfolioReference.setKeysAndValues = [
+            KeyValue(key: "state", value: nil),
+            KeyValue(key: "feed", value: nil)
+        ]
+        configuration.addReference(projectPortfolioReference)
+
+        var githubSyncReference = CellReference(endpoint: "cell:///GitHubWorkSync", label: "githubSync")
+        githubSyncReference.setKeysAndValues = [
+            KeyValue(key: "state", value: nil),
+            KeyValue(key: "syncStatus", value: nil)
+        ]
+        configuration.addReference(githubSyncReference)
+
+        var ideaWorkspaceReference = CellReference(endpoint: "cell:///IdeaTaskWorkspace", label: "ideaWorkspace")
+        ideaWorkspaceReference.setKeysAndValues = [
+            KeyValue(key: "refresh", value: .object([:])),
+            KeyValue(key: "state", value: nil)
+        ]
+        configuration.addReference(ideaWorkspaceReference)
+
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "workItems.state.summaryText")),
+            .Text(SkeletonText(keypath: "projectPortfolio.state.summaryText")),
+            .Text(SkeletonText(keypath: "githubSync.state.importedItemCount")),
+            .Button(
+                SkeletonButton(
+                    keypath: "addConfiguration",
+                    label: "Open portfolio",
+                    payload: .object([
+                        "configurationLookup": .object([
+                            "name": .string("Project Portfolio"),
+                            "sourceCellEndpoint": .string("cell:///ProjectPortfolio")
+                        ])
+                    ])
+                )
+            )
+        ]))
+        return configuration
+    }
+
+    static func remoteArendalsukaParticipantProgramFixtureConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Arendalsuka Participant Program")
+        configuration.description = "Remote CellScaffold Arendalsuka participant fixture for Binding catalog import regression coverage."
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ArendalsukaParticipantProgram",
+            sourceCellName: "ArendalsukaParticipantProgramCell",
+            purpose: "Arendalsuka participant program",
+            purposeDescription: "Participant-facing Arendalsuka program and navigation surface.",
+            interests: [
+                "arendalsuka",
+                "participant",
+                "program",
+                "agenda",
+                "navigation",
+                "purposeRef=arendalsuka.program.navigate"
+            ],
+            menuSlots: ["upperMid", "lowerMid"]
+        )
+
+        var atlasReference = CellReference(endpoint: "cell:///ArendalsukaEventAtlas", label: "arendalsukaAtlas")
+        atlasReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(atlasReference)
+
+        var participantReference = CellReference(endpoint: "cell:///ArendalsukaParticipantProgram", label: "arendalsukaParticipant")
+        participantReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(participantReference)
+
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "arendalsukaParticipant.state.workspace.title")),
+            .Text(SkeletonText(keypath: "arendalsukaAtlas.state.workspace.status")),
+            .Button(
+                SkeletonButton(
+                    keypath: "addConfiguration",
+                    label: "Open atlas",
+                    payload: .object([
+                        "configurationLookup": .object([
+                            "name": .string("Arendalsuka Event Atlas"),
+                            "sourceCellEndpoint": .string("cell:///ArendalsukaEventAtlas")
+                        ])
+                    ])
+                )
+            )
+        ]))
+        return configuration
+    }
+
+    static func remoteArendalsukaEventAtlasFixtureConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Arendalsuka Event Atlas")
+        configuration.description = "Remote CellScaffold Arendalsuka event atlas fixture for Binding catalog import regression coverage."
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: "cell:///ArendalsukaEventAtlas",
+            sourceCellName: "ArendalsukaEventAtlasCell",
+            purpose: "Arendalsuka event atlas",
+            purposeDescription: "Source-backed Arendalsuka program import and inspection surface.",
+            interests: [
+                "arendalsuka",
+                "program",
+                "agenda",
+                "matching",
+                "purposeRef=arendalsuka.event-atlas.inspect"
+            ],
+            menuSlots: ["upperMid", "lowerMid", "lowerRight"]
+        )
+
+        var atlasReference = CellReference(endpoint: "cell:///ArendalsukaEventAtlas", label: "arendalsukaAtlas")
+        atlasReference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(atlasReference)
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "arendalsukaAtlas.state.workspace.title")),
+            .Text(SkeletonText(keypath: "arendalsukaAtlas.state.workspace.status"))
+        ]))
+        return configuration
+    }
+
+    static func cellEndpointStrings(in configuration: CellConfiguration) throws -> [String] {
+        let data = try JSONEncoder().encode(configuration)
+        let object = try JSONSerialization.jsonObject(with: data)
+        var endpoints: [String] = []
+
+        func collect(_ value: Any) {
+            switch value {
+            case let string as String:
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("cell://") {
+                    endpoints.append(trimmed)
+                }
+            case let dictionary as [String: Any]:
+                dictionary.values.forEach(collect)
+            case let array as [Any]:
+                array.forEach(collect)
+            default:
+                break
+            }
+        }
+
+        collect(object)
+        return endpoints
+    }
+
+    static func isLocalCellEndpoint(_ endpoint: String) -> Bool {
+        guard let components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell"
+        else {
+            return false
+        }
+
+        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        return host.isEmpty || host == "localhost"
+    }
 }
 
 private final class RootOnlyStateCell: GeneralCell {
@@ -8926,7 +9296,7 @@ enum CellConfigurationVerifier {
         viewModel.markLocalMutation()
 
         let hostingView = NSHostingView(
-            rootView: SkeletonView(element: skeleton)
+            rootView: BindingSkeletonView(element: skeleton)
                 .environmentObject(viewModel)
         )
         hostingView.frame = NSRect(x: 0, y: 0, width: 1280, height: 2600)

@@ -28,6 +28,55 @@ struct ChatWorkbenchParityTests {
         })
     }
 
+    @Test func contextualHelpStagesGUIContextInChatWithoutDomainSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-contextual-help")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let before = counters(try await chat.get(keypath: "state", requester: owner))
+
+        let opened = try #require(asObject(try await chat.set(
+            keypath: "chatHub.help.openContextual",
+            value: .object([
+                "activeSurfaceName": .string("Vault / Ideas"),
+                "surfaceDescription": .string("Privat ide- og prosjektflate"),
+                "editorMode": .string("view"),
+                "destination": .string("Vault"),
+                "sourceKind": .string("local"),
+                "sourceEndpoint": .string("cell:///Vault"),
+                "sourceBacked": .bool(false),
+                "userContextSummary": .string("Personal Co-Pilot shell, privat requester-scope."),
+                "permissionSummary": .string("Ingen native tillatelser. RAG krever eget klikk.")
+            ]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asBool(opened["sideEffect"]) == false)
+        let context = try #require(asObject(opened["context"]))
+        #expect(asString(context["activeSurfaceName"]) == "Vault / Ideas")
+        #expect(asString(context["ragPolicy"])?.contains("eksplisitt brukerklikk") == true)
+        let sources = try #require(asList(opened["availableSources"]))
+        #expect(sources.contains { asString(asObject($0)?["id"]) == "gui-context" })
+        #expect(sources.contains { asString(asObject($0)?["id"]) == "granted-rag" })
+
+        let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let ui = try #require(asObject(state["ui"]))
+        #expect(asString(ui["activeTab"]) == "samtale")
+        #expect(asString(ui["activeMoreTab"]) == "hjelp")
+
+        let help = try #require(asObject(state["help"]))
+        #expect(asString(help["status"]) == "context_staged")
+        #expect(asString(help["suggestedPrompt"])?.contains("Vault / Ideas") == true)
+
+        let composer = try #require(asObject(state["composer"]))
+        #expect(asString(composer["body"])?.contains("Vault / Ideas") == true)
+        let docsRAG = try #require(asObject(state["docsRAG"]))
+        #expect(asString(docsRAG["query"])?.contains("Vault / Ideas") == true)
+        #expect(counters(.object(state)) == before)
+    }
+
     @Test func providerCellsExposeCellScopedStateContracts() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
@@ -723,6 +772,112 @@ struct ChatWorkbenchParityTests {
 
         let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
         #expect(counters(.object(state)) == before)
+    }
+
+    @Test func purposeInterestContextQualityMatrixImprovesAmbiguousChatPrompts() async throws {
+        struct QualityCase {
+            var prompt: String
+            var context: BindingChatPurposeContext
+            var expectedHelperID: String
+            var expectedPurposeRef: String
+        }
+
+        func context(
+            purposeRefs: [String],
+            interests: [String],
+            weights: [String: Double]
+        ) -> BindingChatPurposeContext {
+            BindingChatPurposeContext(
+                purposeRefs: purposeRefs,
+                interests: interests,
+                weights: weights,
+                source: "test.perspective.active-purpose"
+            )
+        }
+
+        let cases: [QualityCase] = [
+            QualityCase(
+                prompt: "legg dette inn",
+                context: context(
+                    purposeRefs: ["personal.chat.assist.project"],
+                    interests: ["project", "planning", "project-management"],
+                    weights: ["personal.chat.assist.project": 0.92]
+                ),
+                expectedHelperID: "project",
+                expectedPurposeRef: "personal.chat.assist.project"
+            ),
+            QualityCase(
+                prompt: "neste steg",
+                context: context(
+                    purposeRefs: ["personal.chat.assist.todo"],
+                    interests: ["todo", "task", "oppgave"],
+                    weights: ["personal.chat.assist.todo": 0.91]
+                ),
+                expectedHelperID: "todo",
+                expectedPurposeRef: "personal.chat.assist.todo"
+            ),
+            QualityCase(
+                prompt: "lagre dette",
+                context: context(
+                    purposeRefs: ["personal.chat.assist.idea.capture"],
+                    interests: ["idea", "capture", "vault"],
+                    weights: ["personal.chat.assist.idea.capture": 0.9]
+                ),
+                expectedHelperID: "idea-capture",
+                expectedPurposeRef: "personal.chat.assist.idea.capture"
+            ),
+            QualityCase(
+                prompt: "koble dette",
+                context: context(
+                    purposeRefs: ["personal.knowledge.graph.index"],
+                    interests: ["graph", "obsidian", "vault"],
+                    weights: ["personal.knowledge.graph.index": 0.9]
+                ),
+                expectedHelperID: "resource-router",
+                expectedPurposeRef: "personal.knowledge.graph.index"
+            )
+        ]
+
+        let baseline = cases.map { BindingChatIntentClassifier.classify(prompt: $0.prompt) }
+        let withPerspective = cases.map {
+            BindingChatIntentClassifier.classify(
+                prompt: $0.prompt,
+                perspectiveContext: $0.context
+            )
+        }
+
+        let baselineExactHits = zip(cases, baseline).filter { item, result in
+            result.helperID == item.expectedHelperID
+                && result.purposeRef == item.expectedPurposeRef
+                && result.shouldSuggest
+        }.count
+        let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+            result.helperID == item.expectedHelperID
+                && result.purposeRef == item.expectedPurposeRef
+                && result.shouldSuggest
+        }.count
+        let baselineSuggestions = baseline.filter(\.shouldSuggest).count
+        let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+        let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+        let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+
+        #expect(baselineExactHits == 0)
+        #expect(baselineSuggestions == 0)
+        #expect(perspectiveExactHits == cases.count)
+        #expect(perspectiveSuggestions == cases.count)
+        #expect(averagePerspectiveConfidence - averageBaselineConfidence >= 0.6)
+
+        let ideaContext = context(
+            purposeRefs: ["personal.chat.assist.idea.capture"],
+            interests: ["idea", "capture", "vault"],
+            weights: ["personal.chat.assist.idea.capture": 0.9]
+        )
+        let negative = BindingChatIntentClassifier.classify(
+            prompt: "ikke lagre ide",
+            perspectiveContext: ideaContext
+        )
+        #expect(negative.shouldSuggest == false)
+        #expect(negative.negativeIntent == "idea_capture")
     }
 
     @Test func docsRAGHelperIsDiscoverableAndSideEffectFreeUntilExplicitAsk() async throws {

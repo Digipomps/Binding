@@ -963,6 +963,8 @@ struct ContentView: View {
             skeleton: renderedSkeleton,
             isEditing: editorMode == .edit,
             activeConfigurationName: activeConfiguration?.name,
+            contentPadding: portholeCanvasContentPadding,
+            contentTopAligned: portholeCanvasContentTopAligned,
             selectedNodePath: editorState.selectedNodePath,
             highlightedDropTargets: activeComponentDropTargets,
             activeComponent: activeComponentInsertionItem,
@@ -1021,6 +1023,22 @@ struct ContentView: View {
                     .allowsHitTesting(false)
             }
         }
+    }
+
+    private var portholeCanvasContentPadding: CGFloat {
+#if os(iOS)
+        usesCompactEditorChrome ? 4 : 16
+#else
+        16
+#endif
+    }
+
+    private var portholeCanvasContentTopAligned: Bool {
+#if os(iOS)
+        usesPersonalCopilotShell && usesCompactEditorChrome
+#else
+        false
+#endif
     }
 
     private var legacyShell: some View {
@@ -1193,9 +1211,9 @@ struct ContentView: View {
                     portholeCanvas
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .background(Color(bindingHex: BindingPersonalCopilotDesignSystem.surface) ?? .white)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: personalCopilotSurfaceCornerRadius, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            RoundedRectangle(cornerRadius: personalCopilotSurfaceCornerRadius, style: .continuous)
                                 .stroke(
                                     Color(bindingHex: BindingPersonalCopilotDesignSystem.border) ?? .gray.opacity(0.2),
                                     lineWidth: 1
@@ -1210,8 +1228,8 @@ struct ContentView: View {
                         .frame(width: 220)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 18)
+            .padding(.horizontal, personalCopilotDetailHorizontalPadding)
+            .padding(.bottom, personalCopilotDetailBottomPadding)
         }
         .task(id: destination.id) {
             guard isActive else { return }
@@ -1221,6 +1239,30 @@ struct ContentView: View {
             guard activeConfiguration?.name != destination.title else { return }
             queueConfigurationLoad(destination.configuration, navigationMode: .reset)
         }
+    }
+
+    private var personalCopilotDetailHorizontalPadding: CGFloat {
+#if os(iOS)
+        usesCompactEditorChrome ? 8 : 18
+#else
+        18
+#endif
+    }
+
+    private var personalCopilotDetailBottomPadding: CGFloat {
+#if os(iOS)
+        usesCompactEditorChrome ? 8 : 18
+#else
+        18
+#endif
+    }
+
+    private var personalCopilotSurfaceCornerRadius: CGFloat {
+#if os(iOS)
+        usesCompactEditorChrome ? 18 : 24
+#else
+        24
+#endif
     }
 
     private func personalCopilotVisibleConfiguration(
@@ -1505,6 +1547,133 @@ struct ContentView: View {
         selectPersonalCopilotDestination(.defaultDestination(for: tab))
     }
 
+    private func openContextualCopilotHelp() {
+        let payload = contextualCopilotHelpPayload()
+        openCopilotChatSurfaceForHelp()
+        Task { @MainActor in
+            await stageContextualCopilotHelp(payload)
+        }
+    }
+
+    @MainActor
+    private func openCopilotChatSurfaceForHelp() {
+        if editorMode == .edit && editorState.isDirty {
+            loadErrorMessage = "Hjelpespørsmålet er lagt i Co-Pilot Chat. Lagre eller forkast editor-draften før Binding bytter flate."
+            return
+        }
+
+        if editorMode == .edit {
+            editorMode = .view
+        }
+        personalCopilotDestination = .inviteChat
+        personalCopilotPhoneTab = .chat
+        queueConfigurationLoad(ConfigurationCatalogCell.personalInviteChatMenuConfiguration(), navigationMode: .reset)
+    }
+
+    private func contextualCopilotHelpPayload() -> Object {
+        let configuration = activeConfiguration ?? personalCopilotDestination.configuration
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+        let surfaceDescription = nonEmpty(configuration.discovery?.purposeDescription)
+            ?? nonEmpty(configuration.description)
+            ?? "Ingen beskrivelse er deklarert for aktiv flate."
+        let sourceEndpoint = nonEmpty(activeSourceBackedContext?.sourceCellEndpoint)
+            ?? nonEmpty(metadata.sourceEndpoint)
+            ?? nonEmpty(configuration.discovery?.sourceCellEndpoint)
+        var payload: Object = [
+            "activeSurfaceName": .string(configuration.name),
+            "surfaceDescription": .string(surfaceDescription),
+            "editorMode": .string(editorMode.rawValue),
+            "destination": .string(personalCopilotDestination.title),
+            "sourceKind": .string(metadata.sourceKind.rawValue),
+            "sourceBacked": .bool(activeSourceBackedContext != nil),
+            "userContextSummary": .string(contextualHelpUserSummary(configuration: configuration)),
+            "permissionSummary": .string(contextualHelpPermissionSummary(metadata: metadata))
+        ]
+        if let sourceEndpoint {
+            payload["sourceEndpoint"] = .string(sourceEndpoint)
+        }
+        return payload
+    }
+
+    private func contextualHelpUserSummary(configuration: CellConfiguration) -> String {
+        let shell = usesPersonalCopilotShell ? "Personal Co-Pilot shell" : "Binding arbeidsflate"
+        let activeName = nonEmpty(activeConfiguration?.name) ?? configuration.name
+        return "\(shell), aktiv flate \(activeName), privat requester-scope."
+    }
+
+    private func contextualHelpPermissionSummary(metadata: BindingPersonalCopilotSurfaceMetadata) -> String {
+        var parts: [String] = []
+        if metadata.requiresLogin {
+            parts.append("Innlogging er deklarert for flaten")
+        }
+        if metadata.requiresModeration {
+            parts.append("brukergenerert innhold skal modereres")
+        }
+        if metadata.nativePermissionRequests.isEmpty {
+            parts.append("ingen native tillatelser brukes av hjelpespørsmålet")
+        } else {
+            parts.append("native tillatelser: \(metadata.nativePermissionRequests.joined(separator: ", "))")
+        }
+        parts.append("RAG/provider-kall krever eget klikk og granted scope")
+        return parts.joined(separator: ". ")
+    }
+
+    @MainActor
+    private func stageContextualCopilotHelp(_ payload: Object) async {
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        var requester = await startupRequesterIdentity()
+        if requester == nil {
+            requester = await privateRequesterIdentity()
+        }
+        guard let requester else {
+            loadErrorMessage = "Kunne ikke klargjøre Co-Pilot-hjelp fordi Binding mangler requester-identitet."
+            return
+        }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            loadErrorMessage = "Kunne ikke klargjøre Co-Pilot-hjelp fordi CellResolver ikke er klar."
+            return
+        }
+
+        do {
+            guard let chat = try await resolver.cellAtEndpoint(
+                endpoint: "cell:///PersonalChatHub",
+                requester: requester
+            ) as? Meddle else {
+                throw NSError(
+                    domain: "BindingContextualHelp",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "PersonalChatHub er ikke tilgjengelig."]
+                )
+            }
+            _ = try await chat.set(
+                keypath: "chatHub.help.openContextual",
+                value: .object(payload),
+                requester: requester
+            )
+            let surfaceName = nonEmpty(BindingChatValue.string(payload["activeSurfaceName"])) ?? "aktiv flate"
+            copyStatusMessage = "Hjelp er åpnet i Co-Pilot Chat med kontekst for \(surfaceName)."
+            diagnosticsStore.record(
+                domain: "binding.help",
+                message: "Contextual help staged for \(surfaceName)."
+            )
+        } catch {
+            loadErrorMessage = "Kunne ikke klargjøre Co-Pilot-hjelp: \(error.localizedDescription)"
+            diagnosticsStore.record(
+                severity: .error,
+                domain: "binding.help",
+                message: "Contextual help staging failed: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     @ViewBuilder
     private var topChrome: some View {
         VStack(spacing: 6) {
@@ -1579,18 +1748,21 @@ struct ContentView: View {
     }
 
     private var personalCopilotTopChrome: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: usesCompactEditorChrome ? 8 : 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Binding")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Text("Personal Co-Pilot")
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textSecondary) ?? .secondary)
                     .lineLimit(1)
             }
+            .layoutPriority(1)
 
-            Spacer(minLength: 8)
+            Spacer(minLength: usesCompactEditorChrome ? 4 : 8)
 
             Menu {
                 ForEach(BindingPersonalCopilotDestination.destinations(for: personalCopilotPhoneTab)) { destination in
@@ -1601,18 +1773,32 @@ struct ContentView: View {
                     }
                 }
             } label: {
-                Label("Surfaces", systemImage: "square.grid.2x2")
+                personalCopilotChromeLabel("Surfaces", systemImage: "square.grid.2x2")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .accessibilityLabel("Surfaces")
+            .help("Velg Personal Co-Pilot-flate")
+
+            Button {
+                openContextualCopilotHelp()
+            } label: {
+                personalCopilotChromeLabel("Hjelp", systemImage: "questionmark.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .accessibilityLabel("Hjelp")
+            .help("Åpne Co-Pilot Chat med kontekst fra aktiv flate.")
 
             Button {
                 presentingFullLibrary = true
             } label: {
-                Label("Library", systemImage: "books.vertical")
+                personalCopilotChromeLabel("Library", systemImage: "books.vertical")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .accessibilityLabel("Library")
+            .help("Åpne Full Library")
 
             Menu {
                 Button {
@@ -1638,8 +1824,24 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
         }
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(usesCompactEditorChrome ? 10 : 12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: usesCompactEditorChrome ? 12 : 14, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func personalCopilotChromeLabel(_ title: String, systemImage: String) -> some View {
+#if os(iOS)
+        if usesCompactEditorChrome {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 28, height: 28)
+                .accessibilityLabel(title)
+        } else {
+            Label(title, systemImage: systemImage)
+        }
+#else
+        Label(title, systemImage: systemImage)
+#endif
     }
 
     @MainActor
@@ -2569,6 +2771,15 @@ struct ContentView: View {
             .controlSize(.small)
 
             Button {
+                openContextualCopilotHelp()
+            } label: {
+                Label("Hjelp", systemImage: "questionmark.circle")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Åpne Co-Pilot Chat med kontekst fra aktiv flate.")
+
+            Button {
                 copyLoadedConfigurationJSONToClipboard()
             } label: {
                 Label("Copy JSON", systemImage: "doc.on.doc")
@@ -2669,6 +2880,15 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .accessibilityLabel("Library")
+
+            Button {
+                openContextualCopilotHelp()
+            } label: {
+                Image(systemName: "questionmark.circle")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel("Hjelp")
 
             Button {
                 copyLoadedConfigurationJSONToClipboard()
@@ -7252,6 +7472,8 @@ private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
     var isEditing: Bool
     var activeConfigurationName: String?
+    var contentPadding: CGFloat = 16
+    var contentTopAligned: Bool = false
     var selectedNodePath: SkeletonNodePath?
     var highlightedDropTargets: [DropTargetDescriptor]
     var activeComponent: ComponentPaletteItem?
@@ -7271,11 +7493,7 @@ private struct PortholeCanvas: View {
             Color(.white)
 #endif
             GeometryReader { proxy in
-                canvasContent
-                    .environmentObject(viewModel)
-                    .padding()
-                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                positionedCanvasContent(in: proxy)
                     .overlayPreferenceValue(EditorSkeletonNodeBoundsPreferenceKey.self) { anchors in
                         GeometryReader { overlayProxy in
                             if let activeComponent {
@@ -7324,6 +7542,22 @@ private struct PortholeCanvas: View {
     }
 
     @ViewBuilder
+    private func positionedCanvasContent(in proxy: GeometryProxy) -> some View {
+        if contentTopAligned {
+            canvasContent
+                .environmentObject(viewModel)
+                .padding(contentPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else {
+            canvasContent
+                .environmentObject(viewModel)
+                .padding(contentPadding)
+                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+
+    @ViewBuilder
     private var canvasContent: some View {
         if isEditing {
             EditorSelectableSkeletonView(
@@ -7337,7 +7571,7 @@ private struct PortholeCanvas: View {
             if let mode = nativeNearbyRadarMode {
                 nativeNearbyRadarCanvas(mode: mode)
             } else {
-                SkeletonView(element: skeleton)
+                BindingSkeletonView(element: skeleton)
             }
         }
     }
@@ -7366,7 +7600,7 @@ private struct PortholeCanvas: View {
         return ScrollView {
             VStack(spacing: mode == .full ? 16 : 12) {
                 ConferenceNearbyRadarSurfaceView(mode: mode)
-                SkeletonView(element: skeleton)
+                BindingSkeletonView(element: skeleton)
             }
             .frame(maxWidth: maxWidth)
             .frame(maxWidth: .infinity)

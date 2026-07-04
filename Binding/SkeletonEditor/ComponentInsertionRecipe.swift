@@ -110,17 +110,17 @@ enum ComponentPaletteCatalog {
         )
     }
 
-    static func embeddedChatCard(endpoint: String = "cell://staging.haven.digipomps.org/Chat") -> ComponentPaletteItem {
+    static func embeddedChatCard(endpoint: String = "cell:///PersonalChatHub") -> ComponentPaletteItem {
         let recipe = ComponentInsertionRecipe(
             id: "chat.embedded.card",
-            displayName: "Chat Card",
-            subtitle: "Kompakt chat-komponent for innbygging i gjeldende skeleton.",
-            icon: "bubble.left.and.bubble.right.fill",
+            displayName: "Co-Pilot Prompt",
+            subtitle: "Owner-scoped promptflate som foreslaar neste trygge hjelper uten aa sende.",
+            icon: "arrow.up.circle.fill",
             role: .embeddedWidget,
             supportedInsertionModes: [.component],
             supportedTargetKinds: ["root", "vstack", "section", "scrollview", "grid"],
-            referenceTemplate: [CellReference(endpoint: endpoint, label: "chat")],
-            skeletonTemplate: embeddedChatCardSkeleton(referenceLabel: "chat"),
+            referenceTemplate: [CellReference(endpoint: endpoint, label: "chatHub")],
+            skeletonTemplate: embeddedChatCardSkeleton(referenceLabel: "chatHub"),
             preferredDropBehavior: .appendIntoContainer
         )
 
@@ -255,45 +255,45 @@ enum ComponentPaletteCatalog {
         }
 
         let primaryButton = makeModifier {
-            $0.padding = 10
-            $0.background = "#2563EB"
-            $0.cornerRadius = 10
+            $0.padding = 12
+            $0.background = "#4F46E5"
+            $0.cornerRadius = 999
             $0.foregroundColor = "#FFFFFF"
         }
 
         let secondaryButton = makeModifier {
-            $0.padding = 10
-            $0.background = "#E5E7EB"
-            $0.cornerRadius = 10
+            $0.padding = 8
+            $0.background = "#F8FAFC"
+            $0.cornerRadius = 999
             $0.foregroundColor = "#111827"
         }
 
-        var title = SkeletonText(text: "Shared Chat")
+        var title = SkeletonText(text: "Co-Pilot")
         title.modifiers = makeModifier {
             $0.fontWeight = "semibold"
             $0.fontStyle = "headline"
             $0.foregroundColor = "#111827"
         }
 
-        var liveChip = SkeletonText(text: "LIVE")
+        var liveChip = SkeletonText(text: "LOCAL")
         liveChip.modifiers = chipModifier
 
-        var statusText = SkeletonText(keypath: "\(referenceLabel).status")
+        var statusText = SkeletonText(keypath: "\(referenceLabel).state.ui.primaryActionHint")
         statusText.modifiers = makeModifier {
             $0.fontSize = 12
             $0.foregroundColor = "#4B5563"
             $0.lineLimit = 2
         }
 
-        var messagesList = SkeletonList(keypath: "\(referenceLabel).messages")
-        var messageAuthor = SkeletonText(keypath: "ownerDisplayName")
+        var messagesList = SkeletonList(keypath: "\(referenceLabel).state.ui.promptMessages")
+        var messageAuthor = SkeletonText(keypath: "speaker")
         messageAuthor.modifiers = makeModifier {
             $0.fontWeight = "semibold"
             $0.fontSize = 12
             $0.foregroundColor = "#111827"
         }
 
-        var messagePreview = SkeletonText(keypath: "contentPreview")
+        var messagePreview = SkeletonText(keypath: "body")
         messagePreview.modifiers = makeModifier {
             $0.fontSize = 12
             $0.foregroundColor = "#374151"
@@ -316,24 +316,24 @@ enum ComponentPaletteCatalog {
 
         let composer = SkeletonTextArea(
             text: nil,
-            sourceKeypath: "\(referenceLabel).compose.body",
-            targetKeypath: "\(referenceLabel).compose.body",
-            placeholder: "Skriv melding",
+            sourceKeypath: "\(referenceLabel).state.composer.body",
+            targetKeypath: "\(referenceLabel).setComposer",
+            placeholder: "Hva vil du faa gjort?",
             minLines: 2,
             maxLines: 4,
             submitOnEnter: false
         )
 
         var sendButton = SkeletonButton(
-            keypath: "\(referenceLabel).sendComposedMessage",
-            label: "Send",
+            keypath: "\(referenceLabel).ui.openSuggestedHelper",
+            label: "↑",
             payload: .bool(true)
         )
         sendButton.modifiers = primaryButton
 
         var clearButton = SkeletonButton(
             keypath: "\(referenceLabel).clearComposer",
-            label: "Clear",
+            label: "Tom",
             payload: .bool(true)
         )
         clearButton.modifiers = secondaryButton

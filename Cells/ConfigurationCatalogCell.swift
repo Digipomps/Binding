@@ -78,8 +78,16 @@ enum BindingPersonalCopilotV1Policy {
         "personal-workflow-step",
         "personal-graph-preview",
         "personal-knowledge-graph",
+        "personal-chat-page",
+        "personal-chat-hero",
+        "personal-chat-section",
+        "personal-chat-composer-field",
         "chat-primary-action",
-        "chat-safety-hint"
+        "chat-safety-hint",
+        "chat-prompt-log",
+        "chat-active-tool-chips",
+        "chat-helper-tabs",
+        "chat-helper-tabs-compact"
     ]
 
     nonisolated static var appStoreCatalogGateEnabled: Bool {
@@ -426,6 +434,38 @@ enum BindingPersonalCopilotDesignSystem {
         }
     }
 
+    nonisolated static func chatPageShell() -> SkeletonModifiers {
+        modifier {
+            $0.padding = 8
+            $0.background = surface
+            $0.cornerRadius = 14
+            $0.maxWidthInfinity = true
+            $0.styleRole = "personal-chat-page"
+        }
+    }
+
+    nonisolated static func chatHeroPanel() -> SkeletonModifiers {
+        modifier {
+            $0.padding = 10
+            $0.background = surfaceElevated
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = border
+            $0.styleRole = "personal-chat-hero"
+        }
+    }
+
+    nonisolated static func chatSectionCard() -> SkeletonModifiers {
+        modifier {
+            $0.padding = 10
+            $0.background = surfaceElevated
+            $0.cornerRadius = 12
+            $0.borderWidth = 1
+            $0.borderColor = border
+            $0.styleRole = "personal-chat-section"
+        }
+    }
+
     nonisolated static func heroPanel() -> SkeletonModifiers {
         modifier {
             $0.padding = 16
@@ -489,6 +529,17 @@ enum BindingPersonalCopilotDesignSystem {
             $0.borderWidth = 1
             $0.borderColor = borderStrong
             $0.styleRole = "personal-inline-field"
+        }
+    }
+
+    nonisolated static func chatComposerFieldCard() -> SkeletonModifiers {
+        modifier {
+            $0.padding = 8
+            $0.background = surfaceElevated
+            $0.cornerRadius = 10
+            $0.borderWidth = 1
+            $0.borderColor = borderStrong
+            $0.styleRole = "personal-chat-composer-field"
         }
     }
 
@@ -8363,6 +8414,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
 
         let fieldCard = BindingPersonalCopilotDesignSystem.fieldCard()
+        let composerFieldCard = BindingPersonalCopilotDesignSystem.chatComposerFieldCard()
         func button(
             _ keypath: String,
             _ title: String,
@@ -8380,11 +8432,11 @@ final class ConfigurationCatalogCell: GeneralCell {
             text: nil,
             sourceKeypath: "chatHub.state.composer.body",
             targetKeypath: "chatHub.setComposer",
-            placeholder: "F.eks. \"inviter Anna\", \"vi trenger avstemning\", \"registrer feil\" eller \"hva sier docs om formål?\"",
+            placeholder: nil,
             minLines: 2,
-            maxLines: 4,
+            maxLines: 3,
             submitOnEnter: false,
-            modifiers: fieldCard
+            modifiers: composerFieldCard
         )
         let candidateField = SkeletonTextField(
             text: nil,
@@ -8770,6 +8822,15 @@ final class ConfigurationCatalogCell: GeneralCell {
         var providerList = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.assistantProviders", flowElementSkeleton: providerRow)
         providerList.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-list-row")
 
+        var helpSourceRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("status", lineLimit: 1)),
+            .Text(personalBoundText("summary", lineLimit: 3))
+        ], spacing: 4)
+        helpSourceRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
+        var helpSources = SkeletonList(topic: nil, keypath: "chatHub.state.help.availableSources", flowElementSkeleton: helpSourceRow)
+        helpSources.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-list-row")
+
         var perspectivePurposeName = SkeletonText(keypath: "purposeName")
         perspectivePurposeName.modifiers = modifier {
             $0.fontWeight = "semibold"
@@ -9064,7 +9125,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         let conversationPanel: [SkeletonElement] = [
-            personalSection(
+            personalCompactSection(
                 "Skriv",
                 role: "personal-draft-composer",
                 content: [
@@ -9076,7 +9137,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                     .Text(personalLabelText("Logg")),
                     .List(promptMessages)
                 ],
-                modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-draft-composer")
+                modifiers: BindingPersonalCopilotDesignSystem.chatSectionCard()
             )
         ]
 
@@ -9156,6 +9217,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             content: [
                 .Text(personalBodyText("Skriv hva du vil oppnaa i klartekst. Flaten er laget for chat-first, ikke for tekniske felt.")),
                 .Text(personalBodyText("Bruk navn, kallenavn eller relasjoner som \"naermeste kollega\". Assistenten kan foreslaa neste steg, men sender aldri noe alene.")),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.help.openContextual", "Bruk aktiv kontekst")),
+                    .Button(button("chatHub.docsRAG.search", "Finn kilder", style: .secondary))
+                ], spacing: 8)),
+                .Text(personalBoundText("chatHub.state.help.summary", lineLimit: 3)),
+                .Text(personalBoundText("chatHub.state.help.suggestedPrompt", lineLimit: 5)),
+                .List(helpSources),
                 perspectiveContextPanel
             ]
         )
@@ -9255,14 +9323,13 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.styleRole = "tabstrip"
         }
 
-        configuration.skeleton = personalSurfacePage(
+        configuration.skeleton = personalChatSurfacePage(
             title: "Co-Pilot",
             subtitle: "Skriv hva du vil oppnaa. Jeg foreslaar riktig hjelper før noe skjer.",
             chip: "CHAT",
             content: [
                 .Tabs(tabs)
-            ],
-            showsCopilotReturnAction: false
+            ]
         )
         return configuration
     }
@@ -10203,6 +10270,46 @@ final class ConfigurationCatalogCell: GeneralCell {
         return .ScrollView(scroll)
     }
 
+    nonisolated private static func personalChatSurfacePage(
+        title: String,
+        subtitle: String,
+        chip: String,
+        content: [SkeletonElement]
+    ) -> SkeletonElement {
+        var titleText = BindingPersonalCopilotDesignSystem.headingText(title)
+        titleText.modifiers?.styleRole = "personal-chat-hero"
+        titleText.modifiers?.lineLimit = 1
+        var chipText = SkeletonText(text: chip)
+        chipText.modifiers = BindingPersonalCopilotDesignSystem.badgeModifier()
+        var subtitleText = personalBodyText(subtitle, lineLimit: 2)
+        subtitleText.modifiers?.fontSize = 13
+
+        var heroHeader = SkeletonHStack(elements: [
+            .Text(titleText),
+            .Spacer(SkeletonSpacer()),
+            .Text(chipText)
+        ], spacing: 8)
+        heroHeader.modifiers = modifier {
+            $0.maxWidthInfinity = true
+        }
+
+        var hero = SkeletonVStack(elements: [
+            .HStack(heroHeader),
+            .Text(subtitleText)
+        ], spacing: 4)
+        hero.modifiers = BindingPersonalCopilotDesignSystem.chatHeroPanel()
+
+        var root = SkeletonVStack(elements: [.VStack(hero)] + content, spacing: 8)
+        root.modifiers = BindingPersonalCopilotDesignSystem.chatPageShell()
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier {
+            $0.background = BindingPersonalCopilotDesignSystem.surface
+            $0.maxWidthInfinity = true
+        }
+        return .ScrollView(scroll)
+    }
+
     nonisolated private static func withPersonalCopilotRecoveryAction(_ configuration: CellConfiguration) -> CellConfiguration {
         guard let skeleton = configuration.skeleton else { return configuration }
 
@@ -10236,6 +10343,22 @@ final class ConfigurationCatalogCell: GeneralCell {
             content: content
         )
         section.modifiers = modifiers ?? BindingPersonalCopilotDesignSystem.sectionCard(role: role)
+        return .Section(section)
+    }
+
+    nonisolated private static func personalCompactSection(
+        _ title: String,
+        role: String = "personal-card",
+        content: [SkeletonElement],
+        modifiers: SkeletonModifiers? = nil
+    ) -> SkeletonElement {
+        var sectionTitle = BindingPersonalCopilotDesignSystem.headingText(title)
+        sectionTitle.modifiers?.styleRole = role
+        var section = SkeletonSection(
+            header: .Text(sectionTitle),
+            content: content
+        )
+        section.modifiers = modifiers ?? BindingPersonalCopilotDesignSystem.chatSectionCard()
         return .Section(section)
     }
 
