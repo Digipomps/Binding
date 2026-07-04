@@ -5741,7 +5741,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         let userContextSummary = contextualHelpString(
             payload,
             keys: ["userContextSummary", "userContext", "scopeSummary"],
-            fallback: "Privat Binding/Personal Co-Pilot-scope."
+            fallback: "Privat HAVEN/Personal Co-Pilot-scope."
         )
         let permissionSummary = contextualHelpString(
             payload,
@@ -6217,7 +6217,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "schema": .string("binding.contextual-help.v0"),
                 "activeSurfaceName": .string("Ingen flate valgt"),
                 "editorMode": .string("view"),
-                "userContextSummary": .string("Privat Binding/Personal Co-Pilot-scope."),
+                "userContextSummary": .string("Privat HAVEN/Personal Co-Pilot-scope."),
                 "ragPolicy": .string("Docs/RAG og andre kilder krever eksplisitt brukerklikk og granted scope."),
                 "sideEffectFree": .bool(true)
             ]),

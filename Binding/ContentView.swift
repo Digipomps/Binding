@@ -1558,7 +1558,7 @@ struct ContentView: View {
     @MainActor
     private func openCopilotChatSurfaceForHelp() {
         if editorMode == .edit && editorState.isDirty {
-            loadErrorMessage = "Hjelpespørsmålet er lagt i Co-Pilot Chat. Lagre eller forkast editor-draften før Binding bytter flate."
+            loadErrorMessage = "Hjelpespørsmålet er lagt i Co-Pilot Chat. Lagre eller forkast editor-draften før HAVEN bytter flate."
             return
         }
 
@@ -1596,7 +1596,7 @@ struct ContentView: View {
     }
 
     private func contextualHelpUserSummary(configuration: CellConfiguration) -> String {
-        let shell = usesPersonalCopilotShell ? "Personal Co-Pilot shell" : "Binding arbeidsflate"
+        let shell = usesPersonalCopilotShell ? "Personal Co-Pilot shell" : "HAVEN arbeidsflate"
         let activeName = nonEmpty(activeConfiguration?.name) ?? configuration.name
         return "\(shell), aktiv flate \(activeName), privat requester-scope."
     }
@@ -1750,7 +1750,7 @@ struct ContentView: View {
     private var personalCopilotTopChrome: some View {
         HStack(spacing: usesCompactEditorChrome ? 8 : 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Binding")
+                Text("HAVEN")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color(bindingHex: BindingPersonalCopilotDesignSystem.textPrimary) ?? .primary)
                     .lineLimit(1)

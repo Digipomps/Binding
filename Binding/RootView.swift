@@ -58,7 +58,7 @@ struct RootView: View {
                     .ignoresSafeArea()
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text("Starter Binding-runtime…")
+                    Text("Starter HAVEN-runtime…")
                         .font(.headline)
                     Text("Laster lokale celler og demooppsett før arbeidsflaten vises.")
                         .font(.subheadline)

@@ -1258,7 +1258,7 @@ final class AgentProvisioningCell: GeneralCell {
 
         let panel = NSOpenPanel()
         panel.title = "Grant HAVENAgent Runtime Access"
-        panel.message = "Binding needs access to ~/Library/Application Support so it can manage HAVENAgent outside the app container."
+        panel.message = "HAVEN needs access to ~/Library/Application Support so it can manage HAVENAgent outside the app container."
         panel.prompt = "Grant Access"
         panel.directoryURL = expectedRuntimeAccessDirectory
         panel.showsHiddenFiles = true
@@ -1275,7 +1275,7 @@ final class AgentProvisioningCell: GeneralCell {
 
         guard selectedURL.standardizedFileURL == expectedRuntimeAccessDirectory.standardizedFileURL else {
             throw ProvisioningError.commandFailed(
-                "Select \(expectedRuntimeAccessDirectory.path) to grant Binding access to the external HAVENAgent runtime."
+                "Select \(expectedRuntimeAccessDirectory.path) to grant HAVEN access to the external HAVENAgent runtime."
             )
         }
 

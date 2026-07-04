@@ -290,7 +290,7 @@ final class AgentConversationClient {
             return identity
         }
         if let participantID = NotificationEnrollmentManager.shared.currentParticipantID() {
-            return Identity(participantID, displayName: "Binding Phone", identityVault: nil)
+            return Identity(participantID, displayName: "HAVEN Phone", identityVault: nil)
         }
         throw AgentConversationClientError.missingIdentity
     }
@@ -353,9 +353,9 @@ enum AgentConversationClientError: Error, LocalizedError {
         case .emptyPrompt:
             return "Write a prompt before sending."
         case .missingResolver:
-            return "Binding runtime is not ready to resolve staging cells."
+            return "HAVEN runtime is not ready to resolve staging cells."
         case .missingIdentity:
-            return "No local Binding identity is available for staging."
+            return "No local HAVEN identity is available for staging."
         case .targetNotWritable:
             return "AgentConversationInbox is not writable over the staging bridge."
         case .remoteRejected(let message):
