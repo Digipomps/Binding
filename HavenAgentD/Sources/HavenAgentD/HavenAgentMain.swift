@@ -23,6 +23,8 @@ enum HavenAgentCommand {
     case reviewApprove(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
     case reviewReject(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
     case listCellBlueprints
+    case planAdvisors(AdvisorPanelCommandOptions)
+    case spawnAdvisors(AdvisorPanelCommandOptions)
     case networkStatus(secondsToObserve: Int)
     case networkListen(minutes: Int)
     case monitor(configPath: String?, rootPath: String?, bridgePort: Int?)
@@ -55,6 +57,23 @@ struct SetupOptions {
     var force: Bool
     var skipLaunchAgent: Bool
     var load: Bool
+}
+
+struct AdvisorPanelCommandOptions {
+    var configPath: String?
+    var rootPath: String?
+    var profile: String?
+    var topic: String?
+    var purposeRef: String?
+    var goal: String?
+    var brief: String?
+    var briefFile: String?
+    var interests: [String]
+    var constraints: [String]
+    var sourceRefs: [String]
+    var advisorSpecs: [String]
+    var outDirectory: String?
+    var json: Bool
 }
 
 @main
@@ -252,6 +271,29 @@ struct HavenAgentMain {
             case .listCellBlueprints:
                 for blueprint in AgentCellCatalog.defaultBlueprints {
                     print("\(blueprint.kind.rawValue): \(blueprint.suggestedCellName) - \(blueprint.purpose)")
+                }
+
+            case .planAdvisors(let options):
+                guard options.outDirectory == nil else {
+                    throw UsageError.invalidArguments("plan-advisors does not write files and does not accept --out-dir. Use spawn-advisors for a persisted artifact.")
+                }
+                let paths = try resolvePaths(rootPath: options.rootPath, configPath: options.configPath)
+                let request = try advisorPanelRequest(from: options)
+                let result = try AdvisorPanelSpawnService(paths: paths).plan(request)
+                try printJSON(result)
+
+            case .spawnAdvisors(let options):
+                let paths = try resolvePaths(rootPath: options.rootPath, configPath: options.configPath)
+                let request = try advisorPanelRequest(from: options)
+                let outDirectory = options.outDirectory.map { URL(fileURLWithPath: NSString(string: $0).expandingTildeInPath) }
+                let record = try AdvisorPanelSpawnService(paths: paths).spawn(request, outDirectory: outDirectory)
+                if options.json {
+                    try printJSON(record)
+                } else {
+                    print("Spawned advisor panel: \(record.artifact.id)")
+                    print("Artifact: \(record.filePath)")
+                    print("Advisor tasks: \(record.artifact.tasks.count)")
+                    print("Boundary: local artifact only; no providers, notifications, scripts, or Cell state mutations were run.")
                 }
 
             case .monitor(let configPath, let rootPath, let bridgePort):
@@ -478,6 +520,42 @@ struct HavenAgentMain {
             )
         case "list-cell-blueprints":
             return .listCellBlueprints
+        case "plan-advisors":
+            let remaining = Array(arguments.dropFirst())
+            return .planAdvisors(AdvisorPanelCommandOptions(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining),
+                profile: argumentValue(for: "--profile", in: remaining),
+                topic: argumentValue(for: "--topic", in: remaining),
+                purposeRef: argumentValue(for: "--purpose", in: remaining),
+                goal: argumentValue(for: "--goal", in: remaining),
+                brief: argumentValue(for: "--brief", in: remaining),
+                briefFile: argumentValue(for: "--brief-file", in: remaining),
+                interests: argumentValues(for: "--interest", in: remaining),
+                constraints: argumentValues(for: "--constraint", in: remaining),
+                sourceRefs: argumentValues(for: "--source-ref", in: remaining),
+                advisorSpecs: argumentValues(for: "--advisor", in: remaining),
+                outDirectory: argumentValue(for: "--out-dir", in: remaining),
+                json: true
+            ))
+        case "spawn-advisors":
+            let remaining = Array(arguments.dropFirst())
+            return .spawnAdvisors(AdvisorPanelCommandOptions(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining),
+                profile: argumentValue(for: "--profile", in: remaining),
+                topic: argumentValue(for: "--topic", in: remaining),
+                purposeRef: argumentValue(for: "--purpose", in: remaining),
+                goal: argumentValue(for: "--goal", in: remaining),
+                brief: argumentValue(for: "--brief", in: remaining),
+                briefFile: argumentValue(for: "--brief-file", in: remaining),
+                interests: argumentValues(for: "--interest", in: remaining),
+                constraints: argumentValues(for: "--constraint", in: remaining),
+                sourceRefs: argumentValues(for: "--source-ref", in: remaining),
+                advisorSpecs: argumentValues(for: "--advisor", in: remaining),
+                outDirectory: argumentValue(for: "--out-dir", in: remaining),
+                json: remaining.contains("--json")
+            ))
         case "network-status":
             let remaining = Array(arguments.dropFirst())
             return .networkStatus(secondsToObserve: intArgumentValue(for: "--seconds", in: remaining) ?? 6)
@@ -521,6 +599,15 @@ struct HavenAgentMain {
         return arguments[index + 1]
     }
 
+    private static func argumentValues(for flag: String, in arguments: [String]) -> [String] {
+        arguments.indices.compactMap { index in
+            guard arguments[index] == flag, arguments.indices.contains(index + 1) else {
+                return nil
+            }
+            return arguments[index + 1]
+        }
+    }
+
     private static func intArgumentValue(for flag: String, in arguments: [String]) -> Int? {
         guard let value = argumentValue(for: flag, in: arguments) else {
             return nil
@@ -561,6 +648,137 @@ struct HavenAgentMain {
         return RuntimePaths.rooted(at: URL(fileURLWithPath: expanded))
     }
 
+    private static func advisorPanelRequest(from options: AdvisorPanelCommandOptions) throws -> AdvisorPanelSpawnRequest {
+        let suppliedBrief: String?
+        if let brief = options.brief {
+            suppliedBrief = brief
+        } else if let briefFile = options.briefFile {
+            suppliedBrief = try loadTextFile(briefFile)
+        } else {
+            suppliedBrief = nil
+        }
+        let profile = options.profile?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var request: AdvisorPanelSpawnRequest
+
+        switch profile ?? "binding-gui" {
+        case "binding-gui", "binding-gui-quality", "arendalsuka-gui", "event-atlas-gui":
+            request = AdvisorPanelSpawnRequest.bindingGUIQualityProfile(brief: suppliedBrief)
+        case "custom", "none":
+            request = AdvisorPanelSpawnRequest(
+                topic: try requiredArgument(options.topic, name: "--topic"),
+                purposeRef: try requiredArgument(options.purposeRef, name: "--purpose"),
+                goal: try requiredArgument(options.goal, name: "--goal"),
+                brief: try requiredArgument(suppliedBrief, name: "--brief or --brief-file")
+            )
+        default:
+            throw UsageError.invalidArguments("Unknown --profile '\(options.profile ?? "")'. Use binding-gui, arendalsuka-gui, or custom.")
+        }
+
+        if let topic = normalizedNonEmpty(options.topic) {
+            request.topic = topic
+        }
+        if let purposeRef = normalizedNonEmpty(options.purposeRef) {
+            request.purposeRef = purposeRef
+        }
+        if let goal = normalizedNonEmpty(options.goal) {
+            request.goal = goal
+        }
+        if let brief = normalizedNonEmpty(suppliedBrief) {
+            request.brief = brief
+        }
+        request.interests += options.interests.compactMap(normalizedNonEmpty)
+        request.constraints += options.constraints.compactMap(normalizedNonEmpty)
+        request.sourceRefs += options.sourceRefs.compactMap(normalizedNonEmpty)
+        if options.advisorSpecs.isEmpty == false {
+            request.advisors = try options.advisorSpecs.map(parseAdvisorSpec)
+        }
+        return request
+    }
+
+    private static func parseAdvisorSpec(_ raw: String) throws -> AdvisorPanelSpec {
+        let parts = raw
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard parts.isEmpty == false else {
+            throw UsageError.invalidArguments("--advisor requires a non-empty value.")
+        }
+        switch parts.count {
+        case 5...:
+            return AdvisorPanelSpec(
+                id: try requiredArgument(parts[0], name: "--advisor id"),
+                displayName: try requiredArgument(parts[1], name: "--advisor displayName"),
+                role: try requiredArgument(parts[3], name: "--advisor role"),
+                preferredBackend: normalizedNonEmpty(parts[2]) ?? "local_or_reviewed",
+                focus: splitFocus(parts[4])
+            )
+        case 4:
+            return AdvisorPanelSpec(
+                id: try requiredArgument(parts[0], name: "--advisor id"),
+                displayName: try requiredArgument(parts[1], name: "--advisor displayName"),
+                role: try requiredArgument(parts[3], name: "--advisor role"),
+                preferredBackend: normalizedNonEmpty(parts[2]) ?? "local_or_reviewed"
+            )
+        case 3:
+            return AdvisorPanelSpec(
+                id: try requiredArgument(parts[0], name: "--advisor id"),
+                displayName: try requiredArgument(parts[1], name: "--advisor displayName"),
+                role: try requiredArgument(parts[2], name: "--advisor role")
+            )
+        case 2:
+            let displayName = try requiredArgument(parts[0], name: "--advisor displayName")
+            return AdvisorPanelSpec(
+                id: slug(displayName),
+                displayName: displayName,
+                role: try requiredArgument(parts[1], name: "--advisor role")
+            )
+        default:
+            let displayName = try requiredArgument(parts[0], name: "--advisor displayName")
+            return AdvisorPanelSpec(
+                id: slug(displayName),
+                displayName: displayName,
+                role: "Review the task from this advisor's perspective."
+            )
+        }
+    }
+
+    private static func splitFocus(_ value: String) -> [String] {
+        value
+            .split(separator: ",")
+            .compactMap { normalizedNonEmpty(String($0)) }
+    }
+
+    private static func loadTextFile(_ path: String) throws -> String {
+        let expanded = NSString(string: path).expandingTildeInPath
+        return try String(contentsOf: URL(fileURLWithPath: expanded), encoding: .utf8)
+    }
+
+    private static func requiredArgument(_ value: String?, name: String) throws -> String {
+        guard let value = normalizedNonEmpty(value) else {
+            throw UsageError.invalidArguments("\(name) is required.")
+        }
+        return value
+    }
+
+    private static func normalizedNonEmpty(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func slug(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        let chars = value.lowercased().unicodeScalars.map { scalar -> Character in
+            allowed.contains(scalar) ? Character(scalar) : "-"
+        }
+        let collapsed = String(chars)
+            .split(separator: "-", omittingEmptySubsequences: true)
+            .joined(separator: "-")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-_."))
+        return collapsed.isEmpty ? UUID().uuidString.lowercased() : collapsed
+    }
+
     private static func usage() -> String {
         """
         Usage:
@@ -579,6 +797,8 @@ struct HavenAgentMain {
           haven-agentd review-approve --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd review-reject --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd list-cell-blueprints
+          haven-agentd plan-advisors [--profile binding-gui|arendalsuka-gui|custom] [--topic text] [--purpose purposeRef] [--goal text] [--brief text | --brief-file /path/brief.md] [--interest text] [--constraint text] [--source-ref text] [--advisor "id|Display|backend|Role|focus,items"] [--config /path/to/config.json] [--root /path/to/dev-root]
+          haven-agentd spawn-advisors [--profile binding-gui|arendalsuka-gui|custom] [--topic text] [--purpose purposeRef] [--goal text] [--brief text | --brief-file /path/brief.md] [--interest text] [--constraint text] [--source-ref text] [--advisor "id|Display|backend|Role|focus,items"] [--out-dir /path] [--json] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd network-status [--seconds N]
           haven-agentd network-listen [--minutes N]
           haven-agentd monitor [--config /path/to/config.json] [--root /path/to/dev-root] [--bridge-port N]
