@@ -841,6 +841,37 @@ struct BindingTests {
         #expect(BindingPersonalCopilotV1Policy.unavailableMessage(for: offHost.name).contains("Personal Co-Pilot V1"))
     }
 
+    @Test func conferenceDemoMenusCanBePersistentlyEnabledInDebugBuilds() {
+        #if DEBUG
+        #expect(BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled(
+            environment: [:],
+            launchArguments: [],
+            persistedOptIn: false
+        ) == false)
+        #expect(BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled(
+            environment: [:],
+            launchArguments: [],
+            persistedOptIn: true
+        ))
+        #expect(BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled(
+            environment: ["BINDING_ENABLE_CONFERENCE_DEMO_MENUS": "yes"],
+            launchArguments: [],
+            persistedOptIn: false
+        ))
+        #expect(BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled(
+            environment: [:],
+            launchArguments: ["--conference-demo-menus"],
+            persistedOptIn: false
+        ))
+        #else
+        #expect(BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled(
+            environment: ["BINDING_ENABLE_CONFERENCE_DEMO_MENUS": "1"],
+            launchArguments: ["--conference-demo-menus"],
+            persistedOptIn: true
+        ) == false)
+        #endif
+    }
+
     @Test func personalCopilotProfilePublishingCarriesAppStoreReviewMetadata() {
         let configuration = ConfigurationCatalogCell.personalPublicProfileMenuConfiguration()
         let interests = configuration.discovery?.interests ?? []

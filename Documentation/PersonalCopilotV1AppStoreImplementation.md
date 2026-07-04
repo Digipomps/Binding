@@ -5,7 +5,7 @@ Binding now treats `Personal Co-Pilot` as the default product surface for App St
 ## Binding Runtime
 
 - Default menu seeds expose only: `Personal Home`, `My Profile`, `Publish Public Profile`, `Matches`, `Co-Pilot Chat`, `Vault / Ideas`, `Meeting Intent`, `Apple Intelligence`, `Entity Scanner` and `Workflow Studio`.
-- Conference/demo surfaces are still available in debug builds only when `BINDING_ENABLE_CONFERENCE_DEMO_MENUS=1` or `--conference-demo-menus` is supplied.
+- Conference/demo surfaces are still available in debug builds only when `BINDING_ENABLE_CONFERENCE_DEMO_MENUS=1`, `--conference-demo-menus`, or the persisted debug opt-in `Binding.EnableConferenceDemoMenus=true` is supplied.
 - App Store catalog gating is controlled by `BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled`.
 - Allowed remote hosts are explicit. V1 currently allows `staging.haven.digipomps.org`; local `cell:///...` endpoints are allowed only when the configuration is scoped to `personal-copilot-v1`.
 - Configurations must carry Personal Co-Pilot scope in discovery interests. Shipping catalog metadata is encoded as policy hints/interests with `appStoreScope`, `policyCategory`, `ageRatingHint`, `requiresLogin`, `requiresUserGeneratedContentModeration`, `nativePermissionRequests`, `universalLink` and `reviewSummary`.

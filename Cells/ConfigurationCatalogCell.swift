@@ -94,13 +94,32 @@ enum BindingPersonalCopilotV1Policy {
         !conferenceDemoMenusEnabled
     }
 
+    nonisolated static let conferenceDemoMenusDefaultsKey = "Binding.EnableConferenceDemoMenus"
+
     nonisolated static var conferenceDemoMenusEnabled: Bool {
+        conferenceDemoMenusEnabled(
+            environment: ProcessInfo.processInfo.environment,
+            launchArguments: ProcessInfo.processInfo.arguments,
+            persistedOptIn: UserDefaults.standard.bool(forKey: conferenceDemoMenusDefaultsKey)
+        )
+    }
+
+    nonisolated static func conferenceDemoMenusEnabled(
+        environment: [String: String],
+        launchArguments: [String],
+        persistedOptIn: Bool
+    ) -> Bool {
         #if DEBUG
-        let environment = ProcessInfo.processInfo.environment
-        let arguments = ProcessInfo.processInfo.arguments
-        return environment["BINDING_ENABLE_CONFERENCE_DEMO_MENUS"] == "1"
-            || arguments.contains("--conference-demo-menus")
+        if persistedOptIn {
+            return true
+        }
+
+        return isTruthyFlag(environment["BINDING_ENABLE_CONFERENCE_DEMO_MENUS"])
+            || launchArguments.contains("--conference-demo-menus")
         #else
+        _ = environment
+        _ = launchArguments
+        _ = persistedOptIn
         return false
         #endif
     }
