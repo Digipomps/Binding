@@ -43,6 +43,46 @@ struct BindingSkeletonPresentationExtraction {
     var nodes: [BindingSkeletonPresentationNode]
 }
 
+struct BindingSkeletonRenderContext {
+    var root: ValueType?
+    var item: ValueType?
+    var context: ValueType?
+    var buttonContext: ValueType?
+
+    static func root(_ value: ValueType?) -> BindingSkeletonRenderContext {
+        BindingSkeletonRenderContext(
+            root: value,
+            item: nil,
+            context: nil,
+            buttonContext: nil
+        )
+    }
+
+    func row(_ value: ValueType) -> BindingSkeletonRenderContext {
+        BindingSkeletonRenderContext(
+            root: root,
+            item: value,
+            context: Self.mergedContext(root: root, item: value),
+            buttonContext: value
+        )
+    }
+
+    private static func mergedContext(root: ValueType?, item: ValueType) -> ValueType {
+        guard case let .object(itemObject) = item else {
+            return item
+        }
+        guard case let .object(rootObject)? = root else {
+            return item
+        }
+
+        var merged = rootObject
+        for (key, value) in itemObject {
+            merged[key] = value
+        }
+        return .object(merged)
+    }
+}
+
 struct BindingSkeletonPresentationNode: Identifiable {
     var id: UUID { element.id }
     var element: SkeletonElement
@@ -55,10 +95,17 @@ enum BindingSkeletonPresentationSupport {
         from element: SkeletonElement,
         userInfoValue: ValueType?
     ) -> BindingSkeletonPresentationExtraction {
+        extract(from: element, context: .root(userInfoValue))
+    }
+
+    static func extract(
+        from element: SkeletonElement,
+        context: BindingSkeletonRenderContext
+    ) -> BindingSkeletonPresentationExtraction {
         var nodes: [BindingSkeletonPresentationNode] = []
         let baseElement = extractBaseElement(
             from: element,
-            userInfoValue: userInfoValue,
+            context: context,
             nodes: &nodes
         )
         nodes.sort { lhs, rhs in
@@ -131,10 +178,10 @@ enum BindingSkeletonPresentationSupport {
 
     private static func extractBaseElement(
         from element: SkeletonElement,
-        userInfoValue: ValueType?,
+        context: BindingSkeletonRenderContext,
         nodes: inout [BindingSkeletonPresentationNode]
     ) -> SkeletonElement? {
-        guard isVisible(element, userInfoValue: userInfoValue) else {
+        guard isVisible(element, context: context) else {
             return nil
         }
 
@@ -151,48 +198,55 @@ enum BindingSkeletonPresentationSupport {
 
         switch element {
         case .HStack(var value):
-            value.elements = extractBaseElements(from: value.elements, userInfoValue: userInfoValue, nodes: &nodes)
+            value.elements = extractBaseElements(from: value.elements, context: context, nodes: &nodes)
             return .HStack(value)
         case .VStack(var value):
-            value.elements = extractBaseElements(from: value.elements, userInfoValue: userInfoValue, nodes: &nodes)
+            value.elements = extractBaseElements(from: value.elements, context: context, nodes: &nodes)
             return .VStack(value)
         case .ScrollView(var value):
-            value.elements = extractBaseElements(from: value.elements, userInfoValue: userInfoValue, nodes: &nodes)
+            value.elements = extractBaseElements(from: value.elements, context: context, nodes: &nodes)
             return .ScrollView(value)
         case .Section(var value):
             value.header = value.header.flatMap {
-                extractBaseElement(from: $0, userInfoValue: userInfoValue, nodes: &nodes)
+                extractBaseElement(from: $0, context: context, nodes: &nodes)
             }
-            value.content = extractBaseElements(from: value.content, userInfoValue: userInfoValue, nodes: &nodes)
+            value.content = extractBaseElements(from: value.content, context: context, nodes: &nodes)
             value.footer = value.footer.flatMap {
-                extractBaseElement(from: $0, userInfoValue: userInfoValue, nodes: &nodes)
+                extractBaseElement(from: $0, context: context, nodes: &nodes)
             }
             return .Section(value)
         case .ZStack(var value):
-            value.elements = extractBaseElements(from: value.elements, userInfoValue: userInfoValue, nodes: &nodes)
+            value.elements = extractBaseElements(from: value.elements, context: context, nodes: &nodes)
             return .ZStack(value)
         case .Grid(var value):
-            value.elements = extractBaseElements(from: value.elements, userInfoValue: userInfoValue, nodes: &nodes)
+            value.elements = extractBaseElements(from: value.elements, context: context, nodes: &nodes)
             value.itemSkeleton = value.itemSkeleton.flatMap {
-                extractBaseElement(from: $0, userInfoValue: userInfoValue, nodes: &nodes)
+                extractBaseElement(from: $0, context: context, nodes: &nodes)
             }
             return .Grid(value)
+        case .List(let value):
+            if let materialized = materializedList(value, context: context, nodes: &nodes) {
+                return materialized
+            }
+            return element
         case .Tabs(var value):
             value.panels = value.panels.map { panel in
                 var updated = panel
-                updated.content = extractBaseElements(from: panel.content, userInfoValue: userInfoValue, nodes: &nodes)
+                updated.content = extractBaseElements(from: panel.content, context: context, nodes: &nodes)
                 return updated
             }
             return .Tabs(value)
         case .Object(var value):
             var updatedElements: SkeletonElementObject = [:]
             for (key, child) in value.elements {
-                if let updated = extractBaseElement(from: child, userInfoValue: userInfoValue, nodes: &nodes) {
+                if let updated = extractBaseElement(from: child, context: context, nodes: &nodes) {
                     updatedElements[key] = updated
                 }
             }
             value.elements = updatedElements
             return .Object(value)
+        case .Button(let value):
+            return .Button(resolveButton(value, context: context))
         default:
             return element
         }
@@ -200,15 +254,15 @@ enum BindingSkeletonPresentationSupport {
 
     private static func extractBaseElements(
         from elements: SkeletonElementList,
-        userInfoValue: ValueType?,
+        context: BindingSkeletonRenderContext,
         nodes: inout [BindingSkeletonPresentationNode]
     ) -> SkeletonElementList {
         elements.compactMap {
-            extractBaseElement(from: $0, userInfoValue: userInfoValue, nodes: &nodes)
+            extractBaseElement(from: $0, context: context, nodes: &nodes)
         }
     }
 
-    private static func isVisible(_ element: SkeletonElement, userInfoValue: ValueType?) -> Bool {
+    private static func isVisible(_ element: SkeletonElement, context: BindingSkeletonRenderContext) -> Bool {
         guard let modifiers = modifiers(for: element) else {
             return true
         }
@@ -218,7 +272,181 @@ enum BindingSkeletonPresentationSupport {
         guard let visibility = modifiers.visibility else {
             return true
         }
-        return visibility.isVisible(root: userInfoValue, item: userInfoValue, context: userInfoValue)
+        return visibility.isVisible(root: context.root, item: context.item, context: context.context)
+    }
+
+    static func prepareRowElement(
+        _ element: SkeletonElement,
+        root: ValueType?,
+        item: ValueType
+    ) -> SkeletonElement? {
+        var nodes: [BindingSkeletonPresentationNode] = []
+        return extractBaseElement(from: element, context: .root(root).row(item), nodes: &nodes)
+    }
+
+    static func resolveButtonForRow(
+        _ button: SkeletonButton,
+        item: ValueType
+    ) -> SkeletonButton {
+        resolveButton(button, context: .root(nil).row(item))
+    }
+
+    private static func materializedList(
+        _ list: SkeletonList,
+        context: BindingSkeletonRenderContext,
+        nodes: inout [BindingSkeletonPresentationNode]
+    ) -> SkeletonElement? {
+        guard let rowSkeleton = list.flowElementSkeleton,
+              canMaterializeList(list) else {
+            return nil
+        }
+
+        let rows = resolvedRows(
+            keypath: list.keypath,
+            staticElements: list.elements,
+            root: context.root
+        )
+        guard let rowElements = materializedRows(
+            from: rows,
+            rowSkeleton: rowSkeleton,
+            context: context,
+            nodes: &nodes
+        ) else {
+            return nil
+        }
+
+        return .VStack(SkeletonVStack(elements: rowElements, spacing: 8, modifiers: list.modifiers))
+    }
+
+    private static func canMaterializeList(_ list: SkeletonList) -> Bool {
+        if list.topic?.isEmpty == false {
+            return false
+        }
+        if list.filterTypes?.isEmpty == false {
+            return false
+        }
+        if let selectionMode = list.selectionMode, selectionMode != .none {
+            return false
+        }
+        return list.selectionValueKeypath == nil
+            && list.selectionStateKeypath == nil
+            && list.selectionActionKeypath == nil
+            && list.activationActionKeypath == nil
+            && list.selectionPayloadMode == nil
+    }
+
+    private static func materializedRows(
+        from rows: ValueTypeList,
+        rowSkeleton: SkeletonVStack,
+        context: BindingSkeletonRenderContext,
+        nodes: inout [BindingSkeletonPresentationNode]
+    ) -> SkeletonElementList? {
+        guard rows.isEmpty == false else {
+            return nil
+        }
+
+        let rowElement = SkeletonElement.VStack(rowSkeleton)
+        return rows.compactMap { row in
+            extractBaseElement(from: rowElement, context: context.row(row), nodes: &nodes)
+        }
+    }
+
+    private static func resolvedRows(
+        keypath: String?,
+        staticElements: ValueTypeList,
+        root: ValueType?
+    ) -> ValueTypeList {
+        var rows = staticElements
+        if let keypath,
+           keypath.hasPrefix("cell://") == false,
+           case let .list(resolvedRows)? = value(at: keypath, in: root) {
+            rows.append(contentsOf: resolvedRows)
+        }
+        return rows
+    }
+
+    private static func value(at keypath: String, in value: ValueType?) -> ValueType? {
+        guard keypath.isEmpty == false else {
+            return nil
+        }
+        if keypath == "." || keypath == "$" {
+            return value
+        }
+        return value?[keypath]
+    }
+
+    private static func resolveButton(
+        _ skeletonButton: SkeletonButton,
+        context: BindingSkeletonRenderContext
+    ) -> SkeletonButton {
+        var button = skeletonButton
+
+        guard case let .object(object)? = context.buttonContext else {
+            suppressDeferredButtonResolution(&button)
+            return button
+        }
+
+        if let urlValue = object["url"], case let .string(urlString) = urlValue {
+            button.url = urlString
+        }
+
+        let keypathField = trimmedNonEmpty(skeletonButton.keypathKeypath) ?? "keypath"
+        let labelField = trimmedNonEmpty(skeletonButton.labelKeypath) ?? "label"
+        let payloadField = trimmedNonEmpty(skeletonButton.payloadKeypath) ?? "payload"
+
+        if let keypathValue = object[keypathField],
+           case let .string(keypathString) = keypathValue,
+           let resolvedKeypath = trimmedNonEmpty(keypathString) {
+            button.keypath = resolvedKeypath
+        }
+        if let labelValue = object[labelField],
+           case let .string(labelString) = labelValue,
+           trimmedNonEmpty(labelString) != nil {
+            button.label = labelString
+        }
+        if let payloadValue = object[payloadField] {
+            button.payload = payloadValue
+        }
+
+        let hasDetailTarget = (trimmedNonEmpty(stringValue(object["detailKeypath"])) != nil)
+            || object["detailPayload"] != nil
+        if button.keypath == "addConfiguration", hasDetailTarget {
+            if let detailKeypath = trimmedNonEmpty(stringValue(object["detailKeypath"])) {
+                button.keypath = detailKeypath
+            }
+            if let detailLabel = stringValue(object["detailLabel"]),
+               trimmedNonEmpty(detailLabel) != nil {
+                button.label = detailLabel
+            }
+            if let detailPayload = object["detailPayload"] {
+                button.payload = detailPayload
+            }
+        }
+
+        suppressDeferredButtonResolution(&button)
+        return button
+    }
+
+    private static func suppressDeferredButtonResolution(_ button: inout SkeletonButton) {
+        let sentinel = "__binding_skeleton_no_dynamic_button_keypath__"
+        button.keypathKeypath = sentinel
+        button.labelKeypath = sentinel
+        button.payloadKeypath = sentinel
+    }
+
+    private static func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func stringValue(_ value: ValueType?) -> String? {
+        guard case let .string(string)? = value else {
+            return nil
+        }
+        return string
     }
 
     private static func removingPresentation(from element: SkeletonElement) -> SkeletonElement {
