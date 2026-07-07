@@ -3767,6 +3767,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             BindingChatValue.set(.list([]), for: "ui.activeHelpers", in: &cachedState)
             BindingChatValue.set(.list([]), for: "ui.minimizedComponentSurfaces", in: &cachedState)
             BindingChatValue.set(.list([]), for: "ui.pinnedComponentSurfaces", in: &cachedState)
+            BindingChatValue.set(.string(""), for: "ui.activeHelper", in: &cachedState)
+            BindingChatValue.set(.string(""), for: "ui.activeHelperSummary", in: &cachedState)
             BindingChatValue.set(.bool(false), for: "ui.hasActiveHelperSurface", in: &cachedState)
             BindingChatValue.set(.bool(false), for: "ui.hasPinnedComponentSurfaces", in: &cachedState)
             BindingChatValue.set(.string(""), for: "ui.activeComponentSurfaceID", in: &cachedState)
@@ -5453,8 +5455,15 @@ final class BindingPersonalChatHubCell: GeneralCell {
         BindingChatValue.set(.bool(helpers.isEmpty == false), for: "ui.hasActiveHelperSurface", in: &cachedState)
         BindingChatValue.set(.list(pinned), for: "ui.pinnedComponentSurfaces", in: &cachedState)
         BindingChatValue.set(.bool(pinned.isEmpty == false), for: "ui.hasPinnedComponentSurfaces", in: &cachedState)
-        if helpers.isEmpty {
+        let helperIDs = helpers.compactMap { BindingChatValue.string(BindingChatValue.object($0)?["id"]) }
+        let currentActiveHelper = BindingChatValue.string(BindingChatValue.nested("ui.activeHelper", in: cachedState)) ?? ""
+        if helperIDs.isEmpty {
+            BindingChatValue.set(.string(""), for: "ui.activeHelper", in: &cachedState)
             BindingChatValue.set(.string(""), for: "ui.activeHelperSummary", in: &cachedState)
+        } else if currentActiveHelper.isEmpty || helperIDs.contains(currentActiveHelper) == false,
+                  let firstHelper = helperIDs.first {
+            BindingChatValue.set(.string(firstHelper), for: "ui.activeHelper", in: &cachedState)
+            BindingChatValue.set(.string("\(helperTitle(firstHelper)) er aktiv som privat hjelper."), for: "ui.activeHelperSummary", in: &cachedState)
         }
     }
 
@@ -5655,7 +5664,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
     private func openMatchedResourceLibrary(_ value: ValueType) -> ValueType {
         let object = BindingChatValue.object(value) ?? [:]
         let autoOpen = BindingChatValue.bool(object["autoOpen"]) ?? true
-        let resourceID = BindingChatValue.string(object["resourceID"])
+        let resourceID = BindingChatValue.string(value)
+            ?? BindingChatValue.string(object["resourceID"])
             ?? BindingChatValue.string(object["id"])
             ?? BindingChatValue.string(object["selectedValue"])
         let matches = (BindingChatValue.list(BindingChatValue.nested("assistant.resourceMatches", in: cachedState)) ?? [])
@@ -5679,11 +5689,23 @@ final class BindingPersonalChatHubCell: GeneralCell {
         }
         let portholeUI = BindingChatIntentClassifier.libraryUIRequest(for: resource, autoOpen: autoOpen)
         BindingChatValue.set(.object(portholeUI), for: "assistant.portholeUI", in: &cachedState)
+        BindingChatValue.set(.object(resource), for: "assistant.selectedResourceMatch", in: &cachedState)
+        if matches.isEmpty {
+            BindingChatValue.set(.list([.object(resource)]), for: "assistant.resourceMatches", in: &cachedState)
+            BindingChatValue.set(.integer(1), for: "assistant.resourceMatchCount", in: &cachedState)
+        }
+        var surface = helperSurface(kind: "resource-router", source: "matched-resource")
+        surface["selectedResourceID"] = BindingChatValue.string(resource["id"]).map(ValueType.string) ?? .null
+        surface["selectedResourceTitle"] = BindingChatValue.string(resource["title"]).map(ValueType.string) ?? .null
+        surface["summary"] = .string("Valgt flate er klargjort i Library. Ingen lasting eller kjøring skjer uten eget klikk.")
+        appendSurface(surface)
         return .object([
             "ok": .bool(true),
             "status": .string("library_open_requested"),
             "resource": .object(resource),
             "portholeUI": .object(portholeUI),
+            "ui": BindingChatValue.nested("ui", in: cachedState) ?? .null,
+            "state": .object(cachedState),
             "sideEffect": .bool(false)
         ])
     }
@@ -6363,7 +6385,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "ui": .object([
                 "activeTab": .string("samtale"),
                 "activeMoreTab": .string("verktoy"),
-                "activeHelper": .string("invite"),
+                "activeHelper": .string(""),
                 "activeHelpers": .list([]),
                 "activeHelperSummary": .string(""),
                 "hasActionableSuggestion": .bool(false),

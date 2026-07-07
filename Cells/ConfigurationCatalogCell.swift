@@ -8728,12 +8728,12 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var promptMessageRow = SkeletonVStack(elements: [
             .Text(personalBoundText("speaker", lineLimit: 1)),
-            .Text(personalBoundText("body", lineLimit: 5)),
-            .Text(personalBoundText("statusText", lineLimit: 2))
-        ], spacing: 6)
+            .Text(personalBoundText("body", lineLimit: 2)),
+            .Text(personalBoundText("statusText", lineLimit: 1))
+        ], spacing: 3)
         promptMessageRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "chat-prompt-message")
         var promptMessages = SkeletonList(topic: nil, keypath: "chatHub.state.ui.promptMessages", flowElementSkeleton: promptMessageRow)
-        promptMessages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "chat-prompt-log")
+        promptMessages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 112, role: "chat-prompt-log")
 
         var candidateRow = SkeletonVStack(elements: [
             .Text(personalBoundText("displayName", lineLimit: 1)),

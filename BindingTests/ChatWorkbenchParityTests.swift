@@ -1460,6 +1460,57 @@ struct ChatWorkbenchParityTests {
         #expect(asString(asObject(porthole["suggestion"])?["status"]) == "low_confidence")
     }
 
+    @Test func matchedResourceChipOpensResourceRouterHelperNotInvite() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-arendalsuka-resource-chip")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let initialState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let initialUI = try #require(asObject(initialState["ui"]))
+        #expect(asString(initialUI["activeHelper"]) == "")
+        #expect((asList(initialUI["activeHelpers"]) ?? []).isEmpty)
+
+        let before = counters(.object(initialState))
+        let opened = try #require(asObject(try await chat.set(
+            keypath: "chatHub.ui.openMatchedResourceLibrary",
+            value: .object([
+                "configurationName": .string("Arendalsuka Participant Program"),
+                "sourceCellEndpoint": .string("cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram"),
+                "resourceID": .string("configuration:arendalsuka-participant-program"),
+                "autoOpen": .bool(false)
+            ]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asBool(opened["sideEffect"]) == false)
+        #expect(asString(opened["status"]) == "library_open_requested")
+        let ui = try #require(asObject(opened["ui"]))
+        #expect(asString(ui["activeHelper"]) == "resource-router")
+        let activeHelpers = asList(ui["activeHelpers"]) ?? []
+        #expect(activeHelpers.contains { asString(asObject($0)?["id"]) == "resource-router" })
+        #expect(!activeHelpers.contains { asString(asObject($0)?["id"]) == "invite" })
+
+        let openedState = try #require(asObject(opened["state"]))
+        let assistant = try #require(asObject(openedState["assistant"]))
+        #expect((asList(assistant["resourceMatches"]) ?? []).contains {
+            asString(asObject($0)?["title"]) == "Arendalsuka Participant Program"
+        })
+        #expect(counters(.object(openedState)) == before)
+    }
+
+    @Test func conversationPromptLogStaysCompactForSplitWorkbench() throws {
+        let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        let skeleton = try #require(configuration.skeleton)
+        let promptLog = try #require(skeletonList(
+            keypath: "chatHub.state.ui.promptMessages",
+            in: skeleton
+        ))
+        #expect(promptLog.modifiers?.styleRole == "chat-prompt-log")
+        #expect((promptLog.modifiers?.height ?? 0) <= 112)
+    }
+
     @Test func sendComposedMessageCreatesThreadReadModel() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
@@ -1563,6 +1614,47 @@ struct ChatWorkbenchParityTests {
 
     private enum FixtureError: Error {
         case missing
+    }
+
+    private func skeletonList(keypath: String, in element: SkeletonElement) -> SkeletonList? {
+        switch element {
+        case .List(let list):
+            return list.keypath == keypath ? list : nil
+        case .VStack(let stack):
+            return stack.elements.lazy.compactMap { skeletonList(keypath: keypath, in: $0) }.first
+        case .HStack(let stack):
+            return stack.elements.lazy.compactMap { skeletonList(keypath: keypath, in: $0) }.first
+        case .ScrollView(let scroll):
+            return scroll.elements.lazy.compactMap { skeletonList(keypath: keypath, in: $0) }.first
+        case .Section(let section):
+            if let header = section.header,
+               let match = skeletonList(keypath: keypath, in: header) {
+                return match
+            }
+            if let match = section.content.lazy.compactMap({ skeletonList(keypath: keypath, in: $0) }).first {
+                return match
+            }
+            if let footer = section.footer {
+                return skeletonList(keypath: keypath, in: footer)
+            }
+            return nil
+        case .Reference(let reference):
+            return reference.flowElementSkeleton.flatMap {
+                skeletonList(keypath: keypath, in: .VStack($0))
+            }
+        case .Grid(let grid):
+            return grid.elements.lazy.compactMap { skeletonList(keypath: keypath, in: $0) }.first
+        case .ZStack(let stack):
+            return stack.elements.lazy.compactMap { skeletonList(keypath: keypath, in: $0) }.first
+        case .Object(let object):
+            return object.elements.values.lazy.compactMap { skeletonList(keypath: keypath, in: $0) }.first
+        case .Tabs(let tabs):
+            return tabs.panels.lazy.compactMap { panel in
+                panel.content.lazy.compactMap { skeletonList(keypath: keypath, in: $0) }.first
+            }.first
+        default:
+            return nil
+        }
     }
 
     private func signedContactRequest(
