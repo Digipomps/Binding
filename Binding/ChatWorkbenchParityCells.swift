@@ -435,7 +435,7 @@ enum BindingHavenAgentDStatusProvider {
             status = "missing_config"
             nextStep = "open_agent_setup_workbench"
             instructions = [
-                "Åpne Agent Setup Workbench i Binding.",
+                "Åpne Agent Setup Workbench i HAVEN.",
                 "Lag eller velg aktiv config på \(configPath)."
             ]
         } else if !deviceActionRelayConfigured {
@@ -449,7 +449,7 @@ enum BindingHavenAgentDStatusProvider {
             status = starterAuthExists ? "starter_auth_expired" : "starter_auth_missing"
             nextStep = "refresh_starter_auth_with_sprout"
             instructions = [
-                "Refresh starter-auth fra den parede Binding/agent-operator-flyten.",
+                "Refresh starter-auth fra den parede HAVEN/agent-operator-flyten.",
                 "Hvis bootstrap-probe peker på sprout, bruk sprout til å hente fersk admission/evidence."
             ]
         } else {
@@ -1193,7 +1193,7 @@ enum BindingChatIntentClassifier {
                 [
                     "kind": .string("cell_configuration"),
                     "title": .string("Co-Pilot"),
-                    "summary": .string("Requester-visible Co-Pilot CellConfiguration i Binding."),
+                    "summary": .string("Requester-visible Co-Pilot CellConfiguration i HAVEN."),
                     "sourceCellEndpoint": .string("cell:///PersonalChatHub"),
                     "purposeRef": .string("personal.chat.assist.resource-router"),
                     "purposeRefs": .list([.string("personal.chat.assist.resource-router")]),
@@ -1264,7 +1264,132 @@ enum BindingChatIntentClassifier {
                 "requiresGrant": .bool(true)
             ])
         }
-        return matches
+        return matches.map(normalizedResourceMatch)
+    }
+
+    nonisolated private static func normalizedResourceMatch(_ match: Object) -> Object {
+        var resource = match
+        let kind = BindingChatValue.string(resource["kind"]) ?? "resource"
+        let title = BindingChatValue.string(resource["title"]) ?? kindLabel(forResourceKind: kind)
+        let fallbackID = "\(kind):\(title.lowercased().replacingOccurrences(of: " ", with: "-"))"
+        let id = BindingChatValue.string(resource["id"])
+            ?? BindingChatValue.string(resource["resourceID"])
+            ?? BindingChatValue.string(resource["caseID"])
+            ?? fallbackID
+        let actionKeypath = resourceOpenActionKeypath(for: kind, resource: resource)
+        let sourceCellEndpoint = BindingChatValue.string(resource["sourceCellEndpoint"])
+            ?? BindingChatValue.string(resource["endpoint"])
+            ?? "cell:///PersonalChatHub"
+        let configurationName = BindingChatValue.string(resource["configurationName"])
+            ?? BindingChatValue.string(resource["title"])
+            ?? title
+
+        resource["id"] = resource["id"] ?? .string(id)
+        resource["resourceID"] = resource["resourceID"] ?? .string(id)
+        resource["kindLabel"] = resource["kindLabel"] ?? .string(kindLabel(forResourceKind: kind))
+        resource["matchBadge"] = resource["matchBadge"] ?? .string(matchBadge(forResourceKind: kind))
+        resource["openLabel"] = resource["openLabel"] ?? .string(openLabel(forResourceKind: kind))
+        resource["openHint"] = resource["openHint"] ?? .string(openHint(forResourceKind: kind))
+        resource["openActionKeypath"] = resource["openActionKeypath"] ?? .string(actionKeypath)
+        resource["riskLevel"] = resource["riskLevel"] ?? .string(riskLevel(forResourceKind: kind))
+        resource["requiresUserApproval"] = resource["requiresUserApproval"] ?? .bool(true)
+        resource["sideEffectUntilExplicitRequest"] = resource["sideEffectUntilExplicitRequest"] ?? .bool(false)
+        resource["openPayload"] = resource["openPayload"] ?? .object([
+            "kind": .string(kind),
+            "id": .string(id),
+            "resourceID": .string(id),
+            "title": .string(title),
+            "configurationName": .string(configurationName),
+            "sourceCellEndpoint": .string(sourceCellEndpoint),
+            "sourceCellName": resource["sourceCellName"] ?? .null,
+            "caseID": resource["caseID"] ?? .null,
+            "actionKeypath": resource["actionKeypath"] ?? .null,
+            "openActionKeypath": .string(actionKeypath),
+            "autoOpen": .bool(true),
+            "sideEffect": .bool(false)
+        ])
+        return resource
+    }
+
+    nonisolated private static func kindLabel(forResourceKind kind: String) -> String {
+        switch kind {
+        case "cell_configuration": return "Flate"
+        case "truth_source": return "Kilde"
+        case "documentation": return "Dokument"
+        case "rag_case": return "RAG-case"
+        case "agent_action": return "Agent-review"
+        case "contact_endpoint": return "Kontaktvei"
+        case "agenda_context": return "Agenda"
+        default: return "Ressurs"
+        }
+    }
+
+    nonisolated private static func matchBadge(forResourceKind kind: String) -> String {
+        switch kind {
+        case "cell_configuration", "truth_source": return "Synlig flate"
+        case "agent_action": return "Review"
+        case "rag_case", "documentation": return "Kilde"
+        default: return "Forslag"
+        }
+    }
+
+    nonisolated private static func openLabel(forResourceKind kind: String) -> String {
+        switch kind {
+        case "cell_configuration", "truth_source": return "Åpne flate"
+        case "documentation": return "Åpne dokument"
+        case "rag_case": return "Spør RAG"
+        case "agent_action": return "Opprett review"
+        case "contact_endpoint": return "Åpne kontaktflyt"
+        case "agenda_context": return "Spør agenda"
+        default: return "Åpne"
+        }
+    }
+
+    nonisolated private static func openHint(forResourceKind kind: String) -> String {
+        switch kind {
+        case "cell_configuration", "truth_source":
+            "Åpner valgt flate via Library først etter eksplisitt klikk."
+        case "documentation":
+            "Åpner dokumentet som lesbar kilde uten å sende noe."
+        case "rag_case":
+            "Kan spørre RAG etter eksplisitt klikk og gyldig grant."
+        case "agent_action":
+            "Lager bare lokal review/signering, aldri direkte script-kjøring."
+        case "contact_endpoint":
+            "Forbereder kontaktflyt; sending krever signert intent og bekreftelse."
+        case "agenda_context":
+            "Leser bare owner-local agenda etter eksplisitt forespørsel."
+        default:
+            "Viser ressursen uten sideeffekt før du bekrefter."
+        }
+    }
+
+    nonisolated private static func riskLevel(forResourceKind kind: String) -> String {
+        switch kind {
+        case "agent_action", "contact_endpoint": return "review"
+        case "rag_case", "agenda_context": return "query"
+        default: return "read"
+        }
+    }
+
+    nonisolated private static func resourceOpenActionKeypath(for kind: String, resource: Object) -> String {
+        if let explicit = BindingChatValue.string(resource["openActionKeypath"]), explicit.isEmpty == false {
+            return explicit
+        }
+        switch kind {
+        case "cell_configuration", "truth_source":
+            return "chatHub.ui.openMatchedResourceLibrary"
+        case "documentation":
+            return "chatHub.docsRAG.openTopDocument"
+        case "rag_case", "agenda_context":
+            return "chatHub.assistant.queryResource"
+        case "agent_action":
+            return "chatHub.agent.review.create"
+        case "contact_endpoint":
+            return "chatHub.ui.openSuggestedHelper"
+        default:
+            return "chatHub.ui.openSuggestedHelper"
+        }
     }
 
     nonisolated static func bestCellConfigurationResourceMatch(prompt: String) -> Object? {
@@ -1727,6 +1852,266 @@ enum BindingChatIntentClassifier {
     }
 }
 
+enum BindingGroundedActionVerifier {
+    nonisolated static func availableSchemas(
+        resourceMatches: [Object],
+        providers: [BindingChatProviderDescriptor]
+    ) -> [Object] {
+        let helperSchemas: [Object] = [
+            helperSchema("invite", actionKeypath: "chatHub.invite", purposeRef: "personal.chat.assist.invite", riskLevel: "draft"),
+            helperSchema("poll", actionKeypath: "chatHub.poll.create", purposeRef: "personal.chat.assist.poll", riskLevel: "draft"),
+            helperSchema("idea-capture", actionKeypath: "chatHub.idea.capture", purposeRef: "personal.chat.assist.idea", riskLevel: "draft"),
+            helperSchema("work-item", actionKeypath: "chatHub.workItem.capture", purposeRef: "personal.chat.assist.work-item.capture", riskLevel: "draft"),
+            helperSchema("todo", actionKeypath: "chatHub.todo.create", purposeRef: "personal.chat.assist.todo", riskLevel: "draft"),
+            helperSchema("project", actionKeypath: "chatHub.project.create", purposeRef: "personal.chat.assist.project", riskLevel: "draft"),
+            helperSchema("reminder", actionKeypath: "chatHub.reminder.create", purposeRef: "personal.chat.assist.reminder", riskLevel: "draft"),
+            helperSchema("meeting", actionKeypath: "chatHub.meeting.schedule", purposeRef: "personal.chat.assist.meeting.schedule", riskLevel: "draft"),
+            helperSchema("resource-router", actionKeypath: "chatHub.ui.openMatchedResourceLibrary", purposeRef: "personal.chat.assist.resource-router", riskLevel: "read"),
+            helperSchema("docs-rag", actionKeypath: "chatHub.docsRAG.askRAG", purposeRef: "personal.chat.assist.rag-query", riskLevel: "query"),
+            helperSchema("agent-review", actionKeypath: "chatHub.agent.review.create", purposeRef: "personal.agent.local.gui.review", riskLevel: "review")
+        ]
+        let resourceSchemas: [Object] = resourceMatches.prefix(8).map { resource in
+            let title = BindingChatValue.string(resource["title"]) ?? "Ressurs"
+            let id = BindingChatValue.string(resource["id"]) ?? title
+            let kindValue = BindingChatValue.string(resource["kind"]).map(ValueType.string) ?? .string("resource")
+            let targetAction = BindingChatValue.string(resource["openActionKeypath"])
+                ?? BindingChatValue.string(resource["actionKeypath"])
+            let riskValue = BindingChatValue.string(resource["riskLevel"]).map(ValueType.string) ?? .string("read")
+            let object: Object = [
+                "schemaID": .string("resource:\(id)"),
+                "kind": kindValue,
+                "title": .string(title),
+                "targetActionKeypath": targetAction.map(ValueType.string) ?? .null,
+                "openPayload": resource["openPayload"] ?? .null,
+                "purposeRefs": resource["purposeRefs"] ?? .list([]),
+                "riskLevel": riskValue,
+                "requiresUserApproval": .bool(true),
+                "sideEffectBeforeUserAction": .bool(false)
+            ]
+            return object
+        }
+        let providerSchemas: [Object] = providers.prefix(4).map { provider in
+            let object: Object = [
+                "schemaID": .string("provider:\(provider.id)"),
+                "kind": .string(provider.kind),
+                "title": .string(provider.title),
+                "targetActionKeypath": provider.actionKeypath.map(ValueType.string) ?? .null,
+                "purposeRefs": .list(provider.purposeRefs.map(ValueType.string)),
+                "privacyLevel": .string(provider.privacyLevel),
+                "requiresNetwork": .bool(provider.requiresNetwork),
+                "requiresUserApproval": .bool(provider.requiresUserApproval),
+                "sideEffectBeforeUserAction": .bool(false)
+            ]
+            return object
+        }
+        return helperSchemas + resourceSchemas + providerSchemas
+    }
+
+    nonisolated static func verify(
+        plan: Object,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object],
+        providerRecommendation: BindingChatProviderDescriptor
+    ) -> Object {
+        let target = BindingChatValue.object(plan["target"]) ?? [:]
+        let actionKeypath = BindingChatValue.string(target["actionKeypath"]) ?? ""
+        let targetResource = targetResource(for: suggestion, resourceMatches: resourceMatches)
+        let targetVerified = suggestion.shouldSuggest && actionKeypath.isEmpty == false
+        let resourceVisible = targetResource.map { resource in
+            let availability = BindingChatValue.string(resource["availability"]) ?? "visible_resource"
+            return availability.contains("visible") || availability.contains("requester") || availability.contains("granted")
+        } ?? true
+        let globalProviderUsed = providerRecommendation.executionScope == "global"
+            || providerRecommendation.endpoint == "cell:///GlobalAIProvider"
+        var missing: [String] = []
+        if suggestion.negativeIntent.isEmpty == false {
+            missing.append("negative_intent_blocks_action")
+        }
+        if suggestion.shouldSuggest == false {
+            missing.append("safe_confidence_or_intent")
+        }
+        if actionKeypath.isEmpty && suggestion.shouldSuggest {
+            missing.append("target_action")
+        }
+        if resourceVisible == false {
+            missing.append("visible_resource_grant")
+        }
+        if globalProviderUsed {
+            missing.append("cell_scoped_provider")
+        }
+
+        let allowed = missing.isEmpty
+        let status: String
+        if suggestion.negativeIntent.isEmpty == false {
+            status = "blocked"
+        } else if suggestion.shouldSuggest == false {
+            status = "no_safe_action"
+        } else if allowed {
+            status = "verified"
+        } else {
+            status = "needs_user_action"
+        }
+        let riskLevel = targetResource.flatMap { BindingChatValue.string($0["riskLevel"]) }
+            ?? riskLevel(for: suggestion.helperID)
+        return [
+            "schema": .string("binding.grounded-action-verification.v0"),
+            "status": .string(status),
+            "allowed": .bool(allowed),
+            "targetVerified": .bool(targetVerified),
+            "targetActionKeypath": .string(actionKeypath),
+            "riskLevel": .string(riskLevel),
+            "grantStatus": .string(resourceVisible ? "visible_or_not_required" : "missing_visible_grant"),
+            "providerID": .string(providerRecommendation.id),
+            "providerScope": .string(providerRecommendation.executionScope),
+            "requiresUserConfirmation": .bool(true),
+            "requiresSignedRemoteIntent": .bool(suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" || riskLevel == "review"),
+            "requiresLocalReview": .bool(suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" || riskLevel == "review"),
+            "sideEffectBeforeUserAction": .bool(false),
+            "missing": .list(missing.map(ValueType.string)),
+            "policyChecks": .object([
+                "noGlobalProvider": .bool(globalProviderUsed == false),
+                "providerIsCellScoped": .bool(globalProviderUsed == false),
+                "explicitUserActionRequired": .bool(true),
+                "resourceMustBeVisible": .bool(resourceVisible),
+                "analysisIsSideEffectFree": .bool(true),
+                "nativePrivateScopesExcluded": .list([
+                    .string("contacts"),
+                    .string("calendar"),
+                    .string("microphone"),
+                    .string("camera"),
+                    .string("vault"),
+                    .string("other_threads")
+                ])
+            ]),
+            "targetResource": targetResource.map(ValueType.object) ?? .null,
+            "reason": .string(reason(status: status, suggestion: suggestion, riskLevel: riskLevel))
+        ]
+    }
+
+    nonisolated static func dryRun(
+        plan: Object,
+        verification: Object,
+        resourceMatches: [Object]
+    ) -> Object {
+        let allowed = BindingChatValue.bool(verification["allowed"]) ?? false
+        let target = BindingChatValue.object(plan["target"]) ?? [:]
+        let actionKeypath = BindingChatValue.string(target["actionKeypath"]) ?? ""
+        let topResource = resourceMatches.first
+        let topResourceTitle = topResource.flatMap { BindingChatValue.string($0["title"]) }
+        let wouldOpenSurface = actionKeypath == "chatHub.ui.openMatchedResourceLibrary"
+        let wouldQuery = actionKeypath.contains("queryResource") || actionKeypath.contains("askRAG")
+        let wouldReview = actionKeypath.contains("agent.review")
+        let summary: String
+        if allowed == false {
+            summary = "Ingen trygg handling er klar. Chatten venter på mer presis prompt eller eksplisitt valg."
+        } else if let topResourceTitle, wouldOpenSurface {
+            summary = "Neste klikk kan åpne \(topResourceTitle) som valgt flate uten å sende eller lagre noe."
+        } else if wouldQuery {
+            summary = "Neste klikk kan spørre en grantet ressurs; analysen har ikke gjort spørringen."
+        } else if wouldReview {
+            summary = "Neste klikk kan lage et lokalt review-utkast; agenten kjører ikke direkte."
+        } else {
+            summary = "Neste klikk kan åpne en trygg hjelper som privat utkast."
+        }
+        return [
+            "schema": .string("binding.grounded-action-dry-run.v0"),
+            "status": .string(allowed ? "ready" : "blocked"),
+            "wouldOpenHelper": .bool(allowed),
+            "wouldOpenSurface": .bool(allowed && wouldOpenSurface),
+            "wouldMutateEntity": .bool(false),
+            "wouldSendNetworkRequest": .bool(false),
+            "wouldInvokeProvider": .bool(false),
+            "wouldQueryResource": .bool(allowed && wouldQuery),
+            "wouldCreateAgentReview": .bool(allowed && wouldReview),
+            "targetActionKeypath": .string(actionKeypath),
+            "summary": .string(summary),
+            "sideEffectBeforeUserAction": .bool(false)
+        ]
+    }
+
+    nonisolated static func alternatives(
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object]
+    ) -> [Object] {
+        resourceMatches.prefix(5).map { resource in
+            [
+                "title": BindingChatValue.string(resource["title"]).map(ValueType.string) ?? .string("Ressurs"),
+                "kind": BindingChatValue.string(resource["kind"]).map(ValueType.string) ?? .string("resource"),
+                "openLabel": BindingChatValue.string(resource["openLabel"]).map(ValueType.string) ?? .string("Åpne"),
+                "openActionKeypath": BindingChatValue.string(resource["openActionKeypath"]).map(ValueType.string) ?? .null,
+                "helperID": .string(suggestion.helperID),
+                "requiresUserApproval": .bool(true),
+                "sideEffectBeforeUserAction": .bool(false)
+            ]
+        }
+    }
+
+    nonisolated private static func helperSchema(
+        _ helperID: String,
+        actionKeypath: String,
+        purposeRef: String,
+        riskLevel: String
+    ) -> Object {
+        [
+            "schemaID": .string("helper:\(helperID)"),
+            "helperID": .string(helperID),
+            "targetActionKeypath": .string(actionKeypath),
+            "purposeRefs": .list([.string(purposeRef)]),
+            "riskLevel": .string(riskLevel),
+            "requiresUserApproval": .bool(true),
+            "sideEffectBeforeUserAction": .bool(false)
+        ]
+    }
+
+    nonisolated private static func targetResource(
+        for suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object]
+    ) -> Object? {
+        if suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" {
+            return resourceMatches.first(where: {
+                let kind = BindingChatValue.string($0["kind"])
+                return kind == "cell_configuration" || kind == "truth_source"
+            }) ?? resourceMatches.first
+        }
+        if suggestion.helperID == "docs-rag" {
+            return resourceMatches.first(where: {
+                let kind = BindingChatValue.string($0["kind"])
+                return kind == "rag_case" || kind == "documentation"
+            }) ?? resourceMatches.first
+        }
+        if suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" {
+            return resourceMatches.first(where: { BindingChatValue.string($0["kind"]) == "agent_action" })
+        }
+        return resourceMatches.first
+    }
+
+    nonisolated private static func riskLevel(for helperID: String) -> String {
+        switch helperID {
+        case "docs-rag": return "query"
+        case "agent-review", "agent-setup": return "review"
+        case "resource-router", "mermaid-diagram": return "read"
+        default: return "draft"
+        }
+    }
+
+    nonisolated private static func reason(
+        status: String,
+        suggestion: BindingChatIntentClassification,
+        riskLevel: String
+    ) -> String {
+        switch status {
+        case "verified":
+            return "Forslaget er bundet til synlig scope og krever eksplisitt brukerhandling før \(riskLevel)-steget."
+        case "blocked":
+            return "Prompten inneholder negativ intent, så ingen hjelper eller flate åpnes."
+        case "no_safe_action":
+            return "Co-Pilot fant ikke en trygg nok handling fra denne prompten."
+        default:
+            return "Forslaget mangler en verifiserbar lokal målflate eller grant før det kan åpnes."
+        }
+    }
+}
+
 enum BindingChatProviderRouter {
     nonisolated static func localRulesProvider() -> BindingChatProviderDescriptor {
         BindingChatProviderDescriptor(
@@ -2046,7 +2431,7 @@ final class BindingAppleIntelligenceProviderCell: GeneralCell {
             "providerID": .string("binding.apple-intelligence"),
             "kind": .string("apple_intelligence"),
             "title": .string("Apple Intelligence"),
-            "summary": .string("On-device Apple Foundation Models provider scoped to the current Binding requester and chat context."),
+            "summary": .string("On-device Apple Foundation Models provider scoped to the current HAVEN requester and chat context."),
             "endpoint": .string("cell:///AppleIntelligence"),
             "sourceCellName": .string("BindingAppleIntelligenceProviderCell"),
             "capability": .string("ai.classifyIntent"),
@@ -2256,7 +2641,7 @@ final class BindingLocalLLMCell: GeneralCell {
             "providerID": .string("binding.local-llm"),
             "kind": .string("local_llm"),
             "title": .string("Local LLM"),
-            "summary": .string("Small local LLM provider scoped to the current Binding requester and chat context."),
+            "summary": .string("Small local LLM provider scoped to the current HAVEN requester and chat context."),
             "backendStatus": .string(endpoint.isEmpty ? "not_configured" : backendStatus),
             "model": .string(model),
             "selectedModel": .string(model),
@@ -3579,6 +3964,15 @@ final class BindingPersonalChatHubCell: GeneralCell {
         "state.assistant.groundedActionPlan.explanation",
         "state.assistant.groundedActionPlan.nextStep",
         "state.assistant.groundedActionPlan.status",
+        "state.assistant.groundedPlan.status",
+        "state.assistant.groundingAlternatives",
+        "state.assistant.groundingDryRun.status",
+        "state.assistant.groundingDryRun.summary",
+        "state.assistant.groundingSchemas",
+        "state.assistant.groundingVerification.allowed",
+        "state.assistant.groundingVerification.reason",
+        "state.assistant.groundingVerification.status",
+        "state.assistant.groundingVerification.targetActionKeypath",
         "state.assistant.latestSuggestion.candidates",
         "state.assistant.latestSuggestion.confidence",
         "state.assistant.latestSuggestion.explanation",
@@ -4052,6 +4446,25 @@ final class BindingPersonalChatHubCell: GeneralCell {
             resourceMatches: resourceMatches,
             providerRecommendation: recommendation
         )
+        let groundingSchemas = BindingGroundedActionVerifier.availableSchemas(
+            resourceMatches: resourceMatches,
+            providers: providers
+        )
+        let groundingVerification = BindingGroundedActionVerifier.verify(
+            plan: groundedActionPlan,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches,
+            providerRecommendation: recommendation
+        )
+        let groundingDryRun = BindingGroundedActionVerifier.dryRun(
+            plan: groundedActionPlan,
+            verification: groundingVerification,
+            resourceMatches: resourceMatches
+        )
+        let groundingAlternatives = BindingGroundedActionVerifier.alternatives(
+            suggestion: suggestion,
+            resourceMatches: resourceMatches
+        )
         let contextPack: Object = [
             "draft": .string(draft),
             "capabilityDiscoveryEnabled": .bool(capabilityDiscoveryEnabled),
@@ -4059,6 +4472,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "perspectiveContext": .object(perspectiveContext.objectValue()),
             "purposeContext": .object(purposeContext),
             "promptUnderstanding": .object(promptUnderstanding),
+            "groundedActionPlan": .object(groundedActionPlan),
+            "groundingVerification": .object(groundingVerification),
+            "groundingDryRun": .object(groundingDryRun),
             "agentStatus": .object(agentStatus.objectValue()),
             "agentUseDecision": .object(agentUseDecision.objectValue()),
             "availableDescriptors": .list(providers.map { .object($0.objectValue()) }),
@@ -4099,11 +4515,17 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "resourceMatchCount": .integer(resourceMatches.count),
             "promptUnderstanding": .object(promptUnderstanding),
             "groundedActionPlan": .object(groundedActionPlan),
+            "groundedPlan": .object(groundedActionPlan),
+            "groundingVerification": .object(groundingVerification),
+            "groundingDryRun": .object(groundingDryRun),
+            "groundingSchemas": .list(groundingSchemas.map(ValueType.object)),
+            "groundingAlternatives": .list(groundingAlternatives.map(ValueType.object)),
             "purposeContext": .object(purposeContext),
             "agentStatus": .object(agentStatusObject),
             "agentUseDecision": .object(agentUseDecisionObject),
             "priorityIntent": .object(suggestionObject),
             "lastContextPack": .object(contextPack),
+            "lastAnalyzedDraft": .string(draft),
             "intentCandidates": .list(suggestion.shouldSuggest ? [.object(suggestionObject)] : []),
             "requiresUserApproval": .bool(true)
         ]
@@ -4142,6 +4564,11 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "contextPack": .object(contextPack),
             "promptUnderstanding": .object(promptUnderstanding),
             "groundedActionPlan": .object(groundedActionPlan),
+            "groundedPlan": .object(groundedActionPlan),
+            "groundingVerification": .object(groundingVerification),
+            "groundingDryRun": .object(groundingDryRun),
+            "groundingSchemas": .list(groundingSchemas.map(ValueType.object)),
+            "groundingAlternatives": .list(groundingAlternatives.map(ValueType.object)),
             "purposeContext": .object(purposeContext),
             "sideEffect": .bool(false)
         ]
@@ -4267,7 +4694,23 @@ final class BindingPersonalChatHubCell: GeneralCell {
         resourceMatches: [Object],
         providerRecommendation: BindingChatProviderDescriptor
     ) -> Object {
-        let actionKeypath: String
+        let targetResource: Object?
+        if suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" {
+            targetResource = resourceMatches.first(where: {
+                let kind = BindingChatValue.string($0["kind"])
+                return kind == "cell_configuration" || kind == "truth_source"
+            }) ?? resourceMatches.first
+        } else if suggestion.helperID == "docs-rag" {
+            targetResource = resourceMatches.first(where: {
+                let kind = BindingChatValue.string($0["kind"])
+                return kind == "rag_case" || kind == "documentation"
+            }) ?? resourceMatches.first
+        } else if suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" {
+            targetResource = resourceMatches.first(where: { BindingChatValue.string($0["kind"]) == "agent_action" })
+        } else {
+            targetResource = resourceMatches.first
+        }
+        var actionKeypath: String
         switch suggestion.helperID {
         case "invite": actionKeypath = "chatHub.invite"
         case "poll": actionKeypath = "chatHub.poll.create"
@@ -4283,18 +4726,38 @@ final class BindingPersonalChatHubCell: GeneralCell {
         case "capability-request": actionKeypath = "chatHub.capabilityRequest.submit"
         default: actionKeypath = ""
         }
-        let target = resourceMatches.first(where: { BindingChatValue.string($0["kind"]) == "cell_configuration" })
-        return [
+        if let openAction = targetResource.flatMap({ BindingChatValue.string($0["openActionKeypath"]) }),
+           (suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" || suggestion.helperID == "docs-rag"),
+           openAction.isEmpty == false {
+            actionKeypath = openAction
+        }
+        let purposeRefs = [suggestion.purposeRef].filter { $0.isEmpty == false }.map(ValueType.string)
+        let targetID = targetResource.flatMap { BindingChatValue.string($0["id"]) }
+        let targetTitle = targetResource.flatMap { BindingChatValue.string($0["title"]) }
+        let targetKind = targetResource.flatMap { BindingChatValue.string($0["kind"]) }
+        let targetConfigurationName = targetResource.flatMap {
+            BindingChatValue.string($0["configurationName"]) ?? BindingChatValue.string($0["title"])
+        }
+        let targetEndpoint = targetResource.flatMap { BindingChatValue.string($0["sourceCellEndpoint"]) } ?? "cell:///PersonalChatHub"
+        let targetOpenLabel = targetResource.flatMap { BindingChatValue.string($0["openLabel"]) }
+        let targetOpenPayload = targetResource.flatMap { BindingChatValue.object($0["openPayload"]) }
+        let targetObject: Object = [
+            "id": targetID.map(ValueType.string) ?? .null,
+            "title": targetTitle.map(ValueType.string) ?? .null,
+            "kind": targetKind.map(ValueType.string) ?? .null,
+            "configurationName": targetConfigurationName.map(ValueType.string) ?? .null,
+            "sourceCellEndpoint": .string(targetEndpoint),
+            "actionKeypath": .string(actionKeypath),
+            "openLabel": targetOpenLabel.map(ValueType.string) ?? .null,
+            "openPayload": targetOpenPayload.map(ValueType.object) ?? .null
+        ]
+        let plan: Object = [
             "schema": .string("binding.grounded-action-plan.v0"),
             "status": .string(suggestion.shouldSuggest ? "drafted" : "no_safe_action"),
             "intentKind": .string(suggestion.intentKind),
             "helperID": .string(suggestion.helperID),
-            "purposeRefs": .list([suggestion.purposeRef].filter { $0.isEmpty == false }.map(ValueType.string)),
-            "target": .object([
-                "configurationName": target.flatMap { BindingChatValue.string($0["title"]) }.map(ValueType.string) ?? .null,
-                "sourceCellEndpoint": target.flatMap { BindingChatValue.string($0["sourceCellEndpoint"]) }.map(ValueType.string) ?? .string("cell:///PersonalChatHub"),
-                "actionKeypath": .string(actionKeypath)
-            ]),
+            "purposeRefs": .list(purposeRefs),
+            "target": .object(targetObject),
             "provider": .object(providerRecommendation.objectValue()),
             "requiresUserApproval": .bool(true),
             "sideEffectBeforeUserAction": .bool(false),
@@ -4302,6 +4765,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "explanation": .string(suggestion.explanation),
             "draftPreview": .string(String(draft.prefix(180)))
         ]
+        return plan
     }
 
     private func updateDraftsFromAnalysis(
@@ -4552,7 +5016,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "resourceMatches": .list(matches.map(ValueType.object)),
             "assistantProviders": .list(providers.map { .object($0.objectValue()) }),
             "providerRecommendation": .object(recommendation.objectValue()),
-            "auditEvent": .object(auditEvent(type: "chat.entity-extension.scanned", subjectID: requester.uuid, summary: "Requester scanned owner-scoped Binding capabilities visible to this chat.")),
+            "auditEvent": .object(auditEvent(type: "chat.entity-extension.scanned", subjectID: requester.uuid, summary: "Requester scanned owner-scoped HAVEN capabilities visible to this chat.")),
             "sideEffect": .bool(false)
         ])
     }
@@ -4967,7 +5431,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "id": .string("configuration:binding-copilot-chat"),
                 "kind": .string("cell_configuration"),
                 "title": .string("Co-Pilot"),
-                "summary": .string("Binding sin requester-visible chat workbench for PersonalChatHub."),
+                "summary": .string("HAVEN sin requester-visible chat workbench for PersonalChatHub."),
                 "sourceCellEndpoint": .string("cell:///PersonalChatHub"),
                 "sourceCellName": .string("BindingPersonalChatHubCell"),
                 "configurationName": .string("Co-Pilot"),
@@ -5226,6 +5690,13 @@ final class BindingPersonalChatHubCell: GeneralCell {
     }
 
     private func openableSuggestionForHelper() -> Object? {
+        let draft = currentComposerDraft().trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastAnalyzedDraft = BindingChatValue.string(BindingChatValue.nested("assistant.lastAnalyzedDraft", in: cachedState))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if draft.isEmpty == false && draft != lastAnalyzedDraft {
+            return stageDeterministicSuggestionFromComposer()
+        }
+
         if let suggestion = BindingChatValue.object(BindingChatValue.nested("assistant.latestSuggestion", in: cachedState)),
            let helper = BindingChatValue.string(suggestion["helperID"]),
            !helper.isEmpty,
@@ -5270,6 +5741,25 @@ final class BindingPersonalChatHubCell: GeneralCell {
             resourceMatches: resourceMatches,
             providerRecommendation: provider
         )
+        let groundingSchemas = BindingGroundedActionVerifier.availableSchemas(
+            resourceMatches: resourceMatches,
+            providers: [provider]
+        )
+        let groundingVerification = BindingGroundedActionVerifier.verify(
+            plan: groundedActionPlan,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches,
+            providerRecommendation: provider
+        )
+        let groundingDryRun = BindingGroundedActionVerifier.dryRun(
+            plan: groundedActionPlan,
+            verification: groundingVerification,
+            resourceMatches: resourceMatches
+        )
+        let groundingAlternatives = BindingGroundedActionVerifier.alternatives(
+            suggestion: suggestion,
+            resourceMatches: resourceMatches
+        )
         let candidates = candidateRows(for: suggestion)
         var suggestionObject = suggestion.objectValue()
         suggestionObject["candidates"] = .list(candidates)
@@ -5287,7 +5777,13 @@ final class BindingPersonalChatHubCell: GeneralCell {
         BindingChatValue.set(.integer(resourceMatches.count), for: "assistant.resourceMatchCount", in: &cachedState)
         BindingChatValue.set(.object(promptUnderstanding), for: "assistant.promptUnderstanding", in: &cachedState)
         BindingChatValue.set(.object(groundedActionPlan), for: "assistant.groundedActionPlan", in: &cachedState)
+        BindingChatValue.set(.object(groundedActionPlan), for: "assistant.groundedPlan", in: &cachedState)
+        BindingChatValue.set(.object(groundingVerification), for: "assistant.groundingVerification", in: &cachedState)
+        BindingChatValue.set(.object(groundingDryRun), for: "assistant.groundingDryRun", in: &cachedState)
+        BindingChatValue.set(.list(groundingSchemas.map(ValueType.object)), for: "assistant.groundingSchemas", in: &cachedState)
+        BindingChatValue.set(.list(groundingAlternatives.map(ValueType.object)), for: "assistant.groundingAlternatives", in: &cachedState)
         BindingChatValue.set(.object(purposeContext), for: "assistant.purposeContext", in: &cachedState)
+        BindingChatValue.set(.string(draft), for: "assistant.lastAnalyzedDraft", in: &cachedState)
         BindingChatValue.set(.bool(true), for: "assistant.requiresUserApproval", in: &cachedState)
         updateDraftsFromAnalysis(
             draft: draft,
@@ -5315,6 +5811,14 @@ final class BindingPersonalChatHubCell: GeneralCell {
     private func appendSurface(_ surface: Object) {
         var surfaces = BindingChatValue.list(BindingChatValue.nested("ui.componentSurfaces", in: cachedState)) ?? []
         surfaces.removeAll { BindingChatValue.string(BindingChatValue.object($0)?["id"]) == BindingChatValue.string(surface["id"]) }
+        let incomingKind = BindingChatValue.string(surface["kind"]) ?? ""
+        if incomingKind == "resource-router" || incomingKind == "mermaid-diagram" {
+            surfaces.removeAll {
+                guard let existing = BindingChatValue.object($0) else { return false }
+                return BindingChatValue.string(existing["kind"]) == "invite"
+                    && BindingChatValue.bool(existing["pinned"]) != true
+            }
+        }
         surfaces.append(.object(surface))
         BindingChatValue.set(.list(surfaces), for: "ui.componentSurfaces", in: &cachedState)
         BindingChatValue.set(.string("samtale"), for: "ui.activeTab", in: &cachedState)
@@ -5757,7 +6261,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             fallback: ""
         )
         let editorMode = contextualHelpString(payload, keys: ["editorMode", "mode"], fallback: "view")
-        let destination = contextualHelpString(payload, keys: ["destination", "visibleDestination"], fallback: "Binding")
+        let destination = contextualHelpString(payload, keys: ["destination", "visibleDestination"], fallback: "HAVEN")
         let sourceKind = contextualHelpString(payload, keys: ["sourceKind"], fallback: "local")
         let sourceEndpoint = contextualHelpString(payload, keys: ["sourceEndpoint", "sourceCellEndpoint"], fallback: "")
         let userContextSummary = contextualHelpString(
@@ -5793,10 +6297,10 @@ final class BindingPersonalChatHubCell: GeneralCell {
         let activeSurfaceName = BindingChatValue.string(context["activeSurfaceName"]) ?? "denne flaten"
         let surfaceDescription = BindingChatValue.string(context["surfaceDescription"]) ?? ""
         let editorMode = BindingChatValue.string(context["editorMode"]) ?? "view"
-        let userContextSummary = BindingChatValue.string(context["userContextSummary"]) ?? "Privat Binding-scope."
+        let userContextSummary = BindingChatValue.string(context["userContextSummary"]) ?? "Privat HAVEN-scope."
         let permissionSummary = BindingChatValue.string(context["permissionSummary"]) ?? "Ingen nye tillatelser gis."
         var parts = [
-            "Jeg trenger hjelp i Binding.",
+            "Jeg trenger hjelp i HAVEN.",
             "Aktiv flate: \(activeSurfaceName).",
             "GUI-modus: \(editorMode)."
         ]
@@ -6490,6 +6994,33 @@ final class BindingPersonalChatHubCell: GeneralCell {
                     "explanation": .string("Ingen prompt analysert ennå."),
                     "sideEffectBeforeUserAction": .bool(false)
                 ]),
+                "groundedPlan": .object([
+                    "schema": .string("binding.grounded-action-plan.v0"),
+                    "status": .string("idle"),
+                    "nextStep": .string("compose_prompt"),
+                    "explanation": .string("Ingen prompt analysert ennå."),
+                    "sideEffectBeforeUserAction": .bool(false)
+                ]),
+                "groundingVerification": .object([
+                    "schema": .string("binding.grounded-action-verification.v0"),
+                    "status": .string("idle"),
+                    "allowed": .bool(false),
+                    "reason": .string("Ingen prompt analysert ennå."),
+                    "sideEffectBeforeUserAction": .bool(false)
+                ]),
+                "groundingDryRun": .object([
+                    "schema": .string("binding.grounded-action-dry-run.v0"),
+                    "status": .string("idle"),
+                    "summary": .string("Skriv et utkast og trykk hovedknappen."),
+                    "wouldMutateEntity": .bool(false),
+                    "wouldSendNetworkRequest": .bool(false),
+                    "sideEffectBeforeUserAction": .bool(false)
+                ]),
+                "groundingSchemas": .list(BindingGroundedActionVerifier.availableSchemas(
+                    resourceMatches: [],
+                    providers: [BindingChatProviderRouter.localRulesProvider()]
+                ).map(ValueType.object)),
+                "groundingAlternatives": .list([]),
                 "purposeContext": .object([
                     "schema": .string("haven.purpose-context-pack.v0.binding-preview"),
                     "source": .string("PerspectiveCell + Binding deterministic classifier"),

@@ -689,6 +689,16 @@ struct ChatWorkbenchParityTests {
         #expect(asString(understanding["recommendedNextStep"]) == "open_helper_after_user_click")
         let plan = try #require(asObject(result["groundedActionPlan"]))
         #expect(asString(asObject(plan["target"])?["actionKeypath"]) == "chatHub.workItem.capture")
+        let verification = try #require(asObject(result["groundingVerification"]))
+        #expect(asString(verification["status"]) == "verified")
+        #expect(asBool(verification["allowed"]) == true)
+        #expect(asString(verification["targetActionKeypath"]) == "chatHub.workItem.capture")
+        #expect(asBool(verification["sideEffectBeforeUserAction"]) == false)
+        let dryRun = try #require(asObject(result["groundingDryRun"]))
+        #expect(asString(dryRun["status"]) == "ready")
+        #expect(asBool(dryRun["wouldMutateEntity"]) == false)
+        #expect(asBool(dryRun["wouldSendNetworkRequest"]) == false)
+        #expect((asList(result["groundingSchemas"]) ?? []).isEmpty == false)
 
         let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
         let ui = try #require(asObject(state["ui"]))
@@ -1034,6 +1044,15 @@ struct ChatWorkbenchParityTests {
         #expect((asList(vault["resourceMatches"]) ?? []).contains {
             asString(asObject($0)?["id"]) == "configuration:vault-ideas"
         })
+        let vaultResource = try #require((asList(vault["resourceMatches"]) ?? [])
+            .compactMap { asObject($0) }
+            .first { asString($0["id"]) == "configuration:vault-ideas" })
+        #expect(asString(vaultResource["kindLabel"]) == "Flate")
+        #expect(asString(vaultResource["openActionKeypath"]) == "chatHub.ui.openMatchedResourceLibrary")
+        #expect(asString(asObject(vaultResource["openPayload"])?["configurationName"]) == "Vault / Ideas")
+        let vaultVerification = try #require(asObject(vault["groundingVerification"]))
+        #expect(asString(vaultVerification["status"]) == "verified")
+        #expect(asString(vaultVerification["targetActionKeypath"]) == "chatHub.ui.openMatchedResourceLibrary")
 
         let graph = try #require(asObject(try await chat.set(
             keypath: "chatHub.assistant.analyzeDraft",
@@ -1498,6 +1517,62 @@ struct ChatWorkbenchParityTests {
             asString(asObject($0)?["title"]) == "Arendalsuka Participant Program"
         })
         #expect(counters(.object(openedState)) == before)
+    }
+
+    @Test func changedComposerRestagesResourceHelperOverStaleInvite() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-restage-resource-over-invite")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let initialState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let before = counters(.object(initialState))
+
+        _ = try await chat.set(
+            keypath: "chatHub.setComposer",
+            value: .string("inviter Anna til chat"),
+            requester: owner
+        )
+        let invite = try #require(asObject(try await chat.set(
+            keypath: "chatHub.ui.openSuggestedHelper",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(invite["sideEffect"]) == false)
+        #expect(asString(invite["helper"]) == "invite")
+        let inviteUI = try #require(asObject(invite["ui"]))
+        #expect(asString(inviteUI["activeHelper"]) == "invite")
+
+        _ = try await chat.set(
+            keypath: "chatHub.setComposer",
+            value: .string("åpne mermaid diagram for denne flyten"),
+            requester: owner
+        )
+        let mermaid = try #require(asObject(try await chat.set(
+            keypath: "chatHub.ui.openSuggestedHelper",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asBool(mermaid["sideEffect"]) == false)
+        #expect(asString(mermaid["helper"]) == "mermaid-diagram")
+        let ui = try #require(asObject(mermaid["ui"]))
+        #expect(asString(ui["activeHelper"]) == "mermaid-diagram")
+        let activeHelpers = asList(ui["activeHelpers"]) ?? []
+        #expect(activeHelpers.contains { asString(asObject($0)?["id"]) == "mermaid-diagram" })
+        #expect(!activeHelpers.contains { asString(asObject($0)?["id"]) == "invite" })
+
+        let state = try #require(asObject(mermaid["state"]))
+        let assistant = try #require(asObject(state["assistant"]))
+        #expect(asString(asObject(assistant["latestSuggestion"])?["helperID"]) == "mermaid-diagram")
+        #expect((asList(assistant["resourceMatches"]) ?? []).contains {
+            asString(asObject($0)?["id"]) == "configuration:mermaid-renderer-playground"
+        })
+        let verification = try #require(asObject(assistant["groundingVerification"]))
+        #expect(asString(verification["status"]) == "verified")
+        #expect(asString(verification["targetActionKeypath"]) == "chatHub.ui.openMatchedResourceLibrary")
+        #expect(counters(.object(state)) == before)
     }
 
     @Test func conversationPromptLogStaysCompactForSplitWorkbench() throws {

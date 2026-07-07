@@ -47,6 +47,19 @@ repoen heter `CellProtocolDocuments`; jeg fant ikke et separat
   `assistantState.priorityIntent`, `assistantState.assistantProviders`,
   `assistantState.providerRecommendation` og `assistantState.whySummary`
   mappes til chat-cellens interne `assistant`-state.
+- Binding normaliserer resource matches til CellScaffold-lignende åpne-kontrakt:
+  `kindLabel`, `openLabel`, `openHint`, `openActionKeypath`, `openPayload`,
+  `riskLevel`, `requiresUserApproval=true` og
+  `sideEffectUntilExplicitRequest=false`. Standard UI viser menneskelige felt,
+  ikke rå action-keypaths.
+- `assistant.analyzeDraft` og composer-fallbacken produserer
+  `groundedActionPlan`, `groundingVerification`, `groundingDryRun`,
+  `groundingSchemas` og `groundingAlternatives`. Disse er sideeffektfrie
+  forhåndsvisninger av hva neste eksplisitte brukerklikk kan gjøre.
+- `ui.openSuggestedHelper` restager hvis composer-draften er endret siden siste
+  analyse. Dette hindrer stale helper-state, for eksempel at en gammel
+  `invite`-suggestion forblir aktiv når ny prompt matcher Mermaid, Graph eller
+  Arendalsuka resource-flate.
 - Drag/drop-paritet bruker cell-keypath `drop.receive` (skeleton alias
   `chatHub.drop.receive`). Den fyller kun `inviteDraft` og `drop`, returnerer
   `sideEffect=invite_draft_only`, og sender ikke invitasjon.
@@ -160,6 +173,11 @@ Smoke:
 - Apne helper via `ui.openSuggestedHelper`.
 - Verifiser at analyze/open-helper ikke endrer thread-, poll- eller
   workbench-module-tellere.
+- Verifiser at `groundingVerification.allowed=true` bare når target action,
+  synlig ressurs/grant og cell-scoped provider-policy er oppfylt, og at
+  `groundingDryRun.wouldMutateEntity=false` under analyze/open.
+- Verifiser stale-case: gammel invite-helper + ny resource-prompt skal restage
+  til riktig helper/resource og fjerne upinnet invite fra aktiv helper-liste.
 - Kjor `entityExtension.scan` for endpoint-prompt og verifiser
   `contact_endpoint` uten sideeffekt, samt CellScaffold-lignende
   `entityExtension.extensions`/`counts`.
@@ -177,10 +195,11 @@ Smoke:
 Siste lokale verifikasjon:
 
 ```bash
-xcodebuild test -project Binding.xcodeproj -scheme Binding \
+Scripts/test_binding.sh CODE_SIGNING_ALLOWED=NO \
   -only-testing:BindingTests/ChatWorkbenchParityTests
 ```
 
-Resultat 2026-05-15: 12 ChatWorkbench-paritytester passerte. I tillegg
-passerte 5 `AgentConversationClientTests`, inkludert test av `postPrompt` mot en
-annen entitets `AgentConversationInbox`-endpoint.
+Resultat 2026-07-07: 37 `ChatWorkbenchParityTests` passerte, inkludert
+resource open-payload, grounded verification/dry-run, Perspective-quality
+matrix, stale invite -> Mermaid/resource restaging, helper-open sideeffektfrihet
+og CellScaffold-fixture provider-evaluering.

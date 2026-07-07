@@ -8805,8 +8805,9 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var resourceRow = SkeletonVStack(elements: [
             .Text(personalBoundText("title", lineLimit: 1)),
-            .Text(personalBoundText("kind", lineLimit: 1)),
-            .Text(personalBoundText("actionKeypath", lineLimit: 1))
+            .Text(personalBoundText("kindLabel", lineLimit: 1)),
+            .Text(personalBoundText("summary", lineLimit: 2)),
+            .Text(personalBoundText("openHint", lineLimit: 2))
         ], spacing: 4)
         resourceRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
         var resourceMatches = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.resourceMatches", flowElementSkeleton: resourceRow)
@@ -9183,6 +9184,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                     .VStack(composerStack),
                     .Text(primaryActionHint),
                     .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 3)),
+                    .List(activeToolChips),
                     .Tabs(helperTabs(activeOnly: true, compact: true)),
                     .Text(personalLabelText("Logg")),
                     .List(promptMessages)
