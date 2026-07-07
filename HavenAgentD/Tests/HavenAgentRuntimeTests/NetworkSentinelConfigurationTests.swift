@@ -68,7 +68,7 @@ struct NetworkSentinelConfigurationTests {
 
         // Every action button explicitly targets the sentinel endpoint with a real action keypath.
         let actionKeypaths = Set(buttons.map(\.keypath))
-        #expect(actionKeypaths.isSuperset(of: ["acknowledge", "probe", "captureNow"]))
+        #expect(actionKeypaths.isSuperset(of: ["acknowledge", "probe", "captureNow", "runListen"]))
         for button in buttons {
             #expect(button.url == "cell:///agent/network/sentinel")
         }

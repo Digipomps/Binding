@@ -5459,6 +5459,7 @@ struct BindingTests {
         }
 
         #expect(configurationNames.contains("Agent Setup Workbench") == false)
+        #expect(configurationNames.contains("Network Sentinel") == false)
     }
 
     @Test func configurationCatalogExposesAgentSetupWorkbenchWhenOptedIn() async throws {
@@ -5480,6 +5481,86 @@ struct BindingTests {
         }
 
         #expect(configurationNames.contains("Agent Setup Workbench"))
+        #expect(configurationNames.contains("Network Sentinel"))
+    }
+
+    @Test func networkSentinelConfigurationRetargetsToLocalControlBridge() throws {
+        func expectLocalNetworkSentinelBridgeEndpoint(_ endpoint: String) {
+            guard let components = URLComponents(string: endpoint) else {
+                Issue.record("Expected valid endpoint URL, got \(endpoint)")
+                return
+            }
+
+            #expect(components.scheme == "ws")
+            #expect(components.host == "127.0.0.1")
+            #expect(components.port == 43110)
+            #expect(components.path == "/bridgehead/network-sentinel")
+            #expect(components.queryItems?.contains { $0.name == "token" && $0.value == "test token" } == true)
+        }
+
+        func collectButtons(in element: SkeletonElement) -> [SkeletonButton] {
+            switch element {
+            case .Button(let button):
+                return [button]
+            case .VStack(let stack):
+                return stack.elements.flatMap(collectButtons)
+            case .HStack(let stack):
+                return stack.elements.flatMap(collectButtons)
+            case .ScrollView(let scroll):
+                return scroll.elements.flatMap(collectButtons)
+            case .Section(let section):
+                return (section.header.map(collectButtons) ?? []) +
+                    section.content.flatMap(collectButtons) +
+                    (section.footer.map(collectButtons) ?? [])
+            case .Reference(let reference):
+                return reference.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
+            case .Grid(let grid):
+                return grid.elements.flatMap(collectButtons)
+            case .ZStack(let stack):
+                return stack.elements.flatMap(collectButtons)
+            case .Object(let object):
+                return object.elements.values.flatMap(collectButtons)
+            case .Tabs(let tabs):
+                return tabs.panels.flatMap { $0.content.flatMap(collectButtons) }
+            default:
+                return []
+            }
+        }
+
+        let configuration = ConfigurationCatalogCell.networkSentinelWorkbenchConfiguration()
+        let configJSON: [String: Any] = [
+            "localControlBridge": [
+                "enabled": true,
+                "host": "127.0.0.1",
+                "port": 43110,
+                "accessToken": "test token",
+                "routes": [
+                    [
+                        "name": "network-sentinel",
+                        "targetCellReference": "agent/network/sentinel"
+                    ]
+                ]
+            ]
+        ]
+
+        let rewritten = CellConfigurationEndpointRetargeting.rewritingLocalAgentBridgeEndpoints(
+            in: configuration,
+            configJSON: configJSON
+        )
+
+        let referenceEndpoint = try #require(rewritten.cellReferences?.first?.endpoint)
+        expectLocalNetworkSentinelBridgeEndpoint(referenceEndpoint)
+
+        let skeleton = try #require(rewritten.skeleton)
+        let buttons = collectButtons(in: skeleton)
+        let actionKeypaths = Set(buttons.map(\.keypath))
+        #expect(actionKeypaths.isSuperset(of: ["acknowledge", "probe", "captureNow", "runListen"]))
+
+        let actionButtons = buttons.filter { ["acknowledge", "probe", "captureNow", "runListen"].contains($0.keypath) }
+        #expect(actionButtons.isEmpty == false)
+        for button in actionButtons {
+            expectLocalNetworkSentinelBridgeEndpoint(try #require(button.url))
+        }
     }
 
     @Test func bindingLocalRegistrationDoesNotRegisterAgentAdminCells() async throws {

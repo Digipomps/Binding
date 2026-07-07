@@ -1,5 +1,203 @@
 import Foundation
+#if os(macOS)
+import Darwin
+#endif
 import CellBase
+
+enum AgentLocalControlBridgeEndpointSupport {
+    private struct ControlBridgeConfiguration {
+        var enabled: Bool
+        var host: String
+        var port: Int
+        var accessToken: String?
+        var routeNamesByTarget: [String: String]
+    }
+
+    private static let defaultRoutesByTarget: [String: String] = [
+        "agent/identity": "agent-identity",
+        "agent/supervisor": "agent-supervisor",
+        "agent/intents/inbox": "intent-inbox",
+        "agent/intents/review": "intent-review",
+        "agent/network/sentinel": "network-sentinel",
+        "agent/email/outbox": "email-outbox"
+    ]
+
+    private static let runtimeAccessBookmarkKey = "Binding.AgentRuntimeAccess.applicationSupportBookmark"
+    private static let runtimeAccessLock = NSLock()
+    nonisolated(unsafe) private static var runtimeAccessURL: URL?
+    nonisolated(unsafe) private static var runtimeAccessStarted = false
+
+    static func rewriteEndpoint(_ endpoint: String) -> String? {
+        guard let configJSON = readDefaultConfigJSON() else {
+            return nil
+        }
+        return rewriteEndpoint(endpoint, configJSON: configJSON)
+    }
+
+    static func rewriteEndpoint(_ endpoint: String, configJSON: [String: Any]) -> String? {
+        guard let targetCellReference = localAgentTargetCellReference(from: endpoint) else {
+            return nil
+        }
+        return bridgeEndpoint(forTargetCellReference: targetCellReference, configJSON: configJSON)
+    }
+
+    static func bridgeEndpoint(forTargetCellReference targetCellReference: String, configJSON: [String: Any]) -> String? {
+        let configuration = controlBridgeConfiguration(configJSON: configJSON)
+        guard configuration.enabled,
+              isLoopbackHost(configuration.host),
+              let routeName = configuration.routeNamesByTarget[targetCellReference] else {
+            return nil
+        }
+
+        var components = URLComponents()
+        components.scheme = "ws"
+        components.host = configuration.host
+        components.port = configuration.port
+        components.path = "/bridgehead/\(routeName)"
+        if let accessToken = configuration.accessToken, accessToken.isEmpty == false {
+            components.queryItems = [URLQueryItem(name: "token", value: accessToken)]
+        }
+        return components.url?.absoluteString
+    }
+
+    private static func localAgentTargetCellReference(from endpoint: String) -> String? {
+        guard let components = URLComponents(string: endpoint),
+              components.scheme?.lowercased() == "cell" else {
+            return nil
+        }
+
+        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isLocal = host == nil || host?.isEmpty == true || host?.lowercased() == "localhost"
+        guard isLocal else { return nil }
+
+        let target = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard target.hasPrefix("agent/") else { return nil }
+        return target
+    }
+
+    private static func controlBridgeConfiguration(configJSON: [String: Any]) -> ControlBridgeConfiguration {
+        guard let object = configJSON["localControlBridge"] as? [String: Any] else {
+            return ControlBridgeConfiguration(
+                enabled: false,
+                host: "127.0.0.1",
+                port: 43110,
+                accessToken: nil,
+                routeNamesByTarget: defaultRoutesByTarget
+            )
+        }
+
+        let enabled = (object["enabled"] as? Bool) ?? false
+        let host = stringValue(fromAny: object["host"]) ?? "127.0.0.1"
+        let port = (object["port"] as? NSNumber)?.intValue ?? 43110
+        let accessToken = stringValue(fromAny: object["accessToken"])
+        let routes = (object["routes"] as? [[String: Any]])?.reduce(into: defaultRoutesByTarget) { partialResult, entry in
+            guard let name = stringValue(fromAny: entry["name"]),
+                  let targetCellReference = stringValue(fromAny: entry["targetCellReference"]) else {
+                return
+            }
+            partialResult[targetCellReference] = name
+        } ?? defaultRoutesByTarget
+
+        return ControlBridgeConfiguration(
+            enabled: enabled,
+            host: host,
+            port: port,
+            accessToken: accessToken,
+            routeNamesByTarget: routes
+        )
+    }
+
+    private static func readDefaultConfigJSON() -> [String: Any]? {
+        let applicationSupportDirectory = userHomeDirectory()
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+        activatePersistedExternalRuntimeAccess(forRuntimeAccessDirectory: applicationSupportDirectory)
+        let configURL = applicationSupportDirectory
+            .appendingPathComponent("HAVENAgent", isDirectory: true)
+            .appendingPathComponent("config.json")
+
+        guard let data = try? Data(contentsOf: configURL),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return object
+    }
+
+    private static func activatePersistedExternalRuntimeAccess(forRuntimeAccessDirectory runtimeAccessDirectory: URL) {
+#if os(macOS)
+        runtimeAccessLock.lock()
+        defer { runtimeAccessLock.unlock() }
+
+        if runtimeAccessStarted,
+           runtimeAccessURL?.standardizedFileURL == runtimeAccessDirectory.standardizedFileURL {
+            return
+        }
+
+        guard let bookmarkData = UserDefaults.standard.data(forKey: runtimeAccessBookmarkKey) else {
+            return
+        }
+
+        var bookmarkIsStale = false
+        guard let resolvedURL = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &bookmarkIsStale
+        ) else {
+            return
+        }
+
+        guard resolvedURL.standardizedFileURL == runtimeAccessDirectory.standardizedFileURL else {
+            return
+        }
+
+        if bookmarkIsStale,
+           let refreshedBookmarkData = try? resolvedURL.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+           ) {
+            UserDefaults.standard.set(refreshedBookmarkData, forKey: runtimeAccessBookmarkKey)
+        }
+
+        runtimeAccessURL = resolvedURL
+        runtimeAccessStarted = resolvedURL.startAccessingSecurityScopedResource()
+#else
+        _ = runtimeAccessDirectory
+#endif
+    }
+
+    private static func userHomeDirectory() -> URL {
+#if os(macOS)
+        if let entry = getpwuid(getuid()),
+           let directory = entry.pointee.pw_dir,
+           let resolvedHome = String(validatingUTF8: directory),
+           !resolvedHome.isEmpty {
+            return URL(fileURLWithPath: resolvedHome, isDirectory: true)
+        }
+#endif
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    private static func isLoopbackHost(_ host: String) -> Bool {
+        let normalized = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "localhost"
+            || normalized == "127.0.0.1"
+            || normalized == "::1"
+            || normalized == "[::1]"
+    }
+
+    private static func stringValue(fromAny value: Any?) -> String? {
+        switch value {
+        case let string as String:
+            return string
+        case let number as NSNumber:
+            return number.stringValue
+        default:
+            return nil
+        }
+    }
+}
 
 enum CellConfigurationEndpointRetargeting {
     private static let stagingHost = "staging.haven.digipomps.org"
@@ -48,6 +246,23 @@ enum CellConfigurationEndpointRetargeting {
 
         return rewritingEndpoints(in: configuration) {
             rewriteLocalCellEndpoint($0, to: origin)
+        }
+    }
+
+    static func rewritingLocalAgentBridgeEndpoints(
+        in configuration: CellConfiguration
+    ) -> CellConfiguration {
+        rewritingEndpoints(in: configuration) {
+            AgentLocalControlBridgeEndpointSupport.rewriteEndpoint($0) ?? $0
+        }
+    }
+
+    static func rewritingLocalAgentBridgeEndpoints(
+        in configuration: CellConfiguration,
+        configJSON: [String: Any]
+    ) -> CellConfiguration {
+        rewritingEndpoints(in: configuration) {
+            AgentLocalControlBridgeEndpointSupport.rewriteEndpoint($0, configJSON: configJSON) ?? $0
         }
     }
 

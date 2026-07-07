@@ -126,14 +126,16 @@ arriving. The pcap path is recorded on the event.
 | `selectTab` | `rw--` | switch the GUI's active tab (navigation state) |
 | `probeTarget` · `probe` | `rw--` | set "host:port" · run on-demand TCP reachability probe |
 | `captureNow` | `rw--` | trigger an immediate bounded packet capture |
+| `runListen` | `rw--` | start a bounded native listen window; value is minutes (`1...180`) |
+| `lastListenSummary` | `r---` | latest listen-window summary as structured data |
 
 Reads are gated by `validateAccess` + `LocalControlCellAccess.isPairedOperator`,
 like the other agent cells.
 
 The read-only `state` is a single rich, display-ready projection (status text,
 formatted metrics, formål/goal status, `navigation.{activeTab,tabs}`, probe and
-capture summaries, and nested `events` / `interfaces` / `history` lists) so a GUI
-can bind to one subscription.
+capture/listen summaries, and nested `events` / `interfaces` / `history` lists)
+so a GUI can bind to one subscription.
 
 Flow topics: `network.health` (`.event`) for routine/resolution,
 `network.health.flood` (`.alert`) for an active flood.
@@ -151,12 +153,20 @@ dependency:
   standalone (no bootstrap, no resolver, no network) and prints the live snapshot
   — native interface inventory + real per-second rates from `en0`. Verified on
   the host: `status: calm`, `en0` 349 pk/s / 0 errors, 30 interfaces enumerated.
+- **`haven-agentd network-listen --minutes N`** runs the same native sensor for a
+  bounded window and prints the listen summary from the runtime contract.
+- **Local control bridge:** when `localControlBridge.enabled` is true, the
+  `network-sentinel` route maps to `cell:///agent/network/sentinel` over the
+  loopback `/bridgehead/network-sentinel/...` WebSocket. The same runtime status
+  is also visible in `/onboard/status.json` for the local operator surface.
 - **GUI:** the native SwiftUI skeleton renderer in Binding, connected to agentd's
   loopback control bridge (`AgentControlBridgeServer`). The CellConfiguration is
   rendered natively against the local cell — no web Porthole, no staging.
-  *Remaining integration:* wiring Binding's renderer/resolver to the loopback
-  bridge transport and loading `CellConfiguration.network-sentinel.json` into
-  Binding's local Library.
+  Binding exposes a `Network Sentinel` opt-in local operator configuration next
+  to `Agent Setup Workbench`. During load, Binding rewrites
+  `cell:///agent/network/sentinel` to the configured loopback
+  `/bridgehead/network-sentinel` WebSocket endpoint with the local control token,
+  leaving resolver/Agreement checks authoritative.
 
 ## Configuration
 
@@ -204,6 +214,10 @@ The cell makes the sensor a more complete network tool:
   reachability + handshake latency. Set `probeTarget`, then `probe`.
 - **Capture now** — `captureNow` fires an immediate `BoundedPacketCapture` (the
   same time+count bounded capture used on a flood), non-blocking.
+- **Listen window** — `runListen` starts a bounded native measurement window.
+  Output is exposed through `state.listen` / `lastListenSummary`: running vs.
+  complete, duration, sample count, average/peak pk/s, average/peak Mbps, event
+  count, per-minute rates, flood summaries, and capture paths.
 
 ## GUI (CellConfiguration)
 
@@ -216,7 +230,8 @@ action-target checks). It binds a tabbed surface to `cell:///agent/network/senti
   - Oversikt — live pps/Mbps + trend list (`state.history`).
   - Enheter — interface inventory list (`state.interfaces`).
   - Hendelser — flood events (`state.events`) + "kvitter ut" button.
-  - Verktøy — reachability test (`TextField` + `Button` → result) + capture-now.
+  - Verktøy — reachability test (`TextField` + `Button` → result), capture-now,
+    and `runListen` with structured output from `state.listen`.
   - Innstillinger — notifications `Toggle` + thresholds (read-only).
 
 Binding conventions (mirroring the proven conference-dashboard config):

@@ -6835,6 +6835,25 @@ final class ConfigurationCatalogCell: GeneralCell {
                 borderColor: "#0F766E",
                 flowDriven: true,
                 recommendedContexts: ["agent", "operator", "automation", "review"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell:///agent/network/sentinel",
+                sourceCellName: "NetworkSentinelCell",
+                displayName: "Network Sentinel",
+                purpose: "Local network health sentinel",
+                purposeDescription: "Operate haven-agentd's local network tracker over the loopback control bridge.",
+                interests: ["agent", "haven-agentd", "network", "diagnostics", "security", "local"],
+                summary: "Live nettverksstatus, historikk, grensesnitt, probe, pakkefangst og lytteverktøy fra lokal agent.",
+                categoryPath: ["operations", "agent", "network"],
+                tags: ["agent", "network", "diagnostics", "bridge", "local"],
+                menuSlots: [.upperMid],
+                chip: "LOCAL SENSOR",
+                borderColor: "#0F766E",
+                authRequired: true,
+                policyHints: ["loopback-only", "local-control-bridge-token", "paired-operator"],
+                flowDriven: true,
+                editable: false,
+                recommendedContexts: ["agent", "operator", "network", "diagnostics"]
             )
         ]
     }
@@ -7028,6 +7047,11 @@ final class ConfigurationCatalogCell: GeneralCell {
             )
         case "cell:///agentprovisioning":
             return agentSetupWorkbenchConfiguration(
+                displayName: descriptor.displayName,
+                summary: descriptor.summary
+            )
+        case "cell:///agent/network/sentinel":
+            return networkSentinelWorkbenchConfiguration(
                 displayName: descriptor.displayName,
                 summary: descriptor.summary
             )
@@ -7562,6 +7586,13 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated static func agentSetupWorkbenchConfiguration() -> CellConfiguration {
         agentSetupWorkbenchMenuConfiguration()
+    }
+
+    nonisolated static func networkSentinelWorkbenchConfiguration() -> CellConfiguration {
+        networkSentinelWorkbenchConfiguration(
+            displayName: "Network Sentinel",
+            summary: "Live nettverksstatus, historikk, grensesnitt, probe, pakkefangst og lytteverktøy fra lokal agent."
+        )
     }
 
     nonisolated static func catalogWorkbenchMenuConfiguration() -> CellConfiguration {
@@ -15112,6 +15143,179 @@ final class ConfigurationCatalogCell: GeneralCell {
         scroll.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
         configuration.skeleton = .ScrollView(scroll)
         return configuration
+    }
+
+    nonisolated private static func networkSentinelWorkbenchConfiguration(
+        displayName: String,
+        summary: String
+    ) -> CellConfiguration {
+        let endpoint = "cell:///agent/network/sentinel"
+        var configuration = CellConfiguration(name: displayName)
+        configuration.description = summary
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: endpoint,
+            sourceCellName: "NetworkSentinelCell",
+            purpose: "Local network health sentinel",
+            purposeDescription: "Operate haven-agentd's local network tracker over the loopback control bridge.",
+            interests: ["agent", "haven-agentd", "network", "diagnostics", "security", "local"],
+            menuSlots: ["upperMid"]
+        )
+
+        var reference = CellReference(endpoint: endpoint, subscribeFeed: true, label: "networkSentinel")
+        reference.setKeysAndValues = [KeyValue(key: "state", value: nil)]
+        configuration.addReference(reference)
+
+        var probeTargetField = SkeletonTextField(
+            sourceKeypath: "networkSentinel.state.probe.target",
+            targetKeypath: "probeTarget",
+            placeholder: "vert:port (f.eks. 1.1.1.1:443)"
+        )
+        probeTargetField.modifiers = modifier {
+            $0.padding = 8
+            $0.background = "#0C1A22"
+            $0.cornerRadius = 6
+            $0.borderWidth = 1
+            $0.borderColor = "#244457"
+            $0.foregroundColor = "#F5FBFF"
+        }
+
+        var notificationsToggle = SkeletonToggle(label: "Vis nettverksvarsler", keypath: "notificationsEnabled", isOn: true)
+        notificationsToggle.modifiers = modifier { $0.foregroundColor = "#F5FBFF" }
+
+        var root = SkeletonVStack(elements: [
+            bindingConferencePortalCardSection(
+                "Nettverkssensor",
+                content: [
+                    bindingConferencePortalKeyText("networkSentinel.state.statusText", fontSize: 20, fontWeight: "bold", foregroundColor: "#F5FBFF"),
+                    bindingConferencePortalKeyText("networkSentinel.state.metrics.summary", fontSize: 13, foregroundColor: "#D5E4ED", lineLimit: 2),
+                    bindingConferencePortalKeyText("networkSentinel.state.activeEventText", fontSize: 12, foregroundColor: "#F4D58D", lineLimit: 3),
+                    bindingConferencePortalKeyText("networkSentinel.state.goal.statusText", fontSize: 12, foregroundColor: "#8DE1DA"),
+                    networkSentinelMetricRow("Grensesnitt:", "networkSentinel.state.interface", "Oppdatert:", "networkSentinel.state.updatedAt")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Trend",
+                content: [
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "networkSentinel.state.history",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Grensesnitt",
+                content: [
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "networkSentinel.state.interfaces",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Hendelser",
+                content: [
+                    .List(
+                        SkeletonList(
+                            topic: nil,
+                            keypath: "networkSentinel.state.events",
+                            flowElementSkeleton: bindingConferencePortalTitleDetailRowSkeleton()
+                        )
+                    ),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            networkSentinelActionButton(keypath: "acknowledge", label: "Kvitter ut aktiv hendelse")
+                        ], spacing: 8)
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Verktøy",
+                content: [
+                    bindingConferencePortalStaticText("Tilkoblingstest", fontSize: 13, fontWeight: "semibold", foregroundColor: "#8DE1DA"),
+                    .TextField(probeTargetField),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            networkSentinelActionButton(keypath: "probe", label: "Test tilkobling")
+                        ], spacing: 8)
+                    ),
+                    bindingConferencePortalKeyText("networkSentinel.state.probe.result", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 3),
+                    bindingConferencePortalStaticText("Pakkefangst og lyttemåling", fontSize: 13, fontWeight: "semibold", foregroundColor: "#8DE1DA"),
+                    .HStack(
+                        SkeletonHStack(elements: [
+                            networkSentinelActionButton(keypath: "captureNow", label: "Capture nå"),
+                            networkSentinelActionButton(keypath: "runListen", label: "Lytt 1 min", payload: .integer(1))
+                        ], spacing: 8)
+                    ),
+                    bindingConferencePortalKeyText("networkSentinel.state.capture.summary", fontSize: 12, foregroundColor: "#8FB6C8", lineLimit: 3),
+                    networkSentinelMetricRow("Lytt:", "networkSentinel.state.listen.status", "Varighet sek:", "networkSentinel.state.listen.durationSeconds"),
+                    networkSentinelMetricRow("Snitt pk/s:", "networkSentinel.state.listen.averagePacketsPerSecond", "Topp pk/s:", "networkSentinel.state.listen.peakPacketsPerSecond"),
+                    networkSentinelMetricRow("Snitt Mbps:", "networkSentinel.state.listen.averageMegabitsPerSecond", "Topp Mbps:", "networkSentinel.state.listen.peakMegabitsPerSecond"),
+                    networkSentinelMetricRow("Hendelser:", "networkSentinel.state.listen.floodEventCount", "Samples:", "networkSentinel.state.listen.totalSamples")
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Innstillinger",
+                content: [
+                    .Toggle(notificationsToggle),
+                    bindingConferencePortalStaticText("Av/på gjelder brukervarsel. Hendelser logges uansett.", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 3),
+                    networkSentinelMetricRow("Pakker/s:", "networkSentinel.state.thresholds.packetsPerSecond", "Mbps:", "networkSentinel.state.thresholds.megabitsPerSecond"),
+                    networkSentinelMetricRow("Feil/s:", "networkSentinel.state.thresholds.errorsPerSecond", "Resolve:", "networkSentinel.state.thresholds.resolveSamples")
+                ]
+            )
+        ])
+        root.modifiers = modifier {
+            $0.padding = 12
+            $0.background = ConferenceSurfacePalette.canvas
+        }
+
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        scroll.modifiers = modifier { $0.background = ConferenceSurfacePalette.canvas }
+        configuration.skeleton = .ScrollView(scroll)
+        return configuration
+    }
+
+    nonisolated private static func networkSentinelMetricRow(
+        _ firstLabel: String,
+        _ firstKeypath: String,
+        _ secondLabel: String,
+        _ secondKeypath: String
+    ) -> SkeletonElement {
+        .HStack(
+            SkeletonHStack(elements: [
+                bindingConferencePortalStaticText(firstLabel, fontSize: 12, foregroundColor: "#D5E4ED"),
+                bindingConferencePortalKeyText(firstKeypath, fontSize: 12, fontWeight: "semibold", foregroundColor: "#F5FBFF", lineLimit: 1),
+                bindingConferencePortalStaticText(secondLabel, fontSize: 12, foregroundColor: "#D5E4ED"),
+                bindingConferencePortalKeyText(secondKeypath, fontSize: 12, fontWeight: "semibold", foregroundColor: "#F5FBFF", lineLimit: 1)
+            ], spacing: 8)
+        )
+    }
+
+    nonisolated private static func networkSentinelActionButton(
+        keypath: String,
+        label: String,
+        payload: ValueType? = nil
+    ) -> SkeletonElement {
+        var button = SkeletonButton(
+            keypath: keypath,
+            label: label,
+            url: "cell:///agent/network/sentinel",
+            payload: payload
+        )
+        button.modifiers = modifier {
+            $0.padding = 8
+            $0.background = "#173140"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#2D566B"
+            $0.foregroundColor = "#D9FBFF"
+        }
+        return .Button(button)
     }
 
     nonisolated private static func entityScannerToolConfiguration(

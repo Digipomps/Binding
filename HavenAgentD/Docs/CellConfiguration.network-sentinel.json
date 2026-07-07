@@ -175,6 +175,38 @@
                               { "Text" : { "keypath" : "networkSentinel.state.capture.summary", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#8FB6C8" } } }
                             ]
                           }
+                        },
+                        {
+                          "Section" : {
+                            "header" : { "Text" : { "text" : "Lyttemåling", "modifiers" : { "foregroundColor" : "#8DE1DA" } } },
+                            "modifiers" : { "background" : "#122734", "borderColor" : "#244457", "borderWidth" : 1, "cornerRadius" : 10, "padding" : 12 },
+                            "content" : [
+                              { "Text" : { "text" : "Kjør en kort målevindu-oppsummering med samme native sensor som trackeren.", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                              { "Button" : { "url" : "cell:///agent/network/sentinel", "keypath" : "runListen", "label" : "Lytt 1 min", "payload" : 1, "modifiers" : { "background" : "#173140", "borderColor" : "#2D566B", "borderWidth" : 1, "cornerRadius" : 8, "foregroundColor" : "#D9FBFF", "padding" : 8 } } },
+                              { "HStack" : { "spacing" : 8, "elements" : [
+                                { "Text" : { "text" : "Status:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.listen.status", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#8DE1DA" } } }
+                              ] } },
+                              { "HStack" : { "spacing" : 8, "elements" : [
+                                { "Text" : { "text" : "Snitt pk/s:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.listen.averagePacketsPerSecond", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } },
+                                { "Text" : { "text" : "Topp pk/s:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.listen.peakPacketsPerSecond", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } }
+                              ] } },
+                              { "HStack" : { "spacing" : 8, "elements" : [
+                                { "Text" : { "text" : "Snitt Mbps:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.listen.averageMegabitsPerSecond", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } },
+                                { "Text" : { "text" : "Topp Mbps:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.listen.peakMegabitsPerSecond", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } }
+                              ] } },
+                              { "HStack" : { "spacing" : 8, "elements" : [
+                                { "Text" : { "text" : "Hendelser:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.listen.floodEventCount", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } },
+                                { "Text" : { "text" : "Varighet sek:", "modifiers" : { "fontSize" : 12, "foregroundColor" : "#D5E4ED" } } },
+                                { "Text" : { "keypath" : "networkSentinel.state.listen.durationSeconds", "modifiers" : { "fontSize" : 12, "fontWeight" : "semibold", "foregroundColor" : "#F5FBFF" } } }
+                              ] } }
+                            ]
+                          }
                         }
                       ]
                     }

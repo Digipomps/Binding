@@ -2218,6 +2218,7 @@ struct ContentView: View {
 
     private func normalizeConfigurationForResolver(_ configuration: CellConfiguration, origin: CatalogOrigin?, resolver: CellResolver) -> CellConfiguration {
         var normalized = BindingConferenceConfigurationRepair.reconcile(configuration)
+        normalized = CellConfigurationEndpointRetargeting.rewritingLocalAgentBridgeEndpoints(in: normalized)
         normalized = CellConfigurationEndpointRetargeting.rewritingEndpoints(in: normalized) { endpoint in
             normalizeEndpointForResolver(endpoint, origin: origin, resolver: resolver)
         }
