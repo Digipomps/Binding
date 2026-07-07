@@ -24,6 +24,7 @@ This repository hosts the HAVEN app and integrates the CellProtocol ecosystem.
 - [Claude_EntityScannerDesignPrompt_v2.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/Claude_EntityScannerDesignPrompt_v2.md)
 - [EntityScanner_JudgedProximityUX.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/EntityScanner_JudgedProximityUX.md)
 - [PersonalCopilotDesignSystem.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotDesignSystem.md)
+- [CoPilotChatQualityParity_2026-07-07.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/CoPilotChatQualityParity_2026-07-07.md)
 
 ## Overview
 - HAVEN (app): Hosts a porthole canvas and edge menus to quickly load `CellConfiguration`s.

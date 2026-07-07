@@ -6,7 +6,6 @@
   "defaultProviderUnderTest": "deterministic-v1",
   "futureProviders": [
     "binding.apple-intelligence",
-    "binding.local-llm",
     "openai.4o-mini"
   ],
   "assertions": {
@@ -20,40 +19,186 @@
       "id": "invite.closest-colleague.nb",
       "locale": "nb-NO",
       "prompt": "inviter min nærmeste kollega",
-      "setup": ["published-colleague-profile"],
+      "setup": [
+        "published-colleague-profile"
+      ],
       "expected": {
         "shouldSuggest": true,
         "intentKind": "invite_person",
         "purposeRef": "personal.chat.assist.invite",
         "suggestionStatus": "suggested",
-        "helperID": "invite"
+        "helperID": "invite",
+        "groundedPlan": {
+          "intentKind": "invite_person",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "ui.openSuggestedHelper",
+          "helperID": "invite",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
       "id": "invite.ambiguous-colleague.nb",
       "locale": "nb-NO",
       "prompt": "inviter kollega",
-      "setup": ["published-two-colleague-profiles"],
+      "setup": [
+        "published-two-colleague-profiles"
+      ],
       "expected": {
         "shouldSuggest": true,
         "intentKind": "invite_person",
         "purposeRef": "personal.chat.assist.invite",
         "suggestionStatus": "needs_candidate_selection",
         "helperID": "invite",
-        "minimumCandidateCount": 2
+        "minimumCandidateCount": 2,
+        "groundedPlan": {
+          "intentKind": "invite_person",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "ui.openSuggestedHelper",
+          "helperID": "invite",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
       "id": "poll.group.nb",
       "locale": "nb-NO",
       "prompt": "vi trenger avstemning om lunsj",
-      "setup": ["accepted-group-thread"],
+      "setup": [
+        "accepted-group-thread"
+      ],
       "expected": {
         "shouldSuggest": true,
         "intentKind": "create_poll",
         "purposeRef": "personal.chat.assist.poll",
         "suggestionStatus": "suggested",
-        "helperID": "poll"
+        "helperID": "poll",
+        "groundedPlan": {
+          "intentKind": "create_poll",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "ui.openSuggestedHelper",
+          "helperID": "poll",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "onboarding.conference-participant.nb",
+      "locale": "nb-NO",
+      "prompt": "jeg skal onboardes til konferansen",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "guided_onboarding",
+        "purposeRef": "personal.chat.assist.guided-onboarding",
+        "suggestionStatus": "suggested",
+        "helperID": "onboarding",
+        "groundedPlan": {
+          "intentKind": "guided_onboarding",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "onboarding.start",
+          "helperID": "onboarding",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "onboarding.aigateway-setup.nb",
+      "locale": "nb-NO",
+      "prompt": "konfigurer AIGateway for 4o-mini",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "guided_onboarding",
+        "purposeRef": "personal.chat.assist.guided-onboarding",
+        "suggestionStatus": "suggested",
+        "helperID": "onboarding",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "AI Agent Workspace",
+        "groundedPlan": {
+          "intentKind": "guided_onboarding",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "onboarding.start",
+          "helperID": "onboarding",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "questionnaire.create.nb",
+      "locale": "nb-NO",
+      "prompt": "lag en spørreundersøkelse om betalingsvilje og smertepunkter",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "guided_onboarding",
+        "purposeRef": "personal.chat.assist.guided-onboarding",
+        "suggestionStatus": "suggested",
+        "helperID": "onboarding",
+        "groundedPlan": {
+          "intentKind": "guided_onboarding",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "onboarding.start",
+          "helperID": "onboarding",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "resource.aigateway-configuration.nb",
+      "locale": "nb-NO",
+      "prompt": "vis AIGateway-konfigurasjonen og hvilke språkmodeller som er satt opp",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.ai.gateway.configure",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "AI Agent Workspace",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "AI Agent Workspace",
+          "targetSourceCellEndpoint": "cell:///AIGateway",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "resource.personal-dashboard-authoring.nb",
+      "locale": "nb-NO",
+      "prompt": "Jeg vil lage mitt eget personlige dashboard",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "purpose://capability.construct-cellconfiguration",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Cell Configuration Architect",
+        "resourceSourceCellEndpoint": "cell:///ConfigurationCatalog",
+        "resourcePurposeRef": "purpose://capability.construct-cellconfiguration",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Cell Configuration Architect",
+          "targetSourceCellEndpoint": "cell:///ConfigurationCatalog",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
@@ -66,7 +211,36 @@
         "intentKind": "idea_capture",
         "purposeRef": "personal.chat.assist.idea.capture",
         "suggestionStatus": "suggested",
-        "helperID": "idea-capture"
+        "helperID": "idea-capture",
+        "groundedPlan": {
+          "intentKind": "idea_capture",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "idea.capture",
+          "helperID": "idea-capture",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "work-item.bug-report.nb",
+      "locale": "nb-NO",
+      "prompt": "registrer feil: Co-Pilot Chat viser Something went wrong når jeg klikker Finn forslag",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "work_item",
+        "purposeRef": "personal.chat.assist.work-item.capture",
+        "suggestionStatus": "suggested",
+        "helperID": "work-item",
+        "groundedPlan": {
+          "intentKind": "work_item",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "workItem.capture",
+          "helperID": "work-item",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
@@ -79,7 +253,15 @@
         "intentKind": "todo",
         "purposeRef": "personal.chat.assist.todo",
         "suggestionStatus": "suggested",
-        "helperID": "todo"
+        "helperID": "todo",
+        "groundedPlan": {
+          "intentKind": "todo",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "todo.create",
+          "helperID": "todo",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
@@ -92,7 +274,36 @@
         "intentKind": "project",
         "purposeRef": "personal.chat.assist.project",
         "suggestionStatus": "suggested",
-        "helperID": "project"
+        "helperID": "project",
+        "groundedPlan": {
+          "intentKind": "project",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "project.create",
+          "helperID": "project",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "project.work-management-overview-sharing.nb",
+      "locale": "nb-NO",
+      "prompt": "Jeg trenger funksjonalitet for prosjekter og oppgavehåndtering. Jeg må kunne dele det jeg ønsker til andre og ha en enkel måte å få oversikt over hvor prosjektet er nå og hva som er utestående",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "project",
+        "purposeRef": "personal.chat.assist.project",
+        "suggestionStatus": "suggested",
+        "helperID": "project",
+        "groundedPlan": {
+          "intentKind": "project",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "project.create",
+          "helperID": "project",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
@@ -105,7 +316,15 @@
         "intentKind": "reminder",
         "purposeRef": "personal.chat.assist.reminder",
         "suggestionStatus": "suggested",
-        "helperID": "reminder"
+        "helperID": "reminder",
+        "groundedPlan": {
+          "intentKind": "reminder",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "reminder.create",
+          "helperID": "reminder",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
@@ -118,7 +337,15 @@
         "intentKind": "schedule_meeting",
         "purposeRef": "personal.chat.assist.meeting.schedule",
         "suggestionStatus": "suggested",
-        "helperID": "meeting"
+        "helperID": "meeting",
+        "groundedPlan": {
+          "intentKind": "schedule_meeting",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "meeting.schedule",
+          "helperID": "meeting",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
@@ -131,7 +358,15 @@
         "intentKind": "meeting_video",
         "purposeRef": "personal.chat.assist.meeting.video",
         "suggestionStatus": "suggested",
-        "helperID": "meeting"
+        "helperID": "meeting",
+        "groundedPlan": {
+          "intentKind": "meeting_video",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "meeting.schedule",
+          "helperID": "meeting",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
@@ -144,20 +379,38 @@
         "intentKind": "agent_action",
         "purposeRef": "personal.agent.local.gui.finder.close-windows",
         "suggestionStatus": "suggested",
-        "helperID": "agent-review"
+        "helperID": "agent-review",
+        "groundedPlan": {
+          "intentKind": "agent_action",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "agent.review.create",
+          "helperID": "agent-review",
+          "riskLevel": "local-agent",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
       "id": "capability-gap.opt-in.nb",
       "locale": "nb-NO",
       "prompt": "skulle ønske chatten kunne lage en Gantt-visning for prosjekter",
-      "setup": ["capability-discovery-enabled"],
+      "setup": [
+        "capability-discovery-enabled"
+      ],
       "expected": {
         "shouldSuggest": true,
         "intentKind": "capability_request",
         "purposeRef": "personal.chat.assist.capability-request",
         "suggestionStatus": "suggested",
-        "helperID": "capability-request"
+        "helperID": "capability-request",
+        "groundedPlan": {
+          "intentKind": "capability_request",
+          "targetSourceCellEndpoint": "cell:///PersonalChatHub",
+          "targetActionKeypath": "capabilityRequest.submit",
+          "helperID": "capability-request",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true
+        }
       }
     },
     {
@@ -167,19 +420,78 @@
       "setup": [],
       "expected": {
         "shouldSuggest": false,
-        "forbiddenIntentKind": "capability_request"
+        "forbiddenIntentKind": "capability_request",
+        "clarificationReason": "missing_context",
+        "clarificationMissing": [
+          "tool-purpose-context"
+        ],
+        "minimumClarificationOptions": 3,
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "needs-clarification"
+          ]
+        }
       }
     },
     {
       "id": "rag.query.nb",
       "locale": "nb-NO",
       "prompt": "hva sier innovasjon RAG om anskaffelser?",
-      "setup": ["rag-case"],
+      "setup": [
+        "rag-case"
+      ],
       "expected": {
-        "shouldSuggest": false,
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.chat.assist.rag-query",
+        "suggestionStatus": "suggested",
+        "helperID": "docs-rag",
         "resourceMatchKind": "rag_case",
         "providerRecommendationKind": "rag_gateway",
-        "resourceActionKeypath": "assistant.queryResource"
+        "resourceActionKeypath": "assistant.queryResource",
+        "groundedPlan": {
+          "intentKind": "rag_query",
+          "targetConfigurationName": "RAG Gateway Workspace",
+          "targetSourceCellEndpoint": "cell:///RAGGateway",
+          "targetActionKeypath": "assistant.queryResource",
+          "helperID": "docs-rag",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "docs.purpose-interest.nb",
+      "locale": "nb-NO",
+      "prompt": "vis dokumentasjon for Purpose and Interests",
+      "setup": [
+        "cellprotocol-book-docs"
+      ],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "cellprotocol.docs.lookup",
+        "suggestionStatus": "suggested",
+        "helperID": "docs-rag",
+        "resourceMatchKind": "documentation",
+        "resourceMatchTitle": "Chapter 09 — Purpose and Interests",
+        "resourceSourceCellEndpoint": "cell:///MarkdownRenderer",
+        "resourceActionKeypath": "book.openDocument",
+        "resourcePurposeRef": "cellprotocol.docs.lookup",
+        "groundedPlan": {
+          "intentKind": "documentation_lookup",
+          "targetConfigurationName": "CellProtocol Book",
+          "targetSourceCellEndpoint": "cell:///MarkdownRenderer",
+          "targetActionKeypath": "book.openDocument",
+          "helperID": "docs-rag",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
@@ -196,7 +508,125 @@
         "resourceMatchKind": "cell_configuration",
         "resourceMatchTitle": "Music Publishing Console",
         "resourceSourceCellEndpoint": "cell:///MusicPublishingConsole",
-        "resourcePurposeRef": "personal.music.publish"
+        "resourcePurposeRef": "personal.music.publish",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Music Publishing Console",
+          "targetSourceCellEndpoint": "cell:///MusicPublishingConsole",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.public-profile-page.nb",
+      "locale": "nb-NO",
+      "prompt": "jeg vil lage en offentlig profilside",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.profile.page.create",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Personal Page Publisher",
+        "resourceSourceCellEndpoint": "cell:///PersonalPagePublisher",
+        "resourcePurposeRef": "personal.profile.page.create",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Personal Page Publisher",
+          "targetSourceCellEndpoint": "cell:///PersonalPagePublisher",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.personal-info-page.nb",
+      "locale": "nb-NO",
+      "prompt": "jeg trenger å bygge en infoside om meg",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.profile.page.create",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Personal Page Publisher",
+        "resourceSourceCellEndpoint": "cell:///PersonalPagePublisher",
+        "resourcePurposeRef": "personal.profile.page.create",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Personal Page Publisher",
+          "targetSourceCellEndpoint": "cell:///PersonalPagePublisher",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.company-info-page.nb",
+      "locale": "nb-NO",
+      "prompt": "lag en side om selskapet mitt",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.public-presence.publish",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Personal Page Publisher",
+        "resourceSourceCellEndpoint": "cell:///PersonalPagePublisher",
+        "resourcePurposeRef": "personal.public-presence.publish",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Personal Page Publisher",
+          "targetSourceCellEndpoint": "cell:///PersonalPagePublisher",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.company-landing-page.nb",
+      "locale": "nb-NO",
+      "prompt": "jeg vil lage en landingsside for bedriften min",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.public-presence.publish",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Personal Page Publisher",
+        "resourceSourceCellEndpoint": "cell:///PersonalPagePublisher",
+        "resourcePurposeRef": "personal.public-presence.publish",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Personal Page Publisher",
+          "targetSourceCellEndpoint": "cell:///PersonalPagePublisher",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
@@ -213,7 +643,44 @@
         "resourceMatchKind": "cell_configuration",
         "resourceMatchTitle": "Mermaid Renderer Playground",
         "resourceSourceCellEndpoint": "cell:///MermaidRenderer",
-        "resourcePurposeRef": "personal.diagram.mermaid.render"
+        "resourcePurposeRef": "personal.diagram.mermaid.render",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Mermaid Renderer Playground",
+          "targetSourceCellEndpoint": "cell:///MermaidRenderer",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.spatial-map.nb",
+      "locale": "nb-NO",
+      "prompt": "vis kart med data",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.chat.assist.spatial-query",
+        "suggestionStatus": "suggested",
+        "helperID": "spatial-map",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Spatial Map Workspace",
+        "resourceSourceCellEndpoint": "cell:///SpatialProjection",
+        "resourcePurposeRef": "personal.chat.assist.spatial-query",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Spatial Map Workspace",
+          "targetSourceCellEndpoint": "cell:///SpatialProjection",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "spatial-map",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
@@ -230,14 +697,26 @@
         "resourceMatchKind": "cell_configuration",
         "resourceMatchTitle": "Entity Studio",
         "resourceSourceCellEndpoint": "cell:///EntityStudio",
-        "resourcePurposeRef": "personal.entity.relations.manage"
+        "resourcePurposeRef": "personal.entity.relations.manage",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Entity Studio",
+          "targetSourceCellEndpoint": "cell:///EntityStudio",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
       "id": "resource.admin-orphaned-cells.nb",
       "locale": "nb-NO",
       "prompt": "hvor mange celler er orphaned på staging",
-      "setup": ["admin-observer-role"],
+      "setup": [
+        "admin-observer-role"
+      ],
       "expected": {
         "shouldSuggest": true,
         "intentKind": "resource_match",
@@ -248,7 +727,158 @@
         "resourceMatchTitle": "Admin Cell Dashboard",
         "resourceSourceCellEndpoint": "cell:///AdminOverview",
         "resourcePurposeRef": "admin.cell-lifecycle.cleanup-review",
-        "adminObservationStatus": "admin_scope_required"
+        "adminObservationStatus": "admin_scope_required",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Admin Cell Dashboard",
+          "targetSourceCellEndpoint": "cell:///AdminOverview",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.admin-persisted-cell-storage.nb",
+      "locale": "nb-NO",
+      "prompt": "Hvor mange celler er persisert på staging og hvor stor plass tar de?",
+      "setup": [
+        "admin-observer-role"
+      ],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "admin.cell-lifecycle.cleanup-review",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Admin Cell Dashboard",
+        "resourceSourceCellEndpoint": "cell:///AdminOverview",
+        "resourcePurposeRef": "admin.cell-lifecycle.cleanup-review",
+        "adminObservationStatus": "admin_scope_required",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Admin Cell Dashboard",
+          "targetSourceCellEndpoint": "cell:///AdminOverview",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.admin-open.nb",
+      "locale": "nb-NO",
+      "prompt": "vis adminfunksjonalitet",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "admin.scaffold-operations.observe",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Admin Copilot Workspace",
+        "resourceSourceCellEndpoint": "cell:///AdminOverview",
+        "resourcePurposeRef": "admin.scaffold-operations.observe",
+        "adminObservationStatus": "admin_scope_required",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Admin Copilot Workspace",
+          "targetSourceCellEndpoint": "cell:///AdminOverview",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.admin-scaffold-load-staging.nb",
+      "locale": "nb-NO",
+      "prompt": "Hva er lasten nå på staging scaffold?",
+      "setup": [
+        "admin-observer-role"
+      ],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "admin.scaffold-operations.observe",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Admin Copilot Workspace",
+        "resourceSourceCellEndpoint": "cell:///AdminOverview",
+        "resourcePurposeRef": "admin.scaffold-operations.observe",
+        "adminObservationStatus": "admin_scope_required",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Admin Copilot Workspace",
+          "targetSourceCellEndpoint": "cell:///AdminOverview",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.admin-scaffold-load-context.nb",
+      "locale": "nb-NO",
+      "prompt": "Hva er lasten nå?",
+      "setup": [
+        "single-scaffold-context"
+      ],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "admin.scaffold-operations.observe",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Admin Copilot Workspace",
+        "resourceSourceCellEndpoint": "cell:///AdminOverview",
+        "resourcePurposeRef": "admin.scaffold-operations.observe",
+        "adminObservationStatus": "admin_scope_required",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Admin Copilot Workspace",
+          "targetSourceCellEndpoint": "cell:///AdminOverview",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.admin-scaffold-load-ambiguous.nb",
+      "locale": "nb-NO",
+      "prompt": "Hva er lasten nå?",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "clarificationReason": "missing_scaffold_context",
+        "clarificationMissing": [
+          "scaffold-context"
+        ],
+        "minimumClarificationOptions": 3,
+        "helperID": "resource-router",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "needs-clarification"
+          ]
+        }
       }
     },
     {
@@ -266,18 +896,242 @@
         "resourceMatchTitle": "Conference Participant Portal Dashboard",
         "resourceSourceCellEndpoint": "cell:///ConferenceParticipantPreviewShell",
         "resourcePurposeRef": "conference.agenda.view",
-        "conferenceObservationStatus": "conference_scope_required"
+        "conferenceObservationStatus": "conference_scope_required",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Conference Participant Portal Dashboard",
+          "targetSourceCellEndpoint": "cell:///ConferenceParticipantPreviewShell",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.arendalsuka-agenda-after-lunch.nb",
+      "locale": "nb-NO",
+      "prompt": "Hva skjer etter lunsj på Arendalsuka i morgen?",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "conference.agenda.view",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "forbiddenIntentKind": "invite_person",
+        "resourceMatchKind": "cell_configuration",
+        "resourcePurposeRef": "conference.agenda.view",
+        "conferenceObservationStatus": "conference_scope_required",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "resource.agenda-negation-invoice.nb",
+      "locale": "nb-NO",
+      "prompt": "Hva skjer med fakturaen min?",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "invite_person"
+      }
+    },
+    {
+      "id": "story.conference-participant.nb",
+      "locale": "nb-NO",
+      "prompt": "Jeg skal gå igjennom demohistorien for konferansedeltagere",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "conference.demo.story.run",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Conference Demo Story",
+        "resourceSourceCellEndpoint": "cell:///ConferenceDemoStory",
+        "resourcePurposeRef": "conference.demo.story.run",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Conference Demo Story",
+          "targetSourceCellEndpoint": "cell:///ConferenceDemoStory",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "story.conference-demo-history.nb",
+      "locale": "nb-NO",
+      "prompt": "Vis meg konferanse demo historie",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "conference.demo.story.run",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Conference Demo Story",
+        "resourceSourceCellEndpoint": "cell:///ConferenceDemoStory",
+        "resourcePurposeRef": "conference.demo.story.run",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Conference Demo Story",
+          "targetSourceCellEndpoint": "cell:///ConferenceDemoStory",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "story.conference-sponsor.nb",
+      "locale": "nb-NO",
+      "prompt": "Start demohistorien for sponsor på konferansen",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "conference.demo.story.run",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Conference Demo Story",
+        "resourceSourceCellEndpoint": "cell:///ConferenceDemoStory",
+        "resourcePurposeRef": "conference.demo.story.run",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Conference Demo Story",
+          "targetSourceCellEndpoint": "cell:///ConferenceDemoStory",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "story.conference-exhibitor.nb",
+      "locale": "nb-NO",
+      "prompt": "Kjør konferansedemo som utstiller",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "conference.demo.story.run",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Conference Demo Story",
+        "resourceSourceCellEndpoint": "cell:///ConferenceDemoStory",
+        "resourcePurposeRef": "conference.demo.story.run",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Conference Demo Story",
+          "targetSourceCellEndpoint": "cell:///ConferenceDemoStory",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "story.conference-organizer.nb",
+      "locale": "nb-NO",
+      "prompt": "Jeg skal gå igjennom demohistorien for arrangør",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "conference.demo.story.run",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "Conference Demo Story",
+        "resourceSourceCellEndpoint": "cell:///ConferenceDemoStory",
+        "resourcePurposeRef": "conference.demo.story.run",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "Conference Demo Story",
+          "targetSourceCellEndpoint": "cell:///ConferenceDemoStory",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
       "id": "provider.apple-local.nb",
       "locale": "nb-NO",
       "prompt": "bruk Apple lokal privat assistent",
-      "setup": ["scoped-ai-providers"],
+      "setup": [
+        "scoped-ai-providers"
+      ],
       "expected": {
         "shouldSuggest": false,
         "providerRecommendationID": "binding.apple.local",
-        "providerExecutionScope": "binding_chat_scope"
+        "providerExecutionScope": "binding_chat_scope",
+        "clarificationReason": "missing_context",
+        "clarificationMissing": [
+          "tool-purpose-context"
+        ],
+        "minimumClarificationOptions": 3,
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "needs-clarification"
+          ]
+        }
+      }
+    },
+    {
+      "id": "provider.glm52-thinking.best-fit.nb",
+      "locale": "nb-NO",
+      "prompt": "bruk GLM 5.2 Thinking og velg best passende modell for denne oppgaven",
+      "setup": [
+        "scoped-ai-providers"
+      ],
+      "expected": {
+        "shouldSuggest": true,
+        "intentKind": "resource_match",
+        "purposeRef": "personal.ai.gateway.configure",
+        "suggestionStatus": "suggested",
+        "helperID": "resource-router",
+        "resourceMatchKind": "cell_configuration",
+        "resourceMatchTitle": "AI Agent Workspace",
+        "providerRecommendationID": "nanogpt.glm-5.2-thinking",
+        "providerExecutionScope": "chat_owner_network_provider",
+        "groundedPlan": {
+          "intentKind": "resource_match",
+          "targetConfigurationName": "AI Agent Workspace",
+          "targetSourceCellEndpoint": "cell:///AIGateway",
+          "targetActionKeypath": "ui.openMatchedResourceLibrary",
+          "helperID": "resource-router",
+          "riskLevel": "read",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
@@ -292,7 +1146,17 @@
           "showToolbarDetails": true,
           "openLibrary": true
         },
-        "minimumExpandedMenuCount": 3
+        "minimumExpandedMenuCount": 3,
+        "groundedPlan": {
+          "intentKind": "porthole_ui_command",
+          "targetConfigurationName": "Porthole",
+          "targetSourceCellEndpoint": "cell:///Porthole",
+          "targetActionKeypath": "porthole.ui.applyRequest",
+          "helperID": "porthole-ui",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
       }
     },
     {
@@ -305,6 +1169,152 @@
         "portholeUI": {
           "hideEdgeMenus": true,
           "collapseMenus": true
+        },
+        "groundedPlan": {
+          "intentKind": "porthole_ui_command",
+          "targetConfigurationName": "Porthole",
+          "targetSourceCellEndpoint": "cell:///Porthole",
+          "targetActionKeypath": "porthole.ui.applyRequest",
+          "helperID": "porthole-ui",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "porthole.remove-menus.nb",
+      "locale": "nb-NO",
+      "prompt": "Fjern menyene i porthole",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "portholeUI": {
+          "hideEdgeMenus": true,
+          "collapseMenus": true,
+          "showProductChrome": true
+        },
+        "groundedPlan": {
+          "intentKind": "porthole_ui_command",
+          "targetConfigurationName": "Porthole",
+          "targetSourceCellEndpoint": "cell:///Porthole",
+          "targetActionKeypath": "porthole.ui.applyRequest",
+          "helperID": "porthole-ui",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "porthole.restore-menus.nb",
+      "locale": "nb-NO",
+      "prompt": "vis menyene igjen i porthole",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "portholeUI": {
+          "showEdgeMenus": true,
+          "showToolbarDetails": true,
+          "showProductChrome": true
+        },
+        "groundedPlan": {
+          "intentKind": "porthole_ui_command",
+          "targetConfigurationName": "Porthole",
+          "targetSourceCellEndpoint": "cell:///Porthole",
+          "targetActionKeypath": "porthole.ui.applyRequest",
+          "helperID": "porthole-ui",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "porthole.menu-criteria.nb",
+      "locale": "nb-NO",
+      "prompt": "tilpass menyene til konferanse chat og docs",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "portholeUI": {
+          "showProductChrome": true,
+          "showToolbarDetails": true,
+          "openMenuSettings": true
+        },
+        "groundedPlan": {
+          "intentKind": "porthole_ui_command",
+          "targetConfigurationName": "Porthole",
+          "targetSourceCellEndpoint": "cell:///Porthole",
+          "targetActionKeypath": "porthole.ui.applyRequest",
+          "helperID": "porthole-ui",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true,
+          "missing": []
+        }
+      }
+    },
+    {
+      "id": "porthole.negated-remove-menus.nb",
+      "locale": "nb-NO",
+      "prompt": "ikke fjern menyene i porthole",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "negated-prompt"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-choice.ambiguous-customer-tools.nb",
+      "locale": "nb-NO",
+      "prompt": "vis kundeverktøy zephyr alpha rapport",
+      "setup": [
+        "ambiguous-tool-catalog"
+      ],
+      "expected": {
+        "shouldSuggest": false,
+        "clarificationReason": "ambiguous_resource",
+        "clarificationMissing": [
+          "resource-choice"
+        ],
+        "helperID": "resource-router",
+        "minimumClarificationOptions": 2,
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "needs-clarification"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-choice.missing-context.nb",
+      "locale": "nb-NO",
+      "prompt": "kan du fikse frobnicate-modusen?",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "clarificationReason": "missing_context",
+        "clarificationMissing": [
+          "tool-purpose-context"
+        ],
+        "minimumClarificationOptions": 3,
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "needs-clarification"
+          ]
         }
       }
     },
@@ -317,6 +1327,16 @@
         "shouldSuggest": false,
         "portholeUI": {
           "toggleToolbarDetails": true
+        },
+        "groundedPlan": {
+          "intentKind": "porthole_ui_command",
+          "targetConfigurationName": "Porthole",
+          "targetSourceCellEndpoint": "cell:///Porthole",
+          "targetActionKeypath": "porthole.ui.applyRequest",
+          "helperID": "porthole-ui",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true,
+          "missing": []
         }
       }
     },
@@ -330,6 +1350,16 @@
         "portholeUI": {
           "showConfigurationJSON": true,
           "showToolbarDetails": true
+        },
+        "groundedPlan": {
+          "intentKind": "porthole_ui_command",
+          "targetConfigurationName": "Porthole",
+          "targetSourceCellEndpoint": "cell:///Porthole",
+          "targetActionKeypath": "porthole.ui.applyRequest",
+          "helperID": "porthole-ui",
+          "riskLevel": "draft",
+          "requiresUserConfirmation": true,
+          "missing": []
         }
       }
     },
@@ -339,27 +1369,109 @@
       "prompt": "Dette er bare en vanlig melding om dagens lunsj.",
       "setup": [],
       "expected": {
-        "shouldSuggest": false
+        "shouldSuggest": false,
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "no-visible-capability"
+          ]
+        }
       }
     },
     {
       "id": "no-poll.negated.nb",
       "locale": "nb-NO",
       "prompt": "Ikke lag avstemning, jeg bare nevner at temaet kom opp.",
-      "setup": ["accepted-group-thread"],
+      "setup": [
+        "accepted-group-thread"
+      ],
       "expected": {
         "shouldSuggest": false,
-        "forbiddenIntentKind": "create_poll"
+        "forbiddenIntentKind": "create_poll",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "negated-prompt"
+          ]
+        }
+      }
+    },
+    {
+      "id": "no-onboarding.negated.nb",
+      "locale": "nb-NO",
+      "prompt": "ikke start onboarding nå, bare forklar hvordan det fungerer",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "guided_onboarding",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "negated-prompt"
+          ]
+        }
+      }
+    },
+    {
+      "id": "no-onboarding.history.nb",
+      "locale": "nb-NO",
+      "prompt": "Jeg gjorde onboarding i går, bare til info.",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "guided_onboarding",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "negated-prompt"
+          ]
+        }
+      }
+    },
+    {
+      "id": "no-questionnaire.negated.nb",
+      "locale": "nb-NO",
+      "prompt": "ikke lag spørreskjema, bare forklar hvilke spørsmål vi kunne stilt",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "guided_onboarding",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "no-visible-capability"
+          ]
+        }
       }
     },
     {
       "id": "no-invite.past-tense.nb",
       "locale": "nb-NO",
       "prompt": "Jeg inviterte Anna i går, bare til info.",
-      "setup": ["published-colleague-profile"],
+      "setup": [
+        "published-colleague-profile"
+      ],
       "expected": {
         "shouldSuggest": false,
-        "forbiddenIntentKind": "invite_person"
+        "forbiddenIntentKind": "invite_person",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "negated-prompt"
+          ]
+        }
       }
     },
     {
@@ -369,7 +1481,33 @@
       "setup": [],
       "expected": {
         "shouldSuggest": false,
-        "forbiddenIntentKind": "idea_capture"
+        "forbiddenIntentKind": "idea_capture",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "no-visible-capability"
+          ]
+        }
+      }
+    },
+    {
+      "id": "no-work-item.negated.nb",
+      "locale": "nb-NO",
+      "prompt": "Ikke registrer bug, jeg bare nevner at knappen feilet i går.",
+      "setup": [],
+      "expected": {
+        "shouldSuggest": false,
+        "forbiddenIntentKind": "work_item",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "negated-prompt"
+          ]
+        }
       }
     },
     {
@@ -379,7 +1517,15 @@
       "setup": [],
       "expected": {
         "shouldSuggest": false,
-        "forbiddenIntentKind": "agent_action"
+        "forbiddenIntentKind": "agent_action",
+        "groundedPlan": {
+          "intentKind": "none",
+          "riskLevel": "none",
+          "requiresUserConfirmation": false,
+          "missing": [
+            "negated-prompt"
+          ]
+        }
       }
     }
   ]

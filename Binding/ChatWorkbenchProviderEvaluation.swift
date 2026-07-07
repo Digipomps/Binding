@@ -27,6 +27,7 @@ struct BindingChatPromptEvaluationOutcome: Equatable {
     var resourceExpectationMet: Bool
     var providerExpectationMet: Bool
     var portholeUIExpectationMet: Bool
+    var groundedPlanExpectationMet: Bool
 
     nonisolated var matchesExpected: Bool {
         let classificationMatches: Bool
@@ -46,6 +47,7 @@ struct BindingChatPromptEvaluationOutcome: Equatable {
             && resourceExpectationMet
             && providerExpectationMet
             && portholeUIExpectationMet
+            && groundedPlanExpectationMet
     }
 
     private func helperIDMatchesExpected() -> Bool {
@@ -94,7 +96,8 @@ enum BindingChatPromptEvaluationRunner {
                 forbiddenIntentKind: item.expected.forbiddenIntentKind,
                 resourceExpectationMet: resourceExpectationMet(for: item, classification: classification),
                 providerExpectationMet: providerExpectationMet(for: item, classification: classification),
-                portholeUIExpectationMet: portholeUIExpectationMet(for: item)
+                portholeUIExpectationMet: portholeUIExpectationMet(for: item),
+                groundedPlanExpectationMet: groundedPlanExpectationMet(for: item, classification: classification)
             )
         }
     }
@@ -197,6 +200,63 @@ enum BindingChatPromptEvaluationRunner {
         return true
     }
 
+    private static func groundedPlanExpectationMet(
+        for item: BindingPromptEvaluationCase,
+        classification: BindingChatIntentClassification
+    ) -> Bool {
+        guard let expected = item.expected.groundedPlan else {
+            return true
+        }
+        let matches = BindingChatIntentClassifier.resourceMatches(prompt: item.prompt)
+        let recommendation = BindingChatProviderRouter.recommend(
+            prompt: item.prompt,
+            suggestion: classification,
+            resourceMatches: matches,
+            providers: scopedProviders(for: item.setup)
+        )
+        let plan = BindingGroundedActionPlanner.plan(
+            draft: item.prompt,
+            suggestion: classification,
+            resourceMatches: matches,
+            providerRecommendation: recommendation
+        )
+        guard BindingChatValue.string(plan["intentKind"]) == expected.intentKind else {
+            return false
+        }
+        if let riskLevel = expected.riskLevel,
+           BindingChatValue.string(plan["riskLevel"]) != riskLevel {
+            return false
+        }
+        if let requiresUserConfirmation = expected.requiresUserConfirmation,
+           BindingChatValue.bool(plan["requiresUserConfirmation"]) != requiresUserConfirmation {
+            return false
+        }
+        if let missing = expected.missing {
+            let actual = Set(BindingChatValue.stringList(plan["missing"]))
+            guard actual == Set(missing) else {
+                return false
+            }
+        }
+        let target = BindingChatValue.object(plan["target"]) ?? [:]
+        if let targetConfigurationName = expected.targetConfigurationName,
+           BindingChatValue.string(target["configurationName"]) != targetConfigurationName {
+            return false
+        }
+        if let targetSourceCellEndpoint = expected.targetSourceCellEndpoint,
+           BindingChatValue.string(target["sourceCellEndpoint"]) != targetSourceCellEndpoint {
+            return false
+        }
+        if let targetActionKeypath = expected.targetActionKeypath,
+           BindingChatValue.string(target["actionKeypath"]) != targetActionKeypath {
+            return false
+        }
+        if let helperID = expected.helperID,
+           BindingChatValue.string(target["helperID"]) != helperID {
+            return false
+        }
+        return true
+    }
+
     private static func resourceMatch(_ match: Object, satisfies expected: BindingPromptEvaluationExpected) -> Bool {
         if let kind = expected.resourceMatchKind, BindingChatValue.string(match["kind"]) != kind {
             return false
@@ -259,6 +319,38 @@ enum BindingChatPromptEvaluationRunner {
                 canInvokeFromChat: false,
                 score: 0.62,
                 reason: "Provider declared in prompt evaluation setup."
+            ),
+            BindingChatProviderDescriptor(
+                id: "nanogpt.glm-5.2-thinking",
+                kind: "api_gateway",
+                title: "GLM 5.2 Thinking",
+                summary: "NanoGPT-hosted GLM 5.2 Thinking route declared by the chat owner for deep reasoning comparisons.",
+                endpoint: "cell:///AIGateway",
+                sourceCellName: nil,
+                actionKeypath: "ai.invoke",
+                purposeRefs: [
+                    "personal.ai.provider.glm-5.2-thinking",
+                    "personal.ai.provider.select.best-fit",
+                    "personal.ai.provider.maintain"
+                ],
+                interests: [
+                    "glm",
+                    "glm-5.2-thinking",
+                    "gml-5.2-thinking",
+                    "nanogpt",
+                    "reasoning",
+                    "thinking",
+                    "best-fit-model-selection",
+                    "provider-maintenance"
+                ],
+                availability: "available_in_chat_scope",
+                privacyLevel: "network_owner_configured",
+                executionScope: "chat_owner_network_provider",
+                requiresUserApproval: true,
+                requiresNetwork: true,
+                canInvokeFromChat: false,
+                score: 0.7,
+                reason: "Provider declared in prompt evaluation setup."
             )
         ]
     }
@@ -270,11 +362,13 @@ enum BindingChatPromptEvaluationRunner {
         setup: [String]
     ) async throws -> BindingChatIntentClassification {
         let capabilityDiscoveryEnabled = setup.contains("capability-discovery-enabled")
+        let scaffoldContextAvailable = setup.contains("single-scaffold-context")
         switch provider {
         case .deterministicLocalRules:
             return BindingChatIntentClassifier.classify(
                 prompt: prompt,
-                capabilityDiscoveryEnabled: capabilityDiscoveryEnabled
+                capabilityDiscoveryEnabled: capabilityDiscoveryEnabled,
+                scaffoldContextAvailable: scaffoldContextAvailable
             )
         case .appleIntelligence:
             let cell = await BindingAppleIntelligenceProviderCell(owner: requester)
@@ -283,6 +377,7 @@ enum BindingChatPromptEvaluationRunner {
                 value: .object([
                     "draft": .string(prompt),
                     "capabilityDiscoveryEnabled": .bool(capabilityDiscoveryEnabled),
+                    "scaffoldContextAvailable": .bool(scaffoldContextAvailable),
                     "evaluationMode": .string("fixture")
                 ]),
                 requester: requester
@@ -294,7 +389,8 @@ enum BindingChatPromptEvaluationRunner {
                 keypath: "llm.classifyIntent",
                 value: .object([
                     "draft": .string(prompt),
-                    "capabilityDiscoveryEnabled": .bool(capabilityDiscoveryEnabled)
+                    "capabilityDiscoveryEnabled": .bool(capabilityDiscoveryEnabled),
+                    "scaffoldContextAvailable": .bool(scaffoldContextAvailable)
                 ]),
                 requester: requester
             ) ?? .null
@@ -349,6 +445,7 @@ private struct BindingPromptEvaluationExpected: Decodable {
     var providerExecutionScope: String?
     var portholeUI: [String: Bool]?
     var minimumExpandedMenuCount: Int?
+    var groundedPlan: BindingPromptEvaluationGroundedPlan?
 
     private enum CodingKeys: String, CodingKey {
         case shouldSuggest
@@ -368,6 +465,7 @@ private struct BindingPromptEvaluationExpected: Decodable {
         case providerExecutionScope
         case portholeUI
         case minimumExpandedMenuCount
+        case groundedPlan
     }
 
     init(from decoder: Decoder) throws {
@@ -389,7 +487,19 @@ private struct BindingPromptEvaluationExpected: Decodable {
         providerExecutionScope = try container.decodeIfPresent(String.self, forKey: .providerExecutionScope)
         portholeUI = try container.decodeIfPresent([String: Bool].self, forKey: .portholeUI)
         minimumExpandedMenuCount = try container.decodeIfPresent(Int.self, forKey: .minimumExpandedMenuCount)
+        groundedPlan = try container.decodeIfPresent(BindingPromptEvaluationGroundedPlan.self, forKey: .groundedPlan)
     }
+}
+
+private struct BindingPromptEvaluationGroundedPlan: Decodable {
+    var intentKind: String
+    var targetConfigurationName: String?
+    var targetSourceCellEndpoint: String?
+    var targetActionKeypath: String?
+    var helperID: String?
+    var riskLevel: String?
+    var requiresUserConfirmation: Bool?
+    var missing: [String]?
 }
 
 private extension Sequence {

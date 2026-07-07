@@ -688,11 +688,11 @@ struct ChatWorkbenchParityTests {
         let understanding = try #require(asObject(result["promptUnderstanding"]))
         #expect(asString(understanding["recommendedNextStep"]) == "open_helper_after_user_click")
         let plan = try #require(asObject(result["groundedActionPlan"]))
-        #expect(asString(asObject(plan["target"])?["actionKeypath"]) == "chatHub.workItem.capture")
+        #expect(asString(asObject(plan["target"])?["actionKeypath"]) == "workItem.capture")
         let verification = try #require(asObject(result["groundingVerification"]))
         #expect(asString(verification["status"]) == "verified")
         #expect(asBool(verification["allowed"]) == true)
-        #expect(asString(verification["targetActionKeypath"]) == "chatHub.workItem.capture")
+        #expect(asString(verification["targetActionKeypath"]) == "workItem.capture")
         #expect(asBool(verification["sideEffectBeforeUserAction"]) == false)
         let dryRun = try #require(asObject(result["groundingDryRun"]))
         #expect(asString(dryRun["status"]) == "ready")
@@ -1052,7 +1052,7 @@ struct ChatWorkbenchParityTests {
         #expect(asString(asObject(vaultResource["openPayload"])?["configurationName"]) == "Vault / Ideas")
         let vaultVerification = try #require(asObject(vault["groundingVerification"]))
         #expect(asString(vaultVerification["status"]) == "verified")
-        #expect(asString(vaultVerification["targetActionKeypath"]) == "chatHub.ui.openMatchedResourceLibrary")
+        #expect(asString(vaultVerification["targetActionKeypath"]) == "ui.openMatchedResourceLibrary")
 
         let graph = try #require(asObject(try await chat.set(
             keypath: "chatHub.assistant.analyzeDraft",
@@ -1571,7 +1571,7 @@ struct ChatWorkbenchParityTests {
         })
         let verification = try #require(asObject(assistant["groundingVerification"]))
         #expect(asString(verification["status"]) == "verified")
-        #expect(asString(verification["targetActionKeypath"]) == "chatHub.ui.openMatchedResourceLibrary")
+        #expect(asString(verification["targetActionKeypath"]) == "ui.openMatchedResourceLibrary")
         #expect(counters(.object(state)) == before)
     }
 

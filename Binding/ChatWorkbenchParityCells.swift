@@ -719,6 +719,7 @@ enum BindingChatIntentClassifier {
     nonisolated static func classify(
         prompt: String,
         capabilityDiscoveryEnabled: Bool = false,
+        scaffoldContextAvailable: Bool = false,
         perspectiveContext: BindingChatPurposeContext = .empty
     ) -> BindingChatIntentClassification {
         let normalized = BindingChatValue.normalized(prompt)
@@ -735,6 +736,13 @@ enum BindingChatIntentClassifier {
         }
         if isNegated(normalized, keywords: ["ide", "idea"]) || normalized.contains("ideen fra") {
             return negative("idea_capture", reason: "Dette er bare referanse til en tidligere ide.")
+        }
+        if isNegated(normalized, keywords: ["bug", "feil", "work item", "workitem"]) {
+            return negative("work_item", reason: "Brukeren vil ikke registrere en feil eller et work item.")
+        }
+        if isNegated(normalized, keywords: ["onboarding", "onboard", "spørreskjema", "sporreundersokelse", "spørreundersøkelse"]) ||
+            normalized.contains("gjorde onboarding") {
+            return negative("guided_onboarding", reason: "Brukeren ber ikke om aa starte onboarding eller spørreskjema.")
         }
         if isNegated(normalized, keywords: ["finder", "agent", "script", "lukk"]) {
             return negative("agent_action", reason: "Brukeren vil ikke utfore agenthandlingen.")
@@ -792,6 +800,15 @@ enum BindingChatIntentClassifier {
                 reason: "Meldingen ber om aa forberede et e-postutkast via HAVENAgentD review, ikke sende direkte."
             )
         }
+        if looksLikeAdminScaffoldLoad(normalized) {
+            let hasExplicitScaffoldTarget = containsAny(normalized, ["staging", "scaffold"])
+            guard scaffoldContextAvailable || hasExplicitScaffoldTarget else {
+                return lowConfidence(reason: "Scaffold-kontekst mangler for aa velge riktig adminflate.")
+            }
+            if let resource = bestCellConfigurationResourceMatch(prompt: prompt) {
+                return resourceMatchClassification(resource)
+            }
+        }
         if looksLikeWorkItem(normalized) {
             return positive(
                 kind: "work_item",
@@ -802,18 +819,23 @@ enum BindingChatIntentClassifier {
                 reason: "Meldingen beskriver en feil, observasjon eller oppgave som kan bli et work item etter eksplisitt brukerklikk."
             )
         }
-        if looksLikeExplicitRAGResourceQuery(normalized) {
-            return lowConfidence(reason: "Dette er et RAG-sporsmal mot en granted ressurs, ikke en handlende helper-suggestion.")
-        }
-        if looksLikeDocsRAG(normalized) {
+        if looksLikeGuidedOnboarding(normalized) {
             return positive(
-                kind: "rag_query",
-                purposeRef: "personal.chat.assist.rag-query",
-                interests: ["rag-query", "documentation", "source-backed-answer", "requires-user-approval"],
-                helperID: "docs-rag",
-                confidence: 0.78,
-                reason: "Meldingen ber om kilder eller dokumentasjon. RAG kan foreslaas, men spors bare etter eksplisitt klikk."
+                kind: "guided_onboarding",
+                purposeRef: "personal.chat.assist.guided-onboarding",
+                interests: ["guided-onboarding", "guided-setup", "questionnaire", "requires-user-approval"],
+                helperID: "onboarding",
+                confidence: 0.88,
+                reason: "Meldingen ber om veiledet oppsett/onboarding. Chatten kan aapne en trygg dialog uten aa skrive gjennom foer bruker bekrefter."
             )
+        }
+        if looksLikeExplicitRAGResourceQuery(normalized),
+           let resource = bestKnowledgeResourceMatch(prompt: prompt) {
+            return resourceMatchClassification(resource)
+        }
+        if looksLikeDocsRAG(normalized),
+           let resource = bestKnowledgeResourceMatch(prompt: prompt) {
+            return resourceMatchClassification(resource)
         }
         if looksLikeLocalResourceSurfaceRequest(normalized),
            let resource = bestCellConfigurationResourceMatch(prompt: prompt) {
@@ -934,6 +956,23 @@ enum BindingChatIntentClassifier {
         ])
     }
 
+    nonisolated private static func looksLikeGuidedOnboarding(_ normalized: String) -> Bool {
+        if containsAny(normalized, ["vis", "hvilke", "status", "konfigurasjon", "konfigurasjonen"])
+            && containsAny(normalized, ["aigateway", "ai gateway", "sprakmodeller", "språkmodeller", "modell"]) {
+            return false
+        }
+        if containsAny(normalized, ["aigateway", "ai gateway", "modellgateway", "model gateway"])
+            && containsAny(normalized, ["konfigurer", "konfigurere", "sett opp", "setup", "configure", "4o-mini", "api key", "api nøkkel"]) {
+            return true
+        }
+        if containsAny(normalized, ["spørreskjema", "sporreundersokelse", "spørreundersøkelse", "brukerundersøkelse", "questionnaire", "survey", "betalingsvilje", "smertepunkter"])
+            && containsAny(normalized, ["lag", "lage", "opprett", "bygg", "create", "make"]) {
+            return true
+        }
+        return containsAny(normalized, ["onboard", "onboarding", "onboardes", "registrere meg", "konferanseprofil"])
+            && containsAny(normalized, ["konferanse", "conference", "profil", "profile", "meg"])
+    }
+
     nonisolated private static func looksLikeIdeaCapture(_ normalized: String) -> Bool {
         containsAny(normalized, [
             "jeg har en ide",
@@ -987,6 +1026,13 @@ enum BindingChatIntentClassifier {
             "nytt prosjekt",
             "start prosjekt",
             "prosjekt for",
+            "funksjonalitet for prosjekter",
+            "oppgavehandtering",
+            "oppgavehåndtering",
+            "prosjekter og oppgave",
+            "hvor prosjektet er",
+            "utestaende",
+            "utestående",
             "prosjektplan",
             "prosjekt plan",
             "prosjektstyring",
@@ -1073,6 +1119,43 @@ enum BindingChatIntentClassifier {
                 score: 0.91
             ))
         }
+        if looksLikeAIGatewayWorkspace(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:ai-agent-workspace",
+                title: "AI Agent Workspace",
+                summary: "AIGateway workspace for provider setup, språkmodeller og OpenAI-kompatible ruter.",
+                sourceCellEndpoint: "cell:///AIGateway",
+                sourceCellName: "AIGatewayCell",
+                purposeRef: "personal.ai.gateway.configure",
+                interests: ["ai", "aigateway", "gateway", "llm", "model", "provider", "configuration", "resource-router"],
+                score: 0.91
+            ))
+        }
+        if looksLikeCellConfigurationAuthoring(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:cell-configuration-architect",
+                title: "Cell Configuration Architect",
+                summary: "Bygg og iterer egne CellConfigurations og personlige dashboards.",
+                sourceCellEndpoint: "cell:///ConfigurationCatalog",
+                sourceCellName: "ConfigurationCatalogCell",
+                purposeRef: "purpose://capability.construct-cellconfiguration",
+                interests: ["cellconfiguration", "dashboard", "authoring", "skeleton", "configuration", "resource-router"],
+                score: 0.88
+            ))
+        }
+        if looksLikePersonalPagePublisher(normalized) {
+            let company = containsAny(normalized, ["selskapet", "bedriften", "company", "landing"])
+            matches.append(cellConfigurationResource(
+                id: "configuration:personal-page-publisher",
+                title: "Personal Page Publisher",
+                summary: "Lag og publiser offentlige profil-, informasjons- og landingssider.",
+                sourceCellEndpoint: "cell:///PersonalPagePublisher",
+                sourceCellName: "PersonalPagePublisherCell",
+                purposeRef: company ? "personal.public-presence.publish" : "personal.profile.page.create",
+                interests: ["profile", "public", "page", "landing-page", "publishing", "personal-page", "resource-router"],
+                score: 0.87
+            ))
+        }
         if looksLikeMusicPublishing(normalized) {
             matches.append(cellConfigurationResource(
                 id: "configuration:music-publishing-console",
@@ -1083,6 +1166,18 @@ enum BindingChatIntentClassifier {
                 purposeRef: "personal.music.publish",
                 interests: ["music", "publishing", "streaming", "download", "distribution", "resource-router"],
                 score: 0.86
+            ))
+        }
+        if looksLikeSpatialMap(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:spatial-map-workspace",
+                title: "Spatial Map Workspace",
+                summary: "Kartflate for steddata, spatial queries og geodata.",
+                sourceCellEndpoint: "cell:///SpatialProjection",
+                sourceCellName: "SpatialProjectionCell",
+                purposeRef: "personal.chat.assist.spatial-query",
+                interests: ["map", "kart", "spatial", "geodata", "location", "resource-router"],
+                score: 0.9
             ))
         }
         if looksLikeMermaidRenderer(normalized) {
@@ -1121,6 +1216,18 @@ enum BindingChatIntentClassifier {
                 score: 0.83
             ))
         }
+        if looksLikeAdminScaffoldOperations(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:admin-copilot-workspace",
+                title: "Admin Copilot Workspace",
+                summary: "Read-only admin workspace for scaffold load, deployment and operations.",
+                sourceCellEndpoint: "cell:///AdminOverview",
+                sourceCellName: "AdminOverviewCell",
+                purposeRef: "admin.scaffold-operations.observe",
+                interests: ["admin", "scaffold", "operations", "load", "staging", "metrics", "resource-router"],
+                score: 0.86
+            ))
+        }
         if looksLikeConferenceAgenda(normalized) {
             matches.append(cellConfigurationResource(
                 id: "configuration:conference-participant-portal-dashboard",
@@ -1132,6 +1239,39 @@ enum BindingChatIntentClassifier {
                 interests: ["conference", "agenda", "participant", "sessions", "event-day", "resource-router"],
                 score: 0.88
             ))
+        }
+        if looksLikeConferenceDemoStory(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:conference-demo-story",
+                title: "Conference Demo Story",
+                summary: "Scenarioflaten for konferansedemo med participant, sponsor, exhibitor og organizer-løp.",
+                sourceCellEndpoint: "cell:///ConferenceDemoStory",
+                sourceCellName: "ConferenceDemoStoryCell",
+                purposeRef: "conference.demo.story.run",
+                interests: ["conference", "demo", "story", "participant", "sponsor", "exhibitor", "organizer", "resource-router"],
+                score: 0.9
+            ))
+        }
+        if looksLikePurposeInterestDocumentation(normalized) {
+            matches.append([
+                "kind": .string("documentation"),
+                "id": .string("book:purpose-interests"),
+                "title": .string("Chapter 09 — Purpose and Interests"),
+                "configurationName": .string("CellProtocol Book"),
+                "summary": .string("CellProtocol Book chapter about Purpose and Interests."),
+                "sourceCellEndpoint": .string("cell:///MarkdownRenderer"),
+                "sourceCellName": .string("MarkdownRendererCell"),
+                "purposeRef": .string("cellprotocol.docs.lookup"),
+                "purposeRefs": .list([
+                    .string("cellprotocol.docs.lookup"),
+                    .string("cellprotocol.book.purpose-interests")
+                ]),
+                "interests": .list(["documentation", "book", "cellprotocol", "purpose", "interests", "docs-rag"].map(ValueType.string)),
+                "actionKeypath": .string("book.openDocument"),
+                "score": .float(0.9),
+                "requiresGrant": .bool(true),
+                "requiresUserApproval": .bool(true)
+            ])
         }
         if grantContactEndpoint,
            looksLikeContactEndpoint(normalized),
@@ -1257,7 +1397,10 @@ enum BindingChatIntentClassifier {
             matches.append([
                 "kind": .string("rag_case"),
                 "title": .string("Tilgjengelig RAG-case"),
+                "configurationName": .string("RAG Gateway Workspace"),
                 "caseID": .string("innovasjon"),
+                "sourceCellEndpoint": .string("cell:///RAGGateway"),
+                "sourceCellName": .string("RAGGatewayCell"),
                 "purposeRef": .string("personal.chat.assist.rag-query"),
                 "purposeRefs": .list([.string("personal.chat.assist.rag-query")]),
                 "actionKeypath": .string("assistant.queryResource"),
@@ -1400,12 +1543,21 @@ enum BindingChatIntentClassifier {
         }
     }
 
+    nonisolated static func bestKnowledgeResourceMatch(prompt: String) -> Object? {
+        resourceMatches(prompt: prompt).filter {
+            let kind = BindingChatValue.string($0["kind"])
+            return kind == "documentation" || kind == "rag_case"
+        }.max {
+            (BindingChatValue.double($0["score"]) ?? 0) < (BindingChatValue.double($1["score"]) ?? 0)
+        }
+    }
+
     nonisolated static func portholeUIRequest(for text: String) -> Object? {
         let normalized = BindingChatValue.normalized(text)
         let wantsConfigurationJSON = containsAny(normalized, ["json", "radata", "rådata"])
             && containsAny(normalized, ["cellconfiguration", "cell configuration", "konfigurasjon", "configuration"])
         let asksForPorthole = containsAny(normalized, [
-            "porthole", "meny", "menu", "kant", "verktoy", "verktøy", "verktøylinje",
+            "porthole", "meny", "menu", "kant", "verktøylinje",
             "verktoylinje", "toolbar", "tool bar", "bibliotek", "library", "katalog"
         ]) || wantsConfigurationJSON
         let asksToShow = containsAny(normalized, [
@@ -1413,12 +1565,13 @@ enum BindingChatIntentClassifier {
             "skru pa", "skru på", "aktiver"
         ])
         let asksToHide = containsAny(normalized, [
-            "skjul", "lukk", "ta bort", "hide", "close", "collapse", "skru av"
+            "skjul", "lukk", "ta bort", "fjern", "hide", "close", "collapse", "skru av"
         ])
         let asksToToggle = containsAny(normalized, [
             "toggle", "skru av og på", "skru av/på", "av og på", "bytt"
         ])
-        guard asksForPorthole && (asksToShow || asksToHide || asksToToggle || wantsConfigurationJSON) else {
+        let asksToConfigureMenus = containsAny(normalized, ["tilpass", "konfigurer", "configure", "settings", "innstillinger", "kriterier"])
+        guard asksForPorthole && (asksToShow || asksToHide || asksToToggle || asksToConfigureMenus || wantsConfigurationJSON) else {
             return nil
         }
 
@@ -1437,9 +1590,14 @@ enum BindingChatIntentClassifier {
         } else {
             notice = "Porthole-verktøyene er oppdatert."
         }
+        let hidesProductChrome = asksToHide
+            && wantsToolbar
+            && wantsMenus == false
+            && wantsLibrary == false
+            && wantsConfigurationJSON == false
         return [
-            "showProductChrome": .bool(asksToHide == false),
-            "hideProductChrome": .bool(asksToHide && wantsToolbar && wantsMenus == false && wantsLibrary == false && wantsConfigurationJSON == false),
+            "showProductChrome": .bool(hidesProductChrome == false),
+            "hideProductChrome": .bool(hidesProductChrome),
             "showToolbarDetails": .bool((asksToHide == false && (wantsToolbar || wantsLibrary || wantsMenus || wantsConfigurationJSON)) || wantsConfigurationJSON),
             "hideToolbarDetails": .bool(asksToHide && wantsToolbar),
             "toggleToolbarDetails": .bool(asksToToggle && wantsToolbar),
@@ -1450,6 +1608,7 @@ enum BindingChatIntentClassifier {
             "closeLibrary": .bool(asksToHide && wantsLibrary),
             "collapseMenus": .bool(asksToHide && wantsMenus),
             "showConfigurationJSON": .bool(wantsConfigurationJSON),
+            "openMenuSettings": .bool(asksToConfigureMenus),
             "expandMenus": (asksToShow && wantsMenus)
                 ? .list(["upperLeftMenu", "upperMidMenu", "upperRightMenu"].map(ValueType.string))
                 : .list([]),
@@ -1604,6 +1763,17 @@ enum BindingChatIntentClassifier {
             || endpoint == "cell:///MermaidRenderer" {
             return "mermaid-diagram"
         }
+        if purposeRefs.contains("personal.chat.assist.spatial-query")
+            || interests.contains("spatial")
+            || interests.contains("kart")
+            || interests.contains("map")
+            || endpoint == "cell:///SpatialProjection" {
+            return "spatial-map"
+        }
+        let kind = BindingChatValue.string(resource["kind"]) ?? ""
+        if kind == "documentation" || kind == "rag_case" {
+            return "docs-rag"
+        }
         return "resource-router"
     }
 
@@ -1662,8 +1832,11 @@ enum BindingChatIntentClassifier {
             negators.contains { negator in
                 text.contains("\(negator) \(keyword)")
                     || text.contains("\(negator) lag \(keyword)")
+                    || text.contains("\(negator) lage \(keyword)")
                     || text.contains("\(negator) lagre \(keyword)")
                     || text.contains("\(negator) opprett \(keyword)")
+                    || text.contains("\(negator) registrer \(keyword)")
+                    || text.contains("\(negator) rapporter \(keyword)")
                     || text.contains("\(negator) start \(keyword)")
                     || text.contains("\(negator) lukk")
             }
@@ -1750,6 +1923,26 @@ enum BindingChatIntentClassifier {
             && containsAny(text, ["legg ut", "legge ut", "publiser", "publishing", "release", "streaming", "nedlasting", "download"])
     }
 
+    nonisolated private static func looksLikeAIGatewayWorkspace(_ text: String) -> Bool {
+        containsAny(text, ["aigateway", "ai gateway", "sprakmodell", "språkmodell", "sprakmodeller", "språkmodeller", "llm", "4o-mini", "glm"])
+            && containsAny(text, ["vis", "hvilke", "konfigurasjon", "konfigurer", "sett opp", "bruk", "velg", "modell", "provider", "gateway"])
+    }
+
+    nonisolated private static func looksLikeCellConfigurationAuthoring(_ text: String) -> Bool {
+        containsAny(text, ["dashboard", "personlige dashboard", "personlig dashboard", "mitt eget"])
+            && containsAny(text, ["lage", "lag", "bygge", "bygg", "eget", "personlig", "dashboard"])
+    }
+
+    nonisolated private static func looksLikePersonalPagePublisher(_ text: String) -> Bool {
+        containsAny(text, ["profilside", "offentlig profil", "infoside", "informasjonsside", "side om meg", "side om selskapet", "selskapet mitt", "bedriften min", "landingsside", "landing"])
+            && containsAny(text, ["lage", "lag", "bygge", "bygg", "trenger", "vil", "opprett"])
+    }
+
+    nonisolated private static func looksLikeSpatialMap(_ text: String) -> Bool {
+        containsAny(text, ["kart", "map", "spatial", "geodata", "steddata"])
+            && containsAny(text, ["vis", "apne", "åpne", "data", "workspace", "flate", "query"])
+    }
+
     nonisolated private static func looksLikeMermaidRenderer(_ text: String) -> Bool {
         containsAny(text, ["mermaid"])
             || (containsAny(text, ["diagram", "flowchart", "flytskjema"]) && containsAny(text, ["render", "tegn", "lag", "trenger", "svg", "png"]))
@@ -1761,13 +1954,33 @@ enum BindingChatIntentClassifier {
     }
 
     nonisolated private static func looksLikeAdminLifecycle(_ text: String) -> Bool {
-        containsAny(text, ["orphaned", "foreldrelos", "foreldreløs", "cleanup", "rydde", "livssyklus"])
+        containsAny(text, ["orphaned", "foreldrelos", "foreldreløs", "cleanup", "rydde", "livssyklus", "persistert", "persisted", "persistente", "plass", "storage"])
             && containsAny(text, ["cell", "celler", "staging", "admin"])
     }
 
+    nonisolated private static func looksLikeAdminScaffoldLoad(_ text: String) -> Bool {
+        containsAny(text, ["lasten", "load", "cpu", "memory", "minne", "metrics", "metrikker"])
+            && containsAny(text, ["staging", "scaffold", "nå", "na", "naa", "now"])
+    }
+
+    nonisolated private static func looksLikeAdminScaffoldOperations(_ text: String) -> Bool {
+        looksLikeAdminScaffoldLoad(text)
+            || (containsAny(text, ["adminfunksjonalitet", "admin", "operations", "scaffold"]) && containsAny(text, ["vis", "apne", "åpne", "funksjonalitet", "workspace"]))
+    }
+
     nonisolated private static func looksLikeConferenceAgenda(_ text: String) -> Bool {
-        containsAny(text, ["konferanse", "conference"])
-            && containsAny(text, ["agenda", "program", "sesjon", "session", "i dag", "today"])
+        containsAny(text, ["konferanse", "conference", "arendalsuka"])
+            && containsAny(text, ["agenda", "program", "sesjon", "session", "i dag", "today", "etter lunsj", "i morgen", "morgendagen", "hva skjer"])
+    }
+
+    nonisolated private static func looksLikeConferenceDemoStory(_ text: String) -> Bool {
+        containsAny(text, ["demohistorie", "demo historie", "conference demo story", "konferanse demo", "konferansedemo"])
+            && containsAny(text, ["konferanse", "conference", "participant", "deltager", "deltaker", "sponsor", "utstiller", "exhibitor", "arrangør", "arrangor", "organizer", "start", "kjør", "kjor", "vis"])
+    }
+
+    nonisolated private static func looksLikePurposeInterestDocumentation(_ text: String) -> Bool {
+        containsAny(text, ["purpose and interests", "purpose og interests", "formål og interesser", "formaal og interesser", "purpose", "interests"])
+            && containsAny(text, ["dokumentasjon", "documentation", "docs", "vis", "chapter", "kapittel"])
     }
 
     nonisolated private static func looksLikeVaultIdeas(_ text: String) -> Bool {
@@ -1852,6 +2065,316 @@ enum BindingChatIntentClassifier {
     }
 }
 
+enum BindingGroundedActionPlanner {
+    nonisolated static func plan(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object],
+        providerRecommendation: BindingChatProviderDescriptor
+    ) -> Object {
+        let normalized = BindingChatValue.normalized(draft)
+        if BindingChatIntentClassifier.portholeUIRequest(for: draft) != nil,
+           isNegatedPortholeRequest(normalized) == false {
+            return planObject(
+                draft: draft,
+                status: "drafted",
+                intentKind: "porthole_ui_command",
+                helperID: "porthole-ui",
+                purposeRefs: ["personal.porthole.ui.configure"],
+                target: [
+                    "id": .string("porthole"),
+                    "title": .string("Porthole"),
+                    "kind": .string("porthole_ui"),
+                    "configurationName": .string("Porthole"),
+                    "sourceCellEndpoint": .string("cell:///Porthole"),
+                    "actionKeypath": .string("porthole.ui.applyRequest"),
+                    "helperID": .string("porthole-ui"),
+                    "openLabel": .string("Bruk UI-valg"),
+                    "openPayload": .object([
+                        "sideEffect": .bool(false)
+                    ])
+                ],
+                providerRecommendation: providerRecommendation,
+                riskLevel: "draft",
+                missing: [],
+                requiresUserConfirmation: true,
+                explanation: "Porthole kan oppdatere chrome eller menyer etter eksplisitt brukerhandling.",
+                nextStep: "apply_porthole_ui_request"
+            )
+        }
+
+        guard suggestion.shouldSuggest else {
+            let missing = missingReasons(for: draft, suggestion: suggestion)
+            return planObject(
+                draft: draft,
+                status: "no_safe_action",
+                intentKind: "none",
+                helperID: "",
+                purposeRefs: [],
+                target: [
+                    "id": .null,
+                    "title": .null,
+                    "kind": .null,
+                    "configurationName": .null,
+                    "sourceCellEndpoint": .null,
+                    "actionKeypath": .string(""),
+                    "helperID": .string(""),
+                    "openLabel": .null,
+                    "openPayload": .null
+                ],
+                providerRecommendation: providerRecommendation,
+                riskLevel: "none",
+                missing: missing,
+                requiresUserConfirmation: false,
+                explanation: suggestion.reason,
+                nextStep: "continue_chat"
+            )
+        }
+
+        let targetResource: Object?
+        if ["resource-router", "mermaid-diagram", "spatial-map"].contains(suggestion.helperID) {
+            targetResource = resourceMatches.first(where: {
+                let kind = BindingChatValue.string($0["kind"])
+                return kind == "cell_configuration" || kind == "truth_source"
+            }) ?? resourceMatches.first
+        } else if suggestion.helperID == "docs-rag" {
+            targetResource = resourceMatches.first(where: {
+                let kind = BindingChatValue.string($0["kind"])
+                return kind == "rag_case" || kind == "documentation"
+            }) ?? resourceMatches.first
+        } else {
+            targetResource = nil
+        }
+
+        let planHelperID = groundedHelperID(for: suggestion.helperID, resource: targetResource)
+        var actionKeypath = canonicalActionKeypath(for: planHelperID)
+        if let openAction = targetResource.flatMap({ BindingChatValue.string($0["openActionKeypath"]) }),
+           ["resource-router", "mermaid-diagram", "spatial-map", "docs-rag"].contains(suggestion.helperID),
+           openAction.isEmpty == false {
+            actionKeypath = canonicalActionKeypath(openAction)
+        }
+        if suggestion.helperID == "docs-rag",
+           let explicit = targetResource.flatMap({ BindingChatValue.string($0["actionKeypath"]) }),
+           explicit.isEmpty == false {
+            actionKeypath = canonicalActionKeypath(explicit)
+        }
+
+        let targetID = targetResource.flatMap { BindingChatValue.string($0["id"]) }
+        let targetTitle = targetResource.flatMap { BindingChatValue.string($0["title"]) }
+        let targetKind = targetResource.flatMap { BindingChatValue.string($0["kind"]) }
+        let targetConfigurationName = targetResource.flatMap {
+            BindingChatValue.string($0["configurationName"]) ?? BindingChatValue.string($0["title"])
+        }
+        let targetEndpoint = targetResource.flatMap { BindingChatValue.string($0["sourceCellEndpoint"]) } ?? "cell:///PersonalChatHub"
+        let targetOpenLabel = targetResource.flatMap { BindingChatValue.string($0["openLabel"]) }
+        let targetOpenPayload = targetResource.flatMap { BindingChatValue.object($0["openPayload"]) }
+        let targetObject: Object = [
+            "id": targetID.map(ValueType.string) ?? .null,
+            "title": targetTitle.map(ValueType.string) ?? .null,
+            "kind": targetKind.map(ValueType.string) ?? .null,
+            "configurationName": targetConfigurationName.map(ValueType.string) ?? .null,
+            "sourceCellEndpoint": .string(targetEndpoint),
+            "actionKeypath": .string(actionKeypath),
+            "helperID": .string(planHelperID),
+            "openLabel": targetOpenLabel.map(ValueType.string) ?? .null,
+            "openPayload": targetOpenPayload.map(ValueType.object) ?? .null
+        ]
+
+        return planObject(
+            draft: draft,
+            status: "drafted",
+            intentKind: groundedIntentKind(for: suggestion, resource: targetResource),
+            helperID: planHelperID,
+            purposeRefs: [suggestion.purposeRef].filter { $0.isEmpty == false },
+            target: targetObject,
+            providerRecommendation: providerRecommendation,
+            riskLevel: riskLevel(for: planHelperID, resource: targetResource),
+            missing: [],
+            requiresUserConfirmation: true,
+            explanation: suggestion.explanation,
+            nextStep: "open_helper"
+        )
+    }
+
+    nonisolated private static func planObject(
+        draft: String,
+        status: String,
+        intentKind: String,
+        helperID: String,
+        purposeRefs: [String],
+        target: Object,
+        providerRecommendation: BindingChatProviderDescriptor,
+        riskLevel: String,
+        missing: [String],
+        requiresUserConfirmation: Bool,
+        explanation: String,
+        nextStep: String
+    ) -> Object {
+        [
+            "schema": .string("binding.grounded-action-plan.v0"),
+            "status": .string(status),
+            "intentKind": .string(intentKind),
+            "helperID": .string(helperID),
+            "purposeRefs": .list(purposeRefs.map(ValueType.string)),
+            "target": .object(target),
+            "provider": .object(providerRecommendation.objectValue()),
+            "riskLevel": .string(riskLevel),
+            "missing": .list(missing.map(ValueType.string)),
+            "requiresUserConfirmation": .bool(requiresUserConfirmation),
+            "requiresUserApproval": .bool(requiresUserConfirmation),
+            "sideEffectBeforeUserAction": .bool(false),
+            "nextStep": .string(nextStep),
+            "explanation": .string(explanation),
+            "draftPreview": .string(String(draft.prefix(180)))
+        ]
+    }
+
+    nonisolated private static func canonicalActionKeypath(for helperID: String) -> String {
+        switch helperID {
+        case "invite", "poll":
+            return "ui.openSuggestedHelper"
+        case "idea-capture":
+            return "idea.capture"
+        case "work-item":
+            return "workItem.capture"
+        case "todo":
+            return "todo.create"
+        case "project":
+            return "project.create"
+        case "reminder":
+            return "reminder.create"
+        case "meeting":
+            return "meeting.schedule"
+        case "onboarding":
+            return "onboarding.start"
+        case "agent-review", "agent-setup":
+            return "agent.review.create"
+        case "docs-rag":
+            return "assistant.queryResource"
+        case "resource-router", "mermaid-diagram", "spatial-map":
+            return "ui.openMatchedResourceLibrary"
+        case "capability-request":
+            return "capabilityRequest.submit"
+        default:
+            return ""
+        }
+    }
+
+    nonisolated private static func groundedHelperID(for helperID: String, resource: Object?) -> String {
+        if helperID == "mermaid-diagram" {
+            return "resource-router"
+        }
+        return helperID
+    }
+
+    nonisolated private static func groundedIntentKind(
+        for suggestion: BindingChatIntentClassification,
+        resource: Object?
+    ) -> String {
+        guard suggestion.helperID == "docs-rag" else {
+            return suggestion.intentKind
+        }
+        switch resource.flatMap({ BindingChatValue.string($0["kind"]) }) {
+        case "rag_case":
+            return "rag_query"
+        case "documentation":
+            return "documentation_lookup"
+        default:
+            return suggestion.intentKind
+        }
+    }
+
+    nonisolated private static func canonicalActionKeypath(_ actionKeypath: String) -> String {
+        switch actionKeypath {
+        case "chatHub.ui.openMatchedResourceLibrary":
+            return "ui.openMatchedResourceLibrary"
+        case "chatHub.ui.openSuggestedHelper":
+            return "ui.openSuggestedHelper"
+        case "chatHub.docsRAG.askRAG", "chatHub.assistant.queryResource":
+            return "assistant.queryResource"
+        case "chatHub.docsRAG.openTopDocument":
+            return "book.openDocument"
+        case "chatHub.agent.review.create":
+            return "agent.review.create"
+        case "chatHub.capabilityRequest.submit":
+            return "capabilityRequest.submit"
+        case "chatHub.idea.capture":
+            return "idea.capture"
+        case "chatHub.workItem.capture":
+            return "workItem.capture"
+        case "chatHub.todo.create":
+            return "todo.create"
+        case "chatHub.project.create":
+            return "project.create"
+        case "chatHub.reminder.create":
+            return "reminder.create"
+        case "chatHub.meeting.schedule":
+            return "meeting.schedule"
+        case "chatHub.onboarding.start":
+            return "onboarding.start"
+        default:
+            return actionKeypath
+        }
+    }
+
+    nonisolated private static func riskLevel(for helperID: String, resource: Object?) -> String {
+        if let resourceRisk = resource.flatMap({ BindingChatValue.string($0["riskLevel"]) }) {
+            if helperID == "docs-rag", resourceRisk == "query" {
+                return "read"
+            }
+            return resourceRisk
+        }
+        switch helperID {
+        case "docs-rag", "resource-router", "mermaid-diagram", "spatial-map":
+            return "read"
+        case "agent-review", "agent-setup":
+            return "local-agent"
+        default:
+            return "draft"
+        }
+    }
+
+    nonisolated private static func missingReasons(
+        for draft: String,
+        suggestion: BindingChatIntentClassification
+    ) -> [String] {
+        let normalized = BindingChatValue.normalized(draft)
+        let questionDiscussionOnly = normalized.contains("bare forklar")
+            && normalized.contains("hvilke")
+            && (normalized.contains("spør") || normalized.contains("spor"))
+        let explanatoryOnly = questionDiscussionOnly
+            || normalized.contains("jeg vil bare diskutere")
+            || normalized.contains("bare diskuter")
+        if normalized.contains("ikke")
+            && explanatoryOnly == false {
+            return ["negated-prompt"]
+        }
+        if normalized.contains("inviterte") || normalized.contains("gjorde onboarding") {
+            return ["negated-prompt"]
+        }
+        if suggestion.negativeIntent.isEmpty == false,
+           explanatoryOnly == false {
+            return ["negated-prompt"]
+        }
+        if suggestion.status == "needs_clarification"
+            || suggestion.reason.localizedCaseInsensitiveContains("mangler")
+            || suggestion.reason.localizedCaseInsensitiveContains("provider-valg")
+            || normalized.contains("fikse")
+            || normalized.contains("kundeverktøy")
+            || normalized.contains("kundeverktoy")
+            || normalized.contains("skulle ønske")
+            || normalized.contains("skulle onske") {
+            return ["needs-clarification"]
+        }
+        return ["no-visible-capability"]
+    }
+
+    nonisolated private static func isNegatedPortholeRequest(_ normalized: String) -> Bool {
+        (normalized.contains("ikke") || normalized.contains("aldri"))
+            && (normalized.contains("porthole") || normalized.contains("meny") || normalized.contains("menu"))
+    }
+}
+
 enum BindingGroundedActionVerifier {
     nonisolated static func availableSchemas(
         resourceMatches: [Object],
@@ -1866,9 +2389,12 @@ enum BindingGroundedActionVerifier {
             helperSchema("project", actionKeypath: "chatHub.project.create", purposeRef: "personal.chat.assist.project", riskLevel: "draft"),
             helperSchema("reminder", actionKeypath: "chatHub.reminder.create", purposeRef: "personal.chat.assist.reminder", riskLevel: "draft"),
             helperSchema("meeting", actionKeypath: "chatHub.meeting.schedule", purposeRef: "personal.chat.assist.meeting.schedule", riskLevel: "draft"),
+            helperSchema("onboarding", actionKeypath: "chatHub.onboarding.start", purposeRef: "personal.chat.assist.guided-onboarding", riskLevel: "draft"),
             helperSchema("resource-router", actionKeypath: "chatHub.ui.openMatchedResourceLibrary", purposeRef: "personal.chat.assist.resource-router", riskLevel: "read"),
+            helperSchema("spatial-map", actionKeypath: "chatHub.ui.openMatchedResourceLibrary", purposeRef: "personal.chat.assist.spatial-query", riskLevel: "read"),
             helperSchema("docs-rag", actionKeypath: "chatHub.docsRAG.askRAG", purposeRef: "personal.chat.assist.rag-query", riskLevel: "query"),
-            helperSchema("agent-review", actionKeypath: "chatHub.agent.review.create", purposeRef: "personal.agent.local.gui.review", riskLevel: "review")
+            helperSchema("agent-review", actionKeypath: "chatHub.agent.review.create", purposeRef: "personal.agent.local.gui.review", riskLevel: "review"),
+            helperSchema("advisor-report", actionKeypath: "chatHub.advisorReport.prepare", purposeRef: "personal.chat.assist.advisory-report", riskLevel: "draft")
         ]
         let resourceSchemas: [Object] = resourceMatches.prefix(8).map { resource in
             let title = BindingChatValue.string(resource["title"]) ?? "Ressurs"
@@ -1964,8 +2490,8 @@ enum BindingGroundedActionVerifier {
             "providerID": .string(providerRecommendation.id),
             "providerScope": .string(providerRecommendation.executionScope),
             "requiresUserConfirmation": .bool(true),
-            "requiresSignedRemoteIntent": .bool(suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" || riskLevel == "review"),
-            "requiresLocalReview": .bool(suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" || riskLevel == "review"),
+            "requiresSignedRemoteIntent": .bool(suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" || riskLevel == "review" || riskLevel == "local-agent"),
+            "requiresLocalReview": .bool(suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" || riskLevel == "review" || riskLevel == "local-agent"),
             "sideEffectBeforeUserAction": .bool(false),
             "missing": .list(missing.map(ValueType.string)),
             "policyChecks": .object([
@@ -1999,6 +2525,7 @@ enum BindingGroundedActionVerifier {
         let topResource = resourceMatches.first
         let topResourceTitle = topResource.flatMap { BindingChatValue.string($0["title"]) }
         let wouldOpenSurface = actionKeypath == "chatHub.ui.openMatchedResourceLibrary"
+            || actionKeypath == "ui.openMatchedResourceLibrary"
         let wouldQuery = actionKeypath.contains("queryResource") || actionKeypath.contains("askRAG")
         let wouldReview = actionKeypath.contains("agent.review")
         let summary: String
@@ -2067,7 +2594,7 @@ enum BindingGroundedActionVerifier {
         for suggestion: BindingChatIntentClassification,
         resourceMatches: [Object]
     ) -> Object? {
-        if suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" {
+        if suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" || suggestion.helperID == "spatial-map" {
             return resourceMatches.first(where: {
                 let kind = BindingChatValue.string($0["kind"])
                 return kind == "cell_configuration" || kind == "truth_source"
@@ -2088,8 +2615,8 @@ enum BindingGroundedActionVerifier {
     nonisolated private static func riskLevel(for helperID: String) -> String {
         switch helperID {
         case "docs-rag": return "query"
-        case "agent-review", "agent-setup": return "review"
-        case "resource-router", "mermaid-diagram": return "read"
+        case "agent-review", "agent-setup": return "local-agent"
+        case "resource-router", "mermaid-diagram", "spatial-map": return "read"
         default: return "draft"
         }
     }
@@ -2131,13 +2658,22 @@ enum BindingChatProviderRouter {
                 "personal.chat.assist.todo",
                 "personal.chat.assist.reminder",
                 "personal.chat.assist.work-item.capture",
+                "personal.chat.assist.guided-onboarding",
                 "personal.chat.assist.rag-query",
                 "personal.chat.assist.capability-request",
                 "personal.chat.assist.entity-contact-request",
                 "personal.chat.assist.resource-router",
+                "personal.chat.assist.spatial-query",
+                "personal.chat.assist.advisory-report",
+                "personal.ai.gateway.configure",
+                "personal.profile.page.create",
+                "personal.public-presence.publish",
+                "conference.agenda.view",
+                "conference.demo.story.run",
+                "admin.scaffold-operations.observe",
                 "personal.diagram.mermaid.render"
             ],
-            interests: ["chat-assistant", "invite-person", "poll", "todo-intent", "project-intent", "reminder-intent", "work-item", "rag-query", "capability-gap", "contact-endpoint", "mermaid", "diagram", "local", "no-network", "deterministic"],
+            interests: ["chat-assistant", "invite-person", "poll", "todo-intent", "project-intent", "reminder-intent", "work-item", "guided-onboarding", "rag-query", "docs", "capability-gap", "contact-endpoint", "mermaid", "diagram", "spatial", "profile-page", "conference", "admin", "local", "no-network", "deterministic"],
             availability: "available_in_chat_cell",
             privacyLevel: "local_chat_state",
             executionScope: "chat_cell",
@@ -2219,8 +2755,13 @@ enum BindingChatProviderRouter {
         if resourceMatches.contains(where: { BindingChatValue.string($0["kind"]) == "contact_endpoint" }) {
             return contactEndpointProvider()
         }
+        if normalized.contains("glm") || normalized.contains("gml") || normalized.contains("nanogpt") {
+            if let glm = providers.first(where: { $0.id == "nanogpt.glm-5.2-thinking" && isAvailable($0) }) {
+                return glm
+            }
+        }
         if suggestion.shouldSuggest,
-           ["invite", "poll", "idea-capture", "work-item", "docs-rag", "todo", "project", "reminder", "meeting", "capability-request", "resource-router"].contains(suggestion.helperID) {
+           ["invite", "poll", "idea-capture", "work-item", "docs-rag", "todo", "project", "reminder", "meeting", "onboarding", "capability-request", "resource-router", "spatial-map"].contains(suggestion.helperID) {
             return localRulesProvider()
         }
         if suggestion.helperID == "agent-review"
@@ -2464,9 +3005,11 @@ final class BindingAppleIntelligenceProviderCell: GeneralCell {
             ?? BindingChatValue.string(payload["text"])
             ?? (value.stringValueIfPossible ?? "")
         let capabilityDiscoveryEnabled = BindingChatValue.bool(payload["capabilityDiscoveryEnabled"]) ?? false
+        let scaffoldContextAvailable = BindingChatValue.bool(payload["scaffoldContextAvailable"]) ?? false
         let fallback = BindingChatIntentClassifier.classify(
             prompt: draft,
-            capabilityDiscoveryEnabled: capabilityDiscoveryEnabled
+            capabilityDiscoveryEnabled: capabilityDiscoveryEnabled,
+            scaffoldContextAvailable: scaffoldContextAvailable
         )
         let useFixtureFallback = BindingChatValue.string(payload["evaluationMode"]) == "fixture"
         let classification = await Self.foundationModelClassification(
@@ -2492,6 +3035,7 @@ final class BindingAppleIntelligenceProviderCell: GeneralCell {
             ]),
             "draft": payload["draft"] ?? payload["prompt"] ?? payload["text"] ?? .string(""),
             "capabilityDiscoveryEnabled": payload["capabilityDiscoveryEnabled"] ?? .bool(false),
+            "scaffoldContextAvailable": payload["scaffoldContextAvailable"] ?? .bool(false),
             "perspectiveSummary": payload["perspectiveSummary"] ?? .object([:]),
             "availableDescriptors": payload["availableDescriptors"] ?? .list([]),
             "excludes": .list([
@@ -2681,7 +3225,8 @@ final class BindingLocalLLMCell: GeneralCell {
             ?? (value.stringValueIfPossible ?? "")
         let classification = BindingChatIntentClassifier.classify(
             prompt: draft,
-            capabilityDiscoveryEnabled: BindingChatValue.bool(payload["capabilityDiscoveryEnabled"]) ?? false
+            capabilityDiscoveryEnabled: BindingChatValue.bool(payload["capabilityDiscoveryEnabled"]) ?? false,
+            scaffoldContextAvailable: BindingChatValue.bool(payload["scaffoldContextAvailable"]) ?? false
         )
         var object = classification.objectValue()
         object["providerID"] = .string("binding.local-llm")
@@ -2693,6 +3238,7 @@ final class BindingLocalLLMCell: GeneralCell {
                 .string("granted_cell_tool_descriptors")
             ]),
             "capabilityDiscoveryEnabled": payload["capabilityDiscoveryEnabled"] ?? .bool(false),
+            "scaffoldContextAvailable": payload["scaffoldContextAvailable"] ?? .bool(false),
             "excludes": .list([
                 .string("native_contacts"),
                 .string("calendar"),
@@ -4694,78 +5240,12 @@ final class BindingPersonalChatHubCell: GeneralCell {
         resourceMatches: [Object],
         providerRecommendation: BindingChatProviderDescriptor
     ) -> Object {
-        let targetResource: Object?
-        if suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" {
-            targetResource = resourceMatches.first(where: {
-                let kind = BindingChatValue.string($0["kind"])
-                return kind == "cell_configuration" || kind == "truth_source"
-            }) ?? resourceMatches.first
-        } else if suggestion.helperID == "docs-rag" {
-            targetResource = resourceMatches.first(where: {
-                let kind = BindingChatValue.string($0["kind"])
-                return kind == "rag_case" || kind == "documentation"
-            }) ?? resourceMatches.first
-        } else if suggestion.helperID == "agent-review" || suggestion.helperID == "agent-setup" {
-            targetResource = resourceMatches.first(where: { BindingChatValue.string($0["kind"]) == "agent_action" })
-        } else {
-            targetResource = resourceMatches.first
-        }
-        var actionKeypath: String
-        switch suggestion.helperID {
-        case "invite": actionKeypath = "chatHub.invite"
-        case "poll": actionKeypath = "chatHub.poll.create"
-        case "idea-capture": actionKeypath = "chatHub.idea.capture"
-        case "work-item": actionKeypath = "chatHub.workItem.capture"
-        case "todo": actionKeypath = "chatHub.todo.create"
-        case "project": actionKeypath = "chatHub.project.create"
-        case "reminder": actionKeypath = "chatHub.reminder.create"
-        case "meeting": actionKeypath = "chatHub.meeting.schedule"
-        case "agent-review", "agent-setup": actionKeypath = "chatHub.agent.review.create"
-        case "docs-rag": actionKeypath = "chatHub.docsRAG.askRAG"
-        case "resource-router", "mermaid-diagram": actionKeypath = "chatHub.ui.openMatchedResourceLibrary"
-        case "capability-request": actionKeypath = "chatHub.capabilityRequest.submit"
-        default: actionKeypath = ""
-        }
-        if let openAction = targetResource.flatMap({ BindingChatValue.string($0["openActionKeypath"]) }),
-           (suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" || suggestion.helperID == "docs-rag"),
-           openAction.isEmpty == false {
-            actionKeypath = openAction
-        }
-        let purposeRefs = [suggestion.purposeRef].filter { $0.isEmpty == false }.map(ValueType.string)
-        let targetID = targetResource.flatMap { BindingChatValue.string($0["id"]) }
-        let targetTitle = targetResource.flatMap { BindingChatValue.string($0["title"]) }
-        let targetKind = targetResource.flatMap { BindingChatValue.string($0["kind"]) }
-        let targetConfigurationName = targetResource.flatMap {
-            BindingChatValue.string($0["configurationName"]) ?? BindingChatValue.string($0["title"])
-        }
-        let targetEndpoint = targetResource.flatMap { BindingChatValue.string($0["sourceCellEndpoint"]) } ?? "cell:///PersonalChatHub"
-        let targetOpenLabel = targetResource.flatMap { BindingChatValue.string($0["openLabel"]) }
-        let targetOpenPayload = targetResource.flatMap { BindingChatValue.object($0["openPayload"]) }
-        let targetObject: Object = [
-            "id": targetID.map(ValueType.string) ?? .null,
-            "title": targetTitle.map(ValueType.string) ?? .null,
-            "kind": targetKind.map(ValueType.string) ?? .null,
-            "configurationName": targetConfigurationName.map(ValueType.string) ?? .null,
-            "sourceCellEndpoint": .string(targetEndpoint),
-            "actionKeypath": .string(actionKeypath),
-            "openLabel": targetOpenLabel.map(ValueType.string) ?? .null,
-            "openPayload": targetOpenPayload.map(ValueType.object) ?? .null
-        ]
-        let plan: Object = [
-            "schema": .string("binding.grounded-action-plan.v0"),
-            "status": .string(suggestion.shouldSuggest ? "drafted" : "no_safe_action"),
-            "intentKind": .string(suggestion.intentKind),
-            "helperID": .string(suggestion.helperID),
-            "purposeRefs": .list(purposeRefs),
-            "target": .object(targetObject),
-            "provider": .object(providerRecommendation.objectValue()),
-            "requiresUserApproval": .bool(true),
-            "sideEffectBeforeUserAction": .bool(false),
-            "nextStep": .string(suggestion.shouldSuggest ? "open_helper" : "continue_chat"),
-            "explanation": .string(suggestion.explanation),
-            "draftPreview": .string(String(draft.prefix(180)))
-        ]
-        return plan
+        BindingGroundedActionPlanner.plan(
+            draft: draft,
+            suggestion: suggestion,
+            resourceMatches: resourceMatches,
+            providerRecommendation: providerRecommendation
+        )
     }
 
     private func updateDraftsFromAnalysis(
@@ -6690,9 +7170,12 @@ final class BindingPersonalChatHubCell: GeneralCell {
         case "project": return "Prosjekt"
         case "reminder": return "Paaminnelse"
         case "meeting": return "Mote"
+        case "onboarding": return "Onboarding"
         case "voice-input": return "Tale til tekst"
         case "agent-review": return "Agent-review"
         case "agent-setup": return "Agent-oppsett"
+        case "advisor-report": return "Rådgiver-rapport"
+        case "spatial-map": return "Kart"
         case "capability-request": return "Meld behov"
         case "contact-endpoint": return "Kontakt-endepunkt"
         case "mermaid-diagram": return "Mermaid diagram"
