@@ -1,6 +1,6 @@
 # Personal Co-Pilot V1 Release Checklist
 
-This checklist is the App Store gate for Binding Personal Co-Pilot V1.
+This checklist is the App Store gate for HAVEN Personal Co-Pilot V1.
 
 ## Scope Lock
 
@@ -50,8 +50,8 @@ This checklist is the App Store gate for Binding Personal Co-Pilot V1.
 - [ ] `clearComposer` works.
 - [ ] `reportMessage` works.
 - [ ] `blockUser` works.
-- [ ] `blockedUsers` state is visible to Binding.
-- [ ] `moderationStatus` is visible to Binding.
+- [ ] `blockedUsers` state is visible to HAVEN.
+- [ ] `moderationStatus` state is visible to HAVEN.
 - [ ] Blocked user cannot continue conversation.
 - [ ] Filtering runs before message post.
 
@@ -105,16 +105,16 @@ This checklist is the App Store gate for Binding Personal Co-Pilot V1.
 - [ ] Backend services are live during review.
 - [ ] Safe fixture data is seeded.
 
-## Binding Regression Commands
+## HAVEN Regression Commands
 
 Run before submission:
 
 ```sh
-xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
 ```sh
-xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/personalCopilotV1MenuConfigurationsAreScopedAndConferenceFree -only-testing:BindingTests/BindingTests/personalCopilotInviteChatExposesSafetyActionsAndJitsiPlaceholder -only-testing:BindingTests/BindingTests/personalCopilotV1PolicyRejectsConferenceAndUnapprovedHosts -only-testing:BindingTests/BindingTests/personalCopilotProfilePublishingCarriesAppStoreReviewMetadata
+xcodebuild -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/personalCopilotV1MenuConfigurationsAreScopedAndConferenceFree -only-testing:BindingTests/BindingTests/personalCopilotInviteChatExposesSafetyActionsAndJitsiPlaceholder -only-testing:BindingTests/BindingTests/personalCopilotV1PolicyRejectsConferenceAndUnapprovedHosts -only-testing:BindingTests/BindingTests/personalCopilotProfilePublishingCarriesAppStoreReviewMetadata
 ```
 
 ```sh
@@ -134,7 +134,7 @@ Add CellScaffold commands when the cloud cells land:
 - [ ] Catalog can surface non-allowlisted remote configurations.
 - [ ] Public profile or chat lacks report/block/filter.
 - [ ] Match can create chat without mutual approval.
-- [ ] Remote config can access camera, microphone, contacts, calendar, nearby/Bluetooth, vault/files or Apple Intelligence without explicit Binding-mediated consent.
+- [ ] Remote config can access camera, microphone, contacts, calendar, nearby/Bluetooth, vault/files or Apple Intelligence without explicit HAVEN-mediated consent.
 - [ ] Payment/prepaid/external purchase wording appears in V1.
 - [ ] Account creation exists without in-app account deletion.
 - [ ] Backend review fixtures are unavailable.

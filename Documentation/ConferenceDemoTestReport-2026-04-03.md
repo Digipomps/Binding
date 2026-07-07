@@ -6,7 +6,7 @@ Live verification on `My Mac` after the local conference runtime startup fixes i
 
 Tested binary:
 
-- `/Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-erntjstdfcrbeachccbemadrrbon/Build/Products/Debug/Binding.app`
+- `/Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-erntjstdfcrbeachccbemadrrbon/Build/Products/Debug/HAVEN.app`
 
 ## Verified
 
@@ -18,9 +18,9 @@ Tested binary:
 
 ## Build / Test
 
-- `xcodebuild -project /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build`
+- `xcodebuild -project /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build`
   - Passed
-- `xcodebuild -project /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/conferencePublicSurfaceDoesNotRequireAuthenticatedRuntimeBootstrap`
+- `xcodebuild -project /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/conferencePublicSurfaceDoesNotRequireAuthenticatedRuntimeBootstrap`
   - Passed, but Xcode still selected `0 tests` for this filter shape
 
 ## Evidence

@@ -5,7 +5,7 @@ Date: 2026-04-02
 Environment:
 - Repo: `Binding`
 - Target: `My Mac`
-- App build: `/Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-erntjstdfcrbeachccbemadrrbon/Build/Products/Debug/Binding.app`
+- App build: `/Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-erntjstdfcrbeachccbemadrrbon/Build/Products/Debug/HAVEN.app`
 
 ## Scope
 
@@ -166,7 +166,7 @@ Useful capture:
 
 ## Verification Performed
 
-- `xcodebuild -project /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build`
+- `xcodebuild -project /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build`
 - live relaunch of the built app
 - live library-driven navigation through launcher, participant portal, control tower, and identity-link intake
 

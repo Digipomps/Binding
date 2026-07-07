@@ -65,7 +65,7 @@ Denne noten dokumenterer Binding-siden av P0 utility-cell-arbeidet fra `codex_bi
 ### Verifisert na
 
 - `CatalogAbsorbXCTest` passerer signert mot macOS-host:
-  `xcodebuild -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -derivedDataPath /tmp/BindingDD test -only-testing:BindingTests/CatalogAbsorbXCTest/testPortholeAbsorbsConfigurationCatalogAsCatalogLabel`
+  `xcodebuild -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' -derivedDataPath /tmp/BindingDD test -only-testing:BindingTests/CatalogAbsorbXCTest/testPortholeAbsorbsConfigurationCatalogAsCatalogLabel`
 - Testen bekrefter baade direkte kataloglesing og attach via `Porthole`, inkludert at resolved owner matcher aktiv `private` requester-identitet.
 - `Scripts/run_skeleton_parity_suite.sh` er rettet slik at `remote`-modus faktisk kan brukes som gate i `zsh`.
 
@@ -107,7 +107,7 @@ Denne noten dokumenterer Binding-siden av P0 utility-cell-arbeidet fra `codex_bi
 
 ## Verifisering
 
-- `xcodebuild -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -derivedDataPath /tmp/BindingDD build` bygger med utility-endringene.
+- `xcodebuild -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' -derivedDataPath /tmp/BindingDD build` bygger med utility-endringene.
 - I Swift Testing-runneren passerer na de nye testene:
   - `bindingAdmissionChallengeSupportDecodesSharedPayload()`
   - `conferenceIdentityLinkInboxExposesTypedAdmissionSessionAndRetryRequest()`
@@ -117,8 +117,8 @@ Denne noten dokumenterer Binding-siden av P0 utility-cell-arbeidet fra `codex_bi
   - cache-verifisering maa vaere semantisk faithful for `ValueType.object`, siden `ValueType` bevisst ikke gir dyp `Equatable` for objekttrær
 - Den brede `BindingTests`-kjøringen har fortsatt andre, eldre feil utenfor denne P0-slicen, blant annet `configurationEndpointRetargetingRewritesNestedConfigurationLookupEndpoints()` og flere conference-/nearby-relaterte tester.
 - 15. april 2026 ble disse konkrete kjoringene verifisert etter cleanup-pass:
-  - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/BindingDD-stability-build-clean-4 build`
-  - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/BindingDD-stability-catalog-final-2 test -only-testing:BindingTests/CatalogAbsorbXCTest/testPortholeAbsorbsConfigurationCatalogAsCatalogLabel`
+  - `xcodebuild -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/BindingDD-stability-build-clean-4 build`
+  - `xcodebuild -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/BindingDD-stability-catalog-final-2 test -only-testing:BindingTests/CatalogAbsorbXCTest/testPortholeAbsorbsConfigurationCatalogAsCatalogLabel`
   - `./Scripts/run_conference_configuration_verifier.sh nearby contract startup unsigned`
   - `./Scripts/run_conference_configuration_verifier.sh participant contract startup unsigned`
 - Resultat:

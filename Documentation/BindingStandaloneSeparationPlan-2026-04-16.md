@@ -1,10 +1,10 @@
-# Binding Standalone Separation Plan
+# HAVEN Standalone Separation Plan
 
 Date: April 16, 2026
 
 ## Goal
 
-Make `Binding` a standalone app that:
+Make `HAVEN` a standalone app that:
 
 - runs without any local HAVEN agent installed
 - keeps its own local runtime, identity, vault, and UI surfaces
@@ -13,12 +13,12 @@ Make `Binding` a standalone app that:
 
 ## Target architecture
 
-### Binding
+### HAVEN
 
 Owns:
 
 - SwiftUI app shell and local runtime bootstrap
-- local cells needed for standalone use inside Binding
+- local cells needed for standalone use inside HAVEN
 - configuration catalog, porthole flows, conference/demo flows, vault, perspective, scanners, and document handling
 - remote `CellScaffold` connectivity
 
@@ -42,38 +42,38 @@ Owns:
 
 ### Integration boundary
 
-If Binding ever talks to a local agent again, it should do so through an explicit optional bridge:
+If HAVEN ever talks to a local agent again, it should do so through an explicit optional bridge:
 
 - capability discovery
 - version/protocol negotiation
 - explicit user opt-in
 - graceful degradation when the agent is absent
 
-Binding must never compile, install, or start the agent as part of normal app behavior.
+HAVEN must never compile, install, or start the agent as part of normal app behavior.
 
 ## Phase plan
 
 ### Phase 1
 
-Separate Binding from the agent at the app boundary.
+Separate HAVEN from the agent at the app boundary.
 
 Changes:
 
-- exclude agent provisioning/enrollment source files from the `Binding` target
-- remove agent runtime registration from Binding bootstrap
+- exclude agent provisioning/enrollment source files from the `HAVEN` target
+- remove agent runtime registration from HAVEN bootstrap
 - remove agent setup surfaces from catalog and curated menus
 - replace agent-coupled tests with standalone assertions
 - document the new architecture and current status
 
 Success criteria:
 
-- Binding builds without compiling the agent adapter files
-- Binding no longer exposes `Agent Setup Workbench`
-- Binding runtime starts without registering `AgentProvisioning` or `AgentEnrollment`
+- HAVEN builds without compiling the agent adapter files
+- HAVEN no longer exposes `Agent Setup Workbench`
+- HAVEN runtime starts without registering `AgentProvisioning` or `AgentEnrollment`
 
 ### Phase 2
 
-Move the remaining agent-facing Binding admin code out of the app repo surface.
+Move the remaining agent-facing HAVEN admin code out of the app repo surface.
 
 Changes:
 
@@ -97,17 +97,17 @@ The work completed in this repo now covers Phase 1 and Phase 2.
 
 What now works:
 
-- `Binding` no longer compiles `Cells/AgentProvisioningCell.swift`
-- `Binding` no longer compiles `Cells/AgentEnrollmentCell.swift`
-- Binding bootstrap no longer registers `AgentProvisioning` or `AgentEnrollment`
-- curated Binding menus no longer include `Agent Setup`
+- `HAVEN` no longer compiles `Cells/AgentProvisioningCell.swift`
+- `HAVEN` no longer compiles `Cells/AgentEnrollmentCell.swift`
+- HAVEN bootstrap no longer registers `AgentProvisioning` or `AgentEnrollment`
+- curated HAVEN menus no longer include `Agent Setup`
 - `ConfigurationCatalog` no longer exposes `Agent Setup Workbench`
 - the legacy `agentSetupWorkbenchConfiguration()` builder has been removed from `ConfigurationCatalogCell`
 - tests now verify the standalone contract instead of agent integration
 - agent-specific docs have been moved out of `Documentation/` into `HavenAgentD/Docs`
-- the repo now records the explicit decision that agent admin belongs in `HavenAgentD` docs, not in the main Binding app surface
-- a repo sweep finds no active Binding runtime/catalog/menu references to `AgentProvisioning`, `AgentEnrollment`, or `Agent Setup Workbench`
+- the repo now records the explicit decision that agent admin belongs in `HavenAgentD` docs, not in the main HAVEN app surface
+- a repo sweep finds no active HAVEN runtime/catalog/menu references to `AgentProvisioning`, `AgentEnrollment`, or `Agent Setup Workbench`
 
 ## Remaining follow-up
 
-- add explicit standalone-product acceptance tests for Binding's remote `CellScaffold` connection flow
+- add explicit standalone-product acceptance tests for HAVEN's remote `CellScaffold` connection flow

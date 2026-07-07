@@ -171,8 +171,8 @@ These were the useful working methods in this round:
 3. Verify with targeted package tests and app builds.
    - `swift test --filter AppleIdentityVaultKeyStorageTests`
    - `swift test --filter ChatCellTests`
-   - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build`
-   - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build`
+   - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution build`
+   - `xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build`
    - run the two `xcodebuild` commands serially; parallel runs can lock Xcode's shared `build.db`
 
 4. When a new key role is introduced, verify every vault implementation and every copy boundary.

@@ -43,7 +43,7 @@ For Binding:
 swift run --package-path /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD haven-agentd xcode-ensure-workspace \
   --workspace /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcworkspace \
   --exclusive-package /Users/kjetil/Build/Digipomps/HAVEN/CellProtocol \
-  --scheme Binding \
+  --scheme HAVEN \
   --destination-name "My Mac (arm64)" \
   --destination-platform macosx \
   --destination-architecture arm64 \

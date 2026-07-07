@@ -1,10 +1,10 @@
 # App Store Review Notes: Personal Co-Pilot V1
 
-This document is the working source for App Store Connect review notes for Binding Personal Co-Pilot V1.
+This document is the working source for App Store Connect review notes for HAVEN Personal Co-Pilot V1.
 
 ## Review Summary
 
-Binding is a curated Personal Co-Pilot app. It helps a user organize profile information, ideas, projects, match intent, invitation-based chat and meeting intent surfaces. It is not submitted as a conference demo, plugin marketplace, arbitrary app host or general mini-app store.
+HAVEN is a curated Personal Co-Pilot app. It helps a user organize profile information, ideas, projects, match intent, invitation-based chat and meeting intent surfaces. It is not submitted as a conference demo, plugin marketplace, arbitrary app host or general mini-app store.
 
 The first App Store build exposes only the Personal Co-Pilot V1 surface:
 
@@ -25,7 +25,7 @@ Conference, sponsor, admin, control tower, demo launcher and conference chat con
 ## Suggested App Review Notes Text
 
 ```text
-Binding is submitted as a curated Personal Co-Pilot app.
+HAVEN is submitted as a curated Personal Co-Pilot app.
 
 The app can load CellConfigurations from our approved CellScaffold host, but the App Store build is allowlisted to Personal Co-Pilot V1 configurations only. The visible V1 scope is profile drafting/publishing, opt-in public profile discovery, consent-based matching, Co-Pilot Chat, local agenda context, local vault/idea/project organization, meeting intent planning, Apple Intelligence-related local actions and entity scanning.
 
@@ -35,7 +35,7 @@ User-generated content surfaces are limited to public profiles and invite-only c
 
 The app does not include prepaid credits, external purchase calls to action, StoreKit UI or in-app purchase in V1.
 
-Remote configurations do not receive native permissions automatically. Camera, microphone, calendar, reminders, contacts, nearby/Bluetooth, local vault/file access and Apple Intelligence-related capabilities require explicit user action and platform permission flow where applicable. Agenda Context reads Calendar/Reminders only in the local Binding adapter after the user asks to refresh or answer an agenda query; it does not monitor the calendar in the background. Co-Pilot Chat microphone/speech access is limited to explicit speech-to-text dictation into the local composer; it does not listen in the background, use wake phrases or send messages automatically. V1 meeting/Jitsi support is metadata-only and does not request camera or microphone access.
+Remote configurations do not receive native permissions automatically. Camera, microphone, calendar, reminders, contacts, nearby/Bluetooth, local vault/file access and Apple Intelligence-related capabilities require explicit user action and platform permission flow where applicable. Agenda Context reads Calendar/Reminders only in the local HAVEN adapter after the user asks to refresh or answer an agenda query; it does not monitor the calendar in the background. Co-Pilot Chat microphone/speech access is limited to explicit speech-to-text dictation into the local composer; it does not listen in the background, use wake phrases or send messages automatically. V1 meeting/Jitsi support is metadata-only and does not request camera or microphone access.
 
 If account creation or sign-in is enabled for the review build, the app provides in-app account deletion and data export/deletion hooks.
 ```
@@ -62,7 +62,7 @@ If account creation or sign-in is enabled for the review build, the app provides
 
 ## Policy Mapping
 
-| App Store area | Binding V1 behavior | Required evidence |
+| App Store area | HAVEN V1 behavior | Required evidence |
 | --- | --- | --- |
 | Safety / UGC | Public profiles and chat expose report/block/filter hooks. Chat is invite-only. | UGC moderation runbook, chat/report/block tests. |
 | Payments | No digital unlocks, credits, prepaid wording or external purchase CTA in V1. | Payment gate checklist, screenshot review. |

@@ -80,8 +80,8 @@ Important code anchors:
 
 Known verified checks from the implementation round:
 
-- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSupportsVariableEntityCountsWithDistanceDirectionAndRelevance`
-- `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/personalCopilotV1MenuConfigurationsAreScopedAndConferenceFree -only-testing:BindingTests/BindingTests/entityScannerWorkbenchConfigurationsStayLocalToBinding`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSupportsVariableEntityCountsWithDistanceDirectionAndRelevance`
+- `xcodebuild -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test -only-testing:BindingTests/BindingTests/personalCopilotV1MenuConfigurationsAreScopedAndConferenceFree -only-testing:BindingTests/BindingTests/entityScannerWorkbenchConfigurationsStayLocalToBinding`
 - `git diff --check -- Binding/BootstrapView.swift Cells/ConfigurationCatalogCell.swift BindingTests/BindingTests.swift Documentation/README.md`
 
 Do not blur these layers:

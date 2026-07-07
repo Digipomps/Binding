@@ -1,6 +1,6 @@
-# Binding + CellProtocol
+# HAVEN + CellProtocol
 
-This repository hosts the Binding app and integrates the CellProtocol ecosystem.
+This repository hosts the HAVEN app and integrates the CellProtocol ecosystem.
 
 ## Architecture notes
 - [SkeletonPortabilityRequirement.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonPortabilityRequirement.md)
@@ -26,8 +26,8 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
 - [PersonalCopilotDesignSystem.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/PersonalCopilotDesignSystem.md)
 
 ## Overview
-- Binding (app): Hosts a porthole canvas and edge menus to quickly load `CellConfiguration`s.
-- Binding is being normalized as a standalone app that can connect to remote `CellScaffold`, but does not depend on a local HAVEN agent.
+- HAVEN (app): Hosts a porthole canvas and edge menus to quickly load `CellConfiguration`s.
+- HAVEN is being normalized as a standalone app that can connect to remote `CellScaffold`, but does not depend on a local HAVEN agent.
 - CellProtocol: A modular ecosystem comprising:
   - CellBase: platform-agnostic core (protocols, ValueType, CellConfiguration, Perspective, etc.).
   - CellApple: platform-specific integrations and views (SwiftUI, SkeletonView, EdgeMenus, Apple Intelligence under `CellApple/Intelligence`).
@@ -44,7 +44,7 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - Add/edit/delete modifiers.
   - Add/edit/delete element parameters (for example `endpoint`, `name`, `text`, `keypath`, `topic`, `label`).
 - Added macOS floating editor tool windows (`NSPanel`) for `Elements` and `Inspector`, while keeping mode switching (`view`/`edit`) in the main window.
-- Validation status: `xcodebuild` succeeded for Binding after these editor changes.
+- Validation status: `xcodebuild` succeeded for HAVEN after these editor changes.
 
 ## Latest successful changes (February 23, 2026)
 - `ConfigurationCatalogCell` now exposes purpose-aware library query endpoints:
@@ -57,10 +57,10 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - compatibility hints (`supportedInsertionModes`, `supportedTargetKinds`)
   - IO/auth hints (`ioSignature`, `authRequired`, `policyHints`, `flowDriven`, `editable`)
 - Existing persisted catalog entries are migrated on load through metadata enrichment defaults.
-- Added Binding tests for:
+- Added HAVEN tests for:
   - ranked query response contract
   - facet bucket contract for `supportedInsertionModes`.
-- Added Full Library UI in Binding:
+- Added Full Library UI in HAVEN:
   - New `FullLibraryView` sheet with tabs (`All configs`, `For my purposes`, `Sources`, `Templates`)
   - Search-as-you-type + token input (`purpose:`, `interest:`, `category:`, `source:`, `compatibility:`)
   - Facet panel backed by `facetCounts` and result list backed by `query`
@@ -70,14 +70,14 @@ This repository hosts the Binding app and integrates the CellProtocol ecosystem.
   - `upperMid` main action now opens Full Library directly (search-first role)
   - Added a `Library` button in mode panel for explicit access
 - Build verification:
-  - `xcodebuild ... build` succeeded for Binding.
-  - `xcodebuild ... build-for-testing` succeeded for Binding + BindingTests.
+  - `xcodebuild ... build` succeeded for HAVEN.
+  - `xcodebuild ... build-for-testing` succeeded for HAVEN + BindingTests.
 
 ## Historical note (March 14, 2026)
 
-Binding briefly carried a local agent provisioning surface during early `HavenAgentD` exploration.
+HAVEN briefly carried a local agent provisioning surface during early `HavenAgentD` exploration.
 
-That material is now archived out of the main Binding docs surface:
+That material is now archived out of the main HAVEN docs surface:
 
 - agent boundary note: [../HavenAgentD/Docs/BindingBoundary.md](../HavenAgentD/Docs/BindingBoundary.md)
 - legacy provisioning runbook: [../HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md](../HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md)
@@ -145,8 +145,8 @@ That material is now archived out of the main Binding docs surface:
 - Validation status:
   - `swift test --filter ChatCellTests` succeeded
   - `swift test --filter AppleIdentityVaultKeyStorageTests` succeeded
-- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
-- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
 
 ## Latest successful changes (March 23, 2026)
 - `ChatCell` now exposes explicit membership/rekey surfaces in [ChatCell.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Cells/Chat/ChatCell.swift):
@@ -176,8 +176,8 @@ That material is now archived out of the main Binding docs surface:
   - [Documentation/VaultHardeningProgress.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/VaultHardeningProgress.md)
 - Validation status:
   - `swift test --filter ChatCellTests` succeeded
-- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
-- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution build` succeeded
+- `xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'generic/platform=iOS' -disableAutomaticPackageResolution build` succeeded
 
 ## Latest successful changes (March 27, 2026)
 - Binding now has a deterministic conference configuration verifier with two layers:
@@ -316,7 +316,7 @@ That material is now archived out of the main Binding docs surface:
   - `testConferenceNearbyRadarContract`
   - `testConferenceNearbyRadarRenderer`
   - `conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions`
-  - `xcodebuild -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build`
+  - `xcodebuild -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build`
 
 ## Apple Intelligence (high level)
 - Implemented under `CellApple/Intelligence`.

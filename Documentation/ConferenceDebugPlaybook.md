@@ -24,7 +24,7 @@ Use the local package, not a stale remote checkout, so runtime fixes in `CellPro
 Commands:
 
 ```bash
-xcodebuild -workspace Binding.xcworkspace -scheme Binding -destination 'platform=macOS' -disableAutomaticPackageResolution build
+xcodebuild -workspace Binding.xcworkspace -scheme HAVEN -destination 'platform=macOS' -disableAutomaticPackageResolution build
 swift test --filter SkeletonActionButtonExecutionTests
 ```
 
@@ -106,15 +106,15 @@ Stale debug sessions have caused false negatives before.
 Useful sequence:
 
 ```bash
-ps aux | rg '[B]inding(.app/Contents/MacOS/Binding|$)'
+ps aux | rg '[H]AVEN(.app/Contents/MacOS/HAVEN|$)'
 kill <pid>
-open /Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-bnzbjkzdqhtnnnfveahehmbivnwn/Build/Products/Debug/Binding.app
+open /Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-bnzbjkzdqhtnnnfveahehmbivnwn/Build/Products/Debug/HAVEN.app
 ```
 
 Also verify that old background processes are really gone:
 
 ```bash
-ps aux | rg '/Binding.app/Contents/MacOS/Binding'
+ps aux | rg '/HAVEN.app/Contents/MacOS/HAVEN'
 ```
 
 During the organizer round, stale terminal-launched Binding processes from older DerivedData roots kept competing with the active app. Killing them before re-open removed a lot of false GUI noise.

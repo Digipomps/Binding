@@ -37,7 +37,7 @@ GLM 5.2 kunne ikke brukes i denne sesjonen: `glm` og `ollama` var ikke på PATH.
 Kommando:
 
 ```sh
-xcodebuild build-for-testing -project Binding.xcodeproj -scheme Binding -destination platform=macOS -derivedDataPath /tmp/BindingStaticSkeletonAudit CODE_SIGNING_ALLOWED=NO
+xcodebuild build-for-testing -project Binding.xcodeproj -scheme HAVEN -destination platform=macOS -derivedDataPath /tmp/BindingStaticSkeletonAudit CODE_SIGNING_ALLOWED=NO
 ```
 
 Resultat: `TEST BUILD SUCCEEDED`.
@@ -45,7 +45,7 @@ Resultat: `TEST BUILD SUCCEEDED`.
 Direkte testbundle-kjøring:
 
 ```sh
-xcrun xctest -XCTest CellConfigurationVerifierXCTest/testConfigurationCatalogSkeletonsPassStaticStructureAudit /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/Binding.app/Contents/PlugIns/BindingTests.xctest
+xcrun xctest -XCTest CellConfigurationVerifierXCTest/testConfigurationCatalogSkeletonsPassStaticStructureAudit /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/HAVEN.app/Contents/PlugIns/BindingTests.xctest
 ```
 
 Resultat: passed. Audit etter fiks:
@@ -61,19 +61,19 @@ Resultat: passed. Audit etter fiks:
 Kjørte også:
 
 ```sh
-xcrun xctest -XCTest CellConfigurationVerifierXCTest/testPersonalCopilotLocalSurfacesLoadWithoutReferenceFailures /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/Binding.app/Contents/PlugIns/BindingTests.xctest
+xcrun xctest -XCTest CellConfigurationVerifierXCTest/testPersonalCopilotLocalSurfacesLoadWithoutReferenceFailures /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/HAVEN.app/Contents/PlugIns/BindingTests.xctest
 ```
 
 Resultat: passed.
 
 ```sh
-xcrun xctest -XCTest CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract,CellConfigurationVerifierXCTest/testConferenceAIAssistantContract,CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/Binding.app/Contents/PlugIns/BindingTests.xctest
+xcrun xctest -XCTest CellConfigurationVerifierXCTest/testConferenceParticipantPortalContract,CellConfigurationVerifierXCTest/testConferenceAIAssistantContract,CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/HAVEN.app/Contents/PlugIns/BindingTests.xctest
 ```
 
 Resultat: passed. Loggen viser en AI gateway `denied`, men testen håndterer dette via fallback og flaten feiler ikke.
 
 ```sh
-xcrun xctest -XCTest CellConfigurationVerifierXCTest/testConferenceShowcaseButtonsCanExecuteWithoutBrokenBindings /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/Binding.app/Contents/PlugIns/BindingTests.xctest
+xcrun xctest -XCTest CellConfigurationVerifierXCTest/testConferenceShowcaseButtonsCanExecuteWithoutBrokenBindings /tmp/BindingStaticSkeletonAudit/Build/Products/Debug/HAVEN.app/Contents/PlugIns/BindingTests.xctest
 ```
 
 Resultat: passed.

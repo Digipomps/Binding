@@ -1,12 +1,12 @@
-# Binding
+# HAVEN
 
-Binding is the primary app-side integration project for CellProtocol in this workspace.
+HAVEN is the primary app-side integration project for CellProtocol in this workspace.
 
 ## Scope
 
 - SwiftUI client app in `Binding/`
 - Local/runtime cells in `Cells/`
-- Binding-specific docs in `Documentation/`
+- HAVEN-specific docs in `Documentation/`
 - Prompt and workflow docs in `Prompts/`
 - Shared protocol docs via `CellProtocolDocuments/`
 
@@ -20,10 +20,10 @@ Binding is the primary app-side integration project for CellProtocol in this wor
 
 This is an active integration repo and is expected to track latest CellProtocol and Scaffold-facing behavior.
 
-Binding is now being separated into a standalone app boundary:
+HAVEN is now being separated into a standalone app boundary:
 
-- Binding must run without a local HAVEN agent.
-- Binding may connect to a remote `CellScaffold` instance.
+- HAVEN must run without a local HAVEN agent.
+- HAVEN may connect to a remote `CellScaffold` instance.
 - `HavenAgentD` is treated as an optional external tool, not part of the main app product.
 
 Current separation docs:

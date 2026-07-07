@@ -60,7 +60,7 @@ The flow currently spans these implementation points:
 | --- | --- | --- |
 | MCP server surface | Verified | `haven-agentd-mcp` exposes `agent.operator.request`, `agent.operator.wait_for_reply`, and `agent.operator.request_and_wait`. |
 | MCP tests | Verified | `HavenAgentMCPServiceTests` and `AgentConversationFlowSubscriberTests` passed earlier in this session. |
-| iOS generic build | Verified | `xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO` succeeded. |
+| iOS generic build | Verified | `xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO` succeeded. |
 | Physical iPhone build | Verified | `xcodebuild ... -destination 'id=00008150-00050C200ED8401C' ... build` succeeded with signing. |
 | Physical iPhone install | Verified | `xcodebuild ... install` succeeded on the connected phone. |
 | CLI launch via `devicectl` | Blocked | `xcrun devicectl device process launch ...` timed out waiting for `CoreDeviceService`. |
@@ -114,7 +114,7 @@ Binding follow-up completed on 2026-05-14:
 - `PersonalChatHub`/Co-Pilot Chat parity now has side-effect-free
   `entityExtension.scan` and ContactEndpoint resource matching for prompts about
   sending a message/request through another entity's endpoint cell.
-- `xcodebuild test -project Binding.xcodeproj -scheme Binding -only-testing:BindingTests/ChatWorkbenchParityTests`
+- `xcodebuild test -project Binding.xcodeproj -scheme HAVEN -only-testing:BindingTests/ChatWorkbenchParityTests`
   passed 8 tests, including a signed `contact.request`, replay rejection,
   `ticket.resolve`, `ticket.respond`, and zero-side-effect chat scan/analyze.
 
@@ -197,7 +197,7 @@ APNS development provisioning restored:
 - Binding now builds with `aps-environment=development` restored through `Binding/Binding-iOS.entitlements`.
 - The active app signing settings use team `5UT5HQTCV9` and bundle identifier `org.digipomps.havenplayground`.
 - `iOS Team Provisioning Profile: org.digipomps.havenplayground` signs the physical iPhone build and includes the APNS development entitlement.
-- `xcodebuild -project Binding.xcodeproj -scheme Binding -configuration Debug -destination id=00008150-00050C200ED8401C -derivedDataPath /private/tmp/binding-apns-signed-dd -allowProvisioningUpdates build` succeeded for `iKjetil17 Pro`.
+- `xcodebuild -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination id=00008150-00050C200ED8401C -derivedDataPath /private/tmp/binding-apns-signed-dd -allowProvisioningUpdates build` succeeded for `iKjetil17 Pro`.
 
 ## Update As Of 2026-06-25
 
@@ -246,7 +246,7 @@ The successful install used:
 ```bash
 xcodebuild \
   -workspace Binding.xcworkspace \
-  -scheme Binding \
+  -scheme HAVEN \
   -destination 'id=00008150-00050C200ED8401C' \
   -configuration Debug \
   -derivedDataPath /tmp/BindingPhoneDevice \
@@ -378,9 +378,9 @@ The second point is an inference, not a direct proof.
 ### Build and install
 
 ```bash
-xcodebuild -quiet -workspace Binding.xcworkspace -scheme Binding -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
-xcodebuild -workspace Binding.xcworkspace -scheme Binding -destination 'id=00008150-00050C200ED8401C' -configuration Debug -derivedDataPath /tmp/BindingPhoneDevice -allowProvisioningUpdates build
-xcodebuild -workspace Binding.xcworkspace -scheme Binding -destination 'id=00008150-00050C200ED8401C' -configuration Debug -derivedDataPath /tmp/BindingPhoneDevice -allowProvisioningUpdates install
+xcodebuild -quiet -workspace Binding.xcworkspace -scheme HAVEN -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -workspace Binding.xcworkspace -scheme HAVEN -destination 'id=00008150-00050C200ED8401C' -configuration Debug -derivedDataPath /tmp/BindingPhoneDevice -allowProvisioningUpdates build
+xcodebuild -workspace Binding.xcworkspace -scheme HAVEN -destination 'id=00008150-00050C200ED8401C' -configuration Debug -derivedDataPath /tmp/BindingPhoneDevice -allowProvisioningUpdates install
 ```
 
 Results:

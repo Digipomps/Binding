@@ -262,11 +262,11 @@ Implemented in Binding:
 
 Verified on 2026-05-18:
 
-- `xcodebuild build -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData CODE_SIGNING_ALLOWED=NO`
-- `xcodebuild build-for-testing -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO`
-- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSupportsVariableEntityCountsWithDistanceDirectionAndRelevance`
-- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
-- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme Binding -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileContract`
+- `xcodebuild build -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData CODE_SIGNING_ALLOWED=NO`
+- `xcodebuild build-for-testing -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO`
+- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSeparatesApproximateSignalsFromFocusedParticipantActions -only-testing:BindingTests/BindingTests/conferenceNearbyRadarSupportsVariableEntityCountsWithDistanceDirectionAndRelevance`
+- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyRadarContract`
+- `xcodebuild test-without-building -quiet -project Binding.xcodeproj -scheme HAVEN -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/BindingNearbyDerivedData -parallel-testing-enabled NO -only-testing:BindingTests/CellConfigurationVerifierXCTest/testConferenceNearbyParticipantProfileContract`
 - `swift test --filter EntityScannerCellContractTests` in `../CellProtocol`
 
 Not verified in this environment:
