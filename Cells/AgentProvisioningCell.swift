@@ -220,7 +220,7 @@ final class AgentProvisioningCell: GeneralCell {
             case .invalidObjectPayload:
                 return "Expected an object payload."
             case .unsupportedPlatform(let feature):
-                return "\(feature) is only available when Binding runs on macOS."
+                return "\(feature) is only available when HAVEN runs on macOS."
             case .missingSourceRoot(let path):
                 return "Source root was not found: \(path)"
             case .missingAgentPackage(let path):
@@ -866,7 +866,7 @@ final class AgentProvisioningCell: GeneralCell {
             )
             guard fallback.succeeded else {
                 throw ProvisioningError.commandFailed(
-                    "launchctl bootout failed inside Binding sandbox: \(error.localizedDescription)\nExternal launch-agent helper also failed: \(Self.trimmedOutput(from: fallback))"
+                    "launchctl bootout failed inside HAVEN sandbox: \(error.localizedDescription)\nExternal launch-agent helper also failed: \(Self.trimmedOutput(from: fallback))"
                 )
             }
         }
@@ -1057,7 +1057,7 @@ final class AgentProvisioningCell: GeneralCell {
         stateQueue.sync {
             mutableState.reviewSelectedIntentID = envelope.payload.nonce
             if mutableState.reviewNoteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                mutableState.reviewNoteDraft = "Approved from Binding Safari smoke test."
+                mutableState.reviewNoteDraft = "Approved from HAVEN Safari smoke test."
             }
         }
     }
@@ -1196,7 +1196,7 @@ final class AgentProvisioningCell: GeneralCell {
         defer { runtimeAccessLock.unlock() }
         guard activatePersistedExternalRuntimeAccessLocked(forRuntimeAccessDirectory: runtimeAccessDirectory) else {
             throw ProvisioningError.commandFailed(
-                "Binding could not activate external runtime access for \(runtimeAccessDirectory.path)."
+                "HAVEN could not activate external runtime access for \(runtimeAccessDirectory.path)."
             )
         }
 #else
@@ -1349,7 +1349,7 @@ final class AgentProvisioningCell: GeneralCell {
             ?? controlBridge.websocketBaseURL
         let controlBridgeState: String = {
             if Self.supportsLocalAgentRuntime == false {
-                return "Local HAVEN agent control is disabled on iOS; use Binding as a viewer or connect from macOS."
+                return "Local HAVEN agent control is disabled on iOS; use HAVEN as a viewer or connect from macOS."
             }
             if let liveProjection {
                 return liveProjection.controlBridgeState
@@ -2012,7 +2012,7 @@ final class AgentProvisioningCell: GeneralCell {
         """
         return [
             "id": defaultTestAppleScriptID,
-            "description": "Open a validated URL in Safari from the Binding review smoke test.",
+            "description": "Open a validated URL in Safari from the HAVEN review smoke test.",
             "source": script,
             "argumentOrder": ["url"],
             "argumentConstraints": [

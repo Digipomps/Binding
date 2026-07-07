@@ -78,7 +78,7 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         }
 
         var createdIdentity = Identity()
-        createdIdentity.displayName = "Binding Local Session"
+        createdIdentity.displayName = "HAVEN Local Session"
         await addIdentity(identity: &createdIdentity, for: identityContext)
         return await self.identity(for: identityContext, makeNewIfNotFound: false)
     }

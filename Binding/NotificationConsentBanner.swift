@@ -44,7 +44,7 @@ struct NotificationConsentBanner: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Varsler ikke registrert")
                 .font(.headline)
-            Text("Binding har varslingsrettighet, men telefonen er ikke registrert hos staging ennå.")
+            Text("HAVEN har varslingsrettighet, men telefonen er ikke registrert hos staging ennå.")
                 .font(.subheadline)
             Button("Registrer på nytt") {
                 Task { await manager.retryDeviceRegistration() }

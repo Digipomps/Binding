@@ -19,49 +19,49 @@
 			containerPortal = 24D8000D2EF195A000021B5A /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 24D800142EF195A000021B5A;
-			remoteInfo = Binding;
+			remoteInfo = HAVEN;
 		};
 		24D8002D2EF195A200021B5A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 24D8000D2EF195A000021B5A /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 24D800142EF195A000021B5A;
-			remoteInfo = Binding;
+			remoteInfo = HAVEN;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		2430C8F22F18FB4B008F5B80 /* MultipeerConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MultipeerConnectivity.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MultipeerConnectivity.framework; sourceTree = DEVELOPER_DIR; };
 		2430C8F42F18FB57008F5B80 /* NearbyInteraction.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NearbyInteraction.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/NearbyInteraction.framework; sourceTree = DEVELOPER_DIR; };
-		24D800152EF195A000021B5A /* Binding.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Binding.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		24D800152EF195A000021B5A /* HAVEN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HAVEN.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D800222EF195A200021B5A /* BindingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D8002C2EF195A200021B5A /* BindingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C256FCFF172C4305B1C877FB /* CellProtocolDocuments */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CellProtocolDocuments; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "Binding" target */ = {
+		24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "HAVEN" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppleIntelligence_Workflow.md,
 				HowTo_CreateCell.md,
 				SkeletonElements_Detailed.md,
 			);
-			target = 24D800142EF195A000021B5A /* Binding */;
+			target = 24D800142EF195A000021B5A /* HAVEN */;
 		};
-		24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "Binding" target */ = {
+		24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "HAVEN" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				CONTRIBUTING.md,
 			);
-			target = 24D800142EF195A000021B5A /* Binding */;
+			target = 24D800142EF195A000021B5A /* HAVEN */;
 		};
-		24D8005F2EF3077D00021B5A /* Exceptions for "Binding" folder in "Binding" target */ = {
+		24D8005F2EF3077D00021B5A /* Exceptions for "Binding" folder in "HAVEN" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 24D800142EF195A000021B5A /* Binding */;
+			target = 24D800142EF195A000021B5A /* HAVEN */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -169,7 +169,7 @@
 		24D800162EF195A000021B5A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				24D800152EF195A000021B5A /* Binding.app */,
+				24D800152EF195A000021B5A /* HAVEN.app */,
 				24D800222EF195A200021B5A /* BindingTests.xctest */,
 				24D8002C2EF195A200021B5A /* BindingUITests.xctest */,
 			);
@@ -179,9 +179,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		24D800142EF195A000021B5A /* Binding */ = {
+		24D800142EF195A000021B5A /* HAVEN */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 24D800362EF195A200021B5A /* Build configuration list for PBXNativeTarget "Binding" */;
+			buildConfigurationList = 24D800362EF195A200021B5A /* Build configuration list for PBXNativeTarget "HAVEN" */;
 			buildPhases = (
 				24D800112EF195A000021B5A /* Sources */,
 				24D800122EF195A000021B5A /* Frameworks */,
@@ -195,13 +195,13 @@
 				24D800172EF195A000021B5A /* Binding */,
 				24D800CB2F0286AB00021B5A /* Cells */,
 			);
-			name = Binding;
+			name = HAVEN;
 			packageProductDependencies = (
 				24FEA0042F421297000334E1 /* CellBase */,
 				24FEA0062F42129D000334E1 /* CellApple */,
 			);
-			productName = Binding;
-			productReference = 24D800152EF195A000021B5A /* Binding.app */;
+			productName = HAVEN;
+			productReference = 24D800152EF195A000021B5A /* HAVEN.app */;
 			productType = "com.apple.product-type.application";
 		};
 		24D800212EF195A200021B5A /* BindingTests */ = {
@@ -298,7 +298,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				24D800142EF195A000021B5A /* Binding */,
+				24D800142EF195A000021B5A /* HAVEN */,
 				24D800212EF195A200021B5A /* BindingTests */,
 				24D8002B2EF195A200021B5A /* BindingUITests */,
 			);
@@ -356,12 +356,12 @@
 /* Begin PBXTargetDependency section */
 		24D800242EF195A200021B5A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 24D800142EF195A000021B5A /* Binding */;
+			target = 24D800142EF195A000021B5A /* HAVEN */;
 			targetProxy = 24D800232EF195A200021B5A /* PBXContainerItemProxy */;
 		};
 		24D8002E2EF195A200021B5A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 24D800142EF195A000021B5A /* Binding */;
+			target = 24D800142EF195A000021B5A /* HAVEN */;
 			targetProxy = 24D8002D2EF195A200021B5A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -536,6 +536,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.havenplayground;
+				PRODUCT_MODULE_NAME = Binding;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
@@ -603,6 +604,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.havenplayground;
+				PRODUCT_MODULE_NAME = Binding;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
@@ -640,7 +642,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Binding.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Binding";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HAVEN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HAVEN";
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Debug;
@@ -666,7 +668,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Binding.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Binding";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HAVEN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HAVEN";
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Release;
@@ -691,7 +693,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = Binding;
+				TEST_TARGET_NAME = HAVEN;
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Debug;
@@ -716,7 +718,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = Binding;
+				TEST_TARGET_NAME = HAVEN;
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Release;
@@ -733,7 +735,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		24D800362EF195A200021B5A /* Build configuration list for PBXNativeTarget "Binding" */ = {
+		24D800362EF195A200021B5A /* Build configuration list for PBXNativeTarget "HAVEN" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				24D800372EF195A200021B5A /* Debug */,

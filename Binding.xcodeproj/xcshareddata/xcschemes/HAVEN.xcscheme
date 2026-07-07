@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "24D800142EF195A000021B5A"
-               BuildableName = "Binding.app"
-               BlueprintName = "Binding"
+               BuildableName = "HAVEN.app"
+               BlueprintName = "HAVEN"
                ReferencedContainer = "container:Binding.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -30,7 +30,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Binding.xcodeproj/xcshareddata/xctestplans/Binding.xctestplan"
+            reference = "container:Binding.xcodeproj/xcshareddata/xctestplans/HAVEN.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>
@@ -50,8 +50,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "24D800142EF195A000021B5A"
-            BuildableName = "Binding.app"
-            BlueprintName = "Binding"
+            BuildableName = "HAVEN.app"
+            BlueprintName = "HAVEN"
             ReferencedContainer = "container:Binding.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -67,8 +67,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "24D800142EF195A000021B5A"
-            BuildableName = "Binding.app"
-            BlueprintName = "Binding"
+            BuildableName = "HAVEN.app"
+            BlueprintName = "HAVEN"
             ReferencedContainer = "container:Binding.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -225,8 +225,8 @@ enum BindingChatPromptEvaluationRunner {
             BindingChatProviderDescriptor(
                 id: "binding.apple.local",
                 kind: "apple_intelligence",
-                title: "Binding Apple Intelligence",
-                summary: "Local assistant provider declared by Binding inside this chat scope.",
+                title: "HAVEN Apple Intelligence",
+                summary: "Local assistant provider declared by HAVEN inside this chat scope.",
                 endpoint: "cell:///AppleIntelligence",
                 sourceCellName: nil,
                 actionKeypath: "ai.sendPrompt",

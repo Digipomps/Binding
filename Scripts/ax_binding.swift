@@ -18,11 +18,11 @@ struct CLI {
     init() throws {
         var args = CommandLine.arguments.dropFirst()
         guard let raw = args.first, let command = Command(rawValue: raw) else {
-            throw NSError(domain: "ax_binding", code: 1, userInfo: [NSLocalizedDescriptionKey: "usage: ax_binding.swift <dump|click|windows> [--app Binding] [--query text] [--depth N]"])
+            throw NSError(domain: "ax_binding", code: 1, userInfo: [NSLocalizedDescriptionKey: "usage: ax_binding.swift <dump|click|windows> [--app HAVEN] [--query text] [--depth N]"])
         }
         args = args.dropFirst()
 
-        var appName = "Binding"
+        var appName = "HAVEN"
         var query: String?
         var maxDepth = 6
 

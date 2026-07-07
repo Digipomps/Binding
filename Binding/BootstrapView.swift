@@ -690,7 +690,7 @@ actor BindingLocalCellRegistration {
                   !errorDescription.contains("duplicatedcodingname") else {
                 return
             }
-            print("Binding local cell registration failed for \(name): \(error)")
+            print("HAVEN local cell registration failed for \(name): \(error)")
         }
     }
 }
@@ -1545,7 +1545,7 @@ private final class PersonalChatClientLocalCell: PersonalCopilotLocalCell {
                 "joinURL": .string("disabled in v1"),
                 "roomName": .string(""),
                 "scheduledAt": .string(""),
-                "requiresCameraMicrophoneConsent": .string("true - Binding does not request camera or microphone in v1")
+                "requiresCameraMicrophoneConsent": .string("true - HAVEN does not request camera or microphone in v1")
             ]),
             "status": .string("Invite-only chat client is ready."),
             "updatedAt": .float(Date().timeIntervalSince1970)
@@ -2088,7 +2088,7 @@ private final class PersonalCopilotCatalogLocalCell: PersonalCopilotLocalCell {
         return [
             "appStoreScope": .string(PersonalCopilotAppStoreV1Contract.appStoreScope),
             "configurationCount": .integer(configurations.count),
-            "policySummary": .string("Binding viser kun allowlistede Personal Co-Pilot V1-flater i lokal katalog."),
+            "policySummary": .string("HAVEN viser kun allowlistede Personal Co-Pilot V1-flater i lokal katalog."),
             "catalogEntries": .list(entries.map(ValueType.object)),
             "configurations": .list(configurations.map(ValueType.cellConfiguration)),
             "status": .string("Local Personal Co-Pilot catalog is ready."),
@@ -2265,7 +2265,7 @@ private final class PersonalUsageQuotaLocalCell: PersonalCopilotLocalCell {
         let now = Date().timeIntervalSince1970
         return [
             "title": .string("Brukskvote"),
-            "status": .string("Klar. Binding viser registrert brukskvote og rettighetsstatus."),
+            "status": .string("Klar. HAVEN viser registrert brukskvote og rettighetsstatus."),
             "productVariant": .string("usage_quota"),
             "paymentRole": .string("entitlement_client"),
             "transferability": .string("none"),
@@ -2320,13 +2320,13 @@ private final class PersonalUsageQuotaLocalCell: PersonalCopilotLocalCell {
 
         if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
             topUp["status"] = .string("blocked_in_app_store_mode")
-            topUp["nextStep"] = .string("Binding kan fortsette når en gyldig brukskvote er registrert.")
+            topUp["nextStep"] = .string("HAVEN kan fortsette når en gyldig brukskvote er registrert.")
             mergeState([
                 "topUp": .object(topUp),
                 "lastAction": .string("requestTopUp"),
                 "updatedAt": .float(now)
             ])
-            return response(status: "blocked", message: "Brukskvote-påfyll er ikke tilgjengelig i denne Binding-flaten.")
+            return response(status: "blocked", message: "Brukskvote-påfyll er ikke tilgjengelig i denne HAVEN-flaten.")
         }
 
         topUp["status"] = .string("checkout_delegated")
@@ -2635,7 +2635,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     private var draftDeterministicMode = false
     private var draftRequiresAPIKey = true
     private var activeCredentialSource = "environment"
-    private var lastInvocationOutputPreview = "Conference copilot is ready in Binding local preview. Load a prompt or session key to keep drafting while the scaffold gateway warms up."
+    private var lastInvocationOutputPreview = "Conference copilot is ready in HAVEN local preview. Load a prompt or session key to keep drafting while the scaffold gateway warms up."
     private var lastInvocationWarningsText = ""
     private var lastInvocationErrorsText = ""
     private var lastInvocationQuotaStatus = "localPreview"
@@ -3232,7 +3232,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             }
             lastInvocationHasResult = true
             lastInvocationQuotaStatus = "localPreview"
-            lastInvocationWarningsText = "Binding is using local preview state while the scaffold gateway is unavailable."
+            lastInvocationWarningsText = "HAVEN is using local preview state while the scaffold gateway is unavailable."
             lastInvocationErrorsText = ""
             lastInvocationOutputPreview = "Local preview captured the current conference request and setup. Live AI invocation resumes automatically once a readable gateway is available."
         default:
@@ -3260,11 +3260,11 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         let credentialStatus: String
         switch activeCredentialSource {
         case "session":
-            credentialStatus = "Session API key is loaded in Binding local preview."
+            credentialStatus = "Session API key is loaded in HAVEN local preview."
         case "noAuth":
             credentialStatus = "Current preview profile does not require an API key."
         default:
-            credentialStatus = "Binding local preview keeps the conference copilot editable even when the scaffold gateway is unavailable."
+            credentialStatus = "HAVEN local preview keeps the conference copilot editable even when the scaffold gateway is unavailable."
         }
 
         let pendingStatus: String
@@ -3277,15 +3277,15 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         }
 
         let message = lastFailureMessage
-            ?? "Binding local preview is active for Conference AI Assistant."
+            ?? "HAVEN local preview is active for Conference AI Assistant."
 
         return .object([
             "setup": .object([
-                "statusLabel": .string("Conference AI setup is available in Binding local preview."),
+                "statusLabel": .string("Conference AI setup is available in HAVEN local preview."),
                 "nextStep": .string("Draft prompts, profile changes, and session-key loading all work locally while the scaffold gateway reconnects."),
                 "providerLabel": .string("\(draftProviderID) · \(draftModel)"),
                 "credentialStatus": .string(credentialStatus),
-                "storageHint": .string("Binding keeps AI draft setup, prompt text, and session-key state available locally for the conference copilot."),
+                "storageHint": .string("HAVEN keeps AI draft setup, prompt text, and session-key state available locally for the conference copilot."),
                 "activeCredentialSource": .string(activeCredentialSource),
                 "lastMessage": .string(message),
                 "pendingEntryPresent": .bool(pendingEntryPresent),
@@ -3322,7 +3322,7 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     }
 
     private func localPreviewMessage(after remoteFailure: String) -> String {
-        "Binding local preview is active because the scaffold AI gateway is currently unavailable. \(remoteFailure)"
+        "HAVEN local preview is active because the scaffold AI gateway is currently unavailable. \(remoteFailure)"
     }
 
     private func gatewayFailureDetail(from value: ValueType) -> String? {
@@ -3335,11 +3335,11 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
 
         return [
             "setup": .object([
-                "statusLabel": .string("Conference AI gateway er utilgjengelig i Binding."),
+                "statusLabel": .string("Conference AI gateway er utilgjengelig i HAVEN."),
                 "nextStep": .string("Participant-konteksten er lastet, men embedded AIGateway ble ikke lesbar. Dette er en gateway-/bridge-feil, ikke en manglende prompt."),
                 "providerLabel": .string(resolvedEndpoint),
                 "credentialStatus": .string("En session key kan buffers lokalt, men ingen lesbar gateway var tilgjengelig for aa bruke den."),
-                "storageHint": .string("Binding registrerer forelopig ikke en lokal AIGateway-cell. Live AI-path avhenger derfor av en lesbar scaffold-gateway over bridgehead."),
+                "storageHint": .string("HAVEN registrerer forelopig ikke en lokal AIGateway-cell. Live AI-path avhenger derfor av en lesbar scaffold-gateway over bridgehead."),
                 "activeCredentialSource": .string("Ingen aktiv gateway"),
                 "lastMessage": .string(lastFailureMessage ?? message),
                 "pendingEntryPresent": .bool(pendingEntryPresent),
@@ -4961,7 +4961,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             precisionSummary = "Using MPC-only proximity. Direction and distance stay less precise until UWB is available."
         }
 
-        let localityNote = "Binding-local spatial enrichment over EntityScanner. This augments conference discovery without replacing the portable scaffold contract."
+        let localityNote = "HAVEN-local spatial enrichment over EntityScanner. This augments conference discovery without replacing the portable scaffold contract."
         let spatialTruthSummary: String
         if displayEntities.isEmpty {
             spatialTruthSummary = "Når nearby-signaler dukker opp, viser vi presis retning bare når sensoren faktisk gir retning."
@@ -7063,7 +7063,7 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
             )
 
             var mergedDiscovery = mergedDiscoveryState(from: discoveryObject)
-            mergedDiscovery["sourceSummary"] = .string("Discovery bruker lokal preview i Binding for å holde deltagerportalen stabil mens øvrige data kobler seg til.")
+            mergedDiscovery["sourceSummary"] = .string("Discovery bruker lokal preview i HAVEN for å holde deltagerportalen stabil mens øvrige data kobler seg til.")
             cachedDiscoveryState = mergedDiscovery
             lastRefreshAt = Date()
         } catch {
@@ -8760,7 +8760,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         merged["launchSummary"] = .string(string(from: merged["selectionSummary"]) ?? "Start chat fra deltagerportalen for å gjøre en delt tråd klar her.")
         merged["conversationSummary"] = .string(string(from: merged["threadSummary"]) ?? "0 delte tråder synlige.")
         merged["messageSummary"] = .string(string(from: merged["recentMessagesSummary"]) ?? "0 delte meldinger synlige.")
-        merged["bridgeSummary"] = .string("Binding local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state.")
+        merged["bridgeSummary"] = .string("HAVEN local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state.")
         merged["nextAction"] = .string(string(from: merged["nextStepSummary"]) ?? "Start en chat i deltagerportalen først.")
         merged["participantsSummary"] = .string(participantSummary(focusedName: effectiveFocusedName, connectionCount: connectionRows.count))
         merged["participants"] = .list(participantRows(focusedName: effectiveFocusedName, persona: focusedPersona, connectionRows: connectionRows).map(ValueType.object))
@@ -8799,7 +8799,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         var rows: [Object] = [[
             "title": .string("Deg"),
             "subtitle": .string("You"),
-            "detail": .string("Conference participant using Binding"),
+            "detail": .string("Conference participant using HAVEN"),
             "note": .string("Shared-relation safe sender")
         ]]
 
@@ -9497,7 +9497,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
             "recentMessagesSummary": .string("0 delte meldinger synlige."),
             "messageSummary": .string("0 delte meldinger synlige."),
             "chatSummary": .string("0 delte meldinger synlige."),
-            "bridgeSummary": .string("Binding local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state."),
+            "bridgeSummary": .string("HAVEN local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state."),
             "personaSummary": .string("Ingen demo-deltager er valgt ennå."),
             "personaDetail": .string("Når en tråd er valgt, viser vi offentlig profil og samtalestil for demo-deltageren her."),
             "simulationSummary": .string("Svarene i demoen er bounded og følger valgt deltagerprofil."),
@@ -9719,13 +9719,13 @@ nonisolated enum ConferenceIdentityLinkSupport {
             proofAlgorithm: proofAlgorithm,
             sourceSummary: sourceSummary,
             statusSummary: admissionStatusSummary
-                ?? "Incoming identity-link challenge klar for review. Binding viser challenge-data og lokal key-possession før scaffold/web fullfører approval.",
+                ?? "Incoming identity-link challenge klar for review. HAVEN viser challenge-data og lokal key-possession før scaffold/web fullfører approval.",
             challengeSummary: challengeSummary,
             audienceSummary: effectiveAudience.map { "Audience: \($0)" } ?? "Audience mangler i challenge-data.",
             originSummary: effectiveOrigin.map { "Origin: \($0)" } ?? "Origin mangler i challenge-data.",
             entitySummary: effectiveEntity.map { "Entity anchor: \($0)" } ?? "Entity anchor ikke oppgitt i challenge-data.",
             deviceSummary: {
-                let identityPart = effectiveIdentityLabel.map { "Ny Binding-identitet: \($0)" } ?? "Ny Binding-identitet ikke navngitt ennå."
+                let identityPart = effectiveIdentityLabel.map { "Ny HAVEN-identitet: \($0)" } ?? "Ny HAVEN-identitet ikke navngitt ennå."
                 let devicePart = effectiveDeviceLabel.map { "Device: \($0)" } ?? "Device label mangler."
                 return "\(identityPart) · \(devicePart)"
             }(),
@@ -9798,7 +9798,7 @@ actor ConferenceIdentityLinkInboxStore {
 
     private var draftInput = ""
     private var incomingChallenge: ConferenceIdentityLinkParsedChallenge?
-    private var localIdentitySummary = "Ingen lokal Binding-identitet er bekreftet i denne flaten ennå."
+    private var localIdentitySummary = "Ingen lokal HAVEN-identitet er bekreftet i denne flaten ennå."
     private var confirmationStatus = "Lokal brukerbekreftelse mangler."
     private var actionSummary = "Åpne en haven://identity-link-lenke eller lim inn challenge-data for å starte review."
     private var lastIntakeSource = "Ingen challenge mottatt ennå."
@@ -9809,7 +9809,7 @@ actor ConferenceIdentityLinkInboxStore {
     private var completionStatus = "Ingen completion package er importert ennå."
     private var completionSummary = "Lim inn en ekte CellProtocol IdentityLinkCompletionEnvelope fra staging når approval, SameEntityIdentityLinkCredential og verifier-bound VP er laget."
     private var completionRecordPreview = "Ingen active IdentityLinkRecord er skrevet ennå."
-    private var limitationSummary = "Binding gjør ekte challenge-intake, signerer CellProtocol IdentityEnrollmentRequest lokalt og fullfører bare mot EntityAnchor identityLinks når staging leverer en verifiserbar completion envelope."
+    private var limitationSummary = "HAVEN gjør ekte challenge-intake, signerer CellProtocol IdentityEnrollmentRequest lokalt og fullfører bare mot EntityAnchor identityLinks når staging leverer en verifiserbar completion envelope."
     private var nextStepSummary = "Når requesten er signert, godkjenn den i staging og lim inn completion envelope her for å skrive IdentityLinkRecord uten demo-bypass."
 
     private func defaultAdmissionState() -> Object {
@@ -9835,7 +9835,7 @@ actor ConferenceIdentityLinkInboxStore {
         incomingChallenge = parsed
         lastIntakeSource = parsed.sourceSummary
         actionSummary = "Lastet challenge-data fra deep link. Kontroller audience, scopes og lokal identitet før du går videre."
-        nextStepSummary = "Signer lokal CellProtocol IdentityEnrollmentRequest i Binding, godkjenn den i staging, og lim inn completion envelope her."
+        nextStepSummary = "Signer lokal CellProtocol IdentityEnrollmentRequest i HAVEN, godkjenn den i staging, og lim inn completion envelope her."
         return true
     }
 
@@ -9855,14 +9855,14 @@ actor ConferenceIdentityLinkInboxStore {
         incomingChallenge = parsed
         lastIntakeSource = parsed.sourceSummary
         actionSummary = "Tolket challenge-data fra innlimt payload. Kontroller audience, scopes og origin før du går videre."
-        nextStepSummary = "Signer lokal CellProtocol IdentityEnrollmentRequest i Binding, godkjenn den i staging, og lim inn completion envelope her."
+        nextStepSummary = "Signer lokal CellProtocol IdentityEnrollmentRequest i HAVEN, godkjenn den i staging, og lim inn completion envelope her."
         return true
     }
 
     func clear() {
         draftInput = ""
         incomingChallenge = nil
-        localIdentitySummary = "Ingen lokal Binding-identitet er bekreftet i denne flaten ennå."
+        localIdentitySummary = "Ingen lokal HAVEN-identitet er bekreftet i denne flaten ennå."
         confirmationStatus = "Lokal brukerbekreftelse mangler."
         actionSummary = "Åpne en haven://identity-link-lenke eller lim inn challenge-data for å starte review."
         lastIntakeSource = "Ingen challenge mottatt ennå."
@@ -9873,7 +9873,7 @@ actor ConferenceIdentityLinkInboxStore {
         completionStatus = "Ingen completion package er importert ennå."
         completionSummary = "Lim inn en ekte CellProtocol IdentityLinkCompletionEnvelope fra staging når approval, SameEntityIdentityLinkCredential og verifier-bound VP er laget."
         completionRecordPreview = "Ingen active IdentityLinkRecord er skrevet ennå."
-        nextStepSummary = "Når challenge-data er synlig, signer lokal IdentityEnrollmentRequest i Binding, godkjenn den i staging, og lim inn completion envelope her."
+        nextStepSummary = "Når challenge-data er synlig, signer lokal IdentityEnrollmentRequest i HAVEN, godkjenn den i staging, og lim inn completion envelope her."
     }
 
     func helperConfiguration() -> CellConfiguration? {
@@ -9887,7 +9887,7 @@ actor ConferenceIdentityLinkInboxStore {
             return
         }
         guard let identity else {
-            confirmationStatus = "Binding fant ingen lokal private-identitet å bekrefte."
+            confirmationStatus = "HAVEN fant ingen lokal private-identitet å bekrefte."
             actionSummary = "Lokal key-possession kunne ikke bekreftes."
             return
         }
@@ -9897,29 +9897,29 @@ actor ConferenceIdentityLinkInboxStore {
 
         let label = identity.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let identityLabel = label.isEmpty ? identity.uuid : label
-        localIdentitySummary = "Binding signerte en CellProtocol IdentityEnrollmentRequest for \(identityLabel) i private-domenet. Lokal private key ble brukt uten å eksporteres."
+        localIdentitySummary = "HAVEN signerte en CellProtocol IdentityEnrollmentRequest for \(identityLabel) i private-domenet. Lokal private key ble brukt uten å eksporteres."
         confirmationStatus = "Signert enrollment request klar. Dette er lokal proof-of-possession, ikke ferdig same-entity approval."
         localProofSummary = "Request hash \(signedRequest.requestHashBase64URL) · \(signedRequest.algorithmSummary) · signature \(signedRequest.signaturePreview)"
         enrollmentRequestPreview = signedRequest.preview
         enrollmentRequestValue = signedRequest.value
         completionSummary = "Requesten er klar for staging approval. Completion krever en envelope med approval, SameEntityIdentityLinkCredential, verifier-bound VP, issuerIdentity og expected verifier binding."
-        actionSummary = "Lokal Binding-identitet har signert requesten. Fullfør approval i staging, og lim inn completion envelope under."
+        actionSummary = "Lokal HAVEN-identitet har signert requesten. Fullfør approval i staging, og lim inn completion envelope under."
         nextStepSummary = "Gå tilbake til Scaffold Setup & Identity Link i web, godkjenn requesten der, utsted SameEntityIdentityLinkCredential/VP, og fullfør så her via EntityAnchor identityLinks.completeEnrollment."
     }
 
     func completeApprovedLink(with identity: Identity?) async {
         guard let identity else {
-            completionStatus = "Binding fant ingen lokal private-identitet å fullføre mot."
+            completionStatus = "HAVEN fant ingen lokal private-identitet å fullføre mot."
             completionSummary = "Completion ble ikke sendt til EntityAnchor fordi lokal key-possession mangler."
             return
         }
         guard let payload = Self.decodeCompletionEnvelope(from: completionPackageInput) else {
             completionStatus = "Klarte ikke å lese completion package som CellProtocol IdentityLinkCompletionEnvelope."
-            completionSummary = "Lim inn rå JSON eller base64url-enkodet JSON fra staging-kontrakten. Binding lager ikke syntetisk approval eller VP."
+            completionSummary = "Lim inn rå JSON eller base64url-enkodet JSON fra staging-kontrakten. HAVEN lager ikke syntetisk approval eller VP."
             return
         }
         guard payload.envelope.request.newIdentity.uuid == identity.uuid else {
-            completionStatus = "Completion package gjelder ikke denne lokale Binding-identiteten."
+            completionStatus = "Completion package gjelder ikke denne lokale HAVEN-identiteten."
             completionSummary = "Envelope subject \(payload.envelope.request.newIdentity.uuid) matcher ikke lokal identitet \(identity.uuid). Importer riktig package eller bytt lokal identitet."
             return
         }
@@ -9940,7 +9940,7 @@ actor ConferenceIdentityLinkInboxStore {
             completionSummary = "Approval JTI er markert brukt, SameEntityIdentityLinkCredential/VP er verifisert, og replay vil avvises av identityLinks-store."
             completionRecordPreview = Self.recordPreview(from: response)
             actionSummary = "EntityAnchor skrev en active IdentityLinkRecord fra ekte completion envelope."
-            nextStepSummary = "Identity-link er aktiv. Du kan nå bruke identityLinks-recorden som bevis på at Binding-identiteten hører til samme Entity."
+            nextStepSummary = "Identity-link er aktiv. Du kan nå bruke identityLinks-recorden som bevis på at HAVEN-identiteten hører til samme Entity."
         } catch {
             completionStatus = "identityLinks.completeEnrollment feilet: \(error)"
             completionSummary = "Completion ble avvist av CellProtocol/EntityAnchor. Ingen record ble skrevet."
@@ -9952,8 +9952,8 @@ actor ConferenceIdentityLinkInboxStore {
         return [
             "workspace": .object([
                 "title": .string("Conference Scaffold Setup & Identity Link"),
-                "subtitle": .string("Mobil intake for scaffold setup og cross-vault identity-link challenges. Denne flaten viser hva som faktisk er på vei inn til Binding, og hva som fortsatt må fullføres i den delte protokollen."),
-                "notice": .string("Ingen skjult global identitet. Ingen demo-bypass. Binding viser incoming challenge-data, requested scopes og lokal key-possession eksplisitt.")
+                "subtitle": .string("Mobil intake for scaffold setup og cross-vault identity-link challenges. Denne flaten viser hva som faktisk er på vei inn til HAVEN, og hva som fortsatt må fullføres i den delte protokollen."),
+                "notice": .string("Ingen skjult global identitet. Ingen demo-bypass. HAVEN viser incoming challenge-data, requested scopes og lokal key-possession eksplisitt.")
             ]),
             "incoming": .object([
                 "statusSummary": .string(challenge?.statusSummary ?? "Ingen identity-link challenge synlig ennå."),
@@ -9962,7 +9962,7 @@ actor ConferenceIdentityLinkInboxStore {
                 "audienceSummary": .string(challenge?.audienceSummary ?? "Audience mangler til en challenge er lastet."),
                 "originSummary": .string(challenge?.originSummary ?? "Origin mangler til en challenge er lastet."),
                 "entitySummary": .string(challenge?.entitySummary ?? "Entity anchor blir vist når requesten er lastet."),
-                "deviceSummary": .string(challenge?.deviceSummary ?? "Ny Binding-identitet og device label vises når requesten er lest."),
+                "deviceSummary": .string(challenge?.deviceSummary ?? "Ny HAVEN-identitet og device label vises når requesten er lest."),
                 "domainSummary": .string(challenge?.domainSummary ?? "Requested domains vises når challenge-data er lastet."),
                 "contextSummary": .string(challenge?.contextSummary ?? "Requested contexts vises når challenge-data er lastet."),
                 "scopeSummary": .string(challenge?.scopeSummary ?? "Requested scopes vises når challenge-data er lastet."),
@@ -10006,54 +10006,54 @@ actor ConferenceIdentityLinkInboxStore {
         guard let publicSecureKey = identity.publicSecureKey,
               let publicKey = publicSecureKey.compressedKey,
               publicKey.isEmpty == false else {
-            confirmationStatus = "Binding fant ingen offentlig signeringsnøkkel for lokal identitet."
+            confirmationStatus = "HAVEN fant ingen offentlig signeringsnøkkel for lokal identitet."
             actionSummary = "Kan ikke lage CellProtocol IdentityEnrollmentRequest uten lokal signeringsnøkkel."
             return nil
         }
         guard let challengeNonce = challenge.challenge,
               challengeNonce.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            confirmationStatus = "Challenge/nonce mangler, så Binding nekter å signere enrollment request."
+            confirmationStatus = "Challenge/nonce mangler, så HAVEN nekter å signere enrollment request."
             actionSummary = "Importer en challenge med nonce før lokal proof-of-possession kan lages."
             return nil
         }
         guard let nonceData = Self.decodeBase64URL(challengeNonce),
               nonceData.count >= 16 else {
-            confirmationStatus = "Challenge/nonce er ikke gyldig base64url med minst 128 bit. Binding nekter å signere."
+            confirmationStatus = "Challenge/nonce er ikke gyldig base64url med minst 128 bit. HAVEN nekter å signere."
             actionSummary = "Hent en ny identity-link challenge med kryptografisk sterk nonce."
             return nil
         }
         guard challenge.purpose == "link_identity" else {
-            confirmationStatus = "Purpose er \(challenge.purpose), ikke link_identity. Binding nekter å signere."
+            confirmationStatus = "Purpose er \(challenge.purpose), ikke link_identity. HAVEN nekter å signere."
             actionSummary = "Importer en identity-link challenge med riktig CellProtocol purpose."
             return nil
         }
         guard let audience = challenge.audience,
               audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            confirmationStatus = "Audience mangler, så Binding nekter å signere enrollment request."
+            confirmationStatus = "Audience mangler, så HAVEN nekter å signere enrollment request."
             actionSummary = "Importer en audience-bound challenge før lokal proof-of-possession kan lages."
             return nil
         }
         guard let origin = challenge.origin,
               origin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            confirmationStatus = "Origin mangler, så Binding nekter å signere enrollment request."
+            confirmationStatus = "Origin mangler, så HAVEN nekter å signere enrollment request."
             actionSummary = "Importer en origin-bound challenge før lokal proof-of-possession kan lages."
             return nil
         }
         guard !challenge.requestedDomains.isEmpty,
               !challenge.requestedIdentityContexts.isEmpty,
               !challenge.requestedScopes.isEmpty else {
-            confirmationStatus = "Domains, identity contexts eller scopes mangler. Binding nekter å signere."
+            confirmationStatus = "Domains, identity contexts eller scopes mangler. HAVEN nekter å signere."
             actionSummary = "Importer en scope-bound challenge før lokal proof-of-possession kan lages."
             return nil
         }
         guard let requestedExpiry = challenge.expiresAt,
               let expiryDate = ISO8601DateFormatter().date(from: requestedExpiry) else {
-            confirmationStatus = "Expiry mangler eller er ugyldig. Binding nekter å signere enrollment request."
+            confirmationStatus = "Expiry mangler eller er ugyldig. HAVEN nekter å signere enrollment request."
             actionSummary = "Importer en kortlivet challenge med gyldig expiresAt."
             return nil
         }
         guard expiryDate >= Date() else {
-            confirmationStatus = "Challenge er utløpt. Binding nekter å signere enrollment request."
+            confirmationStatus = "Challenge er utløpt. HAVEN nekter å signere enrollment request."
             actionSummary = "Hent en ny identity-link challenge før du fortsetter."
             return nil
         }
@@ -10096,7 +10096,7 @@ actor ConferenceIdentityLinkInboxStore {
             let canonicalPayload = try request.canonicalPayloadData()
             guard let signature = try await identity.sign(data: canonicalPayload) else {
                 confirmationStatus = "Lokal IdentityVault returnerte ingen signatur."
-                actionSummary = "Kan ikke fortsette før Binding kan signere enrollment requesten."
+                actionSummary = "Kan ikke fortsette før HAVEN kan signere enrollment requesten."
                 return nil
             }
             request.proof = IdentityEnrollmentRequestProof(
@@ -10118,7 +10118,7 @@ actor ConferenceIdentityLinkInboxStore {
             )
         } catch {
             confirmationStatus = "Signering av IdentityEnrollmentRequest feilet: \(error)"
-            actionSummary = "Binding laget ikke noe proof fordi signeringen feilet."
+            actionSummary = "HAVEN laget ikke noe proof fordi signeringen feilet."
             return nil
         }
     }
@@ -10209,7 +10209,7 @@ actor ConferenceIdentityLinkInboxStore {
     private static func recordPreview(from response: ValueType?) -> String {
         guard case let .object(object)? = response,
               case let .object(record)? = object["record"] else {
-            return "Completion ble lagret, men Binding fant ikke record preview i response."
+            return "Completion ble lagret, men HAVEN fant ikke record preview i response."
         }
         let linkID = stringValue(record["linkID"]) ?? "ukjent linkID"
         let status = stringValue(record["status"]) ?? "ukjent status"
@@ -10504,7 +10504,7 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
         case "launcher.openPublicSurface":
             return "Åpner den publiserte conference-flaten først."
         case "launcher.openIdentityLink":
-            return "Åpner scaffold setup og identity-link review i Binding."
+            return "Åpner scaffold setup og identity-link review i HAVEN."
         case "launcher.openParticipantCockpit":
             return "Åpner deltagerportalen i samme demo-løp."
         case "launcher.openParticipantChat":
@@ -10531,14 +10531,14 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
 
     private static func defaultState() -> Object {
         [
-            "intro": .string("Dette er Binding sin parity-launcher for conference-demoen. Den holder seg til eksisterende conference-konfigurasjoner og bruker samme Porthole-session hele veien."),
+            "intro": .string("Dette er HAVEN sin parity-launcher for conference-demoen. Den holder seg til eksisterende conference-konfigurasjoner og bruker samme Porthole-session hele veien."),
             "statusSummary": .string("Launcheren er klar. Start med den publiserte public surface før du går videre til participant eller organizer."),
             "actionSummary": .string("Velg en act under for å åpne neste conference-flate."),
             "nextStepSummary": .string("Act 0 åpner public surface. Act 0.5 åpner scaffold setup og identity-link review. Derfra går du videre til participant cockpit, chat og control tower."),
-            "readinessSummary": .string("Public opener, scaffold setup / identity link review, participant cockpit, explicit chat, control tower og AI assistant er tilgjengelige som egne konfigurasjoner i Binding."),
-            "stretchSummary": .string("Nearby-radar forblir en tydelig merket Binding-only stretch, og er ikke del av den staging-first demo-historien."),
+            "readinessSummary": .string("Public opener, scaffold setup / identity link review, participant cockpit, explicit chat, control tower og AI assistant er tilgjengelige som egne konfigurasjoner i HAVEN."),
+            "stretchSummary": .string("Nearby-radar forblir en tydelig merket HAVEN-only stretch, og er ikke del av den staging-first demo-historien."),
             "publicActSummary": .string("Vis publisert landing, spor og program som faktisk kommer fra CellScaffold på staging."),
-            "identityLinkActSummary": .string("Åpne scaffold setup og review incoming identity-link challenge-data i Binding uten å omgå den delte cross-vault-protokollen."),
+            "identityLinkActSummary": .string("Åpne scaffold setup og review incoming identity-link challenge-data i HAVEN uten å omgå den delte cross-vault-protokollen."),
             "participantActSummary": .string("Fortsett i participant-portalen og åpne chatflaten eksplisitt når samtalen er startet."),
             "organizerActSummary": .string("Bytt deretter til control tower eller AI assistant for organizer-/briefing-perspektivet.")
         ]

@@ -1132,7 +1132,7 @@ struct ContentView: View {
         }
         .scrollContentBackground(.hidden)
         .background(personalCopilotPlatformSurfaceColor)
-        .navigationTitle("Binding")
+        .navigationTitle("HAVEN")
     }
 
     private func personalCopilotSidebarSection(
@@ -1628,7 +1628,7 @@ struct ContentView: View {
             requester = await privateRequesterIdentity()
         }
         guard let requester else {
-            loadErrorMessage = "Kunne ikke klargjøre Co-Pilot-hjelp fordi Binding mangler requester-identitet."
+            loadErrorMessage = "Kunne ikke klargjøre Co-Pilot-hjelp fordi HAVEN mangler requester-identitet."
             return
         }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
@@ -4649,7 +4649,7 @@ struct ContentView: View {
 
     private var runtimeDerivedDataToken: String {
         let components = Bundle.main.bundleURL.pathComponents
-        if let derivedDataComponent = components.last(where: { $0.hasPrefix("Binding-") && $0 != "Binding.app" }) {
+        if let derivedDataComponent = components.last(where: { ($0.hasPrefix("Binding-") || $0.hasPrefix("HAVEN-")) && $0 != "Binding.app" && $0 != "HAVEN.app" }) {
             return derivedDataComponent
         }
         return Bundle.main.bundleURL.deletingPathExtension().lastPathComponent
@@ -5213,7 +5213,7 @@ struct ContentView: View {
                 endpoint: endpoint,
                 resolver: resolver,
                 requester: requester,
-                accessLabel: "Binding load: \(configuration.name)"
+                accessLabel: "HAVEN load: \(configuration.name)"
             )
         }
     }
@@ -5423,7 +5423,7 @@ struct ContentView: View {
         placeholderSkeleton(
             title: configuration.name,
             status: "Laster innhold…",
-            detail: "Binding venter på at preview-state og bridge-references skal bli lesbare."
+            detail: "HAVEN venter på at preview-state og bridge-references skal bli lesbare."
         )
     }
 

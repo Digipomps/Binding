@@ -5,7 +5,7 @@ ROOT="/Users/kjetil/Build/Digipomps/HAVEN/Binding"
 MODE="${1:-all}"
 OUT_DIR="${2:-/tmp/binding-skeleton-parity-$(date +%Y%m%d-%H%M%S)}"
 PROJECT="$ROOT/Binding.xcodeproj"
-SCHEME="Binding"
+SCHEME="HAVEN"
 DESTINATION="platform=macOS"
 REMOTE_SENTINEL="/tmp/binding-enable-remote-parity.flag"
 

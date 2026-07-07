@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 
 xcodebuild \
   -project Binding.xcodeproj \
-  -scheme Binding \
+  -scheme HAVEN \
   -destination 'platform=macOS,arch=arm64' \
   test \
   "$@"

@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>HAVEN</string>
+	<key>CFBundleName</key>
+	<string>HAVEN</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -70,7 +72,7 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Binding Component Palette Item</string>
+			<string>HAVEN Component Palette Item</string>
 			<key>UTTypeIdentifier</key>
 			<string>app.binding.componentpaletteitem</string>
 			<key>UTTypeTagSpecification</key>

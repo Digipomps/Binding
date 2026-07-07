@@ -110,7 +110,7 @@ final class NotificationEnrollmentManager: ObservableObject {
                 UIApplication.shared.registerForRemoteNotifications()
             } else {
                 isDeviceRegistered = false
-                lastRegistrationError = "Varslingstillatelse mangler. Slå på varsler for Binding i iOS Settings."
+                lastRegistrationError = "Varslingstillatelse mangler. Slå på varsler for HAVEN i iOS Settings."
             }
         } catch {
             isDeviceRegistered = false
@@ -128,7 +128,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         if pushPermissionGranted {
             UIApplication.shared.registerForRemoteNotifications()
         } else if !needsTermsAcceptance {
-            lastRegistrationError = "Varslingstillatelse mangler. Slå på varsler for Binding i iOS Settings."
+            lastRegistrationError = "Varslingstillatelse mangler. Slå på varsler for HAVEN i iOS Settings."
             isDeviceRegistered = false
             return
         }
@@ -224,7 +224,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         } catch {
             lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
             isDeviceRegistered = false
-            print("Binding notification device registration failed: \(error)")
+            print("HAVEN notification device registration failed: \(error)")
         }
     }
 

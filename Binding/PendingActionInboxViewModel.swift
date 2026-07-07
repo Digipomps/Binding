@@ -111,7 +111,7 @@ final class PendingActionInboxViewModel: ObservableObject {
             let data = try JSONEncoder().encode(actions)
             defaults.set(data, forKey: storageKey)
         } catch {
-            print("Binding pending action persistence failed: \(error)")
+            print("HAVEN pending action persistence failed: \(error)")
         }
     }
 
@@ -126,7 +126,7 @@ final class PendingActionInboxViewModel: ObservableObject {
             return normalized(try JSONDecoder().decode([PendingDeviceAction].self, from: data))
         } catch {
             defaults.removeObject(forKey: storageKey)
-            print("Binding pending action restore failed: \(error)")
+            print("HAVEN pending action restore failed: \(error)")
             return []
         }
     }

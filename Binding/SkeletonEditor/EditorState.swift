@@ -276,7 +276,7 @@ final class EditorState: ObservableObject {
         if keepingDirtyDraft || context.hasStoredOverride {
             return "Original CellConfiguration er endret i \(sourceLabel). Din lokale skeleton-draft er beholdt, men oppdater eller forkast lokale endringer før du skriver tilbake til kilden."
         }
-        return "Original CellConfiguration er endret i \(sourceLabel). Binding har oppdatert visningen fra kilden."
+        return "Original CellConfiguration er endret i \(sourceLabel). HAVEN har oppdatert visningen fra kilden."
     }
 
     func dropTargets(for recipe: ComponentInsertionRecipe) -> [DropTargetDescriptor] {

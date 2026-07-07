@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT="/Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj"
-SCHEME="Binding"
+SCHEME="HAVEN"
 DESTINATION="platform=macOS"
 
 surface="${1:-all}"

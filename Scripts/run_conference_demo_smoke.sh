@@ -1,9 +1,9 @@
 #!/bin/zsh
 set -euo pipefail
 
-APP_BINARY="${BINDING_APP_BINARY:-/Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-erntjstdfcrbeachccbemadrrbon/Build/Products/Debug/Binding.app/Contents/MacOS/Binding}"
+APP_BINARY="${HAVEN_APP_BINARY:-${BINDING_APP_BINARY:-/Users/kjetil/Library/Developer/Xcode/DerivedData/Binding-erntjstdfcrbeachccbemadrrbon/Build/Products/Debug/HAVEN.app/Contents/MacOS/HAVEN}}"
 OUT_DIR="${1:-/tmp/binding-conference-smoke-$(date +%Y%m%d-%H%M%S)}"
-APP_NAME="Binding"
+APP_NAME="HAVEN"
 AUTOMATION_MENU="Conference Automation"
 MODULE_CACHE_DIR="${BINDING_MODULE_CACHE_DIR:-$OUT_DIR/clang-module-cache}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -18,13 +18,13 @@ mkdir -p "$MODULE_CACHE_DIR"
 export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR"
 
 if [[ ! -x "$APP_BINARY" ]]; then
-  echo "Binding binary not found or not executable: $APP_BINARY" >&2
+  echo "HAVEN binary not found or not executable: $APP_BINARY" >&2
   exit 66
 fi
 
 window_id() {
   local target_pid="$1"
-  swift -e "import Cocoa; let targetPID = $target_pid; let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []; for info in infos { if let owner = info[kCGWindowOwnerName as String] as? String, owner == \"Binding\", let pid = info[kCGWindowOwnerPID as String] as? Int, pid == targetPID, let id = info[kCGWindowNumber as String] as? Int { print(id); break } }"
+  swift -e "import Cocoa; let targetPID = $target_pid; let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []; for info in infos { if let owner = info[kCGWindowOwnerName as String] as? String, owner == \"HAVEN\", let pid = info[kCGWindowOwnerPID as String] as? Int, pid == targetPID, let id = info[kCGWindowNumber as String] as? Int { print(id); break } }"
 }
 
 window_bounds() {
@@ -33,7 +33,7 @@ window_bounds() {
 let targetPID = $target_pid
 let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
 for info in infos {
-  guard let owner = info[kCGWindowOwnerName as String] as? String, owner == \"Binding\" else { continue }
+  guard let owner = info[kCGWindowOwnerName as String] as? String, owner == \"HAVEN\" else { continue }
   let pid = info[kCGWindowOwnerPID as String] as? Int ?? -1
   guard pid == targetPID else { continue }
   let layer = info[kCGWindowLayer as String] as? Int ?? -1
@@ -62,7 +62,7 @@ wait_for_window() {
     fi
     sleep 1
   done
-  echo "Timed out waiting for Binding window" >&2
+  echo "Timed out waiting for HAVEN window" >&2
   return 1
 }
 
@@ -300,7 +300,7 @@ run_menu_action "$APP_PID" "Approve Agent Review" 5.0
 capture_step "$APP_PID" "agent-review-approved" 14
 
 echo >> "$OUT_DIR/report.md"
-echo "- Binding log: \`$OUT_DIR/binding.log\`" >> "$OUT_DIR/report.md"
+echo "- HAVEN log: \`$OUT_DIR/binding.log\`" >> "$OUT_DIR/report.md"
 
 validate_capture_hashes
 

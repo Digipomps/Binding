@@ -5384,7 +5384,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellEndpoint: "cell:///SkeletonParityTextFixture",
                 sourceCellName: "SkeletonParityTextFixture",
                 purpose: "Skeleton parity text fixture",
-                purposeDescription: "Deterministisk fixture for tekst-skeletoner brukt til Scaffold/Binding-paritet.",
+                purposeDescription: "Deterministisk fixture for tekst-skeletoner brukt til Scaffold/HAVEN-paritet.",
                 interests: ["skeleton", "parity", "fixture", "binding"],
                 menuSlots: [],
                 goal: referenceCardConfiguration(
@@ -5392,7 +5392,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                     endpoint: "cell:///SkeletonParityTextFixture",
                     label: "skeletonParityText",
                     title: "Skeleton Parity Text Fixture",
-                    subtitle: "Deterministic text fixture for Scaffold and Binding parity checks.",
+                    subtitle: "Deterministic text fixture for Scaffold and HAVEN parity checks.",
                     chip: "FIXTURE",
                     borderColor: "#475569"
                 ),
@@ -5401,12 +5401,12 @@ final class ConfigurationCatalogCell: GeneralCell {
                     endpoint: "cell:///SkeletonParityTextFixture",
                     label: "skeletonParityText",
                     title: "Skeleton Parity Text Fixture",
-                    subtitle: "Deterministic text fixture for Scaffold and Binding parity checks.",
+                    subtitle: "Deterministic text fixture for Scaffold and HAVEN parity checks.",
                     chip: "FIXTURE",
                     borderColor: "#475569"
                 ),
                 displayName: "Skeleton Parity Text Fixture",
-                summary: "Deterministic text fixture contract for Scaffold and Binding skeleton parity.",
+                summary: "Deterministic text fixture contract for Scaffold and HAVEN skeleton parity.",
                 categoryPath: ["skeleton-parity", "fixtures"],
                 tags: ["skeleton", "parity", "fixture", "text"],
                 purposeRefs: ["purpose://skeleton-parity-text-fixture"],
@@ -6124,9 +6124,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
                 displayName: "Conference Codex Live Configurations",
                 purpose: "Conference live configuration launcher",
-                purposeDescription: "Last inn de kjørbare konferanse-CellConfigurationene som finnes i Binding akkurat na, uten aa gjette paa skjulte demo-ruter eller stale dokumentasjonsfiler.",
+                purposeDescription: "Last inn de kjørbare konferanse-CellConfigurationene som finnes i HAVEN akkurat na, uten aa gjette paa skjulte demo-ruter eller stale dokumentasjonsfiler.",
                 interests: ["conference", "codex", "binding", "configurations", "launcher", "participant", "organizer", "sponsor", "public"],
-                summary: "Operator-/demo-innngang til de faktiske konferanseflatene som kan lastes i Binding na.",
+                summary: "Operator-/demo-innngang til de faktiske konferanseflatene som kan lastes i HAVEN na.",
                 categoryPath: ["experiences", "conference", "demo"],
                 tags: ["conference", "codex", "binding", "launcher", "configurations"],
                 menuSlots: [.upperMid, .lowerMid],
@@ -6142,7 +6142,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Conference Claude design reference",
                 purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de naavaerende konferanseflatene som matcher hver rolle best.",
                 interests: ["conference", "claude", "design", "reference", "visual-direction", "binding"],
-                summary: "Claude-designreferanse i Binding med tydelig mapping til dagens kjørbare conference-flater.",
+                summary: "Claude-designreferanse i HAVEN med tydelig mapping til dagens kjørbare conference-flater.",
                 categoryPath: ["experiences", "conference", "design"],
                 tags: ["conference", "claude", "design", "reference", "visual"],
                 menuSlots: [.upperRight, .lowerRight],
@@ -6156,9 +6156,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellName: "ConferenceDemoLauncherLocalCell",
                 displayName: "Conference Demo Launcher",
                 purpose: "Conference demo launcher",
-                purposeDescription: "Fast startflate for konferansedemoen i Binding. Hver knapp laster en eksisterende conference-konfigurasjon i samme Porthole-session, tett opp mot CellScaffold-historien.",
+                purposeDescription: "Fast startflate for konferansedemoen i HAVEN. Hver knapp laster en eksisterende conference-konfigurasjon i samme Porthole-session, tett opp mot CellScaffold-historien.",
                 interests: ["conference", "demo", "launcher", "participant", "organizer", "binding", "web"],
-                summary: "Deterministisk launcher for konferansedemoen i Binding, med public opener, participant cockpit, chat og control tower i fast rekkefølge.",
+                summary: "Deterministisk launcher for konferansedemoen i HAVEN, med public opener, participant cockpit, chat og control tower i fast rekkefølge.",
                 categoryPath: ["experiences", "conference", "demo"],
                 tags: ["conference", "demo", "launcher", "participant", "organizer"],
                 menuSlots: [.upperMid, .lowerMid],
@@ -6172,7 +6172,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellName: "ConferenceIdentityLinkIntakeCell",
                 displayName: "Conference Scaffold Setup & Identity Link",
                 purpose: "Conference scaffold setup and identity link review",
-                purposeDescription: "Mobil intake for scaffold setup og identity-link challenges. Binding viser incoming challenge-data, requested scopes og lokal key-ownership før web/scaffold fullfører approval.",
+                purposeDescription: "Mobil intake for scaffold setup og identity-link challenges. HAVEN viser incoming challenge-data, requested scopes og lokal key-ownership før web/scaffold fullfører approval.",
                 interests: ["conference", "identity-link", "setup", "enrollment", "scaffold", "proofs"],
                 summary: "Mobil inngang for scaffold setup, QR/deep-link challenge review og lokal key-possession før approval.",
                 categoryPath: ["experiences", "conference", "setup"],
@@ -6188,9 +6188,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellName: "ConferenceParticipantPreviewShellLocalFallbackCell",
                 displayName: "Conference Participant Portal Dashboard",
                 purpose: "Conference participantportal",
-                purposeDescription: "Participant-shell med agenda, people, meetings og shared relations over en lokal preview-wrapper i Binding.",
+                purposeDescription: "Participant-shell med agenda, people, meetings og shared relations over en lokal preview-wrapper i HAVEN.",
                 interests: ["conference", "participant", "dashboard", "agenda", "sessions", "matchmaking", "meetings"],
-                summary: "Participant-shell med agenda, anbefalinger og meeting timeline over lokal preview-wrapper i Binding.",
+                summary: "Participant-shell med agenda, anbefalinger og meeting timeline over lokal preview-wrapper i HAVEN.",
                 categoryPath: ["experiences", "conference", "participant"],
                 tags: ["conference", "participant", "agenda", "matchmaking", "meetings"],
                 menuSlots: [.upperMid, .lowerMid],
@@ -6220,9 +6220,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellName: "ConferenceAdminPreviewShellLocalFallbackCell",
                 displayName: "Conference Control Tower",
                 purpose: "Conference control tower",
-                purposeDescription: "Organizer-fokusert preview-wrapper for drift, innhold, innsikt og sponsor-oversikt i Binding.",
+                purposeDescription: "Organizer-fokusert preview-wrapper for drift, innhold, innsikt og sponsor-oversikt i HAVEN.",
                 interests: ["conference", "admin", "control-tower", "operations", "insights"],
-                summary: "Organizer control tower via lokal preview-wrapper i Binding.",
+                summary: "Organizer control tower via lokal preview-wrapper i HAVEN.",
                 categoryPath: ["experiences", "conference", "operations"],
                 tags: ["conference", "admin", "operations", "insights"],
                 menuSlots: [.upperRight],
@@ -6238,7 +6238,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Conference public website",
                 purposeDescription: "Landing, tracks, sessions, people, articles og facilities i samme public shell.",
                 interests: ["conference", "public", "landing", "tracks", "sessions", "articles"],
-                summary: "Public shell med landing, tracks, sessions, people og facilities via lokal demo-fixture i Binding.",
+                summary: "Public shell med landing, tracks, sessions, people og facilities via lokal demo-fixture i HAVEN.",
                 categoryPath: ["experiences", "conference", "public"],
                 tags: ["conference", "public", "landing", "program"],
                 menuSlots: [.upperLeft],
@@ -6254,7 +6254,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Conference sponsor follow-up",
                 purposeDescription: "Sponsor-owned shell for lead inbox, consent, unlock, export og retention.",
                 interests: ["conference", "sponsor", "lead-vault", "consent", "handoff", "retention"],
-                summary: "Sponsor shell med lead inbox, consent, unlock og retention via lokal demo-fixture i Binding.",
+                summary: "Sponsor shell med lead inbox, consent, unlock og retention via lokal demo-fixture i HAVEN.",
                 categoryPath: ["experiences", "conference", "sponsor"],
                 tags: ["conference", "sponsor", "leads", "retention", "consent"],
                 menuSlots: [.upperRight, .lowerMid],
@@ -6825,9 +6825,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellName: "AgentProvisioningCell",
                 displayName: "Agent Setup Workbench",
                 purpose: "Local HAVEN agent install and review boundary",
-                purposeDescription: "Install, start, connect and review `haven-agentd` from Binding without bypassing CellProtocol review boundaries.",
+                purposeDescription: "Install, start, connect and review `haven-agentd` from HAVEN without bypassing CellProtocol review boundaries.",
                 interests: ["agent", "haven-agentd", "automation", "review", "cellprotocol", "launchd"],
-                summary: "Operatorflate for lokal HAVEN-agent, control bridge og review queue i Binding.",
+                summary: "Operatorflate for lokal HAVEN-agent, control bridge og review queue i HAVEN.",
                 categoryPath: ["operations", "agent"],
                 tags: ["agent", "automation", "review", "launchd"],
                 menuSlots: [.upperMid, .lowerRight],
@@ -6869,9 +6869,9 @@ final class ConfigurationCatalogCell: GeneralCell {
                 sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
                 displayName: "Conference Codex Live Configurations",
                 purpose: "Conference live configuration launcher",
-                purposeDescription: "Last inn de kjørbare konferanse-CellConfigurationene som finnes i Binding akkurat na, uten aa gjette paa skjulte demo-ruter eller stale dokumentasjonsfiler.",
+                purposeDescription: "Last inn de kjørbare konferanse-CellConfigurationene som finnes i HAVEN akkurat na, uten aa gjette paa skjulte demo-ruter eller stale dokumentasjonsfiler.",
                 interests: ["conference", "codex", "binding", "configurations", "launcher", "participant", "organizer", "sponsor", "public"],
-                summary: "Operator-/demo-innngang til de faktiske konferanseflatene som kan lastes i Binding na.",
+                summary: "Operator-/demo-innngang til de faktiske konferanseflatene som kan lastes i HAVEN na.",
                 categoryPath: ["experiences", "conference", "demo"],
                 tags: ["conference", "codex", "binding", "launcher", "configurations"],
                 menuSlots: [.upperMid, .upperRight, .lowerMid],
@@ -6887,7 +6887,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 purpose: "Conference Claude design reference",
                 purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de naavaerende konferanseflatene som matcher hver rolle best.",
                 interests: ["conference", "claude", "design", "reference", "visual-direction", "binding"],
-                summary: "Claude-designreferanse i Binding med tydelig mapping til dagens kjørbare conference-flater.",
+                summary: "Claude-designreferanse i HAVEN med tydelig mapping til dagens kjørbare conference-flater.",
                 categoryPath: ["experiences", "conference", "design"],
                 tags: ["conference", "claude", "design", "reference", "visual"],
                 menuSlots: [.upperRight, .lowerRight],
@@ -7203,7 +7203,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         let policyLine = (descriptor.policyHints?.isEmpty == false ? descriptor.policyHints! : ["Private policy requirements are not declared in catalog metadata"]).joined(separator: " | ")
         let availabilityLine = isRemote
             ? "Dette er en remote/staging-konfigurasjon. Den er oppdagbar i katalogen hele tiden, men full runtime-funksjon avhenger av at remote cell er oppe."
-            : "Dette er en lokal runtime-konfigurasjon. Den skal virke uten staging sa lenge Binding registrerer cellen lokalt."
+            : "Dette er en lokal runtime-konfigurasjon. Den skal virke uten staging sa lenge HAVEN registrerer cellen lokalt."
         let isFlowDriven = descriptor.flowDriven ?? false
         let requiresAuth = descriptor.authRequired ?? false
         let behaviorLine = isFlowDriven
@@ -7493,14 +7493,14 @@ final class ConfigurationCatalogCell: GeneralCell {
         conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Participant Portal Dashboard",
-            summary: "Participant-shell med agenda, anbefalinger og meeting timeline over lokal preview-wrapper i Binding."
+            summary: "Participant-shell med agenda, anbefalinger og meeting timeline over lokal preview-wrapper i HAVEN."
         )
     }
 
     nonisolated static func conferenceDemoLauncherWorkbenchConfiguration() -> CellConfiguration {
         conferenceDemoLauncherWorkbenchConfiguration(
             displayName: "Conference Demo Launcher",
-            summary: "Deterministisk launcher for konferansedemoen i Binding, tett opp mot CellScaffold sin demo-historie."
+            summary: "Deterministisk launcher for konferansedemoen i HAVEN, tett opp mot CellScaffold sin demo-historie."
         )
     }
 
@@ -7517,7 +7517,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         conferenceNearbyRadarWorkbenchConfiguration(
             participantEndpoint: participantEndpoint,
             displayName: "Conference Nearby Radar · Full oversikt",
-            summary: "Binding-lokal nearby radar med scanner, retningssignal og conference follow-up-chat i en større arbeidsflate."
+            summary: "HAVEN-lokal nearby radar med scanner, retningssignal og conference follow-up-chat i en større arbeidsflate."
         )
     }
 
@@ -7557,7 +7557,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         conferenceAdminWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Control Tower",
-            summary: "Organizer control tower aligned with the current ConferenceAdminShell contract via lokal preview-wrapper i Binding."
+            summary: "Organizer control tower aligned with the current ConferenceAdminShell contract via lokal preview-wrapper i HAVEN."
         )
     }
 
@@ -7573,14 +7573,14 @@ final class ConfigurationCatalogCell: GeneralCell {
         conferenceSponsorWorkbenchConfiguration(
             endpoint: endpoint,
             displayName: "Conference Sponsor Follow-up",
-            summary: "Sponsor shell med lead inbox, consent, unlock og retention via lokal demo-fixture i Binding."
+            summary: "Sponsor shell med lead inbox, consent, unlock og retention via lokal demo-fixture i HAVEN."
         )
     }
 
     nonisolated static func agentSetupWorkbenchMenuConfiguration() -> CellConfiguration {
         agentSetupWorkbenchConfiguration(
             displayName: "Agent Setup Workbench",
-            summary: "Install, start, connect and review the local HAVEN agent directly from Binding."
+            summary: "Install, start, connect and review the local HAVEN agent directly from HAVEN."
         )
     }
 
@@ -7791,12 +7791,12 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated static func conferenceCodexLiveConfigurationsMenuConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Conference Codex Live Configurations")
-        configuration.description = "Launcher for de kjørbare konferanse-CellConfigurationene som finnes i Binding akkurat na."
+        configuration.description = "Launcher for de kjørbare konferanse-CellConfigurationene som finnes i HAVEN akkurat na."
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
             sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
             purpose: "Conference live configuration launcher",
-            purposeDescription: "Last inn de faktiske konferansekonfigurasjonene som finnes i Binding, med raske entry points for public, participant, AI assistant, control tower, sponsor, nearby og chat.",
+            purposeDescription: "Last inn de faktiske konferansekonfigurasjonene som finnes i HAVEN, med raske entry points for public, participant, AI assistant, control tower, sponsor, nearby og chat.",
             interests: ["conference", "codex", "binding", "configurations", "launcher", "participant", "organizer", "public", "sponsor"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -7807,13 +7807,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Conference Configurations",
                 content: [
                     conferenceShowcaseStaticText(
-                        "Dette er de konferanseflatene vi faktisk kan laste i Binding na. Bruk denne som demo-/operatorinngang i stedet for aa jakte paa skjulte testveier.",
+                        "Dette er de konferanseflatene vi faktisk kan laste i HAVEN na. Bruk denne som demo-/operatorinngang i stedet for aa jakte paa skjulte testveier.",
                         fontSize: 13,
                         foregroundColor: ConferenceSurfacePalette.textMuted,
                         lineLimit: 4
                     ),
                     conferenceShowcaseStaticText(
-                        "Knappene under aapner neste conference-flate i Binding, slik at hele vinduet bytter til riktig CellConfiguration.",
+                        "Knappene under aapner neste conference-flate i HAVEN, slik at hele vinduet bytter til riktig CellConfiguration.",
                         fontSize: 12,
                         foregroundColor: ConferenceSurfacePalette.accentCool,
                         lineLimit: 3
@@ -7840,7 +7840,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Core Surfaces",
                 content: [
                     conferenceShowcaseStaticText(
-                        "Start her hvis du vil vise den faktiske conference-opplevelsen i Binding.",
+                        "Start her hvis du vil vise den faktiske conference-opplevelsen i HAVEN.",
                         fontSize: 12,
                         foregroundColor: ConferenceSurfacePalette.textMuted,
                         lineLimit: 3
@@ -7947,7 +7947,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     nonisolated static func conferenceClaudeDesignReferenceMenuConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Conference Claude Design Reference")
-        configuration.description = "Loadbar Claude-designreferanse med aerlige notater om hva som faktisk er implementert i Binding na."
+        configuration.description = "Loadbar Claude-designreferanse med aerlige notater om hva som faktisk er implementert i HAVEN na."
         configuration.discovery = CellConfigurationDiscovery(
             sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
             sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
@@ -7963,7 +7963,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Claude Design Reference",
                 content: [
                     conferenceShowcaseStaticText(
-                        "Denne flaten er en designreferanse, ikke en paastand om at det finnes en separat skjult Claude-runtime i Binding. Bruk knappene under for aa aapne dagens kjørbare flater side om side med designretningen.",
+                        "Denne flaten er en designreferanse, ikke en paastand om at det finnes en separat skjult Claude-runtime i HAVEN. Bruk knappene under for aa aapne dagens kjørbare flater side om side med designretningen.",
                         fontSize: 13,
                         foregroundColor: ConferenceSurfacePalette.textMuted,
                         lineLimit: 6
@@ -10627,7 +10627,7 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
         summarySection.modifiers = BindingPersonalCopilotDesignSystem.keyValueCard()
 
-        var actionRowText = BindingPersonalCopilotDesignSystem.bodyText("Portable content still lives in the attached `CellConfiguration` contract. Binding owns shell chrome, loading state and policy context around it.", color: BindingPersonalCopilotDesignSystem.textSecondary, size: 13)
+        var actionRowText = BindingPersonalCopilotDesignSystem.bodyText("Portable content still lives in the attached `CellConfiguration` contract. HAVEN owns shell chrome, loading state and policy context around it.", color: BindingPersonalCopilotDesignSystem.textSecondary, size: 13)
         actionRowText.modifiers?.styleRole = "personal-action-row"
 
         var actionSection = SkeletonSection(
@@ -10791,7 +10791,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             sourceCellEndpoint: endpoint,
             sourceCellName: "ConferenceUIRouterCell",
             purpose: "Conference partnering og flyt",
-            purposeDescription: "Preview-drevet konferanseflate rendret fra skeleton, slik at Binding og web kan bruke samme CellConfiguration.",
+            purposeDescription: "Preview-drevet konferanseflate rendret fra skeleton, slik at HAVEN og web kan bruke samme CellConfiguration.",
             interests: ["conference", "events", "matchmaking", "scheduling", "agenda"],
             menuSlots: ["upperLeft", "upperRight"]
         )
@@ -10949,7 +10949,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.foregroundColor = ConferenceSurfacePalette.textMain
         }
 
-        var subtitle = SkeletonText(text: "Rendret som skeleton-preview over `ConferenceUIRouter`, slik at samme referanse og state kan absorberes i Binding, library og web.")
+        var subtitle = SkeletonText(text: "Rendret som skeleton-preview over `ConferenceUIRouter`, slik at samme referanse og state kan absorberes i HAVEN, library og web.")
         subtitle.modifiers = modifier {
             $0.foregroundColor = ConferenceSurfacePalette.textMuted
             $0.fontSize = 12
@@ -11004,7 +11004,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var workflowSection = SkeletonSection(
             header: .Text(sectionTitle("Workflow map")),
-            footer: .Text(bodyText("Screen cards gir et kompakt kart over onboarding, people, meetings og organizer-innsikt uten at Binding trenger en egen conference-view.")),
+            footer: .Text(bodyText("Screen cards gir et kompakt kart over onboarding, people, meetings og organizer-innsikt uten at HAVEN trenger en egen conference-view.")),
             content: [
                 .List(workflowList),
                 .HStack(SkeletonHStack(elements: [
@@ -11032,7 +11032,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         var operationsSection = SkeletonSection(
             header: .Text(sectionTitle("People and schedule")),
-            footer: .Text(bodyText("Denne flaten holder fast i `CellConfiguration` + `skeleton`: runtime-data kommer fra `conferenceUIRouter` og ikke fra Binding-spesifikke views.")),
+            footer: .Text(bodyText("Denne flaten holder fast i `CellConfiguration` + `skeleton`: runtime-data kommer fra `conferenceUIRouter` og ikke fra HAVEN-spesifikke views.")),
             content: [
                 .Text(keyText("conferenceUIRouter.state.peopleMatches.status", color: ConferenceSurfacePalette.textMuted, size: 12)),
                 .List(matchesList),
@@ -11050,8 +11050,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         var notesSection = SkeletonSection(
             header: .Text(sectionTitle("Runtime notes")),
             content: [
-                .Text(bodyText("Binding skal oversette remote host og bridgehead, men ellers behandle conference-surface likt som scaffolden.")),
-                .Text(bodyText("Hvis en keypath gir `notFound`, er det en runtime-/preview-avvik vi vil se i debug-panelet og ikke skjule med en Binding-only fallback.", color: ConferenceSurfacePalette.accentWarm))
+                .Text(bodyText("HAVEN skal oversette remote host og bridgehead, men ellers behandle conference-surface likt som scaffolden.")),
+                .Text(bodyText("Hvis en keypath gir `notFound`, er det en runtime-/preview-avvik vi vil se i debug-panelet og ikke skjule med en HAVEN-only fallback.", color: ConferenceSurfacePalette.accentWarm))
             ]
         )
         notesSection.modifiers = sectionCard
@@ -11088,8 +11088,8 @@ final class ConfigurationCatalogCell: GeneralCell {
                 : "ConferenceParticipantPreviewShellCell",
             purpose: "Conference participantportal",
             purposeDescription: usesLocalPreview
-                ? "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over en lokal preview-wrapper i Binding. Binding legger i tillegg på lokal scanner-enrichment."
-                : "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over preview-wrapper så samme contract kan brukes i Binding og scaffold. Binding legger i tillegg på lokal scanner-enrichment.",
+                ? "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over en lokal preview-wrapper i HAVEN. HAVEN legger i tillegg på lokal scanner-enrichment."
+                : "Participant-shell med agenda, discovery, anbefalte personer, møter og shared network, levert over preview-wrapper så samme contract kan brukes i HAVEN og scaffold. HAVEN legger i tillegg på lokal scanner-enrichment.",
             interests: ["conference", "participant", "agenda", "sessions", "matchmaking", "meetings", "network", "discovery", "nearby", "scanner"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -11148,7 +11148,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Runtime Notes",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Denne flaten holder seg til CellConfiguration + skeleton. Binding skal bare oversette remote host/bridgehead og ellers laste samme conference-kontrakt som scaffolden.",
+                        "Denne flaten holder seg til CellConfiguration + skeleton. HAVEN skal bare oversette remote host/bridgehead og ellers laste samme conference-kontrakt som scaffolden.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3"
                     ),
@@ -11184,7 +11184,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             sourceCellEndpoint: "cell:///ConferenceNearbyRadar",
             sourceCellName: "ConferenceNearbyRadarLocalCell",
             purpose: "Conference nearby radar",
-            purposeDescription: "Binding-lokal nearby-radar over EntityScanner for fysisk retning, nærhet og rask chat-oppfølging i konferanseflyten.",
+            purposeDescription: "HAVEN-lokal nearby-radar over EntityScanner for fysisk retning, nærhet og rask chat-oppfølging i konferanseflyten.",
             interests: ["conference", "nearby", "scanner", "radar", "uwb", "multipeer", "follow-up-chat"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -11379,7 +11379,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             sourceCellEndpoint: "cell:///ConferenceNearbyRadar",
             sourceCellName: "ConferenceNearbyRadarLocalCell",
             purpose: "Conference nearby participant profile",
-            purposeDescription: "Binding-lokal profilflate for valgt nearby-deltager med spatial kontekst, purpose-fit og rask oppfølging/chat.",
+            purposeDescription: "HAVEN-lokal profilflate for valgt nearby-deltager med spatial kontekst, purpose-fit og rask oppfølging/chat.",
             interests: ["conference", "nearby", "profile", "chat", "follow-up", "scanner"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -11578,7 +11578,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                         foregroundColor: "#F5FBFF"
                     ),
                     bindingConferencePortalStaticText(
-                        "Binding consumes the current ConferenceChatLaunch-style contract here: shared participants, active conversations, free-text composer and explicit send/draft actions.",
+                        "HAVEN consumes the current ConferenceChatLaunch-style contract here: shared participants, active conversations, free-text composer and explicit send/draft actions.",
                         fontSize: 12,
                         foregroundColor: "#B9FBC0",
                         lineLimit: 4
@@ -11661,7 +11661,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                         )
                     ),
                     bindingConferencePortalStaticText(
-                        "Messages stay shared-relation safe here. Binding should show the same chat contract without pretending this is organizer-owned private state.",
+                        "Messages stay shared-relation safe here. HAVEN should show the same chat contract without pretending this is organizer-owned private state.",
                         fontSize: 12,
                         foregroundColor: "#88A2B1",
                         lineLimit: 4
@@ -11719,7 +11719,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Demo Actions",
                 content: [
                     bindingConferencePortalStaticText(
-                        "These buttons exercise the same direct send path with concrete free-text payloads, so Binding verifies remote-style chat actions instead of a legacy snapshot-only flow.",
+                        "These buttons exercise the same direct send path with concrete free-text payloads, so HAVEN verifies remote-style chat actions instead of a legacy snapshot-only flow.",
                         fontSize: 12,
                         foregroundColor: "#9AB3C3",
                         lineLimit: 4
@@ -11766,7 +11766,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             sourceCellEndpoint: "cell:///ConferenceDemoLauncher",
             sourceCellName: "ConferenceDemoLauncherLocalCell",
             purpose: "Conference demo launcher",
-            purposeDescription: "Deterministisk startflate for conference-demoen i Binding. Hver knapp åpner en eksisterende conference-konfigurasjon i samme Porthole-session.",
+            purposeDescription: "Deterministisk startflate for conference-demoen i HAVEN. Hver knapp åpner en eksisterende conference-konfigurasjon i samme Porthole-session.",
             interests: ["conference", "demo", "launcher", "participant", "organizer", "binding", "web"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -11923,7 +11923,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             sourceCellEndpoint: "cell:///ConferenceIdentityLinkIntake",
             sourceCellName: "ConferenceIdentityLinkIntakeCell",
             purpose: "Conference scaffold setup and identity link",
-            purposeDescription: "Mobil intake for scaffold setup og cross-vault identity-link challenges. Binding viser incoming challenge-data, requested scopes og lokal key-possession før web/scaffold fullfører approval.",
+            purposeDescription: "Mobil intake for scaffold setup og cross-vault identity-link challenges. HAVEN viser incoming challenge-data, requested scopes og lokal key-possession før web/scaffold fullfører approval.",
             interests: ["conference", "identity-link", "setup", "enrollment", "proofs", "scaffold"],
             menuSlots: ["upperMid", "lowerMid"]
         )
@@ -11997,7 +11997,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Open or paste challenge data",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Åpne `haven://identity-link?...`, `haven://binding/add-device?...` eller lim inn QR/deep-link payload direkte her. Binding parser challenge-data uten å late som approval allerede er fullført.",
+                        "Åpne `haven://identity-link?...`, `haven://binding/add-device?...` eller lim inn QR/deep-link payload direkte her. HAVEN parser challenge-data uten å late som approval allerede er fullført.",
                         fontSize: 12,
                         foregroundColor: "#D7E7F2",
                         lineLimit: 5
@@ -12027,7 +12027,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ]
             ),
             bindingConferencePortalCardSection(
-                "Local Binding review",
+                "Local HAVEN review",
                 content: [
                     bindingConferencePortalKeyText("identityLink.state.review.localIdentitySummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
                     bindingConferencePortalKeyText("identityLink.state.review.confirmationStatus", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
@@ -12055,7 +12055,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 "Complete same-Entity link",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Lim inn completion envelope fra staging etter approval. Binding sender payloaden direkte til `identity.identityLinks.completeEnrollment`; ingen lokal mock, ingen antatt godkjenning.",
+                        "Lim inn completion envelope fra staging etter approval. HAVEN sender payloaden direkte til `identity.identityLinks.completeEnrollment`; ingen lokal mock, ingen antatt godkjenning.",
                         fontSize: 12,
                         foregroundColor: "#D7E7F2",
                         lineLimit: 5
@@ -13198,7 +13198,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             "Nearby Scanner Enrichment",
             content: [
             bindingConferencePortalStaticText(
-                "Binding enriches conference discovery with a local nearby-radar snapshot over EntityScanner. This stays Apple-local and does not replace the portable discovery contract from web/staging.",
+                "HAVEN enriches conference discovery with a local nearby-radar snapshot over EntityScanner. This stays Apple-local and does not replace the portable discovery contract from web/staging.",
                 fontSize: 12,
                 foregroundColor: "#9AB3C3",
                 lineLimit: 4
@@ -13884,7 +13884,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 : "ConferenceParticipantPreviewShellCell",
             purpose: "Conference copilot",
             purposeDescription: usesLocalPreview
-                ? "Kombiner den lokale participant-previewen med lokal AI-gateway for briefing, prioritering, matchmaking og follow-up i Binding."
+                ? "Kombiner den lokale participant-previewen med lokal AI-gateway for briefing, prioritering, matchmaking og follow-up i HAVEN."
                 : "Kombiner participant-shellens levende kontekst med embedded AIGateway for briefing, prioritering, matchmaking og follow-up.",
             interests: ["conference", "ai", "copilot", "participant", "matchmaking", "meetings", "prompting"],
             menuSlots: ["upperMid", "lowerMid"]
@@ -14230,7 +14230,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 : "ConferenceAdminPreviewShellCell",
             purpose: "Conference control tower",
             purposeDescription: usesLocalPreview
-                ? "Organizer-focused local preview wrapper in Binding for operations, content publishing, insights and sponsor overview."
+                ? "Organizer-focused local preview wrapper in HAVEN for operations, content publishing, insights and sponsor overview."
                 : "Organizer-focused preview wrapper for operations, content publishing, insights and sponsor overview.",
             interests: ["conference", "admin", "control-tower", "insights", "sponsor", "operations", "preview"],
             menuSlots: ["upperMid", "lowerMid"]
@@ -14534,7 +14534,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                     ),
                     .HStack(
                         SkeletonHStack(elements: [
-                            bindingConferencePortalActionButton("conferenceAdminShell", actionKeypath: "sessionThread.postMessage", label: "Post message", payload: .object(["text": .string("Organizer note from Binding control tower")]), responseMode: "ack")
+                            bindingConferencePortalActionButton("conferenceAdminShell", actionKeypath: "sessionThread.postMessage", label: "Post message", payload: .object(["text": .string("Organizer note from HAVEN control tower")]), responseMode: "ack")
                         ])
                     )
                 ]
@@ -14754,7 +14754,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 : "ConferencePublicShellCell",
             purpose: "Conference public website",
             purposeDescription: usesLocalFixture
-                ? "Public-facing shell for landing, tracks, program, articles, people and facilities, served from a deterministic local demo fixture in Binding."
+                ? "Public-facing shell for landing, tracks, program, articles, people and facilities, served from a deterministic local demo fixture in HAVEN."
                 : "Public-facing shell for landing, tracks, program, articles, people and facilities.",
             interests: ["conference", "public", "landing", "tracks", "sessions", "articles"],
             menuSlots: ["upperMid", "lowerMid"]
@@ -14904,7 +14904,7 @@ final class ConfigurationCatalogCell: GeneralCell {
                 : "ConferenceSponsorShellCell",
             purpose: "Conference sponsor follow-up",
             purposeDescription: usesLocalFixture
-                ? "Sponsor-owned shell for lead inbox, consent, unlock and retention flow, served from a deterministic local demo fixture in Binding."
+                ? "Sponsor-owned shell for lead inbox, consent, unlock and retention flow, served from a deterministic local demo fixture in HAVEN."
                 : "Sponsor-owned shell for lead inbox, consent, unlock and retention flow.",
             interests: ["conference", "sponsor", "lead-vault", "consent", "handoff", "retention"],
             menuSlots: ["upperMid", "lowerMid"]
@@ -15039,7 +15039,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             sourceCellEndpoint: "cell:///AgentProvisioning",
             sourceCellName: "AgentProvisioningCell",
             purpose: "Local HAVEN agent install and review boundary",
-            purposeDescription: "Install, start, connect and review `haven-agentd` from Binding without bypassing CellProtocol review boundaries.",
+            purposeDescription: "Install, start, connect and review `haven-agentd` from HAVEN without bypassing CellProtocol review boundaries.",
             interests: ["agent", "haven-agentd", "automation", "review", "cellprotocol", "launchd"],
             menuSlots: ["upperMid", "lowerRight"]
         )
@@ -15448,7 +15448,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             $0.lineLimit = 3
         }
 
-        var localRuntimeText = SkeletonText(text: "Runs locally in Binding. This surface stays off CellScaffold because EntityScanner depends on Apple device frameworks such as MultipeerConnectivity.")
+        var localRuntimeText = SkeletonText(text: "Runs locally in HAVEN. This surface stays off CellScaffold because EntityScanner depends on Apple device frameworks such as MultipeerConnectivity.")
         localRuntimeText.modifiers = modifier {
             $0.foregroundColor = ConferenceSurfacePalette.accentWarm
             $0.fontSize = 12
@@ -15764,7 +15764,7 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         let radarSectionContent: SkeletonElementList = [
             bindingConferencePortalStaticText(
-                "Judged proximity: EntityScanner stays calm until explicitly started, then Binding filters nearby entities into a relevant primary list. Lower and nearby-only hits stay hidden by default and are counted separately.",
+                "Judged proximity: EntityScanner stays calm until explicitly started, then HAVEN filters nearby entities into a relevant primary list. Lower and nearby-only hits stay hidden by default and are counted separately.",
                 fontSize: 12,
                 foregroundColor: ConferenceSurfacePalette.textMuted,
                 lineLimit: 4

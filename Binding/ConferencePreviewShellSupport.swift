@@ -13,7 +13,7 @@ nonisolated struct ConferenceParticipantPreviewFallbackState {
     var launchedDiscoveryChatNames: [String] = []
     var focusedRecommendationName: String?
     var followUpMarkedNames = Set<String>()
-    var recentActionSummary = "Participant preview is running locally in Binding because the staging preview was denied."
+    var recentActionSummary = "Participant preview is running locally in HAVEN because the staging preview was denied."
 }
 
 nonisolated struct ConferenceParticipantPreviewFallbackMessage: Equatable {

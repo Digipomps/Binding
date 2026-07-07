@@ -50,7 +50,7 @@ final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
     private var launchedDiscoveryChatNames: [String] = []
     private var focusedRecommendationName: String?
     private var followUpMarkedNames = Set<String>()
-    private var recentActionSummary = "Participant preview is running locally in Binding because the staging preview was denied."
+    private var recentActionSummary = "Participant preview is running locally in HAVEN because the staging preview was denied."
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -955,7 +955,7 @@ final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 organizerText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             } else {
-                organizerText = "Organizer note from Binding control tower"
+                organizerText = "Organizer note from HAVEN control tower"
             }
             sessionThreadMessages.insert(
                 AdminTranscriptMessage(
@@ -1369,12 +1369,12 @@ final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
                 "status": .string("System status is stable for this local organizer shell."),
                 "accessSummary": .string("Startup vault and local organizer cells are available without bridge timeout."),
                 "resolverSummary": .string("CellResolver is serving local conference preview cells and porthole bindings."),
-                "storageSummary": .string("Local organizer preview stores state in the same portable keypath model as the rest of Binding."),
-                "hostSummary": .string("Host: Binding local runtime on My Mac."),
+                "storageSummary": .string("Local organizer preview stores state in the same portable keypath model as the rest of HAVEN."),
+                "hostSummary": .string("Host: HAVEN local runtime on My Mac."),
                 "loadSummary": .string("Load is moderate with organizer, public, AI, and identity-link shells available."),
                 "memorySummary": .string("Memory pressure is normal for this smoke configuration."),
                 "ioSummary": .string("I/O is stable; no bridge reconnect loop is active."),
-                "topProcessSummary": .string("Binding remains the top local conference process."),
+                "topProcessSummary": .string("HAVEN remains the top local conference process."),
                 "persistedCellSummary": .string("Persisted cells are available for organizer preview and porthole state."),
                 "timestampSummary": .string(systemTimestampLabel),
                 "resolverHighlights": .list([
@@ -1383,7 +1383,7 @@ final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
                     titleDetailCard(title: "ConferenceAIGatewayPreview", detail: "Expected from scaffold bridge")
                 ]),
                 "topProcesses": .list([
-                    timelineCard(title: "Binding", subtitle: "Organizer runtime", detail: "Primary local process serving the conference demo.", note: "Healthy"),
+                    timelineCard(title: "HAVEN", subtitle: "Organizer runtime", detail: "Primary local process serving the conference demo.", note: "Healthy"),
                     timelineCard(title: "Porthole", subtitle: "Shared shell host", detail: "Absorbs conference configurations and bindings.", note: "Healthy")
                 ]),
                 "persistedCells": .list([

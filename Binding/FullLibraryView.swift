@@ -278,7 +278,7 @@ nonisolated enum LibraryPreviewSkeletonSupport {
         case .Unsupported(let unsupported):
             return placeholderCollection(
                 title: "Unsupported \(unsupported.elementType)",
-                detail: unsupported.reason ?? "Skeleton-elementet kan ikke rendres av denne Binding-versjonen.",
+                detail: unsupported.reason ?? "Skeleton-elementet kan ikke rendres av denne HAVEN-versjonen.",
                 modifiers: unsupported.modifiers
             )
 
