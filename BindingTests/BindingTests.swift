@@ -525,6 +525,79 @@ struct BindingTests {
         #expect(!normalized.contains("control tower"))
     }
 
+    @Test func stagingSurfaceTestingModeIsDebugOnlyAndCanBeDisabled() {
+        #if DEBUG
+        #expect(BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled(environment: [:], launchArguments: []))
+        #else
+        #expect(!BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled(environment: [:], launchArguments: []))
+        #endif
+
+        #expect(!BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled(
+            environment: ["BINDING_ENABLE_STAGING_SURFACE_TESTING": "false"],
+            launchArguments: []
+        ))
+        #expect(!BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled(
+            environment: [:],
+            launchArguments: ["Binding", "--disable-staging-surface-testing"]
+        ))
+        #if DEBUG
+        #expect(BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled(
+            environment: ["BINDING_ENABLE_STAGING_SURFACE_TESTING": "true"],
+            launchArguments: []
+        ))
+        #else
+        #expect(!BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled(
+            environment: ["BINDING_ENABLE_STAGING_SURFACE_TESTING": "true"],
+            launchArguments: []
+        ))
+        #endif
+    }
+
+    @Test func stagingSurfaceTestingMenuConfigurationsExposeRequestedRemoteSurfaces() throws {
+        let configurations = ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
+            includeAgentOperatorSurfaces: false
+        )
+        let names = Set(configurations.map(\.name))
+
+        for requiredName in [
+            "Arendalsuka Participant Program",
+            "Arendalsuka Event Atlas",
+            "HAVEN Workbench",
+            "Mermaid Renderer",
+            "Admin Entry",
+            "Admin Overview"
+        ] {
+            #expect(names.contains(requiredName))
+        }
+
+        let endpointsByName = try Dictionary(
+            uniqueKeysWithValues: configurations.map { configuration in
+                (configuration.name, try Self.cellEndpointStrings(in: configuration))
+            }
+        )
+        #expect(endpointsByName["Arendalsuka Participant Program"]?.contains("cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram") == true)
+        #expect(endpointsByName["Arendalsuka Event Atlas"]?.contains("cell://staging.haven.digipomps.org/ArendalsukaEventAtlas") == true)
+        #expect(endpointsByName["HAVEN Workbench"]?.contains("cell://staging.haven.digipomps.org/WorkItem") == true)
+        #expect(endpointsByName["Mermaid Renderer"]?.contains("cell://staging.haven.digipomps.org/MermaidRenderer") == true)
+        #expect(endpointsByName["Admin Entry"]?.contains("cell://staging.haven.digipomps.org/AdminEntry") == true)
+        #expect(endpointsByName["Admin Overview"]?.contains("cell://staging.haven.digipomps.org/AdminOverview") == true)
+
+        #expect(configurations.allSatisfy { $0.skeleton != nil })
+    }
+
+    @Test func stagingSurfaceTestingMenuConfigurationsIncludeAgentSurfacesWhenOptedIn() {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey) }
+
+        let configurations = ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
+            includeAgentOperatorSurfaces: true
+        )
+        let names = Set(configurations.map(\.name))
+
+        #expect(names.contains("Agent Setup Workbench"))
+        #expect(names.contains("Network Sentinel"))
+    }
+
     @Test func conferenceLauncherAndClaudeReferenceAreLoadableAndExplicitAboutScope() throws {
         let codex = ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
         let claude = ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration()
@@ -705,6 +778,30 @@ struct BindingTests {
             }
             #expect(!skeletonContainsButton(keypath: "chatHub.assistant.analyzeDraft", in: conversationPanel))
             #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: conversationPanel))
+            func primaryActionButton(in element: SkeletonElement) -> SkeletonButton? {
+                switch element {
+                case .Button(let button):
+                    return button.keypath == "chatHub.ui.openSuggestedHelper" && button.label == "↑" ? button : nil
+                case .VStack(let stack):
+                    return stack.elements.lazy.compactMap(primaryActionButton).first
+                case .HStack(let stack):
+                    return stack.elements.lazy.compactMap(primaryActionButton).first
+                case .ScrollView(let scroll):
+                    return scroll.elements.lazy.compactMap(primaryActionButton).first
+                case .Section(let section):
+                    return (section.header.flatMap(primaryActionButton))
+                        ?? section.content.lazy.compactMap(primaryActionButton).first
+                        ?? section.footer.flatMap(primaryActionButton)
+                case .Tabs(let tabs):
+                    return tabs.panels.lazy.compactMap { panel in
+                        panel.content.lazy.compactMap(primaryActionButton).first
+                    }.first
+                default:
+                    return nil
+                }
+            }
+            let primaryAction = try #require(primaryActionButton(in: conversationElement))
+            #expect(primaryAction.payload != nil)
             #expect(skeletonContainsTextKeypath("chatHub.state.ui.primaryActionHint", in: conversationPanel))
             #expect(skeletonContainsTabs(tabsKeypath: "chatHub.state.ui.activeHelpers", in: conversationElement))
             #expect(skeletonContainsLiteralText("Logg", in: conversationPanel))
@@ -1324,10 +1421,17 @@ struct BindingTests {
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceAIAssistantGatewayProxy") == "cell:///ConferenceAIAssistantGatewayProxy")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferenceIdentityLinkIntake") == "cell:///ConferenceIdentityLinkIntake")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AppleIntelligence") == "cell:///AppleIntelligence")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///agent/network/sentinel") == "cell:///agent/network/sentinel")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///Chat") == "cell://staging.haven.digipomps.org/Chat")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///AIGateway") == "cell://staging.haven.digipomps.org/AIGateway")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferencePublicProfileEditorPreview") == "cell://staging.haven.digipomps.org/ConferencePublicProfileEditorPreview")
         #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ConferencePublicProfilePreview") == "cell://staging.haven.digipomps.org/ConferencePublicProfilePreview")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ArendalsukaParticipantProgram") == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ArendalsukaEventAtlas") == "cell://staging.haven.digipomps.org/ArendalsukaEventAtlas")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///WorkItem") == "cell://staging.haven.digipomps.org/WorkItem")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///ProjectPortfolio") == "cell://staging.haven.digipomps.org/ProjectPortfolio")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///GitHubWorkSync") == "cell://staging.haven.digipomps.org/GitHubWorkSync")
+        #expect(contentView.maybeRetargetLocalEndpointToStaging("cell:///IdeaTaskWorkspace") == "cell://staging.haven.digipomps.org/IdeaTaskWorkspace")
     }
 
     @Test func configurationEndpointRetargetingRewritesNestedConfigurationLookupEndpoints() throws {
@@ -5560,6 +5664,7 @@ struct BindingTests {
         #expect(actionButtons.isEmpty == false)
         for button in actionButtons {
             expectLocalNetworkSentinelBridgeEndpoint(try #require(button.url))
+            #expect(button.payload != nil)
         }
     }
 

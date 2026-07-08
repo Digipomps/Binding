@@ -503,6 +503,8 @@ struct ContentView: View {
     private static let stagingFallbackCells: Set<String> = [
         "chat",
         "aigateway",
+        "arendalsukaeventatlas",
+        "arendalsukaparticipantprogram",
         "conferenceuirouter",
         "conferenceadminshell",
         "conferenceparticipantshell",
@@ -512,6 +514,10 @@ struct ContentView: View {
         "conferencesponsorshell",
         "vault",
         "todo",
+        "workitem",
+        "projectportfolio",
+        "githubworksync",
+        "ideataskworkspace",
         "adminentry",
         "adminoverview",
         "adminfunding",
@@ -6374,15 +6380,15 @@ struct ContentView: View {
         case .upperLeft:
             return ["scaffold chat", "conference public surface", "conference mvp", "todo mvp", "notification outbox"]
         case .upperMid:
-            return ["conference scaffold setup & identity link", "apple intelligence purpose matcher", "conference ai assistant", "conference participant portal dashboard", "catalog workbench", "perspective context", "porthole control surface"]
+            return ["arendalsuka participant program", "haven workbench", "mermaid renderer", "conference scaffold setup & identity link", "apple intelligence purpose matcher", "conference ai assistant", "conference participant portal dashboard", "catalog workbench", "perspective context", "porthole control surface"]
         case .upperRight:
-            return ["conference mvp", "conference participant portal dashboard", "conference scaffold setup & identity link", "conference sponsor follow-up", "conference control tower", "obsidian vault", "vault control surface", "porthole control surface", "lead vault"]
+            return ["conference mvp", "conference participant portal dashboard", "conference scaffold setup & identity link", "conference sponsor follow-up", "conference control tower", "admin entry", "admin overview", "network sentinel", "obsidian vault", "vault control surface", "porthole control surface", "lead vault"]
         case .lowerLeft:
             return ["entity scanner", "perspective context", "entity anchor records", "trusted issuers registry", "entity scanner test helper", "entity scanner pairing checklist"]
         case .lowerMid:
-            return ["conference scaffold setup & identity link", "todo mvp", "conference participant portal dashboard", "conference ai assistant", "conference sponsor follow-up", "catalog workbench", "folder watch automation", "graph index control", "perspective context", "device registration"]
+            return ["haven workbench", "arendalsuka participant program", "arendalsuka event atlas", "mermaid renderer", "conference scaffold setup & identity link", "todo mvp", "conference participant portal dashboard", "conference ai assistant", "conference sponsor follow-up", "catalog workbench", "folder watch automation", "graph index control", "perspective context", "device registration"]
         case .lowerRight:
-            return ["obsidian vault", "vault control surface", "graph index control", "porthole control surface", "trusted issuers registry", "consent receipt"]
+            return ["mermaid renderer", "admin entry", "admin overview", "network sentinel", "obsidian vault", "vault control surface", "graph index control", "porthole control surface", "trusted issuers registry", "consent receipt"]
         }
     }
 
@@ -6391,15 +6397,15 @@ struct ContentView: View {
         case .upperLeft:
             return ["chat", "communication", "collaboration", "conference", "public"]
         case .upperMid:
-            return ["assistant", "purpose", "matching", "tools", "conference", "copilot", "identity-link", "setup", "enrollment"]
+            return ["assistant", "purpose", "matching", "tools", "conference", "copilot", "identity-link", "setup", "enrollment", "staging", "arendalsuka", "workbench", "mermaid"]
         case .upperRight:
-            return ["conference", "event", "lead", "consent", "sponsor", "operations", "admin", "identity-link", "setup"]
+            return ["conference", "event", "lead", "consent", "sponsor", "operations", "admin", "identity-link", "setup", "network", "sentinel"]
         case .lowerLeft:
             return ["scanner", "identity", "trust", "credentials", "proofs", "nearby"]
         case .lowerMid:
-            return ["todo", "tasks", "planning", "productivity", "context", "conference", "meetings", "identity-link", "setup", "proofs"]
+            return ["todo", "tasks", "planning", "productivity", "context", "conference", "meetings", "identity-link", "setup", "proofs", "staging", "arendalsuka", "workbench", "mermaid", "projects"]
         case .lowerRight:
-            return ["vault", "notes", "knowledge", "records", "consent"]
+            return ["vault", "notes", "knowledge", "records", "consent", "admin", "network", "sentinel", "diagram"]
         }
     }
 
@@ -7281,11 +7287,35 @@ struct ContentView: View {
         let appleIntelligence = ConfigurationCatalogCell.appleIntelligenceLandingForPersonalCopilotConfiguration()
         let entityScanner = ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
         let workflowStudio = ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
+        let stagingSurfaceSeeds = BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled
+            ? ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations()
+            : []
+        func stagingSurfaces(named names: Set<String>) -> [CellConfiguration] {
+            stagingSurfaceSeeds.filter { names.contains($0.name) }
+        }
         var upperMid = [myProfile, publishProfile, appleIntelligence, workflowStudio]
         var upperRight = [agendaContext, vaultIdeas, meetingIntent]
         var lowerLeft = [entityScanner, privacyAudit]
         var lowerMid = [workflowStudio, inviteChat, matches]
         var lowerRight = [agendaContext, vaultIdeas, meetingIntent, privacyAudit]
+        upperMid.append(contentsOf: stagingSurfaces(named: [
+            "Arendalsuka Participant Program",
+            "HAVEN Workbench",
+            "Mermaid Renderer"
+        ]))
+        lowerMid.append(contentsOf: stagingSurfaces(named: [
+            "Arendalsuka Participant Program",
+            "Arendalsuka Event Atlas",
+            "HAVEN Workbench",
+            "Mermaid Renderer"
+        ]))
+        lowerRight.append(contentsOf: stagingSurfaces(named: [
+            "Mermaid Renderer",
+            "Admin Entry",
+            "Admin Overview",
+            "Agent Setup Workbench",
+            "Network Sentinel"
+        ]))
         if BindingPersonalCopilotV1Policy.conferenceShowcaseEnabled {
             let conferenceCodex = ConfigurationCatalogCell.conferenceCodexLiveConfigurationsMenuConfiguration()
             let conferenceClaude = ConfigurationCatalogCell.conferenceClaudeDesignReferenceMenuConfiguration()

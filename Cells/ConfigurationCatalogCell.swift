@@ -94,6 +94,35 @@ enum BindingPersonalCopilotV1Policy {
         !conferenceDemoMenusEnabled
     }
 
+    nonisolated static var stagingSurfaceTestingEnabled: Bool {
+        stagingSurfaceTestingEnabled(
+            environment: ProcessInfo.processInfo.environment,
+            launchArguments: ProcessInfo.processInfo.arguments
+        )
+    }
+
+    nonisolated static func stagingSurfaceTestingEnabled(
+        environment: [String: String],
+        launchArguments: [String]
+    ) -> Bool {
+        #if DEBUG
+        if launchArguments.contains("--disable-staging-surface-testing") {
+            return false
+        }
+        if let raw = environment["BINDING_ENABLE_STAGING_SURFACE_TESTING"] {
+            return isTruthyFlag(raw)
+        }
+        if let raw = environment["BINDING_DISABLE_STAGING_SURFACE_TESTING"], isTruthyFlag(raw) {
+            return false
+        }
+        return true
+        #else
+        _ = environment
+        _ = launchArguments
+        return false
+        #endif
+    }
+
     nonisolated static let conferenceDemoMenusDefaultsKey = "Binding.EnableConferenceDemoMenus"
 
     nonisolated static var conferenceDemoMenusEnabled: Bool {
@@ -5465,6 +5494,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             templates.append(contentsOf: staticCatalogTemplates(from: userFacingRemoteCatalogDescriptors()))
             templates.append(contentsOf: staticCatalogTemplates(from: runtimeControlCatalogDescriptors()))
             templates.append(contentsOf: staticCatalogTemplates(from: remoteSupportCatalogDescriptors()))
+            templates.append(contentsOf: staticCatalogTemplates(from: stagingSurfaceTestingCatalogDescriptors(includeAgentOperatorSurfaces: false)))
         } else {
             templates = templates.filter(isPersonalCopilotV1Template)
         }
@@ -6814,6 +6844,95 @@ final class ConfigurationCatalogCell: GeneralCell {
         ]
     }
 
+    nonisolated private static func stagingSurfaceTestingCatalogDescriptors(
+        includeAgentOperatorSurfaces: Bool
+    ) -> [StaticCatalogDescriptor] {
+        var descriptors: [StaticCatalogDescriptor] = [
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram",
+                sourceCellName: "ArendalsukaParticipantProgramCell",
+                displayName: "Arendalsuka Participant Program",
+                purpose: "Arendalsuka participant program",
+                purposeDescription: "Remote staging surface for participant-facing Arendalsuka program navigation and event context.",
+                interests: ["staging", "remote-surface", "arendalsuka", "participant", "program", "agenda", "navigation"],
+                summary: "Participant program surface loaded from staging and rendered inside HAVEN.",
+                categoryPath: ["staging", "arendalsuka", "participant"],
+                tags: ["staging", "arendalsuka", "program", "participant"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "STAGING",
+                borderColor: "#2563EB",
+                flowDriven: true,
+                recommendedContexts: ["staging-test", "event", "program"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/ArendalsukaEventAtlas",
+                sourceCellName: "ArendalsukaEventAtlasCell",
+                displayName: "Arendalsuka Event Atlas",
+                purpose: "Arendalsuka event atlas",
+                purposeDescription: "Remote staging atlas for importing, inspecting and matching Arendalsuka event data.",
+                interests: ["staging", "remote-surface", "arendalsuka", "event-atlas", "program", "matching"],
+                summary: "Event atlas loaded from staging for Arendalsuka program inspection.",
+                categoryPath: ["staging", "arendalsuka", "atlas"],
+                tags: ["staging", "arendalsuka", "atlas", "events"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "STAGING",
+                borderColor: "#2563EB",
+                flowDriven: true,
+                recommendedContexts: ["staging-test", "event", "program-import"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/WorkItem",
+                sourceCellName: "WorkItemCell",
+                displayName: "HAVEN Workbench",
+                purpose: "HAVEN project workbench",
+                purposeDescription: "Remote staging project workbench spanning work items, portfolio, GitHub sync and idea/project flow.",
+                interests: ["staging", "remote-surface", "haven", "workbench", "projects", "work-items", "portfolio", "github", "ideas"],
+                summary: "Project and work-item workbench loaded from staging.",
+                categoryPath: ["staging", "workbench", "projects"],
+                tags: ["staging", "haven", "workbench", "projects"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "STAGING",
+                borderColor: "#0F766E",
+                flowDriven: true,
+                recommendedContexts: ["staging-test", "project-management", "workbench"],
+                ioGetKeys: ["state", "syncStatus", "skeletonConfiguration"],
+                ioSetKeys: ["refresh", "create", "update", "openProject"]
+            ),
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/MermaidRenderer",
+                sourceCellName: "MermaidRendererCell",
+                displayName: "Mermaid Renderer",
+                purpose: "Mermaid diagram renderer",
+                purposeDescription: "Remote staging surface for writing, loading and rendering Mermaid diagrams inside HAVEN.",
+                interests: ["staging", "remote-surface", "mermaid", "diagram", "graph", "markdown", "visualization"],
+                summary: "Mermaid diagram renderer loaded from staging.",
+                categoryPath: ["staging", "tools", "diagrams"],
+                tags: ["staging", "mermaid", "diagram", "graph"],
+                menuSlots: [.lowerMid, .lowerRight],
+                chip: "STAGING",
+                borderColor: "#7C3AED",
+                flowDriven: true,
+                recommendedContexts: ["staging-test", "diagramming", "knowledge-work"],
+                ioGetKeys: ["state", "skeletonConfiguration"],
+                ioSetKeys: ["source", "render", "loadMermaid"]
+            )
+        ]
+
+        let requestedAdminNames: Set<String> = ["Admin Entry", "Admin Overview"]
+        descriptors.append(contentsOf: remoteSupportCatalogDescriptors().filter {
+            requestedAdminNames.contains($0.displayName)
+        })
+
+        if includeAgentOperatorSurfaces {
+            let requestedAgentNames: Set<String> = ["Agent Setup Workbench", "Network Sentinel"]
+            descriptors.append(contentsOf: optInLocalCatalogDescriptors().filter {
+                requestedAgentNames.contains($0.displayName)
+            })
+        }
+
+        return descriptors
+    }
+
     nonisolated private static func optInLocalCatalogDescriptors() -> [StaticCatalogDescriptor] {
         guard BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled else {
             return []
@@ -7691,6 +7810,17 @@ final class ConfigurationCatalogCell: GeneralCell {
         }
 
         return configurations
+    }
+
+    nonisolated static func stagingSurfaceTestingMenuConfigurations(
+        includeAgentOperatorSurfaces: Bool = BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled
+    ) -> [CellConfiguration] {
+        staticCatalogTemplates(
+            from: stagingSurfaceTestingCatalogDescriptors(
+                includeAgentOperatorSurfaces: includeAgentOperatorSurfaces
+            )
+        )
+        .map(\.configuration)
     }
 
     nonisolated private static func conferenceConfigurationNavigatorReference(
@@ -15301,7 +15431,7 @@ final class ConfigurationCatalogCell: GeneralCell {
     nonisolated private static func networkSentinelActionButton(
         keypath: String,
         label: String,
-        payload: ValueType? = nil
+        payload: ValueType? = .bool(true)
     ) -> SkeletonElement {
         var button = SkeletonButton(
             keypath: keypath,
