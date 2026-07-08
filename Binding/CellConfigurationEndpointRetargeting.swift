@@ -66,9 +66,7 @@ enum AgentLocalControlBridgeEndpointSupport {
             return nil
         }
 
-        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isLocal = host == nil || host?.isEmpty == true || host?.lowercased() == "localhost"
-        guard isLocal else { return nil }
+        guard isLoopbackOrEmptyHost(components.host) else { return nil }
 
         let target = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard target.hasPrefix("agent/") else { return nil }
@@ -185,6 +183,12 @@ enum AgentLocalControlBridgeEndpointSupport {
             || normalized == "127.0.0.1"
             || normalized == "::1"
             || normalized == "[::1]"
+    }
+
+    private static func isLoopbackOrEmptyHost(_ host: String?) -> Bool {
+        guard let host else { return true }
+        let normalized = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.isEmpty || isLoopbackHost(normalized)
     }
 
     private static func stringValue(fromAny value: Any?) -> String? {
@@ -356,13 +360,21 @@ enum CellConfigurationEndpointRetargeting {
         guard !normalizedPath.isEmpty else { return endpoint }
 
         let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isLocal = host == nil || host?.isEmpty == true || host?.lowercased() == "localhost"
-        guard isLocal else { return endpoint }
+        guard isLoopbackOrEmptyCellHost(host) else { return endpoint }
 
         components.host = origin.host
         components.port = origin.port
         components.path = "/" + normalizedPath
         return components.string ?? endpoint
+    }
+
+    private static func isLoopbackOrEmptyCellHost(_ host: String?) -> Bool {
+        let normalized = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        return normalized.isEmpty
+            || normalized == "localhost"
+            || normalized == "127.0.0.1"
+            || normalized == "::1"
+            || normalized == "[::1]"
     }
 
     private struct RetargetOrigin {

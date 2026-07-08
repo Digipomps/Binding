@@ -759,9 +759,18 @@ struct BindingTests {
             let composerTextArea = try #require(skeletonTextArea(targetKeypath: "chatHub.setComposer", in: conversationElement))
             #expect(composerTextArea.placeholder == nil)
             #expect(composerTextArea.maxLines == 3)
+            #expect(composerTextArea.submitOnEnter == true)
+            #expect(composerTextArea.submitActionKeypath == "chatHub.prompt.submit")
             #expect(composerTextArea.modifiers?.styleRole == "personal-chat-composer-field")
             #expect(skeletonStyleRoles(in: conversationElement).contains("personal-chat-section"))
             #expect(topLevelSectionHasHeader("Skriv", in: conversationPanel))
+            if let sectionContent = topLevelSectionContent(header: "Skriv", in: conversationPanel),
+               let promptLogIndex = firstTopLevelElementIndex(in: sectionContent, matching: { elementContainsList(keypath: "chatHub.state.ui.promptMessages", in: $0) }),
+               let composerIndex = firstTopLevelElementIndex(in: sectionContent, matching: { skeletonTextArea(targetKeypath: "chatHub.setComposer", in: $0) != nil }) {
+                #expect(promptLogIndex < composerIndex)
+            } else {
+                Issue.record("Co-Pilot Chat should place the prompt log above the composer")
+            }
             #expect(!topLevelSectionHasHeader("Start her", in: conversationPanel))
             #expect(!topLevelSectionHasHeader("Co-Pilot Chat", in: conversationPanel))
             #expect(!skeletonContainsLiteralText(helpIntro, in: conversationPanel))
@@ -5652,6 +5661,12 @@ struct BindingTests {
             configJSON: configJSON
         )
 
+        let directLoopbackEndpoint = try #require(AgentLocalControlBridgeEndpointSupport.rewriteEndpoint(
+            "cell://127.0.0.1/agent/network/sentinel",
+            configJSON: configJSON
+        ))
+        expectLocalNetworkSentinelBridgeEndpoint(directLoopbackEndpoint)
+
         let referenceEndpoint = try #require(rewritten.cellReferences?.first?.endpoint)
         expectLocalNetworkSentinelBridgeEndpoint(referenceEndpoint)
 
@@ -6896,6 +6911,29 @@ struct BindingTests {
         }
     }
 
+    private func topLevelSectionContent(header text: String, in elements: [SkeletonElement]) -> [SkeletonElement]? {
+        for element in elements {
+            guard case .Section(let section) = element,
+                  let header = section.header,
+                  skeletonContainsLiteralText(text, in: header) else {
+                continue
+            }
+            return section.content
+        }
+        return nil
+    }
+
+    private func firstTopLevelElementIndex(
+        in elements: [SkeletonElement],
+        matching predicate: (SkeletonElement) -> Bool
+    ) -> Int? {
+        elements.firstIndex(where: predicate)
+    }
+
+    private func elementContainsList(keypath: String, in element: SkeletonElement) -> Bool {
+        skeletonListFlowElement(keypath: keypath, in: element) != nil
+    }
+
     private func skeletonListFlowElement(keypath: String, in elements: [SkeletonElement]) -> SkeletonElement? {
         for element in elements {
             if let match = skeletonListFlowElement(keypath: keypath, in: element) {
@@ -7923,14 +7961,14 @@ private extension BindingTests {
         ]
         configuration.addReference(workItemsReference)
 
-        var projectPortfolioReference = CellReference(endpoint: "cell:///ProjectPortfolio", label: "projectPortfolio")
+        var projectPortfolioReference = CellReference(endpoint: "cell://127.0.0.1/ProjectPortfolio", label: "projectPortfolio")
         projectPortfolioReference.setKeysAndValues = [
             KeyValue(key: "state", value: nil),
             KeyValue(key: "feed", value: nil)
         ]
         configuration.addReference(projectPortfolioReference)
 
-        var githubSyncReference = CellReference(endpoint: "cell:///GitHubWorkSync", label: "githubSync")
+        var githubSyncReference = CellReference(endpoint: "cell://localhost/GitHubWorkSync", label: "githubSync")
         githubSyncReference.setKeysAndValues = [
             KeyValue(key: "state", value: nil),
             KeyValue(key: "syncStatus", value: nil)
@@ -7955,7 +7993,7 @@ private extension BindingTests {
                     payload: .object([
                         "configurationLookup": .object([
                             "name": .string("Project Portfolio"),
-                            "sourceCellEndpoint": .string("cell:///ProjectPortfolio")
+                            "sourceCellEndpoint": .string("cell://127.0.0.1/ProjectPortfolio")
                         ])
                     ])
                 )
@@ -8071,7 +8109,11 @@ private extension BindingTests {
         }
 
         let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        return host.isEmpty || host == "localhost"
+        return host.isEmpty
+            || host == "localhost"
+            || host == "127.0.0.1"
+            || host == "::1"
+            || host == "[::1]"
     }
 }
 

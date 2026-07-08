@@ -8615,7 +8615,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             placeholder: nil,
             minLines: 2,
             maxLines: 3,
-            submitOnEnter: false,
+            submitOnEnter: true,
+            submitActionKeypath: "chatHub.prompt.submit",
             modifiers: composerFieldCard
         )
         let candidateField = SkeletonTextField(
@@ -9311,13 +9312,13 @@ final class ConfigurationCatalogCell: GeneralCell {
                 role: "personal-draft-composer",
                 content: [
                     .Text(personalBodyText("Hva vil du få gjort?", lineLimit: 1)),
+                    .Text(personalLabelText("Logg")),
+                    .List(promptMessages),
                     .VStack(composerStack),
                     .Text(primaryActionHint),
                     .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 3)),
                     .List(activeToolChips),
-                    .Tabs(helperTabs(activeOnly: true, compact: true)),
-                    .Text(personalLabelText("Logg")),
-                    .List(promptMessages)
+                    .Tabs(helperTabs(activeOnly: true, compact: true))
                 ],
                 modifiers: BindingPersonalCopilotDesignSystem.chatSectionCard()
             )

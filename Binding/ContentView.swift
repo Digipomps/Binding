@@ -2595,7 +2595,7 @@ struct ContentView: View {
         guard !normalizedPath.isEmpty else { return endpoint }
 
         let currentHost = components.host?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isLocal = currentHost == nil || currentHost?.isEmpty == true || currentHost?.lowercased() == "localhost"
+        let isLocal = Self.isLoopbackOrEmptyCellHost(currentHost)
 
         if isLocal {
             guard let origin else { return endpoint }
@@ -2621,6 +2621,15 @@ struct ContentView: View {
 
         components.path = "/" + normalizedPath
         return components.string ?? endpoint
+    }
+
+    private static func isLoopbackOrEmptyCellHost(_ host: String?) -> Bool {
+        let normalized = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        return normalized.isEmpty
+            || normalized == "localhost"
+            || normalized == "127.0.0.1"
+            || normalized == "::1"
+            || normalized == "[::1]"
     }
 
     private func makeWebSocketEndpoint(forCellPath cellPath: String, origin: CatalogOrigin) -> String? {

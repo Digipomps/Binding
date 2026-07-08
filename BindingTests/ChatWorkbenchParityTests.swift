@@ -703,7 +703,11 @@ struct ChatWorkbenchParityTests {
         let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
         let ui = try #require(asObject(state["ui"]))
         #expect(asString(ui["activeTab"]) == "samtale")
-        #expect((asList(ui["promptMessages"]) ?? []).count >= 3)
+        let promptMessages = asList(ui["promptMessages"]) ?? []
+        #expect(promptMessages.count >= 3)
+        let latestPromptMessage = try #require(asObject(promptMessages.first))
+        #expect(asString(latestPromptMessage["speaker"]) == "Co-Pilot")
+        #expect(asString(latestPromptMessage["helperID"]) == "work-item")
         #expect(asString(try await chat.get(keypath: "chatHub.state.assistant.purposeContext.summary", requester: owner)) != "denied")
         #expect(counters(.object(state)) == before)
     }

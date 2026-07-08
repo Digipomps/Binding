@@ -5304,9 +5304,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "threadID": .string(threadID),
             "sideEffect": .bool(false)
         ]
-        messages.append(.object(userMessage))
-        messages.append(.object(assistantMessage))
-        BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
+        messages.insert(.object(userMessage), at: 0)
+        messages.insert(.object(assistantMessage), at: 0)
+        BindingChatValue.set(.list(Array(messages.prefix(40))), for: "ui.promptMessages", in: &cachedState)
     }
 
     private func promptLogNextStepTitle(_ nextStep: String) -> String {
@@ -6850,14 +6850,14 @@ final class BindingPersonalChatHubCell: GeneralCell {
 
     private func appendHelpPromptMessage(prompt: String, summary: String) {
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
-        messages.append(.object([
+        messages.insert(.object([
             "id": .string(UUID().uuidString),
             "speaker": .string("Co-Pilot"),
             "body": .string(prompt),
             "statusText": .string(summary),
             "kind": .string("contextual_help"),
             "sideEffect": .bool(false)
-        ]))
+        ]), at: 0)
         BindingChatValue.set(.list(messages), for: "ui.promptMessages", in: &cachedState)
     }
 
