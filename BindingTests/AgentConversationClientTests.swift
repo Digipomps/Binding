@@ -51,12 +51,15 @@ struct AgentConversationClientTests {
         let resolver = CellResolver.sharedInstance
         let inboxName = "OtherEntityAgentConversationInbox\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
         let endpoint = "cell:///\(inboxName)"
+        let identityVault = await BindingStartupIdentityVault.shared.initialize()
         CellBase.defaultCellResolver = resolver
-        CellBase.defaultIdentityVault = previousIdentityVault ?? BindingStartupIdentityVault.shared
+        CellBase.defaultIdentityVault = identityVault
         CellBase.debugValidateAccessForEverything = true
         AgentConversationClient.endpointOverrideForTesting = endpoint
         defer {
             AgentConversationClient.endpointOverrideForTesting = nil
+            AgentConversationClient.requesterOverrideForTesting = nil
+            AgentConversationClient.resolverOverrideForTesting = nil
             CellBase.defaultCellResolver = previousResolver
             CellBase.defaultIdentityVault = previousIdentityVault
             CellBase.debugValidateAccessForEverything = previousDebugAccess
@@ -68,10 +71,11 @@ struct AgentConversationClientTests {
             identityDomain: "private",
             type: OtherEntityAgentConversationInboxFixtureCell.self
         )
-        _ = await CellBase.defaultIdentityVault?.initialize()
         let requester = try #require(
-            await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true)
+            await identityVault.identity(for: "private", makeNewIfNotFound: true)
         )
+        AgentConversationClient.requesterOverrideForTesting = requester
+        AgentConversationClient.resolverOverrideForTesting = resolver
 
         let action = PendingDeviceAction(
             id: "ticket-done-1",

@@ -317,11 +317,17 @@ func conferenceRestoredOwner(
     fallbackDisplayName: String = "Conference Restore"
 ) async -> Identity {
     if let decodedOwner {
+        if let restoredOwner = await conferenceVaultBackedOwner(matching: decodedOwner) {
+            return restoredOwner
+        }
         return decodedOwner
     }
 
     let restoreRequester = Identity(UUID().uuidString, displayName: "Conference Restore", identityVault: nil)
     if let restoredOwner = try? await cell.getOwner(requester: restoreRequester) {
+        if let vaultBackedOwner = await conferenceVaultBackedOwner(matching: restoredOwner) {
+            return vaultBackedOwner
+        }
         return restoredOwner
     }
 
@@ -334,4 +340,20 @@ func conferenceRestoredOwner(
     }
 
     return restoreRequester
+}
+
+private func conferenceVaultBackedOwner(matching identity: Identity) async -> Identity? {
+    guard let vault = CellBase.defaultIdentityVault,
+          let restoredOwner = await vault.identity(forUUID: identity.uuid)
+    else {
+        return nil
+    }
+
+    if let expectedFingerprint = identity.signingPublicKeyFingerprint,
+       let restoredFingerprint = restoredOwner.signingPublicKeyFingerprint,
+       expectedFingerprint != restoredFingerprint {
+        return nil
+    }
+
+    return restoredOwner
 }

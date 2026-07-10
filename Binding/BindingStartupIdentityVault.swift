@@ -83,6 +83,14 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         return await self.identity(for: identityContext, makeNewIfNotFound: false)
     }
 
+    func identity(forUUID uuid: String) async -> Identity? {
+        guard let stored = identitiesByUUID[uuid] else {
+            return nil
+        }
+        stored.identity.identityVault = self
+        return stored.identity
+    }
+
     func identityExistInVault(_ identity: Identity) async -> Bool {
         identitiesByUUID[identity.uuid] != nil
     }

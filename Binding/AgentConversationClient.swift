@@ -9,6 +9,8 @@ final class AgentConversationClient {
     nonisolated static let codexStartPromptActionKey = "haven.agent.codex.start_prompt"
     nonisolated static let defaultEndpoint = "cell://staging.haven.digipomps.org/AgentConversationInbox"
     static var endpointOverrideForTesting: String?
+    static var requesterOverrideForTesting: Identity?
+    static var resolverOverrideForTesting: CellResolver?
 
     private init() {}
 
@@ -104,7 +106,7 @@ final class AgentConversationClient {
 
     private func postPayload(_ payload: [String: JSONValue]) async throws {
         let endpoint = Self.endpointOverrideForTesting ?? Self.endpoint()
-        guard let resolver = CellBase.defaultCellResolver else {
+        guard let resolver = Self.resolverOverrideForTesting ?? CellBase.defaultCellResolver else {
             throw AgentConversationClientError.missingResolver
         }
         let requester = try await requesterIdentity()
@@ -285,6 +287,9 @@ final class AgentConversationClient {
     }
 
     private func requesterIdentity() async throws -> Identity {
+        if let requester = Self.requesterOverrideForTesting {
+            return requester
+        }
         if let vault = CellBase.defaultIdentityVault,
            let identity = await vault.identity(for: "private", makeNewIfNotFound: true) {
             return identity

@@ -1842,7 +1842,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(chatObject["conversationSummary"], ValueType.string("1 shared relation(s) visible."))
         XCTAssertEqual(chatObject["participantsSummary"], ValueType.string("Delt tråd aktiv med Ane Solberg."))
         XCTAssertEqual(chatObject["messageSummary"], ValueType.string("2 meldinger synlige i tråden med Ane Solberg, eldste først."))
-        XCTAssertEqual(chatObject["bridgeSummary"], ValueType.string("Binding local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state."))
+        XCTAssertEqual(chatObject["bridgeSummary"], ValueType.string("HAVEN local adapter exposing ConferenceChatLaunch-style bindings over shared relation-state."))
         XCTAssertEqual(chatObject["editorDraft"], ValueType.string("Hei Ane. Jeg vil gjerne snakke mer om governance-sporet og hvordan du jobber med interoperabilitet i praksis."))
         XCTAssertEqual(firstParticipant["title"], ValueType.string("Deg"))
         XCTAssertEqual(firstConversation["title"], ValueType.string("Ane Solberg"))
@@ -2499,7 +2499,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
 
         XCTAssertEqual(
             review["confirmationStatus"],
-            .string("Challenge/nonce er ikke gyldig base64url med minst 128 bit. Binding nekter å signere.")
+            .string("Challenge/nonce er ikke gyldig base64url med minst 128 bit. HAVEN nekter å signere.")
         )
         XCTAssertEqual(review["enrollmentRequest"], .null)
 

@@ -38,13 +38,19 @@ actor BindingLocalCellRegistration {
 
     func ensureLocallyRegistered() async {
         if isLocallyRegistered {
-            if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled,
-               !agentAdminCellsRegistered,
-               let resolver = CellBase.defaultCellResolver as? CellResolver {
-                await Self.registerOptInAgentAdminCells(on: resolver)
-                agentAdminCellsRegistered = true
+            if !(await localRegistrationStillUsable()) {
+                isLocallyRegistered = false
+                isRegistered = false
+                agentAdminCellsRegistered = false
+            } else {
+                if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled,
+                   !agentAdminCellsRegistered,
+                   let resolver = CellBase.defaultCellResolver as? CellResolver {
+                    await Self.registerOptInAgentAdminCells(on: resolver)
+                    agentAdminCellsRegistered = true
+                }
+                return
             }
-            return
         }
         if let localRegistrationTask {
             await localRegistrationTask.value
@@ -70,9 +76,36 @@ actor BindingLocalCellRegistration {
         localRegistrationTask = nil
     }
 
+    private func localRegistrationStillUsable() async -> Bool {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              resolver === CellResolver.sharedInstance
+        else {
+            return false
+        }
+
+        guard let requester = await BindingStartupIdentityVault.shared.identity(
+            for: "private",
+            makeNewIfNotFound: true
+        ) else {
+            return false
+        }
+
+        for endpoint in ["cell:///Porthole", "cell:///Perspective"] {
+            if (try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester)) == nil {
+                return false
+            }
+        }
+        return true
+    }
+
     func ensureRegistered() async {
         if isRegistered {
-            return
+            if await localRegistrationStillUsable() {
+                return
+            }
+            isRegistered = false
+            isLocallyRegistered = false
+            agentAdminCellsRegistered = false
         }
         if let registrationTask {
             await registrationTask.value
@@ -129,7 +162,6 @@ actor BindingLocalCellRegistration {
             ) else {
                 continue
             }
-
             _ = try? await Self.readStateForWarmup(
                 from: meddle,
                 requester: effectiveRequester

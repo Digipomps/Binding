@@ -234,10 +234,7 @@ enum CellConfigurationEndpointRetargeting {
             return endpoint
         }
 
-        components.host = nil
-        components.port = nil
-        components.path = "/" + normalizedPath
-        return components.string ?? endpoint
+        return "cell:///\(normalizedPath)"
     }
 
     static func rewritingLocalCellEndpoints(

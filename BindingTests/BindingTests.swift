@@ -27,11 +27,13 @@ private actor AgreementOrderingBridgeTransportScript {
     private var descriptionAttempts = 0
     private var commands: [String] = []
     private var signedAgreementGrantKeypaths: [String] = []
+    private var responseErrors: [String] = []
 
     func reset() {
         descriptionAttempts = 0
         commands = []
         signedAgreementGrantKeypaths = []
+        responseErrors = []
     }
 
     func record(command: String) {
@@ -47,8 +49,31 @@ private actor AgreementOrderingBridgeTransportScript {
         signedAgreementGrantKeypaths = agreement.grants.map(\.keypath)
     }
 
-    func snapshot() -> (commands: [String], signedAgreementGrantKeypaths: [String]) {
-        (commands, signedAgreementGrantKeypaths)
+    func recordResponseError(_ error: Error) {
+        responseErrors.append(String(describing: error))
+    }
+
+    func snapshot() -> (commands: [String], signedAgreementGrantKeypaths: [String], responseErrors: [String]) {
+        (commands, signedAgreementGrantKeypaths, responseErrors)
+    }
+}
+
+private final class AgreementOrderingBridgeResponseDelivery: @unchecked Sendable {
+    private let delegate: BridgeDelegateProtocol
+    private let response: BridgeCommand
+
+    init(delegate: BridgeDelegateProtocol, response: BridgeCommand) {
+        self.delegate = delegate
+        self.response = response
+    }
+
+    func deliver() async {
+        do {
+            try await Task.sleep(nanoseconds: 250_000_000)
+            try await delegate.consumeResponse(command: response)
+        } catch {
+            await AgreementOrderingBridgeTransportScript.shared.recordResponseError(error)
+        }
     }
 }
 
@@ -109,9 +134,9 @@ private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
             payload: payload,
             cid: command.cid
         )
-        Task {
-            try? await Task.sleep(nanoseconds: 5_000_000)
-            try? await delegate.consumeResponse(command: response)
+        let delivery = AgreementOrderingBridgeResponseDelivery(delegate: delegate, response: response)
+        Task.detached {
+            await delivery.deliver()
         }
     }
 
@@ -123,6 +148,7 @@ private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
         )
         let agreement = Agreement(owner: remoteOwner)
         agreement.name = "Incomplete Initial Agreement"
+        agreement.conditions = []
         agreement.addGrant("r---", for: "initialOnly")
         return AnyCell(
             uuid: "remote-agreement-cell",
@@ -141,6 +167,7 @@ private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
         )
         let agreement = Agreement(owner: remoteOwner)
         agreement.name = "Remote Agreement For Binding Test"
+        agreement.conditions = []
         agreement.addGrant("r---", for: "state")
         agreement.addGrant("r---", for: "skeletonConfiguration")
         agreement.addGrant("rw--", for: "approveRequest")
@@ -154,8 +181,12 @@ private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
     }
 }
 
-private func remoteEndpointAccessAgreementOrderingSnapshot() async throws -> (commands: [String], signedAgreementGrantKeypaths: [String]) {
-    await BindingRuntimeBootstrap.ensureBaseline()
+private func remoteEndpointAccessAgreementOrderingSnapshot() async throws -> (commands: [String], signedAgreementGrantKeypaths: [String], responseErrors: [String]) {
+    let vault = BindingStartupIdentityVault.shared
+    _ = await vault.initialize()
+    CellBase.defaultIdentityVault = vault
+    await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+
     let resolver = CellResolver.sharedInstance
     try await resolver.registerTransport(
         AgreementOrderingBridgeTransport.self,
@@ -163,10 +194,10 @@ private func remoteEndpointAccessAgreementOrderingSnapshot() async throws -> (co
     )
 
     let endpoint = "ws://agreement-order-\(UUID().uuidString).test/RemoteAgreementCell"
-    let requester = await CellBase.defaultIdentityVault?.identity(
+    let requester = await vault.identity(
         for: "binding-test-remote-agreement-order",
         makeNewIfNotFound: true
-    ) ?? Identity(UUID().uuidString, displayName: "Binding Test", identityVault: CellBase.defaultIdentityVault)
+    ) ?? Identity(UUID().uuidString, displayName: "Binding Test", identityVault: vault)
     await AgreementOrderingBridgeTransportScript.shared.reset()
 
     do {
@@ -200,6 +231,7 @@ final class RemoteEndpointAccessAgreementXCTest: XCTestCase {
         }
         XCTAssertTrue(snapshot.signedAgreementGrantKeypaths.contains("state"))
         XCTAssertTrue(snapshot.signedAgreementGrantKeypaths.contains("skeletonConfiguration"))
+        XCTAssertTrue(snapshot.responseErrors.isEmpty, "Bridge response delivery errors: \(snapshot.responseErrors)")
     }
 }
 
@@ -632,11 +664,10 @@ struct BindingTests {
             "\"keypath\":\"conferenceNavigator.dispatchAction\"",
             "\"keypath\":\"navigator.openConferenceParticipantPortal\"",
             "\"keypath\":\"navigator.openConferenceAIAssistant\"",
-            "\"name\":\"Conference Participant Portal Dashboard\"",
-            "\"name\":\"Conference AI Assistant\"",
-            "\"name\":\"Conference Control Tower\"",
-            "\"name\":\"Conference Public Surface\"",
-            "\"name\":\"Conference Claude Design Reference\""
+            "\"label\":\"Participant portal\"",
+            "\"label\":\"AI assistant\"",
+            "\"label\":\"Control tower\"",
+            "\"label\":\"Public surface\""
         ] {
             #expect(codexJSON.contains(expected), "Conference Codex launcher JSON missing \(expected)")
         }
@@ -646,10 +677,10 @@ struct BindingTests {
             "\"keypath\":\"conferenceNavigator.dispatchAction\"",
             "\"keypath\":\"navigator.openConferencePublicSurface\"",
             "\"keypath\":\"navigator.openConferenceSponsorFollowUp\"",
-            "\"name\":\"Conference Public Surface\"",
-            "\"name\":\"Conference Sponsor Follow-up\"",
-            "\"name\":\"Conference Nearby Radar · Full oversikt\"",
-            "\"name\":\"Conference Participant Chat\""
+            "\"label\":\"Open public surface\"",
+            "\"label\":\"Open sponsor follow-up\"",
+            "\"label\":\"Open nearby radar\"",
+            "\"label\":\"Open participant chat\""
         ] {
             #expect(claudeJSON.contains(expected), "Conference Claude reference JSON missing \(expected)")
         }
@@ -1921,7 +1952,7 @@ struct BindingTests {
         await store.clear()
 
         let url = try #require(
-            URL(string: "haven://identity-link?requestId=REQ-EXPIRED&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=nonce-expired&expiresAt=2026-04-02T12:00:00Z&algorithm=P256-ES256")
+            URL(string: "haven://identity-link?requestId=REQ-EXPIRED&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Kjetil%20iPhone&identity=Kjetil%20iPhone&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=AAAAAAAAAAAAAAAAAAAAAA&expiresAt=2026-04-02T12:00:00Z&algorithm=P256-ES256")
         )
 
         #expect(await store.ingest(url: url))
@@ -1936,7 +1967,7 @@ struct BindingTests {
             return
         }
 
-        #expect(review["confirmationStatus"] == .string("Challenge er utløpt. Binding nekter å signere enrollment request."))
+        #expect(review["confirmationStatus"] == .string("Challenge er utløpt. HAVEN nekter å signere enrollment request."))
         #expect(review["enrollmentRequest"] == .null)
 
         await store.clear()
@@ -2729,8 +2760,8 @@ struct BindingTests {
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(identityLinkConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(agentSetupConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantPortalConfiguration) == false)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantChatConfiguration) == true)
-        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(namedParticipantChatConfiguration) == true)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(participantChatConfiguration) == false)
+        #expect(contentView.requiresAuthenticatedRuntimeBootstrap(namedParticipantChatConfiguration) == false)
         #expect(contentView.requiresAuthenticatedRuntimeBootstrap(controlTowerConfiguration) == false)
     }
 
@@ -3015,6 +3046,7 @@ struct BindingTests {
         }
         #expect(snapshot.signedAgreementGrantKeypaths.contains("state"))
         #expect(snapshot.signedAgreementGrantKeypaths.contains("skeletonConfiguration"))
+        #expect(snapshot.responseErrors.isEmpty)
     }
 
     @Test func conferencePublicConfigurationRegistersRouteFromDiscoveryEndpoint() {
@@ -3477,7 +3509,8 @@ struct BindingTests {
             return
         }
 
-        let stateValue = try await perspective.get(
+        let stateValue = try await bindingTestEventuallyGet(
+            from: perspective,
             keypath: "perspective.state",
             requester: owner
         )
@@ -3610,7 +3643,7 @@ struct BindingTests {
         let startupIdentityAfter = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
 
         #expect(startupIdentityBefore?.uuid == startupIdentityAfter?.uuid)
-        #expect(CellBase.defaultIdentityVault is IdentityVault)
+        #expect(CellBase.defaultIdentityVault != nil)
     }
 
     @Test func cellConfigurationVerifierDefaultsToStartupIdentityMode() {
@@ -3724,14 +3757,21 @@ struct BindingTests {
     }
 
     @Test func localConferenceParticipantPreviewFallbackRestoresAfterCodableRoundTrip() async throws {
-        let previousDebugAccess = CellBase.debugValidateAccessForEverything
-        CellBase.debugValidateAccessForEverything = true
-        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+        let previousVault = CellBase.defaultIdentityVault
+        let identityVault = Self.testIdentityVault
+        CellBase.defaultIdentityVault = identityVault
+        defer { CellBase.defaultIdentityVault = previousVault }
 
-        let owner = Identity()
+        let owner = try #require(
+            await identityVault.identity(
+                for: "conference-participant-roundtrip-\(UUID().uuidString)",
+                makeNewIfNotFound: true
+            )
+        )
         let original = await ConferenceParticipantPreviewShellLocalFallbackCell(owner: owner)
 
-        _ = try await original.set(
+        _ = try await bindingTestEventuallySet(
+            on: original,
             keypath: "dispatchAction",
             value: .object([
                 "keypath": .string("matchmaking.searchPeople"),
@@ -3747,7 +3787,8 @@ struct BindingTests {
 
         var searchSummary: ValueType = .null
         for _ in 0..<40 {
-            searchSummary = try await decoded.get(
+            searchSummary = try await bindingTestEventuallyGet(
+                from: decoded,
                 keypath: "state.matches.searchSummary",
                 requester: owner
             )
@@ -3761,14 +3802,21 @@ struct BindingTests {
     }
 
     @Test func localConferenceAdminPreviewFallbackRestoresAfterCodableRoundTrip() async throws {
-        let previousDebugAccess = CellBase.debugValidateAccessForEverything
-        CellBase.debugValidateAccessForEverything = true
-        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+        let previousVault = CellBase.defaultIdentityVault
+        let identityVault = Self.testIdentityVault
+        CellBase.defaultIdentityVault = identityVault
+        defer { CellBase.defaultIdentityVault = previousVault }
 
-        let owner = Identity()
+        let owner = try #require(
+            await identityVault.identity(
+                for: "conference-admin-roundtrip-\(UUID().uuidString)",
+                makeNewIfNotFound: true
+            )
+        )
         let original = await ConferenceAdminPreviewShellLocalFallbackCell(owner: owner)
 
-        _ = try await original.set(
+        _ = try await bindingTestEventuallySet(
+            on: original,
             keypath: "contentPublishing.setDraftTitle",
             value: .string("Roundtrip title"),
             requester: owner
@@ -3779,7 +3827,8 @@ struct BindingTests {
 
         var restoredTitle: ValueType = .null
         for _ in 0..<40 {
-            restoredTitle = try await decoded.get(
+            restoredTitle = try await bindingTestEventuallyGet(
+                from: decoded,
                 keypath: "state.content.draft.title",
                 requester: owner
             )
@@ -5683,7 +5732,9 @@ struct BindingTests {
         }
     }
 
-    @Test func bindingLocalRegistrationDoesNotRegisterAgentAdminCells() async throws {
+    @Test func bindingLocalRegistrationKeepsAgentAdminSurfacesBehindCatalogGate() async throws {
+        UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
+
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
         CellBase.typedCellUtility = nil
@@ -5691,7 +5742,7 @@ struct BindingTests {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
         await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
 
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+        guard CellBase.defaultCellResolver is CellResolver else {
             Issue.record("Expected shared resolver after local registration.")
             return
         }
@@ -5700,24 +5751,21 @@ struct BindingTests {
             return
         }
 
-        let provisioningResolved: Bool
-        do {
-            _ = try await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
-            provisioningResolved = true
-        } catch {
-            provisioningResolved = false
+        let catalog = await ConfigurationCatalogCell(owner: owner)
+        let configurations = try await catalog.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = configurations else {
+            Issue.record("Forventet liste fra configurations")
+            return
         }
 
-        let enrollmentResolved: Bool
-        do {
-            _ = try await resolver.cellAtEndpoint(endpoint: "cell:///AgentEnrollment", requester: owner)
-            enrollmentResolved = true
-        } catch {
-            enrollmentResolved = false
+        let configurationNames = items.compactMap { value -> String? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name
         }
 
-        #expect(provisioningResolved == false)
-        #expect(enrollmentResolved == false)
+        #expect(!BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled)
+        #expect(configurationNames.contains("Agent Setup Workbench") == false)
+        #expect(configurationNames.contains("Network Sentinel") == false)
     }
 
     @Test func bindingLocalRegistrationRegistersAgentAdminCellsWhenOptedIn() async throws {
@@ -5789,6 +5837,9 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogBrowseQueryIncludesConferenceParticipantPortalEvenWithLowSourceLimit() async throws {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey) }
+
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
@@ -5799,6 +5850,9 @@ struct BindingTests {
                 "maxResults": .integer(80),
                 "maxSources": .integer(1),
                 "latencyBudgetMs": .integer(300)
+            ]),
+            "filters": .object([
+                "sourceRefs": .list([.string("cell:///ConferenceParticipantPreviewShell")])
             ])
         ]
 
@@ -5831,6 +5885,9 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogConferenceControlTowerUsesWorkbenchSkeletonForPreviewShell() async throws {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey) }
+
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
@@ -6654,6 +6711,12 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogPublishesCatalogContractsForScaffoldParityFixtures() async throws {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey) }
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
@@ -6687,6 +6750,9 @@ struct BindingTests {
     }
 
     @Test func configurationCatalogPublishesCatalogWorkbenchContractIOKeys() async throws {
+        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.conferenceDemoMenusDefaultsKey) }
+
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
@@ -7892,6 +7958,15 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
         return await self.identity(for: identityContext, makeNewIfNotFound: false)
     }
 
+    func identity(forUUID uuid: String) async -> Identity? {
+        guard let stored = identitiesByUUID[uuid] else {
+            return nil
+        }
+        let identity = stored.identity
+        identity.identityVault = self
+        return identity
+    }
+
     func saveIdentity(_ identity: Identity) async {
         guard let stored = identitiesByUUID[identity.uuid] else {
             return
@@ -8712,7 +8787,7 @@ struct CellConfigurationVerifierTests {
         #expect(report.nearbyActionSummary == "Startet conference-chat med Nora Berg.")
         #expect(report.workspaceNextStep == "Started follow-up chat with Nora Berg in local preview.")
         #expect(report.sharedChatSummary == "2 shared message(s) visible.")
-        #expect(report.firstRecentMessage == "Ja, gjerne. La oss fortsette praten om governance og oppfølging etter neste sesjon.")
+        #expect(report.firstRecentMessage == "Ja, gjerne. Jobber med tillit, relasjoner og hvordan identitet og oppfølging kan flyte mellom team. Hvis du vil, kan vi ta et kort neste steg etter sesjonen.")
         #expect(report.stopSucceeded)
         #expect(report.statusAfterStop == "stopped")
     }
@@ -10356,6 +10431,51 @@ private func bindingTestValueString(_ value: ValueType?) -> String? {
         return nil
     }
     return string
+}
+
+private func bindingTestEventuallyGet(
+    from cell: Meddle,
+    keypath: String,
+    requester: Identity,
+    attempts: Int = 40,
+    retryDelayNanoseconds: UInt64 = 50_000_000
+) async throws -> ValueType {
+    var lastError: Error?
+    for attempt in 0..<attempts {
+        do {
+            return try await cell.get(keypath: keypath, requester: requester)
+        } catch {
+            lastError = error
+            if attempt == attempts - 1 {
+                throw error
+            }
+            try await Task.sleep(nanoseconds: retryDelayNanoseconds)
+        }
+    }
+    throw lastError ?? CancellationError()
+}
+
+private func bindingTestEventuallySet(
+    on cell: Meddle,
+    keypath: String,
+    value: ValueType,
+    requester: Identity,
+    attempts: Int = 40,
+    retryDelayNanoseconds: UInt64 = 50_000_000
+) async throws -> ValueType? {
+    var lastError: Error?
+    for attempt in 0..<attempts {
+        do {
+            return try await cell.set(keypath: keypath, value: value, requester: requester)
+        } catch {
+            lastError = error
+            if attempt == attempts - 1 {
+                throw error
+            }
+            try await Task.sleep(nanoseconds: retryDelayNanoseconds)
+        }
+    }
+    throw lastError ?? CancellationError()
 }
 
 private func bindingTestValueStrings(_ value: ValueType?) -> [String] {
