@@ -92,4 +92,36 @@ struct ScheduledEventServiceTests {
         #expect(stopped.status == .stopped)
         #expect(stopped.nextFireAt == nil)
     }
+
+    @Test
+    func workerObservesStopWrittenByAnotherProcess() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("scheduled-events.json")
+        let definition = ScheduledEventDefinition(
+            id: "shared-stop",
+            firstFireAt: "2099-01-01T00:00:00Z",
+            repeatMode: .untilStopped,
+            intervalSeconds: 60,
+            action: AutomationActionRequest(kind: .localTask, id: "test-task")
+        )
+        let worker = ScheduledEventService(
+            fileURL: fileURL,
+            sleep: { _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+        )
+        let controller = ScheduledEventService(fileURL: fileURL)
+
+        try await worker.start(definitions: [definition], policy: .init())
+        try await controller.start(
+            definitions: [definition],
+            policy: .init(),
+            runWorker: false
+        )
+        _ = try await controller.stopEvent(id: "shared-stop")
+        await worker.runDueEvents()
+        await worker.stop()
+
+        #expect(await worker.snapshot().first?.status == .stopped)
+        #expect(await worker.snapshot().first?.nextFireAt == nil)
+    }
 }

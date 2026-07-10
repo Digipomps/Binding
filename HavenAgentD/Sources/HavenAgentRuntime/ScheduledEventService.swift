@@ -201,6 +201,9 @@ public actor ScheduledEventService {
     }
 
     public func runDueEvents() async {
+        if let persisted = try? await store.load() {
+            records = persisted
+        }
         let current = now()
         let dueIDs = records.compactMap { record -> String? in
             guard record.status == .scheduled,
@@ -233,6 +236,12 @@ public actor ScheduledEventService {
 
         records[index].runCount += 1
         records[index].lastFinishedAt = Self.formatDate(now())
+        if let externallyStopped = try? await store.load().first(where: {
+            $0.definition.id == id && $0.status == .stopped
+        }) {
+            records[index] = externallyStopped
+            return
+        }
         switch definition.repeatMode {
         case .once:
             records[index].status = .completed
