@@ -11,7 +11,14 @@ REPO_ROOT="${BINDING_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 AGENT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_BINARY:-$REPO_ROOT/HavenAgentD/.build/debug/haven-agentd}"
 AGENT_ALT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_ALT_BINARY:-$REPO_ROOT/HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd}"
 AGENT_STAGING_DIR="${BINDING_AGENT_STAGING_DIR:-$HOME/Library/Application Support/HAVENAgent/Staging}"
+AGENT_ROOT="${BINDING_AGENT_ROOT:-$HOME/Library/Application Support/HAVENAgent}"
+AGENT_CONFIG_FILE="$AGENT_ROOT/config.json"
+AGENT_INSTALLED_BINARY="$AGENT_ROOT/bin/haven-agentd"
 AGENT_STAGING_BINARY="$AGENT_STAGING_DIR/haven-agentd"
+SPROUT_BUILD_BINARY="${BINDING_SPROUT_BINARY:-$REPO_ROOT/../sprout/.build/debug/sprout}"
+SPROUT_ALT_BUILD_BINARY="${BINDING_SPROUT_ALT_BINARY:-$REPO_ROOT/../sprout/.build/arm64-apple-macosx/debug/sprout}"
+SPROUT_RELEASE_BINARY="${BINDING_SPROUT_RELEASE_BINARY:-$REPO_ROOT/../sprout/.build/arm64-apple-macosx/release/sprout}"
+SPROUT_STAGING_BINARY="$AGENT_STAGING_DIR/sprout"
 
 mkdir -p "$OUT_DIR"
 mkdir -p "$MODULE_CACHE_DIR"
@@ -24,7 +31,7 @@ fi
 
 window_id() {
   local target_pid="$1"
-  swift -e "import Cocoa; let targetPID = $target_pid; let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []; for info in infos { if let owner = info[kCGWindowOwnerName as String] as? String, owner == \"HAVEN\", let pid = info[kCGWindowOwnerPID as String] as? Int, pid == targetPID, let id = info[kCGWindowNumber as String] as? Int { print(id); break } }"
+  swift -e "import Cocoa; let targetPID = $target_pid; let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []; for info in infos { let pid = info[kCGWindowOwnerPID as String] as? Int ?? -1; let layer = info[kCGWindowLayer as String] as? Int ?? -1; guard pid == targetPID && layer == 0 else { continue }; guard let id = info[kCGWindowNumber as String] as? Int else { continue }; print(id); break }"
 }
 
 window_bounds() {
@@ -33,7 +40,6 @@ window_bounds() {
 let targetPID = $target_pid
 let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
 for info in infos {
-  guard let owner = info[kCGWindowOwnerName as String] as? String, owner == \"HAVEN\" else { continue }
   let pid = info[kCGWindowOwnerPID as String] as? Int ?? -1
   guard pid == targetPID else { continue }
   let layer = info[kCGWindowLayer as String] as? Int ?? -1
@@ -159,6 +165,22 @@ approve_runtime_access_if_needed() {
                   end if
                 end if
               end try
+              try
+                repeat with candidateElement in entire contents of candidateWindow
+                  try
+                    if role of candidateElement is \"AXButton\" and name of candidateElement is \"Grant Access\" then
+                      click candidateElement
+                      return \"accepted\"
+                    end if
+                  end try
+                end repeat
+              end try
+              try
+                if (description of candidateWindow contains \"dialog\") or (name of candidateWindow contains \"access\") then
+                  key code 36
+                  return \"accepted-return\"
+                end if
+              end try
             end repeat
             return \"waiting\"
           end tell" 2>/dev/null || true)"
@@ -204,6 +226,103 @@ validate_capture_hashes() {
   fi
 }
 
+validate_agent_progression() {
+  local installed="$OUT_DIR/12-agent-installed.png"
+  local connected="$OUT_DIR/13-agent-connected.png"
+  local approved="$OUT_DIR/14-agent-review-approved.png"
+
+  if [[ ! -f "$installed" || ! -f "$connected" || ! -f "$approved" ]]; then
+    echo "- Agent progression validation: skipped (agent screenshots missing)." >> "$OUT_DIR/report.md"
+    return 0
+  fi
+
+  local installed_hash connected_hash approved_hash
+  installed_hash="$(md5 -q "$installed")"
+  connected_hash="$(md5 -q "$connected")"
+  approved_hash="$(md5 -q "$approved")"
+
+  if [[ "$installed_hash" == "$connected_hash" && "$connected_hash" == "$approved_hash" ]]; then
+    echo "- Agent progression validation: failed (agent install/connect/review captures were identical)." >> "$OUT_DIR/report.md"
+    echo "Smoke capture validation failed: agent install/connect/review screenshots were identical. Runtime access may still be blocked by an approval dialog." >&2
+    return 1
+  fi
+
+  echo "- Agent progression validation: passed." >> "$OUT_DIR/report.md"
+}
+
+validate_agent_runtime_state() {
+  local state_file="$AGENT_ROOT/State/agent-state.json"
+  local config_file="$AGENT_CONFIG_FILE"
+
+  if [[ ! -f "$config_file" ]]; then
+    echo "- Agent runtime validation: failed (missing config.json)." >> "$OUT_DIR/report.md"
+    echo "Agent runtime validation failed: missing $config_file" >&2
+    return 1
+  fi
+
+  local sprout_path
+  sprout_path="$(plutil -extract scaffold.sproutBinaryPath raw -o - "$config_file" 2>/dev/null || true)"
+  if [[ -z "$sprout_path" || ! -x "$sprout_path" ]]; then
+    echo "- Agent runtime validation: failed (sprout binary is not executable: ${sprout_path:-missing})." >> "$OUT_DIR/report.md"
+    echo "Agent runtime validation failed: sprout binary is not executable: ${sprout_path:-missing}" >&2
+    return 1
+  fi
+
+  if [[ ! -f "$state_file" ]]; then
+    echo "- Agent runtime validation: failed (missing agent-state.json)." >> "$OUT_DIR/report.md"
+    echo "Agent runtime validation failed: missing $state_file" >&2
+    return 1
+  fi
+
+  local phase last_error
+  phase="$(plutil -extract portholeIngress.phase raw -o - "$state_file" 2>/dev/null || true)"
+  last_error="$(plutil -extract portholeIngress.lastError raw -o - "$state_file" 2>/dev/null || true)"
+  if [[ "$phase" != "connected" ]]; then
+    if [[ "$last_error" == *"error: expired"* ]]; then
+      echo "- Agent runtime validation: failed (staging bridge/porthole contract is expired)." >> "$OUT_DIR/report.md"
+      echo "Agent runtime validation failed: staging bridge/porthole contract is expired. Refresh staging scaffold bridge descriptors before expecting portholeIngress.phase=connected." >&2
+      return 1
+    fi
+    echo "- Agent runtime validation: failed (porthole phase: ${phase:-missing})." >> "$OUT_DIR/report.md"
+    echo "Agent runtime validation failed: expected portholeIngress.phase=connected, got ${phase:-missing}. ${last_error}" >&2
+    return 1
+  fi
+
+  echo "- Agent runtime validation: passed (sprout: \`$sprout_path\`, porthole phase: connected)." >> "$OUT_DIR/report.md"
+}
+
+refresh_starter_auth_if_possible() {
+  local refresh_binary=""
+  if [[ -x "$AGENT_INSTALLED_BINARY" ]]; then
+    refresh_binary="$AGENT_INSTALLED_BINARY"
+  elif [[ -x "$AGENT_STAGING_BINARY" ]]; then
+    refresh_binary="$AGENT_STAGING_BINARY"
+  fi
+
+  if [[ -z "$refresh_binary" ]]; then
+    echo "- Starter auth refresh: failed (haven-agentd binary is not executable)." >> "$OUT_DIR/report.md"
+    echo "Starter auth refresh failed: haven-agentd binary is not executable." >&2
+    return 1
+  fi
+
+  if [[ ! -f "$AGENT_CONFIG_FILE" ]]; then
+    echo "- Starter auth refresh: failed (missing config at $AGENT_CONFIG_FILE)." >> "$OUT_DIR/report.md"
+    echo "Starter auth refresh failed: missing $AGENT_CONFIG_FILE" >&2
+    return 1
+  fi
+
+  if "$refresh_binary" refresh-starter-auth --config "$AGENT_CONFIG_FILE" --ttl-seconds 3600 >"$OUT_DIR/starter-auth-refresh.json" 2>"$OUT_DIR/starter-auth-refresh.err"; then
+    local expires_at
+    expires_at="$(plutil -extract expiresAt raw -o - "$OUT_DIR/starter-auth-refresh.json" 2>/dev/null || true)"
+    echo "- Starter auth refresh: passed (expires: ${expires_at:-unknown}; summary: \`$OUT_DIR/starter-auth-refresh.json\`)." >> "$OUT_DIR/report.md"
+    return 0
+  fi
+
+  echo "- Starter auth refresh: failed (see \`$OUT_DIR/starter-auth-refresh.err\`)." >> "$OUT_DIR/report.md"
+  echo "Starter auth refresh failed; see $OUT_DIR/starter-auth-refresh.err" >&2
+  return 1
+}
+
 stage_agent_binary() {
   local source_binary=""
 
@@ -229,12 +348,40 @@ stage_agent_binary() {
   echo "- Agent staging binary: unavailable (no built haven-agentd found)." >> "$OUT_DIR/report.md"
 }
 
+stage_sprout_binary() {
+  local source_binary=""
+
+  if [[ -x "$SPROUT_BUILD_BINARY" ]]; then
+    source_binary="$SPROUT_BUILD_BINARY"
+  elif [[ -x "$SPROUT_ALT_BUILD_BINARY" ]]; then
+    source_binary="$SPROUT_ALT_BUILD_BINARY"
+  elif [[ -x "$SPROUT_RELEASE_BINARY" ]]; then
+    source_binary="$SPROUT_RELEASE_BINARY"
+  fi
+
+  if [[ -n "$source_binary" ]]; then
+    mkdir -p "$AGENT_STAGING_DIR"
+    cp -f "$source_binary" "$SPROUT_STAGING_BINARY"
+    chmod 755 "$SPROUT_STAGING_BINARY"
+    echo "- Sprout staging binary: \`$SPROUT_STAGING_BINARY\` (from \`$source_binary\`)" >> "$OUT_DIR/report.md"
+    return 0
+  fi
+
+  if [[ -x "$SPROUT_STAGING_BINARY" ]]; then
+    echo "- Sprout staging binary: reusing existing \`$SPROUT_STAGING_BINARY\`" >> "$OUT_DIR/report.md"
+    return 0
+  fi
+
+  echo "- Sprout staging binary: unavailable (no built sprout found)." >> "$OUT_DIR/report.md"
+}
+
 echo "# Conference Demo Smoke Report" > "$OUT_DIR/report.md"
 echo >> "$OUT_DIR/report.md"
 echo "- Date: $(date '+%Y-%m-%d %H:%M:%S %Z')" >> "$OUT_DIR/report.md"
 echo "- App binary: \`$APP_BINARY\`" >> "$OUT_DIR/report.md"
 echo "- Output dir: \`$OUT_DIR\`" >> "$OUT_DIR/report.md"
 stage_agent_binary
+stage_sprout_binary
 
 osascript -e "tell application \"$APP_NAME\" to quit" >/dev/null 2>&1 || true
 pkill -f "$APP_BINARY" 2>/dev/null || true
@@ -284,11 +431,13 @@ capture_step "$APP_PID" "identity-link" 10
 run_menu_action "$APP_PID" "Open Agent Setup Workbench" 4.0
 capture_step "$APP_PID" "agent-setup" 11
 
+run_menu_action "$APP_PID" "Stop HAVENAgentD" 3.0
 run_menu_action_async "$APP_PID" "Install HAVENAgentD"
 sleep 1
 approve_runtime_access_if_needed "$APP_PID" 20
 sleep 23
 capture_step "$APP_PID" "agent-installed" 12
+refresh_starter_auth_if_possible
 
 run_menu_action "$APP_PID" "Start HAVENAgentD" 8.0
 run_menu_action "$APP_PID" "Run HAVENAgentD Once" 10.0
@@ -302,7 +451,13 @@ capture_step "$APP_PID" "agent-review-approved" 14
 echo >> "$OUT_DIR/report.md"
 echo "- HAVEN log: \`$OUT_DIR/binding.log\`" >> "$OUT_DIR/report.md"
 
-validate_capture_hashes
+validation_status=0
+validate_capture_hashes || validation_status=1
+validate_agent_progression || validation_status=1
+validate_agent_runtime_state || validation_status=1
+if (( validation_status != 0 )); then
+  exit "$validation_status"
+fi
 
 echo "Conference demo smoke run complete."
 echo "Report: $OUT_DIR/report.md"

@@ -131,6 +131,7 @@ final class AgentProvisioningCell: GeneralCell {
         var packageDirectory: URL
         var stagingDirectory: URL
         var stagedBinary: URL
+        var stagedSproutBinary: URL
         var buildBinary: URL
         var alternateBuildBinary: URL
         var bundledBinary: URL?
@@ -328,10 +329,7 @@ final class AgentProvisioningCell: GeneralCell {
 
     nonisolated private static func makeDefaultState() -> MutableState {
         let sourceRoot = repositoryRoot.path
-        let sproutPath = repositoryRoot
-            .deletingLastPathComponent()
-            .appendingPathComponent("sprout/.build/debug/sprout")
-            .path
+        let sproutPath = defaultSproutBinaryPath(sourceRoot: repositoryRoot)
         let defaultControlBridgeEndpoint = "ws://127.0.0.1:43110/bridgehead"
 
         return MutableState(
@@ -1122,6 +1120,17 @@ final class AgentProvisioningCell: GeneralCell {
         Self.activatePersistedExternalRuntimeAccess(forRuntimeAccessDirectory: applicationSupportDirectory)
         let agentDirectory = applicationSupportDirectory.appendingPathComponent("HAVENAgent", isDirectory: true)
         let stagingDirectory = agentDirectory.appendingPathComponent("Staging", isDirectory: true)
+        let stagedSproutBinary = stagingDirectory.appendingPathComponent("sprout")
+        let sproutBinaryPath = Self.resolvedSproutBinaryPath(
+            configuredPath: snapshot.sproutBinaryPath,
+            sourceRoot: sourceRoot,
+            stagedSproutBinary: stagedSproutBinary
+        )
+        if sproutBinaryPath != snapshot.sproutBinaryPath {
+            stateQueue.sync {
+                mutableState.sproutBinaryPath = sproutBinaryPath
+            }
+        }
         let launchAgentsDirectory = agentDirectory.appendingPathComponent("Launchd", isDirectory: true)
         let bundledBinary = Bundle.main.resourceURL?.appendingPathComponent("HAVENAgent/haven-agentd")
 
@@ -1130,6 +1139,7 @@ final class AgentProvisioningCell: GeneralCell {
             packageDirectory: sourceRoot.appendingPathComponent("HavenAgentD", isDirectory: true),
             stagingDirectory: stagingDirectory,
             stagedBinary: stagingDirectory.appendingPathComponent("haven-agentd"),
+            stagedSproutBinary: stagedSproutBinary,
             buildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/debug/haven-agentd"),
             alternateBuildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd"),
             bundledBinary: bundledBinary,
@@ -1163,6 +1173,55 @@ final class AgentProvisioningCell: GeneralCell {
             return URL(fileURLWithPath: fallbackHome, isDirectory: true)
         }
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+    }
+
+    nonisolated private static func defaultSproutBinaryPath(sourceRoot: URL) -> String {
+        let candidates = sproutBinaryPathCandidates(sourceRoot: sourceRoot)
+        let fileManager = FileManager.default
+        return candidates.first { fileManager.isExecutableFile(atPath: $0.path) }?.path
+            ?? candidates[0].path
+    }
+
+    nonisolated private static func resolvedSproutBinaryPath(
+        configuredPath: String,
+        sourceRoot: URL,
+        stagedSproutBinary: URL? = nil
+    ) -> String {
+        let expandedPath = NSString(string: configuredPath).expandingTildeInPath
+        let fileManager = FileManager.default
+        let pointsAtRepositorySproutBuild = expandedPath.contains("/sprout/.build/")
+        if let stagedSproutBinary,
+           pointsAtRepositorySproutBuild,
+           fileManager.isExecutableFile(atPath: stagedSproutBinary.path) {
+            return stagedSproutBinary.path
+        }
+        if expandedPath.isEmpty == false,
+           fileManager.isExecutableFile(atPath: expandedPath) {
+            return expandedPath
+        }
+
+        let candidates = (stagedSproutBinary.map { [$0] } ?? []) + sproutBinaryPathCandidates(sourceRoot: sourceRoot)
+        guard let executableCandidate = candidates.first(where: { fileManager.isExecutableFile(atPath: $0.path) }) else {
+            return expandedPath.isEmpty ? candidates[0].path : expandedPath
+        }
+
+        let candidatePaths = Set(candidates.map(\.path))
+        if expandedPath.isEmpty || candidatePaths.contains(expandedPath) || pointsAtRepositorySproutBuild {
+            return executableCandidate.path
+        }
+
+        return expandedPath
+    }
+
+    nonisolated private static func sproutBinaryPathCandidates(sourceRoot: URL) -> [URL] {
+        let havenRoot = sourceRoot.deletingLastPathComponent()
+        let sproutRoot = havenRoot.appendingPathComponent("sprout", isDirectory: true)
+        return [
+            sproutRoot.appendingPathComponent(".build/debug/sprout"),
+            sproutRoot.appendingPathComponent(".build/arm64-apple-macosx/debug/sprout"),
+            sproutRoot.appendingPathComponent(".build/release/sprout"),
+            sproutRoot.appendingPathComponent(".build/arm64-apple-macosx/release/sprout")
+        ]
     }
 
     private static func activatePersistedExternalRuntimeAccess(forRuntimeAccessDirectory runtimeAccessDirectory: URL) {
@@ -1284,8 +1343,8 @@ final class AgentProvisioningCell: GeneralCell {
 #endif
 
     private func refreshState(requester: Identity) async {
-        let snapshot = stateQueue.sync { mutableState }
         guard let paths = try? currentPaths() else { return }
+        let snapshot = stateQueue.sync { mutableState }
 
         let fileManager = FileManager.default
         let stagedBinaryExists = Self.regularFileExists(at: paths.stagedBinary, fileManager: fileManager)
@@ -1742,6 +1801,16 @@ final class AgentProvisioningCell: GeneralCell {
 
     private func makeAgentConfigObject(paths: AgentPaths, requester: Identity?) -> [String: Any] {
         let snapshot = stateQueue.sync { mutableState }
+        let sproutBinaryPath = Self.resolvedSproutBinaryPath(
+            configuredPath: snapshot.sproutBinaryPath,
+            sourceRoot: paths.sourceRoot,
+            stagedSproutBinary: paths.stagedSproutBinary
+        )
+        if sproutBinaryPath != snapshot.sproutBinaryPath {
+            stateQueue.sync {
+                mutableState.sproutBinaryPath = sproutBinaryPath
+            }
+        }
         let interests = parsedInterests(from: snapshot.interestsText)
         let baseURL = sanitizedBaseURL(for: snapshot.domain)
         let existingConfig = Self.readJSONObject(at: paths.configFile)
@@ -1757,7 +1826,7 @@ final class AgentProvisioningCell: GeneralCell {
             "instanceName": "haven-agentd",
             "heartbeatIntervalSeconds": 30,
             "scaffold": [
-                "sproutBinaryPath": NSString(string: snapshot.sproutBinaryPath).expandingTildeInPath,
+                "sproutBinaryPath": sproutBinaryPath,
                 "startupMode": "join",
                 "runtime": "macos-app",
                 "domain": snapshot.domain,

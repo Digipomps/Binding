@@ -4036,26 +4036,36 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return .object(snapshotObject())
         }
 
+        let localLifecycleSummary: String?
+        switch keypath {
+        case "start":
+            scannerStatus = "started"
+            scannerLifecycleStatus = "started"
+            requestedScannerStatus = "started"
+            localLifecycleSummary = "Scanner-start ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå."
+            lastActionSummary = "Starter scanner og lytter etter nearby-signaler."
+        case "stop":
+            scannerStatus = "stopped"
+            scannerLifecycleStatus = "stopped"
+            requestedScannerStatus = "stopped"
+            localLifecycleSummary = "Scanner-stopp ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå."
+            lastActionSummary = "Stopper scanner og rydder live nearby-signaler."
+        default:
+            localLifecycleSummary = nil
+        }
+
         await connectScannerIfNeeded(requester: requester)
         guard let scannerMeddle else {
             lastError = "EntityScanner unavailable"
+            if let localLifecycleSummary {
+                lastActionSummary = localLifecycleSummary
+            }
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
         let scannerRequester = scannerAccessRequester
 
         do {
-            if keypath == "start" {
-                scannerStatus = "started"
-                scannerLifecycleStatus = "started"
-                requestedScannerStatus = "started"
-                lastActionSummary = "Starter scanner og lytter etter nearby-signaler."
-            } else if keypath == "stop" {
-                scannerStatus = "stopped"
-                scannerLifecycleStatus = "stopped"
-                requestedScannerStatus = "stopped"
-                lastActionSummary = "Stopper scanner og rydder live nearby-signaler."
-            }
             let result = try await scannerMeddle.set(keypath: keypath, value: value, requester: scannerRequester)
             lastError = nil
             applyMutationResult(keypath: keypath, result: result, payload: value)
