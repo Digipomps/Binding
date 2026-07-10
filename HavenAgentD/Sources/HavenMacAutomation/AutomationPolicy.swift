@@ -109,13 +109,49 @@ public struct AppleScriptInvocation: Equatable, Sendable {
     }
 }
 
+public struct LocalTaskDefinition: Codable, Equatable, Sendable {
+    public var id: String
+    public var description: String
+    public var executablePath: String
+    public var arguments: [String]
+    public var requiresUserSession: Bool
+
+    public init(
+        id: String,
+        description: String,
+        executablePath: String,
+        arguments: [String],
+        requiresUserSession: Bool = false
+    ) {
+        self.id = id
+        self.description = description
+        self.executablePath = executablePath
+        self.arguments = arguments
+        self.requiresUserSession = requiresUserSession
+    }
+}
+
+public struct LocalTaskInvocation: Equatable, Sendable {
+    public var id: String
+
+    public init(id: String) {
+        self.id = id
+    }
+}
+
 public struct AutomationPolicy: Codable, Equatable, Sendable {
     public var shortcuts: [ShortcutDefinition]
     public var appleScripts: [AppleScriptDefinition]
+    public var localTasks: [LocalTaskDefinition]?
 
-    public init(shortcuts: [ShortcutDefinition] = [], appleScripts: [AppleScriptDefinition] = []) {
+    public init(
+        shortcuts: [ShortcutDefinition] = [],
+        appleScripts: [AppleScriptDefinition] = [],
+        localTasks: [LocalTaskDefinition]? = nil
+    ) {
         self.shortcuts = shortcuts
         self.appleScripts = appleScripts
+        self.localTasks = localTasks
     }
 
     public func authorize(_ invocation: ShortcutInvocation) throws -> AuthorizedShortcutInvocation {
@@ -180,6 +216,19 @@ public struct AutomationPolicy: Codable, Equatable, Sendable {
         )
     }
 
+    public func authorize(_ invocation: LocalTaskInvocation) throws -> LocalTaskDefinition {
+        guard let definition = localTasks?.first(where: { $0.id == invocation.id }) else {
+            throw AutomationPolicyError.unknownLocalTask(invocation.id)
+        }
+        guard definition.executablePath.hasPrefix("/"), !definition.executablePath.contains(where: \.isNewline) else {
+            throw AutomationPolicyError.invalidLocalTask(invocation.id, "executablePath must be an absolute single-line path")
+        }
+        guard definition.arguments.allSatisfy({ !$0.contains(where: \.isNewline) }) else {
+            throw AutomationPolicyError.invalidLocalTask(invocation.id, "arguments must be single-line values")
+        }
+        return definition
+    }
+
     private func validate(value: String, field: String, constraint: StringConstraint) throws {
         if value.count > constraint.maxLength {
             throw AutomationPolicyError.invalidArgument(field, "Value exceeds maxLength \(constraint.maxLength)")
@@ -242,6 +291,8 @@ public struct AuthorizedAppleScriptInvocation: Sendable {
 public enum AutomationPolicyError: Error, Equatable, Sendable, LocalizedError {
     case unknownShortcut(String)
     case unknownAppleScript(String)
+    case unknownLocalTask(String)
+    case invalidLocalTask(String, String)
     case remoteExecutionDenied(String)
     case inputPathNotAllowed(String)
     case unexpectedArgument(String)
@@ -254,6 +305,10 @@ public enum AutomationPolicyError: Error, Equatable, Sendable, LocalizedError {
             return "Unknown shortcut definition: \(id)"
         case .unknownAppleScript(let id):
             return "Unknown AppleScript definition: \(id)"
+        case .unknownLocalTask(let id):
+            return "Unknown local task definition: \(id)"
+        case .invalidLocalTask(let id, let reason):
+            return "Invalid local task '\(id)': \(reason)"
         case .remoteExecutionDenied(let id):
             return "Remote execution denied for action: \(id)"
         case .inputPathNotAllowed(let id):

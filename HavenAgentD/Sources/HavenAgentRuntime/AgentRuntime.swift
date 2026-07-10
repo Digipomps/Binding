@@ -183,13 +183,16 @@ private final class ShutdownSignal {
 private actor ActionDispatcher {
     private let shortcutRunner: ShortcutRunner
     private let appleScriptRunner: AppleScriptRunner
+    private let localTaskRunner: LocalTaskRunner
 
     init(
         shortcutRunner: ShortcutRunner,
-        appleScriptRunner: AppleScriptRunner
+        appleScriptRunner: AppleScriptRunner,
+        localTaskRunner: LocalTaskRunner
     ) {
         self.shortcutRunner = shortcutRunner
         self.appleScriptRunner = appleScriptRunner
+        self.localTaskRunner = localTaskRunner
     }
 
     func dispatch(
@@ -209,6 +212,9 @@ private actor ActionDispatcher {
             let invocation = AppleScriptInvocation(id: action.id, origin: .local, arguments: arguments)
             _ = try await appleScriptRunner.run(invocation, policy: policy)
             return ExecutedActionRecord(kind: .appleScript, id: action.id, status: "succeeded", recordedAt: timestamp)
+        case .localTask:
+            _ = try await localTaskRunner.run(LocalTaskInvocation(id: action.id), policy: policy)
+            return ExecutedActionRecord(kind: .localTask, id: action.id, status: "succeeded", recordedAt: timestamp)
         }
     }
 
@@ -267,7 +273,8 @@ public actor AgentRuntime {
         self.sproutBootstrapClient = SproutBootstrapClient(processRunner: processRunner)
         self.dispatcher = ActionDispatcher(
             shortcutRunner: ShortcutRunner(processRunner: processRunner),
-            appleScriptRunner: AppleScriptRunner(processRunner: processRunner)
+            appleScriptRunner: AppleScriptRunner(processRunner: processRunner),
+            localTaskRunner: LocalTaskRunner(processRunner: processRunner)
         )
         self.remoteIntentStateStore = RemoteIntentStateStore(fileURL: paths.remoteIntentStateFile)
         self.portholeIngressController = portholeIngressController ?? PortholeIngressSession()

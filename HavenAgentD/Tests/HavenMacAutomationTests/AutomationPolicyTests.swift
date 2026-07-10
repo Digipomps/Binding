@@ -3,6 +3,25 @@ import Testing
 
 struct AutomationPolicyTests {
     @Test
+    func localTaskUsesOnlyFixedAllowlistedExecutableAndArguments() throws {
+        let policy = AutomationPolicy(localTasks: [
+            LocalTaskDefinition(
+                id: "resume-session",
+                description: "Resume one approved local session.",
+                executablePath: "/Users/tester/.local/bin/claude",
+                arguments: ["--resume", "session-id", "--print", "Continue"]
+            )
+        ])
+
+        let authorized = try policy.authorize(LocalTaskInvocation(id: "resume-session"))
+        #expect(authorized.executablePath == "/Users/tester/.local/bin/claude")
+        #expect(authorized.arguments == ["--resume", "session-id", "--print", "Continue"])
+        #expect(throws: AutomationPolicyError.unknownLocalTask("other")) {
+            try policy.authorize(LocalTaskInvocation(id: "other"))
+        }
+    }
+
+    @Test
     func deniesRemoteExecutionForLocalOnlyShortcut() throws {
         let policy = AutomationPolicy(
             shortcuts: [

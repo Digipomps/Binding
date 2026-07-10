@@ -19,6 +19,9 @@ enum HavenAgentCommand {
     case refreshStarterAuth(configPath: String?, rootPath: String?, ttlSeconds: Int)
     case onboard(configPath: String?, rootPath: String?, openBrowser: Bool, bridgePort: Int?)
     case run(configPath: String?, once: Bool, rootPath: String?)
+    case scheduleWorker(configPath: String?, rootPath: String?)
+    case scheduleList(configPath: String?, rootPath: String?)
+    case scheduleStop(configPath: String?, eventID: String, rootPath: String?)
     case reviewState(configPath: String?, rootPath: String?)
     case reviewApprove(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
     case reviewReject(configPath: String?, intentID: String, reviewer: String?, note: String?, rootPath: String?)
@@ -247,6 +250,54 @@ struct HavenAgentMain {
                     await cellRuntimeHost.stop()
                     throw error
                 }
+
+            case .scheduleWorker(let configPath, let rootPath):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let config = try AgentConfig.load(from: configURL)
+                let service = ScheduledEventService(
+                    fileURL: paths.stateDirectory.appendingPathComponent("scheduled-events.json")
+                )
+                try await service.start(
+                    definitions: config.scheduledEvents ?? [],
+                    policy: config.automationPolicy
+                )
+                FileHandle.standardError.write(Data("haven-agentd schedule-worker: running \((config.scheduledEvents ?? []).count) event(s). SIGTERM/Ctrl-C to stop.\n".utf8))
+                await AgentMonitorShutdown().wait()
+                await service.stop()
+
+            case .scheduleList(let configPath, let rootPath):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let config = try AgentConfig.load(from: configURL)
+                let service = ScheduledEventService(
+                    fileURL: paths.stateDirectory.appendingPathComponent("scheduled-events.json")
+                )
+                try await service.start(
+                    definitions: config.scheduledEvents ?? [],
+                    policy: config.automationPolicy,
+                    runWorker: false,
+                    persistConfiguration: false
+                )
+                let records = await service.snapshot()
+                await service.stop()
+                try printJSON(records)
+
+            case .scheduleStop(let configPath, let eventID, let rootPath):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let config = try AgentConfig.load(from: configURL)
+                let service = ScheduledEventService(
+                    fileURL: paths.stateDirectory.appendingPathComponent("scheduled-events.json")
+                )
+                try await service.start(
+                    definitions: config.scheduledEvents ?? [],
+                    policy: config.automationPolicy,
+                    runWorker: false
+                )
+                let record = try await service.stopEvent(id: eventID)
+                await service.stop()
+                try printJSON(record)
 
             case .reviewState(let configPath, let rootPath):
                 let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
@@ -486,6 +537,28 @@ struct HavenAgentMain {
             return .run(
                 configPath: argumentValue(for: "--config", in: remaining),
                 once: remaining.contains("--once"),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "schedule-worker":
+            let remaining = Array(arguments.dropFirst())
+            return .scheduleWorker(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "schedule-list":
+            let remaining = Array(arguments.dropFirst())
+            return .scheduleList(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "schedule-stop":
+            let remaining = Array(arguments.dropFirst())
+            guard let eventID = argumentValue(for: "--event-id", in: remaining) else {
+                throw UsageError.invalidArguments("schedule-stop requires --event-id ID")
+            }
+            return .scheduleStop(
+                configPath: argumentValue(for: "--config", in: remaining),
+                eventID: eventID,
                 rootPath: argumentValue(for: "--root", in: remaining)
             )
         case "review-state":
@@ -793,6 +866,9 @@ struct HavenAgentMain {
           haven-agentd refresh-starter-auth [--config /path/to/config.json] [--root /path/to/dev-root] [--ttl-seconds N]
           haven-agentd onboard [--config /path/to/config.json] [--root /path/to/dev-root] [--bridge-port N] [--open]
           haven-agentd run [--config /path/to/config.json] [--once] [--root /path/to/dev-root]
+          haven-agentd schedule-worker [--config /path/to/config.json] [--root /path/to/dev-root]
+          haven-agentd schedule-list [--config /path/to/config.json] [--root /path/to/dev-root]
+          haven-agentd schedule-stop --event-id ID [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd review-state [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd review-approve --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd review-reject --intent-id ID [--reviewer name] [--note text] [--config /path/to/config.json] [--root /path/to/dev-root]

@@ -5,6 +5,7 @@ import HavenRuntimeBootstrap
 public enum AutomationActionKind: String, Codable, Equatable, Sendable {
     case shortcut
     case appleScript
+    case localTask
 }
 
 public struct AutomationActionRequest: Codable, Equatable, Sendable {
@@ -364,6 +365,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
     public var automationPolicy: AutomationPolicy
     public var remoteIntentPolicy: RemoteIntentPolicy
     public var networkSentinel: NetworkSentinelConfig?
+    public var scheduledEvents: [ScheduledEventDefinition]?
 
     public init(
         instanceName: String,
@@ -374,7 +376,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         deviceActionRelay: DeviceActionRelayConfig? = nil,
         automationPolicy: AutomationPolicy,
         remoteIntentPolicy: RemoteIntentPolicy = .init(),
-        networkSentinel: NetworkSentinelConfig? = NetworkSentinelConfig()
+        networkSentinel: NetworkSentinelConfig? = NetworkSentinelConfig(),
+        scheduledEvents: [ScheduledEventDefinition]? = nil
     ) {
         self.instanceName = instanceName
         self.heartbeatIntervalSeconds = heartbeatIntervalSeconds
@@ -385,6 +388,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         self.automationPolicy = automationPolicy
         self.remoteIntentPolicy = remoteIntentPolicy
         self.networkSentinel = networkSentinel
+        self.scheduledEvents = scheduledEvents
     }
 
     public static func load(from fileURL: URL) throws -> AgentConfig {
