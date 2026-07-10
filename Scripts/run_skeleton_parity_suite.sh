@@ -8,6 +8,8 @@ PROJECT="$ROOT/Binding.xcodeproj"
 SCHEME="HAVEN"
 DESTINATION="platform=macOS"
 REMOTE_SENTINEL="/tmp/binding-enable-remote-parity.flag"
+REMOTE_BRIDGE_SKIP_SENTINEL="/tmp/binding-skip-remote-bridge-canary.flag"
+REMOTE_DIRECT_STAGING_SENTINEL="/tmp/binding-require-direct-staging-surfaces.flag"
 
 mkdir -p "$OUT_DIR"
 
@@ -30,11 +32,12 @@ run_remote_contract() {
       "$@" | tee "$OUT_DIR/$log_name"
   local parity_status=${pipestatus[1]}
   set -e
-  rm -f "$REMOTE_SENTINEL"
+  rm -f "$REMOTE_SENTINEL" "$REMOTE_BRIDGE_SKIP_SENTINEL" "$REMOTE_DIRECT_STAGING_SENTINEL"
   return "$parity_status"
 }
 
 run_remote_http_contract() {
+  touch "$REMOTE_BRIDGE_SKIP_SENTINEL"
   BINDING_REMOTE_PARITY_SKIP_BRIDGE=1 \
     run_remote_contract \
       "Remote staging fixture HTTP parity" \
@@ -54,6 +57,14 @@ run_remote_full_contract() {
   run_remote_contract \
     "Remote staging fixture parity" \
     "remote-contract.log" \
+    -only-testing:BindingTests/SkeletonParityRemoteXCTest
+}
+
+run_remote_direct_contract() {
+  touch "$REMOTE_DIRECT_STAGING_SENTINEL"
+  run_remote_contract \
+    "Remote direct staging surface parity" \
+    "remote-direct-contract.log" \
     -only-testing:BindingTests/SkeletonParityRemoteXCTest
 }
 
@@ -84,12 +95,15 @@ case "$MODE" in
   remote-contract)
     run_remote_full_contract
     ;;
+  remote-direct)
+    run_remote_direct_contract
+    ;;
   all)
     run_local
     run_remote
     ;;
   *)
-    echo "Usage: $0 [local|remote-http|remote-bridge|remote-contract|remote|all] [output-dir]" >&2
+    echo "Usage: $0 [local|remote-http|remote-bridge|remote-contract|remote-direct|remote|all] [output-dir]" >&2
     exit 64
     ;;
 esac

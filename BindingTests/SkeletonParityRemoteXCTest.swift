@@ -6,6 +6,8 @@ import CellApple
 
 final class SkeletonParityRemoteXCTest: XCTestCase {
     private static let sentinelPath = "/tmp/binding-enable-remote-parity.flag"
+    private static let skipBridgeSentinelPath = "/tmp/binding-skip-remote-bridge-canary.flag"
+    private static let directStagingSurfaceSentinelPath = "/tmp/binding-require-direct-staging-surfaces.flag"
 
     private struct FixtureDescriptor {
         let slug: String
@@ -20,6 +22,84 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         let keypath: String
         let payload: ValueType?
     }
+
+    private struct StagingSurfaceDescriptor {
+        let displayName: String
+        let endpoint: String
+        let catalogNames: [String]
+        var configurationKeypaths: [String] = ["skeletonConfiguration", "configuration", "purposeGoal"]
+
+        init(
+            displayName: String,
+            endpoint: String,
+            catalogNames: [String]? = nil,
+            configurationKeypaths: [String] = ["skeletonConfiguration", "configuration", "purposeGoal"]
+        ) {
+            self.displayName = displayName
+            self.endpoint = endpoint
+            self.catalogNames = catalogNames ?? [displayName]
+            self.configurationKeypaths = configurationKeypaths
+        }
+    }
+
+    private static let requestedStagingSurfaces: [StagingSurfaceDescriptor] = [
+        StagingSurfaceDescriptor(
+            displayName: "Arendalsuka Participant Program",
+            endpoint: "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram"
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Arendalsuka Event Atlas",
+            endpoint: "cell://staging.haven.digipomps.org/ArendalsukaEventAtlas"
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Todo MVP",
+            endpoint: "cell://staging.haven.digipomps.org/Todo",
+            catalogNames: ["Todo MVP", "Todo Planner Copilot"]
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "HAVEN Workbench",
+            endpoint: "cell://staging.haven.digipomps.org/WorkItem",
+            catalogNames: ["HAVEN Workbench", "Work Item Tracker"]
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Project Portfolio",
+            endpoint: "cell://staging.haven.digipomps.org/ProjectPortfolio"
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Idea Task Workspace",
+            endpoint: "cell://staging.haven.digipomps.org/IdeaTaskWorkspace"
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Conference UI Router",
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceUIRouter",
+            catalogNames: ["Conference MVP", "Conference Demo Story"]
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Conference Participant Shell",
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantShell",
+            catalogNames: ["Conference Participant Portal", "Conference Participant Preview Shell"]
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Admin Entry",
+            endpoint: "cell://staging.haven.digipomps.org/AdminEntry",
+            catalogNames: ["Scaffold Setup & Identity Link"]
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Admin Overview",
+            endpoint: "cell://staging.haven.digipomps.org/AdminOverview",
+            catalogNames: ["Admin Cell Dashboard", "Admin Copilot Workspace", "Conference Control Tower"]
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Conference AI Gateway Preview",
+            endpoint: "cell://staging.haven.digipomps.org/ConferenceAIGatewayPreview",
+            catalogNames: ["Conference AI Assistant", "AI Gateway"]
+        ),
+        StagingSurfaceDescriptor(
+            displayName: "Agent Conversation Inbox",
+            endpoint: "cell://staging.haven.digipomps.org/AgentConversationInbox",
+            catalogNames: ["Agent Conversation Inbox", "AI Agent Workspace", "Agent Setup Workbench"]
+        )
+    ]
 
     private enum RemoteParityError: LocalizedError, CustomStringConvertible {
         case missingFixture(String)
@@ -589,6 +669,10 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             Self.shouldSkipBridgeCanary,
             "Remote HTTP parity kjører uten bridge-canary. Kjør uten BINDING_REMOTE_PARITY_SKIP_BRIDGE for å verifisere ConferenceUIRouter/ConferenceParticipantShell over Binding bridge."
         )
+        try XCTSkipUnless(
+            Self.shouldRequireDirectStagingSurfaceAccess,
+            "ConferenceParticipantShell er owner-scoped på staging. Sett BINDING_REMOTE_PARITY_REQUIRE_STAGING_SURFACES=1 eller opprett \(Self.directStagingSurfaceSentinelPath) etter at staging-policy/grants er åpnet for denne testidentiteten."
+        )
 
         let routerEndpoint = "cell://staging.haven.digipomps.org/ConferenceUIRouter"
         let participantEndpoint = "cell://staging.haven.digipomps.org/ConferenceParticipantShell"
@@ -676,11 +760,154 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         }
     }
 
+#if canImport(AppKit)
+    @MainActor
+    func testRequestedStagingCatalogPublishesAvailableSkeletonConfigurationsAndRenderInBinding() async throws {
+        try XCTSkipIf(
+            Self.shouldSkipBridgeCanary,
+            "Remote HTTP parity kjører uten bridge-canary. Kjør remote-contract for å hente og rendre catalog-publiserte staging-konfigurasjoner i HAVEN."
+        )
+
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(
+            for: CellConfiguration(name: "Remote Staging Catalog Fetch Probe")
+        )
+        let configurations = try await fetchStagingCatalogConfigurations(
+            resolver: context.resolver,
+            requester: context.owner
+        )
+        let requestedSurfaces = Self.requestedStagingSurfaces
+        let matched = requestedSurfaces.compactMap { surface -> (StagingSurfaceDescriptor, CellConfiguration)? in
+            let acceptedNames = Set(surface.catalogNames + [surface.displayName])
+            guard let configuration = configurations.first(where: { acceptedNames.contains($0.name) }) else {
+                return nil
+            }
+            return (surface, configuration)
+        }
+        let matchedDisplayNames = Set(matched.map { $0.0.displayName })
+        let missing = requestedSurfaces
+            .filter { !matchedDisplayNames.contains($0.displayName) }
+            .map(\.displayName)
+            .sorted()
+
+        XCTAssertFalse(
+            matched.isEmpty,
+            "Remote ConfigurationCatalog published none of the requested staging surface configurations. Missing: \(missing.joined(separator: ", "))"
+        )
+        if !missing.isEmpty {
+            print("Remote ConfigurationCatalog did not publish these requested surfaces for this requester: \(missing.joined(separator: ", "))")
+        }
+
+        var failures: [String] = []
+        for (surface, configuration) in matched {
+            do {
+                guard configuration.skeleton != nil else {
+                    failures.append("\(surface.displayName): ConfigurationCatalog published \(configuration.name) without skeleton")
+                    continue
+                }
+
+                let validation = CellConfigurationValidationService.validate(configuration)
+                guard validation.errorCount == 0 else {
+                    failures.append("\(surface.displayName): invalid CellConfiguration \(validation.issues)")
+                    continue
+                }
+
+                let report = try await CellConfigurationVerifier.renderReport(
+                    for: configuration,
+                    expectedVisibleStrings: []
+                )
+                guard report.snapshotByteCount > 0 else {
+                    failures.append("\(surface.displayName): rendered a blank snapshot")
+                    continue
+                }
+                guard report.subviewCount > 0 else {
+                    failures.append("\(surface.displayName): rendered without SwiftUI subviews")
+                    continue
+                }
+            } catch {
+                failures.append("\(surface.displayName): \(String(describing: error).prefix(360))")
+            }
+        }
+
+        XCTAssertTrue(
+            failures.isEmpty,
+            "Remote staging catalog configuration render failed:\n- \(failures.joined(separator: "\n- "))"
+        )
+    }
+
+    @MainActor
+    func testRequestedDirectStagingSurfacesPublishSkeletonConfigurationsAndRenderInBindingWhenPolicyOpens() async throws {
+        try XCTSkipIf(
+            Self.shouldSkipBridgeCanary,
+            "Remote HTTP parity kjører uten bridge-canary. Kjør remote-contract for å hente og rendre de konkrete staging-flatene i HAVEN."
+        )
+        try XCTSkipUnless(
+            Self.shouldRequireDirectStagingSurfaceAccess,
+            "Direkte staging-flater er grant-/owner-gated. Sett BINDING_REMOTE_PARITY_REQUIRE_STAGING_SURFACES=1 eller opprett \(Self.directStagingSurfaceSentinelPath) etter at staging-policy/grants er åpnet for denne testidentiteten."
+        )
+
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(
+            for: CellConfiguration(name: "Remote Direct Staging Surface Fetch Probe")
+        )
+
+        var failures: [String] = []
+        for surface in Self.requestedStagingSurfaces {
+            do {
+                let configuration = try await fetchStagingSurfaceConfiguration(
+                    surface,
+                    resolver: context.resolver,
+                    requester: context.owner
+                )
+                guard configuration.skeleton != nil else {
+                    failures.append("\(surface.displayName): published CellConfiguration without skeleton from \(surface.endpoint)")
+                    continue
+                }
+
+                let validation = CellConfigurationValidationService.validate(configuration)
+                guard validation.errorCount == 0 else {
+                    failures.append("\(surface.displayName): invalid CellConfiguration \(validation.issues)")
+                    continue
+                }
+
+                let report = try await CellConfigurationVerifier.renderReport(
+                    for: configuration,
+                    expectedVisibleStrings: []
+                )
+                guard report.snapshotByteCount > 0 else {
+                    failures.append("\(surface.displayName): rendered a blank snapshot")
+                    continue
+                }
+                guard report.subviewCount > 0 else {
+                    failures.append("\(surface.displayName): rendered without SwiftUI subviews")
+                    continue
+                }
+            } catch {
+                failures.append("\(surface.displayName): \(String(describing: error).prefix(360))")
+            }
+        }
+
+        XCTAssertTrue(
+            failures.isEmpty,
+            "Remote staging surface verification failed:\n- \(failures.joined(separator: "\n- "))"
+        )
+    }
+#endif
+
     private static var shouldSkipBridgeCanary: Bool {
         let flag = ProcessInfo.processInfo.environment["BINDING_REMOTE_PARITY_SKIP_BRIDGE"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        return flag == "1" || flag == "true" || flag == "yes"
+        let enabledFromEnvironment = flag == "1" || flag == "true" || flag == "yes"
+        let enabledFromSentinel = FileManager.default.fileExists(atPath: Self.skipBridgeSentinelPath)
+        return enabledFromEnvironment || enabledFromSentinel
+    }
+
+    private static var shouldRequireDirectStagingSurfaceAccess: Bool {
+        let flag = ProcessInfo.processInfo.environment["BINDING_REMOTE_PARITY_REQUIRE_STAGING_SURFACES"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let enabledFromEnvironment = flag == "1" || flag == "true" || flag == "yes"
+        let enabledFromSentinel = FileManager.default.fileExists(atPath: Self.directStagingSurfaceSentinelPath)
+        return enabledFromEnvironment || enabledFromSentinel
     }
 
     private func skipUnlessRemoteParityEnabled() throws {
@@ -874,6 +1101,104 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
                 underlying: "\(String(describing: error)); bridge statuses: \(bridgeStatuses.summary)"
             )
         }
+    }
+
+    private func fetchStagingSurfaceConfiguration(
+        _ surface: StagingSurfaceDescriptor,
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws -> CellConfiguration {
+        let meddle = try await resolveBridgeMeddle(
+            endpoint: surface.endpoint,
+            resolver: resolver,
+            requester: requester,
+            accessLabel: "remote staging surface configuration: \(surface.displayName)"
+        )
+
+        var misses: [String] = []
+        for keypath in surface.configurationKeypaths {
+            let value = try await readBridgeValue(
+                meddle,
+                endpoint: surface.endpoint,
+                operation: "get \(keypath)",
+                keypath: keypath,
+                requester: requester
+            )
+            if let configuration = PortableSurfaceContractSupport.extractConfiguration(from: value) {
+                return configuration
+            }
+            misses.append("\(keypath)=\(String(describing: value).prefix(180))")
+        }
+
+        throw RemoteParityError.missingConfiguration(
+            "\(surface.displayName) at \(surface.endpoint). Tried \(surface.configurationKeypaths.joined(separator: ", ")); got \(misses.joined(separator: " | "))"
+        )
+    }
+
+    private func fetchStagingCatalogConfigurations(
+        resolver: CellResolver,
+        requester: Identity
+    ) async throws -> [CellConfiguration] {
+        let endpoint = "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+        let meddle = try await resolveBridgeMeddle(
+            endpoint: endpoint,
+            resolver: resolver,
+            requester: requester,
+            accessLabel: "remote staging ConfigurationCatalog"
+        )
+        let value = try await readBridgeValue(
+            meddle,
+            endpoint: endpoint,
+            operation: "get(configurations)",
+            keypath: "configurations",
+            requester: requester
+        )
+        guard case let .list(items) = value else {
+            if !Self.shouldRequireDirectStagingSurfaceAccess,
+               let reason = policyGateReason(from: value, context: "ConfigurationCatalog.configurations") {
+                throw XCTSkip("""
+                Remote ConfigurationCatalog.configurations er policy-/grant-gated for denne testidentiteten: \(reason). Kjør Scripts/run_skeleton_parity_suite.sh remote-direct etter at staging-policy/grants er åpnet for å gjøre dette til en hard verifikasjon.
+                """)
+            }
+            throw RemoteParityError.invalidValueShape(
+                "ConfigurationCatalog.configurations: \(Self.compactDescription(String(describing: value)))"
+            )
+        }
+
+        return items.compactMap { PortableSurfaceContractSupport.extractConfiguration(from: $0) }
+    }
+
+    private func policyGateReason(from value: ValueType, context: String) -> String? {
+        let description = Self.compactDescription(String(describing: value))
+        guard Self.isPolicyGateDescription(description) else {
+            return nil
+        }
+        return "\(context)=\(description)"
+    }
+
+    private static func compactDescription(_ description: String, limit: Int = 360) -> String {
+        let singleLine = description
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+        guard singleLine.count > limit else {
+            return singleLine
+        }
+        return String(singleLine.prefix(limit)) + "..."
+    }
+
+    private static func isPolicyGateDescription(_ description: String) -> Bool {
+        let lowercased = description.lowercased()
+        return [
+            "denied",
+            "contractrejected",
+            "contract rejected",
+            "agreement_or_proof_required",
+            "signcontract",
+            "owner-scoped",
+            "owner scoped",
+            "grant-gated",
+            "policy-gated"
+        ].contains { lowercased.contains($0) }
     }
 
     private func withBridgeOperationTimeout<T: Sendable>(
