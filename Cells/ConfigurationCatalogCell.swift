@@ -8885,7 +8885,8 @@ final class ConfigurationCatalogCell: GeneralCell {
         candidates.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 220, role: "personal-list-row")
 
         var inviteRow = SkeletonVStack(elements: [
-            .Text(personalBoundText("title", lineLimit: 1))
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("deliverySummary", lineLimit: 3))
         ], spacing: 4)
         inviteRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-chat-item")
         var invites = SkeletonList(topic: nil, keypath: "chatHub.state.invites", flowElementSkeleton: inviteRow)

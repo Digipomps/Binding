@@ -4738,7 +4738,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             BindingChatValue.set(value, for: "ui.showAdvanced", in: &cachedState)
             return response(status: "ok", message: "Advanced visibility updated.")
         case "assistant.acceptSuggestion":
-            return acceptSuggestion()
+            return await acceptSuggestion(requester: requester)
         case "assistant.queryResource":
             return await queryResource(value, requester: requester)
         case "assistant.provider.register":
@@ -4788,7 +4788,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
             BindingChatValue.set(.string(text(from: value)), for: "inviteDraft.userUUID", in: &cachedState)
             return response(status: "ok", message: "Invite user updated.")
         case "invite":
-            return createInvite()
+            return await createInvite(value: value, requester: requester)
         case "acceptInvite":
             BindingChatValue.set(.string("accepted"), for: "inviteStatus", in: &cachedState)
             return response(status: "ok", message: "Invite accepted.")
@@ -6494,7 +6494,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         return .object(["ok": .bool(true), "sideEffect": .bool(false)])
     }
 
-    private func acceptSuggestion() -> ValueType {
+    private func acceptSuggestion(requester: Identity) async -> ValueType {
         guard let suggestion = BindingChatValue.object(BindingChatValue.nested("assistant.latestSuggestion", in: cachedState)),
               let helper = BindingChatValue.string(suggestion["helperID"]),
               !helper.isEmpty,
@@ -6505,7 +6505,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
 
         switch helper {
         case "invite":
-            return createInvite()
+            return await createInvite(value: .object([:]), requester: requester)
         case "poll":
             return createPoll()
         default:
@@ -7003,22 +7003,196 @@ final class BindingPersonalChatHubCell: GeneralCell {
         ])
     }
 
-    private func createInvite() -> ValueType {
+    private func createInvite(value: ValueType, requester: Identity) async -> ValueType {
+        let submitted = BindingChatValue.object(value) ?? [:]
+        var draft = BindingChatValue.object(BindingChatValue.nested("inviteDraft", in: cachedState)) ?? [:]
+        for key in ["title", "profileID", "userUUID"] {
+            if let submittedValue = submitted[key] {
+                draft[key] = submittedValue
+            }
+        }
+        if let submittedEndpoint = normalizedContactEndpoint(from: submitted) {
+            draft["contactEndpoint"] = .object(submittedEndpoint)
+        }
+        BindingChatValue.set(.object(draft), for: "inviteDraft", in: &cachedState)
+
         var invites = BindingChatValue.list(BindingChatValue.nested("invites", in: cachedState)) ?? []
-        let title = BindingChatValue.string(BindingChatValue.nested("inviteDraft.title", in: cachedState)) ?? "Ny invitasjon"
-        invites.append(.object([
-            "id": .string(UUID().uuidString),
+        let inviteID = UUID().uuidString.lowercased()
+        let title = BindingChatValue.string(draft["title"])?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? "Ny invitasjon"
+        let profileID = BindingChatValue.string(draft["profileID"]) ?? ""
+        let userUUID = BindingChatValue.string(draft["userUUID"]) ?? ""
+        let contactEndpoint = BindingChatValue.object(draft["contactEndpoint"])
+        var invite: Object = [
+            "id": .string(inviteID),
             "title": .string(title),
-            "status": .string("pending")
-        ]))
+            "profileID": .string(profileID),
+            "userUUID": .string(userUUID),
+            "status": .string("draft"),
+            "contactDeliveryStatus": .string("not_attempted"),
+            "createdAt": .float(Date().timeIntervalSince1970)
+        ]
+        invite["contactEndpoint"] = contactEndpoint.map(ValueType.object) ?? .null
+
+        let delivery: Object
+        if let contactEndpoint {
+            delivery = await deliverInvite(
+                inviteID: inviteID,
+                title: title,
+                profileID: profileID,
+                contactEndpoint: contactEndpoint,
+                requester: requester
+            )
+        } else {
+            delivery = [
+                "ok": .bool(false),
+                "status": .string("bootstrap_required"),
+                "contactDeliveryStatus": .string("missing_contact_endpoint"),
+                "message": .string("Invitasjonen er lagret, men mottakeren er ikke kontaktbar i HAVEN ennå. Send en bootstrap-invitasjon via en valgt ekstern kanal.")
+            ]
+        }
+
+        let status = BindingChatValue.string(delivery["status"]) ?? "delivery_failed"
+        let contactDeliveryStatus = BindingChatValue.string(delivery["contactDeliveryStatus"]) ?? "delivery_failed"
+        let message = BindingChatValue.string(delivery["message"])
+            ?? "Invitasjonen ble ikke levert. Kontaktendepunktet svarte ikke eller avviste forespørselen."
+        invite["status"] = .string(status)
+        invite["contactDeliveryStatus"] = .string(contactDeliveryStatus)
+        invite["deliverySummary"] = .string(message)
+        invite["ticketID"] = delivery["ticketID"] ?? .null
+        invite["deliveryFailureReason"] = delivery["deliveryFailureReason"] ?? .null
+        invite["updatedAt"] = .float(Date().timeIntervalSince1970)
+        invites.append(.object(invite))
         BindingChatValue.set(.list(invites), for: "invites", in: &cachedState)
-        return .object([
-            "status": .string("ok"),
-            "message": .string("Invite created after explicit confirmation."),
-            "userMessage": .string("Invite created after explicit confirmation."),
+        BindingChatValue.set(.string(status), for: "inviteStatus", in: &cachedState)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+
+        var response: Object = [
+            "ok": delivery["ok"] ?? .bool(false),
+            "status": .string(status),
+            "message": .string(message),
+            "userMessage": .string(message),
             "sideEffect": .bool(true),
+            "contactDeliveryStatus": .string(contactDeliveryStatus),
+            "invite": .object(invite),
             "state": .object(cachedState)
-        ])
+        ]
+        response["ticketID"] = delivery["ticketID"] ?? .null
+        response["ticket"] = delivery["ticket"] ?? .null
+        response["deliveryFailureReason"] = delivery["deliveryFailureReason"] ?? .null
+        return .object(response)
+    }
+
+    private func deliverInvite(
+        inviteID: String,
+        title: String,
+        profileID: String,
+        contactEndpoint: Object,
+        requester: Identity
+    ) async -> Object {
+        guard let endpointID = BindingChatValue.string(contactEndpoint["endpointID"])
+                ?? BindingChatValue.string(contactEndpoint["endpointId"]),
+              endpointID.isEmpty == false,
+              let endpointCell = BindingChatValue.string(contactEndpoint["cell"])
+                ?? BindingChatValue.string(contactEndpoint["endpointCell"]),
+              endpointCell.isEmpty == false else {
+            return inviteDeliveryFailure(
+                reason: "invalid_contact_endpoint",
+                message: "Invitasjonen ble ikke levert fordi kontaktbeskrivelsen er ufullstendig."
+            )
+        }
+        guard let resolver = CellBase.defaultCellResolver else {
+            return inviteDeliveryFailure(
+                reason: "resolver_unavailable",
+                message: "Invitasjonen ble ikke levert fordi HAVEN-rutingen ikke er tilgjengelig."
+            )
+        }
+
+        let now = Date()
+        var request: Object = [
+            "schema": .string(BindingContactEndpointContracts.requestSchema),
+            "endpointId": .string(endpointID),
+            "nonce": .string(UUID().uuidString.lowercased()),
+            "issuedAt": .float(now.timeIntervalSince1970),
+            "expiresAt": .float(now.addingTimeInterval(5 * 60).timeIntervalSince1970),
+            "requesterIdentity": .identity(requester),
+            "topic": .string("contact.request"),
+            "purpose": .string("purpose://contact.introduction"),
+            "requestedAction": .string("contact.request.submit"),
+            "payload": .object([
+                "introKind": .string("chat.invitation"),
+                "introInviteID": .string(inviteID),
+                "introTitle": .string(title),
+                "introProfileID": .string(profileID),
+                "introThreadID": BindingChatValue.nested("currentThread.id", in: cachedState) ?? .string("local-copilot-thread")
+            ])
+        ]
+
+        do {
+            let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(request))
+            guard let signature = try await requester.sign(data: canonical) else {
+                return inviteDeliveryFailure(
+                    reason: "signing_unavailable",
+                    message: "Invitasjonen ble ikke levert fordi den aktive identiteten ikke kunne signere forespørselen."
+                )
+            }
+            request["signature"] = .data(signature)
+
+            guard let contactCell = try await resolver.cellAtEndpoint(
+                endpoint: endpointCell,
+                requester: requester
+            ) as? Meddle else {
+                return inviteDeliveryFailure(
+                    reason: "contact_endpoint_not_writable",
+                    message: "Invitasjonen ble ikke levert fordi kontaktendepunktet ikke kan motta forespørsler."
+                )
+            }
+            guard let result = try await contactCell.set(
+                keypath: "contact.request",
+                value: .object(request),
+                requester: requester
+            ), let ticket = BindingChatValue.object(result) else {
+                return inviteDeliveryFailure(
+                    reason: "empty_contact_response",
+                    message: "Invitasjonen ble ikke levert fordi kontaktendepunktet ikke ga en kvittering."
+                )
+            }
+            guard let ticketID = BindingChatValue.string(ticket["ticketId"])
+                    ?? BindingChatValue.string(ticket["ticketID"]),
+                  ticketID.isEmpty == false else {
+                let reason = BindingChatValue.string(ticket["reason"])
+                    ?? BindingChatValue.string(ticket["code"])
+                    ?? BindingChatValue.string(ticket["status"])
+                    ?? "endpoint_rejected"
+                return inviteDeliveryFailure(
+                    reason: reason,
+                    message: "Invitasjonen ble ikke levert fordi kontaktendepunktet avviste forespørselen."
+                )
+            }
+            return [
+                "ok": .bool(true),
+                "status": .string("delivered"),
+                "contactDeliveryStatus": .string("delivered"),
+                "ticketID": .string(ticketID),
+                "ticket": .object(ticket),
+                "message": .string("Kontaktforespørselen er levert til mottakerens HAVEN-endepunkt og venter på svar.")
+            ]
+        } catch {
+            return inviteDeliveryFailure(
+                reason: "contact_endpoint_unavailable",
+                message: "Invitasjonen ble ikke levert fordi kontaktendepunktet ikke er tilgjengelig."
+            )
+        }
+    }
+
+    private func inviteDeliveryFailure(reason: String, message: String) -> Object {
+        [
+            "ok": .bool(false),
+            "status": .string("delivery_failed"),
+            "contactDeliveryStatus": .string("delivery_failed"),
+            "deliveryFailureReason": .string(reason),
+            "message": .string(message)
+        ]
     }
 
     private func createPoll() -> ValueType {

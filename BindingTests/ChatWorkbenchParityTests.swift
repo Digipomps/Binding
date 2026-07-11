@@ -334,6 +334,132 @@ struct ChatWorkbenchParityTests {
         #expect(asString(responded["status"]) == "accepted")
     }
 
+    @Test func chatInviteDeliversSignedContactRequestAndStoresTicketReceipt() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousResolver = CellBase.defaultCellResolver
+        let previousVault = CellBase.defaultIdentityVault
+        CellBase.debugValidateAccessForEverything = true
+        let resolver = CellResolver.sharedInstance
+        let vault = EphemeralIdentityVault()
+        CellBase.defaultCellResolver = resolver
+        CellBase.defaultIdentityVault = vault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultCellResolver = previousResolver
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let suffix = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        let sender = try #require(await vault.identity(for: "binding-invite-sender-\(suffix)", makeNewIfNotFound: true))
+        let recipient = try #require(await vault.identity(for: "binding-invite-recipient-\(suffix)", makeNewIfNotFound: true))
+        sender.displayName = "Kjetil"
+        recipient.displayName = "Vegar"
+
+        let endpointName = "BindingInviteReceiver\(suffix)"
+        try await resolver.addCellResolve(
+            name: endpointName,
+            cellScope: .scaffoldUnique,
+            persistency: .ephemeral,
+            identityDomain: "binding-invite-receiver-\(suffix)",
+            type: BindingContactEndpointCell.self
+        )
+        let endpoint = try #require(try await resolver.cellAtEndpoint(
+            endpoint: "cell:///\(endpointName)",
+            requester: recipient
+        ) as? Meddle)
+        let descriptor = try #require(asObject(try await endpoint.set(
+            keypath: "publishEndpoint",
+            value: .object([
+                "endpointId": .string("vegar-contact-\(suffix.lowercased())"),
+                "cell": .string("cell:///\(endpointName)"),
+                "purposes": .list([.string("purpose://contact.introduction")]),
+                "acceptedTopics": .list([.string("contact.request")])
+            ]),
+            requester: recipient
+        ) ?? .null))
+
+        let chat = await BindingPersonalChatHubCell(owner: sender)
+        let result = try #require(asObject(try await chat.set(
+            keypath: "invite",
+            value: .object([
+                "title": .string("Chat med Vegar"),
+                "profileID": .string("vegar-public-profile"),
+                "userUUID": .string(recipient.uuid),
+                "contactEndpoint": .object(descriptor)
+            ]),
+            requester: sender
+        ) ?? .null))
+
+        #expect(asBool(result["ok"]) == true)
+        #expect(asString(result["status"]) == "delivered")
+        #expect(asString(result["contactDeliveryStatus"]) == "delivered")
+        let ticketID = try #require(asString(result["ticketID"]))
+        #expect(ticketID.hasPrefix("ticket-"))
+        let invite = try #require(asObject(result["invite"]))
+        #expect(asString(invite["status"]) == "delivered")
+        #expect(asString(invite["ticketID"]) == ticketID)
+
+        let endpointState = try #require(asObject(try await endpoint.get(
+            keypath: "privateState",
+            requester: recipient
+        )))
+        let tickets = try #require(asList(endpointState["tickets"]))
+        #expect(tickets.count == 1)
+        let ticket = try #require(asObject(tickets.first))
+        #expect(asString(ticket["ticketId"]) == ticketID)
+        #expect(asString(ticket["requestTopic"]) == "contact.request")
+        #expect(asString(ticket["purpose"]) == "purpose://contact.introduction")
+        let requestPayload = try #require(asObject(ticket["requestPayload"]))
+        #expect(requestPayload["signature"] == nil)
+        #expect(asString(requestPayload["requesterIdentity"])?.hasPrefix("sha256:") == true)
+        #expect(asString(requestPayload["requesterDisplayName"]) == "Kjetil")
+        let intro = try #require(asObject(requestPayload["payload"]))
+        #expect(asString(intro["introKind"]) == "chat.invitation")
+        #expect(asString(intro["introTitle"]) == "Chat med Vegar")
+    }
+
+    @Test func chatInviteWithoutContactEndpointRequiresBootstrapAndNeverClaimsSent() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let sender = await signedOwner("binding-invite-bootstrap")
+        let chat = await BindingPersonalChatHubCell(owner: sender)
+        let result = try #require(asObject(try await chat.set(
+            keypath: "invite",
+            value: .object([
+                "title": .string("Inviter Vegar til HAVEN"),
+                "profileID": .string("vegar-known-contact"),
+                "userUUID": .string("vegar-not-yet-in-haven")
+            ]),
+            requester: sender
+        ) ?? .null))
+
+        #expect(asBool(result["ok"]) == false)
+        #expect(asString(result["status"]) == "bootstrap_required")
+        #expect(asString(result["contactDeliveryStatus"]) == "missing_contact_endpoint")
+        #expect(result["ticketID"] == .null)
+        #expect(asString(result["userMessage"])?.contains("bootstrap-invitasjon") == true)
+        let state = try #require(asObject(result["state"]))
+        #expect(asString(state["inviteStatus"]) == "bootstrap_required")
+        let invites = try #require(asList(state["invites"]))
+        #expect(invites.count == 1)
+        #expect(asString(asObject(invites.first)?["status"]) == "bootstrap_required")
+    }
+
+    @Test func inviteListRendersHumanReadableDeliverySummaryInsteadOfRawStatusCodes() throws {
+        let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        let skeleton = try #require(configuration.skeleton)
+        let inviteList = try #require(skeletonList(keypath: "chatHub.state.invites", in: skeleton))
+        let row = try #require(inviteList.flowElementSkeleton)
+        let data = try JSONEncoder().encode(SkeletonElement.VStack(row))
+        let json = String(decoding: data, as: UTF8.self)
+
+        #expect(json.contains("\"keypath\":\"deliverySummary\""))
+        #expect(json.contains("contactDeliveryStatus") == false)
+        #expect(json.contains("deliveryFailureReason") == false)
+    }
+
     @Test func chatEntityExtensionScanFindsContactEndpointWithoutSideEffects() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
