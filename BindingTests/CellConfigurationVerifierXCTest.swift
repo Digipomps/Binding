@@ -395,8 +395,14 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             if label.isEmpty {
                 report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) button has empty label"))
             }
-            if keypath.isEmpty {
+            if keypath.isEmpty && !SkeletonButtonNavigation.isNavigationButton(button) {
                 report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) button has empty keypath"))
+            } else if SkeletonButtonNavigation.isNavigationButton(button),
+                      SkeletonButtonNavigation.resolveURL(
+                          for: button,
+                          relativeTo: URL(string: "https://binding-navigation.invalid")
+                      ) == nil {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) button has unsafe navigation URL"))
             }
             inspectVisibleText(label, at: path + ["label"], report: &report)
         case .Toggle(let toggle):

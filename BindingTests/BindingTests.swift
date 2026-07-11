@@ -527,6 +527,7 @@ struct BindingTests {
             "Matches",
             "Co-Pilot",
             "Agenda Context",
+            "Butterpop Studio",
             "Calendar",
             "Vault / Ideas",
             "Meeting Intent",
@@ -539,7 +540,7 @@ struct BindingTests {
             #expect(names.contains(requiredName))
         }
 
-        #expect(configurations.count == 15)
+        #expect(configurations.count == 16)
         #expect(configurations.allSatisfy(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1))
 
         let visibleText = configurations.flatMap { configuration in
@@ -1158,6 +1159,7 @@ struct BindingTests {
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Invite Chat") == .inviteChat)
+        #expect(BindingPersonalCopilotDestination.matching(configurationName: "Butterpop Studio") == .butterpopStudio)
     }
 
     @Test func personalCopilotStyleRolesStayWithinAllowlist() {
@@ -1166,6 +1168,7 @@ struct BindingTests {
             ConfigurationCatalogCell.personalProfileMenuConfiguration(),
             ConfigurationCatalogCell.personalPublicProfileMenuConfiguration(),
             ConfigurationCatalogCell.personalPublicProfileDirectoryMenuConfiguration(),
+            ConfigurationCatalogCell.butterpopStudioMenuConfiguration(),
             ConfigurationCatalogCell.personalMatchesMenuConfiguration(),
             ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
             ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
@@ -5603,6 +5606,58 @@ struct BindingTests {
         }
 
         #expect(items.count >= 12)
+    }
+
+    @Test func configurationCatalogExposesSafeButterpopStudioLauncher() async throws {
+        let owner = await makeOwnerIdentity()
+        let cell = await ConfigurationCatalogCell(owner: owner)
+
+        let configurations = try await cell.get(keypath: "configurations", requester: owner)
+        guard case let .list(items) = configurations,
+              let butterpop = items.compactMap({ value -> CellConfiguration? in
+                  guard case let .cellConfiguration(configuration) = value,
+                        configuration.name == "Butterpop Studio" else { return nil }
+                  return configuration
+              }).first,
+              let skeleton = butterpop.skeleton
+        else {
+            Issue.record("Forventet Butterpop Studio i HAVEN-katalogen")
+            return
+        }
+
+        func collectButtons(_ element: SkeletonElement) -> [SkeletonButton] {
+            switch element {
+            case .Button(let button): return [button]
+            case .VStack(let stack): return stack.elements.flatMap(collectButtons)
+            case .HStack(let stack): return stack.elements.flatMap(collectButtons)
+            case .ScrollView(let scroll): return scroll.elements.flatMap(collectButtons)
+            case .Section(let section):
+                return (section.header.map(collectButtons) ?? [])
+                    + section.content.flatMap(collectButtons)
+                    + (section.footer.map(collectButtons) ?? [])
+            case .Grid(let grid): return grid.elements.flatMap(collectButtons)
+            case .ZStack(let stack): return stack.elements.flatMap(collectButtons)
+            case .Object(let object): return object.elements.values.flatMap(collectButtons)
+            case .Tabs(let tabs): return tabs.panels.flatMap { $0.content.flatMap(collectButtons) }
+            case .Reference(let reference):
+                return reference.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
+            default: return []
+            }
+        }
+
+        let buttons = collectButtons(skeleton)
+        let launcher = try #require(buttons.first { $0.label == "Åpne Butterpop Studio" })
+        let validation = await CellConfigurationValidationService.validate(butterpop)
+        let validationErrorCount = await MainActor.run { validation.errorCount }
+        #expect(butterpop.cellReferences?.isEmpty != false)
+        #expect(validationErrorCount == 0)
+        #expect(SkeletonButtonNavigation.isNavigationButton(launcher))
+        #expect(
+            SkeletonButtonNavigation.resolveURL(
+                for: launcher,
+                relativeTo: URL(string: "http://127.0.0.1:9097")
+            )?.absoluteString == "http://127.0.0.1:9097/butterpop"
+        )
     }
 
     @Test func configurationCatalogExposesAgentSetupWorkbench() async throws {

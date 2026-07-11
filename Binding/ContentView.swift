@@ -289,6 +289,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case matches = "Matches"
     case inviteChat = "Co-Pilot"
     case agendaContext = "Agenda Context"
+    case butterpopStudio = "Butterpop Studio"
     case vaultIdeas = "Vault / Ideas"
     case meetingIntent = "Meeting Intent"
     case privacyAudit = "Privacy Audit"
@@ -302,7 +303,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     var phoneTab: BindingPersonalCopilotPhoneTab {
         switch self {
-        case .personalHome, .agendaContext, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
             return .home
         case .publicProfileDirectory, .matches:
             return .matches
@@ -321,7 +322,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return "Personal"
         case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent:
             return "Network"
-        case .agendaContext, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
             return "Workspace"
         }
     }
@@ -346,6 +347,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         case .agendaContext:
             return ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
+        case .butterpopStudio:
+            return ConfigurationCatalogCell.butterpopStudioMenuConfiguration()
         case .vaultIdeas:
             return ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
         case .meetingIntent:
@@ -371,7 +374,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         [
             ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit]),
             ("Network", [.matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
-            ("Workspace", [.agendaContext, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
+            ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
         ]
     }
 

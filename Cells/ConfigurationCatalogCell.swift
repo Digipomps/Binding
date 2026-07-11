@@ -5884,6 +5884,23 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ioSetKeys: ["query", "searchProfiles", "profileDetail", "reportProfile", "hideProfile", "blockProfile"]
             ),
             StaticCatalogDescriptor(
+                sourceCellEndpoint: "cell://staging.haven.digipomps.org/MusicPublishingConsole",
+                sourceCellName: "MusicPublishingConsoleCell",
+                displayName: "Butterpop Studio",
+                purpose: "Samarbeid, vurdering og publisering av musikk",
+                purposeDescription: "Åpner det private Butterpop-arbeidsrommet for mixgjennomgang, invitasjoner, publisering og betalt avspilling.",
+                interests: scopedInterests(["music", "mix-review", "collaboration", "publishing", "micropayments"], policyCategory: "music-publishing"),
+                summary: "Privat mixrom og publiseringsflate for The Butterpop Collective.",
+                categoryPath: ["personal-copilot", "music", "publishing"],
+                tags: ["music", "butterpop", "mixes", "publishing", "collaboration"],
+                menuSlots: [.upperLeft, .lowerLeft],
+                chip: "MUSIC",
+                borderColor: "#C0265E",
+                policyHints: hints("music-publishing", requiresLogin: true, requiresUserGeneratedContentModeration: true, universalLinkPath: "music/butterpop"),
+                recommendedContexts: ["personal-copilot", "music", "creative-collaboration"],
+                forceRefreshExisting: true
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell://staging.haven.digipomps.org/PersonalMatchmaking",
                 sourceCellName: "PersonalMatchmakingCell",
                 displayName: "Matches",
@@ -7092,6 +7109,8 @@ final class ConfigurationCatalogCell: GeneralCell {
             return personalPublicProfileMenuConfiguration()
         case "cell://staging.haven.digipomps.org/publicprofiledirectory":
             return personalPublicProfileDirectoryMenuConfiguration()
+        case "cell:///musicpublishingconsole", "cell://staging.haven.digipomps.org/musicpublishingconsole":
+            return butterpopStudioMenuConfiguration()
         case "cell://staging.haven.digipomps.org/personalmatchmaking":
             return personalMatchesMenuConfiguration()
         case "cell:///personalchathub":
@@ -7792,6 +7811,7 @@ final class ConfigurationCatalogCell: GeneralCell {
             personalProfileMenuConfiguration(),
             personalPublicProfileMenuConfiguration(),
             personalPublicProfileDirectoryMenuConfiguration(),
+            butterpopStudioMenuConfiguration(),
             personalMatchesMenuConfiguration(),
             personalInviteChatMenuConfiguration(),
             personalAgendaContextMenuConfiguration(),
@@ -8335,6 +8355,55 @@ final class ConfigurationCatalogCell: GeneralCell {
         )
         configuration.skeleton = personalPublicProfileDirectorySurfaceSkeleton()
         return configuration
+    }
+
+    nonisolated static func butterpopStudioMenuConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Butterpop Studio")
+        configuration.description = "Privat mixgjennomgang, samarbeid og publisering for The Butterpop Collective."
+
+        let openStudioButton = personalActionButton(
+            keypath: "",
+            label: "Åpne Butterpop Studio",
+            url: "/butterpop",
+            payload: nil
+        )
+        configuration.skeleton = personalSurfacePage(
+            title: "Butterpop Studio",
+            subtitle: "Vurder siste mikser sammen, samle forslag og publiser først når gruppen er klar.",
+            chip: "THE BUTTERPOP COLLECTIVE",
+            content: [
+                personalSection(
+                    "Studio",
+                    role: "personal-card",
+                    content: [
+                        .Text(personalBodyText("Henrik og inviterte redaktører får tilgang til det private mixrommet. Offentlige lyttere ser bare publiserte utdrag og kjøpsvalg.")),
+                        .HStack(SkeletonHStack(elements: [.Button(openStudioButton)], spacing: 8))
+                    ]
+                ),
+                personalSection(
+                    "Arbeidsflyt",
+                    role: "personal-list-row",
+                    content: [
+                        .Text(personalBodyText("1. Last opp eller importer en mix. 2. Gi tidskodede tilbakemeldinger. 3. Godkjenn utgaven. 4. Publiser utdrag og betalt avspilling.", lineLimit: 5))
+                    ]
+                )
+            ],
+            showsCopilotReturnAction: false
+        )
+
+        return withPersonalCopilotMetadata(
+            configuration,
+            sourceCellEndpoint: "cell://staging.haven.digipomps.org/MusicPublishingConsole",
+            sourceCellName: "MusicPublishingConsoleCell",
+            purpose: "Samarbeid, vurdering og publisering av musikk",
+            purposeDescription: "Åpner Butterpop Studio uten å gi HAVEN direkte tilgang til private lydfiler eller publiseringshandlinger.",
+            interests: ["music", "mix-review", "collaboration", "publishing", "micropayments"],
+            menuSlots: [.upperLeft, .lowerLeft],
+            policyCategory: "music-publishing",
+            requiresLogin: true,
+            requiresUserGeneratedContentModeration: true,
+            universalLinkPath: "music/butterpop"
+        )
     }
 
     nonisolated static func personalMatchesMenuConfiguration() -> CellConfiguration {

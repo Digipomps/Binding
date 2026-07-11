@@ -2,11 +2,98 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
 
 import XCTest
+import SwiftUI
 import CellBase
+import CellApple
 @testable import Binding
+#if canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor
 final class SkeletonRendererParityTests: XCTestCase {
+    func testButterpopNavigationButtonResolvesAgainstConfiguredHTTPSBase() {
+        let button = SkeletonButton(
+            keypath: "",
+            label: "Open The Butterpop Collective",
+            url: "/butterpop"
+        )
+        let baseURL = SkeletonButtonNavigation.configuredBaseURL(environment: [
+            "CELL_SCAFFOLD_PUBLIC_BASE_URL": "https://haven.example/porthole"
+        ])
+
+        XCTAssertTrue(SkeletonButtonNavigation.isNavigationButton(button))
+        XCTAssertEqual(
+            SkeletonButtonNavigation.resolveURL(for: button, relativeTo: baseURL)?.absoluteString,
+            "https://haven.example/butterpop"
+        )
+    }
+
+#if canImport(AppKit)
+    func testHAVENHostsButterpopButtonAndNavigationOpensExactlyOnce() async throws {
+        let environmentKey = "CELL_SCAFFOLD_PUBLIC_BASE_URL"
+        let previousValue = ProcessInfo.processInfo.environment[environmentKey]
+        setenv(environmentKey, "https://haven.example", 1)
+        defer {
+            if let previousValue {
+                setenv(environmentKey, previousValue, 1)
+            } else {
+                unsetenv(environmentKey)
+            }
+        }
+
+        let navigationButton = SkeletonButton(
+            keypath: "",
+            label: "Open The Butterpop Collective",
+            url: "/butterpop"
+        )
+        let viewModel = PortholeViewModel()
+        let initialMutationVersion = viewModel.localMutationVersion
+        var openedURLs: [URL] = []
+        let hostingView = NSHostingView(
+            rootView: BindingSkeletonView(element: .Button(navigationButton))
+                .environmentObject(viewModel)
+                .environment(\.openURL, OpenURLAction { url in
+                    openedURLs.append(url)
+                    return .handled
+                })
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 480, height: 180)
+        let window = NSWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        defer { window.close() }
+
+        for _ in 0..<4 {
+            hostingView.layoutSubtreeIfNeeded()
+            hostingView.displayIfNeeded()
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        let imageRep = try XCTUnwrap(hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds))
+        hostingView.cacheDisplay(in: hostingView.bounds, to: imageRep)
+        XCTAssertGreaterThan(
+            imageRep.representation(using: .png, properties: [:])?.count ?? 0,
+            1_000,
+            "Expected the HAVEN-hosted Butterpop button to render nonblank"
+        )
+        XCTAssertEqual(navigationButton.label, "Open The Butterpop Collective")
+
+        let didOpen = await SkeletonButtonNavigationExecution.open(navigationButton) { url, completion in
+            openedURLs.append(url)
+            completion(true)
+        }
+        XCTAssertTrue(didOpen)
+        XCTAssertEqual(openedURLs.map(\.absoluteString), ["https://haven.example/butterpop"])
+        XCTAssertEqual(viewModel.localMutationVersion, initialMutationVersion)
+    }
+#endif
+
     func testVisibilityRuleUsesRootScopeInsideListRow() {
         var modifiers = SkeletonModifiers()
         modifiers.visibility = SkeletonVisibilityRule(
@@ -275,4 +362,5 @@ final class SkeletonRendererParityTests: XCTestCase {
             return []
         }
     }
+
 }

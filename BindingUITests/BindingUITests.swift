@@ -32,6 +32,31 @@ final class BindingUITests: XCTestCase {
     }
 
     @MainActor
+    func testButterpopStudioLaunchesFromHAVEN() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CELL_SCAFFOLD_PUBLIC_BASE_URL"] = "http://127.0.0.1:9097"
+        app.launch()
+
+        let studioEntry = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Butterpop Studio,")
+        ).firstMatch
+        XCTAssertTrue(studioEntry.waitForExistence(timeout: 20), "Butterpop Studio mangler i HAVEN-menyen")
+        studioEntry.click()
+
+        let launchButton = app.buttons["Åpne Butterpop Studio"].firstMatch
+        XCTAssertTrue(launchButton.waitForExistence(timeout: 15), "Butterpop-launcheren ble ikke rendret")
+        XCTAssertTrue(launchButton.isHittable, "Butterpop-launcheren kan ikke aktiveres")
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Butterpop Studio in HAVEN"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        launchButton.click()
+        XCTAssertNotEqual(app.state, .notRunning, "HAVEN krasjet etter Butterpop-navigasjon")
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

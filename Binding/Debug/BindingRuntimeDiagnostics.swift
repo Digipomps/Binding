@@ -410,7 +410,8 @@ enum CellConfigurationValidationService {
         from value: Any,
         into collected: inout [CollectedBindingValue],
         insideDispatchActionPayload: Bool = false,
-        insideFlowElementContext: Bool = false
+        insideFlowElementContext: Bool = false,
+        insideNavigationButton: Bool = false
     ) {
         switch value {
         case let dictionary as [String: Any]:
@@ -421,9 +422,13 @@ enum CellConfigurationValidationService {
             for (key, child) in dictionary {
                 let childInsideDispatchActionPayload = insideDispatchActionPayload || (isDispatchActionContainer && key == "payload")
                 let childInsideFlowElementContext = insideFlowElementContext || key == "flowElementSkeleton"
+                let childInsideNavigationButton = insideNavigationButton || (key == "Button" && isSafeNavigationButtonPayload(child))
                 if let stringValue = child as? String,
                    referenceSensitiveKeys.contains(key) {
                     if insideDispatchActionPayload && key == "keypath" {
+                        continue
+                    }
+                    if insideNavigationButton && (key == "keypath" || key == "url") {
                         continue
                     }
                     collected.append(
@@ -437,7 +442,8 @@ enum CellConfigurationValidationService {
                         from: child,
                         into: &collected,
                         insideDispatchActionPayload: childInsideDispatchActionPayload,
-                        insideFlowElementContext: childInsideFlowElementContext
+                        insideFlowElementContext: childInsideFlowElementContext,
+                        insideNavigationButton: childInsideNavigationButton
                     )
                 }
             }
@@ -447,12 +453,28 @@ enum CellConfigurationValidationService {
                     from: child,
                     into: &collected,
                     insideDispatchActionPayload: insideDispatchActionPayload,
-                    insideFlowElementContext: insideFlowElementContext
+                    insideFlowElementContext: insideFlowElementContext,
+                    insideNavigationButton: insideNavigationButton
                 )
             }
         default:
             break
         }
+    }
+
+    private static func isSafeNavigationButtonPayload(_ value: Any) -> Bool {
+        guard let payload = value as? [String: Any],
+              let keypath = payload["keypath"] as? String,
+              let label = payload["label"] as? String,
+              let url = payload["url"] as? String
+        else {
+            return false
+        }
+        let button = SkeletonButton(keypath: keypath, label: label, url: url)
+        return SkeletonButtonNavigation.resolveURL(
+            for: button,
+            relativeTo: URL(string: "https://binding-navigation.invalid")
+        ) != nil
     }
 }
 
