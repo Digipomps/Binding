@@ -795,16 +795,18 @@ struct BindingTests {
             #expect(composerTextArea.submitActionKeypath == "chatHub.prompt.submit")
             #expect(composerTextArea.modifiers?.styleRole == "personal-chat-composer-field")
             #expect(skeletonStyleRoles(in: conversationElement).contains("personal-chat-section"))
-            #expect(topLevelSectionHasHeader("Skriv", in: conversationPanel))
-            if let sectionContent = topLevelSectionContent(header: "Skriv", in: conversationPanel),
+            #expect(topLevelSectionHasHeader("Samtale", in: conversationPanel))
+            if let sectionContent = topLevelSectionContent(header: "Samtale", in: conversationPanel),
                let promptLogIndex = firstTopLevelElementIndex(in: sectionContent, matching: { elementContainsList(keypath: "chatHub.state.ui.promptMessages", in: $0) }),
                let composerIndex = firstTopLevelElementIndex(in: sectionContent, matching: { skeletonTextArea(targetKeypath: "chatHub.setComposer", in: $0) != nil }) {
+                #expect(promptLogIndex == 0)
                 #expect(promptLogIndex < composerIndex)
             } else {
                 Issue.record("Co-Pilot Chat should place the prompt log above the composer")
             }
             #expect(!topLevelSectionHasHeader("Start her", in: conversationPanel))
             #expect(!topLevelSectionHasHeader("Co-Pilot Chat", in: conversationPanel))
+            #expect(!skeletonContainsLiteralText("Hva vil du få gjort?", in: conversationPanel))
             #expect(!skeletonContainsLiteralText(helpIntro, in: conversationPanel))
             #expect(!skeletonContainsLiteralText(helpFollowup, in: conversationPanel))
             if let promptLogRow = skeletonListFlowElement(
@@ -845,7 +847,6 @@ struct BindingTests {
             #expect(primaryAction.payload != nil)
             #expect(skeletonContainsTextKeypath("chatHub.state.ui.primaryActionHint", in: conversationPanel))
             #expect(skeletonContainsTabs(tabsKeypath: "chatHub.state.ui.activeHelpers", in: conversationElement))
-            #expect(skeletonContainsLiteralText("Logg", in: conversationPanel))
             #expect(!skeletonContainsLiteralText("Trykk pilen", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.prompt.submit", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.clearComposer", in: conversationPanel))
@@ -3496,11 +3497,11 @@ struct BindingTests {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
         await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
 
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            Issue.record("Expected CellResolver after local startup bootstrap")
-            return
-        }
-        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
+        let resolver = CellResolver.sharedInstance
+        guard let owner = await BindingStartupIdentityVault.shared.identity(
+            for: "private",
+            makeNewIfNotFound: true
+        ) else {
             Issue.record("Expected startup vault identity for local Perspective bootstrap")
             return
         }

@@ -1229,16 +1229,29 @@ enum BindingChatIntentClassifier {
             ))
         }
         if looksLikeConferenceAgenda(normalized) {
-            matches.append(cellConfigurationResource(
-                id: "configuration:conference-participant-portal-dashboard",
-                title: "Conference Participant Portal Dashboard",
-                summary: "Participant dashboard for conference agenda, people, chats, meetings and profile.",
-                sourceCellEndpoint: "cell:///ConferenceParticipantPreviewShell",
-                sourceCellName: "ConferenceParticipantPreviewShellCell",
-                purposeRef: "conference.agenda.view",
-                interests: ["conference", "agenda", "participant", "sessions", "event-day", "resource-router"],
-                score: 0.88
-            ))
+            if normalized.contains("arendalsuka") {
+                matches.append(cellConfigurationResource(
+                    id: "configuration:arendalsuka-participant-program",
+                    title: "Arendalsuka Participant Program",
+                    summary: "Deltakerprogram fra staging med arrangementer, agenda og navigasjon for Arendalsuka.",
+                    sourceCellEndpoint: "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram",
+                    sourceCellName: "ArendalsukaParticipantProgramCell",
+                    purposeRef: "conference.agenda.view",
+                    interests: ["arendalsuka", "conference", "agenda", "participant", "sessions", "event-day", "resource-router"],
+                    score: 0.96
+                ))
+            } else {
+                matches.append(cellConfigurationResource(
+                    id: "configuration:conference-participant-portal-dashboard",
+                    title: "Conference Participant Portal Dashboard",
+                    summary: "Participant dashboard for conference agenda, people, chats, meetings and profile.",
+                    sourceCellEndpoint: "cell:///ConferenceParticipantPreviewShell",
+                    sourceCellName: "ConferenceParticipantPreviewShellCell",
+                    purposeRef: "conference.agenda.view",
+                    interests: ["conference", "agenda", "participant", "sessions", "event-day", "resource-router"],
+                    score: 0.88
+                ))
+            }
         }
         if looksLikeConferenceDemoStory(normalized) {
             matches.append(cellConfigurationResource(
@@ -3593,7 +3606,7 @@ final class BindingContactEndpointCell: GeneralCell {
             }
         }
 
-        for key in ["publishEndpoint", "retireEndpoint", "contact.request", "ticket.resolve", "ticket.respond", "expire"] {
+        for key in ["publishEndpoint", "retireEndpoint", "contact.request", "ticket.status", "ticket.resolve", "ticket.respond", "expire"] {
             agreementTemplate.addGrant("rw--", for: key)
             await registerSet(key: key, owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
                 guard let self else { return .string("failure") }
@@ -3623,6 +3636,11 @@ final class BindingContactEndpointCell: GeneralCell {
                 return .object(error("expected_object", "contact.request expects an object payload."))
             }
             return .object(await handleContactRequest(object, requester: requester))
+        case "ticket.status":
+            let ticketId = BindingContactEndpointContracts.string(BindingContactEndpointContracts.object(value)?["ticketId"])
+                ?? BindingContactEndpointContracts.string(value)
+                ?? ""
+            return .object(ticketStatus(ticketId: ticketId, requester: requester))
         case "ticket.resolve":
             let ticketId = BindingContactEndpointContracts.string(BindingContactEndpointContracts.object(value)?["ticketId"])
                 ?? BindingContactEndpointContracts.string(value)
@@ -3662,6 +3680,7 @@ final class BindingContactEndpointCell: GeneralCell {
             "supports": .list([
                 .string("publishEndpoint"),
                 .string("contact.request"),
+                .string("ticket.status"),
                 .string("ticket.resolve"),
                 .string("ticket.respond")
             ])
@@ -3843,6 +3862,27 @@ final class BindingContactEndpointCell: GeneralCell {
             return error("ticket_not_found_or_expired", "Ticket is missing or expired.")
         }
         return ticket.publicObject(includePayload: true)
+    }
+
+    private func ticketStatus(ticketId: String, requester: Identity) -> Object {
+        let now = Date()
+        let requesterIdentityHash = BindingContactEndpointContracts.hashRef(requester.uuid)
+        let ticket: BindingContactTicketRecord? = stateQueue.sync {
+            guard var record = ticketsByID[ticketId] else { return nil }
+            if record.expiresAt < now,
+               ["accepted", "declined", "blocked", "failed", "expired"].contains(record.status) == false {
+                record.status = "expired"
+                ticketsByID[ticketId] = record
+            }
+            return record
+        }
+        guard let ticket else {
+            return error("ticket_not_found", "Ticket was not found.")
+        }
+        guard ticket.requesterIdentityHash == requesterIdentityHash else {
+            return error("requester_mismatch", "Only the identity that signed the contact request can read its ticket status.")
+        }
+        return ticket.publicObject(includePayload: false)
     }
 
     private func respondTicket(ticketId: String, payload: Object) -> Object {
@@ -4440,6 +4480,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "ui.setCapabilityDiscoveryEnabled",
             "ui.setShowAdvanced",
             "invite",
+            "invite.refreshStatuses",
+            "contactInbox.refresh",
+            "contactInbox.select",
             "acceptInvite",
             "declineInvite",
             "inviteDraft.title",
@@ -4563,6 +4606,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
         "state.help.suggestedPrompt",
         "state.inviteDraft.title",
         "state.invites",
+        "state.contactInbox",
+        "state.contactInbox.incomingInvites",
+        "state.contactInbox.selectedTicketID",
         "state.messages",
         "state.pollDraft.optionsText",
         "state.pollDraft.question",
@@ -4789,12 +4835,24 @@ final class BindingPersonalChatHubCell: GeneralCell {
             return response(status: "ok", message: "Invite user updated.")
         case "invite":
             return await createInvite(value: value, requester: requester)
+        case "invite.refreshStatuses":
+            return await refreshOutgoingInviteStatuses(value: value, requester: requester)
+        case "contactInbox.refresh":
+            return await refreshContactInbox(value: value, requester: requester)
+        case "contactInbox.select":
+            return selectIncomingInvite(value)
         case "acceptInvite":
-            BindingChatValue.set(.string("accepted"), for: "inviteStatus", in: &cachedState)
-            return response(status: "ok", message: "Invite accepted.")
+            if shouldUseLegacyLocalInviteGate(value) {
+                BindingChatValue.set(.string("accepted"), for: "inviteStatus", in: &cachedState)
+                return response(status: "ok", message: "Lokal chat-tilgang er godtatt.")
+            }
+            return await respondToIncomingInvite(value: value, status: "accepted", requester: requester)
         case "declineInvite":
-            BindingChatValue.set(.string("declined"), for: "inviteStatus", in: &cachedState)
-            return response(status: "ok", message: "Invite declined.")
+            if shouldUseLegacyLocalInviteGate(value) {
+                BindingChatValue.set(.string("declined"), for: "inviteStatus", in: &cachedState)
+                return response(status: "ok", message: "Lokal chat-tilgang er avslått.")
+            }
+            return await respondToIncomingInvite(value: value, status: "declined", requester: requester)
         case "poll.setQuestion":
             BindingChatValue.set(.string(text(from: value)), for: "pollDraft.question", in: &cachedState)
             return response(status: "ok", message: "Poll question updated.")
@@ -5126,15 +5184,29 @@ final class BindingPersonalChatHubCell: GeneralCell {
 
     private func submitPrompt(value: ValueType, requester: Identity) async -> ValueType {
         let payload = BindingChatValue.object(value) ?? [:]
-        let prompt = BindingChatValue.string(payload["text"])
+        let prompt = BindingChatValue.string(value)
+            ?? BindingChatValue.string(payload["text"])
             ?? BindingChatValue.string(payload["prompt"])
             ?? BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
             ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
             ?? ""
-        return await analyzeDraft(
+        let analyzed = await analyzeDraft(
             value: .object(["prompt": .string(prompt)]),
             requester: requester
         )
+        clearComposerAfterPromptSubmission()
+        if BindingChatValue.normalized(prompt).contains("arendalsuka"),
+           let resource = currentCellConfigurationResource() {
+            return openMatchedResourceLibrary(
+                .object([
+                    "resourceID": resource["id"] ?? .null,
+                    "autoOpen": .bool(true)
+                ])
+            )
+        }
+        guard var response = BindingChatValue.object(analyzed) else { return analyzed }
+        response["state"] = .object(cachedState)
+        return .object(response)
     }
 
     private func promptUnderstandingFrame(
@@ -5286,15 +5358,18 @@ final class BindingPersonalChatHubCell: GeneralCell {
             : nextStepTitle
         let userMessage: Object = [
             "id": .string(UUID().uuidString),
+            "role": .string("user"),
             "speaker": .string("Du"),
             "body": .string(draft),
-            "statusText": .string("Lest lokalt fra denne chatten"),
+            "statusText": .string("Sendt"),
             "kind": .string("user_prompt"),
-            "threadID": .string(threadID)
+            "threadID": .string(threadID),
+            "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-user"].map(ValueType.string))
         ]
         let assistantMessage: Object = [
             "id": .string(UUID().uuidString),
-            "speaker": .string("Co-Pilot"),
+            "role": .string("assistant"),
+            "speaker": .string("HAVEN Co-Pilot"),
             "body": .string("\(suggestion.explanation)\(resourceSummary)"),
             "statusText": .string(assistantStatus),
             "kind": .string("assistant_suggestion"),
@@ -5302,11 +5377,17 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "resourceMatchCount": .integer(resourceMatches.count),
             "resourceTitles": .list(topResourceTitles.prefix(5).map(ValueType.string)),
             "threadID": .string(threadID),
-            "sideEffect": .bool(false)
+            "sideEffect": .bool(false),
+            "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-assistant"].map(ValueType.string))
         ]
-        messages.insert(.object(userMessage), at: 0)
-        messages.insert(.object(assistantMessage), at: 0)
-        BindingChatValue.set(.list(Array(messages.prefix(40))), for: "ui.promptMessages", in: &cachedState)
+        messages.append(.object(userMessage))
+        messages.append(.object(assistantMessage))
+        BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
+    }
+
+    private func clearComposerAfterPromptSubmission() {
+        BindingChatValue.set(.string(""), for: "composer.body", in: &cachedState)
+        BindingChatValue.set(.string(""), for: "currentThread.composer.body", in: &cachedState)
     }
 
     private func promptLogNextStepTitle(_ nextStep: String) -> String {
@@ -6139,6 +6220,19 @@ final class BindingPersonalChatHubCell: GeneralCell {
             ])
         }
 
+        if helper == "resource-router",
+           let resource = currentCellConfigurationResource() {
+            var opened = BindingChatValue.object(openMatchedResourceLibrary(
+                .object([
+                    "resourceID": resource["id"] ?? .null,
+                    "autoOpen": .bool(true)
+                ])
+            )) ?? [:]
+            opened["helper"] = .string(helper)
+            opened["suggestion"] = .object(suggestion)
+            return .object(opened)
+        }
+
         let surface = helperSurface(kind: helper, source: "suggestion")
         appendSurface(surface)
         BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
@@ -6276,6 +6370,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
             groundedActionPlan: groundedActionPlan,
             resourceMatches: resourceMatches
         )
+        clearComposerAfterPromptSubmission()
+        BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
         guard suggestion.shouldSuggest else { return nil }
@@ -6672,6 +6768,12 @@ final class BindingPersonalChatHubCell: GeneralCell {
             ]
         }
         let portholeUI = BindingChatIntentClassifier.libraryUIRequest(for: resource, autoOpen: autoOpen)
+        let loadedConfiguration = autoOpen ? configurationForResource(resource) : nil
+        if let loadedConfiguration {
+            Task { @MainActor in
+                BindingPortholeLoadBridge.post(configuration: loadedConfiguration)
+            }
+        }
         BindingChatValue.set(.object(portholeUI), for: "assistant.portholeUI", in: &cachedState)
         BindingChatValue.set(.object(resource), for: "assistant.selectedResourceMatch", in: &cachedState)
         if matches.isEmpty {
@@ -6681,8 +6783,13 @@ final class BindingPersonalChatHubCell: GeneralCell {
         var surface = helperSurface(kind: "resource-router", source: "matched-resource")
         surface["selectedResourceID"] = BindingChatValue.string(resource["id"]).map(ValueType.string) ?? .null
         surface["selectedResourceTitle"] = BindingChatValue.string(resource["title"]).map(ValueType.string) ?? .null
-        surface["summary"] = .string("Valgt flate er klargjort i Library. Ingen lasting eller kjøring skjer uten eget klikk.")
+        surface["summary"] = .string(
+            loadedConfiguration == nil
+                ? "Valgt flate er klargjort i Library."
+                : "Valgt CellConfiguration er lastet i HAVEN."
+        )
         appendSurface(surface)
+        BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
         return .object([
             "ok": .bool(true),
             "status": .string("library_open_requested"),
@@ -6690,8 +6797,25 @@ final class BindingPersonalChatHubCell: GeneralCell {
             "portholeUI": .object(portholeUI),
             "ui": BindingChatValue.nested("ui", in: cachedState) ?? .null,
             "state": .object(cachedState),
+            "configurationLoaded": .bool(loadedConfiguration != nil),
             "sideEffect": .bool(false)
         ])
+    }
+
+    private func currentCellConfigurationResource() -> Object? {
+        (BindingChatValue.list(BindingChatValue.nested("assistant.resourceMatches", in: cachedState)) ?? [])
+            .compactMap(BindingChatValue.object)
+            .first { BindingChatValue.string($0["kind"]) == "cell_configuration" }
+    }
+
+    private func configurationForResource(_ resource: Object) -> CellConfiguration? {
+        guard let configurationName = BindingChatValue.string(resource["configurationName"])
+            ?? BindingChatValue.string(resource["title"]) else {
+            return nil
+        }
+        return ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
+            includeAgentOperatorSurfaces: false
+        ).first { $0.name == configurationName }
     }
 
     private func docsRAGQuery(from value: ValueType) -> String {
@@ -6850,15 +6974,17 @@ final class BindingPersonalChatHubCell: GeneralCell {
 
     private func appendHelpPromptMessage(prompt: String, summary: String) {
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
-        messages.insert(.object([
+        messages.append(.object([
             "id": .string(UUID().uuidString),
-            "speaker": .string("Co-Pilot"),
+            "role": .string("assistant"),
+            "speaker": .string("HAVEN Co-Pilot"),
             "body": .string(prompt),
             "statusText": .string(summary),
             "kind": .string("contextual_help"),
-            "sideEffect": .bool(false)
-        ]), at: 0)
-        BindingChatValue.set(.list(messages), for: "ui.promptMessages", in: &cachedState)
+            "sideEffect": .bool(false),
+            "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-assistant"].map(ValueType.string))
+        ]))
+        BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
     }
 
     nonisolated private static func defaultDocsRAGDocuments() -> [Object] {
@@ -7044,11 +7170,18 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 requester: requester
             )
         } else {
+            let bootstrapDraft = makeBootstrapDraft(
+                inviteID: inviteID,
+                title: title,
+                profileID: profileID,
+                requester: requester
+            )
             delivery = [
                 "ok": .bool(false),
                 "status": .string("bootstrap_required"),
                 "contactDeliveryStatus": .string("missing_contact_endpoint"),
-                "message": .string("Invitasjonen er lagret, men mottakeren er ikke kontaktbar i HAVEN ennå. Send en bootstrap-invitasjon via en valgt ekstern kanal.")
+                "message": .string("Et lokalt bootstrap-utkast er klargjort, men ingenting er sendt. Mottakeren må først opprette et HAVEN-kontaktendepunkt."),
+                "bootstrapDraft": .object(bootstrapDraft)
             ]
         }
 
@@ -7061,6 +7194,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         invite["deliverySummary"] = .string(message)
         invite["ticketID"] = delivery["ticketID"] ?? .null
         invite["deliveryFailureReason"] = delivery["deliveryFailureReason"] ?? .null
+        invite["bootstrapDraft"] = delivery["bootstrapDraft"] ?? .null
         invite["updatedAt"] = .float(Date().timeIntervalSince1970)
         invites.append(.object(invite))
         BindingChatValue.set(.list(invites), for: "invites", in: &cachedState)
@@ -7080,7 +7214,330 @@ final class BindingPersonalChatHubCell: GeneralCell {
         response["ticketID"] = delivery["ticketID"] ?? .null
         response["ticket"] = delivery["ticket"] ?? .null
         response["deliveryFailureReason"] = delivery["deliveryFailureReason"] ?? .null
+        response["bootstrapDraft"] = delivery["bootstrapDraft"] ?? .null
         return .object(response)
+    }
+
+    private func makeBootstrapDraft(
+        inviteID: String,
+        title: String,
+        profileID: String,
+        requester: Identity
+    ) -> Object {
+        let now = Date()
+        return [
+            "schema": .string("haven.contact.bootstrap-draft.v1"),
+            "bootstrapID": .string("bootstrap-\(UUID().uuidString.lowercased())"),
+            "inviteID": .string(inviteID),
+            "title": .string(title),
+            "profileID": profileID.isEmpty ? .null : .string(profileID),
+            "senderDisplayName": .string(requester.displayName),
+            "purpose": .string("purpose://contact.introduction"),
+            "createdAt": .float(now.timeIntervalSince1970),
+            "expiresAt": .float(now.addingTimeInterval(7 * 24 * 60 * 60).timeIntervalSince1970),
+            "deliveryState": .string("not_sent"),
+            "authority": .bool(false),
+            "requiresRecipientEnrollment": .bool(true),
+            "requiresFreshSignedContactRequest": .bool(true),
+            "handoffText": .string("Du er invitert til en privat HAVEN-samtale. Opprett eller åpne HAVEN, publiser et kontaktendepunkt og del bare den offentlige kontaktbeskrivelsen tilbake.")
+        ]
+    }
+
+    private func refreshContactInbox(value: ValueType, requester: Identity) async -> ValueType {
+        let submitted = BindingChatValue.object(value) ?? [:]
+        let endpointCell = BindingChatValue.string(submitted["endpointCell"])
+            ?? BindingChatValue.string(BindingChatValue.nested("contactInbox.endpointCell", in: cachedState))
+            ?? BindingContactEndpointContracts.endpoint
+        BindingChatValue.set(.string(endpointCell), for: "contactInbox.endpointCell", in: &cachedState)
+
+        guard let resolver = CellBase.defaultCellResolver else {
+            return response(status: "blocked", message: "Kontaktinnboksen er ikke tilgjengelig fordi HAVEN-rutingen mangler.")
+        }
+        do {
+            guard let contactCell = try await resolver.cellAtEndpoint(
+                endpoint: endpointCell,
+                requester: requester
+            ) as? Meddle else {
+                return response(status: "blocked", message: "Kontaktinnboksen kan ikke åpnes i denne HAVEN-installasjonen.")
+            }
+            let privateState = try await contactCell.get(keypath: "privateState", requester: requester)
+            guard let state = BindingChatValue.object(privateState) else {
+                return response(status: "blocked", message: "Kontaktinnboksen svarte uten lesbar tilstand.")
+            }
+            let incomingInvites = (BindingChatValue.list(state["tickets"]) ?? []).compactMap(incomingInviteRow)
+            let actionableStatuses = Set(["pending", "resolved"])
+            let pendingCount = incomingInvites.filter {
+                actionableStatuses.contains(BindingChatValue.string($0["status"]) ?? "")
+            }.count
+            let previousSelection = BindingChatValue.string(
+                BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState)
+            )
+            let selectedTicketID = previousSelection.flatMap { selected in
+                incomingInvites.contains { BindingChatValue.string($0["ticketID"]) == selected } ? selected : nil
+            } ?? incomingInvites.first(where: {
+                actionableStatuses.contains(BindingChatValue.string($0["status"]) ?? "")
+            }).flatMap { BindingChatValue.string($0["ticketID"]) }
+            let message = pendingCount == 0
+                ? "Ingen nye kontaktinvitasjoner venter på svar."
+                : "\(pendingCount) kontaktinvitasjon venter på et eksplisitt svar."
+            let inbox: Object = [
+                "status": .string("ready"),
+                "message": .string(message),
+                "endpointCell": .string(endpointCell),
+                "pendingCount": .integer(pendingCount),
+                "selectedTicketID": selectedTicketID.map(ValueType.string) ?? .null,
+                "incomingInvites": .list(incomingInvites.map(ValueType.object)),
+                "updatedAt": .float(Date().timeIntervalSince1970)
+            ]
+            BindingChatValue.set(.object(inbox), for: "contactInbox", in: &cachedState)
+            cachedState["status"] = .string(message)
+            cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+            return .object([
+                "ok": .bool(true),
+                "status": .string("ready"),
+                "message": .string(message),
+                "userMessage": .string(message),
+                "sideEffect": .bool(false),
+                "contactInbox": .object(inbox),
+                "state": .object(cachedState)
+            ])
+        } catch {
+            return response(status: "blocked", message: "Kontaktinnboksen er midlertidig utilgjengelig.")
+        }
+    }
+
+    private func incomingInviteRow(_ value: ValueType) -> Object? {
+        guard let ticket = BindingChatValue.object(value),
+              let ticketID = BindingChatValue.string(ticket["ticketId"]),
+              BindingChatValue.string(ticket["requestTopic"]) == "contact.request",
+              let requestPayload = BindingChatValue.object(ticket["requestPayload"]),
+              let intro = BindingChatValue.object(requestPayload["payload"]),
+              BindingChatValue.string(intro["introKind"]) == "chat.invitation" else {
+            return nil
+        }
+        let status = BindingChatValue.string(ticket["status"]) ?? "pending"
+        let sender = BindingChatValue.string(requestPayload["requesterDisplayName"]) ?? "En HAVEN-kontakt"
+        let title = BindingChatValue.string(intro["introTitle"]) ?? "Privat chatinvitasjon"
+        var row: Object = [
+            "id": .string(ticketID),
+            "ticketID": .string(ticketID),
+            "inviteID": intro["introInviteID"] ?? .null,
+            "title": .string(title),
+            "senderDisplayName": .string(sender),
+            "status": .string(status),
+            "statusSummary": .string(incomingInviteSummary(status: status, sender: sender)),
+            "createdAt": ticket["createdAt"] ?? .null,
+            "expiresAt": ticket["expiresAt"] ?? .null
+        ]
+        row["result"] = ticket["result"] ?? .null
+        return row
+    }
+
+    private func incomingInviteSummary(status: String, sender: String) -> String {
+        switch status {
+        case "resolved": return "Invitasjonen fra \(sender) er åpnet og venter på svaret ditt."
+        case "accepted": return "Du har godtatt invitasjonen fra \(sender)."
+        case "declined": return "Du har avslått invitasjonen fra \(sender)."
+        case "blocked": return "Invitasjonen fra \(sender) er blokkert."
+        case "expired": return "Invitasjonen fra \(sender) har utløpt."
+        case "failed": return "Svaret på invitasjonen fra \(sender) kunne ikke fullføres."
+        default: return "Ny privat chatinvitasjon fra \(sender)."
+        }
+    }
+
+    private func selectIncomingInvite(_ value: ValueType) -> ValueType {
+        guard let ticketID = selectedTicketID(from: value) else {
+            return response(status: "blocked", message: "Velg en kontaktinvitasjon først.")
+        }
+        BindingChatValue.set(.string(ticketID), for: "contactInbox.selectedTicketID", in: &cachedState)
+        return response(status: "ok", message: "Kontaktinvitasjonen er valgt.")
+    }
+
+    private func selectedTicketID(from value: ValueType) -> String? {
+        if let direct = BindingChatValue.string(value) { return direct }
+        guard let object = BindingChatValue.object(value) else { return nil }
+        if let direct = BindingChatValue.string(object["ticketID"])
+            ?? BindingChatValue.string(object["ticketId"])
+            ?? BindingChatValue.string(object["selected"]) {
+            return direct
+        }
+        if let selected = BindingChatValue.object(object["selected"]) {
+            return BindingChatValue.string(selected["ticketID"])
+                ?? BindingChatValue.string(selected["ticketId"])
+                ?? BindingChatValue.string(selected["id"])
+        }
+        return nil
+    }
+
+    private func shouldUseLegacyLocalInviteGate(_ value: ValueType) -> Bool {
+        guard selectedTicketID(from: value) == nil,
+              BindingChatValue.string(BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState)) == nil else {
+            return false
+        }
+        return BindingChatValue.string(BindingChatValue.nested("contactInbox.status", in: cachedState)) == "not_loaded"
+    }
+
+    private func respondToIncomingInvite(value: ValueType, status: String, requester: Identity) async -> ValueType {
+        let actionableStatuses = Set(["pending", "resolved"])
+        var ticketID = selectedTicketID(from: value)
+            ?? BindingChatValue.string(BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState))
+        if ticketID == nil {
+            _ = await refreshContactInbox(value: .object([:]), requester: requester)
+            ticketID = BindingChatValue.string(BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState))
+        }
+        guard let ticketID else {
+            return response(status: "blocked", message: "Ingen kontaktinvitasjon venter på svar.")
+        }
+        let incoming = BindingChatValue.list(BindingChatValue.nested("contactInbox.incomingInvites", in: cachedState)) ?? []
+        guard let selectedInvite = incoming.compactMap(BindingChatValue.object).first(where: {
+            BindingChatValue.string($0["ticketID"]) == ticketID
+        }), actionableStatuses.contains(BindingChatValue.string(selectedInvite["status"]) ?? "") else {
+            return response(status: "blocked", message: "Den valgte kontaktinvitasjonen kan ikke besvares på nytt.")
+        }
+        guard let resolver = CellBase.defaultCellResolver else {
+            return response(status: "blocked", message: "Svaret kunne ikke sendes fordi HAVEN-rutingen mangler.")
+        }
+        let endpointCell = BindingChatValue.string(BindingChatValue.nested("contactInbox.endpointCell", in: cachedState))
+            ?? BindingContactEndpointContracts.endpoint
+        let userMessage = status == "accepted"
+            ? "Invitasjonen er godtatt. Avsenderen kan nå hente svaret fra kontaktendepunktet."
+            : "Invitasjonen er avslått. Avsenderen kan nå hente svaret fra kontaktendepunktet."
+        do {
+            guard let contactCell = try await resolver.cellAtEndpoint(
+                endpoint: endpointCell,
+                requester: requester
+            ) as? Meddle,
+                  let responseValue = try await contactCell.set(
+                    keypath: "ticket.respond",
+                    value: .object([
+                        "ticketId": .string(ticketID),
+                        "status": .string(status),
+                        "result": .object([
+                            "schema": .string("haven.contact.invite-response.v1"),
+                            "recipientDisplayName": .string(requester.displayName),
+                            "message": .string(status == "accepted" ? "Invitasjonen er godtatt." : "Invitasjonen er avslått."),
+                            "respondedAt": .float(Date().timeIntervalSince1970)
+                        ])
+                    ]),
+                    requester: requester
+                  ),
+                  let responseObject = BindingChatValue.object(responseValue),
+                  BindingChatValue.string(responseObject["status"]) == status else {
+                return response(status: "blocked", message: "Kontaktendepunktet bekreftet ikke svaret.")
+            }
+            _ = await refreshContactInbox(value: .object(["endpointCell": .string(endpointCell)]), requester: requester)
+            BindingChatValue.set(.string(status), for: "inviteStatus", in: &cachedState)
+            cachedState["status"] = .string(userMessage)
+            return .object([
+                "ok": .bool(true),
+                "status": .string(status),
+                "message": .string(userMessage),
+                "userMessage": .string(userMessage),
+                "sideEffect": .bool(true),
+                "ticket": .object(responseObject),
+                "state": .object(cachedState)
+            ])
+        } catch {
+            return response(status: "blocked", message: "Svaret kunne ikke leveres til kontaktendepunktet.")
+        }
+    }
+
+    private func refreshOutgoingInviteStatuses(value: ValueType, requester: Identity) async -> ValueType {
+        let requestedInviteID = BindingChatValue.string(BindingChatValue.object(value)?["inviteID"])
+            ?? BindingChatValue.string(BindingChatValue.object(value)?["id"])
+            ?? BindingChatValue.string(value)
+        let currentInvites = BindingChatValue.list(BindingChatValue.nested("invites", in: cachedState)) ?? []
+        var refreshedCount = 0
+        var updatedInvites: [ValueType] = []
+        for value in currentInvites {
+            guard let invite = BindingChatValue.object(value) else {
+                updatedInvites.append(value)
+                continue
+            }
+            if let requestedInviteID, BindingChatValue.string(invite["id"]) != requestedInviteID {
+                updatedInvites.append(value)
+                continue
+            }
+            let refreshed = await refreshedOutgoingInvite(invite, requester: requester)
+            if refreshed != invite { refreshedCount += 1 }
+            updatedInvites.append(.object(refreshed))
+        }
+        BindingChatValue.set(.list(updatedInvites), for: "invites", in: &cachedState)
+        if let latestStatus = updatedInvites.compactMap(BindingChatValue.object).last.flatMap({ BindingChatValue.string($0["status"]) }) {
+            BindingChatValue.set(.string(latestStatus), for: "inviteStatus", in: &cachedState)
+        }
+        let message = refreshedCount == 0
+            ? "Ingen leverte invitasjoner hadde et nytt svar."
+            : "Invitasjonsstatus er oppdatert fra mottakerens kontaktendepunkt."
+        cachedState["status"] = .string(message)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("ok"),
+            "message": .string(message),
+            "userMessage": .string(message),
+            "sideEffect": .bool(false),
+            "refreshedCount": .integer(refreshedCount),
+            "state": .object(cachedState)
+        ])
+    }
+
+    private func refreshedOutgoingInvite(_ invite: Object, requester: Identity) async -> Object {
+        let terminalStatuses = Set(["accepted", "declined", "blocked", "failed", "expired"])
+        guard terminalStatuses.contains(BindingChatValue.string(invite["status"]) ?? "") == false,
+              let ticketID = BindingChatValue.string(invite["ticketID"]),
+              let contactEndpoint = BindingChatValue.object(invite["contactEndpoint"]),
+              let endpointCell = BindingChatValue.string(contactEndpoint["cell"])
+                ?? BindingChatValue.string(contactEndpoint["endpointCell"]),
+              let resolver = CellBase.defaultCellResolver else {
+            return invite
+        }
+        do {
+            guard let contactCell = try await resolver.cellAtEndpoint(
+                endpoint: endpointCell,
+                requester: requester
+            ) as? Meddle,
+                  let ticketValue = try await contactCell.set(
+                    keypath: "ticket.status",
+                    value: .object(["ticketId": .string(ticketID)]),
+                    requester: requester
+                  ),
+                  let ticket = BindingChatValue.object(ticketValue),
+                  let remoteStatus = BindingChatValue.string(ticket["status"]),
+                  ["pending", "resolved", "accepted", "declined", "blocked", "failed", "expired"].contains(remoteStatus) else {
+                return invite
+            }
+            var updated = invite
+            let mapped = outgoingInvitePresentation(for: remoteStatus)
+            updated["status"] = .string(mapped.status)
+            updated["contactDeliveryStatus"] = .string(mapped.deliveryStatus)
+            updated["deliverySummary"] = .string(mapped.summary)
+            updated["remoteTicketStatus"] = .string(remoteStatus)
+            updated["response"] = ticket["result"] ?? .null
+            updated["updatedAt"] = .float(Date().timeIntervalSince1970)
+            return updated
+        } catch {
+            return invite
+        }
+    }
+
+    private func outgoingInvitePresentation(for remoteStatus: String) -> (status: String, deliveryStatus: String, summary: String) {
+        switch remoteStatus {
+        case "resolved":
+            return ("seen", "delivered", "Mottakeren har åpnet invitasjonen og vurderer den.")
+        case "accepted":
+            return ("accepted", "responded", "Mottakeren har godtatt invitasjonen.")
+        case "declined":
+            return ("declined", "responded", "Mottakeren har avslått invitasjonen.")
+        case "blocked":
+            return ("blocked", "responded", "Mottakeren har blokkert kontaktforespørselen.")
+        case "failed":
+            return ("failed", "responded", "Mottakeren kunne ikke fullføre svaret på invitasjonen.")
+        case "expired":
+            return ("expired", "expired", "Invitasjonen utløp før mottakeren svarte.")
+        default:
+            return ("delivered", "delivered", "Kontaktforespørselen er levert og venter på mottakerens svar.")
+        }
     }
 
     private func deliverInvite(
@@ -7454,6 +7911,14 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "userUUID": .string(""),
                 "contactEndpoint": .null
             ]),
+            "contactInbox": .object([
+                "status": .string("not_loaded"),
+                "message": .string("Kontaktinnboksen er ikke hentet ennå."),
+                "endpointCell": .string(BindingContactEndpointContracts.endpoint),
+                "pendingCount": .integer(0),
+                "selectedTicketID": .null,
+                "incomingInvites": .list([])
+            ]),
             "polls": .list([]),
             "pollDraft": .object([
                 "question": .string(""),
@@ -7599,11 +8064,13 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "promptMessages": .list([
                     .object([
                         "id": .string("welcome"),
-                        "speaker": .string("Co-Pilot"),
+                        "role": .string("assistant"),
+                        "speaker": .string("HAVEN Co-Pilot"),
                         "body": .string("Hva vil du få gjort? Skriv én prompt, så finner jeg forslag uten å utføre sideeffekter."),
                         "statusText": .string("Klar"),
                         "kind": .string("assistant_welcome"),
-                        "sideEffect": .bool(false)
+                        "sideEffect": .bool(false),
+                        "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-assistant"].map(ValueType.string))
                     ])
                 ]),
                 "promptParticipants": .list([

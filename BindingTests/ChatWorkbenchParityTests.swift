@@ -314,6 +314,38 @@ struct ChatWorkbenchParityTests {
         ) ?? .null))
         #expect(asString(replay["code"]) == "replay_detected")
 
+        let requesterReceipt = try #require(asObject(try await cell.set(
+            keypath: "ticket.status",
+            value: .object(["ticketId": .string(ticketId)]),
+            requester: requester
+        ) ?? .null))
+        #expect(asString(requesterReceipt["status"]) == "pending")
+        #expect(requesterReceipt["requestPayload"] == nil)
+
+        let wrongRequesterReceipt = try #require(asObject(try await cell.set(
+            keypath: "ticket.status",
+            value: .object(["ticketId": .string(ticketId)]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(wrongRequesterReceipt["code"]) == "requester_mismatch")
+
+        CellBase.debugValidateAccessForEverything = false
+        var foreignResponseDenied = false
+        do {
+            _ = try await cell.set(
+                keypath: "ticket.respond",
+                value: .object([
+                    "ticketId": .string(ticketId),
+                    "status": .string("accepted")
+                ]),
+                requester: requester
+            )
+        } catch {
+            foreignResponseDenied = String(describing: error).contains("denied")
+        }
+        #expect(foreignResponseDenied)
+        CellBase.debugValidateAccessForEverything = true
+
         let resolved = try #require(asObject(try await cell.set(
             keypath: "ticket.resolve",
             value: .object(["ticketId": .string(ticketId)]),
@@ -332,6 +364,14 @@ struct ChatWorkbenchParityTests {
             requester: owner
         ) ?? .null))
         #expect(asString(responded["status"]) == "accepted")
+
+        let acceptedReceipt = try #require(asObject(try await cell.set(
+            keypath: "ticket.status",
+            value: .object(["ticketId": .string(ticketId)]),
+            requester: requester
+        ) ?? .null))
+        #expect(asString(acceptedReceipt["status"]) == "accepted")
+        #expect(asString(asObject(acceptedReceipt["result"])?["message"]) == "Accepted")
     }
 
     @Test func chatInviteDeliversSignedContactRequestAndStoresTicketReceipt() async throws {
@@ -416,6 +456,94 @@ struct ChatWorkbenchParityTests {
         let intro = try #require(asObject(requestPayload["payload"]))
         #expect(asString(intro["introKind"]) == "chat.invitation")
         #expect(asString(intro["introTitle"]) == "Chat med Vegar")
+
+        let recipientChat = await BindingPersonalChatHubCell(owner: recipient)
+        let inboxRefresh = try #require(asObject(try await recipientChat.set(
+            keypath: "contactInbox.refresh",
+            value: .object(["endpointCell": .string("cell:///\(endpointName)")]),
+            requester: recipient
+        ) ?? .null))
+        #expect(asBool(inboxRefresh["ok"]) == true)
+        let contactInbox = try #require(asObject(inboxRefresh["contactInbox"]))
+        #expect(asString(contactInbox["selectedTicketID"]) == ticketID)
+        #expect(asInt(contactInbox["pendingCount"]) == 1)
+        let incomingInvites = try #require(asList(contactInbox["incomingInvites"]))
+        #expect(incomingInvites.count == 1)
+        let incomingInvite = try #require(asObject(incomingInvites.first))
+        #expect(asString(incomingInvite["senderDisplayName"]) == "Kjetil")
+        #expect(asString(incomingInvite["title"]) == "Chat med Vegar")
+
+        let accepted = try #require(asObject(try await recipientChat.set(
+            keypath: "acceptInvite",
+            value: .object([:]),
+            requester: recipient
+        ) ?? .null))
+        #expect(asBool(accepted["ok"]) == true)
+        #expect(asString(accepted["status"]) == "accepted")
+
+        let senderRefresh = try #require(asObject(try await chat.set(
+            keypath: "invite.refreshStatuses",
+            value: .object(["inviteID": invite["id"] ?? .null]),
+            requester: sender
+        ) ?? .null))
+        #expect(asBool(senderRefresh["ok"]) == true)
+        #expect(asInt(senderRefresh["refreshedCount"]) == 1)
+        let refreshedState = try #require(asObject(senderRefresh["state"]))
+        let refreshedInvites = try #require(asList(refreshedState["invites"]))
+        let refreshedInvite = try #require(asObject(refreshedInvites.first))
+        #expect(asString(refreshedInvite["status"]) == "accepted")
+        #expect(asString(refreshedInvite["contactDeliveryStatus"]) == "responded")
+        #expect(asString(asObject(refreshedInvite["response"])?["recipientDisplayName"]) == "Vegar")
+
+        let declinedDelivery = try #require(asObject(try await chat.set(
+            keypath: "invite",
+            value: .object([
+                "title": .string("Avslått prøveinvitasjon"),
+                "profileID": .string("vegar-public-profile"),
+                "userUUID": .string(recipient.uuid),
+                "contactEndpoint": .object(descriptor)
+            ]),
+            requester: sender
+        ) ?? .null))
+        let declinedInvite = try #require(asObject(declinedDelivery["invite"]))
+        let declinedTicketID = try #require(asString(declinedDelivery["ticketID"]))
+
+        let secondInboxRefresh = try #require(asObject(try await recipientChat.set(
+            keypath: "contactInbox.refresh",
+            value: .object(["endpointCell": .string("cell:///\(endpointName)")]),
+            requester: recipient
+        ) ?? .null))
+        let secondInbox = try #require(asObject(secondInboxRefresh["contactInbox"]))
+        #expect(asInt(secondInbox["pendingCount"]) == 1)
+        _ = try await recipientChat.set(
+            keypath: "contactInbox.select",
+            value: .object([
+                "selectionMode": .string("single"),
+                "trigger": .string("select"),
+                "selected": .string(declinedTicketID)
+            ]),
+            requester: recipient
+        )
+        let declined = try #require(asObject(try await recipientChat.set(
+            keypath: "declineInvite",
+            value: .object([:]),
+            requester: recipient
+        ) ?? .null))
+        #expect(asBool(declined["ok"]) == true)
+        #expect(asString(declined["status"]) == "declined")
+
+        let declinedSenderRefresh = try #require(asObject(try await chat.set(
+            keypath: "invite.refreshStatuses",
+            value: .object(["inviteID": declinedInvite["id"] ?? .null]),
+            requester: sender
+        ) ?? .null))
+        let declinedState = try #require(asObject(declinedSenderRefresh["state"]))
+        let allOutgoing = try #require(asList(declinedState["invites"]))
+        let declinedOutgoing = try #require(allOutgoing.compactMap(asObject).first(where: {
+            asString($0["id"]) == asString(declinedInvite["id"])
+        }))
+        #expect(asString(declinedOutgoing["status"]) == "declined")
+        #expect(asString(declinedOutgoing["contactDeliveryStatus"]) == "responded")
     }
 
     @Test func chatInviteWithoutContactEndpointRequiresBootstrapAndNeverClaimsSent() async throws {
@@ -439,7 +567,13 @@ struct ChatWorkbenchParityTests {
         #expect(asString(result["status"]) == "bootstrap_required")
         #expect(asString(result["contactDeliveryStatus"]) == "missing_contact_endpoint")
         #expect(result["ticketID"] == .null)
-        #expect(asString(result["userMessage"])?.contains("bootstrap-invitasjon") == true)
+        #expect(asString(result["userMessage"])?.contains("ingenting er sendt") == true)
+        let bootstrapDraft = try #require(asObject(result["bootstrapDraft"]))
+        #expect(asString(bootstrapDraft["schema"]) == "haven.contact.bootstrap-draft.v1")
+        #expect(asString(bootstrapDraft["deliveryState"]) == "not_sent")
+        #expect(asBool(bootstrapDraft["authority"]) == false)
+        #expect(asBool(bootstrapDraft["requiresRecipientEnrollment"]) == true)
+        #expect(asBool(bootstrapDraft["requiresFreshSignedContactRequest"]) == true)
         let state = try #require(asObject(result["state"]))
         #expect(asString(state["inviteStatus"]) == "bootstrap_required")
         let invites = try #require(asList(state["invites"]))
@@ -458,6 +592,16 @@ struct ChatWorkbenchParityTests {
         #expect(json.contains("\"keypath\":\"deliverySummary\""))
         #expect(json.contains("contactDeliveryStatus") == false)
         #expect(json.contains("deliveryFailureReason") == false)
+
+        let incomingList = try #require(skeletonList(
+            keypath: "chatHub.state.contactInbox.incomingInvites",
+            in: skeleton
+        ))
+        #expect(incomingList.selectionMode == .single)
+        #expect(incomingList.selectionValueKeypath == "ticketID")
+        #expect(incomingList.selectionStateKeypath == "chatHub.state.contactInbox.selectedTicketID")
+        #expect(incomingList.selectionActionKeypath == "chatHub.contactInbox.select")
+        #expect(incomingList.selectionPayloadMode == .itemID)
     }
 
     @Test func chatEntityExtensionScanFindsContactEndpointWithoutSideEffects() async throws {
@@ -831,8 +975,8 @@ struct ChatWorkbenchParityTests {
         #expect(asString(ui["activeTab"]) == "samtale")
         let promptMessages = asList(ui["promptMessages"]) ?? []
         #expect(promptMessages.count >= 3)
-        let latestPromptMessage = try #require(asObject(promptMessages.first))
-        #expect(asString(latestPromptMessage["speaker"]) == "Co-Pilot")
+        let latestPromptMessage = try #require(asObject(promptMessages.last))
+        #expect(asString(latestPromptMessage["speaker"]) == "HAVEN Co-Pilot")
         #expect(asString(latestPromptMessage["helperID"]) == "work-item")
         #expect(asString(try await chat.get(keypath: "chatHub.state.assistant.purposeContext.summary", requester: owner)) != "denied")
         #expect(counters(.object(state)) == before)
@@ -1649,6 +1793,47 @@ struct ChatWorkbenchParityTests {
         #expect(counters(.object(openedState)) == before)
     }
 
+    @Test func arendalsukaPromptOpensParticipantConfigurationAndBecomesChatHistory() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-arendalsuka-submit")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let submitted = try #require(asObject(try await chat.set(
+            keypath: "chatHub.prompt.submit",
+            value: .string("Hva skjer på arendalsuka?"),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asString(submitted["status"]) == "library_open_requested")
+        #expect(asBool(submitted["configurationLoaded"]) == true)
+        let resource = try #require(asObject(submitted["resource"]))
+        #expect(asString(resource["title"]) == "Arendalsuka Participant Program")
+        #expect(asString(resource["sourceCellEndpoint"]) == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
+        let portholeUI = try #require(asObject(submitted["portholeUI"]))
+        #expect(asBool(portholeUI["openLibrary"]) == true)
+        #expect(asString(portholeUI["configurationName"]) == "Arendalsuka Participant Program")
+
+        let state = try #require(asObject(submitted["state"]))
+        #expect(asString(asObject(state["composer"])?["body"]) == "")
+        #expect(asString(asObject(asObject(state["currentThread"])?["composer"])?["body"]) == "")
+        let rows = asList(asObject(state["ui"])?["promptMessages"]) ?? []
+        let latestRows = rows.suffix(2).compactMap(asObject)
+        #expect(latestRows.count == 2)
+        #expect(asString(latestRows.first?["role"]) == "user")
+        #expect(asString(latestRows.first?["body"]) == "Hva skjer på arendalsuka?")
+        #expect(asString(latestRows.last?["role"]) == "assistant")
+        #expect((asString(latestRows.last?["body"]) ?? "").contains("Arendalsuka Participant Program"))
+
+        let configuration = try #require(
+            ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
+                includeAgentOperatorSurfaces: false
+            ).first { $0.name == "Arendalsuka Participant Program" }
+        )
+        #expect(configuration.skeleton != nil)
+    }
+
     @Test func changedComposerRestagesResourceHelperOverStaleInvite() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = false
@@ -1705,7 +1890,7 @@ struct ChatWorkbenchParityTests {
         #expect(counters(.object(state)) == before)
     }
 
-    @Test func conversationPromptLogStaysCompactForSplitWorkbench() throws {
+    @Test func conversationPromptLogHasChatSizedViewport() throws {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         let skeleton = try #require(configuration.skeleton)
         let promptLog = try #require(skeletonList(
@@ -1713,7 +1898,7 @@ struct ChatWorkbenchParityTests {
             in: skeleton
         ))
         #expect(promptLog.modifiers?.styleRole == "chat-prompt-log")
-        #expect((promptLog.modifiers?.height ?? 0) <= 112)
+        #expect((promptLog.modifiers?.height ?? 0) >= 220)
     }
 
     @Test func sendComposedMessageCreatesThreadReadModel() async throws {

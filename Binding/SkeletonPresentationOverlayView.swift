@@ -309,6 +309,7 @@ enum BindingSkeletonPresentationSupport {
         guard let rowElements = materializedRows(
             from: rows,
             rowSkeleton: rowSkeleton,
+            listStyleRole: list.modifiers?.styleRole,
             context: context,
             nodes: &nodes
         ) else {
@@ -338,6 +339,7 @@ enum BindingSkeletonPresentationSupport {
     private static func materializedRows(
         from rows: ValueTypeList,
         rowSkeleton: SkeletonVStack,
+        listStyleRole: String?,
         context: BindingSkeletonRenderContext,
         nodes: inout [BindingSkeletonPresentationNode]
     ) -> SkeletonElementList? {
@@ -345,10 +347,38 @@ enum BindingSkeletonPresentationSupport {
             return nil
         }
 
-        let rowElement = SkeletonElement.VStack(rowSkeleton)
         return rows.compactMap { row in
-            extractBaseElement(from: rowElement, context: context.row(row), nodes: &nodes)
+            var preparedRow = rowSkeleton
+            if listStyleRole == "chat-prompt-log" {
+                preparedRow.modifiers = chatPromptRowModifiers(
+                    role: stringValue(at: "role", in: row)
+                )
+            }
+            let rowElement = SkeletonElement.VStack(preparedRow)
+            return extractBaseElement(from: rowElement, context: context.row(row), nodes: &nodes)
         }
+    }
+
+    private static func chatPromptRowModifiers(role: String?) -> SkeletonModifiers {
+        let isUser = role == "user"
+        var modifiers = SkeletonModifiers()
+        modifiers.padding = 12
+        modifiers.maxWidthInfinity = true
+        modifiers.hAlignment = isUser ? "trailing" : "leading"
+        modifiers.background = isUser ? "#E8F1FF" : "#F4F5F7"
+        modifiers.cornerRadius = 14
+        modifiers.borderWidth = 1
+        modifiers.borderColor = isUser ? "#9FC1F8" : "#D7DCE2"
+        modifiers.styleRole = isUser ? "chat-prompt-row-user" : "chat-prompt-row-assistant"
+        modifiers.styleClasses = ["chat-prompt-row", modifiers.styleRole ?? ""]
+        return modifiers
+    }
+
+    private static func stringValue(at keypath: String, in source: ValueType) -> String? {
+        guard case let .string(string)? = value(at: keypath, in: source) else {
+            return nil
+        }
+        return string
     }
 
     private static func resolvedRows(

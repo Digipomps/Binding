@@ -57,6 +57,38 @@ final class BindingUITests: XCTestCase {
     }
 
     @MainActor
+    func testArendalsukaPromptOpensParticipantProgram() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["BINDING_VERIFIER_IDENTITY_MODE"] = "local"
+        app.launch()
+
+        let labeledEntry = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Co-Pilot,")
+        ).firstMatch
+        let plainEntry = app.buttons["Co-Pilot"].firstMatch
+        let copilotEntry = labeledEntry.waitForExistence(timeout: 20) ? labeledEntry : plainEntry
+        XCTAssertTrue(copilotEntry.waitForExistence(timeout: 10), "Co-Pilot mangler i HAVEN-menyen")
+        copilotEntry.click()
+
+        let composer = app.textViews.firstMatch
+        XCTAssertTrue(composer.waitForExistence(timeout: 20), "Co-Pilot-komponisten ble ikke rendret")
+        composer.click()
+        composer.typeText("Hva skjer på arendalsuka?\n")
+
+        let participantProgram = app.staticTexts["Arendalsuka Participant Program"].firstMatch
+        XCTAssertTrue(
+            participantProgram.waitForExistence(timeout: 30),
+            "Arendalsuka-prompten åpnet ikke deltakerprogrammet"
+        )
+        XCTAssertNotEqual(app.state, .notRunning, "HAVEN krasjet etter Arendalsuka-navigasjon")
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Arendalsuka prompt opened participant program"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

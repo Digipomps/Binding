@@ -85,6 +85,9 @@ enum BindingPersonalCopilotV1Policy {
         "chat-primary-action",
         "chat-safety-hint",
         "chat-prompt-log",
+        "chat-prompt-message",
+        "chat-prompt-row-user",
+        "chat-prompt-row-assistant",
         "chat-active-tool-chips",
         "chat-helper-tabs",
         "chat-helper-tabs-compact"
@@ -8926,14 +8929,22 @@ final class ConfigurationCatalogCell: GeneralCell {
         threads.selectionPayloadMode = .itemID
         threads.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-list-row")
 
+        var promptSpeaker = personalBoundText("speaker", lineLimit: 1)
+        promptSpeaker.modifiers?.fontWeight = "semibold"
+        promptSpeaker.modifiers?.fontSize = 12
+        var promptBody = personalBoundText("body", lineLimit: 6)
+        promptBody.modifiers?.fontSize = 14
+        var promptStatus = personalBoundText("statusText", lineLimit: 1)
+        promptStatus.modifiers?.foregroundColor = BindingPersonalCopilotDesignSystem.textTertiary
+        promptStatus.modifiers?.fontSize = 11
         var promptMessageRow = SkeletonVStack(elements: [
-            .Text(personalBoundText("speaker", lineLimit: 1)),
-            .Text(personalBoundText("body", lineLimit: 2)),
-            .Text(personalBoundText("statusText", lineLimit: 1))
-        ], spacing: 3)
+            .Text(promptSpeaker),
+            .Text(promptBody),
+            .Text(promptStatus)
+        ], spacing: 5)
         promptMessageRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "chat-prompt-message")
         var promptMessages = SkeletonList(topic: nil, keypath: "chatHub.state.ui.promptMessages", flowElementSkeleton: promptMessageRow)
-        promptMessages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 112, role: "chat-prompt-log")
+        promptMessages.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 260, role: "chat-prompt-log")
 
         var candidateRow = SkeletonVStack(elements: [
             .Text(personalBoundText("displayName", lineLimit: 1)),
@@ -8960,6 +8971,25 @@ final class ConfigurationCatalogCell: GeneralCell {
         inviteRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-chat-item")
         var invites = SkeletonList(topic: nil, keypath: "chatHub.state.invites", flowElementSkeleton: inviteRow)
         invites.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 160, role: "personal-chat-item")
+
+        var incomingInviteRow = SkeletonVStack(elements: [
+            .Text(personalBoundText("title", lineLimit: 1)),
+            .Text(personalBoundText("senderDisplayName", lineLimit: 1)),
+            .Text(personalBoundText("statusSummary", lineLimit: 3))
+        ], spacing: 4)
+        incomingInviteRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-chat-item")
+        var incomingInvites = SkeletonList(
+            topic: nil,
+            keypath: "chatHub.state.contactInbox.incomingInvites",
+            flowElementSkeleton: incomingInviteRow
+        )
+        incomingInvites.selectionMode = .single
+        incomingInvites.selectionValueKeypath = "ticketID"
+        incomingInvites.selectionStateKeypath = "chatHub.state.contactInbox.selectedTicketID"
+        incomingInvites.selectionActionKeypath = "chatHub.contactInbox.select"
+        incomingInvites.selectionPayloadMode = .itemID
+        incomingInvites.allowsEmptySelection = false
+        incomingInvites.modifiers = BindingPersonalCopilotDesignSystem.listCard(height: 180, role: "personal-chat-item")
 
         var pollRow = SkeletonVStack(elements: [
             .Text(personalBoundText("question", lineLimit: 2)),
@@ -9378,11 +9408,9 @@ final class ConfigurationCatalogCell: GeneralCell {
 
         let conversationPanel: [SkeletonElement] = [
             personalCompactSection(
-                "Skriv",
+                "Samtale",
                 role: "personal-draft-composer",
                 content: [
-                    .Text(personalBodyText("Hva vil du få gjort?", lineLimit: 1)),
-                    .Text(personalLabelText("Logg")),
                     .List(promptMessages),
                     .VStack(composerStack),
                     .Text(primaryActionHint),
@@ -9417,14 +9445,24 @@ final class ConfigurationCatalogCell: GeneralCell {
                 ]
             ),
             personalSection(
-                "Ventende invitasjoner",
+                "Mottatte invitasjoner",
                 content: [
-                    .Text(personalBodyText("Nye invitasjoner dukker opp her. Godta eller avslutt dem eksplisitt.")),
-                    .List(invites),
+                    .Text(personalBodyText("Hent kontaktinnboksen, velg en invitasjon og svar eksplisitt. Valg av rad sender ikke noe.")),
+                    .Text(personalBoundText("chatHub.state.contactInbox.message", lineLimit: 2)),
+                    .List(incomingInvites),
                     .HStack(SkeletonHStack(elements: [
+                        .Button(button("chatHub.contactInbox.refresh", "Hent nye", style: .secondary)),
                         .Button(button("chatHub.acceptInvite", "Godta", style: .secondary)),
                         .Button(button("chatHub.declineInvite", "Avslaa", style: .warning))
                     ]))
+                ]
+            ),
+            personalSection(
+                "Sendte invitasjoner",
+                content: [
+                    .Text(personalBodyText("Levering og svar vises her. Status hentes bare fra kontaktendepunktet som mottok den signerte forespørselen.")),
+                    .List(invites),
+                    .Button(button("chatHub.invite.refreshStatuses", "Oppdater svar", style: .secondary))
                 ]
             ),
             personalSection(

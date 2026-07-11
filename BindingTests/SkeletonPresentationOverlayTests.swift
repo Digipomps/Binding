@@ -71,6 +71,54 @@ final class SkeletonPresentationOverlayTests: XCTestCase {
         XCTAssertEqual(extraction.nodes.flatMap { textValues(in: $0.element) }, ["Lower", "Higher", "Same Layer"])
     }
 
+    func testChatPromptLogMaterializesDistinctUserAndAssistantRows() throws {
+        var row = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "speaker")),
+            .Text(SkeletonText(keypath: "body"))
+        ])
+        row.modifiers = SkeletonModifiers()
+
+        var list = SkeletonList(topic: nil, keypath: "messages", flowElementSkeleton: row)
+        var listModifiers = SkeletonModifiers()
+        listModifiers.styleRole = "chat-prompt-log"
+        list.modifiers = listModifiers
+
+        let root = ValueType.object([
+            "messages": .list([
+                .object([
+                    "role": .string("user"),
+                    "speaker": .string("Du"),
+                    "body": .string("Hva skjer på arendalsuka?")
+                ]),
+                .object([
+                    "role": .string("assistant"),
+                    "speaker": .string("HAVEN Co-Pilot"),
+                    "body": .string("Jeg åpner Arendalsuka Participant Program.")
+                ])
+            ])
+        ])
+
+        let extraction = BindingSkeletonPresentationSupport.extract(
+            from: .List(list),
+            context: .root(root)
+        )
+        guard case let .VStack(container)? = extraction.baseElement else {
+            return XCTFail("Expected the prompt list to materialize as a VStack")
+        }
+        let rows = container.elements.compactMap { element -> SkeletonVStack? in
+            guard case let .VStack(row) = element else { return nil }
+            return row
+        }
+
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0].modifiers?.styleRole, "chat-prompt-row-user")
+        XCTAssertEqual(rows[0].modifiers?.hAlignment, "trailing")
+        XCTAssertEqual(rows[0].modifiers?.background, "#E8F1FF")
+        XCTAssertEqual(rows[1].modifiers?.styleRole, "chat-prompt-row-assistant")
+        XCTAssertEqual(rows[1].modifiers?.hAlignment, "leading")
+        XCTAssertEqual(rows[1].modifiers?.background, "#F4F5F7")
+    }
+
     private func makeRootSkeleton(
         panelTitle: String,
         presentation: SkeletonPresentation
