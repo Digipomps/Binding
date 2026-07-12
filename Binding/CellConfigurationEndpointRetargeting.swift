@@ -173,8 +173,10 @@ enum AgentLocalControlBridgeEndpointSupport {
            !resolvedHome.isEmpty {
             return URL(fileURLWithPath: resolvedHome, isDirectory: true)
         }
-#endif
         return FileManager.default.homeDirectoryForCurrentUser
+#else
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+#endif
     }
 
     private static func isLoopbackHost(_ host: String) -> Bool {
