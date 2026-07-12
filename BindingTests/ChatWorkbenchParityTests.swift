@@ -246,6 +246,9 @@ struct ChatWorkbenchParityTests {
 
         let (owner, requester) = await signingIdentities()
         let cell = await BindingContactEndpointCell(owner: owner)
+        let requesterVault = try #require(requester.identityVault)
+        let requesterDomainBindingValue = await requesterVault.identityDomainBinding(for: requester)
+        let requesterDomainBinding = try #require(requesterDomainBindingValue)
 
         let descriptor = try #require(asObject(try await cell.set(
             keypath: "publishEndpoint",
@@ -254,6 +257,9 @@ struct ChatWorkbenchParityTests {
                 "purposes": .list([.string("purpose://contact.introduction")]),
                 "acceptedTopics": .list([.string("contact.message")]),
                 "contactSetId": .string("private-binding-set"),
+                "policy": .object([
+                    "allowedDomains": .list([.string(requesterDomainBinding.domain)])
+                ]),
                 "routeRefs": .list([
                     .object([
                         "kind": .string("notificationOutbox"),
@@ -284,6 +290,8 @@ struct ChatWorkbenchParityTests {
                 "issuedAt": .float(Date().timeIntervalSince1970),
                 "expiresAt": .float(Date().addingTimeInterval(300).timeIntervalSince1970),
                 "requesterIdentity": .identity(requester),
+                "requesterDomain": .string(requesterDomainBinding.domain),
+                "requesterDomainBinding": .object(requesterDomainBinding.objectValue),
                 "topic": .string("contact.message"),
                 "purpose": .string("purpose://contact.introduction"),
                 "payload": .object(["message": .string("Kan HAVENAgentD ta neste steg?")])
@@ -292,6 +300,61 @@ struct ChatWorkbenchParityTests {
         ) ?? .null))
         #expect(asString(unsigned["status"]) == "rejected")
         #expect(asString(unsigned["reason"]) == "missing_signature")
+
+        let missingBindingRequest = try await signedContactRequest(
+            endpointId: "binding-peer-inbox",
+            nonce: "missing-binding-1",
+            requester: requester,
+            includeDomainBinding: false
+        )
+        let missingBinding = try #require(asObject(try await cell.set(
+            keypath: "contact.request",
+            value: .object(missingBindingRequest),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(missingBinding["code"]) == "domain_binding_required")
+
+        var forgedBindingRequest = try await signedContactRequest(
+            endpointId: "binding-peer-inbox",
+            nonce: "forged-binding-1",
+            requester: requester
+        )
+        var forgedDomainBinding = requesterDomainBinding.objectValue
+        forgedDomainBinding["signingKeyFingerprint"] = .string("forged")
+        forgedBindingRequest["requesterDomainBinding"] = .object(forgedDomainBinding)
+        forgedBindingRequest.removeValue(forKey: "signature")
+        let forgedCanonical = try FlowCanonicalEncoder.canonicalData(for: .object(forgedBindingRequest))
+        forgedBindingRequest["signature"] = .data(try #require(try await requester.sign(data: forgedCanonical)))
+        let forgedBinding = try #require(asObject(try await cell.set(
+            keypath: "contact.request",
+            value: .object(forgedBindingRequest),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(forgedBinding["code"]) == "domain_binding_invalid")
+
+        _ = try await cell.set(
+            keypath: "publishEndpoint",
+            value: .object([
+                "endpointId": .string("binding-domain-denied"),
+                "purposes": .list([.string("purpose://contact.introduction")]),
+                "acceptedTopics": .list([.string("contact.message")]),
+                "policy": .object([
+                    "allowedDomains": .list([.string("domain:someone-else")])
+                ])
+            ]),
+            requester: owner
+        )
+        let disallowedDomainRequest = try await signedContactRequest(
+            endpointId: "binding-domain-denied",
+            nonce: "disallowed-domain-1",
+            requester: requester
+        )
+        let disallowedDomain = try #require(asObject(try await cell.set(
+            keypath: "contact.request",
+            value: .object(disallowedDomainRequest),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(disallowedDomain["code"]) == "domain_not_allowed")
 
         let request = try await signedContactRequest(
             endpointId: "binding-peer-inbox",
@@ -305,6 +368,7 @@ struct ChatWorkbenchParityTests {
         ) ?? .null))
         #expect(asString(ticket["endpointId"]) == "binding-peer-inbox")
         #expect(asString(ticket["requestTopic"]) == "contact.message")
+        #expect(asString(ticket["requesterDomain"]) == requesterDomainBinding.domain)
         let ticketId = try #require(asString(ticket["ticketId"]))
 
         let replay = try #require(asObject(try await cell.set(
@@ -390,7 +454,8 @@ struct ChatWorkbenchParityTests {
         }
 
         let suffix = UUID().uuidString.replacingOccurrences(of: "-", with: "")
-        let sender = try #require(await vault.identity(for: "binding-invite-sender-\(suffix)", makeNewIfNotFound: true))
+        let senderDomain = "binding-invite-sender-\(suffix)"
+        let sender = try #require(await vault.identity(for: senderDomain, makeNewIfNotFound: true))
         let recipient = try #require(await vault.identity(for: "binding-invite-recipient-\(suffix)", makeNewIfNotFound: true))
         sender.displayName = "Kjetil"
         recipient.displayName = "Vegar"
@@ -413,7 +478,10 @@ struct ChatWorkbenchParityTests {
                 "endpointId": .string("vegar-contact-\(suffix.lowercased())"),
                 "cell": .string("cell:///\(endpointName)"),
                 "purposes": .list([.string("purpose://contact.introduction")]),
-                "acceptedTopics": .list([.string("contact.request")])
+                "acceptedTopics": .list([.string("contact.request")]),
+                "policy": .object([
+                    "allowedDomains": .list([.string(senderDomain)])
+                ])
             ]),
             requester: recipient
         ) ?? .null))
@@ -449,10 +517,15 @@ struct ChatWorkbenchParityTests {
         #expect(asString(ticket["ticketId"]) == ticketID)
         #expect(asString(ticket["requestTopic"]) == "contact.request")
         #expect(asString(ticket["purpose"]) == "purpose://contact.introduction")
+        #expect(asString(ticket["requesterDomain"]) == senderDomain)
         let requestPayload = try #require(asObject(ticket["requestPayload"]))
         #expect(requestPayload["signature"] == nil)
         #expect(asString(requestPayload["requesterIdentity"])?.hasPrefix("sha256:") == true)
         #expect(asString(requestPayload["requesterDisplayName"]) == "Kjetil")
+        #expect(asString(requestPayload["requesterDomain"]) == senderDomain)
+        let storedDomainBinding = try #require(asObject(requestPayload["requesterDomainBinding"]))
+        #expect(asString(storedDomainBinding["domain"]) == senderDomain)
+        #expect(asBool(storedDomainBinding["grantsAuthority"]) == false)
         let intro = try #require(asObject(requestPayload["payload"]))
         #expect(asString(intro["introKind"]) == "chat.invitation")
         #expect(asString(intro["introTitle"]) == "Chat med Vegar")
@@ -2053,8 +2126,12 @@ struct ChatWorkbenchParityTests {
         requester: Identity,
         issuedAt: Date = Date(),
         expiresAt: Date = Date().addingTimeInterval(300),
-        payload: Object = ["message": .string("Can we talk?")]
+        payload: Object = ["message": .string("Can we talk?")],
+        includeDomainBinding: Bool = true
     ) async throws -> Object {
+        let requesterVault = try #require(requester.identityVault)
+        let requesterDomainBindingValue = await requesterVault.identityDomainBinding(for: requester)
+        let requesterDomainBinding = try #require(requesterDomainBindingValue)
         var request: Object = [
             "schema": .string("cellprotocol.contact.request.v1"),
             "endpointId": .string(endpointId),
@@ -2062,12 +2139,15 @@ struct ChatWorkbenchParityTests {
             "issuedAt": .float(issuedAt.timeIntervalSince1970),
             "expiresAt": .float(expiresAt.timeIntervalSince1970),
             "requesterIdentity": .identity(requester),
-            "requesterDomain": .string("domain:binding-smoke"),
+            "requesterDomain": .string(requesterDomainBinding.domain),
             "topic": .string("contact.message"),
             "purpose": .string("purpose://contact.introduction"),
             "requestedAction": .string("contact.request.submit"),
             "payload": .object(payload)
         ]
+        if includeDomainBinding {
+            request["requesterDomainBinding"] = .object(requesterDomainBinding.objectValue)
+        }
         let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(request))
         let signature = try #require(try await requester.sign(data: canonical))
         request["signature"] = .data(signature)

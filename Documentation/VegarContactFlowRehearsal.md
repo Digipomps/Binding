@@ -76,9 +76,16 @@ routing, WebSocket/TLS bridge admission, notification delivery, or persistence
 across two independently running scaffolds. Those are the only reasons a real
 recipient or second installation is still needed.
 
-Binding's current `Identity` object also does not expose a canonical runtime
-domain string. The request therefore omits `requesterDomain`; endpoints using a
-non-empty `allowedDomains` policy will reject it until domain provenance is
-carried explicitly at the Resolver/app boundary. The default ContactEndpoint
-policy leaves `allowedDomains` empty and relies on signature, purpose, action,
-expiry, replay, and Resolver checks.
+Binding now obtains a canonical `IdentityDomainBinding` from the active identity
+vault, includes the domain and binding inside the signed contact request, and
+validates UUID, signing-key fingerprint, and domain consistency before applying
+an endpoint's allow/block policy. A domain-policy request fails closed when the
+binding is absent, ambiguous, or invalid. Endpoints without domain policy remain
+compatible with older signed requests.
+
+The binding is context evidence only (`grantsAuthority = false`). It is not a
+membership credential or capability; Resolver, Agreement, Contract, purpose,
+and explicit grant checks remain authoritative. The local rehearsal still does
+not prove a remote vault or organization trust chain beyond the requester's
+signed identity, so any stronger domain claim must travel as separately trusted
+proof material.

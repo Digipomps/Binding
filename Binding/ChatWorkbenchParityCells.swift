@@ -3789,6 +3789,38 @@ final class BindingContactEndpointCell: GeneralCell {
             return error("purpose_not_allowed", "Purpose is not allowed for this endpoint.")
         }
         let requesterDomain = BindingContactEndpointContracts.string(object["requesterDomain"])
+        let requesterDomainBindingObject = BindingContactEndpointContracts.object(object["requesterDomainBinding"])
+        let domainPolicyIsActive = endpoint.policy.allowedDomains.isEmpty == false
+            || endpoint.policy.blockedDomains.isEmpty == false
+        if domainPolicyIsActive {
+            guard let requesterDomain,
+                  let requesterDomainBindingObject else {
+                return error(
+                    "domain_binding_required",
+                    "Requester domain policy requires a vault-issued identity-domain binding."
+                )
+            }
+            guard case let .identity(requesterIdentity)? = object["requesterIdentity"],
+                  let domainBinding = IdentityDomainBinding(object: requesterDomainBindingObject),
+                  domainBinding.domain == requesterDomain,
+                  domainBinding.matches(identity: requesterIdentity) else {
+                return error(
+                    "domain_binding_invalid",
+                    "Requester identity-domain binding is invalid for the signed identity."
+                )
+            }
+        } else if let requesterDomainBindingObject {
+            guard let requesterDomain,
+                  case let .identity(requesterIdentity)? = object["requesterIdentity"],
+                  let domainBinding = IdentityDomainBinding(object: requesterDomainBindingObject),
+                  domainBinding.domain == requesterDomain,
+                  domainBinding.matches(identity: requesterIdentity) else {
+                return error(
+                    "domain_binding_invalid",
+                    "Requester identity-domain binding is invalid for the signed identity."
+                )
+            }
+        }
         if endpoint.policy.allowedDomains.isEmpty == false {
             guard let requesterDomain, endpoint.policy.allowedDomains.contains(requesterDomain) else {
                 return error("domain_not_allowed", "Requester domain is not allowed for this endpoint.")
@@ -7565,6 +7597,17 @@ final class BindingPersonalChatHubCell: GeneralCell {
             )
         }
 
+        let endpointPolicy = BindingChatValue.object(contactEndpoint["policy"]) ?? [:]
+        let domainPolicyIsActive = BindingChatValue.stringList(endpointPolicy["allowedDomains"]).isEmpty == false
+            || BindingChatValue.stringList(endpointPolicy["blockedDomains"]).isEmpty == false
+        let domainBinding = await canonicalDomainBinding(for: requester)
+        if domainPolicyIsActive, domainBinding == nil {
+            return inviteDeliveryFailure(
+                reason: "identity_domain_binding_unavailable",
+                message: "Invitasjonen ble ikke levert fordi den aktive identiteten mangler en entydig, vault-bekreftet domenebinding."
+            )
+        }
+
         let now = Date()
         var request: Object = [
             "schema": .string(BindingContactEndpointContracts.requestSchema),
@@ -7584,6 +7627,10 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 "introThreadID": BindingChatValue.nested("currentThread.id", in: cachedState) ?? .string("local-copilot-thread")
             ])
         ]
+        if let domainBinding {
+            request["requesterDomain"] = .string(domainBinding.domain)
+            request["requesterDomainBinding"] = .object(domainBinding.objectValue)
+        }
 
         do {
             let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(request))
@@ -7640,6 +7687,18 @@ final class BindingPersonalChatHubCell: GeneralCell {
                 message: "Invitasjonen ble ikke levert fordi kontaktendepunktet ikke er tilgjengelig."
             )
         }
+    }
+
+    private func canonicalDomainBinding(for requester: Identity) async -> IdentityDomainBinding? {
+        if let identityVault = requester.identityVault,
+           let binding = await identityVault.identityDomainBinding(for: requester) {
+            return binding
+        }
+        if let defaultVault = CellBase.defaultIdentityVault,
+           let binding = await defaultVault.identityDomainBinding(for: requester) {
+            return binding
+        }
+        return nil
     }
 
     private func inviteDeliveryFailure(reason: String, message: String) -> Object {

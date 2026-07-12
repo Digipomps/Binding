@@ -92,7 +92,25 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     }
 
     func identityExistInVault(_ identity: Identity) async -> Bool {
-        identitiesByUUID[identity.uuid] != nil
+        guard let stored = identitiesByUUID[identity.uuid],
+              let requestedFingerprint = identity.signingPublicKeyFingerprint,
+              let storedFingerprint = stored.identity.signingPublicKeyFingerprint else {
+            return false
+        }
+        return requestedFingerprint == storedFingerprint
+    }
+
+    func identityDomainBinding(for identity: Identity) async -> IdentityDomainBinding? {
+        guard await identityExistInVault(identity) else {
+            return nil
+        }
+        let matchingContexts = identityUUIDsByContext.compactMap { context, uuid in
+            uuid == identity.uuid ? context : nil
+        }
+        guard matchingContexts.count == 1, let domain = matchingContexts.first else {
+            return nil
+        }
+        return IdentityDomainBinding(domain: domain, identity: identity)
     }
 
     func saveIdentity(_ identity: Identity) async {
