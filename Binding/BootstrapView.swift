@@ -219,6 +219,13 @@ actor BindingLocalCellRegistration {
     }
 
     private static func registerAll(on resolver: CellResolver) async {
+        await register(
+            name: BindingRuntimeSurfaceLaunchSupport.adapterCellName,
+            cellScope: .identityUnique,
+            identityDomain: "private",
+            type: BindingRuntimeSurfaceLaunchAdapterCell.self,
+            resolver: resolver
+        )
         await registerCellAppleUtilityCells(on: resolver)
         await registerChatWorkbenchParityCells(on: resolver)
         await register(

@@ -827,6 +827,24 @@ struct ContentView: View {
             )
         }
         .onReceive(
+            NotificationCenter.default.publisher(for: BindingRuntimeSurfaceLaunchBridge.notificationName)
+        ) { notification in
+            guard let event = BindingRuntimeSurfaceLaunchBridge.event(from: notification) else { return }
+            guard Self.matchesRuntimeSurfaceLaunchWindow(
+                targetWindowNumber: event.targetWindowNumber,
+                hostingWindowNumber: hostingWindowNumber
+            ) else { return }
+            guard let request = event.request else {
+                recordRuntimeSurfaceLaunchFailure(
+                    event.rejectionReason ?? "invalid_surface_launch_payload"
+                )
+                return
+            }
+            Task {
+                await openRuntimeSurfaceLaunch(request, explicitRequester: event.requester)
+            }
+        }
+        .onReceive(
             NotificationCenter.default.publisher(for: BindingConferenceAutomationBridge.notificationName)
         ) { notification in
             guard let hook = BindingConferenceAutomationBridge.hook(from: notification) else { return }
@@ -4041,27 +4059,39 @@ struct ContentView: View {
         }
     }
 
-    private func openRuntimeSurfaceLaunch(_ request: BindingRuntimeSurfaceLaunchRequest) async {
+    private func openRuntimeSurfaceLaunch(
+        _ request: BindingRuntimeSurfaceLaunchRequest,
+        explicitRequester: Identity? = nil
+    ) async {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
         await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             await recordRuntimeSurfaceLaunchFailure("resolver_unavailable")
             return
         }
-        let fallbackRequester = await privateRequesterIdentity()
-        let startupRequester = await startupRequesterIdentity()
-        guard let requester = startupRequester ?? fallbackRequester else {
-            await recordRuntimeSurfaceLaunchFailure("requester_unavailable")
-            return
+        let requester: Identity
+        if let explicitRequester {
+            requester = explicitRequester
+        } else {
+            let fallbackRequester = await privateRequesterIdentity()
+            let startupRequester = await startupRequesterIdentity()
+            guard let externalLinkRequester = startupRequester ?? fallbackRequester else {
+                await recordRuntimeSurfaceLaunchFailure("requester_unavailable")
+                return
+            }
+            requester = externalLinkRequester
         }
 
-        for source in configuredCatalogSources() {
+        let catalogEndpoints = BindingRuntimeSurfaceLaunchSupport.orderedCatalogEndpoints(
+            configuredCatalogSources().map(\.endpoint)
+        )
+        for catalogEndpoint in catalogEndpoints {
             guard let registryEndpoint = BindingRuntimeSurfaceLaunchSupport.registryEndpoint(
-                forCatalogEndpoint: source.endpoint
+                forCatalogEndpoint: catalogEndpoint
             ) else {
                 continue
             }
-            if let origin = catalogOrigin(from: source.endpoint) {
+            if let origin = catalogOrigin(from: catalogEndpoint) {
                 registerRemoteCatalogHostIfNeeded(origin, resolver: resolver)
             }
             guard let registry = try? await RemoteEndpointAccessSupport.resolveMeddle(
@@ -4070,7 +4100,7 @@ struct ContentView: View {
                 requester: requester,
                 accessLabel: "binding.runtimeLaunch.registry"
             ), let routesValue = try? await registry.get(
-                keypath: BindingRuntimeSurfaceLaunchSupport.routesKeypath,
+                keypath: BindingRuntimeSurfaceLaunchSupport.publishedRoutesKeypath,
                 requester: requester
             ), let lookupPayload = BindingRuntimeSurfaceLaunchSupport.resolveLaunchPayload(
                 surfaceID: request.surfaceID,
@@ -4080,37 +4110,39 @@ struct ContentView: View {
                 continue
             }
 
-            var resolvedConfiguration = await CellConfigurationPayloadSupport.resolveCellConfiguration(
-                from: lookupPayload,
-                requester: requester
-            )
-            if resolvedConfiguration == nil,
-               let catalog = try? await RemoteEndpointAccessSupport.resolveMeddle(
-                endpoint: source.endpoint,
+            guard let catalog = try? await RemoteEndpointAccessSupport.resolveMeddle(
+                endpoint: catalogEndpoint,
                 resolver: resolver,
                 requester: requester,
                 accessLabel: "binding.runtimeLaunch.catalog"
-               ), let configurationsValue = try? await catalog.get(
+            ), let configurationsValue = try? await catalog.get(
                 keypath: "configurations",
                 requester: requester
-               ) {
-                resolvedConfiguration = CellConfigurationPayloadSupport.resolveCellConfiguration(
-                    from: lookupPayload,
-                    candidates: CellConfigurationPayloadSupport.decodeConfigurations(from: configurationsValue)
-                )
+            ) else {
+                continue
             }
 
-            guard let resolvedConfiguration else { continue }
-            let origin = catalogOrigin(from: registryEndpoint)
-            let preparedConfiguration = normalizeConfigurationForResolver(
-                resolvedConfiguration,
-                origin: origin,
-                resolver: resolver
-            )
+            let origin = catalogOrigin(from: catalogEndpoint)
+            let candidates = CellConfigurationPayloadSupport
+                .decodeConfigurations(from: configurationsValue)
+                .map {
+                    normalizeConfigurationForResolver(
+                        $0,
+                        origin: origin,
+                        resolver: resolver
+                    )
+                }
+            guard let preparedConfiguration = CellConfigurationPayloadSupport.resolveCellConfiguration(
+                from: lookupPayload,
+                candidates: candidates
+            ) else {
+                continue
+            }
+            let sourceKind = origin == nil ? "local_fallback" : "owner_remote_catalog"
             await MainActor.run {
                 diagnosticsStore.record(
                     domain: "binding.runtimeLaunch",
-                    message: "Runtime launch åpner owner-publisert surfaceID \(request.surfaceID)."
+                    message: "Runtime launch åpner owner-publisert surfaceID \(request.surfaceID) fra \(sourceKind)."
                 )
                 if editorMode == .edit {
                     editorMode = .view
@@ -7352,6 +7384,23 @@ struct ContentView: View {
     ) -> Bool {
         guard let hostingWindowNumber else { return false }
         return hostingWindowNumber == targetWindowNumber
+    }
+
+    static func matchesRuntimeSurfaceLaunchWindow(
+        targetWindowNumber: Int?,
+        hostingWindowNumber: Int?
+    ) -> Bool {
+#if canImport(AppKit)
+        guard let targetWindowNumber else { return false }
+        return matchesConferenceAutomationWindow(
+            targetWindowNumber: targetWindowNumber,
+            hostingWindowNumber: hostingWindowNumber
+        )
+#else
+        _ = targetWindowNumber
+        _ = hostingWindowNumber
+        return true
+#endif
     }
 
     static func conferenceAutomationHook(from url: URL) -> ConferenceAutomationHook? {

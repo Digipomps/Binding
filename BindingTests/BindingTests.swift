@@ -21,6 +21,23 @@ private enum AgreementOrderingBridgeTransportError: Error {
     case missingDelegate
 }
 
+private final class RuntimeSurfaceLaunchEventRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedEvent: BindingRuntimeSurfaceLaunchBridgeEvent?
+
+    func record(_ event: BindingRuntimeSurfaceLaunchBridgeEvent?) {
+        lock.lock()
+        storedEvent = event
+        lock.unlock()
+    }
+
+    func event() -> BindingRuntimeSurfaceLaunchBridgeEvent? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedEvent
+    }
+}
+
 private actor AgreementOrderingBridgeTransportScript {
     static let shared = AgreementOrderingBridgeTransportScript()
 
@@ -2312,6 +2329,7 @@ struct BindingTests {
                 ]),
                 "revision": .integer(7),
                 "enabled": .bool(true),
+                "published": .bool(true),
                 "updatedAtEpochMs": .float(1)
             ])
         ])
@@ -2340,7 +2358,8 @@ struct BindingTests {
                 "configurationLookup": .object([
                     "sourceCellEndpoint": .string("cell:///Unpublished")
                 ]),
-                "enabled": .bool(true)
+                "enabled": .bool(true),
+                "published": .bool(true)
             ])
         ])
         let disabled: ValueType = .list([
@@ -2350,7 +2369,19 @@ struct BindingTests {
                 "configurationLookup": .object([
                     "name": .string("Disabled")
                 ]),
-                "enabled": .bool(false)
+                "enabled": .bool(false),
+                "published": .bool(true)
+            ])
+        ])
+        let unpublished: ValueType = .list([
+            .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchSupport.registrySchema),
+                "surfaceID": .string("unpublished"),
+                "configurationLookup": .object([
+                    "name": .string("Private surface")
+                ]),
+                "enabled": .bool(true),
+                "published": .bool(false)
             ])
         ])
 
@@ -2364,6 +2395,140 @@ struct BindingTests {
             routesValue: disabled,
             registryEndpoint: "cell:///ScaffoldLaunchRegistry"
         ) == nil)
+        #expect(BindingRuntimeSurfaceLaunchSupport.resolveLaunchPayload(
+            surfaceID: "unpublished",
+            routesValue: unpublished,
+            registryEndpoint: "cell:///ScaffoldLaunchRegistry"
+        ) == nil)
+    }
+
+    @Test func runtimeSurfaceSkeletonUsesLocalAdapterAndPreservesPayload() throws {
+        let payload: ValueType = .object([
+            "surfaceLaunch": .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
+                "surfaceID": .string("conference.public.registration"),
+                "intent": .string("view")
+            ])
+        ])
+        let skeleton = SkeletonElement.Button(
+            SkeletonButton(keypath: "addConfiguration", label: "Registrer deg", payload: payload)
+        )
+        let extraction = BindingSkeletonPresentationSupport.extract(from: skeleton, userInfoValue: nil)
+        guard case let .Button(adapted)? = extraction.baseElement else {
+            Issue.record("Expected adapted runtime surface button")
+            return
+        }
+        #expect(adapted.keypath == BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        #expect(adapted.url == BindingRuntimeSurfaceLaunchSupport.adapterEndpoint)
+        #expect(try adapted.payload?.jsonString() == payload.jsonString())
+
+        let directPayload: ValueType = .object([
+            "configurationLookup": .object(["name": .string("Compiled fallback")])
+        ])
+        let directSkeleton = SkeletonElement.Button(
+            SkeletonButton(keypath: "addConfiguration", label: "Direkte", payload: directPayload)
+        )
+        let directExtraction = BindingSkeletonPresentationSupport.extract(
+            from: directSkeleton,
+            userInfoValue: nil
+        )
+        guard case let .Button(direct)? = directExtraction.baseElement else {
+            Issue.record("Expected direct configuration button")
+            return
+        }
+        #expect(direct.keypath == "addConfiguration")
+        #expect(direct.url == nil)
+
+        let malformedPayload: ValueType = .object([
+            "surfaceLaunch": .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
+                "surfaceID": .string("conference.public.registration"),
+                "intent": .string("view"),
+                "token": .string("must-not-be-authority")
+            ])
+        ])
+        let malformed = BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(
+            SkeletonButton(keypath: "addConfiguration", label: "Ugyldig", payload: malformedPayload)
+        )
+        #expect(malformed.keypath == BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        #expect(
+            BindingRuntimeSurfaceLaunchSupport.classifyPayload(malformed.payload)
+                == .rejected("invalid_surface_launch_payload")
+        )
+    }
+
+    @Test func runtimeSurfaceAdaptedButtonExecutesThroughResolverWithExactRequester() async throws {
+        let requester = await makeIsolatedRuntimeIdentity("runtime-surface-adapter")
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+        let payload: ValueType = .object([
+            "surfaceLaunch": .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
+                "surfaceID": .string("conference.public.registration"),
+                "intent": .string("view")
+            ])
+        ])
+        let recorder = RuntimeSurfaceLaunchEventRecorder()
+        let token = NotificationCenter.default.addObserver(
+            forName: BindingRuntimeSurfaceLaunchBridge.notificationName,
+            object: nil,
+            queue: nil
+        ) { notification in
+            recorder.record(BindingRuntimeSurfaceLaunchBridge.event(from: notification))
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let skeleton = SkeletonElement.Button(
+            SkeletonButton(keypath: "addConfiguration", label: "Registrer deg", payload: payload)
+        )
+        let adapted = await MainActor.run { () -> SkeletonButton? in
+            let extraction = BindingSkeletonPresentationSupport.extract(
+                from: skeleton,
+                userInfoValue: nil
+            )
+            guard case let .Button(adapted)? = extraction.baseElement else {
+                return nil
+            }
+            return adapted
+        }
+        let executableButton = try #require(adapted)
+
+        let response = await executableButton.execute(requester: requester)
+
+        #expect(response != nil)
+        let event = try #require(recorder.event())
+        #expect(event.request?.surfaceID == "conference.public.registration")
+        #expect(event.requester.uuid == requester.uuid)
+        #expect(event.requester.publicSecureKey?.compressedKey == requester.publicSecureKey?.compressedKey)
+    }
+
+    @Test func runtimeSurfaceLaunchTargetsOnlyOriginatingWindow() {
+#if canImport(AppKit)
+        #expect(ContentView.matchesRuntimeSurfaceLaunchWindow(
+            targetWindowNumber: 314,
+            hostingWindowNumber: 314
+        ))
+        #expect(!ContentView.matchesRuntimeSurfaceLaunchWindow(
+            targetWindowNumber: 314,
+            hostingWindowNumber: 271
+        ))
+        #expect(!ContentView.matchesRuntimeSurfaceLaunchWindow(
+            targetWindowNumber: nil,
+            hostingWindowNumber: 314
+        ))
+#endif
+    }
+
+    @Test func runtimeSurfaceCatalogOrderingPreventsLocalRegistryShadowing() {
+        #expect(
+            BindingRuntimeSurfaceLaunchSupport.orderedCatalogEndpoints([
+                "cell:///ConfigurationCatalog",
+                "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+            ]) == [
+                "cell://staging.haven.digipomps.org/ConfigurationCatalog",
+                "cell:///ConfigurationCatalog"
+            ]
+        )
     }
 
     @Test func conferenceAutomationRequiresExplicitOptIn() {

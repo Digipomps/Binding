@@ -413,7 +413,7 @@ enum BindingSkeletonPresentationSupport {
 
         guard case let .object(object)? = context.buttonContext else {
             suppressDeferredButtonResolution(&button)
-            return button
+            return BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(button)
         }
 
         if let urlValue = object["url"], case let .string(urlString) = urlValue {
@@ -454,7 +454,7 @@ enum BindingSkeletonPresentationSupport {
         }
 
         suppressDeferredButtonResolution(&button)
-        return button
+        return BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(button)
     }
 
     private static func suppressDeferredButtonResolution(_ button: inout SkeletonButton) {

@@ -1,5 +1,8 @@
 import Foundation
 import CellBase
+#if canImport(AppKit)
+import AppKit
+#endif
 
 nonisolated struct BindingRuntimeSurfaceLaunchRequest: Equatable {
     static let schema = "haven.surface-launch.v1"
@@ -12,10 +15,19 @@ nonisolated enum BindingRuntimeSurfaceLaunchParseResult: Equatable {
     case rejected(String)
 }
 
+nonisolated enum BindingRuntimeSurfaceLaunchPayloadResult: Equatable {
+    case notLaunchPayload
+    case accepted(BindingRuntimeSurfaceLaunchRequest)
+    case rejected(String)
+}
+
 nonisolated enum BindingRuntimeSurfaceLaunchSupport {
     static let registrySchema = "haven.scaffold.surface-launch-registry.v1"
     static let registryCellName = "ScaffoldLaunchRegistry"
-    static let routesKeypath = "routes"
+    static let publishedRoutesKeypath = "publishedRoutes"
+    static let adapterCellName = "BindingRuntimeSurfaceLaunchAdapter"
+    static let adapterEndpoint = "cell:///BindingRuntimeSurfaceLaunchAdapter"
+    static let adapterKeypath = "open"
 
     static func parse(_ url: URL) -> BindingRuntimeSurfaceLaunchParseResult {
         guard url.absoluteString.utf8.count <= 2_048 else {
@@ -61,6 +73,40 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
         return .accepted(BindingRuntimeSurfaceLaunchRequest(surfaceID: surfaceID))
     }
 
+    static func classifyPayload(_ payload: ValueType?) -> BindingRuntimeSurfaceLaunchPayloadResult {
+        guard case let .object(root)? = payload,
+              root["surfaceLaunch"] != nil else {
+            return .notLaunchPayload
+        }
+        guard Set(root.keys) == ["surfaceLaunch"],
+              case let .object(launch)? = root["surfaceLaunch"],
+              Set(launch.keys) == ["schema", "surfaceID", "intent"],
+              string(launch["schema"]) == BindingRuntimeSurfaceLaunchRequest.schema,
+              string(launch["intent"]) == "view",
+              let surfaceID = normalizedSurfaceID(string(launch["surfaceID"])) else {
+            return .rejected("invalid_surface_launch_payload")
+        }
+        return .accepted(BindingRuntimeSurfaceLaunchRequest(surfaceID: surfaceID))
+    }
+
+    static func adaptSkeletonButton(_ button: SkeletonButton) -> SkeletonButton {
+        guard button.keypath.trimmingCharacters(in: .whitespacesAndNewlines) == "addConfiguration",
+              classifyPayload(button.payload) != .notLaunchPayload else {
+            return button
+        }
+        var adapted = button
+        adapted.keypath = adapterKeypath
+        adapted.url = adapterEndpoint
+        return adapted
+    }
+
+    static func orderedCatalogEndpoints(_ endpoints: [String]) -> [String] {
+        RemoteCatalogSupport.orderedCatalogCandidateEndpoints(
+            from: endpoints,
+            preference: .preferRemote
+        )
+    }
+
     static func resolveLaunchPayload(
         surfaceID: String,
         routesValue: ValueType,
@@ -75,6 +121,7 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
                   string(route["schema"]) == registrySchema,
                   normalizedSurfaceID(string(route["surfaceID"])) == surfaceID,
                   bool(route["enabled"]) == true,
+                  bool(route["published"]) == true,
                   case let .object(lookup)? = route["configurationLookup"],
                   lookupHasStableIdentity(lookup) else {
                 continue
@@ -147,6 +194,114 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
     private static func bool(_ value: ValueType?) -> Bool? {
         guard case let .bool(value)? = value else { return nil }
         return value
+    }
+}
+
+nonisolated struct BindingRuntimeSurfaceLaunchBridgeEvent {
+    let request: BindingRuntimeSurfaceLaunchRequest?
+    let rejectionReason: String?
+    let requester: Identity
+    let targetWindowNumber: Int?
+}
+
+nonisolated enum BindingRuntimeSurfaceLaunchBridge {
+    static let notificationName = Notification.Name("BindingRuntimeSurfaceLaunchBridge.received")
+    private static let eventKey = "event"
+
+    static func post(
+        _ event: BindingRuntimeSurfaceLaunchBridgeEvent,
+        notificationCenter: NotificationCenter = .default
+    ) {
+        notificationCenter.post(
+            name: notificationName,
+            object: nil,
+            userInfo: [eventKey: event]
+        )
+    }
+
+    static func event(from notification: Notification) -> BindingRuntimeSurfaceLaunchBridgeEvent? {
+        notification.userInfo?[eventKey] as? BindingRuntimeSurfaceLaunchBridgeEvent
+    }
+
+    @MainActor
+    static func currentTargetWindowNumber() -> Int? {
+#if canImport(AppKit)
+        NSApp.keyWindow?.windowNumber
+            ?? NSApp.mainWindow?.windowNumber
+            ?? NSApp.orderedWindows.first(where: \.isVisible)?.windowNumber
+#else
+        nil
+#endif
+    }
+}
+
+final class BindingRuntimeSurfaceLaunchAdapterCell: BindingRuntimeBindingCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func installRuntimeBindings(owner: Identity) async {
+        ensureAgreementGrant("rw--", for: BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        await registerSet(
+            key: BindingRuntimeSurfaceLaunchSupport.adapterKeypath,
+            owner: owner,
+            input: .object([:]),
+            returns: .object([:])
+        ) { [weak self] requester, payload in
+            guard let self,
+                  await self.validateAccess(
+                    "rw--",
+                    at: BindingRuntimeSurfaceLaunchSupport.adapterKeypath,
+                    for: requester
+                  ) else {
+                return nil
+            }
+
+            switch BindingRuntimeSurfaceLaunchSupport.classifyPayload(payload) {
+            case .accepted(let request):
+                await MainActor.run {
+                    BindingRuntimeSurfaceLaunchBridge.post(
+                        BindingRuntimeSurfaceLaunchBridgeEvent(
+                            request: request,
+                            rejectionReason: nil,
+                            requester: requester,
+                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber()
+                        )
+                    )
+                }
+                return .object(["status": .string("accepted")])
+            case .rejected(let reason):
+                await MainActor.run {
+                    BindingRuntimeSurfaceLaunchBridge.post(
+                        BindingRuntimeSurfaceLaunchBridgeEvent(
+                            request: nil,
+                            rejectionReason: reason,
+                            requester: requester,
+                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber()
+                        )
+                    )
+                }
+                return nil
+            case .notLaunchPayload:
+                await MainActor.run {
+                    BindingRuntimeSurfaceLaunchBridge.post(
+                        BindingRuntimeSurfaceLaunchBridgeEvent(
+                            request: nil,
+                            rejectionReason: "missing_surface_launch_payload",
+                            requester: requester,
+                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber()
+                        )
+                    )
+                }
+                return nil
+            }
+        }
     }
 }
 
