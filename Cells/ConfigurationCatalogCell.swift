@@ -756,7 +756,7 @@ enum BindingConferenceNavigationBridge {
     }
 }
 
-final class ConfigurationCatalogCell: GeneralCell {
+final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     private static let blockedCatalogReferenceNames: Set<String> = [
         "eventemitter",
         "entitieswrapper",
@@ -1497,10 +1497,8 @@ final class ConfigurationCatalogCell: GeneralCell {
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
-        migrateEntriesForMetadataIfNeeded()
-        await setupPermissions(owner: owner)
-        await setupKeys(owner: owner)
-        await bootstrapDefaultsIfNeeded(requester: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -1544,15 +1542,13 @@ final class ConfigurationCatalogCell: GeneralCell {
         self.matchingPublishGroupName = (try? container.decode(String.self, forKey: .matchingPublishGroupName)) ?? ""
         self.matchingPublishGroupType = (try? container.decode(String.self, forKey: .matchingPublishGroupType)) ?? "selskap"
         self.matchingPublishNote = (try? container.decode(String.self, forKey: .matchingPublishNote)) ?? ""
-        let decodedOwner = try container.decodeIfPresent(Identity.self, forKey: .owner)
-        Task { @MainActor in
-            self.migrateEntriesForMetadataIfNeeded()
-            if let owner = decodedOwner {
-                await self.setupPermissions(owner: owner)
-                await self.setupKeys(owner: owner)
-                await self.bootstrapDefaultsIfNeeded(requester: owner)
-            }
-        }
+    }
+
+    override func installRuntimeBindings(owner: Identity) async {
+        migrateEntriesForMetadataIfNeeded()
+        await setupPermissions(owner: owner)
+        await setupKeys(owner: owner)
+        await bootstrapDefaultsIfNeeded(requester: owner)
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -1687,6 +1683,13 @@ final class ConfigurationCatalogCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "agreements.sign")
         agreementTemplate.addGrant("rw--", for: "agreements.nonCompliant.report")
         agreementTemplate.addGrant("rw--", for: "agreements.nonCompliant.policy")
+
+        var installedContracts = Set<String>()
+        agreementTemplate.grants = agreementTemplate.grants.filter { grant in
+            installedContracts.insert(
+                "\(grant.keypath)\u{0}\(grant.permission.permissionString)"
+            ).inserted
+        }
     }
 
     private func setupKeys(owner: Identity) async {
