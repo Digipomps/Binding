@@ -9601,8 +9601,14 @@ struct ConferenceIdentityLinkParsedChallenge {
 
 nonisolated enum ConferenceIdentityLinkSupport {
     private static let emptySummary = "Ingen challenge lastet ennå."
+    private static let maximumDeepLinkLength = 8_192
+    private static let maximumRawPayloadLength = 131_072
+    private static let maximumListItems = 32
 
     static func parse(url: URL) -> ConferenceIdentityLinkParsedChallenge? {
+        guard url.absoluteString.utf8.count <= maximumDeepLinkLength else {
+            return nil
+        }
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
         }
@@ -9610,15 +9616,26 @@ nonisolated enum ConferenceIdentityLinkSupport {
         let scheme = components.scheme?.lowercased()
         let host = components.host?.lowercased()
         let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
-        let matchesIdentityLinkRoute =
-            (scheme == "haven" && (host == "identity-link" || normalizedPath == "identity-link" || (host == "binding" && normalizedPath == "add-device")))
-            || (scheme == "https" || scheme == "http") && (normalizedPath.contains("identity-link") || normalizedPath.contains("add-device"))
+        let matchesIdentityLinkRoute = scheme == "haven" && (
+            (host == "identity-link" && normalizedPath.isEmpty)
+                || (host == nil && normalizedPath == "identity-link")
+                || (host == "binding" && normalizedPath == "add-device")
+        )
 
         guard matchesIdentityLinkRoute else {
             return nil
         }
 
-        let queryMap = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        var queryMap: [String: String] = [:]
+        for item in components.queryItems ?? [] {
+            let key = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard key.isEmpty == false, queryMap[key] == nil,
+                  let value = item.value,
+                  value.utf8.count <= maximumRawPayloadLength else {
+                return nil
+            }
+            queryMap[key] = value
+        }
         if let payload = queryMap["payload"] ?? queryMap["request"],
            let parsed = parse(raw: payload, sourceSummary: "Deep link fra \(host ?? "ukjent vert")") {
             return parsed
@@ -9626,26 +9643,26 @@ nonisolated enum ConferenceIdentityLinkSupport {
 
         return buildChallenge(
             sourceSummary: "Deep link fra \(host ?? "lokal app-lenke")",
-            requestID: queryMap["requestId"] ?? queryMap["request_id"],
+            requestID: queryMap["requestid"] ?? queryMap["request_id"],
             purpose: queryMap["purpose"] ?? "link_identity",
             audience: queryMap["audience"],
-            origin: queryMap["origin"] ?? url.absoluteString,
-            entityAnchorReference: queryMap["entityAnchorReference"] ?? queryMap["entity"],
-            deviceLabel: queryMap["deviceLabel"] ?? queryMap["device"],
-            identityLabel: queryMap["displayName"] ?? queryMap["identity"],
+            origin: queryMap["origin"] ?? "haven://identity-link",
+            entityAnchorReference: queryMap["entityanchorreference"] ?? queryMap["entity"],
+            deviceLabel: queryMap["devicelabel"] ?? queryMap["device"],
+            identityLabel: queryMap["displayname"] ?? queryMap["identity"],
             requestedDomains: splitCSV(queryMap["domains"]),
             requestedIdentityContexts: splitCSV(queryMap["contexts"]),
             requestedScopes: splitCSV(queryMap["scopes"]),
-            expiresAt: queryMap["expiresAt"] ?? queryMap["expires_at"],
+            expiresAt: queryMap["expiresat"] ?? queryMap["expires_at"],
             challenge: queryMap["challenge"] ?? queryMap["nonce"],
             proofAlgorithm: queryMap["algorithm"],
-            rawPreview: url.absoluteString
+            rawPreview: "haven://\(host ?? "identity-link")/\(normalizedPath)"
         )
     }
 
     static func parse(raw: String, sourceSummary: String = "Innlimt challenge-data") -> ConferenceIdentityLinkParsedChallenge? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard !trimmed.isEmpty, trimmed.utf8.count <= maximumRawPayloadLength else { return nil }
 
         if let url = URL(string: trimmed),
            let parsedURL = parse(url: url) {
@@ -9662,7 +9679,8 @@ nonisolated enum ConferenceIdentityLinkSupport {
     }
 
     private static func parseJSONObjectString(_ value: String, sourceSummary: String) -> ConferenceIdentityLinkParsedChallenge? {
-        guard let data = value.data(using: .utf8),
+        guard value.utf8.count <= maximumRawPayloadLength,
+              let data = value.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
@@ -9785,10 +9803,15 @@ nonisolated enum ConferenceIdentityLinkSupport {
 
     private static func splitCSV(_ value: String?) -> [String] {
         guard let value else { return [] }
-        return value
+        let values = value
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        guard values.count <= maximumListItems,
+              values.allSatisfy({ $0.utf8.count <= 256 }) else {
+            return []
+        }
+        return values
     }
 
     private static func decodePotentialBase64URL(_ value: String) -> Data? {
@@ -9825,8 +9848,13 @@ nonisolated enum ConferenceIdentityLinkSupport {
             }
             current = next
         }
-        guard let values = current as? [Any] else { return [] }
-        return values.compactMap { $0 as? String }
+        guard let values = current as? [Any], values.count <= maximumListItems else { return [] }
+        let strings = values.compactMap { $0 as? String }
+        guard strings.count == values.count,
+              strings.allSatisfy({ $0.utf8.count <= 256 }) else {
+            return []
+        }
+        return strings
     }
 }
 
@@ -9842,6 +9870,7 @@ actor ConferenceIdentityLinkInboxStore {
     private var localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
     private var enrollmentRequestPreview = "Ingen enrollment request klar ennå."
     private var enrollmentRequestValue: ValueType = .null
+    private var signedEnrollmentRequestHash: String?
     private var completionPackageInput = ""
     private var completionStatus = "Ingen completion package er importert ennå."
     private var completionSummary = "Lim inn en ekte CellProtocol IdentityLinkCompletionEnvelope fra staging når approval, SameEntityIdentityLinkCredential og verifier-bound VP er laget."
@@ -9869,6 +9898,7 @@ actor ConferenceIdentityLinkInboxStore {
         guard let parsed = ConferenceIdentityLinkSupport.parse(url: url) else {
             return false
         }
+        resetDerivedStateForNewChallenge()
         incomingChallenge = parsed
         lastIntakeSource = parsed.sourceSummary
         actionSummary = "Lastet challenge-data fra deep link. Kontroller audience, scopes og lokal identitet før du går videre."
@@ -9889,6 +9919,7 @@ actor ConferenceIdentityLinkInboxStore {
             actionSummary = "Klarte ikke å tolke innlimt challenge-data."
             return false
         }
+        resetDerivedStateForNewChallenge()
         incomingChallenge = parsed
         lastIntakeSource = parsed.sourceSummary
         actionSummary = "Tolket challenge-data fra innlimt payload. Kontroller audience, scopes og origin før du går videre."
@@ -9906,6 +9937,7 @@ actor ConferenceIdentityLinkInboxStore {
         localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
         enrollmentRequestPreview = "Ingen enrollment request klar ennå."
         enrollmentRequestValue = .null
+        signedEnrollmentRequestHash = nil
         completionPackageInput = ""
         completionStatus = "Ingen completion package er importert ennå."
         completionSummary = "Lim inn en ekte CellProtocol IdentityLinkCompletionEnvelope fra staging når approval, SameEntityIdentityLinkCredential og verifier-bound VP er laget."
@@ -9939,6 +9971,7 @@ actor ConferenceIdentityLinkInboxStore {
         localProofSummary = "Request hash \(signedRequest.requestHashBase64URL) · \(signedRequest.algorithmSummary) · signature \(signedRequest.signaturePreview)"
         enrollmentRequestPreview = signedRequest.preview
         enrollmentRequestValue = signedRequest.value
+        signedEnrollmentRequestHash = signedRequest.requestHashBase64URL
         completionSummary = "Requesten er klar for staging approval. Completion krever en envelope med approval, SameEntityIdentityLinkCredential, verifier-bound VP, issuerIdentity og expected verifier binding."
         actionSummary = "Lokal HAVEN-identitet har signert requesten. Fullfør approval i staging, og lim inn completion envelope under."
         nextStepSummary = "Gå tilbake til Scaffold Setup & Identity Link i web, godkjenn requesten der, utsted SameEntityIdentityLinkCredential/VP, og fullfør så her via EntityAnchor identityLinks.completeEnrollment."
@@ -9958,6 +9991,25 @@ actor ConferenceIdentityLinkInboxStore {
         guard payload.envelope.request.newIdentity.uuid == identity.uuid else {
             completionStatus = "Completion package gjelder ikke denne lokale HAVEN-identiteten."
             completionSummary = "Envelope subject \(payload.envelope.request.newIdentity.uuid) matcher ikke lokal identitet \(identity.uuid). Importer riktig package eller bytt lokal identitet."
+            return
+        }
+        guard let signedEnrollmentRequestHash else {
+            completionStatus = "Ingen lokalt signert enrollment request er aktiv for denne completion package."
+            completionSummary = "Importer challenge på nytt og signer requesten før completion."
+            return
+        }
+        do {
+            let completionRequestHash = Self.base64URL(
+                try IdentityLinkProtocolService.requestHash(for: payload.envelope.request)
+            )
+            guard completionRequestHash == signedEnrollmentRequestHash else {
+                completionStatus = "Completion package matcher ikke den lokalt signerte enrollment requesten."
+                completionSummary = "Request hash, nonce, audience eller scopes avviker. HAVEN nekter completion."
+                return
+            }
+        } catch {
+            completionStatus = "Completion package inneholder en ugyldig enrollment request."
+            completionSummary = "HAVEN kunne ikke beregne og verifisere request hash."
             return
         }
 
@@ -10070,10 +10122,20 @@ actor ConferenceIdentityLinkInboxStore {
             actionSummary = "Importer en audience-bound challenge før lokal proof-of-possession kan lages."
             return nil
         }
+        guard Self.isTrustedIdentityLinkAudience(audience) else {
+            confirmationStatus = "Audience er ikke en betrodd HAVEN identity-link-mottaker."
+            actionSummary = "HAVEN nekter å signere en angriperstyrt audience."
+            return nil
+        }
         guard let origin = challenge.origin,
               origin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             confirmationStatus = "Origin mangler, så HAVEN nekter å signere enrollment request."
             actionSummary = "Importer en origin-bound challenge før lokal proof-of-possession kan lages."
+            return nil
+        }
+        guard Self.isTrustedIdentityLinkOrigin(origin) else {
+            confirmationStatus = "Origin er ikke en betrodd HAVEN identity-link-rute."
+            actionSummary = "HAVEN nekter å signere en request fra ukjent origin."
             return nil
         }
         guard !challenge.requestedDomains.isEmpty,
@@ -10092,6 +10154,11 @@ actor ConferenceIdentityLinkInboxStore {
         guard expiryDate >= Date() else {
             confirmationStatus = "Challenge er utløpt. HAVEN nekter å signere enrollment request."
             actionSummary = "Hent en ny identity-link challenge før du fortsetter."
+            return nil
+        }
+        guard expiryDate.timeIntervalSinceNow <= 3_600 else {
+            confirmationStatus = "Challenge varer for lenge. HAVEN krever maks én times TTL."
+            actionSummary = "Hent en ny, kortlivet identity-link challenge."
             return nil
         }
 
@@ -10162,6 +10229,45 @@ actor ConferenceIdentityLinkInboxStore {
 
     private static func iso8601String(_ date: Date) -> String {
         ISO8601DateFormatter().string(from: date)
+    }
+
+    private static func isTrustedIdentityLinkAudience(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "staging.haven.digipomps.org"
+            || normalized == "haven.digipomps.org"
+    }
+
+    private static func isTrustedIdentityLinkOrigin(_ value: String) -> Bool {
+        guard let components = URLComponents(string: value),
+              components.query == nil,
+              components.fragment == nil else {
+            return false
+        }
+        let scheme = components.scheme?.lowercased()
+        let host = components.host?.lowercased()
+        let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        if scheme == "haven" {
+            return (host == "binding" && path == "add-device")
+                || (host == "identity-link" && path.isEmpty)
+        }
+        if scheme == "https" {
+            return (host == "staging.haven.digipomps.org" || host == "haven.digipomps.org")
+                && (path == "identity-link" || path == "binding/add-device")
+        }
+        return false
+    }
+
+    private func resetDerivedStateForNewChallenge() {
+        localIdentitySummary = "Ingen lokal HAVEN-identitet er bekreftet i denne flaten ennå."
+        confirmationStatus = "Lokal brukerbekreftelse mangler."
+        localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
+        enrollmentRequestPreview = "Ingen enrollment request klar ennå."
+        enrollmentRequestValue = .null
+        signedEnrollmentRequestHash = nil
+        completionPackageInput = ""
+        completionStatus = "Ingen completion package er importert ennå."
+        completionSummary = "Lim inn en ekte CellProtocol IdentityLinkCompletionEnvelope fra staging når approval, SameEntityIdentityLinkCredential og verifier-bound VP er laget."
+        completionRecordPreview = "Ingen active IdentityLinkRecord er skrevet ennå."
     }
 
     private static func sha256Base64URL(_ data: Data) -> String {

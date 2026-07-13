@@ -2403,11 +2403,33 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return
         }
 
+        let challengeExpiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(600))
+        let challengeNonce = Data((0..<32).map(UInt8.init))
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        guard let challengeURL = URL(string: "haven://identity-link?requestId=binding-completion-request&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&deviceLabel=Binding%20verifier&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=\(challengeNonce)&expiresAt=\(challengeExpiry)&algorithm=P256-ES256"),
+              await ConferenceIdentityLinkInboxStore.shared.ingest(url: challengeURL) else {
+            XCTFail("Expected trusted identity-link challenge intake")
+            return
+        }
+        await ConferenceIdentityLinkInboxStore.shared.confirmLocalReview(with: holderIdentity)
+        let signedState = await ConferenceIdentityLinkInboxStore.shared.stateObject()
+        guard case let .object(review)? = signedState["review"],
+              let signedRequestValue = review["enrollmentRequest"],
+              let signedRequestData = try? JSONEncoder().encode(signedRequestValue),
+              let signedRequest = try? JSONDecoder().decode(IdentityEnrollmentRequest.self, from: signedRequestData) else {
+            XCTFail("Expected locally signed enrollment request before completion")
+            return
+        }
+
         let jti = "binding-completion-jti-\(UUID().uuidString)"
         let package = try await makeBindingIdentityLinkCompletionPackageJSON(
             holderIdentity: holderIdentity,
             issuerIdentity: issuerIdentity,
-            jti: jti
+            jti: jti,
+            request: signedRequest
         )
 
         let setCompletionInputResponse = try await context.porthole.set(
@@ -2520,14 +2542,20 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
     private func makeBindingIdentityLinkCompletionPackageJSON(
         holderIdentity: Identity,
         issuerIdentity: Identity,
-        jti: String
+        jti: String,
+        request suppliedRequest: IdentityEnrollmentRequest? = nil
     ) async throws -> BindingIdentityLinkCompletionPackage {
         let now = Date()
-        let request = try await makeBindingSignedEnrollmentRequest(
-            holderIdentity: holderIdentity,
-            now: now,
-            expiresAt: now.addingTimeInterval(600)
-        )
+        let request: IdentityEnrollmentRequest
+        if let suppliedRequest {
+            request = suppliedRequest
+        } else {
+            request = try await makeBindingSignedEnrollmentRequest(
+                holderIdentity: holderIdentity,
+                now: now,
+                expiresAt: now.addingTimeInterval(600)
+            )
+        }
         let approval = try await IdentityLinkProtocolService.approveEnrollmentRequest(
             request,
             issuerIdentity: issuerIdentity,

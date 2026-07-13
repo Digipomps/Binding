@@ -1951,6 +1951,47 @@ struct BindingTests {
         await store.clear()
     }
 
+    @Test func conferenceIdentityLinkParserRejectsDuplicateParametersAndUntrustedWebOrigins() throws {
+        let duplicate = try #require(URL(string: "haven://identity-link?requestId=one&requestId=two"))
+        let hostileHTTPS = try #require(URL(string: "https://evil.example/identity-link?requestId=one"))
+        let hostileHTTP = try #require(URL(string: "http://staging.haven.digipomps.org/identity-link?requestId=one"))
+        let substringRoute = try #require(URL(string: "haven://identity-link/anything?requestId=one"))
+
+        #expect(ConferenceIdentityLinkSupport.parse(url: duplicate) == nil)
+        #expect(ConferenceIdentityLinkSupport.parse(url: hostileHTTPS) == nil)
+        #expect(ConferenceIdentityLinkSupport.parse(url: hostileHTTP) == nil)
+        #expect(ConferenceIdentityLinkSupport.parse(url: substringRoute) == nil)
+    }
+
+    @Test func conferenceIdentityLinkNewChallengeClearsPreviouslySignedDerivedState() async throws {
+        let store = ConferenceIdentityLinkInboxStore.shared
+        await store.clear()
+        let identity = try #require(
+            await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
+        )
+        let firstExpiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(900))
+        let first = try #require(URL(string: "haven://identity-link?requestId=REQ-FIRST&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&expiresAt=\(firstExpiry)&algorithm=P256-ES256"))
+        #expect(await store.ingest(url: first))
+        await store.confirmLocalReview(with: identity)
+        let signedState = await store.stateObject()
+        guard case let .object(signedReview)? = signedState["review"] else {
+            Issue.record("Expected signed review state")
+            return
+        }
+        #expect(signedReview["enrollmentRequest"] != .null)
+
+        let second = try #require(URL(string: "haven://identity-link?requestId=REQ-SECOND&audience=staging.haven.digipomps.org&origin=haven://binding/add-device&entityAnchorReference=cell:///EntityAnchor&domains=private,scaffold&contexts=private,scaffold&scopes=entity-auth,personal-cells&challenge=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB&expiresAt=\(firstExpiry)&algorithm=P256-ES256"))
+        #expect(await store.ingest(url: second))
+        let resetState = await store.stateObject()
+        guard case let .object(resetReview)? = resetState["review"] else {
+            Issue.record("Expected reset review state")
+            return
+        }
+        #expect(resetReview["enrollmentRequest"] == .null)
+        #expect(resetReview["confirmationStatus"] == .string("Lokal brukerbekreftelse mangler."))
+        await store.clear()
+    }
+
     @Test func conferenceIdentityLinkInboxRefusesExpiredChallengeSigning() async throws {
         let store = ConferenceIdentityLinkInboxStore.shared
         await store.clear()
@@ -2216,6 +2257,113 @@ struct BindingTests {
         #expect(ContentView.conferenceAutomationHook(from: chatURL) == .openFocusedChatWorkbench)
         #expect(ContentView.conferenceAutomationHook(from: aiLogURL) == .logAIAssistantState)
         #expect(ContentView.conferenceAutomationHook(from: identityLinkURL) == nil)
+    }
+
+    @Test func runtimeSurfaceLaunchParsesOpaqueViewOnlyRoute() throws {
+        let url = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=Runtime-Only-Surface&intent=view"))
+        guard case let .accepted(request) = BindingRuntimeSurfaceLaunchSupport.parse(url) else {
+            Issue.record("Expected accepted runtime surface launch")
+            return
+        }
+        #expect(request.surfaceID == "runtime-only-surface")
+    }
+
+    @Test func runtimeSurfaceLaunchRejectsDuplicateOrAuthorityBearingParameters() throws {
+        let duplicate = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=one&surfaceID=two&intent=view"))
+        let action = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=one&intent=view&action=delete"))
+        let requester = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=one&intent=view&requester=admin"))
+        let token = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=one&intent=view&token=secret"))
+        let pathVariant = try #require(URL(string: "haven://open/delete?schema=haven.surface-launch.v1&surfaceID=one&intent=view"))
+        let oversized = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=one&intent=view&padding=\(String(repeating: "x", count: 2_048))"))
+        let identityLink = try #require(URL(string: "haven://identity-link?requestId=REQ-123"))
+
+        guard case .rejected = BindingRuntimeSurfaceLaunchSupport.parse(duplicate) else {
+            Issue.record("Expected duplicate parameter rejection")
+            return
+        }
+        guard case .rejected = BindingRuntimeSurfaceLaunchSupport.parse(action) else {
+            Issue.record("Expected action parameter rejection")
+            return
+        }
+        guard case .rejected = BindingRuntimeSurfaceLaunchSupport.parse(requester) else {
+            Issue.record("Expected requester parameter rejection")
+            return
+        }
+        guard case .rejected = BindingRuntimeSurfaceLaunchSupport.parse(token) else {
+            Issue.record("Expected token parameter rejection")
+            return
+        }
+        #expect(BindingRuntimeSurfaceLaunchSupport.parse(pathVariant) == .notLaunchRoute)
+        guard case .rejected("url_too_large") = BindingRuntimeSurfaceLaunchSupport.parse(oversized) else {
+            Issue.record("Expected oversized runtime launch rejection")
+            return
+        }
+        #expect(BindingRuntimeSurfaceLaunchSupport.parse(identityLink) == .notLaunchRoute)
+    }
+
+    @Test func runtimeSurfaceLaunchResolvesOwnerPublishedLookupAndRetargetsRemoteSource() throws {
+        let routes: ValueType = .list([
+            .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchSupport.registrySchema),
+                "surfaceID": .string("runtime-only-surface"),
+                "configurationLookup": .object([
+                    "name": .string("Runtime Only Surface"),
+                    "sourceCellEndpoint": .string("cell:///RuntimeOnlySurface")
+                ]),
+                "revision": .integer(7),
+                "enabled": .bool(true),
+                "updatedAtEpochMs": .float(1)
+            ])
+        ])
+        let registryEndpoint = "cell://staging.haven.digipomps.org/ScaffoldLaunchRegistry"
+        let payload = BindingRuntimeSurfaceLaunchSupport.resolveLaunchPayload(
+            surfaceID: "runtime-only-surface",
+            routesValue: routes,
+            registryEndpoint: registryEndpoint
+        )
+        let lookup = CellConfigurationPayloadSupport.decodeLookup(from: payload)
+
+        #expect(lookup?.name == "Runtime Only Surface")
+        #expect(lookup?.sourceCellEndpoint == "cell://staging.haven.digipomps.org/RuntimeOnlySurface")
+        #expect(
+            BindingRuntimeSurfaceLaunchSupport.registryEndpoint(
+                forCatalogEndpoint: "cell://staging.haven.digipomps.org/ConfigurationCatalog"
+            ) == registryEndpoint
+        )
+    }
+
+    @Test func runtimeSurfaceLaunchRejectsEndpointOnlyOrDisabledRegistryEntry() {
+        let endpointOnly: ValueType = .list([
+            .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchSupport.registrySchema),
+                "surfaceID": .string("endpoint-only"),
+                "configurationLookup": .object([
+                    "sourceCellEndpoint": .string("cell:///Unpublished")
+                ]),
+                "enabled": .bool(true)
+            ])
+        ])
+        let disabled: ValueType = .list([
+            .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchSupport.registrySchema),
+                "surfaceID": .string("disabled"),
+                "configurationLookup": .object([
+                    "name": .string("Disabled")
+                ]),
+                "enabled": .bool(false)
+            ])
+        ])
+
+        #expect(BindingRuntimeSurfaceLaunchSupport.resolveLaunchPayload(
+            surfaceID: "endpoint-only",
+            routesValue: endpointOnly,
+            registryEndpoint: "cell:///ScaffoldLaunchRegistry"
+        ) == nil)
+        #expect(BindingRuntimeSurfaceLaunchSupport.resolveLaunchPayload(
+            surfaceID: "disabled",
+            routesValue: disabled,
+            registryEndpoint: "cell:///ScaffoldLaunchRegistry"
+        ) == nil)
     }
 
     @Test func conferenceAutomationRequiresExplicitOptIn() {

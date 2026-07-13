@@ -1,6 +1,155 @@
 import Foundation
 import CellBase
 
+nonisolated struct BindingRuntimeSurfaceLaunchRequest: Equatable {
+    static let schema = "haven.surface-launch.v1"
+    let surfaceID: String
+}
+
+nonisolated enum BindingRuntimeSurfaceLaunchParseResult: Equatable {
+    case notLaunchRoute
+    case accepted(BindingRuntimeSurfaceLaunchRequest)
+    case rejected(String)
+}
+
+nonisolated enum BindingRuntimeSurfaceLaunchSupport {
+    static let registrySchema = "haven.scaffold.surface-launch-registry.v1"
+    static let registryCellName = "ScaffoldLaunchRegistry"
+    static let routesKeypath = "routes"
+
+    static func parse(_ url: URL) -> BindingRuntimeSurfaceLaunchParseResult {
+        guard url.absoluteString.utf8.count <= 2_048 else {
+            return .rejected("url_too_large")
+        }
+        guard url.scheme?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "haven" else {
+            return .notLaunchRoute
+        }
+        let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let pathComponents = url.path
+            .split(separator: "/")
+            .map { String($0).lowercased() }
+        let isCanonicalHostRoute = host == "open" && pathComponents.isEmpty
+        let isCanonicalPathRoute = host == nil && pathComponents == ["open"]
+        guard isCanonicalHostRoute || isCanonicalPathRoute else {
+            return .notLaunchRoute
+        }
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return .rejected("invalid_url")
+        }
+
+        let allowedKeys = Set(["schema", "surfaceid", "intent"])
+        var values: [String: String] = [:]
+        for item in components.queryItems ?? [] {
+            let key = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard allowedKeys.contains(key), values[key] == nil,
+                  let rawValue = item.value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  rawValue.isEmpty == false else {
+                return .rejected("invalid_or_duplicate_parameter")
+            }
+            values[key] = rawValue
+        }
+
+        guard values["schema"] == BindingRuntimeSurfaceLaunchRequest.schema else {
+            return .rejected("unsupported_schema")
+        }
+        guard values["intent"] == "view" else {
+            return .rejected("unsupported_intent")
+        }
+        guard let surfaceID = normalizedSurfaceID(values["surfaceid"]) else {
+            return .rejected("invalid_surface_id")
+        }
+        return .accepted(BindingRuntimeSurfaceLaunchRequest(surfaceID: surfaceID))
+    }
+
+    static func resolveLaunchPayload(
+        surfaceID: String,
+        routesValue: ValueType,
+        registryEndpoint: String
+    ) -> ValueType? {
+        guard let surfaceID = normalizedSurfaceID(surfaceID),
+              case let .list(routes) = routesValue else {
+            return nil
+        }
+        for value in routes {
+            guard case let .object(route) = value,
+                  string(route["schema"]) == registrySchema,
+                  normalizedSurfaceID(string(route["surfaceID"])) == surfaceID,
+                  bool(route["enabled"]) == true,
+                  case let .object(lookup)? = route["configurationLookup"],
+                  lookupHasStableIdentity(lookup) else {
+                continue
+            }
+            var normalizedLookup = lookup
+            if let endpoint = string(lookup["sourceCellEndpoint"]) ?? string(lookup["endpoint"]) {
+                normalizedLookup["sourceCellEndpoint"] = .string(
+                    CellConfigurationEndpointRetargeting.rewriteLocalCellEndpoint(
+                        endpoint,
+                        toScaffoldEndpoint: registryEndpoint
+                    )
+                )
+                normalizedLookup["endpoint"] = nil
+            }
+            return .object(["configurationLookup": .object(normalizedLookup)])
+        }
+        return nil
+    }
+
+    static func registryEndpoint(forCatalogEndpoint catalogEndpoint: String) -> String? {
+        let trimmed = catalogEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false,
+              var components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              ["cell", "ws", "wss"].contains(scheme) else {
+            return nil
+        }
+        if scheme == "cell", components.host == nil {
+            return "cell:///\(registryCellName)"
+        }
+        guard let host = components.host, host.isEmpty == false else { return nil }
+        components.scheme = "cell"
+        components.host = host
+        components.path = "/\(registryCellName)"
+        components.query = nil
+        components.fragment = nil
+        return components.string
+    }
+
+    private static func normalizedSurfaceID(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.count >= 1, normalized.count <= 128,
+              let first = normalized.unicodeScalars.first,
+              CharacterSet.alphanumerics.contains(first),
+              normalized.unicodeScalars.allSatisfy({
+                  CharacterSet.alphanumerics.contains($0) || ".-_".unicodeScalars.contains($0)
+              }) else {
+            return nil
+        }
+        return normalized
+    }
+
+    private static func lookupHasStableIdentity(_ lookup: Object) -> Bool {
+        normalizedToken(string(lookup["uuid"])) != nil
+            || normalizedToken(string(lookup["name"])) != nil
+    }
+
+    private static func normalizedToken(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func string(_ value: ValueType?) -> String? {
+        guard case let .string(string)? = value else { return nil }
+        return string.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func bool(_ value: ValueType?) -> Bool? {
+        guard case let .bool(value)? = value else { return nil }
+        return value
+    }
+}
+
 nonisolated enum PortableSurfaceContractSupport {
     static func decodeCellConfiguration(from value: ValueType?) -> CellConfiguration? {
         guard let value else { return nil }

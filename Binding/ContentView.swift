@@ -4006,12 +4006,29 @@ struct ContentView: View {
                 await performConferenceAutomation(hook)
                 return
             }
+            switch BindingRuntimeSurfaceLaunchSupport.parse(url) {
+            case .accepted(let request):
+                await openRuntimeSurfaceLaunch(request)
+                return
+            case .rejected(let reason):
+                await MainActor.run {
+                    loadErrorMessage = "Kunne ikke åpne runtime-flaten fordi deeplink-kontrakten er ugyldig."
+                    diagnosticsStore.record(
+                        severity: .warning,
+                        domain: "binding.runtimeLaunch",
+                        message: "Avviste runtime surface launch: \(reason)."
+                    )
+                }
+                return
+            case .notLaunchRoute:
+                break
+            }
             let accepted = await ConferenceIdentityLinkInboxStore.shared.ingest(url: url)
             guard accepted else { return }
             await MainActor.run {
                 diagnosticsStore.record(
                     domain: "binding.identityLink",
-                    message: "Åpner Conference Scaffold Setup & Identity Link fra \(url.absoluteString)"
+                    message: "Åpner Conference Scaffold Setup & Identity Link fra validert deeplink."
                 )
                 if editorMode == .edit {
                     editorMode = .view
@@ -4022,6 +4039,98 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    private func openRuntimeSurfaceLaunch(_ request: BindingRuntimeSurfaceLaunchRequest) async {
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            await recordRuntimeSurfaceLaunchFailure("resolver_unavailable")
+            return
+        }
+        let fallbackRequester = await privateRequesterIdentity()
+        let startupRequester = await startupRequesterIdentity()
+        guard let requester = startupRequester ?? fallbackRequester else {
+            await recordRuntimeSurfaceLaunchFailure("requester_unavailable")
+            return
+        }
+
+        for source in configuredCatalogSources() {
+            guard let registryEndpoint = BindingRuntimeSurfaceLaunchSupport.registryEndpoint(
+                forCatalogEndpoint: source.endpoint
+            ) else {
+                continue
+            }
+            if let origin = catalogOrigin(from: source.endpoint) {
+                registerRemoteCatalogHostIfNeeded(origin, resolver: resolver)
+            }
+            guard let registry = try? await RemoteEndpointAccessSupport.resolveMeddle(
+                endpoint: registryEndpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: "binding.runtimeLaunch.registry"
+            ), let routesValue = try? await registry.get(
+                keypath: BindingRuntimeSurfaceLaunchSupport.routesKeypath,
+                requester: requester
+            ), let lookupPayload = BindingRuntimeSurfaceLaunchSupport.resolveLaunchPayload(
+                surfaceID: request.surfaceID,
+                routesValue: routesValue,
+                registryEndpoint: registryEndpoint
+            ) else {
+                continue
+            }
+
+            var resolvedConfiguration = await CellConfigurationPayloadSupport.resolveCellConfiguration(
+                from: lookupPayload,
+                requester: requester
+            )
+            if resolvedConfiguration == nil,
+               let catalog = try? await RemoteEndpointAccessSupport.resolveMeddle(
+                endpoint: source.endpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: "binding.runtimeLaunch.catalog"
+               ), let configurationsValue = try? await catalog.get(
+                keypath: "configurations",
+                requester: requester
+               ) {
+                resolvedConfiguration = CellConfigurationPayloadSupport.resolveCellConfiguration(
+                    from: lookupPayload,
+                    candidates: CellConfigurationPayloadSupport.decodeConfigurations(from: configurationsValue)
+                )
+            }
+
+            guard let resolvedConfiguration else { continue }
+            let origin = catalogOrigin(from: registryEndpoint)
+            let preparedConfiguration = normalizeConfigurationForResolver(
+                resolvedConfiguration,
+                origin: origin,
+                resolver: resolver
+            )
+            await MainActor.run {
+                diagnosticsStore.record(
+                    domain: "binding.runtimeLaunch",
+                    message: "Runtime launch åpner owner-publisert surfaceID \(request.surfaceID)."
+                )
+                if editorMode == .edit {
+                    editorMode = .view
+                }
+                queueConfigurationLoad(preparedConfiguration, navigationMode: .automatic)
+            }
+            return
+        }
+
+        await recordRuntimeSurfaceLaunchFailure("surface_not_published")
+    }
+
+    @MainActor
+    private func recordRuntimeSurfaceLaunchFailure(_ reason: String) {
+        loadErrorMessage = "Runtime-flaten er ikke publisert for denne identiteten."
+        diagnosticsStore.record(
+            severity: .warning,
+            domain: "binding.runtimeLaunch",
+            message: "Runtime surface launch feilet: \(reason)."
+        )
     }
 
     private func handleConferenceAutomationNotification(
