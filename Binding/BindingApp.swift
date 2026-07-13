@@ -23,11 +23,6 @@ struct BindingApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-#if os(iOS)
-                .onOpenURL { url in
-                    BindingIncomingURLBridge.post(url: url)
-                }
-#endif
         }
 #if os(macOS)
         .restorationBehavior(.disabled)

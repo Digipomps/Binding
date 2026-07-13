@@ -107,6 +107,34 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
         )
     }
 
+    static func configuredRemoteCatalogEndpoints(
+        environment: [String: String],
+        defaultEndpoint: String
+    ) -> [String] {
+        let separators = CharacterSet(charactersIn: ",;\n")
+        var endpoints = (environment["BINDING_REMOTE_CATALOG_ENDPOINTS"] ?? "")
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+
+        let includeDefault = !["0", "false", "no", "off"].contains(
+            (environment["BINDING_INCLUDE_DEFAULT_REMOTE_CATALOG"] ?? "true")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+        )
+        let configuredDefault = environment["BINDING_DEFAULT_REMOTE_CATALOG_ENDPOINT"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if includeDefault {
+            let endpoint = configuredDefault.flatMap { $0.isEmpty ? nil : $0 } ?? defaultEndpoint
+            endpoints.append(endpoint)
+        }
+
+        var seen: Set<String> = []
+        return endpoints.filter { endpoint in
+            seen.insert(endpoint.lowercased()).inserted
+        }
+    }
+
     static func resolveLaunchPayload(
         surfaceID: String,
         routesValue: ValueType,
@@ -159,6 +187,63 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
         components.query = nil
         components.fragment = nil
         return components.string
+    }
+
+    struct CatalogDiscoveryCandidate {
+        let catalogEndpoint: String
+        let registryEndpoint: String
+        let lookupPayload: ValueType
+    }
+
+    struct CatalogDiscoveryResult {
+        let candidates: [CatalogDiscoveryCandidate]
+        let failedSourceCount: Int
+    }
+
+    @MainActor
+    static func discoverCatalogCandidates(
+        surfaceID: String,
+        catalogEndpoints: [String],
+        isActive: () -> Bool = { true },
+        readRoutes: (_ catalogEndpoint: String, _ registryEndpoint: String) async throws -> ValueType
+    ) async -> CatalogDiscoveryResult {
+        var candidates: [CatalogDiscoveryCandidate] = []
+        var failedSourceCount = 0
+
+        for catalogEndpoint in catalogEndpoints {
+            guard isActive() else { break }
+            guard let registryEndpoint = registryEndpoint(forCatalogEndpoint: catalogEndpoint) else {
+                failedSourceCount += 1
+                continue
+            }
+
+            let routesValue: ValueType
+            do {
+                routesValue = try await readRoutes(catalogEndpoint, registryEndpoint)
+            } catch {
+                failedSourceCount += 1
+                continue
+            }
+            guard isActive() else { break }
+            guard let lookupPayload = resolveLaunchPayload(
+                surfaceID: surfaceID,
+                routesValue: routesValue,
+                registryEndpoint: registryEndpoint
+            ) else {
+                continue
+            }
+
+            candidates.append(CatalogDiscoveryCandidate(
+                catalogEndpoint: catalogEndpoint,
+                registryEndpoint: registryEndpoint,
+                lookupPayload: lookupPayload
+            ))
+        }
+
+        return CatalogDiscoveryResult(
+            candidates: candidates,
+            failedSourceCount: failedSourceCount
+        )
     }
 
     private static func normalizedSurfaceID(_ value: String?) -> String? {
@@ -306,6 +391,12 @@ final class BindingRuntimeSurfaceLaunchAdapterCell: BindingRuntimeBindingCell {
 }
 
 nonisolated enum PortableSurfaceContractSupport {
+    enum RecoveryDecision {
+        case live(CellConfiguration)
+        case rejectCache
+        case allowCache
+    }
+
     static func decodeCellConfiguration(from value: ValueType?) -> CellConfiguration? {
         guard let value else { return nil }
         switch value {
@@ -335,6 +426,34 @@ nonisolated enum PortableSurfaceContractSupport {
         }
         return nil
     }
+
+    static func firstConfiguration(
+        in values: [String: ValueType],
+        orderedKeypaths: [String]
+    ) -> CellConfiguration? {
+        for keypath in orderedKeypaths {
+            guard let value = values[keypath],
+                  let configuration = extractConfiguration(from: value) else {
+                continue
+            }
+            return configuration
+        }
+        return nil
+    }
+
+    static func recoveryDecision(
+        values: [String: ValueType],
+        orderedKeypaths: [String],
+        authorizationDenied: Bool
+    ) -> RecoveryDecision {
+        if let configuration = firstConfiguration(
+            in: values,
+            orderedKeypaths: orderedKeypaths
+        ) {
+            return .live(configuration)
+        }
+        return authorizationDenied ? .rejectCache : .allowCache
+    }
 }
 
 nonisolated struct PortableSurfaceCacheMetadata: Codable, Equatable {
@@ -349,6 +468,7 @@ nonisolated struct PortableSurfaceCacheMetadata: Codable, Equatable {
 
 actor PortableSurfaceCacheStore {
     static let shared = PortableSurfaceCacheStore()
+    nonisolated static let envelopeSchema = "haven.binding.portable-surface-cache.v2"
     nonisolated static let maximumRetainedEntries = 64
     nonisolated static let maximumSnapshotsPerEntry = 16
 
@@ -362,17 +482,34 @@ actor PortableSurfaceCacheStore {
         var lastUpdatedAtEpochMs: Double
     }
 
+    private struct Envelope: Codable {
+        var schema: String
+        var entries: [String: Entry]
+    }
+
     private var entries: [String: Entry] = [:]
     private var didLoad = false
+    private let fileURLOverride: URL?
+    private let legacyFileURLOverride: URL?
 
-    func storeConfiguration(_ configuration: CellConfiguration, endpoint: String) {
-        guard let identity = cacheIdentity(for: endpoint) else { return }
+    /// Production deliberately remains memory-only until CellProtocol exposes
+    /// a verified Storage-authority receipt that can be bound to requester,
+    /// endpoint, Contract and expiry. An explicit file URL is a test-only
+    /// persistence seam for round-trip coverage.
+    init(fileURL: URL? = nil, legacyFileURL: URL? = nil) {
+        self.fileURLOverride = fileURL
+        self.legacyFileURLOverride = legacyFileURL
+    }
+
+    func storeConfiguration(_ configuration: CellConfiguration, endpoint: String, requester: Identity) {
+        guard let identity = cacheIdentity(for: endpoint, requester: requester),
+              let endpointIdentity = endpointIdentity(for: endpoint) else { return }
         loadIfNeeded()
 
         let timestamp = Date().timeIntervalSince1970 * 1000
         var entry = entries[identity] ?? Entry(
             endpoint: endpoint,
-            endpointIdentity: identity,
+            endpointIdentity: endpointIdentity,
             configuration: nil,
             snapshots: [:],
             configurationUpdatedAtEpochMs: nil,
@@ -388,8 +525,9 @@ actor PortableSurfaceCacheStore {
         persist()
     }
 
-    func storeSnapshot(_ value: ValueType, endpoint: String, keypath: String) {
-        guard let identity = cacheIdentity(for: endpoint) else { return }
+    func storeSnapshot(_ value: ValueType, endpoint: String, keypath: String, requester: Identity) {
+        guard let identity = cacheIdentity(for: endpoint, requester: requester),
+              let endpointIdentity = endpointIdentity(for: endpoint) else { return }
         let normalizedKeypath = normalizedSnapshotKeypath(keypath)
         guard !normalizedKeypath.isEmpty else { return }
         loadIfNeeded()
@@ -397,7 +535,7 @@ actor PortableSurfaceCacheStore {
         let timestamp = Date().timeIntervalSince1970 * 1000
         var entry = entries[identity] ?? Entry(
             endpoint: endpoint,
-            endpointIdentity: identity,
+            endpointIdentity: endpointIdentity,
             configuration: nil,
             snapshots: [:],
             configurationUpdatedAtEpochMs: nil,
@@ -413,18 +551,18 @@ actor PortableSurfaceCacheStore {
         persist()
     }
 
-    func configuration(for endpoint: String) -> CellConfiguration? {
-        guard let entry = entry(for: endpoint) else { return nil }
+    func configuration(for endpoint: String, requester: Identity) -> CellConfiguration? {
+        guard let entry = entry(for: endpoint, requester: requester) else { return nil }
         return entry.configuration
     }
 
-    func snapshot(for endpoint: String, keypath: String) -> ValueType? {
-        guard let entry = entry(for: endpoint) else { return nil }
+    func snapshot(for endpoint: String, keypath: String, requester: Identity) -> ValueType? {
+        guard let entry = entry(for: endpoint, requester: requester) else { return nil }
         return entry.snapshots[normalizedSnapshotKeypath(keypath)]
     }
 
-    func metadata(for endpoint: String) -> PortableSurfaceCacheMetadata? {
-        guard let entry = entry(for: endpoint) else { return nil }
+    func metadata(for endpoint: String, requester: Identity) -> PortableSurfaceCacheMetadata? {
+        guard let entry = entry(for: endpoint, requester: requester) else { return nil }
         return PortableSurfaceCacheMetadata(
             endpoint: entry.endpoint,
             endpointIdentity: entry.endpointIdentity,
@@ -442,8 +580,15 @@ actor PortableSurfaceCacheStore {
         persist()
     }
 
-    private func entry(for endpoint: String) -> Entry? {
-        guard let identity = cacheIdentity(for: endpoint) else { return nil }
+    func remove(endpoint: String, requester: Identity) {
+        guard let identity = cacheIdentity(for: endpoint, requester: requester) else { return }
+        loadIfNeeded()
+        entries.removeValue(forKey: identity)
+        persist()
+    }
+
+    private func entry(for endpoint: String, requester: Identity) -> Entry? {
+        guard let identity = cacheIdentity(for: endpoint, requester: requester) else { return nil }
         loadIfNeeded()
         return entries[identity]
     }
@@ -452,27 +597,40 @@ actor PortableSurfaceCacheStore {
         guard !didLoad else { return }
         didLoad = true
 
-        guard let url = cacheFileURL(),
-              let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode([String: Entry].self, from: data) else {
+        guard let url = fileURLOverride else {
+            purgeLegacyUnscopedCache()
             return
         }
-        entries = decoded
+        guard
+              let data = try? Data(contentsOf: url),
+              let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
+              envelope.schema == Self.envelopeSchema else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        entries = envelope.entries
         prune()
     }
 
     private func persist() {
-        guard let url = cacheFileURL() else { return }
+        guard let url = fileURLOverride else { return }
         let directoryURL = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(
             at: directoryURL,
             withIntermediateDirectories: true
         )
-        guard let data = try? JSONEncoder().encode(entries) else { return }
+        let envelope = Envelope(schema: Self.envelopeSchema, entries: entries)
+        guard let data = try? JSONEncoder().encode(envelope) else { return }
         try? data.write(to: url, options: [.atomic])
     }
 
-    private func cacheFileURL() -> URL? {
+    private func purgeLegacyUnscopedCache() {
+        let url = legacyFileURLOverride ?? defaultLegacyCacheFileURL()
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    private func defaultLegacyCacheFileURL() -> URL {
         let fileManager = FileManager.default
         let baseURL =
             fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -480,10 +638,20 @@ actor PortableSurfaceCacheStore {
         return baseURL.appendingPathComponent("Binding/portable-surface-cache.json")
     }
 
-    private func cacheIdentity(for endpoint: String) -> String? {
+    private func endpointIdentity(for endpoint: String) -> String? {
         let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed.lowercased()
+    }
+
+    private func cacheIdentity(for endpoint: String, requester: Identity) -> String? {
+        guard let endpointIdentity = endpointIdentity(for: endpoint),
+              let fingerprint = requester.signingPublicKeyFingerprint?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !fingerprint.isEmpty else {
+            return nil
+        }
+        return "\(endpointIdentity)|\(requester.uuid.lowercased())|\(fingerprint)"
     }
 
     private func normalizedSnapshotKeypath(_ keypath: String) -> String {
@@ -513,15 +681,15 @@ actor PortableSurfaceCacheStore {
 
         if entries.count > Self.maximumRetainedEntries {
             let retainedIdentities = Set(
-                entries.values
+                entries
                     .sorted { lhs, rhs in
-                        if lhs.lastUpdatedAtEpochMs == rhs.lastUpdatedAtEpochMs {
-                            return lhs.endpointIdentity.localizedStandardCompare(rhs.endpointIdentity) == .orderedDescending
+                        if lhs.value.lastUpdatedAtEpochMs == rhs.value.lastUpdatedAtEpochMs {
+                            return lhs.key.localizedStandardCompare(rhs.key) == .orderedDescending
                         }
-                        return lhs.lastUpdatedAtEpochMs > rhs.lastUpdatedAtEpochMs
+                        return lhs.value.lastUpdatedAtEpochMs > rhs.value.lastUpdatedAtEpochMs
                     }
                     .prefix(Self.maximumRetainedEntries)
-                    .map(\.endpointIdentity)
+                    .map(\.key)
             )
             entries = entries.filter { retainedIdentities.contains($0.key) }
         }

@@ -338,7 +338,10 @@ final class ConferenceNearbyRadarSurfaceModel: ObservableObject {
     }
 
     private func connect() async {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            connectionSummary = "Kunne ikke validere lokal conference-runtime."
+            return
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let vault = CellBase.defaultIdentityVault,

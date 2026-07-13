@@ -89,8 +89,7 @@ final class FolderWatchCell: GeneralCell {
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
-        await setupPermissions(owner: owner)
-        await setupKeys(owner: owner)
+        try? await ensureRuntimeReady()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -100,13 +99,12 @@ final class FolderWatchCell: GeneralCell {
         configuredEvents = try container.decodeIfPresent(Set<WatchEvent>.self, forKey: .configuredEvents) ?? Self.defaultEvents
 
         try super.init(from: decoder)
-        Task {
-            if let vault = CellBase.defaultIdentityVault,
-               let requester = await vault.identity(for: "private", makeNewIfNotFound: true) {
-                await self.setupPermissions(owner: requester)
-                await self.setupKeys(owner: requester)
-            }
-        }
+    }
+
+    override func installCellRuntimeBindingsForAccess() async throws {
+        let owner = storedOwnerIdentity
+        await setupPermissions(owner: owner)
+        await setupKeys(owner: owner)
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {

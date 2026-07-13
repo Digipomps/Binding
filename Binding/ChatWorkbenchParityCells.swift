@@ -80,6 +80,10 @@ class BindingRuntimeBindingCell: GeneralCell, BindingRuntimeBindingEnsuring {
     }
 
     func ensureRuntimeBindings() async throws {
+        try await ensureRuntimeReady()
+    }
+
+    override func installCellRuntimeBindingsForAccess() async throws {
         try await runtimeBindingState.ensure { [weak self] in
             guard let self,
                   let owner = await self.proofCapableStoredOwner() else {
@@ -88,16 +92,6 @@ class BindingRuntimeBindingCell: GeneralCell, BindingRuntimeBindingEnsuring {
             await self.installRuntimeBindings(owner: owner)
             return .success(())
         }
-    }
-
-    override func get(keypath: String, requester: Identity) async throws -> ValueType {
-        try await ensureRuntimeBindings()
-        return try await super.get(keypath: keypath, requester: requester)
-    }
-
-    override func set(keypath: String, value: ValueType, requester: Identity) async throws -> ValueType? {
-        try await ensureRuntimeBindings()
-        return try await super.set(keypath: keypath, value: value, requester: requester)
     }
 
     private func proofCapableStoredOwner() async -> Identity? {

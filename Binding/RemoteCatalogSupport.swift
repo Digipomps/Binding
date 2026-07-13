@@ -7,7 +7,7 @@ nonisolated enum RemoteEndpointAuthorizationKind: Equatable {
     case liveControlAgreement
 }
 
-enum RemoteEndpointAccessSupport {
+nonisolated enum RemoteEndpointAccessSupport {
     static let stagingHost = "staging.haven.digipomps.org"
     static let localCatalogEndpoint = "cell:///ConfigurationCatalog"
 
@@ -46,6 +46,12 @@ enum RemoteEndpointAccessSupport {
             return .scaffoldAdmission
         }
         return .none
+    }
+
+    /// Cache entries without a resolver-issued authority receipt may only be
+    /// reused when the endpoint has no remote admission policy.
+    static func mayUseUnreceiptedCache(for endpoint: String) -> Bool {
+        authorizationKind(for: endpoint) == .none
     }
 
     static func shouldAttemptScaffoldAdmission(for endpoint: String) -> Bool {
@@ -110,6 +116,64 @@ enum RemoteEndpointAccessSupport {
         return meddle
     }
 
+    /// GET-only convenience that renegotiates once after a typed policy
+    /// denial. Reads are safe to retry; mutation/action paths must make their
+    /// own idempotency decision and never use this helper.
+    static func readValue(
+        endpoint: String,
+        keypath: String,
+        resolver: CellResolver,
+        requester: Identity,
+        accessLabel: String
+    ) async throws -> ValueType {
+        try await readValue(
+            endpoint: endpoint,
+            keypath: keypath,
+            requester: requester,
+            authorizationKind: authorizationKind(for: endpoint)
+        ) {
+            try await resolveEmit(
+                endpoint: endpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: accessLabel
+            )
+        }
+    }
+
+    /// Test seam and shared retry implementation. Mutation/action callers must
+    /// not use this overload: only idempotent GET is safe to repeat here.
+    static func readValue(
+        endpoint: String,
+        keypath: String,
+        requester: Identity,
+        authorizationKind: RemoteEndpointAuthorizationKind,
+        resolve: () async throws -> Emit
+    ) async throws -> ValueType {
+        var lastError: Error?
+        for attempt in 0...1 {
+            let emit = try await resolve()
+            guard let meddle = emit as? Meddle else {
+                throw AccessError.endpointDoesNotExposeMeddle(endpoint)
+            }
+            do {
+                return try await meddle.get(keypath: keypath, requester: requester)
+            } catch {
+                lastError = error
+                guard attempt == 0, isAuthorizationDenied(error) else {
+                    throw error
+                }
+                RemoteEndpointAccessAuthorizer.shared.invalidate(
+                    endpoint: endpoint,
+                    emit: emit,
+                    requester: requester,
+                    kind: authorizationKind
+                )
+            }
+        }
+        throw lastError ?? AccessError.contractRejected(endpoint, "read_denied")
+    }
+
     static func authorizeIfNeeded(
         endpoint: String,
         emit: Emit,
@@ -156,6 +220,18 @@ enum RemoteEndpointAccessSupport {
 
     static func endpointIdentity(_ endpoint: String) -> String {
         endpoint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    static func isAuthorizationDenied(_ error: Error) -> Bool {
+        if let authorizationError = error as? CellAuthorizationError,
+           case .denied = authorizationError {
+            return true
+        }
+        if let accessError = error as? AccessError,
+           case .contractRejected = accessError {
+            return true
+        }
+        return false
     }
 
     static func canonicalRoute(for endpoint: String) -> RemoteCellHostRoute? {
@@ -281,7 +357,7 @@ enum RemoteEndpointAccessSupport {
     }
 }
 
-final class RemoteEndpointAccessAuthorizer {
+nonisolated final class RemoteEndpointAccessAuthorizer {
     static let shared = RemoteEndpointAccessAuthorizer()
 
     private let stateQueue = DispatchQueue(label: "RemoteEndpointAccessAuthorizer.state")
@@ -301,8 +377,9 @@ final class RemoteEndpointAccessAuthorizer {
         case .none:
             return
         case .scaffoldAdmission:
-            let cacheKey = authorizationCacheKey(endpoint: endpoint, requester: requester)
-            if stateQueue.sync(execute: { scaffoldAdmissionKeys.contains(cacheKey) }) {
+            let cacheKey = Self.authorizationCacheKey(endpoint: endpoint, emit: emit, requester: requester)
+            if let cacheKey,
+               stateQueue.sync(execute: { scaffoldAdmissionKeys.contains(cacheKey) }) {
                 return
             }
 
@@ -317,29 +394,62 @@ final class RemoteEndpointAccessAuthorizer {
                 throw RemoteEndpointAccessSupport.AccessError.contractRejected(endpoint, connectState.rawValue)
             }
 
-            _ = stateQueue.sync {
-                scaffoldAdmissionKeys.insert(cacheKey)
+            if let cacheKey {
+                _ = stateQueue.sync {
+                    scaffoldAdmissionKeys.insert(cacheKey)
+                }
             }
         case .liveControlAgreement:
-            let cacheKey = authorizationCacheKey(endpoint: endpoint, requester: requester)
-            if stateQueue.sync(execute: { liveControlKeys.contains(cacheKey) }) {
+            let cacheKey = Self.authorizationCacheKey(endpoint: endpoint, emit: emit, requester: requester)
+            if let cacheKey,
+               stateQueue.sync(execute: { liveControlKeys.contains(cacheKey) }) {
                 return
             }
 
             try await LiveControlBridgeAuthorization.authorizeIfNeeded(emit, requester: requester)
 
-            _ = stateQueue.sync {
-                liveControlKeys.insert(cacheKey)
+            if let cacheKey {
+                _ = stateQueue.sync {
+                    liveControlKeys.insert(cacheKey)
+                }
             }
         }
     }
 
-    private func authorizationCacheKey(endpoint: String, requester: Identity) -> String {
-        "\(RemoteEndpointAccessSupport.endpointIdentity(endpoint))|\(requester.uuid.lowercased())"
+    func invalidate(
+        endpoint: String,
+        emit: Emit,
+        requester: Identity,
+        kind: RemoteEndpointAuthorizationKind
+    ) {
+        guard let cacheKey = Self.authorizationCacheKey(
+            endpoint: endpoint,
+            emit: emit,
+            requester: requester
+        ) else { return }
+        stateQueue.sync {
+            switch kind {
+            case .none:
+                break
+            case .scaffoldAdmission:
+                scaffoldAdmissionKeys.remove(cacheKey)
+            case .liveControlAgreement:
+                liveControlKeys.remove(cacheKey)
+            }
+        }
+    }
+
+    static func authorizationCacheKey(endpoint: String, emit: Emit, requester: Identity) -> String? {
+        guard let fingerprint = requester.signingPublicKeyFingerprint?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !fingerprint.isEmpty else {
+            return nil
+        }
+        return "\(RemoteEndpointAccessSupport.endpointIdentity(endpoint))|\(emit.uuid.lowercased())|\(requester.uuid.lowercased())|\(fingerprint)"
     }
 }
 
-enum RemoteCatalogSupport {
+nonisolated enum RemoteCatalogSupport {
     static let stagingHost = RemoteEndpointAccessSupport.stagingHost
 
     enum CandidatePreference {

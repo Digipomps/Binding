@@ -41,7 +41,7 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         let targetWindowNumber = automationTargetWindowNumber(in: application)
         urls.forEach { url in
-            BindingIncomingURLBridge.post(url: url, targetWindowNumber: targetWindowNumber)
+            BindingIncomingURLBridge.submit(url: url, targetWindowNumber: targetWindowNumber)
         }
     }
 

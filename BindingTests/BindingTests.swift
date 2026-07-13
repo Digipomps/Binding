@@ -13,7 +13,7 @@ import CryptoKit
 #if canImport(AppKit)
 import AppKit
 #endif
-import CellBase
+@_spi(Testing) import CellBase
 @testable import CellApple
 @testable import Binding
 
@@ -511,6 +511,159 @@ final class BindingRuntimeBootstrapXCTest: XCTestCase {
         XCTAssertFalse(verifierPath.contains("/Documents"))
         XCTAssertTrue(verifierPath.hasPrefix(NSTemporaryDirectory()))
         XCTAssertTrue(verifierPath.hasSuffix("Binding/CellDocumentRoot"))
+
+        let xctestPath = BindingRuntimeBootstrap.documentRootPath(
+            environment: ["XCTestConfigurationFilePath": "/tmp/BindingTests.xctestconfiguration"],
+            launchArguments: ["Binding"]
+        )
+        XCTAssertTrue(xctestPath.hasPrefix(NSTemporaryDirectory()))
+        XCTAssertTrue(xctestPath.contains("/Binding/TestRuns/"))
+        XCTAssertTrue(xctestPath.hasSuffix("/CellDocumentRoot"))
+    }
+
+    @MainActor
+    func testCleanLocalRegistrationIncludesEntityScanner() async throws {
+        let previousVault = CellBase.defaultIdentityVault
+        let previousResolver = CellBase.defaultCellResolver
+        let previousTypedUtility = CellBase.typedCellUtility
+        let resolver = CellResolver.sharedInstance
+
+        await resolver.resetRuntimeStateForTesting()
+        do {
+            let vault = BindingStartupIdentityVault()
+            CellBase.defaultIdentityVault = vault
+            CellBase.defaultCellResolver = resolver
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+            let resolvedRequester = await vault.identity(
+                for: "private",
+                makeNewIfNotFound: true
+            )
+            let requester = try XCTUnwrap(resolvedRequester)
+            let scanner = try await resolver.cellAtEndpoint(
+                endpoint: "cell:///EntityScanner",
+                requester: requester
+            )
+            let owner = try await scanner.getOwner(requester: requester)
+            XCTAssertTrue(owner.referencesSameSigningIdentity(as: requester))
+        } catch {
+            CellBase.defaultIdentityVault = previousVault
+            CellBase.defaultCellResolver = previousResolver
+            CellBase.typedCellUtility = previousTypedUtility
+            await resolver.resetRuntimeStateForTesting()
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            throw error
+        }
+
+        CellBase.defaultIdentityVault = previousVault
+        CellBase.defaultCellResolver = previousResolver
+        CellBase.typedCellUtility = previousTypedUtility
+        await resolver.resetRuntimeStateForTesting()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+    }
+
+    @MainActor
+    func testLocalRegistrationRebindsWhenActiveIdentityVaultChanges() async throws {
+        let previousVault = CellBase.defaultIdentityVault
+        let previousResolver = CellBase.defaultCellResolver
+        let previousTypedUtility = CellBase.typedCellUtility
+        let resolver = CellResolver.sharedInstance
+
+        await resolver.resetRuntimeStateForTesting()
+
+        do {
+            let firstVault = BindingStartupIdentityVault()
+            CellBase.defaultIdentityVault = firstVault
+            CellBase.defaultCellResolver = resolver
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+            let resolvedFirstOwner = await firstVault.identity(
+                for: "private",
+                makeNewIfNotFound: true
+            )
+            let firstOwner = try XCTUnwrap(resolvedFirstOwner)
+            let firstPorthole = try await resolver.cellAtEndpoint(
+                endpoint: "cell:///Porthole",
+                requester: firstOwner
+            )
+
+            let secondVault = BindingStartupIdentityVault()
+            CellBase.defaultIdentityVault = secondVault
+            await resolver.refreshNamedResolveOwnersFromCurrentVault()
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+            let resolvedSecondOwner = await secondVault.identity(
+                for: "private",
+                makeNewIfNotFound: true
+            )
+            let secondOwner = try XCTUnwrap(resolvedSecondOwner)
+            let secondPorthole = try await resolver.cellAtEndpoint(
+                endpoint: "cell:///Porthole",
+                requester: secondOwner
+            )
+
+            XCTAssertNotEqual(firstOwner.uuid, secondOwner.uuid)
+            XCTAssertNotEqual(firstPorthole.uuid, secondPorthole.uuid)
+
+            let orchestrator = try XCTUnwrap(secondPorthole as? OrchestratorCell)
+            let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+            try await orchestrator.loadCellConfiguration(configuration, requester: secondOwner)
+            let state = try await orchestrator.get(
+                keypath: "conferenceDemoLauncher.state.statusSummary",
+                requester: secondOwner
+            )
+            guard case let .string(text) = state else {
+                throw NSError(
+                    domain: "BindingRuntimeBootstrapXCTest",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Expected readable launcher state after vault transition, got \(state)"]
+                )
+            }
+            XCTAssertFalse(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } catch {
+            CellBase.defaultIdentityVault = previousVault
+            CellBase.defaultCellResolver = previousResolver
+            CellBase.typedCellUtility = previousTypedUtility
+            await resolver.resetRuntimeStateForTesting()
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            throw error
+        }
+
+        CellBase.defaultIdentityVault = previousVault
+        CellBase.defaultCellResolver = previousResolver
+        CellBase.typedCellUtility = previousTypedUtility
+        await resolver.resetRuntimeStateForTesting()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+    }
+
+    @MainActor
+    func testPersistentLocalRegistrationValidationFailureStopsAfterBoundedRetry() async {
+        await BindingLocalCellRegistration.shared
+            .setForcedLocalRegistrationValidationFailureForTesting(true)
+
+        let registrationResults = await withTaskGroup(of: Bool.self) { group in
+            for _ in 0..<8 {
+                group.addTask {
+                    await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+                }
+            }
+            var results = [Bool]()
+            for await result in group {
+                results.append(result)
+            }
+            return results
+        }
+
+        let validationCount = await BindingLocalCellRegistration.shared
+            .localRegistrationValidationCountForTestingSnapshot()
+        XCTAssertEqual(validationCount, 2)
+        XCTAssertEqual(registrationResults.count, 8)
+        XCTAssertTrue(registrationResults.allSatisfy { !$0 })
+
+        await BindingLocalCellRegistration.shared
+            .setForcedLocalRegistrationValidationFailureForTesting(false)
+        let recovered = await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        XCTAssertTrue(recovered)
     }
 }
 
@@ -2172,7 +2325,7 @@ struct BindingTests {
         await store.clear()
     }
 
-    @Test func portableSurfaceCacheStoreRoundTripsConfigurationAndSnapshotsFaithfully() async {
+    @Test func portableSurfaceCacheStoreReloadsFromDiskAndScopesDataToSigningIdentity() async {
         let endpoint = "cell://staging.haven.digipomps.org/ConferencePublicShell"
         let configuration = CellConfiguration(name: "Conference Public Surface")
         let snapshot: ValueType = .object([
@@ -2183,85 +2336,232 @@ struct BindingTests {
                 "cachePolicy": .string("useCache")
             ])
         ])
+        let owner = await makeOwnerIdentity()
+        let otherIdentity = await Self.testIdentityVault.identity(
+            for: "portable-cache-other-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        )!
+        let cacheFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("binding-portable-cache-\(UUID().uuidString).json")
+        let writingStore = PortableSurfaceCacheStore(fileURL: cacheFileURL)
 
-        await PortableSurfaceCacheStore.shared.clearAll()
-        await PortableSurfaceCacheStore.shared.storeConfiguration(configuration, endpoint: endpoint)
-        await PortableSurfaceCacheStore.shared.storeSnapshot(snapshot, endpoint: endpoint, keypath: "state")
+        await writingStore.clearAll()
+        await writingStore.storeConfiguration(configuration, endpoint: endpoint, requester: owner)
+        await writingStore.storeSnapshot(snapshot, endpoint: endpoint, keypath: "state", requester: owner)
 
-        let restoredConfiguration = await PortableSurfaceCacheStore.shared.configuration(for: endpoint)
-        let restoredSnapshot = await PortableSurfaceCacheStore.shared.snapshot(for: endpoint, keypath: "state")
-        let metadata = await PortableSurfaceCacheStore.shared.metadata(for: endpoint)
+        let reloadedStore = PortableSurfaceCacheStore(fileURL: cacheFileURL)
+        let restoredConfiguration = await reloadedStore.configuration(for: endpoint, requester: owner)
+        let restoredSnapshot = await reloadedStore.snapshot(for: endpoint, keypath: "state", requester: owner)
+        let metadata = await reloadedStore.metadata(for: endpoint, requester: owner)
 
         #expect(restoredConfiguration?.name == "Conference Public Surface")
         #expect(metadata?.hasConfiguration == true)
         #expect(metadata?.cachedKeypaths == ["state"])
+        #expect(await reloadedStore.configuration(for: endpoint, requester: otherIdentity) == nil)
+        #expect(await reloadedStore.snapshot(for: endpoint, keypath: "state", requester: otherIdentity) == nil)
         guard case let .object(restoredObject)? = restoredSnapshot else {
             Issue.record("Expected cached snapshot object to roundtrip through the portable surface cache")
-            await PortableSurfaceCacheStore.shared.clearAll()
+            await reloadedStore.clearAll()
             return
         }
         guard case let .object(restoredSetup)? = restoredObject["setup"] else {
             Issue.record("Expected cached snapshot setup object to survive persistence")
-            await PortableSurfaceCacheStore.shared.clearAll()
+            await reloadedStore.clearAll()
             return
         }
         guard case let .object(restoredDraft)? = restoredObject["draft"] else {
             Issue.record("Expected cached snapshot draft object to survive persistence")
-            await PortableSurfaceCacheStore.shared.clearAll()
+            await reloadedStore.clearAll()
             return
         }
         #expect(restoredSetup["statusLabel"] == .string("Ready"))
         #expect(restoredDraft["cachePolicy"] == .string("useCache"))
 
-        await PortableSurfaceCacheStore.shared.clearAll()
+        await reloadedStore.clearAll()
+        try? FileManager.default.removeItem(at: cacheFileURL)
+    }
+
+    @Test func productionPortableSurfaceCacheIsMemoryOnlyAndPurgesLegacyDiskState() async throws {
+        let owner = await makeOwnerIdentity()
+        let endpoint = "cell://staging.haven.digipomps.org/private-surface"
+        let legacyFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("binding-portable-legacy-\(UUID().uuidString).json")
+        try Data("{\"legacy\":true}".utf8).write(to: legacyFileURL)
+
+        let memoryStore = PortableSurfaceCacheStore(legacyFileURL: legacyFileURL)
+        #expect(await memoryStore.configuration(for: endpoint, requester: owner) == nil)
+        #expect(!FileManager.default.fileExists(atPath: legacyFileURL.path))
+
+        await memoryStore.storeConfiguration(
+            CellConfiguration(name: "Session-only surface"),
+            endpoint: endpoint,
+            requester: owner
+        )
+        #expect(await memoryStore.configuration(for: endpoint, requester: owner)?.name == "Session-only surface")
+
+        let restartedStore = PortableSurfaceCacheStore(legacyFileURL: legacyFileURL)
+        #expect(await restartedStore.configuration(for: endpoint, requester: owner) == nil)
+        #expect(!FileManager.default.fileExists(atPath: legacyFileURL.path))
+    }
+
+    @Test func unreceiptedCacheIsRejectedForAdmissionProtectedRemoteEndpoints() {
+        #expect(RemoteEndpointAccessSupport.mayUseUnreceiptedCache(for: "cell:///LocalSurface"))
+        #expect(RemoteEndpointAccessSupport.mayUseUnreceiptedCache(
+            for: "cell://staging.haven.digipomps.org/SkeletonParityPublicFixture"
+        ))
+        #expect(!RemoteEndpointAccessSupport.mayUseUnreceiptedCache(
+            for: "cell://staging.haven.digipomps.org/PrivateSurface"
+        ))
+        #expect(!RemoteEndpointAccessSupport.mayUseUnreceiptedCache(
+            for: "cell://runtime.example/PrivateSurface"
+        ))
+    }
+
+    @Test func getOnlyReadRenegotiatesExactlyOnceAfterTypedAuthorizationDenial() async throws {
+        let owner = await makeOwnerIdentity()
+        let probe = await RemoteReadRetryProbeCell(owner: owner)
+        probe.doneInitializing()
+
+        await RemoteReadRetryProbeScript.shared.configure(.succeedsOnSecondAttempt)
+        var resolveAttempts = 0
+        let value = try await RemoteEndpointAccessSupport.readValue(
+            endpoint: "cell:///RemoteReadRetryProbe",
+            keypath: "state",
+            requester: owner,
+            authorizationKind: .none
+        ) {
+            resolveAttempts += 1
+            return probe
+        }
+        #expect(value == .string("authorized-after-retry"))
+        #expect(resolveAttempts == 2)
+        #expect(await RemoteReadRetryProbeScript.shared.attemptCount() == 2)
+
+        await RemoteReadRetryProbeScript.shared.configure(.alwaysDenied)
+        resolveAttempts = 0
+        do {
+            _ = try await RemoteEndpointAccessSupport.readValue(
+                endpoint: "cell:///RemoteReadRetryProbe",
+                keypath: "state",
+                requester: owner,
+                authorizationKind: .none
+            ) {
+                resolveAttempts += 1
+                return probe
+            }
+            Issue.record("Expected the second typed denial to be returned to the caller")
+        } catch {
+            #expect(RemoteEndpointAccessSupport.isAuthorizationDenied(error))
+        }
+        #expect(resolveAttempts == 2)
+        #expect(await RemoteReadRetryProbeScript.shared.attemptCount() == 2)
+    }
+
+    @Test func authorizationCacheKeyBindsEndpointEmitterAndSigningIdentity() async {
+        let owner = await makeOwnerIdentity()
+        let firstEmitter = await GeneralCell(owner: owner)
+        let secondEmitter = await GeneralCell(owner: owner)
+        firstEmitter.doneInitializing()
+        secondEmitter.doneInitializing()
+
+        let first = RemoteEndpointAccessAuthorizer.authorizationCacheKey(
+            endpoint: "cell://runtime.example/Surface",
+            emit: firstEmitter,
+            requester: owner
+        )
+        let same = RemoteEndpointAccessAuthorizer.authorizationCacheKey(
+            endpoint: "CELL://RUNTIME.EXAMPLE/SURFACE",
+            emit: firstEmitter,
+            requester: owner
+        )
+        let replacementEmitter = RemoteEndpointAccessAuthorizer.authorizationCacheKey(
+            endpoint: "cell://runtime.example/Surface",
+            emit: secondEmitter,
+            requester: owner
+        )
+        let unsignedRequester = Identity(
+            "unsigned-requester",
+            displayName: "Unsigned requester",
+            identityVault: nil
+        )
+
+        #expect(first != nil)
+        #expect(first == same)
+        #expect(first != replacementEmitter)
+        #expect(RemoteEndpointAccessAuthorizer.authorizationCacheKey(
+            endpoint: "cell://runtime.example/Surface",
+            emit: firstEmitter,
+            requester: unsignedRequester
+        ) == nil)
     }
 
     @Test func portableSurfaceCacheStorePrunesOldEntriesAndSnapshots() async {
-        await PortableSurfaceCacheStore.shared.clearAll()
+        let owner = await makeOwnerIdentity()
+        let cacheFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("binding-portable-prune-\(UUID().uuidString).json")
+        let store = PortableSurfaceCacheStore(fileURL: cacheFileURL)
+        await store.clearAll()
 
         let oldestEndpoint = "cell://staging.haven.digipomps.org/cache-entry-oldest"
-        await PortableSurfaceCacheStore.shared.storeConfiguration(
+        await store.storeConfiguration(
             CellConfiguration(name: "Oldest cached surface"),
-            endpoint: oldestEndpoint
+            endpoint: oldestEndpoint,
+            requester: owner
         )
         try? await Task.sleep(nanoseconds: 2_000_000)
 
         for index in 0..<PortableSurfaceCacheStore.maximumRetainedEntries {
-            await PortableSurfaceCacheStore.shared.storeConfiguration(
+            await store.storeConfiguration(
                 CellConfiguration(name: "Cached surface \(index)"),
-                endpoint: "cell://staging.haven.digipomps.org/cache-entry-\(index)"
+                endpoint: "cell://staging.haven.digipomps.org/cache-entry-\(index)",
+                requester: owner
             )
         }
 
-        #expect(await PortableSurfaceCacheStore.shared.configuration(for: oldestEndpoint) == nil)
+        #expect(await store.configuration(for: oldestEndpoint, requester: owner) == nil)
         #expect(
-            await PortableSurfaceCacheStore.shared.configuration(
-                for: "cell://staging.haven.digipomps.org/cache-entry-\(PortableSurfaceCacheStore.maximumRetainedEntries - 1)"
+            await store.configuration(
+                for: "cell://staging.haven.digipomps.org/cache-entry-\(PortableSurfaceCacheStore.maximumRetainedEntries - 1)",
+                requester: owner
             )?.name == "Cached surface \(PortableSurfaceCacheStore.maximumRetainedEntries - 1)"
         )
 
         let snapshotEndpoint = "cell://staging.haven.digipomps.org/cache-snapshots"
-        await PortableSurfaceCacheStore.shared.storeSnapshot(.string("oldest"), endpoint: snapshotEndpoint, keypath: "state.0")
+        await store.storeSnapshot(
+            .string("oldest"),
+            endpoint: snapshotEndpoint,
+            keypath: "state.0",
+            requester: owner
+        )
         try? await Task.sleep(nanoseconds: 2_000_000)
         for index in 1...PortableSurfaceCacheStore.maximumSnapshotsPerEntry {
-            await PortableSurfaceCacheStore.shared.storeSnapshot(
+            await store.storeSnapshot(
                 .string("snapshot-\(index)"),
                 endpoint: snapshotEndpoint,
-                keypath: "state.\(index)"
+                keypath: "state.\(index)",
+                requester: owner
             )
         }
 
-        let metadata = await PortableSurfaceCacheStore.shared.metadata(for: snapshotEndpoint)
+        let metadata = await store.metadata(for: snapshotEndpoint, requester: owner)
         #expect(metadata?.cachedKeypaths.count == PortableSurfaceCacheStore.maximumSnapshotsPerEntry)
-        #expect(await PortableSurfaceCacheStore.shared.snapshot(for: snapshotEndpoint, keypath: "state.0") == nil)
         #expect(
-            await PortableSurfaceCacheStore.shared.snapshot(
+            await store.snapshot(
                 for: snapshotEndpoint,
-                keypath: "state.\(PortableSurfaceCacheStore.maximumSnapshotsPerEntry)"
+                keypath: "state.0",
+                requester: owner
+            ) == nil
+        )
+        #expect(
+            await store.snapshot(
+                for: snapshotEndpoint,
+                keypath: "state.\(PortableSurfaceCacheStore.maximumSnapshotsPerEntry)",
+                requester: owner
             ) == .string("snapshot-\(PortableSurfaceCacheStore.maximumSnapshotsPerEntry)")
         )
 
-        await PortableSurfaceCacheStore.shared.clearAll()
+        await store.clearAll()
+        try? FileManager.default.removeItem(at: cacheFileURL)
     }
 
     @Test func conferenceAutomationHookParsesSupportedURLs() throws {
@@ -2461,6 +2761,7 @@ struct BindingTests {
         let requester = await makeIsolatedRuntimeIdentity("runtime-surface-adapter")
         let resolver = CellResolver.sharedInstance
         CellBase.defaultCellResolver = resolver
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
         let payload: ValueType = .object([
             "surfaceLaunch": .object([
                 "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
@@ -2641,7 +2942,9 @@ struct BindingTests {
         )
     }
 
-    @Test func incomingURLBridgeCarriesTargetWindowNumber() throws {
+    @Test @MainActor func incomingURLBridgeCarriesTargetWindowNumber() throws {
+        BindingIncomingURLBridge.resetForTesting()
+        defer { BindingIncomingURLBridge.resetForTesting() }
         let center = NotificationCenter()
         let url = try #require(URL(string: "haven://conference-automation?action=open-launcher"))
         var receivedURL: URL?
@@ -2656,7 +2959,7 @@ struct BindingTests {
             receivedTargetWindowNumber = BindingIncomingURLBridge.targetWindowNumber(from: notification)
         }
 
-        BindingIncomingURLBridge.post(url: url, targetWindowNumber: 314, notificationCenter: center)
+        #expect(BindingIncomingURLBridge.post(url: url, targetWindowNumber: 314, notificationCenter: center))
         center.removeObserver(observer)
 
         #expect(receivedURL == url)
@@ -2849,7 +3152,10 @@ struct BindingTests {
         CellBase.debugValidateAccessForEverything = true
         defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
 
-        await BindingLocalCellRegistration.shared.ensureRegistered()
+        // This test exercises Binding-owned local fallbacks. The authenticated
+        // AppInitializer path also schedules a deferred Porthole view model and
+        // is both unnecessary and order-sensitive in the test host.
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
         let resolver = CellResolver.sharedInstance
         CellBase.defaultCellResolver = resolver
 
@@ -3030,6 +3336,29 @@ struct BindingTests {
                 failureDetails: ["Innholdet er ikke tilgjengelig akkurat nå."]
             )?.cellReferences?.first?.endpoint == "cell:///ConferenceAdminPreviewShell"
         )
+    }
+
+    @Test func conferencePreviewFixtureFallbackRequiresExplicitDebugOptIn() {
+        #expect(
+            ContentView.conferencePreviewFixtureFallbackEnabled(
+                environment: [:],
+                launchArguments: []
+            ) == false
+        )
+#if DEBUG
+        #expect(
+            ContentView.conferencePreviewFixtureFallbackEnabled(
+                environment: ["BINDING_ENABLE_CONFERENCE_FIXTURE_FALLBACK": "true"],
+                launchArguments: []
+            )
+        )
+        #expect(
+            ContentView.conferencePreviewFixtureFallbackEnabled(
+                environment: [:],
+                launchArguments: ["--enable-conference-fixture-fallback"]
+            )
+        )
+#endif
     }
 
     @Test func conferenceAdminWorkbenchPrefersOrganizerRequesterDescriptor() {
@@ -3444,6 +3773,22 @@ struct BindingTests {
     @Test func remoteEndpointAccessTreatsLoopbackBridgeheadAsLiveControlAgreement() {
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://127.0.0.1:43110/bridgehead/agent/identity") == .liveControlAgreement)
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "ws://localhost:43110/bridgehead") == .liveControlAgreement)
+    }
+
+    @Test func liveControlAgreementNeverSelfApprovesAForeignRequester() async throws {
+        let owner = await makeOwnerIdentity()
+        let requester = try #require(await Self.testIdentityVault.identity(
+            for: "live-control-foreign-requester-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        let cell = await AgentEnrollmentCell(owner: owner)
+
+        do {
+            try await LiveControlBridgeAuthorization.authorizeIfNeeded(cell, requester: requester)
+            Issue.record("A foreign live-control requester must not be able to approve its own Agreement.")
+        } catch let error as LiveControlBridgeAuthorization.AuthorizationError {
+            #expect(error.localizedDescription.contains("not accepted"))
+        }
     }
 
     @Test func remoteEndpointAccessLeavesLocalCellsUnmanaged() {
@@ -4087,8 +4432,7 @@ struct BindingTests {
         )
         let original = await ConferenceParticipantPreviewShellLocalFallbackCell(owner: owner)
 
-        _ = try await bindingTestEventuallySet(
-            on: original,
+        _ = try await original.set(
             keypath: "dispatchAction",
             value: .object([
                 "keypath": .string("matchmaking.searchPeople"),
@@ -4101,21 +4445,42 @@ struct BindingTests {
 
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(ConferenceParticipantPreviewShellLocalFallbackCell.self, from: data)
+        let grantContractsBefore = Set(decoded.agreementTemplate.grants.map {
+            "\($0.keypath)\u{0}\($0.permission.permissionString)"
+        })
 
-        var searchSummary: ValueType = .null
-        for _ in 0..<40 {
-            searchSummary = try await bindingTestEventuallyGet(
-                from: decoded,
-                keypath: "state.matches.searchSummary",
-                requester: owner
-            )
-            if searchSummary == .string("Search broadening: governance. No people marked for follow-up yet.") {
-                break
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<24 {
+                group.addTask {
+                    let searchSummary = try await decoded.get(
+                        keypath: "state.matches.searchSummary",
+                        requester: owner
+                    )
+                    #expect(searchSummary == .string("Search broadening: governance. No people marked for follow-up yet."))
+                }
             }
-            try await Task.sleep(nanoseconds: 50_000_000)
+            try await group.waitForAll()
         }
 
-        #expect(searchSummary == .string("Search broadening: governance. No people marked for follow-up yet."))
+        let grantContractsAfter = Set(decoded.agreementTemplate.grants.map {
+            "\($0.keypath)\u{0}\($0.permission.permissionString)"
+        })
+        #expect(grantContractsAfter == grantContractsBefore)
+        #expect(decoded.agreementTemplate.grants.count == grantContractsBefore.count)
+
+        let action = try await decoded.set(
+            keypath: "dispatchAction",
+            value: .object([
+                "keypath": .string("matchmaking.searchPeople"),
+                "payload": .object(["query": .string("identity")])
+            ]),
+            requester: owner
+        )
+        #expect(action != nil)
+        #expect(try await decoded.get(
+            keypath: "state.matches.searchSummary",
+            requester: owner
+        ) == .string("Search broadening: identity. No people marked for follow-up yet."))
     }
 
     @Test func localConferenceAdminPreviewFallbackRestoresAfterCodableRoundTrip() async throws {
@@ -4132,8 +4497,7 @@ struct BindingTests {
         )
         let original = await ConferenceAdminPreviewShellLocalFallbackCell(owner: owner)
 
-        _ = try await bindingTestEventuallySet(
-            on: original,
+        _ = try await original.set(
             keypath: "contentPublishing.setDraftTitle",
             value: .string("Roundtrip title"),
             requester: owner
@@ -4141,21 +4505,39 @@ struct BindingTests {
 
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(ConferenceAdminPreviewShellLocalFallbackCell.self, from: data)
+        let grantContractsBefore = Set(decoded.agreementTemplate.grants.map {
+            "\($0.keypath)\u{0}\($0.permission.permissionString)"
+        })
 
-        var restoredTitle: ValueType = .null
-        for _ in 0..<40 {
-            restoredTitle = try await bindingTestEventuallyGet(
-                from: decoded,
-                keypath: "state.content.draft.title",
-                requester: owner
-            )
-            if restoredTitle == .string("Roundtrip title") {
-                break
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<24 {
+                group.addTask {
+                    let title = try await decoded.get(
+                        keypath: "state.content.draft.title",
+                        requester: owner
+                    )
+                    #expect(title == .string("Roundtrip title"))
+                }
             }
-            try await Task.sleep(nanoseconds: 50_000_000)
+            try await group.waitForAll()
         }
 
-        #expect(restoredTitle == .string("Roundtrip title"))
+        let grantContractsAfter = Set(decoded.agreementTemplate.grants.map {
+            "\($0.keypath)\u{0}\($0.permission.permissionString)"
+        })
+        #expect(grantContractsAfter == grantContractsBefore)
+        #expect(decoded.agreementTemplate.grants.count == grantContractsBefore.count)
+
+        let action = try await decoded.set(
+            keypath: "contentPublishing.setDraftTitle",
+            value: .string("Immediate decoded title"),
+            requester: owner
+        )
+        #expect(action != nil)
+        #expect(try await decoded.get(
+            keypath: "state.content.draft.title",
+            requester: owner
+        ) == .string("Immediate decoded title"))
     }
 
     @Test func effectiveDemoStartConfigurationOverridesNonLauncherStoredConfiguration() {
@@ -6365,37 +6747,10 @@ struct BindingTests {
     }
 
     @Test func portholeAbsorbsCatalogReference() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
-        await AppInitializer.initialize()
-        let resolver: CellResolver
-        if let existing = CellBase.defaultCellResolver as? CellResolver {
-            resolver = existing
-        } else {
-            resolver = CellResolver.sharedInstance
-            CellBase.defaultCellResolver = resolver
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
-            return
-        }
-
-        // Binding registers this in BootstrapView, tests need explicit registration.
-        try? await resolver.addCellResolve(
-            name: "Porthole",
-            cellScope: .identityUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: OrchestratorCell.self
-        )
-        try? await resolver.addCellResolve(
-            name: "ConfigurationCatalog",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: ConfigurationCatalogCell.self
-        )
+        let identity = await makeOwnerIdentity()
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
 
         guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: identity) as? OrchestratorCell else {
             Issue.record("Could not resolve Porthole")
@@ -6828,10 +7183,11 @@ struct BindingTests {
             identityDomain: "private",
             type: OrchestratorCell.self
         )
-        let fixtureEndpoint = "cell:///ConferenceParticipantPreviewShellFixture"
+        let fixtureName = "ConferenceParticipantPreviewShellFixture-\(UUID().uuidString)"
+        let fixtureEndpoint = "cell:///\(fixtureName)"
 
         try? await resolver.addCellResolve(
-            name: "ConferenceParticipantPreviewShellFixture",
+            name: fixtureName,
             cellScope: .scaffoldUnique,
             persistency: .persistant,
             identityDomain: "private",
@@ -6861,7 +7217,21 @@ struct BindingTests {
         #expect(skeletonContainsList(keypath: "conferenceParticipantShell.state.meetings.confirmedMeetings", topic: "conference.meeting.confirmed", in: skeleton))
         #expect(skeletonContainsList(keypath: "conferenceParticipantShell.state.sharedConnections.connections", topic: "conference.shared.connection", in: skeleton))
 
-        try await porthole.loadCellConfiguration(configuration, requester: owner)
+        let fixture = try #require(try await resolver.cellAtEndpoint(
+            endpoint: fixtureEndpoint,
+            requester: owner
+        ) as? Meddle)
+        #expect(try await fixture.get(
+            keypath: "state.workspace.title",
+            requester: owner
+        ) == .string("Conference Participant Portal"))
+
+        do {
+            try await porthole.loadCellConfiguration(configuration, requester: owner)
+        } catch {
+            Issue.record("Could not attach the persisted participant fixture to Porthole: \(error)")
+            return
+        }
 
         let titleValue = try await porthole.get(keypath: "conferenceParticipantShell.state.workspace.title", requester: owner)
         #expect(titleValue == .string("Conference Participant Portal"))
@@ -8828,6 +9198,15 @@ private func titleSubtitleDetailRow(
 private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
+        try? await ensureRuntimeReady()
+    }
+
+    required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    override func installCellRuntimeBindingsForAccess() async throws {
+        let owner = storedOwnerIdentity
         agreementTemplate.addGrant("r---", for: "state")
         agreementTemplate.addGrant("r---", for: "skeletonConfiguration")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
@@ -8844,10 +9223,6 @@ private final class ConferenceParticipantPreviewShellFixtureCell: GeneralCell {
                 "state": .object(Self.stateObject)
             ])
         }
-    }
-
-    required init(from decoder: Decoder) throws {
-        try super.init(from: decoder)
     }
 
     override func encode(to encoder: Encoder) throws {
@@ -9103,6 +9478,43 @@ private final class ConferenceSponsorShellFixtureCell: GeneralCell {
 
 @Suite(.serialized)
 struct CellConfigurationVerifierTests {
+    @Test func verifierRejectsDeniedStateRootsInsteadOfSuppressingThem() {
+        let probe = SkeletonBindingProbeSupport.RootProbe(
+            label: "protectedSurface",
+            rootKeypath: "state"
+        )
+        let failures = CellConfigurationVerifier.unreadableRootProbeFailures(
+            in: [
+                .init(
+                    probe: probe,
+                    durationMilliseconds: 1,
+                    outcome: "denied"
+                )
+            ]
+        )
+
+        #expect(failures[probe] == "denied")
+    }
+
+    @Test func verifierCollectsActionsFromListRowTemplates() {
+        let expected = SkeletonButton(
+            keypath: "dispatchAction",
+            label: "Open row",
+            payloadKeypath: "row.id"
+        )
+        let row = SkeletonVStack(elements: [.Button(expected)])
+        let list = SkeletonList(
+            topic: nil,
+            keypath: "rows",
+            flowElementSkeleton: row
+        )
+
+        let collected = CellConfigurationVerifier.collectStaticButtons(in: .List(list))
+
+        #expect(collected.map(\.label) == ["Open row"])
+        #expect(collected.map(\.keypath) == ["dispatchAction"])
+    }
+
     @Test func conferenceParticipantPortalContractVerifierKeepsBindingsAndActionsReachable() async throws {
         let configuration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration(
             endpoint: "cell:///ConferenceParticipantPreviewShell"
@@ -9355,14 +9767,7 @@ enum CellConfigurationVerifier {
         }
 
         var unreadableRootProbes: [SkeletonBindingProbeSupport.RootProbe: String] {
-            Dictionary(
-                uniqueKeysWithValues: rootProbeResolutions
-                    .filter {
-                        guard !$0.readable else { return false }
-                        return !($0.probe.rootKeypath == "state" && $0.outcome == "denied")
-                    }
-                    .map { ($0.probe, $0.outcome) }
-            )
+            CellConfigurationVerifier.unreadableRootProbeFailures(in: rootProbeResolutions)
         }
 
         var failedActions: [ActionExecution] {
@@ -9467,6 +9872,16 @@ enum CellConfigurationVerifier {
             actionExecutions: actionExecutions,
             loadMilliseconds: loadMilliseconds,
             totalMilliseconds: milliseconds(since: overallStart, clock: clock)
+        )
+    }
+
+    static func unreadableRootProbeFailures(
+        in resolutions: [RootProbeResolution]
+    ) -> [SkeletonBindingProbeSupport.RootProbe: String] {
+        Dictionary(
+            uniqueKeysWithValues: resolutions
+                .filter { !$0.readable }
+                .map { ($0.probe, $0.outcome) }
         )
     }
 
@@ -10466,7 +10881,7 @@ enum CellConfigurationVerifier {
             return []
         }
 
-        let buttons = collectButtons(in: skeleton)
+        let buttons = collectStaticButtons(in: skeleton)
             .filter { allowedLabels.contains($0.label) }
         let clock = ContinuousClock()
         var results: [ActionExecution] = []
@@ -10689,32 +11104,32 @@ enum CellConfigurationVerifier {
         return SkeletonBindingProbeSupport.RootProbe(label: label, rootKeypath: rootKeypath)
     }
 
-    private static func collectButtons(in element: SkeletonElement) -> [SkeletonButton] {
+    static func collectStaticButtons(in element: SkeletonElement) -> [SkeletonButton] {
         switch element {
         case .Button(let button):
             return [button]
         case .VStack(let stack):
-            return stack.elements.flatMap(collectButtons)
+            return stack.elements.flatMap(collectStaticButtons)
         case .HStack(let stack):
-            return stack.elements.flatMap(collectButtons)
+            return stack.elements.flatMap(collectStaticButtons)
         case .ScrollView(let scroll):
-            return scroll.elements.flatMap(collectButtons)
+            return scroll.elements.flatMap(collectStaticButtons)
         case .Section(let section):
-            return (section.header.map(collectButtons) ?? []) +
-                section.content.flatMap(collectButtons) +
-                (section.footer.map(collectButtons) ?? [])
+            return (section.header.map(collectStaticButtons) ?? []) +
+                section.content.flatMap(collectStaticButtons) +
+                (section.footer.map(collectStaticButtons) ?? [])
         case .Reference(let reference):
-            return reference.flowElementSkeleton?.elements.flatMap(collectButtons) ?? []
-        case .List:
-            return []
+            return reference.flowElementSkeleton?.elements.flatMap(collectStaticButtons) ?? []
+        case .List(let list):
+            return list.flowElementSkeleton?.elements.flatMap(collectStaticButtons) ?? []
         case .Grid(let grid):
-            return grid.elements.flatMap(collectButtons)
+            return grid.elements.flatMap(collectStaticButtons)
         case .ZStack(let stack):
-            return stack.elements.flatMap(collectButtons)
+            return stack.elements.flatMap(collectStaticButtons)
         case .Object(let object):
-            return object.elements.values.flatMap(collectButtons)
+            return object.elements.values.flatMap(collectStaticButtons)
         case .Tabs(let tabs):
-            return tabs.panels.flatMap { $0.content.flatMap(collectButtons) }
+            return tabs.panels.flatMap { $0.content.flatMap(collectStaticButtons) }
         default:
             return []
         }
@@ -10800,6 +11215,71 @@ private func bindingTestValueString(_ value: ValueType?) -> String? {
         return nil
     }
     return string
+}
+
+private actor RemoteReadRetryProbeScript {
+    enum Mode {
+        case succeedsOnSecondAttempt
+        case alwaysDenied
+    }
+
+    static let shared = RemoteReadRetryProbeScript()
+
+    private var mode: Mode = .alwaysDenied
+    private var attempts = 0
+
+    func configure(_ mode: Mode) {
+        self.mode = mode
+        attempts = 0
+    }
+
+    func attemptCount() -> Int {
+        attempts
+    }
+
+    func read(cellUUID: String, requester: Identity) throws -> ValueType {
+        attempts += 1
+        if mode == .succeedsOnSecondAttempt, attempts == 2 {
+            return .string("authorized-after-retry")
+        }
+        let request = CellAuthorizationRequest(
+            cellUUID: cellUUID,
+            identityDomain: "binding.remote-read-retry-test",
+            keypath: "state",
+            requestedAccess: "r---",
+            requester: requester
+        )
+        throw CellAuthorizationError.denied(
+            CellAuthorizationDecision(
+                allowed: false,
+                path: .deniedNoGrant,
+                reason: "Injected typed denial for GET reauthorization coverage.",
+                request: request
+            )
+        )
+    }
+}
+
+private final class RemoteReadRetryProbeCell: GeneralCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+        agreementTemplate.addGrant("r---", for: "state")
+        await addInterceptForGet(requester: owner, key: "state") { [weak self] _, requester in
+            guard let self else { throw CancellationError() }
+            return try await RemoteReadRetryProbeScript.shared.read(
+                cellUUID: self.uuid,
+                requester: requester
+            )
+        }
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    nonisolated override func encode(to encoder: Encoder) throws {
+        try super.encode(to: encoder)
+    }
 }
 
 private func bindingTestEventuallyGet(

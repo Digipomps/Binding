@@ -2,34 +2,418 @@ import Foundation
 import CellBase
 import CellApple
 
+nonisolated struct BindingIncomingURLEvent: Identifiable, Equatable {
+    let id: UUID
+    let url: URL
+    let targetWindowNumber: Int?
+    let targetSceneID: UUID?
+}
+
+nonisolated struct BindingIncomingURLLease: Equatable {
+    let event: BindingIncomingURLEvent
+    let token: UUID
+}
+
 enum BindingIncomingURLBridge {
     nonisolated static let notificationName = Notification.Name("BindingIncomingURLBridge.received")
+    nonisolated static let deliveryFailureNotificationName = Notification.Name("BindingIncomingURLBridge.deliveryFailed")
 
-    nonisolated private static let urlKey = "url"
-    nonisolated private static let targetWindowNumberKey = "targetWindowNumber"
+    nonisolated private static let eventKey = "event"
+    private static let maximumPendingEvents = 32
+    private static let leaseLifetime: TimeInterval = 30
+    private struct LeaseRecord {
+        let consumerID: UUID
+        let token: UUID
+        let leasedAt: Date
+    }
+    @MainActor private static var pendingEvents: [BindingIncomingURLEvent] = []
+    @MainActor private static var leasesByEventID: [UUID: LeaseRecord] = [:]
 
-    nonisolated static func post(
+    @discardableResult
+    @MainActor
+    static func post(
         url: URL,
         targetWindowNumber: Int? = nil,
+        targetSceneID: UUID? = nil,
+        now: Date = Date(),
         notificationCenter: NotificationCenter = .default
-    ) {
-        var userInfo: [String: Any] = [urlKey: url]
-        if let targetWindowNumber {
-            userInfo[targetWindowNumberKey] = targetWindowNumber
+    ) -> Bool {
+        reapExpiredLeases(now: now)
+        guard pendingEvents.count < maximumPendingEvents else {
+            return false
         }
+        let event = BindingIncomingURLEvent(
+            id: UUID(),
+            url: url,
+            targetWindowNumber: targetWindowNumber,
+            targetSceneID: targetSceneID
+        )
+        pendingEvents.append(event)
         notificationCenter.post(
             name: notificationName,
             object: nil,
-            userInfo: userInfo
+            userInfo: [eventKey: event]
         )
+        return true
+    }
+
+    /// Production delivery retries bounded-queue backpressure before emitting
+    /// a query-free failure notification that the app can show to the user.
+    @MainActor
+    static func submit(
+        url: URL,
+        targetWindowNumber: Int? = nil,
+        targetSceneID: UUID? = nil,
+        notificationCenter: NotificationCenter = .default,
+        retryDelays: [Duration] = [.milliseconds(150), .milliseconds(500), .seconds(1)]
+    ) {
+        guard !post(
+            url: url,
+            targetWindowNumber: targetWindowNumber,
+            targetSceneID: targetSceneID,
+            notificationCenter: notificationCenter
+        ) else { return }
+
+        Task { @MainActor in
+            for delay in retryDelays {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return }
+                if post(
+                    url: url,
+                    targetWindowNumber: targetWindowNumber,
+                    targetSceneID: targetSceneID,
+                    notificationCenter: notificationCenter
+                ) {
+                    return
+                }
+            }
+            notificationCenter.post(
+                name: deliveryFailureNotificationName,
+                object: nil,
+                userInfo: ["reason": "incoming_url_queue_full"]
+            )
+        }
+    }
+
+    nonisolated static func event(from notification: Notification) -> BindingIncomingURLEvent? {
+        notification.userInfo?[eventKey] as? BindingIncomingURLEvent
     }
 
     nonisolated static func url(from notification: Notification) -> URL? {
-        notification.userInfo?[urlKey] as? URL
+        event(from: notification)?.url
     }
 
     nonisolated static func targetWindowNumber(from notification: Notification) -> Int? {
-        notification.userInfo?[targetWindowNumberKey] as? Int
+        event(from: notification)?.targetWindowNumber
+    }
+
+    @MainActor
+    static func lease(
+        _ event: BindingIncomingURLEvent,
+        consumerID: UUID,
+        hostingWindowNumber: Int?,
+        hostingSceneID: UUID? = nil,
+        now: Date = Date()
+    ) -> BindingIncomingURLLease? {
+        reapExpiredLeases(now: now)
+        guard pendingEvents.contains(where: { $0.id == event.id }),
+              leasesByEventID[event.id] == nil,
+              matches(
+                event: event,
+                hostingWindowNumber: hostingWindowNumber,
+                hostingSceneID: hostingSceneID
+              ) else {
+            return nil
+        }
+        let token = UUID()
+        leasesByEventID[event.id] = LeaseRecord(
+            consumerID: consumerID,
+            token: token,
+            leasedAt: now
+        )
+        return BindingIncomingURLLease(event: event, token: token)
+    }
+
+    @MainActor
+    static func leasePending(
+        consumerID: UUID,
+        hostingWindowNumber: Int?,
+        hostingSceneID: UUID? = nil,
+        now: Date = Date()
+    ) -> [BindingIncomingURLLease] {
+        reapExpiredLeases(now: now)
+        return pendingEvents.compactMap { event in
+            lease(
+                event,
+                consumerID: consumerID,
+                hostingWindowNumber: hostingWindowNumber,
+                hostingSceneID: hostingSceneID,
+                now: now
+            )
+        }
+    }
+
+    /// Leases only the next runnable event. Production consumers use this
+    /// instead of pre-leasing the whole backlog so a lease cannot expire while
+    /// its operation is still waiting behind unrelated route work.
+    @MainActor
+    static func leaseNextPending(
+        consumerID: UUID,
+        hostingWindowNumber: Int?,
+        hostingSceneID: UUID? = nil,
+        now: Date = Date()
+    ) -> BindingIncomingURLLease? {
+        reapExpiredLeases(now: now)
+        guard let event = pendingEvents.first(where: {
+            leasesByEventID[$0.id] == nil
+                && matches(
+                    event: $0,
+                    hostingWindowNumber: hostingWindowNumber,
+                    hostingSceneID: hostingSceneID
+                )
+        }) else {
+            return nil
+        }
+        return lease(
+            event,
+            consumerID: consumerID,
+            hostingWindowNumber: hostingWindowNumber,
+            hostingSceneID: hostingSceneID,
+            now: now
+        )
+    }
+
+    @MainActor
+    static func acknowledge(_ lease: BindingIncomingURLLease, consumerID: UUID) {
+        guard let record = leasesByEventID[lease.event.id],
+              record.consumerID == consumerID,
+              record.token == lease.token else { return }
+        leasesByEventID.removeValue(forKey: lease.event.id)
+        pendingEvents.removeAll { $0.id == lease.event.id }
+    }
+
+    @MainActor
+    static func release(_ lease: BindingIncomingURLLease, consumerID: UUID) {
+        guard let record = leasesByEventID[lease.event.id],
+              record.consumerID == consumerID,
+              record.token == lease.token else { return }
+        leasesByEventID.removeValue(forKey: lease.event.id)
+    }
+
+    @MainActor
+    static func releaseAll(consumerID: UUID) {
+        leasesByEventID = leasesByEventID.filter { $0.value.consumerID != consumerID }
+    }
+
+    @MainActor
+    private static func reapExpiredLeases(now: Date) {
+        leasesByEventID = leasesByEventID.filter {
+            now.timeIntervalSince($0.value.leasedAt) < leaseLifetime
+        }
+    }
+
+    @MainActor
+    static func contains(eventID: UUID) -> Bool {
+        pendingEvents.contains { $0.id == eventID }
+    }
+
+    @MainActor
+    static func leaseCount() -> Int {
+        leasesByEventID.count
+    }
+
+    @MainActor
+    static func removeForTesting(eventID: UUID) {
+        leasesByEventID.removeValue(forKey: eventID)
+        pendingEvents.removeAll { $0.id == eventID }
+    }
+
+    @MainActor
+    static func pendingCount() -> Int {
+        pendingEvents.count
+    }
+
+    @MainActor
+    static func resetForTesting() {
+        pendingEvents.removeAll()
+        leasesByEventID.removeAll()
+    }
+
+    @MainActor
+    private static func matches(
+        event: BindingIncomingURLEvent,
+        hostingWindowNumber: Int?,
+        hostingSceneID: UUID?
+    ) -> Bool {
+#if canImport(AppKit)
+        _ = hostingSceneID
+        guard let targetWindowNumber = event.targetWindowNumber else { return true }
+        return hostingWindowNumber == targetWindowNumber
+#else
+        _ = hostingWindowNumber
+        guard event.targetWindowNumber == nil,
+              let targetSceneID = event.targetSceneID,
+              let hostingSceneID else { return false }
+        return targetSceneID == hostingSceneID
+#endif
+    }
+}
+
+@MainActor
+final class BindingRuntimeRouteExecution {
+    private(set) var isActive = true
+
+    func invalidate() {
+        isActive = false
+    }
+
+    /// Performs a state commit atomically with the active-generation check.
+    /// Cancellation alone is not sufficient because resolver and transport
+    /// operations are allowed to finish after their caller has timed out.
+    @discardableResult
+    func commit(_ operation: @MainActor () -> Void) -> Bool {
+        guard isActive else { return false }
+        operation()
+        return true
+    }
+}
+
+@MainActor
+final class BindingRuntimeRouteQueue {
+    enum Outcome: Equatable {
+        case completed
+        case timedOut
+        case cancelled
+    }
+
+    private struct PendingOperation {
+        let operation: @MainActor (BindingRuntimeRouteExecution) async -> Void
+        let completion: @MainActor (Outcome) -> Void
+    }
+
+    private final class CompletionGate {
+        private var continuation: CheckedContinuation<Outcome, Never>?
+        private var outcome: Outcome?
+
+        func wait() async -> Outcome {
+            if let outcome { return outcome }
+            return await withCheckedContinuation { continuation in
+                if let outcome {
+                    continuation.resume(returning: outcome)
+                } else {
+                    self.continuation = continuation
+                }
+            }
+        }
+
+        func resolve(_ outcome: Outcome) {
+            guard self.outcome == nil else { return }
+            self.outcome = outcome
+            continuation?.resume(returning: outcome)
+            continuation = nil
+        }
+    }
+
+    private let maximumPendingOperations: Int
+    private let operationTimeout: Duration
+    private var pending: [PendingOperation] = []
+    private var worker: Task<Void, Never>?
+    private var runningOperation: Task<Void, Never>?
+    private var runningGate: CompletionGate?
+    private var runningExecution: BindingRuntimeRouteExecution?
+    private var runningOperationID: UUID?
+
+    init(
+        maximumPendingOperations: Int = 32,
+        operationTimeout: Duration = .seconds(20)
+    ) {
+        self.maximumPendingOperations = maximumPendingOperations
+        self.operationTimeout = operationTimeout
+    }
+
+    @discardableResult
+    func enqueue(
+        _ operation: @escaping @MainActor (BindingRuntimeRouteExecution) async -> Void,
+        completion: @escaping @MainActor (Outcome) -> Void = { _ in }
+    ) -> Bool {
+        guard pending.count < maximumPendingOperations else { return false }
+        pending.append(PendingOperation(operation: operation, completion: completion))
+        startWorkerIfNeeded()
+        return true
+    }
+
+    func cancelAll() {
+        let abandoned = pending
+        pending.removeAll(keepingCapacity: false)
+        abandoned.forEach { $0.completion(.cancelled) }
+        runningExecution?.invalidate()
+        runningOperation?.cancel()
+        runningGate?.resolve(.cancelled)
+        worker?.cancel()
+    }
+
+    /// True only when a newly accepted route can become the next operation,
+    /// which lets URL delivery acquire a short-lived bridge lease just in time.
+    var canStartImmediately: Bool {
+        pending.isEmpty && runningOperation == nil
+    }
+
+    private func startWorkerIfNeeded() {
+        guard worker == nil else { return }
+        worker = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled, !pending.isEmpty {
+                let next = pending.removeFirst()
+                let outcome = await runWithTimeout(next.operation)
+                next.completion(outcome)
+            }
+            worker = nil
+            if !pending.isEmpty {
+                startWorkerIfNeeded()
+            }
+        }
+    }
+
+    func waitForIdle() async {
+        while let currentWorker = worker {
+            await currentWorker.value
+        }
+    }
+
+    private func runWithTimeout(
+        _ operation: @escaping @MainActor (BindingRuntimeRouteExecution) async -> Void
+    ) async -> Outcome {
+        let gate = CompletionGate()
+        let execution = BindingRuntimeRouteExecution()
+        let operationID = UUID()
+        let operationTask = Task { @MainActor in
+            await operation(execution)
+            gate.resolve(execution.isActive && !Task.isCancelled ? .completed : .cancelled)
+        }
+        let timeoutTask = Task { @MainActor in
+            try? await Task.sleep(for: operationTimeout)
+            guard !Task.isCancelled else { return }
+            execution.invalidate()
+            gate.resolve(.timedOut)
+        }
+        runningOperation = operationTask
+        runningGate = gate
+        runningExecution = execution
+        runningOperationID = operationID
+
+        let outcome = await gate.wait()
+        if outcome != .completed {
+            execution.invalidate()
+            operationTask.cancel()
+        }
+        timeoutTask.cancel()
+        if runningOperationID == operationID {
+            runningOperation = nil
+            runningGate = nil
+            runningExecution = nil
+            runningOperationID = nil
+        }
+        return outcome
     }
 }
 
@@ -74,6 +458,7 @@ enum BindingLaunchWarmup {
 enum BindingRuntimeBootstrap {
     nonisolated private static let localRuntimeOnlyVerifierFlagPath = "/tmp/binding-verifier-local-runtime.flag"
     nonisolated private static let conferenceAutomationLaunchArgument = "--enable-conference-automation"
+    nonisolated private static let testProcessStorageID = "\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)"
 
     @MainActor
     static func ensureInfrastructureBaseline() async {
@@ -103,6 +488,11 @@ enum BindingRuntimeBootstrap {
         } else if CellBase.typedCellUtility == nil {
             CellBase.typedCellUtility = resolver.tcUtility
         }
+
+        // The app intentionally transitions from a prompt-free startup vault
+        // to the authenticated vault. Keep scaffold-unique resolve ownership
+        // aligned with whichever vault is active before any cell is reused.
+        await resolver.refreshNamedResolveOwnersFromCurrentVault()
 
         try? await resolver.registerDefaultWebSocketBridgeTransports()
         if CellBase.hostname != "localhost", !CellBase.hostname.isEmpty {
@@ -170,7 +560,15 @@ enum BindingRuntimeBootstrap {
         fileManager: FileManager = .default
     ) -> String {
         let rootURL: URL
-        if shouldUseTemporaryDocumentRoot(environment: environment, launchArguments: launchArguments) {
+        if environment["XCTestConfigurationFilePath"] != nil {
+            // Unit-test hosts share NSTemporaryDirectory across invocations.
+            // A process-unique root prevents a new ephemeral signing identity
+            // from adopting resolver metadata persisted by an earlier run.
+            // Tests that prove restart behavior must opt into and pass the same
+            // explicit root themselves.
+            rootURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("Binding/TestRuns/\(testProcessStorageID)/CellDocumentRoot", isDirectory: true)
+        } else if shouldUseTemporaryDocumentRoot(environment: environment, launchArguments: launchArguments) {
             rootURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
                 .appendingPathComponent("Binding/CellDocumentRoot", isDirectory: true)
         } else if let applicationSupportURL = fileManager.urls(

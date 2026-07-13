@@ -61,7 +61,7 @@ final class PersonalAgendaContextCell: GeneralCell {
             lastPermissionSnapshot = Self.permissionSnapshot()
             lastAnswer = Self.emptyAnswer(now: Date(), reason: "Agenda context is ready.")
         }
-        await setup(owner: owner)
+        try? await ensureRuntimeReady()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -74,10 +74,10 @@ final class PersonalAgendaContextCell: GeneralCell {
         lastError = try container.decodeIfPresent(String.self, forKey: .lastError) ?? ""
 
         try super.init(from: decoder)
-        Task { [weak self] in
-            guard let self else { return }
-            await self.setup(owner: self.storedOwnerIdentity)
-        }
+    }
+
+    override func installCellRuntimeBindingsForAccess() async throws {
+        await setup(owner: storedOwnerIdentity)
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {

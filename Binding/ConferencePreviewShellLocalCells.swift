@@ -1,10 +1,6 @@
 import Foundation
 import CellBase
 
-private enum GeneralCellDecodeCodingKeys: String, CodingKey {
-    case owner
-}
-
 private enum ConferenceAdminPreviewCodingKeys: String, CodingKey {
     case discardedDraft
     case draftPublished
@@ -55,24 +51,11 @@ final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
         storeKey = owner.uuid
-        await restoreStoredStateIfAvailable()
-        await configure(owner: owner)
+        try? await ensureRuntimeReady()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: GeneralCellDecodeCodingKeys.self)
-        let decodedOwner = try? container.decodeIfPresent(Identity.self, forKey: .owner)
         try super.init(from: decoder)
-        conferenceRunRestoreSetupSynchronously { [weak self] in
-            guard let self else { return }
-            let restoredOwner = await conferenceRestoredOwner(
-                for: self,
-                decodedOwner: decodedOwner,
-                fallbackOwnerUUID: self.uuid,
-                fallbackDisplayName: "conference-participant-preview-fallback"
-            )
-            await self.restoreDecodedRuntime(owner: restoredOwner)
-        }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -99,7 +82,8 @@ final class ConferenceParticipantPreviewShellLocalFallbackCell: GeneralCell {
         recentActionSummary = storedState.recentActionSummary
     }
 
-    private func restoreDecodedRuntime(owner: Identity) async {
+    override func installCellRuntimeBindingsForAccess() async throws {
+        let owner = storedOwnerIdentity
         storeKey = owner.uuid
         await restoreStoredStateIfAvailable()
         await configure(owner: owner)
@@ -759,12 +743,10 @@ final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
-        await configure(owner: owner)
+        try? await ensureRuntimeReady()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: GeneralCellDecodeCodingKeys.self)
-        let decodedOwner = try? container.decodeIfPresent(Identity.self, forKey: .owner)
         let stateContainer = try? decoder.container(keyedBy: ConferenceAdminPreviewCodingKeys.self)
         let decodedDiscardedDraft = try? stateContainer?.decodeIfPresent(Bool.self, forKey: .discardedDraft)
         let decodedDraftPublished = try? stateContainer?.decodeIfPresent(Bool.self, forKey: .draftPublished)
@@ -772,30 +754,25 @@ final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
         let decodedDraftTitle = try? stateContainer?.decodeIfPresent(String.self, forKey: .draftTitle)
         let decodedLastEditSummary = try? stateContainer?.decodeIfPresent(String.self, forKey: .lastEditSummary)
         try super.init(from: decoder)
-        conferenceRunRestoreSetupSynchronously { [weak self] in
-            guard let self else { return }
-            let restoredOwner = await conferenceRestoredOwner(
-                for: self,
-                decodedOwner: decodedOwner,
-                fallbackDisplayName: "conference-admin-preview-fallback"
-            )
-            await self.configure(owner: restoredOwner)
-            if let decodedDiscardedDraft {
-                self.discardedDraft = decodedDiscardedDraft
-            }
-            if let decodedDraftPublished {
-                self.draftPublished = decodedDraftPublished
-            }
-            if let decodedDraftSubtitle, decodedDraftSubtitle.isEmpty == false {
-                self.draftSubtitle = decodedDraftSubtitle
-            }
-            if let decodedDraftTitle, decodedDraftTitle.isEmpty == false {
-                self.draftTitle = decodedDraftTitle
-            }
-            if let decodedLastEditSummary, decodedLastEditSummary.isEmpty == false {
-                self.lastEditSummary = decodedLastEditSummary
-            }
+        if let decodedDiscardedDraft {
+            discardedDraft = decodedDiscardedDraft
         }
+        if let decodedDraftPublished {
+            draftPublished = decodedDraftPublished
+        }
+        if let decodedDraftSubtitle, decodedDraftSubtitle.isEmpty == false {
+            draftSubtitle = decodedDraftSubtitle
+        }
+        if let decodedDraftTitle, decodedDraftTitle.isEmpty == false {
+            draftTitle = decodedDraftTitle
+        }
+        if let decodedLastEditSummary, decodedLastEditSummary.isEmpty == false {
+            lastEditSummary = decodedLastEditSummary
+        }
+    }
+
+    override func installCellRuntimeBindingsForAccess() async throws {
+        await configure(owner: storedOwnerIdentity)
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {

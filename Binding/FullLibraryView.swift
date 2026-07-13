@@ -1495,6 +1495,7 @@ final class FullLibraryViewModel: ObservableObject {
     enum LibraryError: Error {
         case resolverUnavailable
         case identityUnavailable
+        case runtimeRegistrationUnavailable
         case catalogUnavailable
         case catalogCandidateTimedOut(String)
         case catalogOperationTimedOut(String, String)
@@ -1818,8 +1819,7 @@ final class FullLibraryViewModel: ObservableObject {
         if runtimeBootstrapIsReady {
             bootstrapWatchTask?.cancel()
             bootstrapWatchTask = nil
-            await BindingLocalCellRegistration.shared.ensureRegistered()
-            return true
+            return await BindingLocalCellRegistration.shared.ensureRegistered()
         }
 
         if bootstrapWatchTask == nil {
@@ -1827,11 +1827,17 @@ final class FullLibraryViewModel: ObservableObject {
                 if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
                     await AppInitializer.initialize()
                 }
-                await BindingLocalCellRegistration.shared.ensureRegistered()
+                let registered = await BindingLocalCellRegistration.shared.ensureRegistered()
                 await MainActor.run {
                     guard let self else { return }
                     self.bootstrapWatchTask = nil
-                    guard self.runtimeBootstrapIsReady else { return }
+                    guard self.runtimeBootstrapIsReady, registered else {
+                        self.availability = .unavailable(
+                            reason: "De lokale HAVEN-cellene kunne ikke valideres. Full Library åpnes ikke med en delvis initialisert runtime."
+                        )
+                        self.statusLine = "Runtime-validering feilet. Prøv oppdatering på nytt."
+                        return
+                    }
                     Task { @MainActor [weak self] in
                         await self?.refreshNow()
                     }
@@ -2245,7 +2251,9 @@ final class FullLibraryViewModel: ObservableObject {
         if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
             await AppInitializer.initialize()
         }
-        await BindingLocalCellRegistration.shared.ensureRegistered()
+        guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
+            throw LibraryError.runtimeRegistrationUnavailable
+        }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw LibraryError.resolverUnavailable
         }

@@ -400,6 +400,12 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
+    private let incomingURLSceneID: UUID?
+
+    init(incomingURLSceneID: UUID? = nil) {
+        self.incomingURLSceneID = incomingURLSceneID
+    }
+
     private enum ConferenceNavigationMode {
         case automatic
         case reset
@@ -610,6 +616,9 @@ struct ContentView: View {
     @State private var initialRuntimeBootstrapTask: Task<Void, Never>?
     @State private var conferenceNavigationStack: [CellConfiguration] = []
     @State private var hostingWindowNumber: Int?
+    @State private var incomingURLConsumerID = UUID()
+    @State private var runtimeRouteQueue = BindingRuntimeRouteQueue()
+    @State private var runtimeRouteDeliveryActive = false
     @StateObject private var componentPlacementState = ComponentPlacementState()
     @StateObject private var diagnosticsStore = BindingRuntimeDiagnostics.shared
     @State private var personalCopilotDestination: BindingPersonalCopilotDestination = .personalHome
@@ -756,15 +765,20 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            runtimeRouteDeliveryActive = true
             floatingPanelsController.setEditing(
                 editorMode == .edit,
                 editorState: editorState,
                 componentsPanelRootView: componentsFloatingPanelRootView
             )
+            drainPendingIncomingURLs()
         }
         .onDisappear {
+            runtimeRouteDeliveryActive = false
             floatingPanelsController.closePanels()
             configurationLoadTask?.cancel()
+            runtimeRouteQueue.cancelAll()
+            BindingIncomingURLBridge.releaseAll(consumerID: incomingURLConsumerID)
         }
         .onReceive(viewModel.$currentSkeleton) { next in
             if !editorState.isEditing {
@@ -787,6 +801,9 @@ struct ContentView: View {
             }
             personalCopilotDestination = destination
             personalCopilotPhoneTab = destination.phoneTab
+        }
+        .onChange(of: hostingWindowNumber) { _, _ in
+            drainPendingIncomingURLs()
         }
         .onChange(of: editorMode) { _, _ in
             refreshDiagnosticsValidation()
@@ -820,11 +837,8 @@ struct ContentView: View {
         .onReceive(
             NotificationCenter.default.publisher(for: BindingIncomingURLBridge.notificationName)
         ) { notification in
-            guard let url = BindingIncomingURLBridge.url(from: notification) else { return }
-            handleIncomingURL(
-                url,
-                targetWindowNumber: BindingIncomingURLBridge.targetWindowNumber(from: notification)
-            )
+            guard BindingIncomingURLBridge.event(from: notification) != nil else { return }
+            drainPendingIncomingURLs()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: BindingRuntimeSurfaceLaunchBridge.notificationName)
@@ -840,8 +854,24 @@ struct ContentView: View {
                 )
                 return
             }
-            Task {
-                await openRuntimeSurfaceLaunch(request, explicitRequester: event.requester)
+            let accepted = runtimeRouteQueue.enqueue { execution in
+                await openRuntimeSurfaceLaunch(
+                    request,
+                    explicitRequester: event.requester,
+                    execution: execution
+                )
+            } completion: { outcome in
+                if outcome == .timedOut {
+                    recordRuntimeSurfaceLaunchFailure("runtime_route_timed_out")
+                } else if outcome == .cancelled {
+                    recordRuntimeSurfaceLaunchFailure("runtime_route_cancelled")
+                }
+                if runtimeRouteDeliveryActive {
+                    drainPendingIncomingURLs()
+                }
+            }
+            if !accepted {
+                recordRuntimeSurfaceLaunchFailure("runtime_route_queue_full")
             }
         }
         .onReceive(
@@ -1648,7 +1678,10 @@ struct ContentView: View {
     @MainActor
     private func stageContextualCopilotHelp(_ payload: Object) async {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+            loadErrorMessage = "Kunne ikke klargjøre Co-Pilot-hjelp fordi de lokale HAVEN-cellene ikke kunne valideres."
+            return
+        }
 
         var requester = await startupRequesterIdentity()
         if requester == nil {
@@ -1891,7 +1924,10 @@ struct ContentView: View {
                 )
 
             if shouldLoadWithoutAuthenticatedRuntimeBootstrap(startupConfiguration) {
-                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+                guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+                    loadErrorMessage = "Kunne ikke åpne startflaten fordi de lokale HAVEN-cellene ikke kunne valideres. Prøv igjen."
+                    return
+                }
                 await repairPersistedConferenceLauncherIfNeeded()
                 await repairPersistedConferencePortalIfNeeded()
                 await repairPersistedConferenceControlTowerIfNeeded()
@@ -1903,11 +1939,17 @@ struct ContentView: View {
             }
 
             if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+                guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+                    loadErrorMessage = "Kunne ikke klargjøre den lokale HAVEN-runtime-en."
+                    return
+                }
             } else {
                 await AppInitializer.initialize()
             }
-            await BindingLocalCellRegistration.shared.ensureRegistered()
+            guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
+                loadErrorMessage = "Kunne ikke validere HAVEN-runtime etter autentisering. Prøv igjen."
+                return
+            }
             await repairPersistedConferencePortalIfNeeded()
             await repairPersistedConferenceControlTowerIfNeeded()
             await viewModel.connectIfNeeded()
@@ -2007,7 +2049,14 @@ struct ContentView: View {
 
     @MainActor
     private func refreshMenusFromCatalogIfAvailable() async {
-        await BindingLocalCellRegistration.shared.ensureRegistered()
+        guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
+            diagnosticsStore.record(
+                severity: .error,
+                domain: "binding.catalog",
+                message: "Oppdatering av menyer ble stoppet fordi lokal runtime-registrering ikke kunne valideres."
+            )
+            return
+        }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
         guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else { return }
 
@@ -2151,12 +2200,10 @@ struct ContentView: View {
     }
 
     private func configuredCatalogSources() -> [CatalogSource] {
-        let raw = ProcessInfo.processInfo.environment["BINDING_REMOTE_CATALOG_ENDPOINTS"] ?? ""
-        let separators = CharacterSet(charactersIn: ",;\n")
-        let remoteEndpoints = raw
-            .components(separatedBy: separators)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let remoteEndpoints = BindingRuntimeSurfaceLaunchSupport.configuredRemoteCatalogEndpoints(
+            environment: ProcessInfo.processInfo.environment,
+            defaultEndpoint: "cell://\(Self.stagingHost)/ConfigurationCatalog"
+        )
 
         var sources: [CatalogSource] = []
         var seen: Set<String> = []
@@ -2164,7 +2211,7 @@ struct ContentView: View {
         sources.append(CatalogSource(endpoint: localEndpoint, allowSync: true))
         seen.insert(localEndpoint.lowercased())
 
-        for endpoint in remoteEndpoints + ["cell://\(Self.stagingHost)/ConfigurationCatalog"] {
+        for endpoint in remoteEndpoints {
             let key = endpoint.lowercased()
             guard seen.insert(key).inserted else { continue }
             sources.append(CatalogSource(endpoint: endpoint, allowSync: false))
@@ -3046,6 +3093,13 @@ struct ContentView: View {
             environment: ProcessInfo.processInfo.environment,
             launchArguments: ProcessInfo.processInfo.arguments,
             persistedOptIn: UserDefaults.standard.bool(forKey: Self.conferenceAutomationDefaultsKey)
+        )
+    }
+
+    private var conferencePreviewFixtureFallbackEnabled: Bool {
+        Self.conferencePreviewFixtureFallbackEnabled(
+            environment: ProcessInfo.processInfo.environment,
+            launchArguments: ProcessInfo.processInfo.arguments
         )
     }
 
@@ -4003,156 +4057,218 @@ struct ContentView: View {
         queueConfigurationLoad(fallbackConfiguration, navigationMode: .reset)
     }
 
-    private func handleIncomingURL(_ url: URL, targetWindowNumber: Int? = nil) {
-        Task {
-            guard shouldHandleIncomingURL(targetWindowNumber: targetWindowNumber) else { return }
-            if let hook = Self.conferenceAutomationHook(from: url) {
-                let automationEnabled = await MainActor.run {
-                    conferenceAutomationOptInEnabled
-                }
-                guard automationEnabled else {
-                    await MainActor.run {
-                        loadErrorMessage = "Conference automation-deeplinks er av inntil du eksplisitt aktiverer debug-automation."
-                        diagnosticsStore.record(
-                            severity: .warning,
-                            domain: "binding.automation",
-                            message: "Ignorerte \(url.absoluteString) fordi conference automation ikke er aktivert."
-                        )
-                    }
-                    return
-                }
-                await performConferenceAutomation(hook)
-                return
-            }
-            switch BindingRuntimeSurfaceLaunchSupport.parse(url) {
-            case .accepted(let request):
-                await openRuntimeSurfaceLaunch(request)
-                return
-            case .rejected(let reason):
-                await MainActor.run {
-                    loadErrorMessage = "Kunne ikke åpne runtime-flaten fordi deeplink-kontrakten er ugyldig."
-                    diagnosticsStore.record(
-                        severity: .warning,
-                        domain: "binding.runtimeLaunch",
-                        message: "Avviste runtime surface launch: \(reason)."
-                    )
-                }
-                return
-            case .notLaunchRoute:
-                break
-            }
-            let accepted = await ConferenceIdentityLinkInboxStore.shared.ingest(url: url)
-            guard accepted else { return }
-            await MainActor.run {
-                diagnosticsStore.record(
-                    domain: "binding.identityLink",
-                    message: "Åpner Conference Scaffold Setup & Identity Link fra validert deeplink."
+    @MainActor
+    private func drainPendingIncomingURLs() {
+        guard runtimeRouteQueue.canStartImmediately,
+              let lease = BindingIncomingURLBridge.leaseNextPending(
+            consumerID: incomingURLConsumerID,
+            hostingWindowNumber: hostingWindowNumber,
+            hostingSceneID: incomingURLSceneID
+              ) else { return }
+        enqueueIncomingURL(lease)
+    }
+
+    @MainActor
+    private func enqueueIncomingURL(_ lease: BindingIncomingURLLease) {
+        let accepted = runtimeRouteQueue.enqueue { execution in
+            await processIncomingURL(lease.event.url, execution: execution)
+        } completion: { outcome in
+            if outcome == .completed {
+                BindingIncomingURLBridge.acknowledge(
+                    lease,
+                    consumerID: incomingURLConsumerID
                 )
-                if editorMode == .edit {
-                    editorMode = .view
-                }
-                queueConfigurationLoad(
-                    Self.conferenceIdentityLinkMenuSeedConfiguration(),
-                    navigationMode: .automatic
+            } else {
+                BindingIncomingURLBridge.release(
+                    lease,
+                    consumerID: incomingURLConsumerID
                 )
             }
+            if runtimeRouteDeliveryActive {
+                drainPendingIncomingURLs()
+            }
+        }
+        if !accepted {
+            BindingIncomingURLBridge.release(
+                lease,
+                consumerID: incomingURLConsumerID
+            )
         }
     }
 
+    @MainActor
+    private func processIncomingURL(
+        _ url: URL,
+        execution: BindingRuntimeRouteExecution
+    ) async {
+        if let hook = Self.conferenceAutomationHook(from: url) {
+            guard execution.isActive else { return }
+            let automationEnabled = conferenceAutomationOptInEnabled
+            guard automationEnabled else {
+                execution.commit {
+                    loadErrorMessage = "Conference automation-deeplinks er av inntil du eksplisitt aktiverer debug-automation."
+                    diagnosticsStore.record(
+                        severity: .warning,
+                        domain: "binding.automation",
+                        message: Self.conferenceAutomationDisabledDiagnostic(for: hook)
+                    )
+                }
+                return
+            }
+            guard execution.isActive else { return }
+            await performConferenceAutomation(hook)
+            return
+        }
+        switch BindingRuntimeSurfaceLaunchSupport.parse(url) {
+        case .accepted(let request):
+            await openRuntimeSurfaceLaunch(request, execution: execution)
+            return
+        case .rejected(let reason):
+            execution.commit {
+                loadErrorMessage = "Kunne ikke åpne runtime-flaten fordi deeplink-kontrakten er ugyldig."
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.runtimeLaunch",
+                    message: "Avviste runtime surface launch: \(reason)."
+                )
+            }
+            return
+        case .notLaunchRoute:
+            break
+        }
+        let accepted = await ConferenceIdentityLinkInboxStore.shared.ingest(url: url)
+        guard accepted, execution.isActive else { return }
+        execution.commit {
+            diagnosticsStore.record(
+                domain: "binding.identityLink",
+                message: "Åpner Conference Scaffold Setup & Identity Link fra validert deeplink."
+            )
+            if editorMode == .edit {
+                editorMode = .view
+            }
+            queueConfigurationLoad(
+                Self.conferenceIdentityLinkMenuSeedConfiguration(),
+                navigationMode: .automatic
+            )
+        }
+    }
+
+    @MainActor
     private func openRuntimeSurfaceLaunch(
         _ request: BindingRuntimeSurfaceLaunchRequest,
-        explicitRequester: Identity? = nil
+        explicitRequester: Identity? = nil,
+        execution: BindingRuntimeRouteExecution
     ) async {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        guard execution.isActive else { return }
+        guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+            execution.commit { recordRuntimeSurfaceLaunchFailure("local_runtime_registration_failed") }
+            return
+        }
+        guard execution.isActive else { return }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            await recordRuntimeSurfaceLaunchFailure("resolver_unavailable")
+            execution.commit { recordRuntimeSurfaceLaunchFailure("resolver_unavailable") }
             return
         }
         let requester: Identity
         if let explicitRequester {
             requester = explicitRequester
         } else {
-            let fallbackRequester = await privateRequesterIdentity()
+            let activeRequester = await privateRequesterIdentity()
+            guard execution.isActive else { return }
             let startupRequester = await startupRequesterIdentity()
-            guard let externalLinkRequester = startupRequester ?? fallbackRequester else {
-                await recordRuntimeSurfaceLaunchFailure("requester_unavailable")
+            guard execution.isActive else { return }
+            guard let externalLinkRequester = activeRequester ?? startupRequester else {
+                execution.commit { recordRuntimeSurfaceLaunchFailure("requester_unavailable") }
                 return
             }
             requester = externalLinkRequester
         }
 
+        // Runtime-launch sources are entirely runtime-configurable. The local
+        // menu catalog is not implicitly authoritative for an external link;
+        // operators can opt it in explicitly through the same environment
+        // contract when that is intended.
         let catalogEndpoints = BindingRuntimeSurfaceLaunchSupport.orderedCatalogEndpoints(
-            configuredCatalogSources().map(\.endpoint)
+            BindingRuntimeSurfaceLaunchSupport.configuredRemoteCatalogEndpoints(
+                environment: ProcessInfo.processInfo.environment,
+                defaultEndpoint: "cell://\(Self.stagingHost)/ConfigurationCatalog"
+            )
         )
-        for catalogEndpoint in catalogEndpoints {
-            guard let registryEndpoint = BindingRuntimeSurfaceLaunchSupport.registryEndpoint(
-                forCatalogEndpoint: catalogEndpoint
-            ) else {
-                continue
-            }
+        let discovery = await BindingRuntimeSurfaceLaunchSupport.discoverCatalogCandidates(
+            surfaceID: request.surfaceID,
+            catalogEndpoints: catalogEndpoints,
+            isActive: { execution.isActive }
+        ) { catalogEndpoint, registryEndpoint in
             if let origin = catalogOrigin(from: catalogEndpoint) {
                 registerRemoteCatalogHostIfNeeded(origin, resolver: resolver)
             }
-            guard let registry = try? await RemoteEndpointAccessSupport.resolveMeddle(
+            return try await RemoteEndpointAccessSupport.readValue(
                 endpoint: registryEndpoint,
+                keypath: BindingRuntimeSurfaceLaunchSupport.publishedRoutesKeypath,
                 resolver: resolver,
                 requester: requester,
                 accessLabel: "binding.runtimeLaunch.registry"
-            ), let routesValue = try? await registry.get(
-                keypath: BindingRuntimeSurfaceLaunchSupport.publishedRoutesKeypath,
-                requester: requester
-            ), let lookupPayload = BindingRuntimeSurfaceLaunchSupport.resolveLaunchPayload(
-                surfaceID: request.surfaceID,
-                routesValue: routesValue,
-                registryEndpoint: registryEndpoint
-            ) else {
-                continue
-            }
+            )
+        }
+        guard execution.isActive else { return }
+        let launchCandidates = discovery.candidates
 
-            guard let catalog = try? await RemoteEndpointAccessSupport.resolveMeddle(
-                endpoint: catalogEndpoint,
+        guard launchCandidates.count <= 1 else {
+            execution.commit { recordRuntimeSurfaceLaunchFailure("ambiguous_surface_id") }
+            return
+        }
+        guard let selected = launchCandidates.first else {
+            let failure = discovery.failedSourceCount == catalogEndpoints.count
+                ? "registry_sources_unavailable_or_denied"
+                : "surface_not_published"
+            execution.commit { recordRuntimeSurfaceLaunchFailure(failure) }
+            return
+        }
+        let selectedOrigin = catalogOrigin(from: selected.catalogEndpoint)
+
+        let configurationsValue: ValueType
+        do {
+            configurationsValue = try await RemoteEndpointAccessSupport.readValue(
+                endpoint: selected.catalogEndpoint,
+                keypath: "configurations",
                 resolver: resolver,
                 requester: requester,
                 accessLabel: "binding.runtimeLaunch.catalog"
-            ), let configurationsValue = try? await catalog.get(
-                keypath: "configurations",
-                requester: requester
-            ) else {
-                continue
-            }
-
-            let origin = catalogOrigin(from: catalogEndpoint)
-            let candidates = CellConfigurationPayloadSupport
-                .decodeConfigurations(from: configurationsValue)
-                .map {
-                    normalizeConfigurationForResolver(
-                        $0,
-                        origin: origin,
-                        resolver: resolver
-                    )
-                }
-            guard let preparedConfiguration = CellConfigurationPayloadSupport.resolveCellConfiguration(
-                from: lookupPayload,
-                candidates: candidates
-            ) else {
-                continue
-            }
-            let sourceKind = origin == nil ? "local_fallback" : "owner_remote_catalog"
-            await MainActor.run {
-                diagnosticsStore.record(
-                    domain: "binding.runtimeLaunch",
-                    message: "Runtime launch åpner owner-publisert surfaceID \(request.surfaceID) fra \(sourceKind)."
-                )
-                if editorMode == .edit {
-                    editorMode = .view
-                }
-                queueConfigurationLoad(preparedConfiguration, navigationMode: .automatic)
-            }
+            )
+            guard execution.isActive else { return }
+        } catch {
+            execution.commit { recordRuntimeSurfaceLaunchFailure("catalog_unavailable_or_denied") }
             return
         }
 
-        await recordRuntimeSurfaceLaunchFailure("surface_not_published")
+        let candidates = CellConfigurationPayloadSupport
+            .decodeConfigurations(from: configurationsValue)
+            .map {
+                normalizeConfigurationForResolver(
+                    $0,
+                    origin: selectedOrigin,
+                    resolver: resolver
+                )
+            }
+        guard let preparedConfiguration = CellConfigurationPayloadSupport.resolveCellConfiguration(
+            from: selected.lookupPayload,
+            candidates: candidates
+        ) else {
+            execution.commit { recordRuntimeSurfaceLaunchFailure("published_configuration_missing") }
+            return
+        }
+        let sourceKind = selectedOrigin == nil ? "runtime_local_catalog" : "owner_remote_catalog"
+        execution.commit {
+            diagnosticsStore.record(
+                domain: "binding.runtimeLaunch",
+                message: "Runtime launch åpner owner-publisert surfaceID \(request.surfaceID) fra \(sourceKind)."
+            )
+            if editorMode == .edit {
+                editorMode = .view
+            }
+            queueConfigurationLoad(preparedConfiguration, navigationMode: .automatic)
+        }
     }
 
     @MainActor
@@ -4380,7 +4496,12 @@ struct ContentView: View {
     }
 
     private func logConferenceAIAssistantState() async {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            await MainActor.run {
+                loadErrorMessage = "Conference-runtime kunne ikke valideres."
+            }
+            return
+        }
         guard let requester = await startupRequesterIdentity() else {
             await MainActor.run {
                 let message = "Conference AI state-log mangler startup-identitet."
@@ -4506,7 +4627,12 @@ struct ContentView: View {
         actionKeypath: String,
         payload: ValueType = .null
     ) async -> Bool {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            await MainActor.run {
+                loadErrorMessage = "Conference-runtime kunne ikke valideres."
+            }
+            return false
+        }
         guard let requester = await startupRequesterIdentity() else {
             await MainActor.run {
                 loadErrorMessage = "Conference automation mangler startup-identitet."
@@ -4586,7 +4712,12 @@ struct ContentView: View {
         actionKeypath: String,
         payload: ValueType = .null
     ) async -> Bool {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            await MainActor.run {
+                loadErrorMessage = "Conference-runtime kunne ikke valideres."
+            }
+            return false
+        }
         guard let requester = await startupRequesterIdentity() else {
             await MainActor.run {
                 loadErrorMessage = "Conference automation mangler startup-identitet."
@@ -4730,12 +4861,16 @@ struct ContentView: View {
         configurationName: String
     ) async -> Bool {
         if runtimeBootstrapIsReady {
-            await BindingLocalCellRegistration.shared.ensureRegistered()
+            guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
+                return reportRuntimeRegistrationFailure(configurationName: configurationName)
+            }
             return true
         }
 
         if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+                return reportRuntimeRegistrationFailure(configurationName: configurationName)
+            }
             return true
         }
 
@@ -4748,9 +4883,12 @@ struct ContentView: View {
             await AppInitializer.initialize()
         }
         await BindingRuntimeBootstrap.ensureBaseline()
-        await BindingLocalCellRegistration.shared.ensureRegistered()
-        if runtimeBootstrapIsReady {
+        let initiallyRegistered = await BindingLocalCellRegistration.shared.ensureRegistered()
+        if runtimeBootstrapIsReady, initiallyRegistered {
             return true
+        }
+        if runtimeBootstrapIsReady, !initiallyRegistered {
+            return reportRuntimeRegistrationFailure(configurationName: configurationName)
         }
 
         let maxAttempts = 60
@@ -4759,6 +4897,9 @@ struct ContentView: View {
         for attempt in 1...maxAttempts {
             guard !Task.isCancelled else { return false }
             if runtimeBootstrapIsReady {
+                guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
+                    return reportRuntimeRegistrationFailure(configurationName: configurationName)
+                }
                 return true
             }
             if attempt == 1 || attempt.isMultiple(of: 10) {
@@ -4774,6 +4915,18 @@ struct ContentView: View {
         }
 
         let message = "Runtime ble ikke klar i tide. Bekreft autentisering og prøv igjen."
+        loadErrorMessage = message
+        diagnosticsStore.record(
+            severity: .error,
+            domain: "binding.load",
+            message: "\(message) [\(configurationName)]"
+        )
+        return false
+    }
+
+    @MainActor
+    private func reportRuntimeRegistrationFailure(configurationName: String) -> Bool {
+        let message = "De lokale HAVEN-cellene kunne ikke valideres. Ingen delvis initialisert arbeidsflate ble åpnet. Prøv igjen."
         loadErrorMessage = message
         diagnosticsStore.record(
             severity: .error,
@@ -4887,7 +5040,10 @@ struct ContentView: View {
         guard !Task.isCancelled else { return }
         if shouldLoadWithoutAuthenticatedRuntimeBootstrap(sanitizedConfiguration) {
             await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+                _ = reportRuntimeRegistrationFailure(configurationName: sanitizedConfiguration.name)
+                return
+            }
             updateLoadingStatus("Laster lokal konfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
             let startupRequester = await startupRequesterIdentity()
             let localRequester: Identity?
@@ -4924,7 +5080,10 @@ struct ContentView: View {
             ) else { return }
         } else {
             await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+                _ = reportRuntimeRegistrationFailure(configurationName: sanitizedConfiguration.name)
+                return
+            }
         }
 
         updateLoadingStatus("Normaliserer references for \(sanitizedConfiguration.name)…", requestID: requestID)
@@ -5001,7 +5160,8 @@ struct ContentView: View {
            !references.isEmpty {
             updateLoadingStatus("Sjekker tilgjengelige bridge-references…", requestID: requestID)
             let probeResult = await probeFailingTopLevelReferences(in: normalizedConfiguration)
-            if let fallbackConfiguration = localConferencePreviewFallbackConfiguration(
+            if conferencePreviewFixtureFallbackEnabled,
+               let fallbackConfiguration = localConferencePreviewFallbackConfiguration(
                 for: loadConfiguration,
                 failureDetails: [probeResult.firstFailureMessage].compactMap { $0 }
             ) {
@@ -5058,7 +5218,11 @@ struct ContentView: View {
 
         guard !Task.isCancelled else { return }
         updateLoadingStatus("Absorberer \(loadConfiguration.name) i porthole…", requestID: requestID)
-        let didLoad = await loadConfigurationIntoPorthole(loadConfiguration, requestID: requestID)
+        let didLoad = await loadConfigurationIntoPorthole(
+            loadConfiguration,
+            requestID: requestID,
+            allowConferencePreviewFallback: conferencePreviewFixtureFallbackEnabled
+        )
         guard didLoad else { return }
         diagnosticsStore.record(
             domain: "binding.load",
@@ -5163,15 +5327,25 @@ struct ContentView: View {
     private func loadConfigurationIntoPorthole(
         _ configuration: CellConfiguration,
         requestID: UUID,
-        allowConferencePreviewFallback: Bool = true
+        allowConferencePreviewFallback: Bool = false
     ) async -> Bool {
         let unauthenticatedConferenceLoad = shouldLoadWithoutAuthenticatedRuntimeBootstrap(configuration)
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let portholeIdentity = await (unauthenticatedConferenceLoad ? startupRequesterIdentity() : privateRequesterIdentity()),
               let porthole = try? await resolver.cellAtEndpoint(endpoint: Self.portholeEndpoint, requester: portholeIdentity) as? OrchestratorCell
         else {
-            await viewModel.load(configuration: configuration)
-            return true
+            let message = "Kunne ikke laste \(configuration.name): Porthole-runtime er ikke tilgjengelig."
+            diagnosticsStore.record(
+                severity: .error,
+                domain: "binding.load",
+                message: message
+            )
+            loadErrorMessage = message
+            viewModel.currentSkeleton = failurePlaceholderSkeleton(
+                for: configuration,
+                detail: "Porthole-runtime mangler eller kunne ikke åpnes med aktiv identitet."
+            )
+            return false
         }
 
         let loadRequester: Identity
@@ -5314,15 +5488,18 @@ struct ContentView: View {
                 )
             }
             let failureSummary = summarizeBindingFailuresForUser(failures)
-            let message = "Noen data for \(configuration.name) er fortsatt utilgjengelige. Viser UI mens forbindelsen varmes opp. \(failureSummary)"
+            let message = "Kunne ikke laste støttede data for \(configuration.name). \(failureSummary)"
             diagnosticsStore.record(
-                severity: .warning,
+                severity: .error,
                 domain: "binding.load",
                 message: message
             )
             loadErrorMessage = message
-            refreshLegacyPortholeBindings(reason: "best-effort readable roots for \(configuration.name)")
-            return true
+            viewModel.currentSkeleton = failurePlaceholderSkeleton(
+                for: configuration,
+                detail: failureSummary
+            )
+            return false
         }
     }
 
@@ -6929,35 +7106,23 @@ struct ContentView: View {
             fallback: identity
         ) ?? identity
 
-        guard let cell = try? await resolveRemoteConfigurationCell(
+        let recoveryKeypaths = ["skeletonConfiguration", "purposeGoal", "configuration"]
+        let recoveryResult = await recoveredConfigurationValues(
             endpoint: endpoint,
             resolver: resolver,
-            requester: requester
-        )
-        else {
-            return await cachedRecoveredConfiguration(
-                for: endpoint,
-                resolver: resolver
-            )
-        }
-
-        let recoveryKeypaths = ["skeletonConfiguration", "purposeGoal", "configuration"]
-        let recoveredValues = await recoveredConfigurationValues(
-            from: cell,
             requester: requester,
             keypaths: recoveryKeypaths
         )
-
-        for keypath in recoveryKeypaths {
-            guard let value = recoveredValues[keypath],
-                  let recoveredConfiguration = PortableSurfaceContractSupport.extractConfiguration(from: value)
-            else {
-                continue
-            }
-
+        switch PortableSurfaceContractSupport.recoveryDecision(
+            values: recoveryResult.values,
+            orderedKeypaths: recoveryKeypaths,
+            authorizationDenied: recoveryResult.authorizationDenied
+        ) {
+        case .live(let recoveredConfiguration):
             await PortableSurfaceCacheStore.shared.storeConfiguration(
                 recoveredConfiguration,
-                endpoint: endpoint
+                endpoint: endpoint,
+                requester: requester
             )
             let origin = catalogOrigin(from: endpoint)
             let normalized = normalizeConfigurationForResolver(
@@ -6965,39 +7130,86 @@ struct ContentView: View {
                 origin: origin,
                 resolver: resolver
             )
-            guard let sanitized = sanitizedLoadedConfiguration(normalized, allowReferenceFree: false),
-                  !isEmitterConfiguration(sanitized)
-            else {
-                continue
+            if let sanitized = sanitizedLoadedConfiguration(normalized, allowReferenceFree: false),
+               !isEmitterConfiguration(sanitized) {
+                return sanitized
             }
-            return sanitized
+            if recoveryResult.authorizationDenied {
+                await PortableSurfaceCacheStore.shared.remove(
+                    endpoint: endpoint,
+                    requester: requester
+                )
+                return nil
+            }
+        case .rejectCache:
+            await PortableSurfaceCacheStore.shared.remove(
+                endpoint: endpoint,
+                requester: requester
+            )
+            return nil
+        case .allowCache:
+            break
         }
 
         return await cachedRecoveredConfiguration(
             for: endpoint,
-            resolver: resolver
+            resolver: resolver,
+            requester: requester
         )
     }
 
-    private func resolveRemoteConfigurationCell(
+    private func recoveredConfigurationValues(
         endpoint: String,
         resolver: CellResolver,
-        requester: Identity
-    ) async throws -> Meddle {
-        guard RemoteCatalogSupport.isRemoteEndpoint(endpoint) else {
-            return try await RemoteEndpointAccessSupport.resolveMeddle(
-                endpoint: endpoint,
-                resolver: resolver,
-                requester: requester,
-                accessLabel: "binding.recoverConfiguration"
-            )
-        }
+        requester: Identity,
+        keypaths: [String]
+    ) async -> (values: [String: ValueType], authorizationDenied: Bool) {
+        await withTaskGroup(of: (String, ValueType?, Bool).self) { group in
+            for keypath in keypaths {
+                group.addTask {
+                    do {
+                        let value = try await readRecoveredConfigurationValue(
+                            keypath,
+                            endpoint: endpoint,
+                            resolver: resolver,
+                            requester: requester,
+                            timeoutNanoseconds: 2_000_000_000
+                        )
+                        return (keypath, value, false)
+                    } catch {
+                        return (
+                            keypath,
+                            nil,
+                            RemoteEndpointAccessSupport.isAuthorizationDenied(error)
+                        )
+                    }
+                }
+            }
 
-        let timeoutNanoseconds: UInt64 = 4_000_000_000
-        return try await withThrowingTaskGroup(of: Meddle.self) { group in
+            var values: [String: ValueType] = [:]
+            var authorizationDenied = false
+            for await (keypath, value, denied) in group {
+                authorizationDenied = authorizationDenied || denied
+                if let value {
+                    values[keypath] = value
+                }
+            }
+            return (values, authorizationDenied)
+        }
+    }
+
+    private func readRecoveredConfigurationValue(
+        _ keypath: String,
+        endpoint: String,
+        resolver: CellResolver,
+        requester: Identity,
+        timeoutNanoseconds: UInt64
+    ) async throws -> ValueType {
+        try await withThrowingTaskGroup(of: ValueType.self) { group in
             group.addTask {
-                try await RemoteEndpointAccessSupport.resolveMeddle(
+                try await RemoteEndpointAccessSupport.readValue(
                     endpoint: endpoint,
+                    keypath: keypath,
                     resolver: resolver,
                     requester: requester,
                     accessLabel: "binding.recoverConfiguration"
@@ -7005,61 +7217,12 @@ struct ContentView: View {
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: timeoutNanoseconds)
-                throw BindingProbeTimeoutError(keypath: endpoint)
+                throw BindingProbeTimeoutError(keypath: keypath)
             }
 
-            guard let cell = try await group.next() else {
-                throw BindingProbeTimeoutError(keypath: endpoint)
+            guard let value = try await group.next() else {
+                throw BindingProbeTimeoutError(keypath: keypath)
             }
-            group.cancelAll()
-            return cell
-        }
-    }
-
-    private func recoveredConfigurationValues(
-        from cell: Meddle,
-        requester: Identity,
-        keypaths: [String]
-    ) async -> [String: ValueType] {
-        await withTaskGroup(of: (String, ValueType?).self) { group in
-            for keypath in keypaths {
-                group.addTask {
-                    let value = await readRecoveredConfigurationValue(
-                        keypath,
-                        from: cell,
-                        requester: requester,
-                        timeoutNanoseconds: 2_000_000_000
-                    )
-                    return (keypath, value)
-                }
-            }
-
-            var values: [String: ValueType] = [:]
-            for await (keypath, value) in group {
-                if let value {
-                    values[keypath] = value
-                }
-            }
-            return values
-        }
-    }
-
-    private func readRecoveredConfigurationValue(
-        _ keypath: String,
-        from cell: Meddle,
-        requester: Identity,
-        timeoutNanoseconds: UInt64
-    ) async -> ValueType? {
-        await withTaskGroup(of: ValueType?.self) { group in
-            group.addTask {
-                try? await cell.get(keypath: keypath, requester: requester)
-            }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
-                return nil
-            }
-
-            let value = await group.next() ?? nil
             group.cancelAll()
             return value
         }
@@ -7075,9 +7238,20 @@ struct ContentView: View {
 
     private func cachedRecoveredConfiguration(
         for endpoint: String,
-        resolver: CellResolver
+        resolver: CellResolver,
+        requester: Identity
     ) async -> CellConfiguration? {
-        guard let recoveredConfiguration = await PortableSurfaceCacheStore.shared.configuration(for: endpoint) else {
+        // A signed requester key is not an authorization receipt. Do not let a
+        // previously admitted private remote surface survive revocation or a
+        // failed reauthorization. Local and explicitly public fixture routes
+        // have no remote admission contract and may use the session cache.
+        guard RemoteEndpointAccessSupport.mayUseUnreceiptedCache(for: endpoint) else {
+            return nil
+        }
+        guard let recoveredConfiguration = await PortableSurfaceCacheStore.shared.configuration(
+            for: endpoint,
+            requester: requester
+        ) else {
             return nil
         }
 
@@ -7378,12 +7552,36 @@ struct ContentView: View {
 #endif
     }
 
+    static func conferencePreviewFixtureFallbackEnabled(
+        environment: [String: String],
+        launchArguments: [String]
+    ) -> Bool {
+#if DEBUG
+        if launchArguments.contains("--enable-conference-fixture-fallback") {
+            return true
+        }
+
+        let rawValue = environment["BINDING_ENABLE_CONFERENCE_FIXTURE_FALLBACK"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return rawValue == "1" || rawValue == "true" || rawValue == "yes"
+#else
+        _ = environment
+        _ = launchArguments
+        return false
+#endif
+    }
+
     static func matchesConferenceAutomationWindow(
         targetWindowNumber: Int,
         hostingWindowNumber: Int?
     ) -> Bool {
         guard let hostingWindowNumber else { return false }
         return hostingWindowNumber == targetWindowNumber
+    }
+
+    static func conferenceAutomationDisabledDiagnostic(for hook: ConferenceAutomationHook) -> String {
+        "Ignorerte conference-automation action=\(hook.rawValue) fordi debug-automation ikke er aktivert."
     }
 
     static func matchesRuntimeSurfaceLaunchWindow(

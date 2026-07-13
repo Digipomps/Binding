@@ -30,6 +30,11 @@ final class WorkflowStudioCell: GeneralCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
         ownerUUID = owner.uuid
+        normalizeDecodedStateIfNeeded()
+        try? await ensureRuntimeReady()
+    }
+
+    private func normalizeDecodedStateIfNeeded() {
         stateQueue.sync {
             workflowDefinition = WorkflowStudioCell.normalizedDefinition(workflowDefinition)
             storedConfiguration = WorkflowStudioCell.normalizedConfiguration(storedConfiguration)
@@ -37,8 +42,6 @@ final class WorkflowStudioCell: GeneralCell {
                 selectedNodeID = workflowDefinition.nodes.first?.id
             }
         }
-        await setupPermissions()
-        await setupKeys(owner: owner)
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -50,23 +53,16 @@ final class WorkflowStudioCell: GeneralCell {
         storedConfiguration = try container.decodeIfPresent(CellConfiguration.self, forKey: .storedConfiguration) ?? WorkflowStudioCell.workbenchConfiguration()
         configurationRevision = try container.decodeIfPresent(Int.self, forKey: .configurationRevision) ?? 1
         lastRunState = try container.decodeIfPresent(WorkflowRunState.self, forKey: .lastRunState)
-        ownerUUID = try container.decodeIfPresent(Identity.self, forKey: .owner)?.uuid ?? ""
+        let legacyOwnerUUID = try container.decodeIfPresent(Identity.self, forKey: .owner)?.uuid
 
         try super.init(from: decoder)
-        Task {
-            if let vault = CellBase.defaultIdentityVault,
-               let requester = await vault.identity(for: "private", makeNewIfNotFound: true) {
-                self.stateQueue.sync {
-                    self.workflowDefinition = WorkflowStudioCell.normalizedDefinition(self.workflowDefinition)
-                    self.storedConfiguration = WorkflowStudioCell.normalizedConfiguration(self.storedConfiguration)
-                    if self.selectedNodeID == nil {
-                        self.selectedNodeID = self.workflowDefinition.nodes.first?.id
-                    }
-                }
-                await self.setupPermissions()
-                await self.setupKeys(owner: requester)
-            }
-        }
+        ownerUUID = legacyOwnerUUID ?? storedOwnerIdentity.uuid
+    }
+
+    override func installCellRuntimeBindingsForAccess() async throws {
+        normalizeDecodedStateIfNeeded()
+        await setupPermissions()
+        await setupKeys(owner: storedOwnerIdentity)
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {

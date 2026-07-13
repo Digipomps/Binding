@@ -27,17 +27,20 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         let displayName: String
         let endpoint: String
         let catalogNames: [String]
+        let expectedVisibleStrings: Set<String>
         var configurationKeypaths: [String] = ["skeletonConfiguration", "configuration", "purposeGoal"]
 
         init(
             displayName: String,
             endpoint: String,
             catalogNames: [String]? = nil,
+            expectedVisibleStrings: [String]? = nil,
             configurationKeypaths: [String] = ["skeletonConfiguration", "configuration", "purposeGoal"]
         ) {
             self.displayName = displayName
             self.endpoint = endpoint
             self.catalogNames = catalogNames ?? [displayName]
+            self.expectedVisibleStrings = Set(expectedVisibleStrings ?? [catalogNames?.first ?? displayName])
             self.configurationKeypaths = configurationKeypaths
         }
     }
@@ -789,13 +792,10 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             .map(\.displayName)
             .sorted()
 
-        XCTAssertFalse(
-            matched.isEmpty,
-            "Remote ConfigurationCatalog published none of the requested staging surface configurations. Missing: \(missing.joined(separator: ", "))"
+        XCTAssertTrue(
+            missing.isEmpty,
+            "Remote ConfigurationCatalog did not publish the complete requested surface matrix. Missing: \(missing.joined(separator: ", "))"
         )
-        if !missing.isEmpty {
-            print("Remote ConfigurationCatalog did not publish these requested surfaces for this requester: \(missing.joined(separator: ", "))")
-        }
 
         var failures: [String] = []
         for (surface, configuration) in matched {
@@ -813,7 +813,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
                 let report = try await CellConfigurationVerifier.renderReport(
                     for: configuration,
-                    expectedVisibleStrings: []
+                    expectedVisibleStrings: surface.expectedVisibleStrings
                 )
                 guard report.snapshotByteCount > 0 else {
                     failures.append("\(surface.displayName): rendered a blank snapshot")
@@ -870,7 +870,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
                 let report = try await CellConfigurationVerifier.renderReport(
                     for: configuration,
-                    expectedVisibleStrings: []
+                    expectedVisibleStrings: surface.expectedVisibleStrings
                 )
                 guard report.snapshotByteCount > 0 else {
                     failures.append("\(surface.displayName): rendered a blank snapshot")
@@ -1140,12 +1140,23 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         requester: Identity
     ) async throws -> [CellConfiguration] {
         let endpoint = "cell://staging.haven.digipomps.org/ConfigurationCatalog"
-        let meddle = try await resolveBridgeMeddle(
-            endpoint: endpoint,
-            resolver: resolver,
-            requester: requester,
-            accessLabel: "remote staging ConfigurationCatalog"
-        )
+        let meddle: Meddle
+        do {
+            meddle = try await resolveBridgeMeddle(
+                endpoint: endpoint,
+                resolver: resolver,
+                requester: requester,
+                accessLabel: "remote staging ConfigurationCatalog"
+            )
+        } catch {
+            if !Self.shouldRequireDirectStagingSurfaceAccess,
+               Self.isOwnerApprovalAdmissionGate(error) {
+                throw XCTSkip("""
+                Remote ConfigurationCatalog krever owner-godkjent Agreement før admission (signContract). Kjør remote-direct først når CellScaffold publiserer en eksplisitt read-only owner-godkjent katalogprojeksjon eller denne testidentiteten har et owner-signert grant.
+                """)
+            }
+            throw error
+        }
         let value = try await readBridgeValue(
             meddle,
             endpoint: endpoint,
@@ -1166,6 +1177,16 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         }
 
         return items.compactMap { PortableSurfaceContractSupport.extractConfiguration(from: $0) }
+    }
+
+    private static func isOwnerApprovalAdmissionGate(_ error: Error) -> Bool {
+        guard let remoteError = error as? RemoteParityError,
+              case let .bridgeOperationFailed(_, operation, underlying) = remoteError,
+              operation == "resolveMeddle" else {
+            return false
+        }
+        let normalized = underlying.lowercased()
+        return normalized.contains("contractrejected") && normalized.contains("signcontract")
     }
 
     private func policyGateReason(from value: ValueType, context: String) -> String? {

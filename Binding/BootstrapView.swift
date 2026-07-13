@@ -10,8 +10,20 @@ import OpenCombine
 
 actor BindingLocalCellRegistration {
     static let shared = BindingLocalCellRegistration()
+    private struct RuntimeIdentityBinding: Equatable {
+        let uuid: String
+        let signingFingerprint: String?
+        let vaultReference: String?
+
+        init(_ identity: Identity) {
+            uuid = identity.uuid
+            signingFingerprint = identity.signingPublicKeyFingerprint
+            vaultReference = identity.homeVaultReference
+        }
+    }
     private static let warmupEndpointTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let warmupStateTimeoutNanoseconds: UInt64 = 1_200_000_000
+    private static let localRegistrationValidationAttemptLimit = 2
     private static let safeConferenceWarmupEndpoints: [String] = [
         "cell:///Perspective",
         "cell:///Vault",
@@ -33,15 +45,47 @@ actor BindingLocalCellRegistration {
     private var isLocallyRegistered = false
     private var isRegistered = false
     private var agentAdminCellsRegistered = false
-    private var localRegistrationTask: Task<Void, Never>?
-    private var registrationTask: Task<Void, Never>?
+    private var localRegistrationIdentityBinding: RuntimeIdentityBinding?
+    private var localRegistrationTask: Task<Bool, Never>?
+    private var registrationTask: Task<Bool, Never>?
+#if DEBUG
+    private var forceLocalRegistrationValidationFailureForTesting = false
+    private var localRegistrationValidationCountForTesting = 0
+#endif
 
-    func ensureLocallyRegistered() async {
+    @discardableResult
+    func ensureLocallyRegistered() async -> Bool {
+        if let localRegistrationTask {
+            return await localRegistrationTask.value
+        }
+        let task = Task { [weak self] in
+            guard let self else { return false }
+            return await self.performLocalRegistration()
+        }
+        localRegistrationTask = task
+        let registered = await task.value
+        localRegistrationTask = nil
+        return registered
+    }
+
+    private func performLocalRegistration() async -> Bool {
+        // Registration is identity-scoped. Bootstrap the active vault first so
+        // we never validate (or reuse) local cells against a stale startup
+        // identity after the authenticated vault takes over.
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        if let resolver = CellBase.defaultCellResolver as? CellResolver {
+            // Named identity-unique resolves survive process-local bootstrap
+            // state. Rebind their owner descriptors before deciding whether
+            // existing instances are usable under a replacement vault.
+            await resolver.refreshNamedResolveOwnersFromCurrentVault()
+        }
+
         if isLocallyRegistered {
-            if !(await localRegistrationStillUsable()) {
+            if !(await localRegistrationStillUsableForActiveIdentity()) {
                 isLocallyRegistered = false
                 isRegistered = false
                 agentAdminCellsRegistered = false
+                localRegistrationIdentityBinding = nil
             } else {
                 if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled,
                    !agentAdminCellsRegistered,
@@ -49,15 +93,11 @@ actor BindingLocalCellRegistration {
                     await Self.registerOptInAgentAdminCells(on: resolver)
                     agentAdminCellsRegistered = true
                 }
-                return
+                return true
             }
         }
-        if let localRegistrationTask {
-            await localRegistrationTask.value
-            return
-        }
 
-        let task = Task {
+        for attempt in 1...Self.localRegistrationValidationAttemptLimit {
             let resolver = CellResolver.sharedInstance
             await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
             await Self.registerVaultGraphLocalCells(on: resolver)
@@ -66,56 +106,106 @@ actor BindingLocalCellRegistration {
             // local startup registration explicitly; AppInitializer.prepareLocalRuntime()
             // also schedules setupPorthole(), which is only safe once a user
             // surface asks for authenticated runtime work.
-            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
             await Self.registerAll(on: resolver)
+            if let activeResolver = CellBase.defaultCellResolver as? CellResolver {
+                await activeResolver.refreshNamedResolveOwnersFromCurrentVault()
+            }
+            localRegistrationIdentityBinding = await activePrivateRuntimeIdentity().map(RuntimeIdentityBinding.init)
+            isLocallyRegistered = true
+            agentAdminCellsRegistered = BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled
+
+            if await localRegistrationStillUsableForActiveIdentity() {
+                return true
+            }
+            isLocallyRegistered = false
+            isRegistered = false
+            agentAdminCellsRegistered = false
+            localRegistrationIdentityBinding = nil
+            if attempt < Self.localRegistrationValidationAttemptLimit {
+                continue
+            }
         }
-        localRegistrationTask = task
-        await task.value
-        isLocallyRegistered = true
-        agentAdminCellsRegistered = BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled
-        localRegistrationTask = nil
+        print("HAVEN local cell registration remained unusable after \(Self.localRegistrationValidationAttemptLimit) attempts.")
+        return false
     }
 
-    private func localRegistrationStillUsable() async -> Bool {
+    private func activePrivateRuntimeIdentity() async -> Identity? {
+        guard let identityVault = CellBase.defaultIdentityVault else {
+            return nil
+        }
+        return await identityVault.identity(
+            for: "private",
+            makeNewIfNotFound: true
+        )
+    }
+
+    private func localRegistrationStillUsableForActiveIdentity() async -> Bool {
+#if DEBUG
+        localRegistrationValidationCountForTesting += 1
+        if forceLocalRegistrationValidationFailureForTesting {
+            return false
+        }
+#endif
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               resolver === CellResolver.sharedInstance
         else {
             return false
         }
 
-        guard let requester = await BindingStartupIdentityVault.shared.identity(
-            for: "private",
-            makeNewIfNotFound: true
-        ) else {
+        guard let requester = await activePrivateRuntimeIdentity(),
+              localRegistrationIdentityBinding == RuntimeIdentityBinding(requester) else {
             return false
         }
 
         for endpoint in ["cell:///Porthole", "cell:///Perspective"] {
-            if (try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester)) == nil {
+            guard let cell = try? await resolver.cellAtEndpoint(
+                endpoint: endpoint,
+                requester: requester
+            ),
+                  let owner = try? await cell.getOwner(requester: requester),
+                  owner.referencesSameSigningIdentity(as: requester) else {
                 return false
             }
         }
         return true
     }
 
-    func ensureRegistered() async {
+#if DEBUG
+    func setForcedLocalRegistrationValidationFailureForTesting(_ forced: Bool) {
+        forceLocalRegistrationValidationFailureForTesting = forced
+        localRegistrationValidationCountForTesting = 0
+        if forced {
+            isLocallyRegistered = false
+            isRegistered = false
+            agentAdminCellsRegistered = false
+            localRegistrationIdentityBinding = nil
+        }
+    }
+
+    func localRegistrationValidationCountForTestingSnapshot() -> Int {
+        localRegistrationValidationCountForTesting
+    }
+#endif
+
+    @discardableResult
+    func ensureRegistered() async -> Bool {
         if isRegistered {
-            if await localRegistrationStillUsable() {
-                return
+            if await localRegistrationStillUsableForActiveIdentity() {
+                return true
             }
             isRegistered = false
             isLocallyRegistered = false
             agentAdminCellsRegistered = false
+            localRegistrationIdentityBinding = nil
         }
         if let registrationTask {
-            await registrationTask.value
-            return
+            return await registrationTask.value
         }
 
         if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-            await ensureLocallyRegistered()
-            isRegistered = true
-            return
+            let registered = await ensureLocallyRegistered()
+            isRegistered = registered
+            return registered
         }
 
         let task = Task {
@@ -124,20 +214,24 @@ actor BindingLocalCellRegistration {
             await Self.registerVaultGraphLocalCells(on: resolver)
             await AppInitializer.initialize()
             await Self.registerAll(on: resolver)
-            await ensureLocallyRegistered()
+            return await ensureLocallyRegistered()
         }
         registrationTask = task
-        await task.value
-        isRegistered = true
+        let registered = await task.value
+        isRegistered = registered
         registrationTask = nil
+        return registered
     }
 
-    func ensureConferenceDemoRuntimeReady() async {
+    @discardableResult
+    func ensureConferenceDemoRuntimeReady() async -> Bool {
         await ensureLocallyRegistered()
     }
 
     func warmConferenceRuntime(requester: Identity? = nil) async {
-        await ensureConferenceDemoRuntimeReady()
+        guard await ensureConferenceDemoRuntimeReady() else {
+            return
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             return
@@ -513,6 +607,10 @@ actor BindingLocalCellRegistration {
     }
 
     private static func registerCellAppleUtilityCells(on resolver: CellResolver) async {
+        // EntityScanner is implemented and owned by CellApple. Use its
+        // registration-only host API so Binding cannot silently drift from the
+        // default runtime while still avoiding AppInitializer side effects.
+        try? await AppInitializer.registerEntityScannerResolve(on: resolver)
         await register(
             name: "GeneralCell",
             cellScope: .template,
@@ -2734,7 +2832,9 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     }
 
     private func resolveGateway(requester: Identity) async throws -> (endpoint: String, gateway: Meddle) {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            throw CellBaseError.noResolver
+        }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             throw CellBaseError.noResolver
         }
@@ -2898,7 +2998,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
     }
 
     private func cachedStateIfFresh() -> ValueType? {
-        guard let cachedStateValue,
+        guard lastResolvedGatewayEndpoint == Self.localGatewayEndpoint,
+              let cachedStateValue,
               let cachedStateUpdatedAt,
               Date().timeIntervalSince(cachedStateUpdatedAt) <= Self.stateCacheLifetime else {
             return nil
@@ -2916,23 +3017,32 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
         cachedStateUpdatedAt = nil
     }
 
-    private func persistedSnapshot(for keypath: String) async -> ValueType? {
-        let candidateEndpoints = [
-            lastResolvedGatewayEndpoint,
-            Self.stagingGatewayEndpoint,
-            Self.localGatewayEndpoint
-        ]
-        .compactMap { $0 }
+    private func persistedSnapshot(for keypath: String, requester: Identity) async -> ValueType? {
+        // Remote snapshots have no Storage-authority receipt yet, so they
+        // cannot outlive a fresh admission decision. Local preview state is
+        // requester-owned and may remain available while the bridge recovers.
+        await PortableSurfaceCacheStore.shared.snapshot(
+            for: Self.localGatewayEndpoint,
+            keypath: keypath,
+            requester: requester
+        )
+    }
 
-        for endpoint in candidateEndpoints {
-            if let snapshot = await PortableSurfaceCacheStore.shared.snapshot(
-                for: endpoint,
-                keypath: keypath
-            ) {
-                return snapshot
-            }
+    private func purgeRemoteStateAfterAuthorizationDenial(requester: Identity) async {
+        cachedGateway = nil
+        cachedGatewayEndpoint = nil
+        clearCachedState()
+        await PortableSurfaceCacheStore.shared.remove(
+            endpoint: Self.stagingGatewayEndpoint,
+            requester: requester
+        )
+        if let lastResolvedGatewayEndpoint,
+           lastResolvedGatewayEndpoint != Self.localGatewayEndpoint {
+            await PortableSurfaceCacheStore.shared.remove(
+                endpoint: lastResolvedGatewayEndpoint,
+                requester: requester
+            )
         }
-        return nil
     }
 
     private func fetchGatewayState(requester: Identity) async throws -> (endpoint: String, value: ValueType) {
@@ -2947,6 +3057,15 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             }
             return (resolved.endpoint, value)
         } catch {
+            if RemoteEndpointAccessSupport.isAuthorizationDenied(error),
+               let emit = resolved.gateway as? Emit {
+                RemoteEndpointAccessAuthorizer.shared.invalidate(
+                    endpoint: resolved.endpoint,
+                    emit: emit,
+                    requester: requester,
+                    kind: RemoteEndpointAccessSupport.authorizationKind(for: resolved.endpoint)
+                )
+            }
             cachedGateway = nil
             cachedGatewayEndpoint = nil
             if resolved.endpoint != Self.localGatewayEndpoint {
@@ -2975,12 +3094,15 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 let result = try await pendingStateLoadTask.value
                 return augmentGatewayState(result.value)
             } catch {
+                if RemoteEndpointAccessSupport.isAuthorizationDenied(error) {
+                    await purgeRemoteStateAfterAuthorizationDenial(requester: requester)
+                }
                 let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
                 lastFailureMessage = localPreviewMessage(after: message)
                 print(message)
-                if let cachedStateValue,
-                   gatewayFailureDetail(from: cachedStateValue) == nil {
-                    return augmentGatewayState(cachedStateValue)
+                if let cached = cachedStateIfFresh(),
+                   gatewayFailureDetail(from: cached) == nil {
+                    return augmentGatewayState(cached)
                 }
                 let fallback = localPreviewGatewayState()
                 storeCachedState(fallback)
@@ -3004,19 +3126,23 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             await PortableSurfaceCacheStore.shared.storeSnapshot(
                 result.value,
                 endpoint: result.endpoint,
-                keypath: "state"
+                keypath: "state",
+                requester: requester
             )
             lastFailureMessage = nil
             return augmentGatewayState(result.value)
         } catch {
+            if RemoteEndpointAccessSupport.isAuthorizationDenied(error) {
+                await purgeRemoteStateAfterAuthorizationDenial(requester: requester)
+            }
             let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
             lastFailureMessage = localPreviewMessage(after: message)
             print(message)
-            if let cachedStateValue,
-               gatewayFailureDetail(from: cachedStateValue) == nil {
-                return augmentGatewayState(cachedStateValue)
+            if let cached = cachedStateIfFresh(),
+               gatewayFailureDetail(from: cached) == nil {
+                return augmentGatewayState(cached)
             }
-            if let persisted = await persistedSnapshot(for: "state") {
+            if let persisted = await persistedSnapshot(for: "state", requester: requester) {
                 if gatewayFailureDetail(from: persisted) == nil {
                     storeCachedState(persisted)
                     return augmentGatewayState(persisted)
@@ -3039,6 +3165,15 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             do {
                 value = try await gatewayGet(keypath, from: resolved.gateway, requester: requester)
             } catch {
+                if RemoteEndpointAccessSupport.isAuthorizationDenied(error),
+                   let emit = resolved.gateway as? Emit {
+                    RemoteEndpointAccessAuthorizer.shared.invalidate(
+                        endpoint: resolved.endpoint,
+                        emit: emit,
+                        requester: requester,
+                        kind: RemoteEndpointAccessSupport.authorizationKind(for: resolved.endpoint)
+                    )
+                }
                 cachedGateway = nil
                 cachedGatewayEndpoint = nil
                 if resolved.endpoint != Self.localGatewayEndpoint {
@@ -3051,20 +3186,25 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             await PortableSurfaceCacheStore.shared.storeSnapshot(
                 value,
                 endpoint: lastResolvedGatewayEndpoint ?? resolved.endpoint,
-                keypath: keypath
+                keypath: keypath,
+                requester: requester
             )
             if let recoveredConfiguration = PortableSurfaceContractSupport.extractConfiguration(from: value) {
                 await PortableSurfaceCacheStore.shared.storeConfiguration(
                     recoveredConfiguration,
-                    endpoint: lastResolvedGatewayEndpoint ?? resolved.endpoint
+                    endpoint: lastResolvedGatewayEndpoint ?? resolved.endpoint,
+                    requester: requester
                 )
             }
             return value
         } catch {
+            if RemoteEndpointAccessSupport.isAuthorizationDenied(error) {
+                await purgeRemoteStateAfterAuthorizationDenial(requester: requester)
+            }
             let message = "Conference AI gateway proxy get failed: \(error.localizedDescription)"
             lastFailureMessage = message
             print(message)
-            if let persisted = await persistedSnapshot(for: keypath) {
+            if let persisted = await persistedSnapshot(for: keypath, requester: requester) {
                 return persisted
             }
             return .string(message)
@@ -3089,7 +3229,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 await PortableSurfaceCacheStore.shared.storeSnapshot(
                     state,
                     endpoint: resolved.endpoint,
-                    keypath: "state"
+                    keypath: "state",
+                    requester: requester
                 )
                 return augmentGatewayState(state)
             case "commitDraftAPIKeyEntry":
@@ -3109,7 +3250,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 await PortableSurfaceCacheStore.shared.storeSnapshot(
                     stateValue,
                     endpoint: resolved.endpoint,
-                    keypath: "state"
+                    keypath: "state",
+                    requester: requester
                 )
                 return augmentGatewayState(stateValue)
             case "persistDraftAPIKey", "invokeDraft":
@@ -3142,7 +3284,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
                 await PortableSurfaceCacheStore.shared.storeSnapshot(
                     response,
                     endpoint: resolved.endpoint,
-                    keypath: "state"
+                    keypath: "state",
+                    requester: requester
                 )
                 return augmentGatewayState(response)
             }
@@ -3154,7 +3297,8 @@ private final class ConferenceAIAssistantGatewayProxyCell: GeneralCell {
             await PortableSurfaceCacheStore.shared.storeSnapshot(
                 state,
                 endpoint: resolved.endpoint,
-                keypath: "state"
+                keypath: "state",
+                requester: requester
             )
             return augmentGatewayState(state)
         } catch {
@@ -3963,7 +4107,11 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+            guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+                self.lastError = "Local runtime registration failed"
+                self.emitSnapshot(requester: requester)
+                return
+            }
             guard let resolver = CellBase.defaultCellResolver else {
                 self.lastError = "Cell resolver missing"
                 self.emitSnapshot(requester: requester)
@@ -5973,19 +6121,37 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
 struct BootstrapView<Content: View>: View {
     @State private var isReady = false
+    @State private var startupFailed = false
+    @State private var startupAttemptID = UUID()
     let content: () -> Content
 
     var body: some View {
         Group {
             if isReady {
                 content()
+            } else if startupFailed {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text("HAVEN-runtime kunne ikke startes")
+                        .font(.headline)
+                    Text("De lokale HAVEN-cellene kunne ikke valideres. Ingen delvis initialisert arbeidsflate ble åpnet.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Prøv igjen") {
+                        startupFailed = false
+                        startupAttemptID = UUID()
+                    }
+                }
+                .padding()
             } else {
                 ProgressView("Starter opp…")
             }
         }
-        .task {
-            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
-            isReady = true
+        .task(id: startupAttemptID) {
+            let registered = await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            isReady = registered
+            startupFailed = !registered
         }
     }
 }
@@ -6146,7 +6312,15 @@ private final class ConferenceParticipantAgendaSnapshotLocalCell: GeneralCell {
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            cachedAgendaState = Self.agendaStateWithSyncWarning(
+                basedOn: mergedAgendaState(from: cachedAgendaState, preserveCurrentSelection: true),
+                storageSummary: "Agenda-valg vises lokalt mens runtime registreres på nytt.",
+                persistenceStatus: "Kunne ikke validere lokal conference-runtime."
+            )
+            lastRefreshAt = Date()
+            return
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let porthole = try? await resolver.cellAtEndpoint(
@@ -7044,7 +7218,15 @@ private final class ConferenceParticipantDiscoverySnapshotLocalCell: GeneralCell
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            cachedDiscoveryState = Self.discoveryStateWithStatus(
+                basedOn: cachedDiscoveryState,
+                status: "Discovery bruker siste lokale snapshot fordi runtime-validering feilet.",
+                actionSummary: "Kunne ikke oppdatere discovery akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             cachedDiscoveryState = Self.discoveryStateWithStatus(
@@ -7865,7 +8047,15 @@ private final class ConferenceParticipantMatchmakingSnapshotLocalCell: GeneralCe
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            cachedMatchmakingState = Self.matchmakingStateWithStatus(
+                basedOn: cachedMatchmakingState,
+                status: "Anbefalingene bruker siste lokale snapshot fordi runtime-validering feilet.",
+                actionSummary: "Kunne ikke oppdatere anbefalingene akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             cachedMatchmakingState = Self.matchmakingStateWithStatus(
@@ -8680,7 +8870,15 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         forwardAction: ValueType?,
         requester: Identity
     ) async {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            cachedChatState = Self.chatStateWithStatus(
+                basedOn: cachedChatState,
+                status: "Chatflaten bruker siste lokale snapshot fordi runtime-validering feilet.",
+                actionSummary: "Kunne ikke oppdatere chat akkurat nå."
+            )
+            lastRefreshAt = Date()
+            return
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let previewShell = try? await resolver.cellAtEndpoint(
@@ -9135,7 +9333,13 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         ])
 
         recentActionSummary = "Sender meldingen til \(focusedName)…"
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            recentActionSummary = "Kunne ikke sende meldingen fordi runtime-validering feilet."
+            return .object([
+                "status": .string("error"),
+                "state": .object(cachedChatState)
+            ])
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let previewShell = try? await resolver.cellAtEndpoint(
@@ -9213,7 +9417,10 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
     }
 
     private func ensureSharedThreadReady(requester: Identity) async -> Bool {
-        await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady()
+        guard await BindingLocalCellRegistration.shared.ensureConferenceDemoRuntimeReady() else {
+            recentActionSummary = "Kunne ikke åpne chatflaten fordi runtime-validering feilet."
+            return false
+        }
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let previewShell = try? await resolver.cellAtEndpoint(
@@ -10021,7 +10228,11 @@ actor ConferenceIdentityLinkInboxStore {
         }
 
         do {
-            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+                completionStatus = "Lokal HAVEN-runtime kunne ikke valideres."
+                completionSummary = "Identity-link completion ble ikke skrevet. Prøv igjen."
+                return
+            }
             let response = try await identity.set(
                 keypath: "identity.identityLinks.completeEnrollment",
                 value: payload.value,

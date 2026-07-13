@@ -4,7 +4,7 @@ import Darwin
 #endif
 import CellBase
 
-enum AgentLocalControlBridgeEndpointSupport {
+nonisolated enum AgentLocalControlBridgeEndpointSupport {
     private struct ControlBridgeConfiguration {
         var enabled: Bool
         var host: String
@@ -205,7 +205,7 @@ enum AgentLocalControlBridgeEndpointSupport {
     }
 }
 
-enum CellConfigurationEndpointRetargeting {
+nonisolated enum CellConfigurationEndpointRetargeting {
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let localVerifierFallbackCellNames: Set<String> = [
         "PersonalProfilePublisher",
