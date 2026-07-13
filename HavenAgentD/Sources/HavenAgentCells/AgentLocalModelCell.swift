@@ -443,7 +443,7 @@ public struct AgentLocalModelHTTPClient: AgentLocalModelInvoking {
     }
 }
 
-public final class AgentLocalModelCell: GeneralCell {
+public final class AgentLocalModelCell: HavenAgentRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case version
         case totalInvocations
@@ -508,8 +508,8 @@ public final class AgentLocalModelCell: GeneralCell {
         self.lastBackendStatus = "unknown"
         self.lastError = nil
         await super.init(owner: owner)
-        await setupPermissions(owner: owner)
-        await setupKeys(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     public required init(from decoder: Decoder) throws {
@@ -520,13 +520,6 @@ public final class AgentLocalModelCell: GeneralCell {
         self.lastBackendStatus = (try? container.decode(String.self, forKey: .lastBackendStatus)) ?? "unknown"
         self.lastError = try? container.decodeIfPresent(String.self, forKey: .lastError)
         try super.init(from: decoder)
-        let cell = UncheckedSendableReference(value: self)
-        Task {
-            let requester = Identity()
-            let decodedOwner = (try? await cell.value.getOwner(requester: requester)) ?? requester
-            await cell.value.setupPermissions(owner: decodedOwner)
-            await cell.value.setupKeys(owner: decodedOwner)
-        }
     }
 
     public override func encode(to encoder: Encoder) throws {
@@ -539,12 +532,17 @@ public final class AgentLocalModelCell: GeneralCell {
         try container.encodeIfPresent(lastError, forKey: .lastError)
     }
 
+    override func installRuntimeBindings(owner: Identity) async {
+        await setupPermissions(owner: owner)
+        await setupKeys(owner: owner)
+    }
+
     private func setupPermissions(owner: Identity) async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "contracts")
-        agreementTemplate.addGrant("rw--", for: "llm.health")
-        agreementTemplate.addGrant("rw--", for: "llm.generate")
-        agreementTemplate.addGrant("r---", for: "flow")
+        ensureAgreementGrant("r---", for: "state")
+        ensureAgreementGrant("r---", for: "contracts")
+        ensureAgreementGrant("rw--", for: "llm.health")
+        ensureAgreementGrant("rw--", for: "llm.generate")
+        ensureAgreementGrant("r---", for: "flow")
     }
 
     private func setupKeys(owner: Identity) async {

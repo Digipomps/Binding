@@ -7,6 +7,116 @@ import CellBase
 import FoundationModels
 #endif
 
+protocol BindingRuntimeBindingEnsuring: AnyObject {
+    func ensureRuntimeBindings() async throws
+}
+
+enum BindingRuntimeBindingError: Error {
+    case ownerProofUnavailable
+}
+
+private actor BindingRuntimeBindingState {
+    private var installTask: Task<Result<Void, BindingRuntimeBindingError>, Never>?
+    private var installGeneration: UInt = 0
+    private var installed = false
+
+    func markInstalled() {
+        installed = true
+    }
+
+    func ensure(
+        _ operation: @escaping @Sendable () async -> Result<Void, BindingRuntimeBindingError>
+    ) async throws {
+        if installed {
+            return
+        }
+
+        let activeTask: Task<Result<Void, BindingRuntimeBindingError>, Never>
+        let activeGeneration: UInt
+        if let installTask {
+            activeTask = installTask
+            activeGeneration = installGeneration
+        } else {
+            let newTask = Task { await operation() }
+            installGeneration &+= 1
+            installTask = newTask
+            activeTask = newTask
+            activeGeneration = installGeneration
+        }
+
+        let result = await activeTask.value
+        if installGeneration == activeGeneration {
+            installTask = nil
+            if case .success = result {
+                installed = true
+            }
+        }
+        try result.get()
+    }
+}
+
+class BindingRuntimeBindingCell: GeneralCell, BindingRuntimeBindingEnsuring {
+    private let runtimeBindingState = BindingRuntimeBindingState()
+
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
+    func installRuntimeBindings(owner: Identity) async {}
+
+    func markRuntimeBindingsInstalled() async {
+        await runtimeBindingState.markInstalled()
+    }
+
+    func ensureAgreementGrant(_ permissions: String, for keypath: String) {
+        guard !agreementTemplate.grants.contains(where: { $0.keypath == keypath }) else {
+            return
+        }
+        agreementTemplate.addGrant(permissions, for: keypath)
+    }
+
+    func ensureRuntimeBindings() async throws {
+        try await runtimeBindingState.ensure { [weak self] in
+            guard let self,
+                  let owner = await self.proofCapableStoredOwner() else {
+                return .failure(.ownerProofUnavailable)
+            }
+            await self.installRuntimeBindings(owner: owner)
+            return .success(())
+        }
+    }
+
+    override func get(keypath: String, requester: Identity) async throws -> ValueType {
+        try await ensureRuntimeBindings()
+        return try await super.get(keypath: keypath, requester: requester)
+    }
+
+    override func set(keypath: String, value: ValueType, requester: Identity) async throws -> ValueType? {
+        try await ensureRuntimeBindings()
+        return try await super.set(keypath: keypath, value: value, requester: requester)
+    }
+
+    private func proofCapableStoredOwner() async -> Identity? {
+        let storedOwner = storedOwnerIdentity
+        if storedOwner.identityVault != nil {
+            return storedOwner
+        }
+        guard
+            let hydratedOwner = await CellBase.defaultIdentityVault?.identity(forUUID: storedOwner.uuid),
+            storedOwner.uuid == hydratedOwner.uuid,
+            let storedFingerprint = storedOwner.signingPublicKeyFingerprint,
+            storedFingerprint == hydratedOwner.signingPublicKeyFingerprint
+        else {
+            return nil
+        }
+        return hydratedOwner
+    }
+}
+
 struct BindingChatIntentClassification: Codable, Equatable {
     var intentKind: String
     var purposeRef: String
@@ -2920,7 +3030,7 @@ enum BindingChatProviderRouter {
     }
 }
 
-final class BindingAppleIntelligenceProviderCell: GeneralCell {
+final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case lastClassification
     }
@@ -2929,17 +3039,14 @@ final class BindingAppleIntelligenceProviderCell: GeneralCell {
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
-        await setup(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         lastClassification = (try? container.decode(Object.self, forKey: .lastClassification)) ?? [:]
         try super.init(from: decoder)
-        Task { [weak self] in
-            guard let self else { return }
-            await self.setup(owner: self.storedOwnerIdentity)
-        }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -2948,12 +3055,12 @@ final class BindingAppleIntelligenceProviderCell: GeneralCell {
         try container.encode(lastClassification, forKey: .lastClassification)
     }
 
-    private func setup(owner: Identity) async {
+    override func installRuntimeBindings(owner: Identity) async {
         for key in ["ai.state", "ai.lastClassification"] {
-            agreementTemplate.addGrant("r---", for: key)
+            ensureAgreementGrant("r---", for: key)
         }
         for key in ["ai.classifyIntent", "ai.sendPrompt"] {
-            agreementTemplate.addGrant("rw--", for: key)
+            ensureAgreementGrant("rw--", for: key)
         }
 
         await registerGet(key: "ai.state", owner: owner, returns: .object([:])) { [weak self] requester in
@@ -3121,7 +3228,7 @@ final class BindingAppleIntelligenceProviderCell: GeneralCell {
     }
 }
 
-final class BindingLocalLLMCell: GeneralCell {
+final class BindingLocalLLMCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case lastClassification
         case backendStatus
@@ -3132,7 +3239,8 @@ final class BindingLocalLLMCell: GeneralCell {
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
-        await setup(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -3140,10 +3248,6 @@ final class BindingLocalLLMCell: GeneralCell {
         lastClassification = (try? container.decode(Object.self, forKey: .lastClassification)) ?? [:]
         backendStatus = (try? container.decode(String.self, forKey: .backendStatus)) ?? "not_checked"
         try super.init(from: decoder)
-        Task { [weak self] in
-            guard let self else { return }
-            await self.setup(owner: self.storedOwnerIdentity)
-        }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -3153,12 +3257,12 @@ final class BindingLocalLLMCell: GeneralCell {
         try container.encode(backendStatus, forKey: .backendStatus)
     }
 
-    private func setup(owner: Identity) async {
+    override func installRuntimeBindings(owner: Identity) async {
         for key in ["state", "llm.lastClassification"] {
-            agreementTemplate.addGrant("r---", for: key)
+            ensureAgreementGrant("r---", for: key)
         }
         for key in ["llm.generate", "llm.classifyIntent", "llm.health"] {
-            agreementTemplate.addGrant("rw--", for: key)
+            ensureAgreementGrant("rw--", for: key)
         }
 
         await registerGet(key: "state", owner: owner, returns: .object([:])) { [weak self] requester in
@@ -3549,7 +3653,7 @@ private struct BindingContactTicketRecord: Codable, Equatable {
     }
 }
 
-final class BindingContactEndpointCell: GeneralCell {
+final class BindingContactEndpointCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case endpointsByID
         case ticketsByID
@@ -3566,7 +3670,8 @@ final class BindingContactEndpointCell: GeneralCell {
         ticketsByID = [:]
         seenNonces = [:]
         await super.init(owner: owner)
-        await setup(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -3575,10 +3680,6 @@ final class BindingContactEndpointCell: GeneralCell {
         ticketsByID = (try? container.decode([String: BindingContactTicketRecord].self, forKey: .ticketsByID)) ?? [:]
         seenNonces = (try? container.decode([String: Date].self, forKey: .seenNonces)) ?? [:]
         try super.init(from: decoder)
-        Task { [weak self] in
-            guard let self else { return }
-            await self.setup(owner: self.storedOwnerIdentity)
-        }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -3589,9 +3690,9 @@ final class BindingContactEndpointCell: GeneralCell {
         try container.encode(stateQueue.sync { seenNonces }, forKey: .seenNonces)
     }
 
-    private func setup(owner: Identity) async {
+    override func installRuntimeBindings(owner: Identity) async {
         for key in ["state", "privateState", "descriptor", "feed"] {
-            agreementTemplate.addGrant("r---", for: key)
+            ensureAgreementGrant("r---", for: key)
             await registerGet(key: key, owner: owner, returns: .object([:])) { [weak self] requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
@@ -3607,7 +3708,7 @@ final class BindingContactEndpointCell: GeneralCell {
         }
 
         for key in ["publishEndpoint", "retireEndpoint", "contact.request", "ticket.status", "ticket.resolve", "ticket.respond", "expire"] {
-            agreementTemplate.addGrant("rw--", for: key)
+            ensureAgreementGrant("rw--", for: key)
             await registerSet(key: key, owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }
@@ -4065,7 +4166,7 @@ final class BindingContactEndpointCell: GeneralCell {
     }
 }
 
-final class BindingGraphIndexCell: GeneralCell {
+final class BindingGraphIndexCell: BindingRuntimeBindingCell {
     nonisolated(unsafe) private var notesByID: [String: String]
     nonisolated(unsafe) private var outgoing: [String: Set<String>]
     nonisolated(unsafe) private var incoming: [String: Set<String>]
@@ -4091,7 +4192,8 @@ final class BindingGraphIndexCell: GeneralCell {
         self.outgoing = [:]
         self.incoming = [:]
         await super.init(owner: owner)
-        await setup(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -4100,10 +4202,6 @@ final class BindingGraphIndexCell: GeneralCell {
         self.outgoing = try container.decodeIfPresent([String: Set<String>].self, forKey: .outgoing) ?? [:]
         self.incoming = try container.decodeIfPresent([String: Set<String>].self, forKey: .incoming) ?? [:]
         try super.init(from: decoder)
-
-        Task {
-            await setup(owner: self.storedOwnerIdentity)
-        }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -4114,8 +4212,8 @@ final class BindingGraphIndexCell: GeneralCell {
         try container.encode(incoming, forKey: .incoming)
     }
 
-    private func setup(owner: Identity) async {
-        agreementTemplate.addGrant("rw--", for: "graph")
+    override func installRuntimeBindings(owner: Identity) async {
+        ensureAgreementGrant("rw--", for: "graph")
 
         for key in ["graph.state", "state"] {
             await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
@@ -4378,7 +4476,7 @@ final class BindingGraphIndexCell: GeneralCell {
     }
 }
 
-final class BindingPersonalChatHubCell: GeneralCell {
+final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case cachedState
         case registeredProviders
@@ -4391,7 +4489,8 @@ final class BindingPersonalChatHubCell: GeneralCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
         cachedState = Self.initialState()
-        await setup(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -4399,10 +4498,6 @@ final class BindingPersonalChatHubCell: GeneralCell {
         cachedState = (try? container.decode(Object.self, forKey: .cachedState)) ?? Self.initialState()
         registeredProviders = (try? container.decode([BindingChatProviderDescriptor].self, forKey: .registeredProviders)) ?? []
         try super.init(from: decoder)
-        Task { [weak self] in
-            guard let self else { return }
-            await self.setup(owner: self.storedOwnerIdentity)
-        }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -4412,9 +4507,9 @@ final class BindingPersonalChatHubCell: GeneralCell {
         try container.encode(registeredProviders, forKey: .registeredProviders)
     }
 
-    private func setup(owner: Identity) async {
+    override func installRuntimeBindings(owner: Identity) async {
         for key in readableKeys {
-            agreementTemplate.addGrant("r---", for: key)
+            ensureAgreementGrant("r---", for: key)
             await registerGet(key: key, owner: owner, returns: .object([:])) { [weak self] requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
@@ -4423,7 +4518,7 @@ final class BindingPersonalChatHubCell: GeneralCell {
         }
 
         for key in writableKeys {
-            agreementTemplate.addGrant("rw--", for: key)
+            ensureAgreementGrant("rw--", for: key)
             await registerSet(key: key, owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }

@@ -13,7 +13,7 @@ import HavenAgentRuntime
 /// pushes operator changes to the running `NetworkSentinelService` through the
 /// bridge control surface. The running runtime drives `emitNetworkEvent(...)`
 /// so flood transitions surface as FlowElements with this cell as origin.
-public final class NetworkSentinelCell: GeneralCell {
+public final class NetworkSentinelCell: HavenAgentRuntimeBindingCell {
     public static let flowTopicHealth = NetworkSentinelFlowTopics.health
     public static let flowTopicFlood = NetworkSentinelFlowTopics.flood
     public static let eventDetected = NetworkSentinelFlowTopics.detected
@@ -25,19 +25,12 @@ public final class NetworkSentinelCell: GeneralCell {
 
     public required init(owner: Identity) async {
         await super.init(owner: owner)
-        await setupPermissions(owner: owner)
-        await setupKeys(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     public required init(from decoder: Decoder) throws {
         try super.init(from: decoder)
-        let cell = UncheckedSendableReference(value: self)
-        Task {
-            let requester = Identity()
-            let decodedOwner = (try? await cell.value.getOwner(requester: requester)) ?? requester
-            await cell.value.setupPermissions(owner: decodedOwner)
-            await cell.value.setupKeys(owner: decodedOwner)
-        }
     }
 
     public override func encode(to encoder: Encoder) throws {
@@ -46,22 +39,27 @@ public final class NetworkSentinelCell: GeneralCell {
         try container.encode("1", forKey: .version)
     }
 
+    override func installRuntimeBindings(owner: Identity) async {
+        await setupPermissions(owner: owner)
+        await setupKeys(owner: owner)
+    }
+
     // MARK: - Permissions
 
     private func setupPermissions(owner: Identity) async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "events")
-        agreementTemplate.addGrant("r---", for: "config")
-        agreementTemplate.addGrant("rw--", for: "notificationsEnabled")
-        agreementTemplate.addGrant("rw--", for: "thresholds")
-        agreementTemplate.addGrant("rw--", for: "acknowledge")
-        agreementTemplate.addGrant("rw--", for: "selectTab")
-        agreementTemplate.addGrant("rw--", for: "probe")
-        agreementTemplate.addGrant("rw--", for: "probeTarget")
-        agreementTemplate.addGrant("rw--", for: "captureNow")
-        agreementTemplate.addGrant("rw--", for: "runListen")
-        agreementTemplate.addGrant("r---", for: "lastListenSummary")
-        agreementTemplate.addGrant("r---", for: "flow")
+        ensureAgreementGrant("r---", for: "state")
+        ensureAgreementGrant("r---", for: "events")
+        ensureAgreementGrant("r---", for: "config")
+        ensureAgreementGrant("rw--", for: "notificationsEnabled")
+        ensureAgreementGrant("rw--", for: "thresholds")
+        ensureAgreementGrant("rw--", for: "acknowledge")
+        ensureAgreementGrant("rw--", for: "selectTab")
+        ensureAgreementGrant("rw--", for: "probe")
+        ensureAgreementGrant("rw--", for: "probeTarget")
+        ensureAgreementGrant("rw--", for: "captureNow")
+        ensureAgreementGrant("rw--", for: "runListen")
+        ensureAgreementGrant("r---", for: "lastListenSummary")
+        ensureAgreementGrant("r---", for: "flow")
     }
 
     private func authorized(_ access: String, _ key: String, _ requester: Identity) async -> Bool {

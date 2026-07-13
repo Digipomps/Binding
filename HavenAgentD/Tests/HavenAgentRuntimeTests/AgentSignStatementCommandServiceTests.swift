@@ -65,6 +65,14 @@ struct AgentSignStatementCommandServiceTests {
         #expect(result.envelope.signed.payload.description == "Unit test payload")
         #expect(result.envelope.signed.payload.sizeBytes == 11)
         #expect(result.envelope.signed.payload.sha256Base64URL == Base64URL.encode(Data(SHA256.hash(data: Data("hello HAVEN".utf8)))))
+        let signingData = try result.envelope.signed.canonicalPayloadData()
+        let signingDigest = Base64URL.encode(Data(SHA256.hash(data: signingData)))
+        #expect(signingDigest == result.envelope.signingInputSHA256Base64URL)
+        let publicKey = try Curve25519.Signing.PublicKey(
+            rawRepresentation: Base64URL.decode(result.envelope.signed.signerIdentity.publicKeyBase64URL)
+        )
+        let signature = try Base64URL.decode(result.envelope.signatureBase64URL)
+        #expect(publicKey.isValidSignature(signature, for: signingData))
         #expect(try AgentSignStatementCommandService.verifyEnvelope(result.envelope) == true)
     }
 

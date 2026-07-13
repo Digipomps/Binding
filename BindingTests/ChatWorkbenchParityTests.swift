@@ -8,6 +8,201 @@ import CellBase
 
 @Suite(.serialized)
 struct ChatWorkbenchParityTests {
+    @Test func decodedPersonalChatHubIsReadyForImmediateConcurrentStateAndAction() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let vault = EphemeralIdentityVault()
+        let owner = try #require(await vault.identity(
+            for: "binding-chat-decoded-readiness-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = vault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let fresh = await BindingPersonalChatHubCell(owner: owner)
+        let encoded = try JSONEncoder().encode(fresh)
+        let decoded = try JSONDecoder().decode(BindingPersonalChatHubCell.self, from: encoded)
+        let baselineGrantKeypaths = decoded.agreementTemplate.grants.map(\.keypath)
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<40 {
+                group.addTask {
+                    let value = try await decoded.get(keypath: "chatHub.state", requester: owner)
+                    #expect(asObject(value) != nil)
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let installedGrantKeypaths = decoded.agreementTemplate.grants.map(\.keypath)
+        #expect(installedGrantKeypaths == baselineGrantKeypaths)
+        #expect(Set(installedGrantKeypaths).count == installedGrantKeypaths.count)
+
+        let updated = try #require(asObject(try await decoded.set(
+            keypath: "chatHub.setComposer",
+            value: .string("decoded binding readiness"),
+            requester: owner
+        )))
+        #expect(asString(updated["status"]) == "ok")
+
+        let restoredState = try #require(asObject(try await decoded.get(
+            keypath: "chatHub.state",
+            requester: owner
+        )))
+        #expect(asString(asObject(restoredState["composer"])?["body"]) == "decoded binding readiness")
+    }
+
+    @Test func decodedPersonalChatHubRejectsSameUUIDDifferentKeyAndRetriesWithOwnerVault() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let identityUUID = "binding-chat-decoded-owner-\(UUID().uuidString)"
+        let ownerVault = EphemeralIdentityVault()
+        var owner = Identity(identityUUID, displayName: "Binding Chat Owner", identityVault: ownerVault)
+        await ownerVault.addIdentity(identity: &owner, for: "binding-chat-owner")
+        let attackerVault = EphemeralIdentityVault()
+        var sameUUIDDifferentKey = Identity(
+            identityUUID,
+            displayName: "Same UUID Different Key",
+            identityVault: attackerVault
+        )
+        await attackerVault.addIdentity(identity: &sameUUIDDifferentKey, for: "binding-chat-attacker")
+
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = attackerVault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        #expect(owner.signingPublicKeyFingerprint != sameUUIDDifferentKey.signingPublicKeyFingerprint)
+        let fresh = await BindingPersonalChatHubCell(owner: owner)
+        let encoded = try JSONEncoder().encode(fresh)
+        let decoded = try JSONDecoder().decode(BindingPersonalChatHubCell.self, from: encoded)
+
+        do {
+            try await decoded.ensureRuntimeBindings()
+            Issue.record("Same UUID with a different signing key must not hydrate decoded chat bindings.")
+        } catch BindingRuntimeBindingError.ownerProofUnavailable {
+            // Expected fail-closed result.
+        }
+
+        CellBase.defaultIdentityVault = ownerVault
+        try await decoded.ensureRuntimeBindings()
+        let state = try await decoded.get(keypath: "chatHub.state", requester: owner)
+        #expect(asObject(state) != nil)
+    }
+
+    @Test func decodedPersistentChatWorkbenchCellsInstallOnceBeforeImmediateReads() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let vault = EphemeralIdentityVault()
+        let owner = try #require(await vault.identity(
+            for: "binding-workbench-decoded-readiness-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = vault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let freshApple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let apple = try JSONDecoder().decode(
+            BindingAppleIntelligenceProviderCell.self,
+            from: JSONEncoder().encode(freshApple)
+        )
+        let freshLocalLLM = await BindingLocalLLMCell(owner: owner)
+        let localLLM = try JSONDecoder().decode(
+            BindingLocalLLMCell.self,
+            from: JSONEncoder().encode(freshLocalLLM)
+        )
+        let freshContact = await BindingContactEndpointCell(owner: owner)
+        let contact = try JSONDecoder().decode(
+            BindingContactEndpointCell.self,
+            from: JSONEncoder().encode(freshContact)
+        )
+        let freshGraph = await BindingGraphIndexCell(owner: owner)
+        let graph = try JSONDecoder().decode(
+            BindingGraphIndexCell.self,
+            from: JSONEncoder().encode(freshGraph)
+        )
+
+        let cells: [BindingRuntimeBindingCell] = [apple, localLLM, contact, graph]
+        let baselineGrantKeypaths = cells.map { $0.agreementTemplate.grants.map(\.keypath) }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for cell in cells {
+                for _ in 0..<20 {
+                    group.addTask {
+                        try await cell.ensureRuntimeBindings()
+                    }
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        for (index, cell) in cells.enumerated() {
+            let installedGrantKeypaths = cell.agreementTemplate.grants.map(\.keypath)
+            #expect(installedGrantKeypaths == baselineGrantKeypaths[index])
+            #expect(Set(installedGrantKeypaths).count == installedGrantKeypaths.count)
+        }
+
+        #expect(asObject(try await apple.get(keypath: "ai.state", requester: owner)) != nil)
+        #expect(asObject(try await localLLM.get(keypath: "state", requester: owner)) != nil)
+        #expect(asObject(try await contact.get(keypath: "state", requester: owner)) != nil)
+        #expect(asObject(try await graph.get(keypath: "graph.state", requester: owner)) != nil)
+    }
+
+    @Test func decodedPersonalIdentityCellIsReadyForConcurrentStateAndImmediateAccountAction() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let vault = EphemeralIdentityVault()
+        let owner = try #require(await vault.identity(
+            for: "binding-personal-identity-decoded-readiness-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = vault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let fresh = await PersonalIdentityLocalCell(owner: owner)
+        let encoded = try JSONEncoder().encode(fresh)
+        let decoded = try JSONDecoder().decode(PersonalIdentityLocalCell.self, from: encoded)
+        let baselineGrantKeypaths = decoded.agreementTemplate.grants.map(\.keypath)
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<40 {
+                group.addTask {
+                    let value = try await decoded.get(keypath: "state", requester: owner)
+                    #expect(asObject(value) != nil)
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let installedGrantKeypaths = decoded.agreementTemplate.grants.map(\.keypath)
+        #expect(installedGrantKeypaths == baselineGrantKeypaths)
+        #expect(Set(installedGrantKeypaths).count == installedGrantKeypaths.count)
+
+        let action = try #require(asObject(try await decoded.set(
+            keypath: "requestExport",
+            value: .bool(true),
+            requester: owner
+        )))
+        #expect(asString(action["status"]) == "ok")
+
+        let state = try #require(asObject(try await decoded.get(keypath: "state", requester: owner)))
+        #expect(asString(state["exportStatus"]) == "export requested locally")
+        #expect(asString(state["lastAction"]) == "requestExport")
+    }
+
     @Test func copilotChatMoreMenuCarriesOptionalHelpWithoutOwningDefaultSurface() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true

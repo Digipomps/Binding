@@ -787,7 +787,7 @@ private enum ConferenceSnapshotRetrySupport {
     }
 }
 
-private class PersonalCopilotLocalCell: GeneralCell {
+class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case cachedState
     }
@@ -805,7 +805,8 @@ private class PersonalCopilotLocalCell: GeneralCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
         cachedState = initialState()
-        await configure(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     nonisolated required init(from decoder: Decoder) throws {
@@ -813,18 +814,6 @@ private class PersonalCopilotLocalCell: GeneralCell {
 
         let container = try decoder.container(keyedBy: CodingKeys.self)
         cachedState = try container.decodeIfPresent(Object.self, forKey: .cachedState) ?? [:]
-        Task { [weak self] in
-            guard let self else { return }
-            if self.cachedState.isEmpty {
-                self.cachedState = self.initialState()
-            } else if self.cachedState["updatedAt"] == nil {
-                self.cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
-            }
-
-            let restoreRequester = Identity(UUID().uuidString, displayName: "Personal Co-Pilot Restore", identityVault: nil)
-            let owner = (try? await self.getOwner(requester: restoreRequester)) ?? restoreRequester
-            await self.configure(owner: owner)
-        }
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
@@ -899,9 +888,15 @@ private class PersonalCopilotLocalCell: GeneralCell {
         nestedValue(for: dottedKey.split(separator: ".").map(String.init), in: cachedState)
     }
 
-    private func configure(owner: Identity) async {
+    override func installRuntimeBindings(owner: Identity) async {
+        if cachedState.isEmpty {
+            cachedState = initialState()
+        } else if cachedState["updatedAt"] == nil {
+            cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        }
+
         for key in readableKeys {
-            agreementTemplate.addGrant("r---", for: key)
+            ensureAgreementGrant("r---", for: key)
             await addInterceptForGet(requester: owner, key: key, getValueIntercept: { [weak self] _, requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
@@ -913,7 +908,7 @@ private class PersonalCopilotLocalCell: GeneralCell {
         }
 
         for key in writableKeys {
-            agreementTemplate.addGrant("rw--", for: key)
+            ensureAgreementGrant("rw--", for: key)
             await addInterceptForSet(requester: owner, key: key, setValueIntercept: { [weak self] _, value, requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }
@@ -948,7 +943,7 @@ private class PersonalCopilotLocalCell: GeneralCell {
     }
 }
 
-private final class PersonalIdentityLocalCell: PersonalCopilotLocalCell {
+final class PersonalIdentityLocalCell: PersonalCopilotLocalCell {
     required init(owner: Identity) async {
         await super.init(owner: owner)
     }

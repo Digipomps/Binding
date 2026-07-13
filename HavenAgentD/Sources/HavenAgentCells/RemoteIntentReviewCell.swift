@@ -2,26 +2,19 @@ import Foundation
 import CellBase
 import HavenAgentRuntime
 
-public final class RemoteIntentReviewCell: GeneralCell {
+public final class RemoteIntentReviewCell: HavenAgentRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case version
     }
 
     public required init(owner: Identity) async {
         await super.init(owner: owner)
-        await setupPermissions(owner: owner)
-        await setupKeys(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     public required init(from decoder: Decoder) throws {
         try super.init(from: decoder)
-        let cell = UncheckedSendableReference(value: self)
-        Task {
-            let requester = Identity()
-            let decodedOwner = (try? await cell.value.getOwner(requester: requester)) ?? requester
-            await cell.value.setupPermissions(owner: decodedOwner)
-            await cell.value.setupKeys(owner: decodedOwner)
-        }
     }
 
     public override func encode(to encoder: Encoder) throws {
@@ -30,12 +23,17 @@ public final class RemoteIntentReviewCell: GeneralCell {
         try container.encode("1", forKey: .version)
     }
 
+    override func installRuntimeBindings(owner: Identity) async {
+        await setupPermissions(owner: owner)
+        await setupKeys(owner: owner)
+    }
+
     private func setupPermissions(owner: Identity) async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "audit")
-        agreementTemplate.addGrant("rw--", for: "approve")
-        agreementTemplate.addGrant("rw--", for: "reject")
-        agreementTemplate.addGrant("r---", for: "flow")
+        ensureAgreementGrant("r---", for: "state")
+        ensureAgreementGrant("r---", for: "audit")
+        ensureAgreementGrant("rw--", for: "approve")
+        ensureAgreementGrant("rw--", for: "reject")
+        ensureAgreementGrant("r---", for: "flow")
     }
 
     private func setupKeys(owner: Identity) async {

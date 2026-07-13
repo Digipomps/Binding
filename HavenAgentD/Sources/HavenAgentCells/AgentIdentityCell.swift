@@ -2,7 +2,7 @@ import Foundation
 @preconcurrency import CellBase
 import HavenAgentRuntime
 
-public final class AgentIdentityCell: GeneralCell {
+public final class AgentIdentityCell: HavenAgentRuntimeBindingCell {
     private struct AgentEnrollmentAttestation: Codable, Equatable, Sendable {
         struct Payload: Codable, Equatable, Sendable {
             var version: String
@@ -120,19 +120,12 @@ public final class AgentIdentityCell: GeneralCell {
 
     public required init(owner: Identity) async {
         await super.init(owner: owner)
-        await setupPermissions(owner: owner)
-        await setupKeys(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     public required init(from decoder: Decoder) throws {
         try super.init(from: decoder)
-        let cell = UncheckedSendableReference(value: self)
-        Task {
-            let requester = Identity()
-            let decodedOwner = (try? await cell.value.getOwner(requester: requester)) ?? requester
-            await cell.value.setupPermissions(owner: decodedOwner)
-            await cell.value.setupKeys(owner: decodedOwner)
-        }
     }
 
     public override func encode(to encoder: Encoder) throws {
@@ -141,16 +134,21 @@ public final class AgentIdentityCell: GeneralCell {
         try container.encode("1", forKey: .version)
     }
 
+    override func installRuntimeBindings(owner: Identity) async {
+        await setupPermissions(owner: owner)
+        await setupKeys(owner: owner)
+    }
+
     private func setupPermissions(owner: Identity) async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "descriptor")
-        agreementTemplate.addGrant("rw--", for: "enrollment")
-        agreementTemplate.addGrant("rw--", for: "enrollment.attest")
-        agreementTemplate.addGrant("rw--", for: "starterAuth")
-        agreementTemplate.addGrant("rw--", for: "starterAuth.issue")
-        agreementTemplate.addGrant("rw--", for: "entityLink")
-        agreementTemplate.addGrant("rw--", for: "entityLink.countersign")
-        agreementTemplate.addGrant("r---", for: "flow")
+        ensureAgreementGrant("r---", for: "state")
+        ensureAgreementGrant("r---", for: "descriptor")
+        ensureAgreementGrant("rw--", for: "enrollment")
+        ensureAgreementGrant("rw--", for: "enrollment.attest")
+        ensureAgreementGrant("rw--", for: "starterAuth")
+        ensureAgreementGrant("rw--", for: "starterAuth.issue")
+        ensureAgreementGrant("rw--", for: "entityLink")
+        ensureAgreementGrant("rw--", for: "entityLink.countersign")
+        ensureAgreementGrant("r---", for: "flow")
     }
 
     private func setupKeys(owner: Identity) async {

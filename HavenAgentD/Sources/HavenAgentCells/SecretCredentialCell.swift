@@ -264,7 +264,7 @@ private struct SecretCredentialSealedEnvelope: Codable {
     var combinedBase64: String
 }
 
-public final class SecretCredentialCell: GeneralCell {
+public final class SecretCredentialCell: HavenAgentRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case version
     }
@@ -293,8 +293,8 @@ public final class SecretCredentialCell: GeneralCell {
         self.secureStore = Self.secureStoreFactory()
         self.runtimeVault = Self.runtimeVaultFactory()
         await super.init(owner: owner)
-        await setupPermissions(owner: owner)
-        await setupKeys(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     public required init(from decoder: Decoder) throws {
@@ -303,13 +303,6 @@ public final class SecretCredentialCell: GeneralCell {
         self.runtimeVault = Self.runtimeVaultFactory()
         _ = try? decoder.container(keyedBy: CodingKeys.self)
         try super.init(from: decoder)
-        let cell = UncheckedSendableReference(value: self)
-        Task {
-            let requester = Identity()
-            let decodedOwner = (try? await cell.value.getOwner(requester: requester)) ?? requester
-            await cell.value.setupPermissions(owner: decodedOwner)
-            await cell.value.setupKeys(owner: decodedOwner)
-        }
     }
 
     public override func encode(to encoder: Encoder) throws {
@@ -318,15 +311,20 @@ public final class SecretCredentialCell: GeneralCell {
         try container.encode("1", forKey: .version)
     }
 
+    override func installRuntimeBindings(owner: Identity) async {
+        await setupPermissions(owner: owner)
+        await setupKeys(owner: owner)
+    }
+
     private func setupPermissions(owner: Identity) async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "credentials")
-        agreementTemplate.addGrant("r---", for: "contracts")
-        agreementTemplate.addGrant("rw--", for: "credential.register")
-        agreementTemplate.addGrant("rw--", for: "credential.authorizeUse")
-        agreementTemplate.addGrant("rw--", for: "credential.rotate")
-        agreementTemplate.addGrant("rw--", for: "credential.revoke")
-        agreementTemplate.addGrant("r---", for: "flow")
+        ensureAgreementGrant("r---", for: "state")
+        ensureAgreementGrant("r---", for: "credentials")
+        ensureAgreementGrant("r---", for: "contracts")
+        ensureAgreementGrant("rw--", for: "credential.register")
+        ensureAgreementGrant("rw--", for: "credential.authorizeUse")
+        ensureAgreementGrant("rw--", for: "credential.rotate")
+        ensureAgreementGrant("rw--", for: "credential.revoke")
+        ensureAgreementGrant("r---", for: "flow")
     }
 
     private func setupKeys(owner: Identity) async {

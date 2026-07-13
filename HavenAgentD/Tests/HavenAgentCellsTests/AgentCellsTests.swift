@@ -156,6 +156,192 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
 @Suite(.serialized)
 struct AgentCellsTests {
     @Test
+    func decodedAgentSupervisorIsReadyForImmediateConcurrentStateReads() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let vault = EphemeralIdentityVault()
+        let owner = try #require(await vault.identity(
+            for: "haven-agent-supervisor-decoded-readiness-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = vault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        let fresh = await AgentSupervisorCell(owner: owner)
+        let encoded = try JSONEncoder().encode(fresh)
+        let decoded = try JSONDecoder().decode(AgentSupervisorCell.self, from: encoded)
+        let decodedReference = UncheckedSendableReference(value: decoded)
+        let baselineGrantKeypaths = decoded.agreementTemplate.grants.map(\.keypath)
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<40 {
+                group.addTask {
+                    let state = try await decodedReference.value.get(keypath: "state", requester: owner)
+                    guard case .object = state else {
+                        Issue.record("Decoded AgentSupervisorCell must return its state object immediately.")
+                        return
+                    }
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let installedGrantKeypaths = decoded.agreementTemplate.grants.map(\.keypath)
+        #expect(installedGrantKeypaths == baselineGrantKeypaths)
+        #expect(Set(installedGrantKeypaths).count == installedGrantKeypaths.count)
+    }
+
+    @Test
+    func decodedDefaultAgentCellsInstallBindingsOnceBeforeImmediateStateReads() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let previousMetadataStoreFactory = SecretCredentialCell.metadataStoreFactory
+        let previousSecureStoreFactory = SecretCredentialCell.secureStoreFactory
+        let previousRuntimeVaultFactory = SecretCredentialCell.runtimeVaultFactory
+        let metadataStore = InMemorySecretCredentialMetadataStore()
+        let secureStore = RecordingSecureCredentialStore()
+        let runtimeVault = SecretCredentialRuntimeVault()
+        let vault = EphemeralIdentityVault()
+        let owner = try #require(await vault.identity(
+            for: "haven-agent-default-cells-decoded-readiness-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        ))
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = vault
+        SecretCredentialCell.metadataStoreFactory = { metadataStore }
+        SecretCredentialCell.secureStoreFactory = { secureStore }
+        SecretCredentialCell.runtimeVaultFactory = { runtimeVault }
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+            SecretCredentialCell.metadataStoreFactory = previousMetadataStoreFactory
+            SecretCredentialCell.secureStoreFactory = previousSecureStoreFactory
+            SecretCredentialCell.runtimeVaultFactory = previousRuntimeVaultFactory
+        }
+
+        let supervisor = try JSONDecoder().decode(
+            AgentSupervisorCell.self,
+            from: JSONEncoder().encode(await AgentSupervisorCell(owner: owner))
+        )
+        let identity = try JSONDecoder().decode(
+            AgentIdentityCell.self,
+            from: JSONEncoder().encode(await AgentIdentityCell(owner: owner))
+        )
+        let inbox = try JSONDecoder().decode(
+            RemoteIntentInboxCell.self,
+            from: JSONEncoder().encode(await RemoteIntentInboxCell(owner: owner))
+        )
+        let review = try JSONDecoder().decode(
+            RemoteIntentReviewCell.self,
+            from: JSONEncoder().encode(await RemoteIntentReviewCell(owner: owner))
+        )
+        let localModel = try JSONDecoder().decode(
+            AgentLocalModelCell.self,
+            from: JSONEncoder().encode(await AgentLocalModelCell(owner: owner))
+        )
+        let network = try JSONDecoder().decode(
+            NetworkSentinelCell.self,
+            from: JSONEncoder().encode(await NetworkSentinelCell(owner: owner))
+        )
+        let credentials = try JSONDecoder().decode(
+            SecretCredentialCell.self,
+            from: JSONEncoder().encode(await SecretCredentialCell(owner: owner))
+        )
+        let mail = try JSONDecoder().decode(
+            AgentMailDraftCell.self,
+            from: JSONEncoder().encode(await AgentMailDraftCell(owner: owner))
+        )
+        let signature = try JSONDecoder().decode(
+            AgentSignatureCell.self,
+            from: JSONEncoder().encode(await AgentSignatureCell(owner: owner))
+        )
+
+        let cells: [HavenAgentRuntimeBindingCell] = [
+            supervisor,
+            identity,
+            inbox,
+            review,
+            localModel,
+            network,
+            credentials,
+            mail,
+            signature
+        ]
+        let baselineGrantKeypaths = cells.map { $0.agreementTemplate.grants.map(\.keypath) }
+
+        for cell in cells {
+            let cellReference = UncheckedSendableReference(value: cell)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for _ in 0..<20 {
+                    group.addTask {
+                        try await cellReference.value.ensureRuntimeBindings()
+                    }
+                }
+                try await group.waitForAll()
+            }
+        }
+
+        for (index, cell) in cells.enumerated() {
+            let installedGrantKeypaths = cell.agreementTemplate.grants.map(\.keypath)
+            #expect(installedGrantKeypaths == baselineGrantKeypaths[index])
+            #expect(Set(installedGrantKeypaths).count == installedGrantKeypaths.count)
+            let state = try await cell.get(keypath: "state", requester: owner)
+            guard case .object = state else {
+                Issue.record("Decoded default HavenAgent cell at index \(index) must expose state immediately.")
+                continue
+            }
+        }
+    }
+
+    @Test
+    func decodedAgentCellRejectsSameUUIDDifferentKeyAndRetriesWithOwnerVault() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        let previousVault = CellBase.defaultIdentityVault
+        let identityUUID = "haven-agent-decoded-owner-\(UUID().uuidString)"
+        let ownerVault = EphemeralIdentityVault()
+        var owner = Identity(identityUUID, displayName: "Haven Agent Owner", identityVault: ownerVault)
+        await ownerVault.addIdentity(identity: &owner, for: "haven-agent-owner")
+        let attackerVault = EphemeralIdentityVault()
+        var sameUUIDDifferentKey = Identity(
+            identityUUID,
+            displayName: "Same UUID Different Key",
+            identityVault: attackerVault
+        )
+        await attackerVault.addIdentity(identity: &sameUUIDDifferentKey, for: "haven-agent-attacker")
+
+        CellBase.debugValidateAccessForEverything = false
+        CellBase.defaultIdentityVault = attackerVault
+        defer {
+            CellBase.debugValidateAccessForEverything = previousDebugAccess
+            CellBase.defaultIdentityVault = previousVault
+        }
+
+        #expect(owner.signingPublicKeyFingerprint != sameUUIDDifferentKey.signingPublicKeyFingerprint)
+        let fresh = await AgentSupervisorCell(owner: owner)
+        let decoded = try JSONDecoder().decode(
+            AgentSupervisorCell.self,
+            from: JSONEncoder().encode(fresh)
+        )
+
+        do {
+            _ = try await decoded.get(keypath: "state", requester: sameUUIDDifferentKey)
+            Issue.record("Same UUID with a different signing key must not hydrate decoded agent bindings.")
+        } catch HavenAgentRuntimeBindingError.ownerProofUnavailable {
+            // Expected fail-closed result.
+        }
+
+        let state = try await decoded.get(keypath: "state", requester: owner)
+        guard case .object = state else {
+            Issue.record("Decoded agent cell must recover once the proof-capable owner vault is restored.")
+            return
+        }
+    }
+
+    @Test
     func registryInstantiatesConcreteCells() async throws {
         let vault = MockIdentityVault()
         let owner = try #require(await vault.identity(for: "owner", makeNewIfNotFound: true))

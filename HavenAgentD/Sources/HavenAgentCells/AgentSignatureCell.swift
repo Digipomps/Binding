@@ -4,26 +4,19 @@ import CellBase
 import HavenAgentRuntime
 import SproutCrypto
 
-public final class AgentSignatureCell: GeneralCell {
+public final class AgentSignatureCell: HavenAgentRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case version
     }
 
     public required init(owner: Identity) async {
         await super.init(owner: owner)
-        await setupPermissions()
-        await setupKeys(owner: owner)
+        await installRuntimeBindings(owner: owner)
+        await markRuntimeBindingsInstalled()
     }
 
     public required init(from decoder: Decoder) throws {
         try super.init(from: decoder)
-        let cell = UncheckedSendableReference(value: self)
-        Task {
-            let requester = Identity()
-            let decodedOwner = (try? await cell.value.getOwner(requester: requester)) ?? requester
-            await cell.value.setupPermissions()
-            await cell.value.setupKeys(owner: decodedOwner)
-        }
     }
 
     public override func encode(to encoder: Encoder) throws {
@@ -32,12 +25,17 @@ public final class AgentSignatureCell: GeneralCell {
         try container.encode("1", forKey: .version)
     }
 
+    override func installRuntimeBindings(owner: Identity) async {
+        await setupPermissions()
+        await setupKeys(owner: owner)
+    }
+
     private func setupPermissions() async {
-        agreementTemplate.addGrant("r---", for: "state")
-        agreementTemplate.addGrant("r---", for: "contracts")
-        agreementTemplate.addGrant("r---", for: "purposeProfiles")
-        agreementTemplate.addGrant("rw--", for: "signIntent")
-        agreementTemplate.addGrant("r---", for: "flow")
+        ensureAgreementGrant("r---", for: "state")
+        ensureAgreementGrant("r---", for: "contracts")
+        ensureAgreementGrant("r---", for: "purposeProfiles")
+        ensureAgreementGrant("rw--", for: "signIntent")
+        ensureAgreementGrant("r---", for: "flow")
     }
 
     private func hasAccess(_ access: String, at key: String, requester: Identity) async -> Bool {
