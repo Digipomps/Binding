@@ -8855,6 +8855,23 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             submitOnEnter: false,
             modifiers: fieldCard
         )
+        let butlerNameField = SkeletonTextField(
+            text: nil,
+            sourceKeypath: "chatHub.state.butler.profile.displayName",
+            targetKeypath: "chatHub.butler.profile.displayName",
+            placeholder: "Gi butleren et navn",
+            modifiers: fieldCard
+        )
+        let butlerStyleField = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.butler.profile.styleGuidance",
+            targetKeypath: "chatHub.butler.profile.styleGuidance",
+            placeholder: "For eksempel: kort, varm og tydelig. Spør før du gir råd.",
+            minLines: 2,
+            maxLines: 4,
+            submitOnEnter: false,
+            modifiers: fieldCard
+        )
         let mermaidSourceField = SkeletonTextArea(
             text: nil,
             sourceKeypath: "chatHub.state.assistant.candidateQuery",
@@ -9522,6 +9539,53 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             ]
         )
 
+        let butlerPanel = personalSection(
+            "Din butler",
+            content: [
+                .Text(personalBodyText("Butleren kan få navn og stil fra deg. Den lagrer ikke rå feedback eller lager skjulte profiler.")),
+                .TextField(butlerNameField),
+                .TextArea(butlerStyleField),
+                .Text(personalBoundText("chatHub.state.butler.profile.summary", lineLimit: 4)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.butler.profile.feedback", "Kortere", payload: .object(["signal": .string("more_concise")]), style: .secondary)),
+                    .Button(button("chatHub.butler.profile.feedback", "Varmere", payload: .object(["signal": .string("more_warm")]), style: .secondary)),
+                    .Button(button("chatHub.butler.profile.feedback", "Mer direkte", payload: .object(["signal": .string("more_direct")]), style: .secondary)),
+                    .Button(button("chatHub.butler.profile.feedback", "Mindre initiativ", payload: .object(["signal": .string("less_proactive")]), style: .secondary))
+                ], spacing: 8)),
+                .Divider(SkeletonDivider()),
+                .Text(personalBodyText("Innsjekker er av som standard. Når du slår dem på, gjelder stille timer og minst 72 timer mellom tilbud.")),
+                .Text(personalBoundText("chatHub.state.butler.proactivity.summary", lineLimit: 4)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.butler.proactivity.configure", "Tillat sjeldne innsjekker", payload: .object([
+                        "enabled": .bool(true),
+                        "checkInsEnabled": .bool(true)
+                    ]), style: .secondary)),
+                    .Button(button("chatHub.butler.proactivity.configure", "Stopp initiativ", payload: .object([
+                        "enabled": .bool(false)
+                    ]), style: .secondary)),
+                    .Button(button("chatHub.butler.proactivity.configure", "Tillat råd", payload: .object([
+                        "enabled": .bool(true),
+                        "adviceOffersEnabled": .bool(true)
+                    ]), style: .secondary)),
+                    .Button(button("chatHub.butler.support.dismiss", "Pause en uke", payload: .object([
+                        "snoozeHours": .integer(168)
+                    ]), style: .secondary))
+                ], spacing: 8)),
+                .Text(personalBoundText("chatHub.state.butler.support.summary", lineLimit: 4)),
+                .Divider(SkeletonDivider()),
+                .Text(personalBodyText("Kapasiteten følger kontekst, synlige hjelpere, registrerte provider-descriptors og lokal agentstatus. En oppdatering starter ingen modell.")),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.butler.capabilities.refresh", "Oppdater kapasitet", style: .secondary)),
+                    .Button(button("chatHub.butler.support.consider", "Spør hvordan det går", payload: .object([
+                        "signalKind": .string("periodic_check_in")
+                    ]), style: .secondary))
+                ], spacing: 8)),
+                .Text(personalBoundText("chatHub.state.butler.capabilities.summary", lineLimit: 4)),
+                .Text(personalBoundText("chatHub.state.butler.capabilities.transparencySummary", lineLimit: 4)),
+                .Text(personalBoundText("chatHub.state.butler.privacy.summary", lineLimit: 4))
+            ]
+        )
+
         let aiPanel = personalSection(
             "AI",
             content: [
@@ -9587,6 +9651,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             panels: [
                 SkeletonTabPanel(id: "verktoy", content: [toolsPanel]),
                 SkeletonTabPanel(id: "hjelp", content: [helpPanel]),
+                SkeletonTabPanel(id: "butler", content: [butlerPanel]),
                 SkeletonTabPanel(id: "ai", content: [aiPanel]),
                 SkeletonTabPanel(id: "moderering", content: [moderationPanel]),
                 SkeletonTabPanel(id: "personvern", content: [privacyPanel]),

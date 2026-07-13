@@ -4542,6 +4542,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "providerRecommendation",
             "docsRAG",
             "help",
+            "butler",
             "threads",
             "messages",
             "blockedUsers",
@@ -4580,6 +4581,13 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "docsRAG.openTopDocument",
             "docsRAG.askRAG",
             "help.openContextual",
+            "butler.profile.displayName",
+            "butler.profile.styleGuidance",
+            "butler.profile.feedback",
+            "butler.proactivity.configure",
+            "butler.capabilities.refresh",
+            "butler.support.consider",
+            "butler.support.dismiss",
             "assistant.setCandidateQuery",
             "assistant.selectCandidate",
             "entityExtension.scan",
@@ -4731,6 +4739,17 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.help.status",
         "state.help.summary",
         "state.help.suggestedPrompt",
+        "state.butler.profile.displayName",
+        "state.butler.profile.styleGuidance",
+        "state.butler.profile.summary",
+        "state.butler.capabilities.functionalLevel",
+        "state.butler.capabilities.summary",
+        "state.butler.capabilities.transparencySummary",
+        "state.butler.proactivity.enabled",
+        "state.butler.proactivity.summary",
+        "state.butler.support.status",
+        "state.butler.support.summary",
+        "state.butler.privacy.summary",
         "state.inviteDraft.title",
         "state.invites",
         "state.contactInbox",
@@ -4819,6 +4838,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return BindingChatValue.nested("assistant.providerRecommendation", in: cachedState) ?? .null
         case "help":
             return BindingChatValue.nested("help", in: cachedState) ?? .object(Self.initialHelpState())
+        case "butler":
+            return BindingChatValue.nested("butler", in: cachedState) ?? .object(BindingPersonalButlerPolicy.initialState())
         case "workbenchState":
             return BindingChatValue.nested("workbench", in: cachedState) ?? .object([:])
         case "workbenchModules":
@@ -4929,6 +4950,20 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return askRAG(value)
         case "help.openContextual":
             return openContextualHelp(value)
+        case "butler.profile.displayName":
+            return updateButlerProfile(field: "displayName", value: value)
+        case "butler.profile.styleGuidance":
+            return updateButlerProfile(field: "styleGuidance", value: value)
+        case "butler.profile.feedback":
+            return recordButlerFeedback(value)
+        case "butler.proactivity.configure":
+            return configureButlerProactivity(value)
+        case "butler.capabilities.refresh":
+            return await refreshButlerCapabilities(requester: requester)
+        case "butler.support.consider":
+            return considerButlerSupport(value)
+        case "butler.support.dismiss":
+            return dismissButlerSupport(value)
         case "assistant.setCandidateQuery":
             BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
             return response(status: "ok", message: "Candidate query updated.")
@@ -5198,6 +5233,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         )
         let contextPack: Object = [
             "draft": .string(draft),
+            "butlerProfile": BindingChatValue.nested("butler.profile", in: cachedState)
+                ?? .object(BindingChatValue.object(BindingPersonalButlerPolicy.initialState()["profile"]) ?? [:]),
             "capabilityDiscoveryEnabled": .bool(capabilityDiscoveryEnabled),
             "perspectiveSummary": .object(perspective),
             "perspectiveContext": .object(perspectiveContext.objectValue()),
@@ -5266,6 +5303,18 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         for (key, update) in assistantUpdates {
             BindingChatValue.set(update, for: "assistant.\(key)", in: &cachedState)
         }
+        let helperCount = BindingChatValue.list(BindingChatValue.nested("ui.helpers", in: cachedState))?.count ?? 0
+        let contextStatus = BindingChatValue.string(purposeContext["status"]) ?? "unknown"
+        BindingChatValue.set(
+            .object(BindingPersonalButlerPolicy.capabilitySnapshot(
+                providers: providers,
+                helperCount: helperCount,
+                contextStatus: contextStatus,
+                agentStatus: agentStatus
+            )),
+            for: "butler.capabilities",
+            in: &cachedState
+        )
         BindingChatValue.set(.bool(suggestion.shouldSuggest), for: "ui.hasActionableSuggestion", in: &cachedState)
         BindingChatValue.set(.string(primaryActionHint(for: suggestion)), for: "ui.primaryActionHint", in: &cachedState)
         updateDraftsFromAnalysis(
@@ -5279,6 +5328,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             groundedActionPlan: groundedActionPlan,
             resourceMatches: resourceMatches
         )
+        updateButlerSupportAfterAnalysis(suggestion)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
         var response: Object = [
@@ -5483,6 +5533,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let assistantStatus = suggestion.shouldSuggest
             ? "\(helperTitle(suggestion.helperID)) · \(nextStepTitle)"
             : nextStepTitle
+        let butlerName = BindingChatValue.string(BindingChatValue.nested("butler.profile.displayName", in: cachedState)) ?? "HAVEN Co-Pilot"
         let userMessage: Object = [
             "id": .string(UUID().uuidString),
             "role": .string("user"),
@@ -5496,7 +5547,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let assistantMessage: Object = [
             "id": .string(UUID().uuidString),
             "role": .string("assistant"),
-            "speaker": .string("HAVEN Co-Pilot"),
+            "speaker": .string(butlerName),
             "body": .string("\(suggestion.explanation)\(resourceSummary)"),
             "statusText": .string(assistantStatus),
             "kind": .string("assistant_suggestion"),
@@ -7926,6 +7977,187 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return rows.map(ValueType.object)
     }
 
+    private func currentButlerState() -> Object {
+        BindingChatValue.object(BindingChatValue.nested("butler", in: cachedState))
+            ?? BindingPersonalButlerPolicy.initialState()
+    }
+
+    private func storeButlerState(_ butler: Object) {
+        BindingChatValue.set(.object(butler), for: "butler", in: &cachedState)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+    }
+
+    private func updateButlerProfile(field: String, value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.updatingProfile(
+            in: currentButlerState(),
+            field: field,
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "profile": updated["profile"] ?? .null,
+            "privacy": updated["privacy"] ?? .null,
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func recordButlerFeedback(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.applyingFeedback(
+            to: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "profile": updated["profile"] ?? .null,
+            "proactivity": updated["proactivity"] ?? .null,
+            "rawFeedbackStored": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func configureButlerProactivity(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.configuringProactivity(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "proactivity": updated["proactivity"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func refreshButlerCapabilities(requester: Identity) async -> ValueType {
+        let providers = await scopedProviders(requester: requester)
+        let helperCount = BindingChatValue.list(BindingChatValue.nested("ui.helpers", in: cachedState))?.count ?? 0
+        let contextStatus = BindingChatValue.string(BindingChatValue.nested("assistant.purposeContext.status", in: cachedState)) ?? "idle"
+        let capabilities = BindingPersonalButlerPolicy.capabilitySnapshot(
+            providers: providers,
+            helperCount: helperCount,
+            contextStatus: contextStatus,
+            agentStatus: BindingHavenAgentDStatusProvider.snapshot()
+        )
+        var butler = currentButlerState()
+        butler["capabilities"] = .object(capabilities)
+        storeButlerState(butler)
+        return .object([
+            "ok": .bool(true),
+            "capabilities": .object(capabilities),
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    @discardableResult
+    private func considerButlerSupport(_ value: ValueType) -> ValueType {
+        var butler = currentButlerState()
+        let decision = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: value
+        )
+        let status = BindingChatValue.string(decision["status"]) ?? "suppressed"
+        let signalKind = BindingChatValue.string(decision["signalKind"]) ?? "unknown"
+        var support = BindingChatValue.object(butler["support"]) ?? [:]
+        support["status"] = .string(status == "offer" ? "offered" : "suppressed")
+        support["reason"] = decision["reason"] ?? .string("unknown")
+        support["signalKind"] = .string(signalKind)
+        support["message"] = decision["message"] ?? .string("")
+        support["providerInvoked"] = .bool(false)
+        support["usesRawBehaviorLog"] = .bool(false)
+        support["lastDecisionAt"] = decision["evaluatedAt"] ?? .null
+        support["summary"] = .string(status == "offer"
+            ? "Butleren har lagt inn et forsiktig tilbud om hjelp. Ingenting annet skjer uten svar."
+            : "Butleren holdt tilbake: \(BindingChatValue.string(decision["reason"]) ?? "policy").")
+        butler["support"] = .object(support)
+
+        if status == "offer" {
+            if signalKind != "explicit_help" {
+                var proactivity = BindingChatValue.object(butler["proactivity"]) ?? [:]
+                proactivity["lastOfferedAt"] = decision["evaluatedAt"] ?? .null
+                butler["proactivity"] = .object(proactivity)
+            }
+            appendButlerSupportMessage(decision)
+        }
+        storeButlerState(butler)
+
+        var response = decision
+        response["ok"] = .bool(true)
+        response["stagedInChat"] = .bool(status == "offer")
+        response["domainSideEffect"] = .bool(false)
+        return .object(response)
+    }
+
+    private func dismissButlerSupport(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.dismissingSupport(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "support": updated["support"] ?? .null,
+            "proactivity": updated["proactivity"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func updateButlerSupportAfterAnalysis(_ suggestion: BindingChatIntentClassification) {
+        var butler = currentButlerState()
+        var support = BindingChatValue.object(butler["support"]) ?? [:]
+        if suggestion.shouldSuggest {
+            support["consecutiveLowConfidence"] = .integer(0)
+            butler["support"] = .object(support)
+            storeButlerState(butler)
+            return
+        }
+
+        let count = Int(BindingChatValue.double(support["consecutiveLowConfidence"]) ?? 0) + 1
+        support["consecutiveLowConfidence"] = .integer(count)
+        butler["support"] = .object(support)
+        storeButlerState(butler)
+        if count >= 2 {
+            _ = considerButlerSupport(.object([
+                "signalKind": .string("repeated_low_confidence"),
+                "signalCount": .integer(count)
+            ]))
+        }
+    }
+
+    private func appendButlerSupportMessage(_ decision: Object) {
+        guard let message = BindingChatValue.string(decision["message"]), message.isEmpty == false else {
+            return
+        }
+        let speaker = BindingChatValue.string(decision["speaker"]) ?? "Co-Pilot"
+        let signalKind = BindingChatValue.string(decision["signalKind"]) ?? "support"
+        let threadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread"
+        var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
+        messages.append(.object([
+            "id": .string(UUID().uuidString),
+            "role": .string("assistant"),
+            "speaker": .string(speaker),
+            "body": .string(message),
+            "statusText": .string("Frivillig hjelp"),
+            "kind": .string("butler_support_offer"),
+            "signalKind": .string(signalKind),
+            "threadID": .string(threadID),
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "requiresUserActionForAnyEffect": .bool(true),
+            "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-assistant"].map(ValueType.string))
+        ]))
+        BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
+    }
+
     private func helperSurface(kind: String, source: String) -> Object {
         let id = kind
         return [
@@ -8149,6 +8381,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 "selectedDocument": .null
             ]),
             "help": .object(Self.initialHelpState()),
+            "butler": .object(BindingPersonalButlerPolicy.initialState()),
             "entityExtension": .object(Self.initialEntityExtensionState()),
             "voice": .object(Self.initialVoiceState()),
             "drop": .object([
@@ -8187,6 +8420,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 "moreTabs": .list([
                     .object(["id": .string("verktoy"), "title": .string("Verktoy")]),
                     .object(["id": .string("hjelp"), "title": .string("Hjelp")]),
+                    .object(["id": .string("butler"), "title": .string("Butler")]),
                     .object(["id": .string("ai"), "title": .string("AI")]),
                     .object(["id": .string("moderering"), "title": .string("Moderering")]),
                     .object(["id": .string("personvern"), "title": .string("Personvern")]),

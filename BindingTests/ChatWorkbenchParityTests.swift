@@ -272,6 +272,216 @@ struct ChatWorkbenchParityTests {
         #expect(counters(.object(state)) == before)
     }
 
+    @Test func personalButlerDefaultsPrivateAndLetsOwnerShapeNameAndStyleWithoutRawFeedback() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-profile")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        var butler = try #require(asObject(try await chat.get(keypath: "chatHub.butler", requester: owner)))
+        #expect(asString(butler["schema"]) == BindingPersonalButlerPolicy.schema)
+        let initialProfile = try #require(asObject(butler["profile"]))
+        let initialProactivity = try #require(asObject(butler["proactivity"]))
+        let privacy = try #require(asObject(butler["privacy"]))
+        #expect(asString(initialProfile["adaptationMode"]) == "explicit_preferences_and_feedback_only")
+        #expect(asBool(initialProactivity["enabled"]) == false)
+        #expect(asBool(privacy["rawBehaviorLogStored"]) == false)
+        #expect(asBool(privacy["emotionInferenceAllowed"]) == false)
+
+        _ = try await chat.set(
+            keypath: "chatHub.butler.profile.displayName",
+            value: .string("Lumi\nPrivat"),
+            requester: owner
+        )
+        let feedback = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.profile.feedback",
+            value: .object(["signal": .string("more_concise")]),
+            requester: owner
+        )))
+        #expect(asBool(feedback["rawFeedbackStored"]) == false)
+
+        butler = try #require(asObject(try await chat.get(keypath: "chatHub.butler", requester: owner)))
+        let profile = try #require(asObject(butler["profile"]))
+        #expect(asString(profile["displayName"]) == "Lumi Privat")
+        #expect(asString(profile["styleGuidance"])?.contains("Kort og konkret") == true)
+        #expect(asString(profile["source"]) == "owner_feedback")
+        #expect(asInt(profile["preferenceSignalsApplied"]) == 1)
+        #expect(asBool(profile["retainsRawFeedback"]) == false)
+    }
+
+    @Test func personalButlerSupportGateSuppressesUnsolicitedChecksAndStagesOnlyAllowedOffers() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-support")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let initialState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let initialMessages = asList(asObject(initialState["ui"])?["promptMessages"])?.count ?? 0
+
+        let suppressed = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.support.consider",
+            value: .object(["signalKind": .string("periodic_check_in")]),
+            requester: owner
+        )))
+        #expect(asString(suppressed["status"]) == "suppressed")
+        #expect(asString(suppressed["reason"]) == "proactivity_disabled")
+        #expect(asBool(suppressed["stagedInChat"]) == false)
+
+        _ = try await chat.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "helpWhenBlockedEnabled": .bool(true),
+                "quietHoursEnabled": .bool(false)
+            ]),
+            requester: owner
+        )
+        let insufficient = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.support.consider",
+            value: .object([
+                "signalKind": .string("repeated_failure"),
+                "signalCount": .integer(1)
+            ]),
+            requester: owner
+        )))
+        #expect(asString(insufficient["reason"]) == "insufficient_signal")
+
+        let offered = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.support.consider",
+            value: .object([
+                "signalKind": .string("repeated_failure"),
+                "signalCount": .integer(2)
+            ]),
+            requester: owner
+        )))
+        #expect(asString(offered["status"]) == "offer")
+        #expect(asBool(offered["providerInvoked"]) == false)
+        #expect(asBool(offered["usesRawBehaviorLog"]) == false)
+        #expect(asBool(offered["stagedInChat"]) == true)
+
+        let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let messages = try #require(asList(asObject(state["ui"])?["promptMessages"]))
+        #expect(messages.count == initialMessages + 1)
+        #expect(asString(asObject(messages.last)?["kind"]) == "butler_support_offer")
+        #expect(asBool(asObject(messages.last)?["requiresUserActionForAnyEffect"]) == true)
+    }
+
+    @Test func personalButlerOffersNeutralHelpAfterTwoLowConfidenceAnalysesWhenOwnerEnabled() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-low-confidence")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        _ = try await chat.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "helpWhenBlockedEnabled": .bool(true),
+                "quietHoursEnabled": .bool(false)
+            ]),
+            requester: owner
+        )
+
+        let first = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object(["text": .string("zibble fronk")]),
+            requester: owner
+        )))
+        let second = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object(["text": .string("plim vort")]),
+            requester: owner
+        )))
+        #expect(asString(first["status"]) == "low_confidence")
+        #expect(asString(second["status"]) == "low_confidence")
+
+        let state = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let butler = try #require(asObject(state["butler"]))
+        let support = try #require(asObject(butler["support"]))
+        let messages = try #require(asList(asObject(state["ui"])?["promptMessages"]))
+        #expect(asInt(support["consecutiveLowConfidence"]) == 2)
+        #expect(asString(support["status"]) == "offered")
+        #expect(asString(asObject(messages.last)?["kind"]) == "butler_support_offer")
+        #expect(asBool(asObject(messages.last)?["providerInvoked"]) == false)
+    }
+
+    @Test func personalButlerCapabilityRefreshExplainsHelpersModelsContextAndAgentWithoutInvocation() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-capabilities")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let refreshed = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.capabilities.refresh",
+            value: .object([:]),
+            requester: owner
+        )))
+        let capabilities = try #require(asObject(refreshed["capabilities"]))
+        #expect(asString(capabilities["status"]) == "refreshed")
+        #expect((asInt(capabilities["helperCount"]) ?? 0) > 0)
+        #expect((asInt(capabilities["providerDescriptorCount"]) ?? 0) >= 1)
+        #expect(asString(capabilities["summary"])?.contains("\(asInt(capabilities["helperCount"]) ?? 0) hjelpere") == true)
+        #expect(asString(capabilities["summary"])?.contains("HAVENAgentD") == true)
+        #expect(asBool(capabilities["providerInvoked"]) == false)
+        #expect(asBool(capabilities["derivedFromDescriptorsOnly"]) == true)
+        #expect(asBool(capabilities["requiresExplicitProviderAction"]) == true)
+    }
+
+    @Test func personalButlerPolicyAppliesQuietHoursCadenceAndNoInferenceGuardrailsDeterministically() throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-13T12:00:00Z"))
+        var butler = BindingPersonalButlerPolicy.configuringProactivity(
+            in: BindingPersonalButlerPolicy.initialState(),
+            value: .object([
+                "enabled": .bool(true),
+                "checkInsEnabled": .bool(true),
+                "quietHoursEnabled": .bool(true),
+                "minimumIntervalHours": .integer(72)
+            ])
+        )
+        let quiet = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["signalKind": .string("periodic_check_in")]),
+            now: now,
+            localHour: 23
+        )
+        #expect(asString(quiet["reason"]) == "quiet_hours")
+
+        let allowed = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["signalKind": .string("periodic_check_in")]),
+            now: now,
+            localHour: 12
+        )
+        #expect(asString(allowed["status"]) == "offer")
+        #expect(asBool(allowed["providerInvoked"]) == false)
+        #expect(asBool(allowed["usesRawBehaviorLog"]) == false)
+
+        var proactivity = try #require(asObject(butler["proactivity"]))
+        proactivity["lastOfferedAt"] = .string(BindingPersonalButlerPolicy.timestamp(now))
+        butler["proactivity"] = .object(proactivity)
+        let tooSoon = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["signalKind": .string("periodic_check_in")]),
+            now: now.addingTimeInterval(3_600),
+            localHour: 12
+        )
+        #expect(asString(tooSoon["reason"]) == "minimum_interval")
+    }
+
+    @Test func personalCopilotSkeletonExposesButlerProfileProactivityAndCapabilityControls() throws {
+        let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        let json = String(data: try JSONEncoder().encode(configuration), encoding: .utf8) ?? ""
+        #expect(json.contains("chatHub.state.butler.profile.displayName"))
+        #expect(json.contains("chatHub.butler.profile.feedback"))
+        #expect(json.contains("chatHub.butler.proactivity.configure"))
+        #expect(json.contains("chatHub.butler.capabilities.refresh"))
+        #expect(json.contains("chatHub.butler.support.dismiss"))
+    }
+
     @Test func providerCellsExposeCellScopedStateContracts() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
