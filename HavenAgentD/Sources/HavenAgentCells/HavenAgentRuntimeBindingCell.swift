@@ -69,6 +69,15 @@ public class HavenAgentRuntimeBindingCell: GeneralCell {
     }
 
     func ensureRuntimeBindings(requester: Identity? = nil) async throws {
+        try await ensureBindingRuntimeBindings(requester: requester)
+        try await ensureRuntimeReady()
+    }
+
+    public override func installCellRuntimeBindingsForAccess() async throws {
+        try await ensureBindingRuntimeBindings(requester: nil)
+    }
+
+    private func ensureBindingRuntimeBindings(requester: Identity?) async throws {
         let cell = UncheckedSendableReference(value: self)
         let requesterReference = requester.map { UncheckedSendableReference(value: $0) }
         try await runtimeBindingState.ensure {

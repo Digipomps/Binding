@@ -720,7 +720,7 @@ struct AgentCellsTests {
         let operatorPublicKeyBase64URL = Self.base64URLEncode(operatorPublicKey)
 
         let cell = await AgentIdentityCell(owner: owner)
-        try await Self.authorize(operatorIdentity, for: cell)
+        try await Self.authorize(operatorIdentity, owner: owner, for: cell)
         let response = try await cell.set(
             keypath: "enrollment.attest",
             value: .object([
@@ -876,7 +876,7 @@ struct AgentCellsTests {
         await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: pairingArtifactFile)
 
         let cell = await AgentIdentityCell(owner: owner)
-        try await Self.authorize(operatorIdentity, for: cell)
+        try await Self.authorize(operatorIdentity, owner: owner, for: cell)
         let response = try await cell.set(
             keypath: "entityLink.countersign",
             value: .object([
@@ -1350,10 +1350,13 @@ private extension AgentCellsTests {
         try artifactEncoder.encode(artifact).write(to: fileURL, options: [.atomic])
     }
 
-    static func authorize(_ identity: Identity, for cell: GeneralCell) async throws {
-        let agreement = cell.agreementTemplate
+    static func authorize(_ identity: Identity, owner: Identity, for cell: GeneralCell) async throws {
+        let agreement = try JSONDecoder().decode(
+            Agreement.self,
+            from: JSONEncoder().encode(cell.agreementTemplate)
+        )
         agreement.signatories.append(identity)
-        let state = await cell.addAgreement(agreement, for: identity)
+        let state = await cell.addAgreement(agreement, for: identity, authorizedBy: owner)
         #expect(state == .signed)
     }
 }

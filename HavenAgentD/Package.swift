@@ -11,7 +11,7 @@ let cellProtocolDependency: Package.Dependency = FileManager.default.fileExists(
 ) ? .package(path: localCellProtocolPath)
   : .package(
       url: "https://github.com/Digipomps/CellProtocol.git",
-      revision: "0e0c5337eec6ba7b18ea2bfa63f863e5c9c4ee77"
+      revision: "0ef84bcfbb81d2e112e961719821ed218cf95169"
   )
 
 let package = Package(
