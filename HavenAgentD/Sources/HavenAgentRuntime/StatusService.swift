@@ -98,6 +98,7 @@ public struct AgentStatusReport: Codable, Equatable, Sendable {
     public var bootstrapArtifact: AgentStatusBootstrapArtifactReport?
     public var launchAgent: LaunchAgentStatus
     public var controlBridge: AgentStatusControlBridgeReport
+    public var registrationObservation: AgentStatusRegistrationObservation?
     public var nextStep: AgentStatusNextStep
 }
 
@@ -138,6 +139,10 @@ public actor StatusService {
         let bootstrapArtifact = bootstrapArtifactReport(config: configLoad.config)
         let launchAgent = await launchAgentReport(options: options)
         let controlBridge = controlBridgeReport(config: configLoad.config)
+        let registrationObservation = AgentStatusRegistrationObservationBuilder.make(
+            config: configLoad.config,
+            controlBridge: controlBridge
+        )
         let nextStep = nextStepReport(
             options: options,
             config: config,
@@ -159,6 +164,7 @@ public actor StatusService {
             bootstrapArtifact: bootstrapArtifact,
             launchAgent: launchAgent,
             controlBridge: controlBridge,
+            registrationObservation: registrationObservation,
             nextStep: nextStep
         )
     }

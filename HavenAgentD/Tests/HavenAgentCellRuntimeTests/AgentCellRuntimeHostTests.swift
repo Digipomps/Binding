@@ -126,6 +126,8 @@ struct AgentCellRuntimeHostTests {
         #expect(statusResponse.body.contains("\"steps\""))
         #expect(statusResponse.body.contains("\"agent-supervisor\""))
         #expect(statusResponse.body.contains("\"provisioningRequest\""))
+        #expect(statusResponse.body.contains("\"registrationObservation\""))
+        #expect(statusResponse.body.contains("local-test-token") == false)
         await host.stop()
     }
 
