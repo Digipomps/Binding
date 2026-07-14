@@ -20,6 +20,7 @@ struct RootView: View {
 
     var body: some View {
         rootContent
+        .environment(\.bindingRuntimeSurfaceTargetSceneID, incomingURLSceneID)
         .task(id: initializationAttemptID) {
             // XCTest launches the HAVEN app as the host process for unit tests.
             // Starting the production runtime here races tests that deliberately

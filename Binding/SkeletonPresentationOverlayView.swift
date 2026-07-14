@@ -5,11 +5,23 @@ import SwiftUI
 import CellBase
 import CellApple
 
+private struct BindingRuntimeSurfaceTargetSceneIDKey: EnvironmentKey {
+    static let defaultValue: UUID? = nil
+}
+
+extension EnvironmentValues {
+    var bindingRuntimeSurfaceTargetSceneID: UUID? {
+        get { self[BindingRuntimeSurfaceTargetSceneIDKey.self] }
+        set { self[BindingRuntimeSurfaceTargetSceneIDKey.self] = newValue }
+    }
+}
+
 struct BindingSkeletonView: View {
     let element: SkeletonElement
     let userInfoValue: ValueType?
 
     @EnvironmentObject private var viewModel: PortholeViewModel
+    @Environment(\.bindingRuntimeSurfaceTargetSceneID) private var runtimeSurfaceTargetSceneID
 
     init(element: SkeletonElement, userInfoValue: ValueType? = nil) {
         self.element = element
@@ -19,7 +31,8 @@ struct BindingSkeletonView: View {
     var body: some View {
         let extraction = BindingSkeletonPresentationSupport.extract(
             from: element,
-            userInfoValue: userInfoValue
+            userInfoValue: userInfoValue,
+            targetSceneID: runtimeSurfaceTargetSceneID
         )
 
         ZStack {
@@ -34,6 +47,10 @@ struct BindingSkeletonView: View {
             )
             .environmentObject(viewModel)
         }
+        .environment(
+            \.skeletonButtonResolutionTransform,
+            BindingRuntimeSurfaceLaunchSupport.buttonResolutionTransform
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -48,13 +65,18 @@ struct BindingSkeletonRenderContext {
     var item: ValueType?
     var context: ValueType?
     var buttonContext: ValueType?
+    var runtimeSurfaceTargetSceneID: UUID?
 
-    static func root(_ value: ValueType?) -> BindingSkeletonRenderContext {
+    static func root(
+        _ value: ValueType?,
+        runtimeSurfaceTargetSceneID: UUID? = nil
+    ) -> BindingSkeletonRenderContext {
         BindingSkeletonRenderContext(
             root: value,
             item: nil,
             context: nil,
-            buttonContext: nil
+            buttonContext: nil,
+            runtimeSurfaceTargetSceneID: runtimeSurfaceTargetSceneID
         )
     }
 
@@ -63,7 +85,8 @@ struct BindingSkeletonRenderContext {
             root: root,
             item: value,
             context: Self.mergedContext(root: root, item: value),
-            buttonContext: value
+            buttonContext: value,
+            runtimeSurfaceTargetSceneID: runtimeSurfaceTargetSceneID
         )
     }
 
@@ -93,9 +116,16 @@ struct BindingSkeletonPresentationNode: Identifiable {
 enum BindingSkeletonPresentationSupport {
     static func extract(
         from element: SkeletonElement,
-        userInfoValue: ValueType?
+        userInfoValue: ValueType?,
+        targetSceneID: UUID? = nil
     ) -> BindingSkeletonPresentationExtraction {
-        extract(from: element, context: .root(userInfoValue))
+        extract(
+            from: element,
+            context: .root(
+                userInfoValue,
+                runtimeSurfaceTargetSceneID: targetSceneID
+            )
+        )
     }
 
     static func extract(
@@ -186,9 +216,16 @@ enum BindingSkeletonPresentationSupport {
         }
 
         if let presentation = presentation(for: element) {
+            guard let preparedElement = extractBaseElement(
+                from: removingPresentation(from: element),
+                context: context,
+                nodes: &nodes
+            ) else {
+                return nil
+            }
             nodes.append(
                 BindingSkeletonPresentationNode(
-                    element: removingPresentation(from: element),
+                    element: preparedElement,
                     presentation: presentation,
                     sourceIndex: nodes.count
                 )
@@ -224,11 +261,23 @@ enum BindingSkeletonPresentationSupport {
                 extractBaseElement(from: $0, context: context, nodes: &nodes)
             }
             return .Grid(value)
-        case .List(let value):
+        case .List(var value):
             if let materialized = materializedList(value, context: context, nodes: &nodes) {
                 return materialized
             }
-            return element
+            if let rowSkeleton = value.flowElementSkeleton,
+               case let .VStack(preparedRow) = adaptRuntimeSurfaceButtons(
+                   in: .VStack(rowSkeleton),
+                   targetSceneID: context.runtimeSurfaceTargetSceneID
+               ) {
+                value.flowElementSkeleton = preparedRow
+            }
+            return .List(value)
+        case .Reference(let value):
+            return adaptRuntimeSurfaceButtons(
+                in: .Reference(value),
+                targetSceneID: context.runtimeSurfaceTargetSceneID
+            )
         case .Tabs(var value):
             value.panels = value.panels.map { panel in
                 var updated = panel
@@ -259,6 +308,94 @@ enum BindingSkeletonPresentationSupport {
     ) -> SkeletonElementList {
         elements.compactMap {
             extractBaseElement(from: $0, context: context, nodes: &nodes)
+        }
+    }
+
+    private static func adaptRuntimeSurfaceButtons(
+        in element: SkeletonElement,
+        targetSceneID: UUID?
+    ) -> SkeletonElement {
+        switch element {
+        case .HStack(var value):
+            value.elements = value.elements.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            return .HStack(value)
+        case .VStack(var value):
+            value.elements = value.elements.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            return .VStack(value)
+        case .ScrollView(var value):
+            value.elements = value.elements.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            return .ScrollView(value)
+        case .Section(var value):
+            value.header = value.header.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            value.content = value.content.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            value.footer = value.footer.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            return .Section(value)
+        case .ZStack(var value):
+            value.elements = value.elements.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            return .ZStack(value)
+        case .Grid(var value):
+            value.elements = value.elements.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            value.itemSkeleton = value.itemSkeleton.map {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            return .Grid(value)
+        case .List(var value):
+            if let rowSkeleton = value.flowElementSkeleton,
+               case let .VStack(preparedRow) = adaptRuntimeSurfaceButtons(
+                   in: .VStack(rowSkeleton),
+                   targetSceneID: targetSceneID
+               ) {
+                value.flowElementSkeleton = preparedRow
+            }
+            return .List(value)
+        case .Reference(var value):
+            if let rowSkeleton = value.flowElementSkeleton,
+               case let .VStack(preparedRow) = adaptRuntimeSurfaceButtons(
+                   in: .VStack(rowSkeleton),
+                   targetSceneID: targetSceneID
+               ) {
+                value.flowElementSkeleton = preparedRow
+            }
+            return .Reference(value)
+        case .Tabs(var value):
+            value.panels = value.panels.map { panel in
+                var preparedPanel = panel
+                preparedPanel.content = panel.content.map {
+                    adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+                }
+                return preparedPanel
+            }
+            return .Tabs(value)
+        case .Object(var value):
+            value.elements = value.elements.mapValues {
+                adaptRuntimeSurfaceButtons(in: $0, targetSceneID: targetSceneID)
+            }
+            return .Object(value)
+        case .Button(let value):
+            return .Button(
+                BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(
+                    value,
+                    targetSceneID: targetSceneID
+                )
+            )
+        default:
+            return element
         }
     }
 
@@ -413,7 +550,10 @@ enum BindingSkeletonPresentationSupport {
 
         guard case let .object(object)? = context.buttonContext else {
             suppressDeferredButtonResolution(&button)
-            return BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(button)
+            return BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(
+                button,
+                targetSceneID: context.runtimeSurfaceTargetSceneID
+            )
         }
 
         if let urlValue = object["url"], case let .string(urlString) = urlValue {
@@ -454,7 +594,10 @@ enum BindingSkeletonPresentationSupport {
         }
 
         suppressDeferredButtonResolution(&button)
-        return BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(button)
+        return BindingRuntimeSurfaceLaunchSupport.adaptSkeletonButton(
+            button,
+            targetSceneID: context.runtimeSurfaceTargetSceneID
+        )
     }
 
     private static func suppressDeferredButtonResolution(_ button: inout SkeletonButton) {

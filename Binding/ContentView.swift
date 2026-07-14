@@ -844,9 +844,11 @@ struct ContentView: View {
             NotificationCenter.default.publisher(for: BindingRuntimeSurfaceLaunchBridge.notificationName)
         ) { notification in
             guard let event = BindingRuntimeSurfaceLaunchBridge.event(from: notification) else { return }
-            guard Self.matchesRuntimeSurfaceLaunchWindow(
+            guard Self.matchesRuntimeSurfaceLaunchTarget(
                 targetWindowNumber: event.targetWindowNumber,
-                hostingWindowNumber: hostingWindowNumber
+                targetSceneID: event.targetSceneID,
+                hostingWindowNumber: hostingWindowNumber,
+                hostingSceneID: incomingURLSceneID
             ) else { return }
             guard let request = event.request else {
                 recordRuntimeSurfaceLaunchFailure(
@@ -7584,10 +7586,15 @@ struct ContentView: View {
         "Ignorerte conference-automation action=\(hook.rawValue) fordi debug-automation ikke er aktivert."
     }
 
-    static func matchesRuntimeSurfaceLaunchWindow(
+    static func matchesRuntimeSurfaceLaunchTarget(
         targetWindowNumber: Int?,
-        hostingWindowNumber: Int?
+        targetSceneID: UUID?,
+        hostingWindowNumber: Int?,
+        hostingSceneID: UUID?
     ) -> Bool {
+        if let targetSceneID {
+            return hostingSceneID == targetSceneID
+        }
 #if canImport(AppKit)
         guard let targetWindowNumber else { return false }
         return matchesConferenceAutomationWindow(
@@ -7597,7 +7604,8 @@ struct ContentView: View {
 #else
         _ = targetWindowNumber
         _ = hostingWindowNumber
-        return true
+        _ = hostingSceneID
+        return false
 #endif
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import CellBase
+import CellApple
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -28,6 +29,18 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
     static let adapterCellName = "BindingRuntimeSurfaceLaunchAdapter"
     static let adapterEndpoint = "cell:///BindingRuntimeSurfaceLaunchAdapter"
     static let adapterKeypath = "open"
+    private static let targetSceneIDKey = "bindingTargetSceneID"
+
+    static let buttonResolutionTransform = SkeletonButtonResolutionTransform { template, resolved in
+        guard template.keypath == adapterKeypath,
+              template.url == adapterEndpoint,
+              classifyPayload(template.payload) != .notLaunchPayload else {
+            return resolved
+        }
+        var preserved = template
+        preserved.label = resolved.label
+        return preserved
+    }
 
     static func parse(_ url: URL) -> BindingRuntimeSurfaceLaunchParseResult {
         guard url.absoluteString.utf8.count <= 2_048 else {
@@ -78,7 +91,11 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
               root["surfaceLaunch"] != nil else {
             return .notLaunchPayload
         }
-        guard Set(root.keys) == ["surfaceLaunch"],
+        var allowedRootKeys = Set(["surfaceLaunch"])
+        if root[targetSceneIDKey] != nil {
+            allowedRootKeys.insert(targetSceneIDKey)
+        }
+        guard Set(root.keys) == allowedRootKeys,
               case let .object(launch)? = root["surfaceLaunch"],
               Set(launch.keys) == ["schema", "surfaceID", "intent"],
               string(launch["schema"]) == BindingRuntimeSurfaceLaunchRequest.schema,
@@ -86,10 +103,17 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
               let surfaceID = normalizedSurfaceID(string(launch["surfaceID"])) else {
             return .rejected("invalid_surface_launch_payload")
         }
+        if root[targetSceneIDKey] != nil,
+           targetSceneID(from: payload) == nil {
+            return .rejected("invalid_surface_launch_payload")
+        }
         return .accepted(BindingRuntimeSurfaceLaunchRequest(surfaceID: surfaceID))
     }
 
-    static func adaptSkeletonButton(_ button: SkeletonButton) -> SkeletonButton {
+    static func adaptSkeletonButton(
+        _ button: SkeletonButton,
+        targetSceneID: UUID? = nil
+    ) -> SkeletonButton {
         guard button.keypath.trimmingCharacters(in: .whitespacesAndNewlines) == "addConfiguration",
               classifyPayload(button.payload) != .notLaunchPayload else {
             return button
@@ -97,7 +121,20 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
         var adapted = button
         adapted.keypath = adapterKeypath
         adapted.url = adapterEndpoint
+        if let targetSceneID,
+           case var .object(root)? = adapted.payload {
+            root[targetSceneIDKey] = .string(targetSceneID.uuidString)
+            adapted.payload = .object(root)
+        }
         return adapted
+    }
+
+    static func targetSceneID(from payload: ValueType?) -> UUID? {
+        guard case let .object(root)? = payload,
+              let value = string(root[targetSceneIDKey]) else {
+            return nil
+        }
+        return UUID(uuidString: value)
     }
 
     static func orderedCatalogEndpoints(_ endpoints: [String]) -> [String] {
@@ -287,6 +324,7 @@ nonisolated struct BindingRuntimeSurfaceLaunchBridgeEvent {
     let rejectionReason: String?
     let requester: Identity
     let targetWindowNumber: Int?
+    let targetSceneID: UUID?
 }
 
 nonisolated enum BindingRuntimeSurfaceLaunchBridge {
@@ -350,37 +388,43 @@ final class BindingRuntimeSurfaceLaunchAdapterCell: BindingRuntimeBindingCell {
 
             switch BindingRuntimeSurfaceLaunchSupport.classifyPayload(payload) {
             case .accepted(let request):
+                let targetSceneID = BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: payload)
                 await MainActor.run {
                     BindingRuntimeSurfaceLaunchBridge.post(
                         BindingRuntimeSurfaceLaunchBridgeEvent(
                             request: request,
                             rejectionReason: nil,
                             requester: requester,
-                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber()
+                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber(),
+                            targetSceneID: targetSceneID
                         )
                     )
                 }
                 return .object(["status": .string("accepted")])
             case .rejected(let reason):
+                let targetSceneID = BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: payload)
                 await MainActor.run {
                     BindingRuntimeSurfaceLaunchBridge.post(
                         BindingRuntimeSurfaceLaunchBridgeEvent(
                             request: nil,
                             rejectionReason: reason,
                             requester: requester,
-                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber()
+                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber(),
+                            targetSceneID: targetSceneID
                         )
                     )
                 }
                 return nil
             case .notLaunchPayload:
+                let targetSceneID = BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: payload)
                 await MainActor.run {
                     BindingRuntimeSurfaceLaunchBridge.post(
                         BindingRuntimeSurfaceLaunchBridgeEvent(
                             request: nil,
                             rejectionReason: "missing_surface_launch_payload",
                             requester: requester,
-                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber()
+                            targetWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber(),
+                            targetSceneID: targetSceneID
                         )
                     )
                 }

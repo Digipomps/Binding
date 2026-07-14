@@ -2722,6 +2722,22 @@ struct BindingTests {
         #expect(adapted.url == BindingRuntimeSurfaceLaunchSupport.adapterEndpoint)
         #expect(try adapted.payload?.jsonString() == payload.jsonString())
 
+        let targetSceneID = UUID()
+        let targetedExtraction = BindingSkeletonPresentationSupport.extract(
+            from: skeleton,
+            userInfoValue: nil,
+            targetSceneID: targetSceneID
+        )
+        guard case let .Button(targeted)? = targetedExtraction.baseElement else {
+            Issue.record("Expected scene-targeted runtime surface button")
+            return
+        }
+        #expect(BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: targeted.payload) == targetSceneID)
+        #expect(
+            BindingRuntimeSurfaceLaunchSupport.classifyPayload(targeted.payload)
+                == .accepted(BindingRuntimeSurfaceLaunchRequest(surfaceID: "conference.public.registration"))
+        )
+
         let directPayload: ValueType = .object([
             "configurationLookup": .object(["name": .string("Compiled fallback")])
         ])
@@ -2782,10 +2798,12 @@ struct BindingTests {
         let skeleton = SkeletonElement.Button(
             SkeletonButton(keypath: "addConfiguration", label: "Registrer deg", payload: payload)
         )
+        let targetSceneID = UUID()
         let adapted = await MainActor.run { () -> SkeletonButton? in
             let extraction = BindingSkeletonPresentationSupport.extract(
                 from: skeleton,
-                userInfoValue: nil
+                userInfoValue: nil,
+                targetSceneID: targetSceneID
             )
             guard case let .Button(adapted)? = extraction.baseElement else {
                 return nil
@@ -2801,21 +2819,231 @@ struct BindingTests {
         #expect(event.request?.surfaceID == "conference.public.registration")
         #expect(event.requester.uuid == requester.uuid)
         #expect(event.requester.publicSecureKey?.compressedKey == requester.publicSecureKey?.compressedKey)
+        #expect(event.targetSceneID == targetSceneID)
     }
 
-    @Test func runtimeSurfaceLaunchTargetsOnlyOriginatingWindow() {
-#if canImport(AppKit)
-        #expect(ContentView.matchesRuntimeSurfaceLaunchWindow(
-            targetWindowNumber: 314,
-            hostingWindowNumber: 314
-        ))
-        #expect(!ContentView.matchesRuntimeSurfaceLaunchWindow(
-            targetWindowNumber: 314,
-            hostingWindowNumber: 271
-        ))
-        #expect(!ContentView.matchesRuntimeSurfaceLaunchWindow(
+    @Test func presentedRuntimeSurfaceButtonUsesLocalAdapterAndPreservesTargetScene() {
+        let targetSceneID = UUID()
+        let payload: ValueType = .object([
+            "surfaceLaunch": .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
+                "surfaceID": .string("conference.public.registration"),
+                "intent": .string("view")
+            ])
+        ])
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal, placement: .center)
+        var button = SkeletonButton(keypath: "addConfiguration", label: "Registrer deg", payload: payload)
+        button.modifiers = modifiers
+
+        let extraction = BindingSkeletonPresentationSupport.extract(
+            from: .Button(button),
+            userInfoValue: nil,
+            targetSceneID: targetSceneID
+        )
+
+        #expect(extraction.baseElement == nil)
+        #expect(extraction.nodes.count == 1)
+        guard case let .Button(adapted)? = extraction.nodes.first?.element else {
+            Issue.record("Expected adapted runtime surface button in presentation node")
+            return
+        }
+        #expect(adapted.keypath == BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        #expect(adapted.url == BindingRuntimeSurfaceLaunchSupport.adapterEndpoint)
+        #expect(BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: adapted.payload) == targetSceneID)
+
+        let hostileRow: ValueType = .object([
+            "keypath": .string("row.override"),
+            "label": .string("Radetikett"),
+            "url": .string("cell:///RowOverride"),
+            "payload": .object([
+                "surfaceLaunch": .object([
+                    "schema": .string("attacker.schema"),
+                    "surfaceID": .string("private.surface"),
+                    "intent": .string("mutate")
+                ])
+            ])
+        ])
+        let resolved = SkeletonButtonResolutionSupport.resolve(
+            template: adapted,
+            userInfoValue: hostileRow,
+            transform: BindingRuntimeSurfaceLaunchSupport.buttonResolutionTransform
+        )
+        #expect(resolved.keypath == BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        #expect(resolved.url == BindingRuntimeSurfaceLaunchSupport.adapterEndpoint)
+        // Presentation extraction deliberately suppresses deferred row-field
+        // resolution after its own pass, so a later hostile row cannot rewrite
+        // the already prepared button, including its visible label.
+        #expect(resolved.label == "Registrer deg")
+        #expect(BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: resolved.payload) == targetSceneID)
+        #expect(
+            BindingRuntimeSurfaceLaunchSupport.classifyPayload(resolved.payload)
+                == .accepted(BindingRuntimeSurfaceLaunchRequest(surfaceID: "conference.public.registration"))
+        )
+    }
+
+    @Test func presentedContainerAdaptsNestedRuntimeSurfaceButtonForTargetScene() {
+        let targetSceneID = UUID()
+        let payload: ValueType = .object([
+            "surfaceLaunch": .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
+                "surfaceID": .string("conference.public.registration"),
+                "intent": .string("view")
+            ])
+        ])
+        let button = SkeletonElement.Button(
+            SkeletonButton(keypath: "addConfiguration", label: "Registrer deg", payload: payload)
+        )
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .sheet, placement: .bottom)
+        var container = SkeletonVStack(elements: [button])
+        container.modifiers = modifiers
+
+        let extraction = BindingSkeletonPresentationSupport.extract(
+            from: .VStack(container),
+            userInfoValue: nil,
+            targetSceneID: targetSceneID
+        )
+
+        #expect(extraction.baseElement == nil)
+        #expect(extraction.nodes.count == 1)
+        guard case let .VStack(preparedContainer)? = extraction.nodes.first?.element,
+              case let .Button(adapted)? = preparedContainer.elements.first else {
+            Issue.record("Expected adapted runtime surface button inside presentation container")
+            return
+        }
+        #expect(adapted.keypath == BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        #expect(adapted.url == BindingRuntimeSurfaceLaunchSupport.adapterEndpoint)
+        #expect(BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: adapted.payload) == targetSceneID)
+    }
+
+    @Test func delegatedTopicListAdaptsRuntimeSurfaceButtonTemplateForTargetScene() {
+        let targetSceneID = UUID()
+        let payload: ValueType = .object([
+            "surfaceLaunch": .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
+                "surfaceID": .string("conference.public.registration"),
+                "intent": .string("view")
+            ])
+        ])
+        let row = SkeletonVStack(elements: [
+            .Button(
+                SkeletonButton(keypath: "addConfiguration", label: "Registrer deg", payload: payload)
+            )
+        ])
+        let list = SkeletonList(
+            topic: "conference.public.registrations",
+            keypath: nil,
+            flowElementSkeleton: row
+        )
+
+        let extraction = BindingSkeletonPresentationSupport.extract(
+            from: .List(list),
+            userInfoValue: nil,
+            targetSceneID: targetSceneID
+        )
+
+        guard case let .List(preparedList)? = extraction.baseElement,
+              let preparedRow = preparedList.flowElementSkeleton,
+              case let .Button(adapted)? = preparedRow.elements.first else {
+            Issue.record("Expected adapted runtime surface button in delegated list template")
+            return
+        }
+        #expect(preparedList.topic == list.topic)
+        #expect(adapted.keypath == BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        #expect(adapted.url == BindingRuntimeSurfaceLaunchSupport.adapterEndpoint)
+        #expect(BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: adapted.payload) == targetSceneID)
+    }
+
+    @Test func delegatedReferenceAdaptsRuntimeSurfaceButtonAndRejectsHostileRowOverrides() {
+        let targetSceneID = UUID()
+        let payload: ValueType = .object([
+            "surfaceLaunch": .object([
+                "schema": .string(BindingRuntimeSurfaceLaunchRequest.schema),
+                "surfaceID": .string("conference.public.registration"),
+                "intent": .string("view")
+            ])
+        ])
+        let row = SkeletonVStack(elements: [
+            .Button(
+                SkeletonButton(keypath: "addConfiguration", label: "Registrer deg", payload: payload)
+            )
+        ])
+        var reference = SkeletonCellReference(
+            keypath: "cell:///Conference/PublicRegistrations",
+            topic: "conference.public.registrations"
+        )
+        reference.flowElementSkeleton = row
+
+        let extraction = BindingSkeletonPresentationSupport.extract(
+            from: .Reference(reference),
+            userInfoValue: nil,
+            targetSceneID: targetSceneID
+        )
+
+        guard case let .Reference(preparedReference)? = extraction.baseElement,
+              let preparedRow = preparedReference.flowElementSkeleton,
+              case let .Button(adapted)? = preparedRow.elements.first else {
+            Issue.record("Expected adapted runtime surface button in delegated reference template")
+            return
+        }
+        let hostileRow: ValueType = .object([
+            "keypath": .string("row.override"),
+            "url": .string("cell:///RowOverride"),
+            "payload": .string("row override")
+        ])
+        let resolved = SkeletonButtonResolutionSupport.resolve(
+            template: adapted,
+            userInfoValue: hostileRow,
+            transform: BindingRuntimeSurfaceLaunchSupport.buttonResolutionTransform
+        )
+
+        #expect(preparedReference.keypath == reference.keypath)
+        #expect(resolved.keypath == BindingRuntimeSurfaceLaunchSupport.adapterKeypath)
+        #expect(resolved.url == BindingRuntimeSurfaceLaunchSupport.adapterEndpoint)
+        #expect(BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: resolved.payload) == targetSceneID)
+        #expect(
+            BindingRuntimeSurfaceLaunchSupport.classifyPayload(resolved.payload)
+                == .accepted(BindingRuntimeSurfaceLaunchRequest(surfaceID: "conference.public.registration"))
+        )
+    }
+
+    @Test func runtimeSurfaceLaunchTargetsOnlyOriginatingSceneOrWindow() {
+        let originatingSceneID = UUID()
+        let otherSceneID = UUID()
+        let matchingScenes = [originatingSceneID, otherSceneID].filter { hostingSceneID in
+            ContentView.matchesRuntimeSurfaceLaunchTarget(
+                targetWindowNumber: nil,
+                targetSceneID: originatingSceneID,
+                hostingWindowNumber: nil,
+                hostingSceneID: hostingSceneID
+            )
+        }
+        #expect(matchingScenes == [originatingSceneID])
+        #expect(!ContentView.matchesRuntimeSurfaceLaunchTarget(
             targetWindowNumber: nil,
-            hostingWindowNumber: 314
+            targetSceneID: originatingSceneID,
+            hostingWindowNumber: nil,
+            hostingSceneID: nil
+        ))
+#if canImport(AppKit)
+        #expect(ContentView.matchesRuntimeSurfaceLaunchTarget(
+            targetWindowNumber: 314,
+            targetSceneID: nil,
+            hostingWindowNumber: 314,
+            hostingSceneID: originatingSceneID
+        ))
+        #expect(!ContentView.matchesRuntimeSurfaceLaunchTarget(
+            targetWindowNumber: 314,
+            targetSceneID: nil,
+            hostingWindowNumber: 271,
+            hostingSceneID: originatingSceneID
+        ))
+        #expect(!ContentView.matchesRuntimeSurfaceLaunchTarget(
+            targetWindowNumber: nil,
+            targetSceneID: nil,
+            hostingWindowNumber: 314,
+            hostingSceneID: originatingSceneID
         ))
 #endif
     }
