@@ -15639,7 +15639,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         configuration.description = description
 
         var scannerReference = CellReference(endpoint: "cell:///EntityScanner", label: "scanner")
-        scannerReference.addKeyAndValue(KeyValue(key: "start"))
+        scannerReference.addKeyAndValue(KeyValue(key: "start", value: .bool(true)))
         configuration.addReference(scannerReference)
         var nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", label: "nearbyRadar")
         nearbyRadarReference.addKeyAndValue(KeyValue(key: "start"))

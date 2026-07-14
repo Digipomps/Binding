@@ -23,6 +23,7 @@
       "options" : {
 
       },
+      "parallelizable" : false,
       "target" : {
         "containerPath" : "container:Binding.xcodeproj",
         "identifier" : "24D800212EF195A200021B5A",

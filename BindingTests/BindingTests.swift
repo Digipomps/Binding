@@ -4024,7 +4024,7 @@ struct BindingTests {
         #expect(RemoteEndpointAccessSupport.authorizationKind(for: "cell:///Perspective") == .none)
     }
 
-    @Test func entityScannerWorkbenchConfigurationsStayLocalToBinding() {
+    @Test func entityScannerWorkbenchConfigurationsStayLocalToBinding() throws {
         let configurations = [
             ConfigurationCatalogCell.entityScannerWorkbenchConfiguration(),
             ConfigurationCatalogCell.entityScannerTestHelperConfiguration(),
@@ -4032,13 +4032,22 @@ struct BindingTests {
         ]
 
         for configuration in configurations {
-            let references = configuration.cellReferences ?? []
+            let encoded = try JSONEncoder().encode(configuration)
+            let decoded = try JSONDecoder().decode(CellConfiguration.self, from: encoded)
+            let references = decoded.cellReferences ?? []
             #expect(references.contains(where: { $0.endpoint == "cell:///EntityScanner" }))
             #expect(references.contains(where: { $0.endpoint == "cell:///ConferenceNearbyRadar" }))
             #expect(!references.contains(where: { $0.endpoint.contains("staging.haven.digipomps.org/EntityScanner") }))
+            guard let scannerReference = references.first(where: {
+                $0.endpoint == "cell:///EntityScanner" && $0.label == "scanner"
+            }) else {
+                Issue.record("\(decoded.name) mangler lokal EntityScanner-referanse")
+                continue
+            }
+            #expect(scannerReference.setKeysAndValues.first(where: { $0.key == "start" })?.value == .bool(true))
 
-            guard let skeleton = configuration.skeleton else {
-                Issue.record("\(configuration.name) mangler skeleton")
+            guard let skeleton = decoded.skeleton else {
+                Issue.record("\(decoded.name) mangler skeleton")
                 continue
             }
 
@@ -7340,43 +7349,22 @@ struct BindingTests {
         CellBase.debugValidateAccessForEverything = true
         defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
 
-        await AppInitializer.initialize()
-        let resolver: CellResolver
-        if let existing = CellBase.defaultCellResolver as? CellResolver {
-            resolver = existing
-        } else {
-            resolver = CellResolver.sharedInstance
-            CellBase.defaultCellResolver = resolver
-        }
-
+        let resolver = CellResolver.sharedInstance
+        CellBase.defaultCellResolver = resolver
         let owner = await makeOwnerIdentity()
-
-        try? await resolver.addCellResolve(
-            name: "Porthole",
-            cellScope: .identityUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: OrchestratorCell.self
+        let fixtureName = "RootOnlyState-\(UUID().uuidString)"
+        let fixture = await RootOnlyStateCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: fixtureName,
+            emitCell: fixture,
+            identity: owner
         )
-        try? await resolver.addCellResolve(
-            name: "RootOnlyState",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: RootOnlyStateCell.self
-        )
-
-        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
-            Issue.record("Could not resolve Porthole")
-            return
-        }
-
-        porthole.detachAll(requester: owner)
+        let porthole = await OrchestratorCell(owner: owner)
 
         var configuration = CellConfiguration(name: "Root State Portal")
-        configuration.addReference(CellReference(endpoint: "cell:///RootOnlyState", label: "rootState"))
+        configuration.addReference(CellReference(endpoint: "cell:///\(fixtureName)", label: "rootState"))
 
-        _ = try await resolver.loadCell(from: configuration, into: porthole, requester: owner)
+        try await porthole.loadCellConfiguration(configuration, requester: owner)
 
         let titleValue = try await porthole.get(keypath: "rootState.state.workspace.title", requester: owner)
         #expect(titleValue == .string("Conference Participant Portal"))
