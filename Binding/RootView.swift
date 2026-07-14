@@ -17,9 +17,19 @@ struct RootView: View {
     @State private var initializationAttemptID = UUID()
     @State private var incomingURLSceneID = UUID()
     @State private var incomingURLDeliveryFailed = false
+#if canImport(AppKit)
+    @State private var hostingWindowNumber: Int?
+#endif
 
     var body: some View {
         rootContent
+#if canImport(AppKit)
+        .background(
+            BindingHostingWindowReader { window in
+                hostingWindowNumber = window?.windowNumber
+            }
+        )
+#endif
         .environment(\.bindingRuntimeSurfaceTargetSceneID, incomingURLSceneID)
         .task(id: initializationAttemptID) {
             // XCTest launches the HAVEN app as the host process for unit tests.
@@ -70,7 +80,23 @@ struct RootView: View {
 #endif
         .onReceive(NotificationCenter.default.publisher(
             for: BindingIncomingURLBridge.deliveryFailureNotificationName
-        )) { _ in
+        )) { notification in
+            guard let failure = BindingIncomingURLBridge.deliveryFailure(from: notification) else {
+                return
+            }
+#if canImport(AppKit)
+            let currentHostingWindowNumber = hostingWindowNumber
+#else
+            let currentHostingWindowNumber: Int? = nil
+#endif
+            guard Self.matchesDeliveryFailureTarget(
+                failure,
+                hostingWindowNumber: currentHostingWindowNumber,
+                hostingSceneID: incomingURLSceneID,
+                activeWindowNumber: BindingRuntimeSurfaceLaunchBridge.currentTargetWindowNumber()
+            ) else {
+                return
+            }
             incomingURLDeliveryFailed = true
         }
         .alert("Kunne ikke åpne lenken", isPresented: $incomingURLDeliveryFailed) {
@@ -78,6 +104,29 @@ struct RootView: View {
         } message: {
             Text("HAVEN var opptatt med andre lenker. Prøv igjen når den pågående åpningen er ferdig.")
         }
+    }
+
+    nonisolated static func matchesDeliveryFailureTarget(
+        _ failure: BindingIncomingURLDeliveryFailure,
+        hostingWindowNumber: Int?,
+        hostingSceneID: UUID,
+        activeWindowNumber: Int?
+    ) -> Bool {
+#if canImport(AppKit)
+        if let targetWindowNumber = failure.targetWindowNumber {
+            return hostingWindowNumber == targetWindowNumber
+        }
+        if let targetSceneID = failure.targetSceneID {
+            return hostingSceneID == targetSceneID
+        }
+        guard let hostingWindowNumber, let activeWindowNumber else { return false }
+        return hostingWindowNumber == activeWindowNumber
+#else
+        _ = hostingWindowNumber
+        _ = activeWindowNumber
+        return failure.targetWindowNumber == nil
+            && failure.targetSceneID == hostingSceneID
+#endif
     }
 
     @ViewBuilder

@@ -31,15 +31,41 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
     static let adapterKeypath = "open"
     private static let targetSceneIDKey = "bindingTargetSceneID"
 
-    static let buttonResolutionTransform = SkeletonButtonResolutionTransform { template, resolved in
-        guard template.keypath == adapterKeypath,
-              template.url == adapterEndpoint,
-              classifyPayload(template.payload) != .notLaunchPayload else {
-            return resolved
+    static func buttonResolutionTransform(
+        targetSceneID: UUID?
+    ) -> SkeletonButtonResolutionTransform {
+        SkeletonButtonResolutionTransform { template, resolved in
+            let templateKeypath = template.keypath.trimmingCharacters(in: .whitespacesAndNewlines)
+            let templateDeclaresRuntimeLaunch = classifyPayload(template.payload) != .notLaunchPayload
+            let resolvedDeclaresRuntimeLaunch = classifyPayload(resolved.payload) != .notLaunchPayload
+
+            let isAuthorizedConfigurationTemplate = templateKeypath == "addConfiguration"
+                && (templateDeclaresRuntimeLaunch || resolvedDeclaresRuntimeLaunch)
+            let isHostAdapterTemplate = templateKeypath == adapterKeypath
+                && template.url == adapterEndpoint
+                && templateDeclaresRuntimeLaunch
+            guard isAuthorizedConfigurationTemplate || isHostAdapterTemplate else {
+                return resolved
+            }
+
+            if isHostAdapterTemplate {
+                var anchored = template
+                anchored.label = resolved.label
+                anchored.keypath = "addConfiguration"
+                anchored.url = adapterEndpoint
+                return adaptSkeletonButton(anchored, targetSceneID: targetSceneID)
+            }
+
+            // Runtime rows may resolve labels and payload fields, but portable
+            // data must never replace the host-owned action route or scene.
+            var anchored = resolved
+            anchored.keypath = "addConfiguration"
+            anchored.url = templateKeypath == adapterKeypath ? adapterEndpoint : template.url
+            if classifyPayload(anchored.payload) == .notLaunchPayload {
+                anchored.payload = template.payload
+            }
+            return adaptSkeletonButton(anchored, targetSceneID: targetSceneID)
         }
-        var preserved = template
-        preserved.label = resolved.label
-        return preserved
     }
 
     static func parse(_ url: URL) -> BindingRuntimeSurfaceLaunchParseResult {
@@ -121,9 +147,12 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
         var adapted = button
         adapted.keypath = adapterKeypath
         adapted.url = adapterEndpoint
-        if let targetSceneID,
-           case var .object(root)? = adapted.payload {
-            root[targetSceneIDKey] = .string(targetSceneID.uuidString)
+        if case var .object(root)? = adapted.payload {
+            // Never trust a portable or row-resolved host-routing hint.
+            root.removeValue(forKey: targetSceneIDKey)
+            if let targetSceneID {
+                root[targetSceneIDKey] = .string(targetSceneID.uuidString)
+            }
             adapted.payload = .object(root)
         }
         return adapted
@@ -138,10 +167,22 @@ nonisolated enum BindingRuntimeSurfaceLaunchSupport {
     }
 
     static func orderedCatalogEndpoints(_ endpoints: [String]) -> [String] {
-        RemoteCatalogSupport.orderedCatalogCandidateEndpoints(
-            from: endpoints,
-            preference: .preferRemote
-        )
+        var seen: Set<String> = []
+        var remote: [String] = []
+        var local: [String] = []
+        for endpoint in endpoints {
+            let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false,
+                  seen.insert(trimmed.lowercased()).inserted else {
+                continue
+            }
+            if RemoteCatalogSupport.isLocalCatalogEndpoint(trimmed) {
+                local.append(trimmed)
+            } else {
+                remote.append(trimmed)
+            }
+        }
+        return remote + local
     }
 
     static func configuredRemoteCatalogEndpoints(
@@ -400,7 +441,7 @@ final class BindingRuntimeSurfaceLaunchAdapterCell: BindingRuntimeBindingCell {
                         )
                     )
                 }
-                return .object(["status": .string("accepted")])
+                return .object(["status": .string("submitted")])
             case .rejected(let reason):
                 let targetSceneID = BindingRuntimeSurfaceLaunchSupport.targetSceneID(from: payload)
                 await MainActor.run {

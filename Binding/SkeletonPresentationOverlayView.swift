@@ -49,7 +49,9 @@ struct BindingSkeletonView: View {
         }
         .environment(
             \.skeletonButtonResolutionTransform,
-            BindingRuntimeSurfaceLaunchSupport.buttonResolutionTransform
+            BindingRuntimeSurfaceLaunchSupport.buttonResolutionTransform(
+                targetSceneID: runtimeSurfaceTargetSceneID
+            )
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

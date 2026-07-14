@@ -135,6 +135,77 @@ struct DeepLinkDeliveryTests {
         #expect(BindingIncomingURLBridge.pendingCount() == 32)
     }
 
+    @Test func stalePendingURLExpiresBeforeItCanExhaustOrReachAReusedScene() throws {
+        BindingIncomingURLBridge.resetForTesting()
+        defer { BindingIncomingURLBridge.resetForTesting() }
+        let startedAt = Date(timeIntervalSince1970: 2_000)
+        let url = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=stale&intent=view"))
+        #expect(BindingIncomingURLBridge.post(
+            url: url,
+            targetWindowNumber: 314,
+            targetSceneID: UUID(),
+            now: startedAt,
+            notificationCenter: NotificationCenter()
+        ))
+        #expect(BindingIncomingURLBridge.pendingCount(now: startedAt) == 1)
+        #expect(BindingIncomingURLBridge.pendingCount(now: startedAt.addingTimeInterval(301)) == 0)
+    }
+
+    @Test func queueFailureRetainsItsSceneTarget() async throws {
+        BindingIncomingURLBridge.resetForTesting()
+        defer { BindingIncomingURLBridge.resetForTesting() }
+        let center = NotificationCenter()
+        let url = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=full&intent=view"))
+        for _ in 0..<32 {
+            #expect(BindingIncomingURLBridge.post(url: url, notificationCenter: center))
+        }
+        let targetSceneID = UUID()
+        let recorder = IncomingURLDeliveryFailureRecorder()
+        let observer = center.addObserver(
+            forName: BindingIncomingURLBridge.deliveryFailureNotificationName,
+            object: nil,
+            queue: nil
+        ) { notification in
+            recorder.record(BindingIncomingURLBridge.deliveryFailure(from: notification))
+        }
+        defer { center.removeObserver(observer) }
+
+        BindingIncomingURLBridge.submit(
+            url: url,
+            targetSceneID: targetSceneID,
+            notificationCenter: center,
+            retryDelays: []
+        )
+        await Task.yield()
+        await Task.yield()
+
+        let failure = try #require(recorder.failure())
+        #expect(failure.reason == "incoming_url_queue_full")
+        #expect(failure.targetSceneID == targetSceneID)
+    }
+
+    @Test func deliveryFailureTargetsOnlyItsHostingWindow() {
+#if canImport(AppKit)
+        let failure = BindingIncomingURLDeliveryFailure(
+            reason: "incoming_url_queue_full",
+            targetWindowNumber: 314,
+            targetSceneID: nil
+        )
+        #expect(RootView.matchesDeliveryFailureTarget(
+            failure,
+            hostingWindowNumber: 314,
+            hostingSceneID: UUID(),
+            activeWindowNumber: 314
+        ))
+        #expect(!RootView.matchesDeliveryFailureTarget(
+            failure,
+            hostingWindowNumber: 271,
+            hostingSceneID: UUID(),
+            activeWindowNumber: 314
+        ))
+#endif
+    }
+
     @Test func expiredLeaseCanBeReclaimedAndStaleTokenCannotAcknowledge() throws {
         BindingIncomingURLBridge.resetForTesting()
         defer { BindingIncomingURLBridge.resetForTesting() }
@@ -164,7 +235,7 @@ struct DeepLinkDeliveryTests {
             consumerID: secondConsumer,
             hostingWindowNumber: nil,
             hostingSceneID: sceneID,
-            now: startedAt.addingTimeInterval(31)
+            now: startedAt.addingTimeInterval(91)
         ).first)
 
         BindingIncomingURLBridge.acknowledge(firstLease, consumerID: firstConsumer)
@@ -187,6 +258,39 @@ struct DeepLinkDeliveryTests {
 
         await queue.waitForIdle()
         #expect(order == ["slow-first", "fast-second"])
+    }
+
+    @Test func configurationLoadsNeverOverlapAndLatestRequestWins() async {
+        let coordinator = BindingSerializedConfigurationLoadCoordinator()
+        let gate = CancellationIgnoringRouteGate()
+        var activeLoads = 0
+        var maximumActiveLoads = 0
+        var finalConfiguration = ""
+
+        coordinator.enqueue {
+            activeLoads += 1
+            maximumActiveLoads = max(maximumActiveLoads, activeLoads)
+            await gate.wait()
+            finalConfiguration = "first"
+            activeLoads -= 1
+        }
+        await Task.yield()
+
+        let latest = coordinator.enqueue {
+            activeLoads += 1
+            maximumActiveLoads = max(maximumActiveLoads, activeLoads)
+            finalConfiguration = "second"
+            activeLoads -= 1
+        }
+        await Task.yield()
+        #expect(maximumActiveLoads == 1)
+        #expect(finalConfiguration.isEmpty)
+
+        await gate.open()
+        await latest.value
+        #expect(maximumActiveLoads == 1)
+        #expect(activeLoads == 0)
+        #expect(finalConfiguration == "second")
     }
 
     @Test func timedOutRouteDoesNotBlockFollowingWork() async {
@@ -215,6 +319,34 @@ struct DeepLinkDeliveryTests {
         await gate.open()
         await Task.yield()
         #expect(order == ["second"])
+    }
+
+    @Test func timedOutRouteCancelsItsUnstructuredConfigurationLoad() async {
+        let queue = BindingRuntimeRouteQueue(operationTimeout: .milliseconds(20))
+        let coordinator = BindingSerializedConfigurationLoadCoordinator()
+        var loadObservedCancellation = false
+
+        queue.enqueue { _ in
+            let load = coordinator.enqueue {
+                do {
+                    try await Task.sleep(for: .seconds(5))
+                } catch {
+                    loadObservedCancellation = true
+                }
+            }
+            await withTaskCancellationHandler {
+                await load.value
+            } onCancel: {
+                load.cancel()
+            }
+        }
+
+        await queue.waitForIdle()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while !loadObservedCancellation && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(loadObservedCancellation)
     }
 
     @Test func lifecycleCancellationReleasesLeasesAndRestartsWithOneWorker() async throws {
@@ -351,7 +483,8 @@ struct DeepLinkDeliveryTests {
 
     @Test func disabledAutomationDiagnosticNeverIncludesQueryValues() throws {
         let url = try #require(URL(string: "haven://conference-automation?action=open-launcher&token=do-not-log-me"))
-        let hook = try #require(ContentView.conferenceAutomationHook(from: url))
+        #expect(ContentView.conferenceAutomationHook(from: url) == nil)
+        let hook = ContentView.ConferenceAutomationHook.openLauncher
         let diagnostic = ContentView.conferenceAutomationDisabledDiagnostic(for: hook)
 
         #expect(diagnostic.contains("open-launcher"))
@@ -399,5 +532,22 @@ private actor CancellationIgnoringRouteGate {
         isOpen = true
         continuation?.resume()
         continuation = nil
+    }
+}
+
+private final class IncomingURLDeliveryFailureRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedFailure: BindingIncomingURLDeliveryFailure?
+
+    func record(_ failure: BindingIncomingURLDeliveryFailure?) {
+        lock.lock()
+        storedFailure = failure
+        lock.unlock()
+    }
+
+    func failure() -> BindingIncomingURLDeliveryFailure? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedFailure
     }
 }

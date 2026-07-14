@@ -24,6 +24,13 @@ actor BindingLocalCellRegistration {
     private static let warmupEndpointTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let warmupStateTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let localRegistrationValidationAttemptLimit = 2
+    private static let criticalLocalEndpoints = [
+        "cell:///Porthole",
+        "cell:///Perspective",
+        "cell:///ConfigurationCatalog",
+        BindingRuntimeSurfaceLaunchSupport.adapterEndpoint,
+        "cell:///PersonalCopilotNavigator"
+    ]
     private static let safeConferenceWarmupEndpoints: [String] = [
         "cell:///Perspective",
         "cell:///Vault",
@@ -157,17 +164,65 @@ actor BindingLocalCellRegistration {
             return false
         }
 
-        for endpoint in ["cell:///Porthole", "cell:///Perspective"] {
+        for endpoint in Self.criticalLocalEndpoints {
             guard let cell = try? await resolver.cellAtEndpoint(
                 endpoint: endpoint,
                 requester: requester
             ),
+                  let generalCell = cell as? GeneralCell,
+                  Self.criticalCellTypeMatches(endpoint: endpoint, cell: cell),
                   let owner = try? await cell.getOwner(requester: requester),
                   owner.referencesSameSigningIdentity(as: requester) else {
                 return false
             }
+            if let bindingCell = cell as? BindingRuntimeBindingEnsuring {
+                do {
+                    try await bindingCell.ensureRuntimeBindings()
+                } catch {
+                    return false
+                }
+            }
+
+            switch endpoint {
+            case "cell:///ConfigurationCatalog":
+                guard case let .list(configurations)? = try? await generalCell.get(
+                    keypath: "configurations",
+                    requester: requester
+                ), configurations.isEmpty == false else {
+                    return false
+                }
+            case "cell:///PersonalCopilotNavigator":
+                guard case .object? = try? await generalCell.get(
+                    keypath: "state",
+                    requester: requester
+                ) else {
+                    return false
+                }
+            default:
+                break
+            }
         }
         return true
+    }
+
+    nonisolated static func criticalCellTypeMatches(
+        endpoint: String,
+        cell: any Emit
+    ) -> Bool {
+        switch endpoint {
+        case "cell:///Porthole":
+            return cell is OrchestratorCell
+        case "cell:///Perspective":
+            return cell is PerspectiveCell
+        case "cell:///ConfigurationCatalog":
+            return cell is ConfigurationCatalogCell
+        case BindingRuntimeSurfaceLaunchSupport.adapterEndpoint:
+            return cell is BindingRuntimeSurfaceLaunchAdapterCell
+        case "cell:///PersonalCopilotNavigator":
+            return cell is PersonalCopilotNavigatorLocalCell
+        default:
+            return false
+        }
     }
 
 #if DEBUG
@@ -898,6 +953,7 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
     }
 
     nonisolated(unsafe) private var cachedState: Object = [:]
+    private let cachedStateLock = NSLock()
 
     var readableKeys: [String] {
         ["state"]
@@ -909,7 +965,7 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
-        cachedState = initialState()
+        replaceState(initialState())
         await installRuntimeBindings(owner: owner)
         await markRuntimeBindingsInstalled()
     }
@@ -918,14 +974,14 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
         try super.init(from: decoder)
 
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        cachedState = try container.decodeIfPresent(Object.self, forKey: .cachedState) ?? [:]
+        restoreState(try container.decodeIfPresent(Object.self, forKey: .cachedState) ?? [:])
     }
 
     nonisolated override func encode(to encoder: Encoder) throws {
         try super.encode(to: encoder)
 
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(cachedState, forKey: .cachedState)
+        try container.encode(stateObject(), forKey: .cachedState)
     }
 
     nonisolated func initialState() -> Object {
@@ -936,35 +992,53 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
     }
 
     func handleSet(key: String, value: ValueType) async -> ValueType {
-        setStateValue(value, for: key)
-        cachedState["lastAction"] = .string(key)
-        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        mutateState { state in
+            setNestedValue(
+                value,
+                for: key.split(separator: ".").map(String.init),
+                in: &state
+            )
+            state["lastAction"] = .string(key)
+        }
         return response(status: "ok", message: "\(key) updated locally.")
     }
 
-    func stateObject() -> Object {
-        cachedState
+    nonisolated func stateObject() -> Object {
+        withCachedState { $0 }
     }
 
-    func replaceState(_ object: Object) {
-        cachedState = object
-        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
-    }
-
-    func mergeState(_ updates: Object) {
-        for (key, value) in updates {
-            cachedState[key] = value
+    nonisolated func replaceState(_ object: Object) {
+        withCachedState { state in
+            state = object
+            state["updatedAt"] = .float(Date().timeIntervalSince1970)
         }
-        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+    }
+
+    /// Decoding is restoration, not a user-visible mutation. Preserve the
+    /// persisted snapshot exactly so immediate reads match the encoded cell.
+    nonisolated private func restoreState(_ object: Object) {
+        withCachedState { state in
+            state = object
+        }
+    }
+
+    nonisolated func mergeState(_ updates: Object) {
+        mutateState { state in
+            for (key, value) in updates {
+                state[key] = value
+            }
+        }
     }
 
     func response(status: String, message: String) -> ValueType {
-        cachedState["status"] = .string(message)
-        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        let snapshot: Object = mutateState { state in
+            state["status"] = .string(message)
+            return state
+        }
         return .object([
             "status": .string(status),
             "message": .string(message),
-            "state": .object(cachedState)
+            "state": .object(snapshot)
         ])
     }
 
@@ -983,21 +1057,57 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
         }
     }
 
-    func setStateValue(_ value: ValueType, for dottedKey: String) {
-        var state = cachedState
-        setNestedValue(value, for: dottedKey.split(separator: ".").map(String.init), in: &state)
-        replaceState(state)
+    nonisolated func setStateValue(_ value: ValueType, for dottedKey: String) {
+        mutateState { state in
+            setNestedValue(
+                value,
+                for: dottedKey.split(separator: ".").map(String.init),
+                in: &state
+            )
+        }
     }
 
-    func stateValue(for dottedKey: String) -> ValueType? {
-        nestedValue(for: dottedKey.split(separator: ".").map(String.init), in: cachedState)
+    nonisolated func stateValue(for dottedKey: String) -> ValueType? {
+        withCachedState { state in
+            nestedValue(
+                for: dottedKey.split(separator: ".").map(String.init),
+                in: state
+            )
+        }
+    }
+
+    nonisolated func appendStateListValue(_ value: ValueType, for dottedKey: String) {
+        mutateState { state in
+            let path = dottedKey.split(separator: ".").map(String.init)
+            var values: [ValueType] = []
+            if case let .list(existing)? = nestedValue(for: path, in: state) {
+                values = existing
+            }
+            values.append(value)
+            setNestedValue(.list(values), for: path, in: &state)
+        }
+    }
+
+    @discardableResult
+    nonisolated private func mutateState<T>(_ operation: (inout Object) -> T) -> T {
+        withCachedState { state in
+            let result = operation(&state)
+            state["updatedAt"] = .float(Date().timeIntervalSince1970)
+            return result
+        }
+    }
+
+    nonisolated private func withCachedState<T>(_ operation: (inout Object) -> T) -> T {
+        cachedStateLock.lock()
+        defer { cachedStateLock.unlock() }
+        return operation(&cachedState)
     }
 
     override func installRuntimeBindings(owner: Identity) async {
-        if cachedState.isEmpty {
-            cachedState = initialState()
-        } else if cachedState["updatedAt"] == nil {
-            cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        if stateObject().isEmpty {
+            replaceState(initialState())
+        } else if stateValue(for: "updatedAt") == nil {
+            mergeState([:])
         }
 
         for key in readableKeys {
@@ -1006,9 +1116,9 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
                 if key == "state" {
-                    return .object(self.cachedState)
+                    return .object(self.stateObject())
                 }
-                return self.stateValue(for: key) ?? .object(self.cachedState)
+                return self.stateValue(for: key) ?? .object(self.stateObject())
             })
         }
 
@@ -1022,7 +1132,7 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
         }
     }
 
-    private func nestedValue(for path: [String], in object: Object) -> ValueType? {
+    nonisolated private func nestedValue(for path: [String], in object: Object) -> ValueType? {
         guard let first = path.first else { return .object(object) }
         guard let value = object[first] else { return nil }
         guard path.count > 1 else { return value }
@@ -1030,7 +1140,7 @@ class PersonalCopilotLocalCell: BindingRuntimeBindingCell {
         return nestedValue(for: Array(path.dropFirst()), in: child)
     }
 
-    private func setNestedValue(_ value: ValueType, for path: [String], in object: inout Object) {
+    nonisolated private func setNestedValue(_ value: ValueType, for path: [String], in object: inout Object) {
         guard let first = path.first else { return }
         guard path.count > 1 else {
             object[first] = value
@@ -2295,16 +2405,11 @@ private final class PersonalPrivacyAuditLocalCell: PersonalCopilotLocalCell {
             return await super.handleSet(key: key, value: value)
         }
 
-        var entries: [ValueType] = []
-        if case let .list(existing)? = stateValue(for: "audit.entries") {
-            entries = existing
-        }
-        entries.append(.object([
+        appendStateListValue(.object([
             "kind": .string("user-action"),
             "summary": .string(stringValue(value)),
             "createdAt": .float(Date().timeIntervalSince1970)
-        ]))
-        setStateValue(.list(entries), for: "audit.entries")
+        ]), for: "audit.entries")
         return response(status: "ok", message: "Privacy audit entry recorded locally.")
     }
 }

@@ -422,7 +422,22 @@ nonisolated enum LibraryPreviewSkeletonSupport {
     }
 }
 
+nonisolated enum FullLibraryConfigurationOrigin: Codable, Equatable, Sendable {
+    /// Configuration was supplied directly by Binding as a local favorite,
+    /// template, or explicit local ConfigurationCatalog result.
+    case hostTrusted
+    /// Configuration came from a publisher-owned catalog. The raw endpoint is
+    /// retained for routing and never used directly for presentation.
+    case catalog(endpoint: String)
+}
+
 struct FullLibraryView: View {
+    nonisolated static func exportConfiguration(
+        _ configuration: CellConfiguration
+    ) -> CellConfiguration {
+        CellConfigurationEndpointRetargeting.removingRuntimeCredentials(from: configuration)
+    }
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var bridgeStatusStore: BridgeConnectionStatusStore
     @StateObject private var model: FullLibraryViewModel
@@ -430,8 +445,8 @@ struct FullLibraryView: View {
     @State private var closeAfterInsert = true
     @State private var showAdvancedFilters = false
 
-    private let onAddConfiguration: (CellConfiguration) -> Void
-    private let onSetDemoStartConfiguration: ((CellConfiguration) -> Void)?
+    private let onAddConfiguration: (CellConfiguration, FullLibraryConfigurationOrigin) -> Void
+    private let onSetDemoStartConfiguration: ((CellConfiguration, FullLibraryConfigurationOrigin) -> Void)?
     private let onAddComponent: ((ComponentPaletteItem) -> Bool)?
     private let armedComponentID: String?
     private let onArmComponent: ((ComponentPaletteItem?) -> Void)?
@@ -447,8 +462,8 @@ struct FullLibraryView: View {
         queryContext: FullLibraryQueryContext,
         favorites: [CellConfiguration],
         templates: [CellConfiguration],
-        onAddConfiguration: @escaping (CellConfiguration) -> Void,
-        onSetDemoStartConfiguration: ((CellConfiguration) -> Void)? = nil,
+        onAddConfiguration: @escaping (CellConfiguration, FullLibraryConfigurationOrigin) -> Void,
+        onSetDemoStartConfiguration: ((CellConfiguration, FullLibraryConfigurationOrigin) -> Void)? = nil,
         onAddComponent: ((ComponentPaletteItem) -> Bool)? = nil,
         armedComponentID: String? = nil,
         onArmComponent: ((ComponentPaletteItem?) -> Void)? = nil,
@@ -722,7 +737,7 @@ struct FullLibraryView: View {
             guard let selected = model.selectedResult,
                   selected.componentItem == nil else { return }
             dismissKeyboard()
-            onSetDemoStartConfiguration?(selected.configuration)
+            onSetDemoStartConfiguration?(selected.configuration, selected.origin)
         }
         .buttonStyle(.bordered)
         .disabled(model.selectedResult == nil || model.selectedResult?.componentItem != nil || onSetDemoStartConfiguration == nil)
@@ -1071,7 +1086,9 @@ struct FullLibraryView: View {
                 .controlSize(.small)
             }
 
-            Text("Route: \(item.route) · Source: \(item.sourceRef)")
+            Text(CellConfigurationEndpointRetargeting.redactedTextForDisplay(
+                "Route: \(item.route) · Source: \(item.sourceRef)"
+            ))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -1261,7 +1278,7 @@ struct FullLibraryView: View {
 
     private func applySelection(_ configuration: CellConfiguration) {
         dismissKeyboard()
-        onAddConfiguration(configuration)
+        onAddConfiguration(configuration, .hostTrusted)
         if closeAfterInsert {
             dismiss()
         }
@@ -1279,7 +1296,10 @@ struct FullLibraryView: View {
             return
         }
 
-        applySelection(item.configuration)
+        onAddConfiguration(item.configuration, item.origin)
+        if closeAfterInsert {
+            dismiss()
+        }
     }
 
     private func togglePlacement(for item: FullLibraryViewModel.SearchResult) {
@@ -1316,7 +1336,7 @@ struct FullLibraryView: View {
                 }
         } else {
             content()
-                .draggable(item.configuration)
+                .draggable(Self.exportConfiguration(item.configuration))
         }
     }
 
@@ -1414,6 +1434,10 @@ final class FullLibraryViewModel: ObservableObject {
         var displayName: String
         var summary: String
         var sourceRef: String
+        /// Origin that supplied this result. Keeping this separate from
+        /// `sourceRef` preserves the publication trust boundary through
+        /// cached results and selection callbacks.
+        var origin: FullLibraryConfigurationOrigin
         var route: String
         var score: Double
         var scoreBreakdown: ScoreBreakdown
@@ -1677,6 +1701,7 @@ final class FullLibraryViewModel: ObservableObject {
             let catalog = resolved.catalog
             let identity = resolved.identity
             let endpoint = resolved.endpoint
+            let presentedEndpoint = presentedCatalogEndpoint(endpoint)
             replaceWarnings(with: resolved.resolutionWarnings)
             catalogMode = .unknown
             let queryPayload = buildQueryPayload()
@@ -1691,7 +1716,11 @@ final class FullLibraryViewModel: ObservableObject {
                         name: "catalogContracts",
                         endpoint: endpoint
                     ) {
-                        try await self.directCatalogResults(from: catalog, requester: identity)
+                        try await self.directCatalogResults(
+                            from: catalog,
+                            requester: identity,
+                            catalogEndpoint: endpoint
+                        )
                     }
                 }
 
@@ -1711,7 +1740,7 @@ final class FullLibraryViewModel: ObservableObject {
             }
             if let queryResponse {
                 usedQueryResponse = true
-                parseQueryResponse(queryResponse)
+                parseQueryResponse(queryResponse, catalogEndpoint: endpoint)
                 markQueryCapable(endpoint)
                 catalogMode = .fullQuery
                 availability = .available(endpoint: endpoint)
@@ -1721,7 +1750,7 @@ final class FullLibraryViewModel: ObservableObject {
                     fallbackCatalogResultsTask?.cancel()
                 }
                 let elapsed = Int(Date().timeIntervalSince(startedAt) * 1000.0)
-                statusLine = "Kilde: \(endpoint) · \(results.count) treff · query \(elapsed)ms"
+                statusLine = "Kilde: \(presentedEndpoint) · \(results.count) treff · query \(elapsed)ms"
                 scheduleFacetRefreshIfNeeded(
                     catalog: catalog,
                     identity: identity,
@@ -1764,7 +1793,7 @@ final class FullLibraryViewModel: ObservableObject {
                 }
                 selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
                 connectivity = ConnectivitySnapshot(onlineSources: 1, degradedSources: 0, offlineSources: 0)
-                statusLine = "Kilde: \(endpoint) · \(results.count) entries · direkte katalogvisning"
+                statusLine = "Kilde: \(presentedEndpoint) · \(results.count) entries · direkte katalogvisning"
                 catalogMode = .directEntriesFallback
             } else if !usedQueryResponse && results.isEmpty {
                 let offlineResults = offlineFallbackResults()
@@ -1777,13 +1806,13 @@ final class FullLibraryViewModel: ObservableObject {
                         appendWarning(fallbackWarning)
                     }
                     connectivity = ConnectivitySnapshot(onlineSources: 0, degradedSources: 1, offlineSources: 1)
-                    statusLine = "Kilde: \(endpoint) · lokal fallback · \(offlineResults.count) entries"
+                    statusLine = "Kilde: \(presentedEndpoint) · lokal fallback · \(offlineResults.count) entries"
                     catalogMode = .directEntriesFallback
                 } else {
-                    statusLine = "Kilde: \(endpoint) · 0 treff · \(elapsed)ms"
+                    statusLine = "Kilde: \(presentedEndpoint) · 0 treff · \(elapsed)ms"
                 }
             } else {
-                statusLine = "Kilde: \(endpoint) · \(results.count) treff · \(elapsed)ms"
+                statusLine = "Kilde: \(presentedEndpoint) · \(results.count) treff · \(elapsed)ms"
             }
             availability = .available(endpoint: endpoint)
         } catch {
@@ -1791,7 +1820,7 @@ final class FullLibraryViewModel: ObservableObject {
                !cachedSnapshot.results.isEmpty {
                 applyCachedQuerySnapshot(cachedSnapshot)
                 availability = .unavailable(reason: "Kunne ikke nå ConfigurationCatalog. Viser siste query-cache.")
-                statusLine = "Staging er utilgjengelig. Viser siste query-cache fra \(cachedSnapshot.endpoint)."
+                statusLine = "Staging er utilgjengelig. Viser siste query-cache fra \(presentedCatalogEndpoint(cachedSnapshot.endpoint))."
                 appendWarning("Staging-katalogen svarte ikke. Viser siste query-cache i stedet.")
                 return
             }
@@ -1923,7 +1952,11 @@ final class FullLibraryViewModel: ObservableObject {
             name: "catalogContracts",
             endpoint: endpoint
         ) {
-            try await self.directCatalogResults(from: catalog, requester: requester)
+            try await self.directCatalogResults(
+                from: catalog,
+                requester: requester,
+                catalogEndpoint: endpoint
+            )
         }
     }
 
@@ -2053,6 +2086,18 @@ final class FullLibraryViewModel: ObservableObject {
             .lowercased() ?? ""
     }
 
+    private func presentedCatalogEndpoint(_ endpoint: String) -> String {
+        CellConfigurationEndpointRetargeting.redactedEndpointForDisplay(endpoint)
+    }
+
+    nonisolated static func resultOrigin(
+        forCatalogEndpoint endpoint: String
+    ) -> FullLibraryConfigurationOrigin {
+        RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint)
+            ? .hostTrusted
+            : .catalog(endpoint: endpoint)
+    }
+
     private func currentQuerySignature() -> String {
         let tokenSignature = tokensForRequest()
             .map { "\($0.kind.rawValue)=\($0.value.lowercased())" }
@@ -2107,12 +2152,12 @@ final class FullLibraryViewModel: ObservableObject {
             if RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
                 return "Lokal katalogoppdatering tok for lang tid. Viser lagrede katalogdata i stedet."
             }
-            return "Katalogoppdatering mot \(endpoint) tok for lang tid. Viser eksisterende data."
+            return "Katalogoppdatering mot \(presentedCatalogEndpoint(endpoint)) tok for lang tid. Viser eksisterende data."
         }
         if RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
             return "Lokal katalogoppdatering feilet. Viser lagrede katalogdata i stedet."
         }
-        return "Katalogoppdatering mot \(endpoint) feilet. Viser eksisterende data."
+        return "Katalogoppdatering mot \(presentedCatalogEndpoint(endpoint)) feilet. Viser eksisterende data."
     }
 
     func consumeTokenDraft() {
@@ -2169,6 +2214,8 @@ final class FullLibraryViewModel: ObservableObject {
 
     func displayFacetValue(key: String, value: String) -> String {
         switch key {
+        case "sourceRef":
+            return CellConfigurationEndpointRetargeting.redactedTextForDisplay(value)
         case "authRequired":
             if value.lowercased() == "true" { return "Auth required" }
             if value.lowercased() == "false" { return "Auth not required" }
@@ -2283,7 +2330,7 @@ final class FullLibraryViewModel: ObservableObject {
                     requester: identity
                 )
                 guard let catalog = emit as? Meddle else {
-                    resolutionWarnings.append("Kilden \(endpoint) eksponerer ikke Meddle-kontrakt.")
+                    resolutionWarnings.append("Kilden \(presentedCatalogEndpoint(endpoint)) eksponerer ikke Meddle-kontrakt.")
                     continue
                 }
                 return ResolvedCatalog(
@@ -2333,12 +2380,12 @@ final class FullLibraryViewModel: ObservableObject {
 
     private func resolutionWarning(for endpoint: String, error: Error) -> String {
         if case LibraryError.catalogCandidateTimedOut = error {
-            return "Kilden \(endpoint) svarte ikke raskt nok. Fortsetter til neste kilde."
+            return "Kilden \(presentedCatalogEndpoint(endpoint)) svarte ikke raskt nok. Fortsetter til neste kilde."
         }
         if RemoteCatalogSupport.isLocalCatalogEndpoint(endpoint) {
             return "Lokal ConfigurationCatalog kunne ikke lastes. Prøver neste kilde."
         }
-        return "Remote tilgang til \(endpoint) feilet. Fortsetter til neste kilde."
+        return "Remote tilgang til \(presentedCatalogEndpoint(endpoint)) feilet. Fortsetter til neste kilde."
     }
 
     var warningSummaryText: String? {
@@ -2466,7 +2513,11 @@ final class FullLibraryViewModel: ObservableObject {
             .lowercased()
     }
 
-    private func directCatalogResults(from catalog: Meddle, requester: Identity) async throws -> [SearchResult] {
+    private func directCatalogResults(
+        from catalog: Meddle,
+        requester: Identity,
+        catalogEndpoint: String
+    ) async throws -> [SearchResult] {
         let items = try await directCatalogItems(from: catalog, requester: requester)
 
         let queryCorpusTokens = directMatchTokens()
@@ -2541,6 +2592,7 @@ final class FullLibraryViewModel: ObservableObject {
                 displayName: displayName,
                 summary: summary,
                 sourceRef: sourceRef,
+                origin: Self.resultOrigin(forCatalogEndpoint: catalogEndpoint),
                 route: "catalogEntry",
                 score: score,
                 scoreBreakdown: ScoreBreakdown(
@@ -2654,6 +2706,7 @@ final class FullLibraryViewModel: ObservableObject {
                 displayName: displayName,
                 summary: summary,
                 sourceRef: sourceEndpoint,
+                origin: .hostTrusted,
                 route: "offlineCache",
                 score: score,
                 scoreBreakdown: ScoreBreakdown(
@@ -2857,7 +2910,7 @@ final class FullLibraryViewModel: ObservableObject {
         }
     }
 
-    private func parseQueryResponse(_ response: ValueType) {
+    private func parseQueryResponse(_ response: ValueType, catalogEndpoint: String) {
         guard case let .object(root) = response else {
             results = []
             replaceWarnings(with: ["Ugyldig query-respons"])
@@ -2894,6 +2947,7 @@ final class FullLibraryViewModel: ObservableObject {
                     displayName: displayName,
                     summary: summary,
                     sourceRef: object["sourceRef"]?.stringValueOrNil ?? "",
+                    origin: Self.resultOrigin(forCatalogEndpoint: catalogEndpoint),
                     route: object["route"]?.stringValueOrNil ?? "text",
                     score: object["score"]?.doubleValue ?? 0,
                     scoreBreakdown: breakdown,

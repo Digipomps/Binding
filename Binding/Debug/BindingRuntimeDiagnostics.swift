@@ -260,13 +260,21 @@ enum CellConfigurationValidationService {
             )
         }
 
+        let presentationSafeIssues = issues.map { issue in
+            CellConfigurationValidationIssue(
+                severity: issue.severity,
+                title: issue.title,
+                detail: CellConfigurationEndpointRetargeting.redactedTextForDisplay(issue.detail)
+            )
+        }
+
         return CellConfigurationValidationReport(
             configurationName: configuration.name,
             referenceCount: references.count,
             bindingValueCount: bindingValues.count,
             referencedLabels: usageReport.referencedLabels.sorted(),
             unusedLabels: usageReport.unusedTopLevelLabels.sorted(),
-            issues: issues
+            issues: presentationSafeIssues
         )
     }
 
@@ -499,7 +507,8 @@ final class BindingRuntimeDiagnostics: ObservableObject {
         CellBase.enabledDiagnosticLogDomains.formUnion([.resolver, .skeleton, .flow, .identity, .agreement])
 
         CellBase.diagnosticLogHandler = { [weak self] domain, message in
-            self?.previousHandler?(domain, message)
+            let safeMessage = CellConfigurationEndpointRetargeting.redactedTextForDisplay(message)
+            self?.previousHandler?(domain, safeMessage)
             Task { @MainActor [weak self] in
                 guard let self else {
                     return
@@ -507,13 +516,13 @@ final class BindingRuntimeDiagnostics: ObservableObject {
                 guard self.panelVisible else {
                     return
                 }
-                guard !Self.shouldSuppress(domain: domain, message: message) else {
+                guard !Self.shouldSuppress(domain: domain, message: safeMessage) else {
                     return
                 }
                 self.append(
-                    severity: Self.severity(for: domain, message: message),
+                    severity: Self.severity(for: domain, message: safeMessage),
                     domain: domain.rawValue,
-                    message: message
+                    message: safeMessage
                 )
             }
         }
@@ -546,10 +555,11 @@ final class BindingRuntimeDiagnostics: ObservableObject {
         message: String
     ) {
         let now = Date()
+        let safeMessage = CellConfigurationEndpointRetargeting.redactedTextForDisplay(message)
         if let existingIndex = entries.firstIndex(where: {
             $0.severity == severity &&
                 $0.domain == domain &&
-                $0.message == message
+                $0.message == safeMessage
         }) {
             var existing = entries.remove(at: existingIndex)
             existing.timestamp = now
@@ -562,7 +572,7 @@ final class BindingRuntimeDiagnostics: ObservableObject {
             timestamp: now,
             severity: severity,
             domain: domain,
-            message: message
+            message: safeMessage
         )
         entries.insert(entry, at: 0)
         if entries.count > Self.maximumEntries {

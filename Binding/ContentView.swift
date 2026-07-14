@@ -14,7 +14,7 @@ import UIKit
 #elseif canImport(AppKit)
 import AppKit
 
-private struct BindingHostingWindowReader: NSViewRepresentable {
+struct BindingHostingWindowReader: NSViewRepresentable {
     let onResolve: @MainActor (NSWindow?) -> Void
 
     func makeNSView(context: Context) -> NSView {
@@ -399,6 +399,14 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     }
 }
 
+nonisolated struct BindingStoredDemoStartEnvelope: Codable {
+    static let currentVersion = 1
+
+    let version: Int
+    var configuration: CellConfiguration
+    let origin: FullLibraryConfigurationOrigin
+}
+
 struct ContentView: View {
     private let incomingURLSceneID: UUID?
 
@@ -412,7 +420,7 @@ struct ContentView: View {
         case skipPush
     }
 
-    enum ConferenceAutomationHook: String, Equatable {
+    enum ConferenceAutomationHook: String, Equatable, CaseIterable {
         case openLauncher = "open-launcher"
         case openParticipantPortal = "open-participant-portal"
         case openConferenceMVP = "open-conference-mvp"
@@ -438,6 +446,25 @@ struct ContentView: View {
         case windowWide = "window-wide"
         case centerWindow = "center-window"
 #endif
+
+        var allowsExternalURL: Bool {
+            switch self {
+            case .openLauncher, .openParticipantPortal, .openConferenceMVP,
+                 .openPublicSurface, .openControlTower, .openSponsorFollowUp,
+                 .openAIAssistant, .openIdentityLink, .openAgentSetupWorkbench:
+                return true
+#if canImport(AppKit)
+            case .windowCompact, .windowTall, .windowWide, .centerWindow:
+                return true
+#endif
+            case .logAIAssistantState,
+                 .installAgent, .startAgent, .connectAgent,
+                 .queueAgentSafariReview, .approveAgentReview, .stopAgent,
+                 .focusAneSolberg, .startChatWithFocusedParticipant,
+                 .openFocusedChatWorkbench:
+                return false
+            }
+        }
 
         var title: String {
             switch self {
@@ -561,6 +588,40 @@ struct ContentView: View {
         let useDirectWebSocketForLocalReferences: Bool
     }
 
+    private enum ConfigurationProvenance {
+        case localTrusted
+        case remoteOwnerPublished(CatalogOrigin)
+        case imported
+        case hostPrepared
+        case hostPreparedExternalView(mayUseLocalControlPlane: Bool)
+
+        var origin: CatalogOrigin? {
+            guard case let .remoteOwnerPublished(origin) = self else { return nil }
+            return origin
+        }
+
+        var mayUseLocalControlPlane: Bool {
+            switch self {
+            case .localTrusted, .hostPrepared:
+                return true
+            case let .hostPreparedExternalView(mayUseLocalControlPlane):
+                return mayUseLocalControlPlane
+            case .remoteOwnerPublished, .imported:
+                return false
+            }
+        }
+
+        var requiresSideEffectFreeView: Bool {
+            if case .hostPreparedExternalView = self { return true }
+            return false
+        }
+
+        var isUntrustedImport: Bool {
+            if case .imported = self { return true }
+            return false
+        }
+    }
+
     nonisolated struct RemoteRequesterDescriptor: Hashable {
         let identityContext: String
         let displayName: String
@@ -613,6 +674,7 @@ struct ContentView: View {
     @State private var compactInspectorExpanded = true
     @State private var componentCanvasDropTargeted = false
     @State private var configurationLoadTask: Task<Void, Never>?
+    @State private var configurationLoadCoordinator = BindingSerializedConfigurationLoadCoordinator()
     @State private var initialRuntimeBootstrapTask: Task<Void, Never>?
     @State private var conferenceNavigationStack: [CellConfiguration] = []
     @State private var hostingWindowNumber: Int?
@@ -777,8 +839,13 @@ struct ContentView: View {
             runtimeRouteDeliveryActive = false
             floatingPanelsController.closePanels()
             configurationLoadTask?.cancel()
+            configurationLoadCoordinator.cancelAll()
             runtimeRouteQueue.cancelAll()
             BindingIncomingURLBridge.releaseAll(consumerID: incomingURLConsumerID)
+            BindingIncomingURLBridge.discardTargetedPending(
+                targetWindowNumber: hostingWindowNumber,
+                targetSceneID: incomingURLSceneID
+            )
         }
         .onReceive(viewModel.$currentSkeleton) { next in
             if !editorState.isEditing {
@@ -814,7 +881,7 @@ struct ContentView: View {
                 .compactMap(ConfigurationCatalogPreviewBridge.configuration)
         ) { configuration in
             editorMode = .edit
-            queueConfigurationLoad(configuration)
+            queueConfigurationLoad(configuration, provenance: .imported)
         }
         .onReceive(
             NotificationCenter.default
@@ -824,7 +891,7 @@ struct ContentView: View {
             if editorMode == .edit {
                 editorMode = .view
             }
-            queueConfigurationLoad(configuration)
+            queueConfigurationLoad(configuration, provenance: .imported)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: BindingConferenceNavigationBridge.notificationName)
@@ -908,13 +975,20 @@ struct ContentView: View {
                 ),
                 favorites: viewModel.upperRightMenu,
                 templates: viewModel.lowerLeftMenu,
-                onAddConfiguration: { configuration in
-                    queueConfigurationLoad(configuration)
+                onAddConfiguration: { configuration, origin in
+                    queueConfigurationLoad(
+                        configuration,
+                        provenance: fullLibraryProvenance(origin: origin)
+                    )
                 },
-                onSetDemoStartConfiguration: { configuration in
-                    storeDemoStartConfiguration(configuration)
+                onSetDemoStartConfiguration: { configuration, origin in
+                    storeDemoStartConfiguration(configuration, origin: origin)
                     editorMode = .view
-                    queueConfigurationLoad(configuration, navigationMode: .reset)
+                    queueConfigurationLoad(
+                        configuration,
+                        navigationMode: .reset,
+                        provenance: fullLibraryProvenance(origin: origin)
+                    )
                     presentingFullLibrary = false
                 },
                 onAddComponent: { item in
@@ -1060,7 +1134,7 @@ struct ContentView: View {
 #endif
         .environmentObject(viewModel)
         .dropDestination(for: CellConfiguration.self) { items, location in
-            queueConfigurationLoad(items.first)
+            queueConfigurationLoad(items.first, provenance: .imported)
             return !items.isEmpty
         }
         .dropDestination(for: ComponentPaletteItem.self) { items, _ in
@@ -1123,7 +1197,7 @@ struct ContentView: View {
                         return true
                     },
                     onSelect: { config in
-                        queueConfigurationLoad(config)
+                        queueConfigurationLoad(config, provenance: .hostPrepared)
                     }
                 )
                 .allowsHitTesting(true)
@@ -1296,7 +1370,11 @@ struct ContentView: View {
                 return
             }
             guard activeConfiguration?.name != destination.title else { return }
-            queueConfigurationLoad(destination.configuration, navigationMode: .reset)
+            queueConfigurationLoad(
+                destination.configuration,
+                navigationMode: .reset,
+                provenance: .localTrusted
+            )
         }
     }
 
@@ -1597,7 +1675,11 @@ struct ContentView: View {
         personalCopilotDestination = destination
         personalCopilotPhoneTab = destination.phoneTab
         guard activeConfiguration?.name != destination.title else { return }
-        queueConfigurationLoad(destination.configuration, navigationMode: .reset)
+        queueConfigurationLoad(
+            destination.configuration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
     }
 
     private func selectPersonalCopilotPhoneTab(_ tab: BindingPersonalCopilotPhoneTab) {
@@ -1626,7 +1708,11 @@ struct ContentView: View {
         }
         personalCopilotDestination = .inviteChat
         personalCopilotPhoneTab = .chat
-        queueConfigurationLoad(ConfigurationCatalogCell.personalInviteChatMenuConfiguration(), navigationMode: .reset)
+        queueConfigurationLoad(
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
     }
 
     private func contextualCopilotHelpPayload() -> Object {
@@ -1922,7 +2008,7 @@ struct ContentView: View {
 
             let startupConfiguration = activeConfiguration
                 ?? Self.effectiveDemoStartConfiguration(
-                    storedConfiguration: decodeStoredDemoStartConfiguration()
+                    storedConfiguration: decodeStoredDemoStartConfiguration()?.configuration
                 )
 
             if shouldLoadWithoutAuthenticatedRuntimeBootstrap(startupConfiguration) {
@@ -2232,7 +2318,6 @@ struct ContentView: View {
 
         switch scheme {
         case "cell":
-            guard host.lowercased() != "localhost" else { return nil }
             let route = remoteRoute(forHost: host)
             return CatalogOrigin(
                 host: host,
@@ -2254,6 +2339,20 @@ struct ContentView: View {
             )
         default:
             return nil
+        }
+    }
+
+    private func fullLibraryProvenance(
+        origin: FullLibraryConfigurationOrigin
+    ) -> ConfigurationProvenance {
+        switch origin {
+        case .hostTrusted:
+            return .localTrusted
+        case .catalog(let endpoint):
+            guard let origin = catalogOrigin(from: endpoint) else {
+                return .imported
+            }
+            return .remoteOwnerPublished(origin)
         }
     }
 
@@ -2287,14 +2386,41 @@ struct ContentView: View {
         allowReferenceFree: Bool = false
     ) -> [CellConfiguration] {
         configs.compactMap { config in
-            let normalized = normalizeConfigurationForResolver(config, origin: origin, resolver: resolver)
+            guard let normalized = normalizeConfigurationForResolver(
+                config,
+                provenance: origin.map(ConfigurationProvenance.remoteOwnerPublished) ?? .localTrusted,
+                resolver: resolver
+            ) else {
+                return nil
+            }
             return sanitizedLoadedConfiguration(normalized, allowReferenceFree: allowReferenceFree)
         }
     }
 
-    private func normalizeConfigurationForResolver(_ configuration: CellConfiguration, origin: CatalogOrigin?, resolver: CellResolver) -> CellConfiguration {
+    private func normalizeConfigurationForResolver(
+        _ configuration: CellConfiguration,
+        provenance: ConfigurationProvenance,
+        resolver: CellResolver
+    ) -> CellConfiguration? {
+        let origin = provenance.origin
+        if !CellConfigurationEndpointRetargeting.isAllowedByHostTrustBoundary(
+            configuration,
+            mayUseLocalControlPlane: provenance.mayUseLocalControlPlane
+        ) || provenance.isUntrustedImport
+            && !CellConfigurationEndpointRetargeting.isSafeForUntrustedImport(configuration) {
+            return nil
+        }
         var normalized = BindingConferenceConfigurationRepair.reconcile(configuration)
-        normalized = CellConfigurationEndpointRetargeting.rewritingLocalAgentBridgeEndpoints(in: normalized)
+        if !CellConfigurationEndpointRetargeting.isAllowedByHostTrustBoundary(
+            normalized,
+            mayUseLocalControlPlane: provenance.mayUseLocalControlPlane
+        ) || provenance.isUntrustedImport
+            && !CellConfigurationEndpointRetargeting.isSafeForUntrustedImport(normalized) {
+            return nil
+        }
+        if case .localTrusted = provenance {
+            normalized = CellConfigurationEndpointRetargeting.rewritingLocalAgentBridgeEndpoints(in: normalized)
+        }
         normalized = CellConfigurationEndpointRetargeting.rewritingEndpoints(in: normalized) { endpoint in
             normalizeEndpointForResolver(endpoint, origin: origin, resolver: resolver)
         }
@@ -3253,7 +3379,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     ForEach(compactConvenienceConfigurations, id: \.name) { configuration in
                         Button {
-                            queueConfigurationLoad(configuration)
+                            queueConfigurationLoad(configuration, provenance: .hostPrepared)
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
                                 Image(systemName: configuration.skeletonIconName)
@@ -3531,7 +3657,11 @@ struct ContentView: View {
             domain: "binding.load",
             message: "Apply working copy: \(committedConfiguration.name)"
         )
-        queueConfigurationLoad(committedConfiguration, navigationMode: .skipPush)
+        queueConfigurationLoad(
+            committedConfiguration,
+            navigationMode: .skipPush,
+            provenance: .hostPrepared
+        )
     }
 
     @MainActor
@@ -3550,7 +3680,7 @@ struct ContentView: View {
 
         do {
             let appliedState = try await BindingSourceBackedConfigurationEditingSupport.apply(
-                configuration,
+                CellConfigurationEndpointRetargeting.removingRuntimeCredentials(from: configuration),
                 expectedRevision: sourceBackedContext.committedSourceRevision,
                 toSourceEndpoint: sourceBackedContext.sourceCellEndpoint,
                 requester: requester
@@ -3559,6 +3689,9 @@ struct ContentView: View {
                 appliedState.configuration,
                 fallback: configuration
             )
+            let sourceOrigin = catalogOrigin(from: sourceBackedContext.sourceCellEndpoint)
+            let sourceProvenance = sourceOrigin.map(ConfigurationProvenance.remoteOwnerPublished)
+                ?? .localTrusted
             activeSourceBackedContext = makeSourceBackedContext(from: appliedState)
             activeConfiguration = prepared
             loadErrorMessage = nil
@@ -3566,30 +3699,62 @@ struct ContentView: View {
                 domain: "binding.load",
                 message: "Applied source-backed working copy: \(prepared.name)"
             )
-            queueConfigurationLoad(prepared, navigationMode: .skipPush)
+            queueConfigurationLoad(
+                prepared,
+                navigationMode: .skipPush,
+                provenance: sourceProvenance
+            )
         } catch let error as BindingEditableCellConfigurationError {
             switch error {
             case .missingSourceEndpoint:
                 loadErrorMessage = "Source-backed konfigurasjon mangler sourceCellEndpoint."
             case .sourceCellNotMeddle(let endpoint):
-                loadErrorMessage = "Kunne ikke nå source-cellen på \(endpoint)."
+                loadErrorMessage = "Kunne ikke nå source-cellen på \(CellConfigurationEndpointRetargeting.redactedEndpointForDisplay(endpoint))."
             case .invalidStatePayload:
                 loadErrorMessage = "Source-cellen svarte med en ugyldig editable-state under apply."
             }
         } catch {
-            loadErrorMessage = "Kunne ikke skrive tilbake til source-cellen: \(error)"
+            loadErrorMessage = "Kunne ikke skrive tilbake til source-cellen: \(CellConfigurationEndpointRetargeting.redactedTextForDisplay(String(describing: error)))"
         }
     }
 
-    private func storeDemoStartConfiguration(_ configuration: CellConfiguration) {
-        let persistedConfiguration = canonicalizeSkeletonReferencesIfNeeded(in: configuration)
+    nonisolated static func storedDemoStartEnvelope(
+        configuration: CellConfiguration,
+        origin: FullLibraryConfigurationOrigin
+    ) -> BindingStoredDemoStartEnvelope {
+        let safeOrigin: FullLibraryConfigurationOrigin
+        switch origin {
+        case .hostTrusted:
+            safeOrigin = .hostTrusted
+        case .catalog(let endpoint):
+            safeOrigin = .catalog(
+                endpoint: CellConfigurationEndpointRetargeting.redactedEndpointForDisplay(endpoint)
+            )
+        }
+        return BindingStoredDemoStartEnvelope(
+            version: BindingStoredDemoStartEnvelope.currentVersion,
+            configuration: CellConfigurationEndpointRetargeting.removingRuntimeCredentials(
+                from: configuration
+            ),
+            origin: safeOrigin
+        )
+    }
+
+    private func storeDemoStartConfiguration(
+        _ configuration: CellConfiguration,
+        origin: FullLibraryConfigurationOrigin = .hostTrusted
+    ) {
+        let envelope = Self.storedDemoStartEnvelope(
+            configuration: canonicalizeSkeletonReferencesIfNeeded(in: configuration),
+            origin: origin
+        )
         do {
-            let data = try JSONEncoder().encode(persistedConfiguration)
+            let data = try JSONEncoder().encode(envelope)
             demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
             didApplyStoredDemoStart = false
             diagnosticsStore.record(
                 domain: "binding.demo",
-                message: "Demo-start satt til \(persistedConfiguration.name)"
+                message: "Demo-start satt til \(envelope.configuration.name)"
             )
         } catch {
             diagnosticsStore.record(
@@ -3611,80 +3776,273 @@ struct ContentView: View {
             domain: "binding.demo",
             message: "Resetter til Conference Demo Launcher fra \(runtimeIdentityTitle)."
         )
-        queueConfigurationLoad(demoLauncher, navigationMode: .reset)
+        queueConfigurationLoad(
+            demoLauncher,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
     }
 
-    private func decodeStoredDemoStartConfiguration() -> CellConfiguration? {
+    private func decodeStoredDemoStartConfiguration() -> (
+        configuration: CellConfiguration,
+        provenance: ConfigurationProvenance
+    )? {
         guard !demoStartConfigurationJSON.isEmpty,
               let data = demoStartConfigurationJSON.data(using: .utf8) else {
             return nil
         }
 
-        do {
-            var decoded = try JSONDecoder().decode(CellConfiguration.self, from: data)
-            if let updated = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(decoded) {
-                decoded = updated
-                if let updatedData = try? JSONEncoder().encode(updated) {
-                    demoStartConfigurationJSON = String(decoding: updatedData, as: UTF8.self)
+        var envelope: BindingStoredDemoStartEnvelope
+        if let decodedEnvelope = try? JSONDecoder().decode(
+            BindingStoredDemoStartEnvelope.self,
+            from: data
+        ), decodedEnvelope.version == BindingStoredDemoStartEnvelope.currentVersion {
+            envelope = Self.storedDemoStartEnvelope(
+                configuration: decodedEnvelope.configuration,
+                origin: decodedEnvelope.origin
+            )
+        } else if let legacyConfiguration = try? JSONDecoder().decode(
+            CellConfiguration.self,
+            from: data
+        ) {
+            let reconstructed: CellConfiguration
+            if legacyConfiguration.name == "Conference Sponsor Follow-up" {
+                reconstructed = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+            } else {
+                let compiledDefault = Self.defaultDemoStartConfiguration()
+                guard legacyConfiguration.name == compiledDefault.name else {
+                    demoStartConfigurationJSON = ""
+                    return nil
                 }
-                diagnosticsStore.record(
-                    domain: "binding.demo",
-                    message: "Oppgraderte lagret demo-start til nyeste conference-konfigurasjon."
-                )
+                // A legacy payload carries no authenticated provenance. Its
+                // name may select a compiled host configuration, but none of
+                // its serialized references or initializer writes are kept.
+                reconstructed = compiledDefault
             }
-            if decoded.name == "Conference Sponsor Follow-up" {
-                let demoLauncher = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
-                if let updatedData = try? JSONEncoder().encode(demoLauncher) {
-                    demoStartConfigurationJSON = String(decoding: updatedData, as: UTF8.self)
-                }
-                diagnosticsStore.record(
-                    domain: "binding.demo",
-                    message: "Erstatter lagret sponsor-start med Conference Demo Launcher, så demoen starter i samme faste rekkefølge som CellScaffold."
-                )
-                return demoLauncher
-            }
-            return decoded
-        } catch {
+            envelope = Self.storedDemoStartEnvelope(
+                configuration: reconstructed,
+                origin: .hostTrusted
+            )
+        } else {
             diagnosticsStore.record(
                 domain: "binding.demo",
-                message: "Kunne ikke lese demo-start. Nullstiller lagret verdi: \(error)"
+                message: "Kunne ikke lese en validert demo-start. Nullstiller lagret verdi."
             )
             demoStartConfigurationJSON = ""
             return nil
         }
+
+        if let updated = BindingConferenceConfigurationRepair.updatedConfigurationIfNeeded(
+            envelope.configuration
+        ) {
+            envelope = Self.storedDemoStartEnvelope(
+                configuration: updated,
+                origin: envelope.origin
+            )
+            diagnosticsStore.record(
+                domain: "binding.demo",
+                message: "Oppgraderte lagret demo-start til nyeste conference-konfigurasjon."
+            )
+        }
+        if envelope.configuration.name == "Conference Sponsor Follow-up" {
+            envelope = Self.storedDemoStartEnvelope(
+                configuration: ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration(),
+                origin: .hostTrusted
+            )
+            diagnosticsStore.record(
+                domain: "binding.demo",
+                message: "Erstatter lagret sponsor-start med Conference Demo Launcher, så demoen starter i samme faste rekkefølge som CellScaffold."
+            )
+        }
+        if let updatedData = try? JSONEncoder().encode(envelope) {
+            demoStartConfigurationJSON = String(decoding: updatedData, as: UTF8.self)
+        }
+
+        switch envelope.origin {
+        case .hostTrusted:
+            guard let reconstructed = Self.reconstructedHostOwnedDemoStartConfiguration(
+                matching: envelope.configuration
+            ) else {
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.demo",
+                    message: "Avviste lagret lokal demo-start uten rekonstruerbar host-proveniens."
+                )
+                demoStartConfigurationJSON = ""
+                return nil
+            }
+            return (reconstructed, .localTrusted)
+        case .catalog:
+            // UserDefaults is not an authority store. A serialized catalog
+            // tag cannot recreate publisher trust; the configuration must
+            // pass the same untrusted-import boundary after restart.
+            guard CellConfigurationEndpointRetargeting.isSafeForUntrustedImport(
+                envelope.configuration
+            ) else {
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.demo",
+                    message: "Avviste lagret remote demo-start uten gjenopprettbar publisher-proveniens."
+                )
+                demoStartConfigurationJSON = ""
+                return nil
+            }
+            return (envelope.configuration, .imported)
+        }
+    }
+
+    static func reconstructedHostOwnedDemoStartConfiguration(
+        matching configuration: CellConfiguration
+    ) -> CellConfiguration? {
+        let candidates = [
+            Self.defaultDemoStartConfiguration(),
+            Self.conferenceDemoLauncherMenuSeedConfiguration(),
+            Self.conferenceParticipantPortalMenuSeedConfiguration(),
+            Self.conferenceAdminMenuSeedConfiguration(),
+            Self.conferenceIdentityLinkMenuSeedConfiguration()
+        ]
+        return candidates.first { candidate in
+            let portableCandidate = Self.storedDemoStartEnvelope(
+                configuration: candidate,
+                origin: .hostTrusted
+            ).configuration
+            return Self.configurationsHaveEqualWireForm(configuration, portableCandidate)
+        }
+    }
+
+    nonisolated static func configurationsHaveEqualWireForm(
+        _ lhs: CellConfiguration,
+        _ rhs: CellConfiguration
+    ) -> Bool {
+        guard let lhsData = trustFingerprintData(for: lhs),
+              let rhsData = trustFingerprintData(for: rhs) else {
+            return false
+        }
+        return lhsData == rhsData
+    }
+
+    private nonisolated static func trustFingerprintData(
+        for configuration: CellConfiguration
+    ) -> Data? {
+        guard let encoded = try? JSONEncoder().encode(configuration),
+              var object = try? JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
+            return nil
+        }
+        // Factory instances receive an instance UUID. It is not executable
+        // policy, while every other field (references, initializer writes,
+        // skeleton actions, discovery, etc.) remains inside the fingerprint.
+        object.removeValue(forKey: "uuid")
+
+        func normalizingSkeletonElement(_ value: Any) -> Any {
+            guard var wrapper = value as? [String: Any],
+                  wrapper.count == 1,
+                  let elementName = wrapper.keys.first,
+                  let encodedElement = wrapper[elementName] else {
+                return value
+            }
+
+            if (elementName == "HStack" || elementName == "VStack"),
+               let elements = encodedElement as? [Any] {
+                wrapper[elementName] = elements.map(normalizingSkeletonElement)
+                return wrapper
+            }
+
+            guard var body = encodedElement as? [String: Any] else {
+                return value
+            }
+
+            func normalizeElementList(_ key: String) {
+                guard let elements = body[key] as? [Any] else { return }
+                body[key] = elements.map(normalizingSkeletonElement)
+            }
+
+            switch elementName {
+            case "HStack", "VStack", "ScrollView", "ZStack":
+                normalizeElementList("elements")
+            case "Section":
+                normalizeElementList("content")
+                if let header = body["header"] {
+                    body["header"] = normalizingSkeletonElement(header)
+                }
+                if let footer = body["footer"] {
+                    body["footer"] = normalizingSkeletonElement(footer)
+                }
+            case "Tabs":
+                // Skeleton Tabs receive a renderer-state UUID at construction.
+                // It is not executable policy, and the persisted object is never
+                // returned as host-trusted: a matching compiled factory is rebuilt.
+                body.removeValue(forKey: "id")
+                if var panels = body["panels"] as? [[String: Any]] {
+                    for index in panels.indices {
+                        guard let content = panels[index]["content"] as? [Any] else { continue }
+                        panels[index]["content"] = content.map(normalizingSkeletonElement)
+                    }
+                    body["panels"] = panels
+                }
+            case "Grid":
+                normalizeElementList("elements")
+                if let itemSkeleton = body["itemSkeleton"] {
+                    body["itemSkeleton"] = normalizingSkeletonElement(itemSkeleton)
+                }
+            case "List", "Reference":
+                if let rowSkeleton = body["flowElementSkeleton"] {
+                    body["flowElementSkeleton"] = normalizingSkeletonElement(rowSkeleton)
+                }
+            case "Object":
+                if let elements = body["elements"] as? [String: Any] {
+                    body["elements"] = elements.mapValues(normalizingSkeletonElement)
+                }
+            default:
+                break
+            }
+
+            wrapper[elementName] = body
+            return wrapper
+        }
+
+        if let skeleton = object["skeleton"] {
+            object["skeleton"] = normalizingSkeletonElement(skeleton)
+        }
+        let canonicalObject = object
+        guard JSONSerialization.isValidJSONObject(canonicalObject) else { return nil }
+        return try? JSONSerialization.data(withJSONObject: canonicalObject, options: [.sortedKeys])
     }
 
     @MainActor
     private func applyStoredDemoStartConfigurationIfNeeded() {
         guard !didApplyStoredDemoStart else { return }
         didApplyStoredDemoStart = true
-        let decodedStoredConfiguration = decodeStoredDemoStartConfiguration()
+        let decodedSelection = decodeStoredDemoStartConfiguration()
         let storedConfiguration = Self.effectiveDemoStartConfiguration(
-            storedConfiguration: decodedStoredConfiguration
+            storedConfiguration: decodedSelection?.configuration
         )
-        if let decoded = decodedStoredConfiguration,
-           decoded.name != storedConfiguration.name {
-            if let data = try? JSONEncoder().encode(storedConfiguration) {
-                demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
-            }
-            diagnosticsStore.record(
-                domain: "binding.demo",
-                message: "Overstyrer lagret demo-start med Conference Demo Launcher inntil demoen er ferdig."
-            )
-        } else if let decoded = decodedStoredConfiguration,
+        let effectiveProvenance: ConfigurationProvenance
+        if let decoded = decodedSelection,
                   Self.shouldRefreshStoredDemoStartConfiguration(
-                    decoded,
+                    decoded.configuration,
                     defaultConfiguration: storedConfiguration
                   ) {
-            if let data = try? JSONEncoder().encode(storedConfiguration) {
+            effectiveProvenance = .localTrusted
+            let envelope = Self.storedDemoStartEnvelope(
+                configuration: storedConfiguration,
+                origin: .hostTrusted
+            )
+            if let data = try? JSONEncoder().encode(envelope) {
                 demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
             }
             diagnosticsStore.record(
                 domain: "binding.demo",
                 message: "Oppgraderte lagret demo-start til nyeste Co-Pilot-konfigurasjon."
             )
-        } else if decodedStoredConfiguration == nil {
-            if let data = try? JSONEncoder().encode(storedConfiguration) {
+        } else if let decoded = decodedSelection {
+            effectiveProvenance = decoded.provenance
+        } else {
+            effectiveProvenance = .localTrusted
+            let envelope = Self.storedDemoStartEnvelope(
+                configuration: storedConfiguration,
+                origin: .hostTrusted
+            )
+            if let data = try? JSONEncoder().encode(envelope) {
                 demoStartConfigurationJSON = String(decoding: data, as: UTF8.self)
             }
             diagnosticsStore.record(
@@ -3698,15 +4056,30 @@ struct ContentView: View {
         )
         editorMode = .view
         presentImmediatePreviewIfNeeded(for: storedConfiguration)
-        queueConfigurationLoad(storedConfiguration, navigationMode: .reset)
+        queueConfigurationLoad(
+            storedConfiguration,
+            navigationMode: .reset,
+            provenance: effectiveProvenance
+        )
     }
 
     @MainActor
     private func ensureDefaultDemoStartVisibleIfNeeded(reason: String) {
         guard activeConfiguration == nil else { return }
+        let decodedSelection = decodeStoredDemoStartConfiguration()
         let storedConfiguration = Self.effectiveDemoStartConfiguration(
-            storedConfiguration: decodeStoredDemoStartConfiguration()
+            storedConfiguration: decodedSelection?.configuration
         )
+        let effectiveProvenance: ConfigurationProvenance
+        if let decodedSelection,
+           Self.shouldRefreshStoredDemoStartConfiguration(
+            decodedSelection.configuration,
+            defaultConfiguration: storedConfiguration
+           ) {
+            effectiveProvenance = .localTrusted
+        } else {
+            effectiveProvenance = decodedSelection?.provenance ?? .localTrusted
+        }
         diagnosticsStore.record(
             severity: .warning,
             domain: "binding.demo",
@@ -3714,7 +4087,11 @@ struct ContentView: View {
         )
         editorMode = .view
         presentImmediatePreviewIfNeeded(for: storedConfiguration)
-        queueConfigurationLoad(storedConfiguration, navigationMode: .reset)
+        queueConfigurationLoad(
+            storedConfiguration,
+            navigationMode: .reset,
+            provenance: effectiveProvenance
+        )
     }
 
     @MainActor
@@ -3741,10 +4118,6 @@ struct ContentView: View {
     ) -> CellConfiguration {
         let defaultConfiguration = defaultDemoStartConfiguration()
         guard let storedConfiguration else {
-            return defaultConfiguration
-        }
-
-        guard storedConfiguration.name == defaultConfiguration.name else {
             return defaultConfiguration
         }
 
@@ -3823,19 +4196,12 @@ struct ContentView: View {
         )
 
         let repairedConfiguration = Self.defaultDemoStartConfiguration()
-        do {
-            try await porthole.loadCellConfiguration(repairedConfiguration, requester: identity)
-            activeConfiguration = repairedConfiguration
-            loadErrorMessage = nil
-            diagnosticsStore.refreshValidation(for: repairedConfiguration)
-        } catch {
-            diagnosticsStore.record(
-                severity: .warning,
-                domain: "binding.demo",
-                message: "Direkte reparasjon av Conference Demo Launcher feilet. Prover vanlig last: \(error)"
-            )
-            queueConfigurationLoad(repairedConfiguration, navigationMode: .reset)
-        }
+        let repairTask = queueConfigurationLoad(
+            repairedConfiguration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
+        await repairTask.value
     }
 
     @MainActor
@@ -3905,18 +4271,12 @@ struct ContentView: View {
         )
 
         let repairedConfiguration = ConfigurationCatalogCell.conferenceParticipantPortalWorkbenchConfiguration()
-        do {
-            try await porthole.loadCellConfiguration(repairedConfiguration, requester: identity)
-            activeConfiguration = repairedConfiguration
-            diagnosticsStore.refreshValidation(for: repairedConfiguration)
-        } catch {
-            diagnosticsStore.record(
-                severity: .warning,
-                domain: "binding.demo",
-                message: "Direkte reparasjon av persisted participant-portal feilet. Prøver vanlig last: \(error)"
-            )
-            queueConfigurationLoad(repairedConfiguration, navigationMode: .reset)
-        }
+        let repairTask = queueConfigurationLoad(
+            repairedConfiguration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
+        await repairTask.value
     }
 
     @MainActor
@@ -3997,30 +4357,27 @@ struct ContentView: View {
         let repairedConfiguration = ConfigurationCatalogCell.conferenceAdminWorkbenchConfiguration(
             endpoint: "cell:///ConferenceAdminPreviewShell"
         )
-        do {
-            try await porthole.loadCellConfiguration(repairedConfiguration, requester: identity)
-            activeConfiguration = repairedConfiguration
-            loadErrorMessage = nil
-            diagnosticsStore.refreshValidation(for: repairedConfiguration)
-        } catch {
-            diagnosticsStore.record(
-                severity: .warning,
-                domain: "binding.demo",
-                message: "Direkte reparasjon av persisted control tower feilet. Prøver vanlig last: \(error)"
-            )
-            queueConfigurationLoad(repairedConfiguration, navigationMode: .reset)
-        }
+        let repairTask = queueConfigurationLoad(
+            repairedConfiguration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
+        await repairTask.value
     }
 
+    @discardableResult
+    @MainActor
     private func queueConfigurationLoad(
         _ configuration: CellConfiguration?,
-        navigationMode: ConferenceNavigationMode = .automatic
-    ) {
+        navigationMode: ConferenceNavigationMode = .automatic,
+        provenance: ConfigurationProvenance
+    ) -> Task<Void, Never> {
         prepareConferenceNavigation(for: configuration, mode: navigationMode)
-        configurationLoadTask?.cancel()
-        configurationLoadTask = Task {
-            await loadConfigurationForEditing(configuration)
+        let task = configurationLoadCoordinator.enqueue {
+            await loadConfigurationForEditing(configuration, provenance: provenance)
         }
+        configurationLoadTask = task
+        return task
     }
 
     private func prepareConferenceNavigation(
@@ -4051,12 +4408,20 @@ struct ContentView: View {
 
     private func popConferenceNavigation(fallbackConfiguration: CellConfiguration? = nil) {
         if let previous = conferenceNavigationStack.popLast() {
-            queueConfigurationLoad(previous, navigationMode: .skipPush)
+            queueConfigurationLoad(
+                previous,
+                navigationMode: .skipPush,
+                provenance: .hostPrepared
+            )
             return
         }
 
         guard let fallbackConfiguration else { return }
-        queueConfigurationLoad(fallbackConfiguration, navigationMode: .reset)
+        queueConfigurationLoad(
+            fallbackConfiguration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
     }
 
     @MainActor
@@ -4140,7 +4505,8 @@ struct ContentView: View {
         }
         let accepted = await ConferenceIdentityLinkInboxStore.shared.ingest(url: url)
         guard accepted, execution.isActive else { return }
-        execution.commit {
+        var loadTask: Task<Void, Never>?
+        guard execution.commit({
             diagnosticsStore.record(
                 domain: "binding.identityLink",
                 message: "Åpner Conference Scaffold Setup & Identity Link fra validert deeplink."
@@ -4148,10 +4514,18 @@ struct ContentView: View {
             if editorMode == .edit {
                 editorMode = .view
             }
-            queueConfigurationLoad(
+            loadTask = queueConfigurationLoad(
                 Self.conferenceIdentityLinkMenuSeedConfiguration(),
-                navigationMode: .automatic
+                navigationMode: .automatic,
+                provenance: .localTrusted
             )
+        }) else { return }
+        if let loadTask {
+            await withTaskCancellationHandler {
+                await loadTask.value
+            } onCancel: {
+                loadTask.cancel()
+            }
         }
     }
 
@@ -4244,24 +4618,31 @@ struct ContentView: View {
             return
         }
 
-        let candidates = CellConfigurationPayloadSupport
-            .decodeConfigurations(from: configurationsValue)
-            .map {
-                normalizeConfigurationForResolver(
-                    $0,
-                    origin: selectedOrigin,
-                    resolver: resolver
-                )
-            }
-        guard let preparedConfiguration = CellConfigurationPayloadSupport.resolveCellConfiguration(
+        let candidates = CellConfigurationPayloadSupport.decodeConfigurations(from: configurationsValue)
+        guard let publishedConfiguration = CellConfigurationPayloadSupport.resolveCellConfiguration(
             from: selected.lookupPayload,
             candidates: candidates
         ) else {
             execution.commit { recordRuntimeSurfaceLaunchFailure("published_configuration_missing") }
             return
         }
+        guard CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(publishedConfiguration) else {
+            execution.commit { recordRuntimeSurfaceLaunchFailure("view_configuration_contains_side_effects") }
+            return
+        }
+        let publicationProvenance = selectedOrigin.map(ConfigurationProvenance.remoteOwnerPublished)
+            ?? .localTrusted
+        guard let preparedConfiguration = normalizeConfigurationForResolver(
+            publishedConfiguration,
+            provenance: publicationProvenance,
+            resolver: resolver
+        ) else {
+            execution.commit { recordRuntimeSurfaceLaunchFailure("published_configuration_violates_host_boundary") }
+            return
+        }
         let sourceKind = selectedOrigin == nil ? "runtime_local_catalog" : "owner_remote_catalog"
-        execution.commit {
+        var loadTask: Task<Void, Never>?
+        guard execution.commit({
             diagnosticsStore.record(
                 domain: "binding.runtimeLaunch",
                 message: "Runtime launch åpner owner-publisert surfaceID \(request.surfaceID) fra \(sourceKind)."
@@ -4269,7 +4650,20 @@ struct ContentView: View {
             if editorMode == .edit {
                 editorMode = .view
             }
-            queueConfigurationLoad(preparedConfiguration, navigationMode: .automatic)
+            loadTask = queueConfigurationLoad(
+                preparedConfiguration,
+                navigationMode: .automatic,
+                provenance: .hostPreparedExternalView(
+                    mayUseLocalControlPlane: selectedOrigin == nil
+                )
+            )
+        }) else { return }
+        if let loadTask {
+            await withTaskCancellationHandler {
+                await loadTask.value
+            } onCancel: {
+                loadTask.cancel()
+            }
         }
     }
 
@@ -4337,70 +4731,52 @@ struct ContentView: View {
         }
         switch hook {
         case .openLauncher:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.defaultDemoStartConfiguration(),
-                    navigationMode: .reset
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.defaultDemoStartConfiguration(),
+                navigationMode: .reset
+            )
         case .openParticipantPortal:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.conferenceParticipantPortalMenuSeedConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.conferenceParticipantPortalMenuSeedConfiguration(),
+                navigationMode: .automatic
+            )
         case .openConferenceMVP:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.conferenceMVPAutomationConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.conferenceMVPAutomationConfiguration(),
+                navigationMode: .automatic
+            )
         case .openPublicSurface:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.conferencePublicAutomationConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.conferencePublicAutomationConfiguration(),
+                navigationMode: .automatic
+            )
         case .openControlTower:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.conferenceAdminMenuSeedConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.conferenceAdminMenuSeedConfiguration(),
+                navigationMode: .automatic
+            )
         case .openSponsorFollowUp:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.conferenceSponsorAutomationConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.conferenceSponsorAutomationConfiguration(),
+                navigationMode: .automatic
+            )
         case .openAIAssistant:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.conferenceAIAssistantAutomationConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.conferenceAIAssistantAutomationConfiguration(),
+                navigationMode: .automatic
+            )
         case .logAIAssistantState:
             await logConferenceAIAssistantState()
         case .openIdentityLink:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.conferenceIdentityLinkMenuSeedConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.conferenceIdentityLinkMenuSeedConfiguration(),
+                navigationMode: .automatic
+            )
         case .openAgentSetupWorkbench:
-            await MainActor.run {
-                loadConferenceAutomationConfiguration(
-                    Self.agentSetupAutomationConfiguration(),
-                    navigationMode: .automatic
-                )
-            }
+            await awaitConferenceAutomationConfiguration(
+                Self.agentSetupAutomationConfiguration(),
+                navigationMode: .automatic
+            )
         case .installAgent:
             _ = await dispatchDirectConferenceAutomationAction(
                 endpoint: "cell:///AgentProvisioning",
@@ -4447,13 +4823,14 @@ struct ContentView: View {
                 ])
             )
             guard focused else { return }
-            await MainActor.run {
-                if normalizedActiveConferenceConfigurationName != "conference participant portal dashboard" {
-                    loadConferenceAutomationConfiguration(
-                        Self.conferenceParticipantPortalMenuSeedConfiguration(),
-                        navigationMode: .automatic
-                    )
-                }
+            let shouldLoadPortal = await MainActor.run {
+                normalizedActiveConferenceConfigurationName != "conference participant portal dashboard"
+            }
+            if shouldLoadPortal {
+                await awaitConferenceAutomationConfiguration(
+                    Self.conferenceParticipantPortalMenuSeedConfiguration(),
+                    navigationMode: .automatic
+                )
             }
         case .startChatWithFocusedParticipant:
             let started = await dispatchConferenceAutomationAction(
@@ -4461,15 +4838,16 @@ struct ContentView: View {
                 actionKeypath: "discovery.startChatWithFocusedPerson"
             )
             guard started else { return }
-            await MainActor.run {
+            let shouldLoadPortal = await MainActor.run {
                 let normalizedName = normalizedActiveConferenceConfigurationName
-                if normalizedName != "conference participant portal dashboard",
-                   normalizedName?.contains("conference chat") != true {
-                    loadConferenceAutomationConfiguration(
-                        Self.conferenceParticipantPortalMenuSeedConfiguration(),
-                        navigationMode: .automatic
-                    )
-                }
+                return normalizedName != "conference participant portal dashboard"
+                    && normalizedName?.contains("conference chat") != true
+            }
+            if shouldLoadPortal {
+                await awaitConferenceAutomationConfiguration(
+                    Self.conferenceParticipantPortalMenuSeedConfiguration(),
+                    navigationMode: .automatic
+                )
             }
         case .openFocusedChatWorkbench:
             _ = await dispatchConferenceAutomationAction(
@@ -4599,18 +4977,36 @@ struct ContentView: View {
         return "Conference AI state log: status=\(status) | provider=\(provider) | credential=\(credential) | lastMessage=\(message) | outputPreview=\(output)"
     }
 
+    private func awaitConferenceAutomationConfiguration(
+        _ configuration: CellConfiguration,
+        navigationMode: ConferenceNavigationMode
+    ) async {
+        let task = await MainActor.run {
+            loadConferenceAutomationConfiguration(
+                configuration,
+                navigationMode: navigationMode
+            )
+        }
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
     @MainActor
+    @discardableResult
     private func loadConferenceAutomationConfiguration(
         _ configuration: CellConfiguration,
         navigationMode: ConferenceNavigationMode
-    ) {
+    ) -> Task<Void, Never> {
         let preparedConfiguration: CellConfiguration
         if let resolver = CellBase.defaultCellResolver as? CellResolver {
             preparedConfiguration = normalizeConfigurationForResolver(
                 configuration,
-                origin: nil,
+                provenance: .localTrusted,
                 resolver: resolver
-            )
+            ) ?? configuration
         } else {
             preparedConfiguration = configuration
         }
@@ -4621,7 +5017,11 @@ struct ContentView: View {
         if editorMode == .edit {
             editorMode = .view
         }
-        queueConfigurationLoad(preparedConfiguration, navigationMode: navigationMode)
+        return queueConfigurationLoad(
+            preparedConfiguration,
+            navigationMode: navigationMode,
+            provenance: .hostPrepared
+        )
     }
 
     private func dispatchConferenceAutomationAction(
@@ -5014,7 +5414,10 @@ struct ContentView: View {
     }
 
     @MainActor
-    private func loadConfigurationForEditing(_ configuration: CellConfiguration?) async {
+    private func loadConfigurationForEditing(
+        _ configuration: CellConfiguration?,
+        provenance: ConfigurationProvenance
+    ) async {
         guard let configuration else { return }
         let requestID = UUID()
         activeLoadingRequestID = requestID
@@ -5035,6 +5438,24 @@ struct ContentView: View {
                 domain: "binding.load",
                 message: "Sanitization removed configuration \(configuration.name)"
             )
+            return
+        }
+        guard CellConfigurationEndpointRetargeting.isAllowedByHostTrustBoundary(
+            sanitizedConfiguration,
+            mayUseLocalControlPlane: provenance.mayUseLocalControlPlane
+        ), !provenance.isUntrustedImport
+            || CellConfigurationEndpointRetargeting.isSafeForUntrustedImport(sanitizedConfiguration) else {
+            loadErrorMessage = "Konfigurasjonen ble avvist fordi kilden ikke er betrodd for lokale kontroll-endepunkter."
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.load",
+                message: "Rejected untrusted local-control endpoint in \(configuration.name)"
+            )
+            return
+        }
+        guard !provenance.requiresSideEffectFreeView
+                || CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(sanitizedConfiguration) else {
+            loadErrorMessage = "View-lenken ble avvist fordi konfigurasjonen inneholder initializer-writes."
             return
         }
         loadErrorMessage = nil
@@ -5065,8 +5486,14 @@ struct ContentView: View {
                 activeConfiguration = sanitizedConfiguration
                 activeSourceBackedContext = nil
             }
+            let configurationToLoad = activeConfiguration ?? sanitizedConfiguration
+            guard !provenance.requiresSideEffectFreeView
+                    || CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(configurationToLoad) else {
+                loadErrorMessage = "View-lenken ble avvist fordi den resolvede konfigurasjonen inneholder initializer-writes."
+                return
+            }
             let didLoad = await loadConfigurationIntoPorthole(
-                activeConfiguration ?? sanitizedConfiguration,
+                configurationToLoad,
                 requestID: requestID,
                 allowConferencePreviewFallback: false
             )
@@ -5116,11 +5543,15 @@ struct ContentView: View {
                 )
             }
             guard !Task.isCancelled else { return }
-            normalizedConfiguration = normalizeConfigurationForResolver(
+            guard let preparedConfiguration = normalizeConfigurationForResolver(
                 normalizedConfiguration,
-                origin: nil,
+                provenance: provenance,
                 resolver: resolver
-            )
+            ) else {
+                loadErrorMessage = "Konfigurasjonen ble avvist fordi den forsøkte å bruke en lokal kontroll-endpoint."
+                return
+            }
+            normalizedConfiguration = preparedConfiguration
             if shouldResolveSourceBackedConfiguration(normalizedConfiguration, editorMode: editorMode) {
                 if let editableResolution = await resolveEditableConfigurationForCurrentRequester(
                     normalizedConfiguration,
@@ -5131,11 +5562,17 @@ struct ContentView: View {
                         from: normalizedConfiguration.discovery?.sourceCellEndpoint
                             ?? editableResolution.context.sourceCellEndpoint
                     )
-                    normalizedConfiguration = normalizeConfigurationForResolver(
+                    guard let preparedSourceConfiguration = normalizeConfigurationForResolver(
                         editableResolution.configuration,
-                        origin: sourceBackedOrigin,
+                        provenance: sourceBackedOrigin.map(ConfigurationProvenance.remoteOwnerPublished)
+                            ?? .localTrusted,
                         resolver: resolver
-                    )
+                    ) else {
+                        loadErrorMessage = "Fjernkonfigurasjonen ble avvist fordi den forsøkte å bruke en lokal kontroll-endpoint."
+                        activeSourceBackedContext = nil
+                        return
+                    }
+                    normalizedConfiguration = preparedSourceConfiguration
                     var context = editableResolution.context
                     context.sourceCellEndpoint = normalizeEndpointForResolver(
                         context.sourceCellEndpoint,
@@ -5151,6 +5588,12 @@ struct ContentView: View {
             }
         } else {
             activeSourceBackedContext = nil
+        }
+        guard !provenance.requiresSideEffectFreeView
+                || CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(normalizedConfiguration) else {
+            loadErrorMessage = "View-lenken ble avvist fordi den resolvede konfigurasjonen inneholder initializer-writes."
+            activeSourceBackedContext = nil
+            return
         }
         activeConfiguration = normalizedConfiguration
         diagnosticsStore.refreshValidation(for: normalizedConfiguration)
@@ -5375,10 +5818,13 @@ struct ContentView: View {
                 requester: loadRequester
             )
         } catch {
+            let safeError = CellConfigurationEndpointRetargeting.redactedTextForDisplay(
+                String(describing: error)
+            )
             if allowConferencePreviewFallback,
                let fallbackConfiguration = localConferencePreviewFallbackConfiguration(
                 for: configuration,
-                failureDetails: [String(describing: error)]
+                failureDetails: [safeError]
                ) {
                 diagnosticsStore.record(
                     severity: .warning,
@@ -5397,14 +5843,17 @@ struct ContentView: View {
                     allowConferencePreviewFallback: false
                 )
             }
-            let message = "Kunne ikke absorbere \(configuration.name) i porthole: \(error)"
+            let message = "Kunne ikke absorbere \(configuration.name) i porthole: \(safeError)"
             diagnosticsStore.record(
                 severity: .error,
                 domain: "binding.load",
                 message: message
             )
             loadErrorMessage = message
-            viewModel.currentSkeleton = failurePlaceholderSkeleton(for: configuration, detail: String(describing: error))
+            viewModel.currentSkeleton = failurePlaceholderSkeleton(
+                for: configuration,
+                detail: safeError
+            )
             return false
         }
 
@@ -5628,7 +6077,12 @@ struct ContentView: View {
                         )
                         return (probe, SkeletonBindingProbeSupport.failureDetail(from: value))
                     } catch {
-                        return (probe, String(describing: error))
+                        return (
+                            probe,
+                            CellConfigurationEndpointRetargeting.redactedTextForDisplay(
+                                String(describing: error)
+                            )
+                        )
                     }
                 }
             }
@@ -5675,7 +6129,8 @@ struct ContentView: View {
             }
             .prefix(3)
             .map { probe, detail in
-                "\(probe.qualifiedKeypath): \(detail)"
+                let safeDetail = CellConfigurationEndpointRetargeting.redactedTextForDisplay(detail)
+                return "\(probe.qualifiedKeypath): \(safeDetail)"
             }
             .joined(separator: " | ")
     }
@@ -5847,7 +6302,9 @@ struct ContentView: View {
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            let data = try encoder.encode(configuration)
+            let data = try encoder.encode(
+                CellConfigurationEndpointRetargeting.removingRuntimeCredentials(from: configuration)
+            )
             guard let json = String(data: data, encoding: .utf8) else {
                 loadErrorMessage = "Kunne ikke lage tekst fra serialisert CellConfiguration."
                 copyStatusMessage = nil
@@ -6830,10 +7287,13 @@ struct ContentView: View {
         for outcome in outcomes {
             if let failure = outcome.failure {
                 if isNonBlockingProbeFailure(failure) {
+                    let safeEndpoint = CellConfigurationEndpointRetargeting.redactedEndpointForDisplay(
+                        outcome.endpoint
+                    )
                     diagnosticsStore.record(
                         severity: .warning,
                         domain: "binding.probe",
-                        message: "Non-blocking bridge preflight issue for \(outcome.endpoint): \(failure)"
+                        message: "Non-blocking bridge preflight issue for \(safeEndpoint): \(failure)"
                     )
                 } else {
                     failures.insert(endpointIdentity(outcome.endpoint))
@@ -6990,18 +7450,21 @@ struct ContentView: View {
     }
 
     private func probeFailureMessage(endpoint: String, error: Error) -> String {
-        let errorText = String(describing: error)
+        let safeEndpoint = CellConfigurationEndpointRetargeting.redactedEndpointForDisplay(endpoint)
+        let errorText = CellConfigurationEndpointRetargeting.redactedTextForDisplay(
+            String(describing: error)
+        )
         let normalized = errorText.lowercased()
         if normalized.contains("bad response from the server") || normalized.contains("502") {
-            return "Staging svarte med ugyldig websocket-respons for \(endpoint). Sjekk bridgehead/nginx."
+            return "Staging svarte med ugyldig websocket-respons for \(safeEndpoint). Sjekk bridgehead/nginx."
         }
         if normalized.contains("notconnected") || normalized.contains("transportunavailable") {
-            return "Bridge-forbindelsen til \(endpoint) ble brutt før data kunne leses."
+            return "Bridge-forbindelsen til \(safeEndpoint) ble brutt før data kunne leses."
         }
         if normalized.contains("timeout") {
-            return "Timeout ved lasting av \(endpoint). Sjekk staging websocket-route (bridgehead)."
+            return "Timeout ved lasting av \(safeEndpoint). Sjekk staging websocket-route (bridgehead)."
         }
-        return "Kunne ikke laste \(endpoint): \(errorText)"
+        return "Kunne ikke laste \(safeEndpoint): \(errorText)"
     }
 
     private func isNonBlockingProbeFailure(_ message: String) -> Bool {
@@ -7127,11 +7590,17 @@ struct ContentView: View {
                 requester: requester
             )
             let origin = catalogOrigin(from: endpoint)
-            let normalized = normalizeConfigurationForResolver(
+            guard let normalized = normalizeConfigurationForResolver(
                 recoveredConfiguration,
-                origin: origin,
+                provenance: origin.map(ConfigurationProvenance.remoteOwnerPublished) ?? .localTrusted,
                 resolver: resolver
-            )
+            ) else {
+                await PortableSurfaceCacheStore.shared.remove(
+                    endpoint: endpoint,
+                    requester: requester
+                )
+                return nil
+            }
             if let sanitized = sanitizedLoadedConfiguration(normalized, allowReferenceFree: false),
                !isEmitterConfiguration(sanitized) {
                 return sanitized
@@ -7258,11 +7727,13 @@ struct ContentView: View {
         }
 
         let origin = catalogOrigin(from: endpoint)
-        let normalized = normalizeConfigurationForResolver(
+        guard let normalized = normalizeConfigurationForResolver(
             recoveredConfiguration,
-            origin: origin,
+            provenance: origin.map(ConfigurationProvenance.remoteOwnerPublished) ?? .localTrusted,
             resolver: resolver
-        )
+        ) else {
+            return nil
+        }
         return sanitizedLoadedConfiguration(normalized, allowReferenceFree: false)
     }
 
@@ -7625,10 +8096,18 @@ struct ContentView: View {
             || normalizedPath == "conference-automation"
         guard isAutomationRoute else { return nil }
 
-        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let queryAction = components?.queryItems?.first(where: {
-            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "action"
-        })?.value
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let queryItems = components.queryItems ?? []
+        let normalizedQueryNames = queryItems.map {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        guard normalizedQueryNames.allSatisfy({ $0 == "action" }),
+              normalizedQueryNames.filter({ $0 == "action" }).count <= 1 else {
+            return nil
+        }
+        let queryAction = queryItems.first?.value
 
         let pathComponents = normalizedPath
             .split(separator: "/")
@@ -7642,8 +8121,10 @@ struct ContentView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        guard let rawAction, !rawAction.isEmpty else { return nil }
-        return ConferenceAutomationHook(rawValue: rawAction)
+        guard let rawAction, !rawAction.isEmpty,
+              let hook = ConferenceAutomationHook(rawValue: rawAction),
+              hook.allowsExternalURL else { return nil }
+        return hook
     }
 
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {

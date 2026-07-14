@@ -7,6 +7,7 @@ nonisolated struct BindingIncomingURLEvent: Identifiable, Equatable {
     let url: URL
     let targetWindowNumber: Int?
     let targetSceneID: UUID?
+    let createdAt: Date
 }
 
 nonisolated struct BindingIncomingURLLease: Equatable {
@@ -14,13 +15,24 @@ nonisolated struct BindingIncomingURLLease: Equatable {
     let token: UUID
 }
 
+nonisolated struct BindingIncomingURLDeliveryFailure: Equatable {
+    let reason: String
+    let targetWindowNumber: Int?
+    let targetSceneID: UUID?
+}
+
 enum BindingIncomingURLBridge {
     nonisolated static let notificationName = Notification.Name("BindingIncomingURLBridge.received")
     nonisolated static let deliveryFailureNotificationName = Notification.Name("BindingIncomingURLBridge.deliveryFailed")
 
     nonisolated private static let eventKey = "event"
+    nonisolated private static let deliveryFailureKey = "deliveryFailure"
     private static let maximumPendingEvents = 32
-    private static let leaseLifetime: TimeInterval = 30
+    // Route work can include discovery plus a supported 30-second Porthole
+    // load. Keep the lease longer than the route deadline to prevent a second
+    // consumer from retrying while the first generation is still cancelling.
+    private static let leaseLifetime: TimeInterval = 90
+    private static let pendingEventLifetime: TimeInterval = 300
     private struct LeaseRecord {
         let consumerID: UUID
         let token: UUID
@@ -38,7 +50,7 @@ enum BindingIncomingURLBridge {
         now: Date = Date(),
         notificationCenter: NotificationCenter = .default
     ) -> Bool {
-        reapExpiredLeases(now: now)
+        reapExpiredState(now: now)
         guard pendingEvents.count < maximumPendingEvents else {
             return false
         }
@@ -46,7 +58,8 @@ enum BindingIncomingURLBridge {
             id: UUID(),
             url: url,
             targetWindowNumber: targetWindowNumber,
-            targetSceneID: targetSceneID
+            targetSceneID: targetSceneID,
+            createdAt: now
         )
         pendingEvents.append(event)
         notificationCenter.post(
@@ -90,7 +103,11 @@ enum BindingIncomingURLBridge {
             notificationCenter.post(
                 name: deliveryFailureNotificationName,
                 object: nil,
-                userInfo: ["reason": "incoming_url_queue_full"]
+                userInfo: [deliveryFailureKey: BindingIncomingURLDeliveryFailure(
+                    reason: "incoming_url_queue_full",
+                    targetWindowNumber: targetWindowNumber,
+                    targetSceneID: targetSceneID
+                )]
             )
         }
     }
@@ -107,6 +124,12 @@ enum BindingIncomingURLBridge {
         event(from: notification)?.targetWindowNumber
     }
 
+    nonisolated static func deliveryFailure(
+        from notification: Notification
+    ) -> BindingIncomingURLDeliveryFailure? {
+        notification.userInfo?[deliveryFailureKey] as? BindingIncomingURLDeliveryFailure
+    }
+
     @MainActor
     static func lease(
         _ event: BindingIncomingURLEvent,
@@ -115,7 +138,7 @@ enum BindingIncomingURLBridge {
         hostingSceneID: UUID? = nil,
         now: Date = Date()
     ) -> BindingIncomingURLLease? {
-        reapExpiredLeases(now: now)
+        reapExpiredState(now: now)
         guard pendingEvents.contains(where: { $0.id == event.id }),
               leasesByEventID[event.id] == nil,
               matches(
@@ -141,7 +164,7 @@ enum BindingIncomingURLBridge {
         hostingSceneID: UUID? = nil,
         now: Date = Date()
     ) -> [BindingIncomingURLLease] {
-        reapExpiredLeases(now: now)
+        reapExpiredState(now: now)
         return pendingEvents.compactMap { event in
             lease(
                 event,
@@ -163,7 +186,7 @@ enum BindingIncomingURLBridge {
         hostingSceneID: UUID? = nil,
         now: Date = Date()
     ) -> BindingIncomingURLLease? {
-        reapExpiredLeases(now: now)
+        reapExpiredState(now: now)
         guard let event = pendingEvents.first(where: {
             leasesByEventID[$0.id] == nil
                 && matches(
@@ -206,10 +229,34 @@ enum BindingIncomingURLBridge {
     }
 
     @MainActor
-    private static func reapExpiredLeases(now: Date) {
+    static func discardTargetedPending(
+        targetWindowNumber: Int?,
+        targetSceneID: UUID?
+    ) {
+        let removedIDs = Set(pendingEvents.compactMap { event -> UUID? in
+#if canImport(AppKit)
+            guard let targetWindowNumber,
+                  event.targetWindowNumber == targetWindowNumber else { return nil }
+#else
+            guard let targetSceneID,
+                  event.targetSceneID == targetSceneID else { return nil }
+#endif
+            return event.id
+        })
+        pendingEvents.removeAll { removedIDs.contains($0.id) }
+        leasesByEventID = leasesByEventID.filter { !removedIDs.contains($0.key) }
+    }
+
+    @MainActor
+    private static func reapExpiredState(now: Date) {
         leasesByEventID = leasesByEventID.filter {
             now.timeIntervalSince($0.value.leasedAt) < leaseLifetime
         }
+        let expiredEventIDs = Set(pendingEvents.compactMap { event in
+            now.timeIntervalSince(event.createdAt) >= pendingEventLifetime ? event.id : nil
+        })
+        pendingEvents.removeAll { expiredEventIDs.contains($0.id) }
+        leasesByEventID = leasesByEventID.filter { !expiredEventIDs.contains($0.key) }
     }
 
     @MainActor
@@ -231,6 +278,12 @@ enum BindingIncomingURLBridge {
     @MainActor
     static func pendingCount() -> Int {
         pendingEvents.count
+    }
+
+    @MainActor
+    static func pendingCount(now: Date) -> Int {
+        reapExpiredState(now: now)
+        return pendingEvents.count
     }
 
     @MainActor
@@ -325,7 +378,7 @@ final class BindingRuntimeRouteQueue {
 
     init(
         maximumPendingOperations: Int = 32,
-        operationTimeout: Duration = .seconds(20)
+        operationTimeout: Duration = .seconds(60)
     ) {
         self.maximumPendingOperations = maximumPendingOperations
         self.operationTimeout = operationTimeout
@@ -414,6 +467,32 @@ final class BindingRuntimeRouteQueue {
             runningOperationID = nil
         }
         return outcome
+    }
+}
+
+@MainActor
+final class BindingSerializedConfigurationLoadCoordinator {
+    private var tail: Task<Void, Never>?
+
+    @discardableResult
+    func enqueue(
+        _ operation: @escaping @MainActor () async -> Void
+    ) -> Task<Void, Never> {
+        let previous = tail
+        previous?.cancel()
+        let task = Task { @MainActor in
+            if let previous {
+                await previous.value
+            }
+            guard !Task.isCancelled else { return }
+            await operation()
+        }
+        tail = task
+        return task
+    }
+
+    func cancelAll() {
+        tail?.cancel()
     }
 }
 
