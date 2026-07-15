@@ -9617,6 +9617,25 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             "Personvern",
             content: [
                 .Text(personalBodyText("Co-piloten leser kun utkastet ditt naar du ber om forslag. RAG og agent-review krever egne klikk.")),
+                .Text(personalBodyText("Historikk i Entity Chronicle er av som standard. Du velger selv om eksplisitt sendte prompts skal lagres uten tekst eller med full tekst.")),
+                .Text(personalBoundText("chatHub.state.history.summary", lineLimit: 4)),
+                .Text(personalBoundText("chatHub.state.history.lastMessage", lineLimit: 3)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.history.configure", "Chronicle av", payload: .object([
+                        "mode": .string("off")
+                    ]), style: .secondary)),
+                    .Button(button("chatHub.history.configure", "Lagre metadata", payload: .object([
+                        "mode": .string("metadata"),
+                        "confirm": .bool(true)
+                    ]), style: .secondary)),
+                    .Button(button("chatHub.history.configure", "Lagre fulltekst", payload: .object([
+                        "mode": .string("full"),
+                        "confirm": .bool(true),
+                        "fullContentWarningAccepted": .bool(true)
+                    ]), style: .warning))
+                ])),
+                .Text(personalBodyText("Fulltekst lagrer selve prompten og Co-Pilot-teksten privat i Entity. Aa skru av stopper nye poster; eksisterende Chronicle-poster slettes ikke automatisk.")),
+                .Button(button("chatHub.history.clearLocal", "Tom lokal samtalehistorikk", style: .warning)),
                 .HStack(SkeletonHStack(elements: [
                     .Button(button("chatHub.ui.setLearningEnabled", "Stopp laering", payload: .bool(false), style: .secondary)),
                     .Button(button("chatHub.ui.setLearningEnabled", "Tillat laering", payload: .bool(true), style: .secondary)),
