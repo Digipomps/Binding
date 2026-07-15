@@ -106,7 +106,9 @@ actor BindingLocalCellRegistration {
 
         for attempt in 1...Self.localRegistrationValidationAttemptLimit {
             let resolver = CellResolver.sharedInstance
-            await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
+            // Register owner-scoped workbench cells as persistent on first resolve.
+            // An ephemeral first registration cannot later be upgraded safely.
+            await Self.registerChatWorkbenchParityCells(on: resolver)
             await Self.registerVaultGraphLocalCells(on: resolver)
             // Keep the launch path free of eager Porthole setup, owner-access
             // checks, LocalAuthentication and keychain prompts. Binding owns
@@ -265,7 +267,8 @@ actor BindingLocalCellRegistration {
 
         let task = Task {
             let resolver = CellResolver.sharedInstance
-            await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
+            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+            await Self.registerChatWorkbenchParityCells(on: resolver)
             await Self.registerVaultGraphLocalCells(on: resolver)
             await AppInitializer.initialize()
             await Self.registerAll(on: resolver)

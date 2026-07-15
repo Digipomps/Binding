@@ -4479,10 +4479,12 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     nonisolated(unsafe) private var cachedState: Object = BindingPersonalChatHubCell.initialState()
     nonisolated(unsafe) private var registeredProviders: [BindingChatProviderDescriptor] = []
     nonisolated(unsafe) private var voiceTranscriber = BindingVoiceInputTranscriber()
+    nonisolated(unsafe) private var historyPolicyLoaded = false
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
         cachedState = Self.initialState()
+        historyPolicyLoaded = false
         await installRuntimeBindings(owner: owner)
         await markRuntimeBindingsInstalled()
     }
@@ -4491,6 +4493,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         cachedState = (try? container.decode(Object.self, forKey: .cachedState)) ?? Self.initialState()
         registeredProviders = (try? container.decode([BindingChatProviderDescriptor].self, forKey: .registeredProviders)) ?? []
+        historyPolicyLoaded = false
         try super.init(from: decoder)
     }
 
@@ -4507,6 +4510,9 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             await registerGet(key: key, owner: owner, returns: .object([:])) { [weak self] requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
+                if Self.shouldHydrateHistoryPolicy(for: key) {
+                    await self.hydrateHistoryPolicyIfNeeded(requester: requester)
+                }
                 return self.readValue(for: key)
             }
         }
@@ -4516,6 +4522,22 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             await registerSet(key: key, owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }
+                return await self.handleSet(key: key, value: value, requester: requester)
+            }
+        }
+
+        for key in historyStorageWritableKeys {
+            ensureAgreementGrant("rw-s", for: key)
+            await registerSet(
+                key: key,
+                owner: owner,
+                input: .object([:]),
+                returns: .object([:]),
+                permissions: ["rw-s"],
+                description: .string("Changes the owner's explicit Entity Chronicle retention policy.")
+            ) { [weak self] requester, value in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("rw-s", at: key, for: requester) else { return .string("denied") }
                 return await self.handleSet(key: key, value: value, requester: requester)
             }
         }
@@ -4551,6 +4573,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "capabilityRequests",
             "entityExtension",
             "voiceState",
+            "history",
+            "state.history",
             "purposeWeights",
             "purposeGoal",
             "skeletonConfiguration"
@@ -4601,6 +4625,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "ui.setCurrentThread",
             "ui.openMatchedResourceLibrary",
             "ui.clearPromptHistory",
+            "history.clearLocal",
             "ui.clearComponentSurfaces",
             "ui.setActiveTab",
             "ui.setActiveHelper",
@@ -4673,6 +4698,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "blockUser",
             "unblockUser"
         ]
+        return canonicalKeys + canonicalKeys.map { "chatHub.\($0)" }
+    }
+
+    private var historyStorageWritableKeys: [String] {
+        let canonicalKeys = ["history.configure"]
         return canonicalKeys + canonicalKeys.map { "chatHub.\($0)" }
     }
 
@@ -4809,6 +4839,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return key
     }
 
+    private static func shouldHydrateHistoryPolicy(for key: String) -> Bool {
+        let key = canonicalChatHubKey(key)
+        return key == "state" || key == "history" || key == "state.history"
+    }
+
     private func readValue(for key: String) -> ValueType {
         let key = Self.canonicalChatHubKey(key)
         switch key {
@@ -4846,6 +4881,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return BindingChatValue.nested("entityExtension", in: cachedState) ?? .object(entityExtensionState(matches: []))
         case "voiceState":
             return BindingChatValue.nested("voice", in: cachedState) ?? .object(Self.initialVoiceState())
+        case "history":
+            return BindingChatValue.nested("history", in: cachedState) ?? .object(Self.initialHistoryState())
         default:
             return BindingChatValue.nested(key, in: cachedState) ?? .null
         }
@@ -4889,6 +4926,10 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "ui.clearPromptHistory":
             BindingChatValue.set(.list([]), for: "ui.promptMessages", in: &cachedState)
             return .object(["ok": .bool(true), "sideEffect": .bool(false)])
+        case "history.clearLocal":
+            return clearLocalConversationHistory()
+        case "history.configure":
+            return await configureHistory(value, requester: requester)
         case "ui.clearComponentSurfaces":
             BindingChatValue.set(.list([]), for: "ui.componentSurfaces", in: &cachedState)
             BindingChatValue.set(.list([]), for: "ui.activeToolChips", in: &cachedState)
@@ -5155,7 +5196,215 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         }
     }
 
-    private func analyzeDraft(value: ValueType, requester: Identity) async -> ValueType {
+    private func hydrateHistoryPolicyIfNeeded(requester: Identity, force: Bool = false) async {
+        guard force || historyPolicyLoaded == false else { return }
+        historyPolicyLoaded = true
+        do {
+            if let policy = try await BindingPersonalChatChronicle.loadPolicy(requester: requester) {
+                storeHistoryPolicy(
+                    policy,
+                    policySource: "entity_anchor",
+                    lastPersistenceStatus: "ready",
+                    lastMessage: policy.summary
+                )
+            } else {
+                storeHistoryPolicy(
+                    .defaultOff,
+                    policySource: "default_off",
+                    lastPersistenceStatus: "not_configured",
+                    lastMessage: BindingPersonalChatHistoryPolicy.defaultOff.summary
+                )
+            }
+        } catch {
+            // Retention is fail-closed: a missing or unreadable policy never
+            // enables Chronicle capture implicitly.
+            storeHistoryPolicy(
+                .defaultOff,
+                policySource: "default_off_fail_closed",
+                lastPersistenceStatus: "unavailable",
+                lastMessage: error.localizedDescription,
+                lastError: error.localizedDescription
+            )
+        }
+    }
+
+    private func configureHistory(_ value: ValueType, requester: Identity) async -> ValueType {
+        let payload = BindingChatValue.object(value) ?? [:]
+        guard let policy = BindingPersonalChatChronicle.policy(from: payload) else {
+            return .object([
+                "ok": .bool(false),
+                "status": .string("confirmation_required"),
+                "message": .string("Velg off, metadata eller full. Metadata/full krever confirm=true; full krever også fullContentWarningAccepted=true."),
+                "sideEffect": .bool(false),
+                "mutatesEntity": .bool(false)
+            ])
+        }
+
+        do {
+            let acknowledgement = try await BindingPersonalChatChronicle.persistPolicy(
+                policy,
+                requester: requester,
+                sourceUUID: uuid
+            )
+            historyPolicyLoaded = true
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor",
+                lastPersistenceStatus: acknowledgement.status,
+                lastMessage: acknowledgement.message
+            )
+            return .object([
+                "ok": .bool(true),
+                "status": .string("persisted"),
+                "history": BindingChatValue.nested("history", in: cachedState) ?? .null,
+                "acknowledgement": .object(acknowledgement.objectValue),
+                "sideEffect": .bool(true),
+                "mutatesEntity": .bool(true),
+                "userControlled": .bool(true)
+            ])
+        } catch {
+            storeHistoryPolicy(
+                currentHistoryPolicy(),
+                policySource: "unchanged_after_failure",
+                lastPersistenceStatus: "failed",
+                lastMessage: error.localizedDescription,
+                lastError: error.localizedDescription
+            )
+            return .object([
+                "ok": .bool(false),
+                "status": .string("failed"),
+                "message": .string(error.localizedDescription),
+                "sideEffect": .bool(false),
+                "mutatesEntity": .bool(false)
+            ])
+        }
+    }
+
+    private func persistSubmittedPromptHistory(
+        turnID: String,
+        prompt: String,
+        analyzed: ValueType,
+        requester: Identity
+    ) async -> BindingPersonalChatChronicleAcknowledgement {
+        await hydrateHistoryPolicyIfNeeded(requester: requester)
+        let policy = currentHistoryPolicy()
+        guard policy.automaticCaptureEnabled else {
+            let acknowledgement = BindingPersonalChatChronicleAcknowledgement(
+                status: "off",
+                recordID: nil,
+                persistedPaths: [],
+                message: policy.summary
+            )
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor_or_default",
+                lastPersistenceStatus: acknowledgement.status,
+                lastMessage: acknowledgement.message
+            )
+            return acknowledgement
+        }
+
+        let analyzedObject = BindingChatValue.object(analyzed) ?? [:]
+        let suggestion = BindingChatValue.object(analyzedObject["suggestion"]) ?? [:]
+        let purposeRef = BindingChatValue.string(suggestion["purposeRef"]) ?? "purpose://prompt.unknown"
+        let helperID = BindingChatValue.string(suggestion["helperID"]) ?? ""
+        let assistantText = BindingChatValue.string(suggestion["explanation"])
+            ?? BindingChatValue.string(suggestion["reason"])
+            ?? ""
+        let threadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState))
+            ?? "local-copilot-thread"
+
+        do {
+            let acknowledgement = try await BindingPersonalChatChronicle.persistTurn(
+                turnID: turnID,
+                threadID: threadID,
+                prompt: prompt,
+                assistantText: assistantText,
+                purposeRef: purposeRef,
+                helperID: helperID,
+                policy: policy,
+                requester: requester,
+                sourceUUID: uuid
+            )
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor",
+                lastPersistenceStatus: acknowledgement.status,
+                lastMessage: acknowledgement.message,
+                lastRecordID: acknowledgement.recordID
+            )
+            return acknowledgement
+        } catch {
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor",
+                lastPersistenceStatus: "failed",
+                lastMessage: error.localizedDescription,
+                lastError: error.localizedDescription
+            )
+            return BindingPersonalChatChronicleAcknowledgement(
+                status: "failed",
+                recordID: nil,
+                persistedPaths: [],
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    private func currentHistoryPolicy() -> BindingPersonalChatHistoryPolicy {
+        guard let policyValue = BindingChatValue.nested("history.policy", in: cachedState),
+              let object = BindingChatValue.object(policyValue),
+              let policy = BindingPersonalChatHistoryPolicy(object: object) else {
+            return .defaultOff
+        }
+        return policy
+    }
+
+    private func storeHistoryPolicy(
+        _ policy: BindingPersonalChatHistoryPolicy,
+        policySource: String,
+        lastPersistenceStatus: String,
+        lastMessage: String,
+        lastError: String? = nil,
+        lastRecordID: String? = nil
+    ) {
+        var state = Self.initialHistoryState()
+        state["policy"] = .object(policy.objectValue)
+        state["mode"] = .string(policy.mode.rawValue)
+        state["automaticCaptureEnabled"] = .bool(policy.automaticCaptureEnabled)
+        state["summary"] = .string(policy.summary)
+        state["policySource"] = .string(policySource)
+        state["lastPersistenceStatus"] = .string(lastPersistenceStatus)
+        state["lastMessage"] = .string(lastMessage)
+        state["lastError"] = lastError.map(ValueType.string) ?? .null
+        state["lastRecordID"] = lastRecordID.map(ValueType.string) ?? .null
+        BindingChatValue.set(.object(state), for: "history", in: &cachedState)
+    }
+
+    private func clearLocalConversationHistory() -> ValueType {
+        BindingChatValue.set(.list([]), for: "ui.promptMessages", in: &cachedState)
+        BindingChatValue.set(.list([]), for: "messages", in: &cachedState)
+        BindingChatValue.set(.list([]), for: "threads", in: &cachedState)
+        BindingChatValue.set(.integer(0), for: "messageCount", in: &cachedState)
+        BindingChatValue.set(.integer(0), for: "threadCount", in: &cachedState)
+        BindingChatValue.set(.string(""), for: "currentThread.composer.body", in: &cachedState)
+        BindingChatValue.set(.string(""), for: "composer.body", in: &cachedState)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("local_history_cleared"),
+            "message": .string("Lokal prompt- og chatthistorikk ble tømt. Eksisterende Chronicle-poster ble ikke endret."),
+            "chronicleChanged": .bool(false),
+            "sideEffect": .bool(true),
+            "mutatesEntity": .bool(false)
+        ])
+    }
+
+    private func analyzeDraft(
+        value: ValueType,
+        requester: Identity,
+        promptTurnID: String? = nil
+    ) async -> ValueType {
         let payload = BindingChatValue.object(value) ?? [:]
         let draft = BindingChatValue.string(payload["text"])
             ?? BindingChatValue.string(payload["draft"])
@@ -5320,7 +5569,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             draft: draft,
             suggestion: suggestion,
             groundedActionPlan: groundedActionPlan,
-            resourceMatches: resourceMatches
+            resourceMatches: resourceMatches,
+            turnID: promptTurnID
         )
         updateButlerSupportAfterAnalysis(suggestion)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
@@ -5361,21 +5611,41 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ?? BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
             ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
             ?? ""
+        let requestedTurnID = BindingChatValue.string(payload["turnID"])
+            ?? BindingChatValue.string(payload["requestID"])
+        let turnID = BindingPersonalChatChronicle.safeIdentifier(requestedTurnID)
         let analyzed = await analyzeDraft(
             value: .object(["prompt": .string(prompt)]),
+            requester: requester,
+            promptTurnID: turnID
+        )
+        let historyAcknowledgement = await persistSubmittedPromptHistory(
+            turnID: turnID,
+            prompt: prompt,
+            analyzed: analyzed,
             requester: requester
         )
         clearComposerAfterPromptSubmission()
         if BindingChatValue.normalized(prompt).contains("arendalsuka"),
            let resource = currentCellConfigurationResource() {
-            return openMatchedResourceLibrary(
+            let opened = openMatchedResourceLibrary(
                 .object([
                     "resourceID": resource["id"] ?? .null,
                     "autoOpen": .bool(true)
                 ])
             )
+            guard var response = BindingChatValue.object(opened) else { return opened }
+            response["history"] = .object(historyAcknowledgement.objectValue)
+            response["historyPersistenceFailed"] = .bool(historyAcknowledgement.status == "failed")
+            response["mutatesEntity"] = .bool(historyAcknowledgement.status == "authority_committed")
+            return .object(response)
         }
         guard var response = BindingChatValue.object(analyzed) else { return analyzed }
+        response["history"] = .object(historyAcknowledgement.objectValue)
+        response["historyPersistenceFailed"] = .bool(historyAcknowledgement.status == "failed")
+        let committedNewMutation = historyAcknowledgement.status == "authority_committed"
+        response["mutatesEntity"] = .bool(committedNewMutation)
+        response["sideEffect"] = .bool(committedNewMutation)
         response["state"] = .object(cachedState)
         return .object(response)
     }
@@ -5515,7 +5785,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         draft: String,
         suggestion: BindingChatIntentClassification,
         groundedActionPlan: Object,
-        resourceMatches: [Object]
+        resourceMatches: [Object],
+        turnID: String? = nil
     ) {
         guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
@@ -5528,24 +5799,29 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ? "\(helperTitle(suggestion.helperID)) · \(nextStepTitle)"
             : nextStepTitle
         let butlerName = BindingChatValue.string(BindingChatValue.nested("butler.profile.displayName", in: cachedState)) ?? "HAVEN Co-Pilot"
+        let effectiveTurnID = BindingPersonalChatChronicle.safeIdentifier(turnID)
         let userMessage: Object = [
-            "id": .string(UUID().uuidString),
+            "id": .string("\(effectiveTurnID)-user"),
+            "turnID": .string(effectiveTurnID),
             "role": .string("user"),
             "speaker": .string("Du"),
             "body": .string(draft),
             "statusText": .string("Sendt"),
             "kind": .string("user_prompt"),
+            "canOpenSuggestion": .bool(false),
             "threadID": .string(threadID),
             "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-user"].map(ValueType.string))
         ]
         let assistantMessage: Object = [
-            "id": .string(UUID().uuidString),
+            "id": .string("\(effectiveTurnID)-assistant"),
+            "turnID": .string(effectiveTurnID),
             "role": .string("assistant"),
             "speaker": .string(butlerName),
             "body": .string("\(suggestion.explanation)\(resourceSummary)"),
             "statusText": .string(assistantStatus),
             "kind": .string("assistant_suggestion"),
             "helperID": .string(suggestion.helperID),
+            "canOpenSuggestion": .bool(suggestion.shouldSuggest),
             "resourceMatchCount": .integer(resourceMatches.count),
             "resourceTitles": .list(topResourceTitles.prefix(5).map(ValueType.string)),
             "threadID": .string(threadID),
@@ -8261,6 +8537,25 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         ]
     }
 
+    nonisolated private static func initialHistoryState() -> Object {
+        let policy = BindingPersonalChatHistoryPolicy.defaultOff
+        return [
+            "schema": .string("binding.personal-chat-history-state.v1"),
+            "mode": .string(policy.mode.rawValue),
+            "automaticCaptureEnabled": .bool(false),
+            "policy": .object(policy.objectValue),
+            "policySource": .string("default_off"),
+            "summary": .string(policy.summary),
+            "lastPersistenceStatus": .string("not_configured"),
+            "lastMessage": .string(policy.summary),
+            "lastError": .null,
+            "lastRecordID": .null,
+            "userControlled": .bool(true),
+            "existingChronicleEntriesRemainUntilSeparateErase": .bool(true),
+            "automaticDeletionImplemented": .bool(false)
+        ]
+    }
+
     nonisolated static func initialState() -> Object {
         return [
             "title": .string("Co-Pilot"),
@@ -8270,6 +8565,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "inviteStatus": .string("not invited"),
             "blockedUsers": .list([]),
             "moderationStatus": .string("ready"),
+            "history": .object(initialHistoryState()),
             "currentThread": .object([
                 "id": .string("local-copilot-thread"),
                 "title": .string("Co-Pilot"),
