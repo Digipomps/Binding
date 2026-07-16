@@ -9544,6 +9544,11 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
     private var identitiesByContext: [String: String] = [:]
     private var identitiesByUUID: [String: StoredIdentity] = [:]
     private var idCounter = 1
+    private let vaultReference = "binding.test.identityvault:\(UUID().uuidString)"
+
+    func identityVaultReference() async -> String? {
+        vaultReference
+    }
 
     func initialize() async -> IdentityVaultProtocol {
         self
@@ -9552,6 +9557,7 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
     func addIdentity(identity: inout Identity, for identityContext: String) async {
         let signingPrivateKey = P256.Signing.PrivateKey()
         identity.identityVault = self
+        identity.homeVaultReference = vaultReference
         identity.publicSecureKey = SecureKey(
             date: Date(),
             privateKey: false,
@@ -9576,6 +9582,7 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
            let stored = identitiesByUUID[uuid] {
             let identity = stored.identity
             identity.identityVault = self
+            identity.homeVaultReference = vaultReference
             return identity
         }
         guard makeNewIfNotFound else { return nil }
@@ -9594,7 +9601,17 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
         }
         let identity = stored.identity
         identity.identityVault = self
+        identity.homeVaultReference = vaultReference
         return identity
+    }
+
+    func identityExistInVault(_ identity: Identity) async -> Bool {
+        guard let stored = identitiesByUUID[identity.uuid],
+              let requestedFingerprint = identity.signingPublicKeyFingerprint,
+              let storedFingerprint = stored.identity.signingPublicKeyFingerprint else {
+            return false
+        }
+        return requestedFingerprint == storedFingerprint
     }
 
     func saveIdentity(_ identity: Identity) async {
@@ -9603,6 +9620,7 @@ private actor BindingTestIdentityVault: IdentityVaultProtocol {
         }
         let updatedIdentity = identity
         updatedIdentity.identityVault = self
+        updatedIdentity.homeVaultReference = vaultReference
         identitiesByContext[updatedIdentity.displayName] = updatedIdentity.uuid
         identitiesByUUID[updatedIdentity.uuid] = StoredIdentity(
             identity: updatedIdentity,

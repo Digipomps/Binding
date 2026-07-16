@@ -14,6 +14,11 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
 
     private var identityUUIDsByContext: [String: String] = [:]
     private var identitiesByUUID: [String: StoredIdentity] = [:]
+    private let vaultReference = "binding.startup.identityvault:\(UUID().uuidString)"
+
+    func identityVaultReference() async -> String? {
+        vaultReference
+    }
 
     func initialize() async -> any IdentityVaultProtocol {
         self
@@ -25,6 +30,7 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
             existing.identity.displayName = identity.displayName
             existing.identity.properties = identity.properties
             existing.identity.identityVault = self
+            existing.identity.homeVaultReference = vaultReference
             identity = existing.identity
             identitiesByUUID[existingUUID] = existing
             return
@@ -34,6 +40,7 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         let keyAgreementPrivateKey = P256.KeyAgreement.PrivateKey()
 
         identity.identityVault = self
+        identity.homeVaultReference = vaultReference
         identity.publicSecureKey = SecureKey(
             date: Date(),
             privateKey: false,
@@ -70,6 +77,7 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         if let uuid = identityUUIDsByContext[identityContext],
            let stored = identitiesByUUID[uuid] {
             stored.identity.identityVault = self
+            stored.identity.homeVaultReference = vaultReference
             return stored.identity
         }
 
@@ -88,6 +96,7 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
             return nil
         }
         stored.identity.identityVault = self
+        stored.identity.homeVaultReference = vaultReference
         return stored.identity
     }
 
@@ -121,6 +130,7 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         updatedIdentity.displayName = identity.displayName
         updatedIdentity.properties = identity.properties
         updatedIdentity.identityVault = self
+        updatedIdentity.homeVaultReference = vaultReference
         identitiesByUUID[identity.uuid] = StoredIdentity(
             identity: updatedIdentity,
             signingPrivateKey: stored.signingPrivateKey,
