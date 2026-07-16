@@ -18,7 +18,7 @@ struct MenuItem: Identifiable {
         let trimmedSubtitle = configuration.description?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         self.icon = icon
-        self.title = trimmedTitle.isEmpty ? "Unnamed" : trimmedTitle
+        self.title = trimmedTitle.isEmpty ? "Navnløs" : trimmedTitle
         self.subtitle = {
             guard let trimmedSubtitle, !trimmedSubtitle.isEmpty else { return nil }
             return trimmedSubtitle
@@ -27,8 +27,32 @@ struct MenuItem: Identifiable {
     }
 }
 
-enum EdgePosition: Hashable {
+enum EdgePosition: String, CaseIterable, Identifiable, Hashable {
     case upperLeft, upperMid, upperRight, lowerLeft, lowerMid, lowerRight
+
+    var id: String { rawValue }
+
+    var menuSlotKeypath: String {
+        switch self {
+        case .upperLeft: return "upperLeftMenu"
+        case .upperMid: return "upperMidMenu"
+        case .upperRight: return "upperRightMenu"
+        case .lowerLeft: return "lowerLeftMenu"
+        case .lowerMid: return "lowerMidMenu"
+        case .lowerRight: return "lowerRightMenu"
+        }
+    }
+
+    var localizedTitle: String {
+        switch self {
+        case .upperLeft: return "Hovedmeny"
+        case .upperMid: return "Flater"
+        case .upperRight: return "Flere flater"
+        case .lowerLeft: return "Kontroll"
+        case .lowerMid: return "Favoritter"
+        case .lowerRight: return "Åpne og last inn"
+        }
+    }
 }
 
 enum EdgeMenuExpansionStyle: String, CaseIterable, Identifiable {
@@ -41,11 +65,11 @@ enum EdgeMenuExpansionStyle: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .auto:
-            return "Auto"
+            return "Automatisk"
         case .stack:
-            return "Stack"
+            return "Stabel"
         case .radial:
-            return "Radial"
+            return "Radiell"
         }
     }
 }
@@ -59,9 +83,9 @@ enum EdgeMenuLabelMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .iconOnly:
-            return "Icons only"
+            return "Bare ikoner"
         case .titleOnOpen:
-            return "Show names"
+            return "Vis navn"
         }
     }
 }
@@ -83,18 +107,45 @@ struct EdgeMenu: View {
     let labelMode: EdgeMenuLabelMode
     let showsSubtitle: Bool
     let onTap: (CellConfiguration?) -> Void
+    let onShowAll: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @FocusState private var focusedTarget: FocusTarget?
 
     private let radius: CGFloat = 96
     private let sweepDegrees: CGFloat = 140
+    static let presentationLimit = 10
+
+    static func presentationPlan(for itemCount: Int) -> (visibleCount: Int, showsAll: Bool) {
+        let normalizedCount = max(0, itemCount)
+        let showsAll = normalizedCount > presentationLimit
+        return (
+            visibleCount: min(normalizedCount, showsAll ? presentationLimit - 1 : presentationLimit),
+            showsAll: showsAll
+        )
+    }
+
+    private enum FocusTarget: Hashable {
+        case trigger
+        case item(Int)
+        case showAll
+    }
+
+    private var presentationPlan: (visibleCount: Int, showsAll: Bool) {
+        Self.presentationPlan(for: items.count)
+    }
+    private var hasOverflow: Bool { presentationPlan.showsAll }
+    private var visibleItems: [MenuItem] {
+        Array(items.prefix(presentationPlan.visibleCount))
+    }
+    private var presentedItemCount: Int { visibleItems.count + (hasOverflow ? 1 : 0) }
 
     var body: some View {
         ZStack(alignment: anchorAlignment) {
-            ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+            ForEach(Array(visibleItems.enumerated()), id: \.offset) { idx, item in
                 itemButton(item, index: idx)
                     .frame(maxWidth: stackFrameWidth, alignment: stackItemAlignment)
-                    .offset(currentOffset(for: idx, count: items.count))
+                    .offset(currentOffset(for: idx, count: presentedItemCount))
                     .opacity(isExpanded ? 1 : 0)
                     .scaleEffect(isExpanded ? 1 : 0.9, anchor: scaleAnchor)
                     .allowsHitTesting(isExpanded)
@@ -102,10 +153,21 @@ struct EdgeMenu: View {
                     .animation(itemAnimation(for: idx), value: isExpanded)
             }
 
+            if hasOverflow {
+                showAllButton
+                    .frame(maxWidth: stackFrameWidth, alignment: stackItemAlignment)
+                    .offset(currentOffset(for: visibleItems.count, count: presentedItemCount))
+                    .opacity(isExpanded ? 1 : 0)
+                    .scaleEffect(isExpanded ? 1 : 0.9, anchor: scaleAnchor)
+                    .allowsHitTesting(isExpanded)
+                    .accessibilityHidden(!isExpanded)
+                    .animation(itemAnimation(for: visibleItems.count), value: isExpanded)
+            }
+
             Button(action: { onTap(nil) }) {
                 Image(systemName: mainIcon)
                     .font(.system(size: 18, weight: .bold))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(
                         Circle()
@@ -125,6 +187,10 @@ struct EdgeMenu: View {
                     }
             }
             .buttonStyle(.plain)
+            .focused($focusedTarget, equals: .trigger)
+            .accessibilityLabel(position.localizedTitle)
+            .accessibilityValue("\(items.count) \(items.count == 1 ? "flate" : "flater"), \(isExpanded ? "utvidet" : "skjult")")
+            .accessibilityHint(items.count > 1 ? "Åpner eller lukker menyfeltet." : "Åpner flaten.")
             .scaleEffect(isExpanded ? 0.92 : 1)
             .opacity(isExpanded ? 0.88 : 1)
             .animation(containerAnimation, value: isExpanded)
@@ -132,6 +198,43 @@ struct EdgeMenu: View {
         .frame(width: footprint.width, height: footprint.height, alignment: anchorAlignment)
         .contentShape(Rectangle())
         .animation(containerAnimation, value: isExpanded)
+        .onChange(of: isExpanded) { _, expanded in
+            Task { @MainActor in
+                focusedTarget = expanded && !visibleItems.isEmpty ? .item(0) : .trigger
+            }
+        }
+        .bindingEscapeCommand {
+            guard isExpanded else { return }
+            onTap(nil)
+        }
+        .bindingMenuNavigationCommands(
+            onPrevious: { moveFocus(by: -1) },
+            onNext: { moveFocus(by: 1) },
+            onFirst: { focusBoundary(first: true) },
+            onLast: { focusBoundary(first: false) }
+        )
+    }
+
+    private var focusableTargets: [FocusTarget] {
+        var targets = visibleItems.indices.map(FocusTarget.item)
+        if hasOverflow {
+            targets.append(.showAll)
+        }
+        return targets
+    }
+
+    private func moveFocus(by offset: Int) {
+        guard isExpanded, !focusableTargets.isEmpty else { return }
+        let targets = focusableTargets
+        let currentIndex = focusedTarget.flatMap { targets.firstIndex(of: $0) }
+            ?? (offset > 0 ? -1 : targets.count)
+        let nextIndex = (currentIndex + offset + targets.count) % targets.count
+        focusedTarget = targets[nextIndex]
+    }
+
+    private func focusBoundary(first: Bool) {
+        guard isExpanded else { return }
+        focusedTarget = first ? focusableTargets.first : focusableTargets.last
     }
 
     @ViewBuilder
@@ -161,6 +264,26 @@ struct EdgeMenu: View {
             }
         }
         .buttonStyle(.plain)
+        .focused($focusedTarget, equals: .item(index))
+        .accessibilityLabel("Åpne \(item.title)")
+        .accessibilityHint("Laster denne konfigurasjonen i Porthole.")
+    }
+
+    private var showAllButton: some View {
+        Button {
+            onShowAll()
+        } label: {
+            Text("Vis alle \(items.count)")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 12)
+                .frame(minWidth: 112, minHeight: 44)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.accentColor.opacity(0.7), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .focused($focusedTarget, equals: .showAll)
+        .accessibilityLabel("Vis alle \(items.count) flater i \(position.localizedTitle)")
+        .accessibilityHint("Åpner hele biblioteket.")
     }
 
     private func menuTextBlock(for item: MenuItem, index: Int) -> some View {
@@ -200,7 +323,7 @@ struct EdgeMenu: View {
         switch resolvedExpansionStyle {
         case .auto:
             let width = labelMode == .titleOnOpen ? stackFrameWidth : 80
-            let height = 56 + CGFloat(items.count) * currentStackStride
+            let height = 56 + CGFloat(presentedItemCount) * currentStackStride
             return CGSize(width: width, height: min(height, 420))
         case .radial:
             switch position {
@@ -211,7 +334,7 @@ struct EdgeMenu: View {
             }
         case .stack:
             let width = labelMode == .titleOnOpen ? stackFrameWidth : 80
-            let height = 56 + CGFloat(items.count) * currentStackStride
+            let height = 56 + CGFloat(presentedItemCount) * currentStackStride
             return CGSize(width: width, height: min(height, 420))
         }
     }
@@ -440,32 +563,32 @@ struct EdgeMenu: View {
         return CGSize(width: x, height: y)
     }
 
-    private var containerAnimation: Animation {
+    private var containerAnimation: Animation? {
         accessibilityReduceMotion
-            ? .easeOut(duration: 0.16)
+            ? nil
             : .spring(
                 response: isCenterPosition ? 0.36 : 0.30,
                 dampingFraction: isCenterPosition ? 0.86 : 0.82
             )
     }
 
-    private func itemAnimation(for index: Int) -> Animation {
+    private func itemAnimation(for index: Int) -> Animation? {
+        guard !accessibilityReduceMotion else { return nil }
         let baseDelayStep = isCenterPosition ? 0.028 : 0.032
-        let delay = accessibilityReduceMotion ? 0 : Double(index) * baseDelayStep
-        let base: Animation = accessibilityReduceMotion
-            ? .easeOut(duration: 0.14)
-            : .spring(
+        let delay = Double(index) * baseDelayStep
+        let base: Animation = .spring(
                 response: isCenterPosition ? 0.34 : 0.28,
                 dampingFraction: isCenterPosition ? 0.88 : 0.84
             )
         return base.delay(delay)
     }
 
-    private func labelAnimation(for index: Int) -> Animation {
+    private func labelAnimation(for index: Int) -> Animation? {
+        guard !accessibilityReduceMotion else { return nil }
         let baseDelay = isCenterPosition ? 0.06 : 0.08
         let step = isCenterPosition ? 0.022 : 0.03
-        let delay = accessibilityReduceMotion ? 0 : baseDelay + Double(index) * step
-        return .easeOut(duration: accessibilityReduceMotion ? 0.12 : 0.18).delay(delay)
+        let delay = baseDelay + Double(index) * step
+        return .easeOut(duration: 0.18).delay(delay)
     }
 
     private var isCenterPosition: Bool {
@@ -486,5 +609,48 @@ struct EdgeMenu: View {
         case .lowerMid: return "star.circle.fill"
         case .lowerRight: return "square.and.arrow.down.on.square.fill"
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func bindingEscapeCommand(_ action: @escaping () -> Void) -> some View {
+#if os(macOS)
+        onExitCommand(perform: action)
+#else
+        self
+#endif
+    }
+
+    @ViewBuilder
+    func bindingMenuNavigationCommands(
+        onPrevious: @escaping () -> Void,
+        onNext: @escaping () -> Void,
+        onFirst: @escaping () -> Void,
+        onLast: @escaping () -> Void
+    ) -> some View {
+#if os(macOS)
+        self
+            .onMoveCommand { direction in
+                switch direction {
+                case .up, .left:
+                    onPrevious()
+                case .down, .right:
+                    onNext()
+                default:
+                    break
+                }
+            }
+            .onKeyPress(.home) {
+                onFirst()
+                return .handled
+            }
+            .onKeyPress(.end) {
+                onLast()
+                return .handled
+            }
+#else
+        self
+#endif
     }
 }

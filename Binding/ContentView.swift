@@ -488,6 +488,7 @@ struct ContentView: View {
     }
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "bridgehead"
     private static let stagingRemoteWebSocketPath = "bridgehead"
@@ -583,7 +584,8 @@ struct ContentView: View {
     @AppStorage("binding.demoStartConfigurationJSON")
     private var demoStartConfigurationJSON = ""
     @State private var editorMode: EditorMode = .view
-    @State private var menusHidden: Bool = false
+    @AppStorage("edgeMenus.hidden")
+    private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
     @State private var didApplyStoredDemoStart = false
     @State private var didRepairPersistedConferenceLauncher = false
@@ -592,6 +594,7 @@ struct ContentView: View {
     @State private var activeConfiguration: CellConfiguration?
     @State private var activeSourceBackedContext: EditorSourceBackedContext?
     @State private var presentingFullLibrary: Bool = false
+    @State private var presentingMenuLibrary: EdgePosition?
     @State private var loadErrorMessage: String?
     @State private var isLoadingConfiguration = false
     @State private var loadingStatusMessage: String?
@@ -908,6 +911,16 @@ struct ContentView: View {
             .presentationDragIndicator(.visible)
 #endif
         }
+        .sheet(item: $presentingMenuLibrary) { position in
+            MenuGroupLibraryView(
+                position: position,
+                configurations: configurations(for: position),
+                onSelect: { configuration in
+                    presentingMenuLibrary = nil
+                    queueConfigurationLoad(configuration)
+                }
+            )
+        }
         .sheet(isPresented: compactDiagnosticsSheetBinding) {
 #if os(macOS)
             EmptyView()
@@ -1089,6 +1102,9 @@ struct ContentView: View {
                         guard position == .upperMid else { return false }
                         presentingFullLibrary = true
                         return true
+                    },
+                    onShowAll: { position in
+                        presentingMenuLibrary = position
                     },
                     onSelect: { config in
                         queueConfigurationLoad(config)
@@ -1722,7 +1738,7 @@ struct ContentView: View {
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
-                    Button("Dismiss") {
+                    Button("Lukk") {
                         self.loadErrorMessage = nil
                     }
                     .buttonStyle(.plain)
@@ -1768,9 +1784,6 @@ struct ContentView: View {
                 .padding(.vertical, 8)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            if !usesPersonalCopilotShell && usesCompactConvenienceMenus {
-                compactConvenienceTray
-            }
         }
     }
 
@@ -1800,11 +1813,11 @@ struct ContentView: View {
                     }
                 }
             } label: {
-                personalCopilotChromeLabel("Surfaces", systemImage: "square.grid.2x2")
+                personalCopilotChromeLabel("Flater", systemImage: "square.grid.2x2")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .accessibilityLabel("Surfaces")
+            .accessibilityLabel("Flater")
             .help("Velg Personal Co-Pilot-flate")
 
             Button {
@@ -1820,30 +1833,30 @@ struct ContentView: View {
             Button {
                 presentingFullLibrary = true
             } label: {
-                personalCopilotChromeLabel("Library", systemImage: "books.vertical")
+                personalCopilotChromeLabel("Bibliotek", systemImage: "books.vertical")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .accessibilityLabel("Library")
-            .help("Åpne Full Library")
+            .accessibilityLabel("Bibliotek")
+            .help("Åpne hele biblioteket")
 
             Menu {
                 Button {
                     copyLoadedConfigurationJSONToClipboard()
                 } label: {
-                    Label("Copy JSON", systemImage: "doc.on.doc")
+                    Label("Kopier JSON", systemImage: "doc.on.doc")
                 }
 
                 Button {
                     editorMode = .edit
                 } label: {
-                    Label("Edit", systemImage: "square.and.pencil")
+                    Label("Rediger", systemImage: "square.and.pencil")
                 }
 
                 Button {
                     diagnosticsStore.panelVisible.toggle()
                 } label: {
-                    Label("Debug", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+                    Label("Feilsøking", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -1938,12 +1951,31 @@ struct ContentView: View {
                 }
                 let threshold: Angle = .degrees(15) // ~0.26 rad ~ 15 degrees
                 if angle.radians > threshold.radians {
-                    withAnimation(.spring()) { menusHidden = true }
+                    withOptionalAnimation(.spring()) { menusHidden = true }
                 } else if angle.radians < -threshold.radians {
-                    withAnimation(.spring()) { menusHidden = false }
+                    withOptionalAnimation(.spring()) { menusHidden = false }
                 }
                 rotationAccumulator = .zero
             }
+    }
+
+    private func withOptionalAnimation(_ animation: Animation, _ changes: () -> Void) {
+        if accessibilityReduceMotion {
+            changes()
+        } else {
+            withAnimation(animation, changes)
+        }
+    }
+
+    private func configurations(for position: EdgePosition) -> [CellConfiguration] {
+        switch position {
+        case .upperLeft: return viewModel.upperLeftMenu
+        case .upperMid: return viewModel.upperMidMenu
+        case .upperRight: return viewModel.upperRightMenu
+        case .lowerLeft: return viewModel.lowerLeftMenu
+        case .lowerMid: return viewModel.lowerMidMenu
+        case .lowerRight: return viewModel.lowerRightMenu
+        }
     }
 
     // MARK: - Sample data for menus (replace with real data later)
@@ -2799,10 +2831,21 @@ struct ContentView: View {
                 .help("Gå tilbake i conference-demo-stacken")
             }
 
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Aktiv flate")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(activeConfiguration?.name ?? "Porthole")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: 190, alignment: .leading)
+            .accessibilityElement(children: .combine)
+
             Button {
                 presentingFullLibrary = true
             } label: {
-                Label("Library", systemImage: "books.vertical")
+                Label("Bibliotek", systemImage: "books.vertical")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -2816,16 +2859,7 @@ struct ContentView: View {
             .controlSize(.small)
             .help("Åpne Co-Pilot Chat med kontekst fra aktiv flate.")
 
-            Button {
-                copyLoadedConfigurationJSONToClipboard()
-            } label: {
-                Label("Copy JSON", systemImage: "doc.on.doc")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(activeConfiguration == nil && editorState.workingCopy == nil)
-
-            Picker("Mode", selection: $editorMode) {
+            Picker("Modus", selection: $editorMode) {
                 ForEach(EditorMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
@@ -2858,40 +2892,29 @@ struct ContentView: View {
             Spacer(minLength: 8)
 
             Menu {
-                convenienceMenuSettingsControls
+                convenienceToolsMenuContent
             } label: {
-                Label("Menus", systemImage: "menucard")
+                Label("Verktøy", systemImage: "wrench.and.screwdriver")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .accessibilityLabel("Verktøy og menyflater")
 
-            Button {
-                diagnosticsStore.panelVisible.toggle()
+            Menu {
+                toolbarMoreMenuContent
             } label: {
-                Label("Debug", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+                Label("Mer", systemImage: "ellipsis.circle")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
 
             if editorMode == .edit {
-                HStack(spacing: 8) {
-                    Button("Undo") { editorState.undo() }
-                        .disabled(!editorState.canUndo)
-                    Button("Redo") { editorState.redo() }
-                        .disabled(!editorState.canRedo)
+                Button(editorApplyButtonTitle) {
+                    applyWorkingCopyToViewer()
                 }
-                .font(.caption)
-
-                HStack(spacing: 8) {
-                    Button("Discard") {
-                        editorState.discardChanges()
-                    }
-                    Button(editorApplyButtonTitle) {
-                        applyWorkingCopyToViewer()
-                    }
-                    .disabled(editorApplyButtonDisabled)
-                }
-                .font(.caption)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(editorApplyButtonDisabled)
             }
         }
     }
@@ -2913,108 +2936,152 @@ struct ContentView: View {
                 presentingFullLibrary = true
             } label: {
                 Image(systemName: "books.vertical")
+                    .frame(minWidth: 32, minHeight: 32)
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .accessibilityLabel("Library")
+            .controlSize(.regular)
+            .accessibilityLabel("Bibliotek")
 
             Button {
                 openContextualCopilotHelp()
             } label: {
                 Image(systemName: "questionmark.circle")
+                    .frame(minWidth: 32, minHeight: 32)
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            .controlSize(.regular)
             .accessibilityLabel("Hjelp")
 
-            Button {
-                copyLoadedConfigurationJSONToClipboard()
+            Menu {
+                convenienceToolsMenuContent
             } label: {
-                Image(systemName: "doc.on.doc")
+                Image(systemName: "wrench.and.screwdriver")
+                    .frame(minWidth: 32, minHeight: 32)
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(activeConfiguration == nil && editorState.workingCopy == nil)
-            .accessibilityLabel("Copy JSON")
+            .controlSize(.regular)
+            .accessibilityLabel("Verktøy og menyflater")
 
             if isLoadingConfiguration {
                 ProgressView()
                     .controlSize(.small)
             }
 
-            if showsConferenceAutomationControls {
-                conferenceAutomationToolbarItem
-            }
-
-            Picker("Mode", selection: $editorMode) {
-                ForEach(EditorMode.allCases) { mode in
-                    Image(systemName: mode.systemImage).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Button {
-                diagnosticsStore.panelVisible.toggle()
-            } label: {
-                Image(systemName: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .accessibilityLabel("Debug")
-
             Menu {
-                convenienceMenuSettingsControls
+                toolbarMoreMenuContent
             } label: {
-                Image(systemName: "menucard")
+                Image(systemName: "ellipsis.circle")
+                    .frame(minWidth: 32, minHeight: 32)
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
-            .accessibilityLabel("Menu settings")
+            .controlSize(.regular)
+            .accessibilityLabel("Flere handlinger")
 
             if editorMode == .edit {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        compactEditorDrawerVisible.toggle()
-                    }
+                    applyWorkingCopyToViewer()
                 } label: {
-                    Image(systemName: compactEditorDrawerVisible ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
+                    Image(systemName: "checkmark.circle.fill")
+                        .frame(minWidth: 32, minHeight: 32)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel(compactEditorDrawerVisible ? "Skjul editorpaneler" : "Vis editorpaneler")
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+                .disabled(editorApplyButtonDisabled)
+                .accessibilityLabel(editorApplyButtonTitle)
+            }
+        }
+    }
 
-                Menu {
-                    Button("Undo") { editorState.undo() }
-                        .disabled(!editorState.canUndo)
-                    Button("Redo") { editorState.redo() }
-                        .disabled(!editorState.canRedo)
-                    Divider()
-                    Button("Discard") {
-                        editorState.discardChanges()
+    @ViewBuilder
+    private var convenienceToolsMenuContent: some View {
+        Button(menusHidden ? "Vis kantmenyer" : "Skjul kantmenyer") {
+            withOptionalAnimation(.easeInOut(duration: 0.18)) {
+                menusHidden.toggle()
+            }
+        }
+
+        Divider()
+
+        ForEach(EdgePosition.allCases) { position in
+            let configurations = configurations(for: position)
+            Menu("\(position.localizedTitle) (\(configurations.count))") {
+                if configurations.isEmpty {
+                    Text("Ingen tilgjengelige flater")
+                } else {
+                    ForEach(Array(configurations.prefix(EdgeMenu.presentationLimit - 1)), id: \.uuid) { configuration in
+                        Button(configuration.name) {
+                            queueConfigurationLoad(configuration)
+                        }
                     }
-                    Button(editorApplyButtonTitle) {
-                        applyWorkingCopyToViewer()
+                    if configurations.count >= EdgeMenu.presentationLimit {
+                        Divider()
+                        Button("Vis alle \(configurations.count)") {
+                            presentingMenuLibrary = position
+                        }
                     }
-                    .disabled(editorApplyButtonDisabled)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel("Editor actions")
+            }
+        }
+
+        Divider()
+
+        Menu("Avanserte menyvalg") {
+            convenienceMenuSettingsControls
+        }
+    }
+
+    @ViewBuilder
+    private var toolbarMoreMenuContent: some View {
+        Picker("Modus", selection: $editorMode) {
+            ForEach(EditorMode.allCases) { mode in
+                Label(mode.title, systemImage: mode.systemImage).tag(mode)
+            }
+        }
+
+        Button {
+            copyLoadedConfigurationJSONToClipboard()
+        } label: {
+            Label("Kopier JSON", systemImage: "doc.on.doc")
+        }
+        .disabled(activeConfiguration == nil && editorState.workingCopy == nil)
+
+        Button {
+            diagnosticsStore.panelVisible.toggle()
+        } label: {
+            Label("Feilsøking", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+        }
+
+        if editorMode == .edit {
+            Divider()
+            Button("Angre") { editorState.undo() }
+                .disabled(!editorState.canUndo)
+            Button("Gjør om") { editorState.redo() }
+                .disabled(!editorState.canRedo)
+            Button("Forkast") { editorState.discardChanges() }
+            Button(compactEditorDrawerVisible ? "Skjul editorpaneler" : "Vis editorpaneler") {
+                withOptionalAnimation(.easeInOut(duration: 0.2)) {
+                    compactEditorDrawerVisible.toggle()
+                }
+            }
+        }
+
+        if showsConferenceAutomationControls {
+            Divider()
+            Menu("Automatisering") {
+                conferenceAutomationMenuContent
             }
         }
     }
 
     @ViewBuilder
     private var convenienceMenuSettingsControls: some View {
-        Picker("Top menus", selection: $edgeMenuTopExpansionStyleRaw) {
+        Picker("Øvre menyer", selection: $edgeMenuTopExpansionStyleRaw) {
             ForEach(EdgeMenuExpansionStyle.allCases) { style in
                 Text(style.title).tag(style.rawValue)
             }
         }
 
-        Picker("Bottom menus", selection: $edgeMenuBottomExpansionStyleRaw) {
+        Picker("Nedre menyer", selection: $edgeMenuBottomExpansionStyleRaw) {
             ForEach(EdgeMenuExpansionStyle.allCases) { style in
                 Text(style.title).tag(style.rawValue)
             }
@@ -3022,11 +3089,11 @@ struct ContentView: View {
 
         Divider()
 
-        Toggle("Show names in open menus", isOn: $edgeMenuShowsTitles)
+        Toggle("Vis navn i åpne menyer", isOn: $edgeMenuShowsTitles)
 
         Divider()
 
-        Button("Reset til Conference Demo Launcher") {
+        Button("Tilbakestill til konferansedemo") {
             resetToConferenceDemoLauncher()
         }
     }
@@ -7937,6 +8004,60 @@ private struct LoadingStatusBanner: View {
     }
 }
 
+private struct MenuGroupLibraryView: View {
+    let position: EdgePosition
+    let configurations: [CellConfiguration]
+    let onSelect: (CellConfiguration) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(configurations, id: \.uuid) { configuration in
+                Button {
+                    onSelect(configuration)
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(configuration.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        if let description = configuration.description,
+                           !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Åpne \(configuration.name)")
+            }
+            .overlay {
+                if configurations.isEmpty {
+                    ContentUnavailableView(
+                        "Ingen tilgjengelige flater",
+                        systemImage: "rectangle.stack",
+                        description: Text("Menyfeltet \(position.localizedTitle) er tomt.")
+                    )
+                }
+            }
+            .navigationTitle("\(position.localizedTitle) (\(configurations.count))")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Lukk") { dismiss() }
+                }
+            }
+        }
+#if os(macOS)
+        .frame(minWidth: 620, minHeight: 520)
+#else
+        .presentationDetents([.large])
+#endif
+    }
+}
+
 // MARK: - Overlay that places six edge menus
 // Documentation: See Prompts/EdgeMenusOverlay.md for concepts and guidelines
 // Additional project rules: See Prompts/CONTRIBUTING.md and Prompts/Architecture.md
@@ -7952,9 +8073,11 @@ private struct EdgeMenusOverlay: View {
     var bottomExpansionStyle: EdgeMenuExpansionStyle
     var labelMode: EdgeMenuLabelMode
     var onPrimaryAction: (EdgePosition) -> Bool
+    var onShowAll: (EdgePosition) -> Void
     var onSelect: (CellConfiguration) -> Void
 
     @State private var expanded: Set<EdgePosition> = []
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     var body: some View {
         ZStack {
@@ -7962,7 +8085,7 @@ private struct EdgeMenusOverlay: View {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        withAnimation(.easeOut(duration: 0.18)) {
+                        withOptionalAnimation(.easeOut(duration: 0.18)) {
                             expanded.removeAll()
                         }
                     }
@@ -7993,10 +8116,13 @@ private struct EdgeMenusOverlay: View {
                     isExpanded: expanded.contains(position),
                     expansionStyle: expansionStyle(for: position),
                     labelMode: labelMode,
-                    showsSubtitle: subtitleVisibility(for: position)
-                ) {
-                    action(position, $0)
-                }
+                    showsSubtitle: subtitleVisibility(for: position),
+                    onTap: { action(position, $0) },
+                    onShowAll: {
+                        expanded.removeAll()
+                        onShowAll(position)
+                    }
+                )
                 .padding(edgeInsets(for: position))
             }
     }
@@ -8058,12 +8184,20 @@ private struct EdgeMenusOverlay: View {
     }
 
     private func toggle(_ position: EdgePosition) {
-        withAnimation(.spring()) {
+        withOptionalAnimation(.spring()) {
             if expanded.contains(position) {
                 expanded.remove(position)
             } else {
                 expanded = [position]
             }
+        }
+    }
+
+    private func withOptionalAnimation(_ animation: Animation, _ changes: () -> Void) {
+        if accessibilityReduceMotion {
+            changes()
+        } else {
+            withAnimation(animation, changes)
         }
     }
 

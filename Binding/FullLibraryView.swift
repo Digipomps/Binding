@@ -500,7 +500,7 @@ struct FullLibraryView: View {
                     }
                 )
             }
-            .navigationTitle("Full Library")
+            .navigationTitle("Bibliotek")
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -591,7 +591,7 @@ struct FullLibraryView: View {
     }
 
     private var tabPicker: some View {
-        Picker("Library segment", selection: $model.selectedTab) {
+        Picker("Biblioteksegment", selection: $model.selectedTab) {
             ForEach(FullLibraryViewModel.LibraryTab.allCases) { tab in
                 Text(tab.title).tag(tab)
             }
@@ -1342,10 +1342,10 @@ final class FullLibraryViewModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .allConfigs: return "All configs"
-            case .forMyPurposes: return "For my purposes"
-            case .sources: return "Sources"
-            case .templates: return "Templates"
+            case .allConfigs: return "Alle konfigurasjoner"
+            case .forMyPurposes: return "For mine formål"
+            case .sources: return "Kilder"
+            case .templates: return "Maler"
             }
         }
     }
