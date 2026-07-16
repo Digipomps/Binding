@@ -73,6 +73,10 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             endpoint: "cell://staging.haven.digipomps.org/IdeaTaskWorkspace"
         ),
         StagingSurfaceDescriptor(
+            displayName: "Agreement Workbench",
+            endpoint: "cell://staging.haven.digipomps.org/AgreementWorkbench"
+        ),
+        StagingSurfaceDescriptor(
             displayName: "Conference UI Router",
             endpoint: "cell://staging.haven.digipomps.org/ConferenceUIRouter",
             catalogNames: ["Conference MVP", "Conference Demo Story", "Conference Partnering MVP"]
