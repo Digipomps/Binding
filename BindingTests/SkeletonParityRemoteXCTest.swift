@@ -57,7 +57,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         StagingSurfaceDescriptor(
             displayName: "Todo MVP",
             endpoint: "cell://staging.haven.digipomps.org/Todo",
-            catalogNames: ["Todo MVP", "Todo Planner Copilot"]
+            catalogNames: ["Todo MVP", "Todo Planner Copilot", "Personlig Todo"]
         ),
         StagingSurfaceDescriptor(
             displayName: "HAVEN Workbench",
@@ -75,12 +75,16 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
         StagingSurfaceDescriptor(
             displayName: "Conference UI Router",
             endpoint: "cell://staging.haven.digipomps.org/ConferenceUIRouter",
-            catalogNames: ["Conference MVP", "Conference Demo Story"]
+            catalogNames: ["Conference MVP", "Conference Demo Story", "Conference Partnering MVP"]
         ),
         StagingSurfaceDescriptor(
             displayName: "Conference Participant Shell",
             endpoint: "cell://staging.haven.digipomps.org/ConferenceParticipantShell",
-            catalogNames: ["Conference Participant Portal", "Conference Participant Preview Shell"]
+            catalogNames: [
+                "Conference Participant Portal",
+                "Conference Participant Preview Shell",
+                "Conference Participant Portal Dashboard"
+            ]
         ),
         StagingSurfaceDescriptor(
             displayName: "Admin Entry",
@@ -857,6 +861,13 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
                     resolver: context.resolver,
                     requester: context.owner
                 )
+                let acceptedNames = Set(surface.catalogNames + [surface.displayName])
+                guard acceptedNames.contains(configuration.name) else {
+                    failures.append(
+                        "\(surface.displayName): \(surface.endpoint) returned unexpected configuration '\(configuration.name)'; expected one of \(acceptedNames.sorted())"
+                    )
+                    continue
+                }
                 guard configuration.skeleton != nil else {
                     failures.append("\(surface.displayName): published CellConfiguration without skeleton from \(surface.endpoint)")
                     continue
@@ -880,6 +891,9 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
                     failures.append("\(surface.displayName): rendered without SwiftUI subviews")
                     continue
                 }
+                print(
+                    "REMOTE_SURFACE_OK display=\(surface.displayName) configuration=\(configuration.name) references=\(configuration.cellReferences?.count ?? 0) snapshotBytes=\(report.snapshotByteCount) subviews=\(report.subviewCount)"
+                )
             } catch {
                 failures.append("\(surface.displayName): \(String(describing: error).prefix(360))")
             }
