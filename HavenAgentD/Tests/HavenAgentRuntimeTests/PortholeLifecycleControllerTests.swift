@@ -271,6 +271,32 @@ private actor LifecycleStatusCollector {
     }
 }
 
+private final class LifecycleTestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var currentDate: Date
+
+    init(startingAt date: Date) {
+        currentDate = date
+    }
+
+    func now() -> Date {
+        lock.lock()
+        defer { lock.unlock() }
+        return currentDate
+    }
+
+    func sleep(_ interval: TimeInterval) async {
+        advance(by: interval)
+        try? await Task.sleep(nanoseconds: 5_000_000)
+    }
+
+    private func advance(by interval: TimeInterval) {
+        lock.lock()
+        currentDate.addTimeInterval(max(0, interval))
+        lock.unlock()
+    }
+}
+
 private func waitUntil(
     timeout: TimeInterval = 8,
     intervalNanoseconds: UInt64 = 200_000_000,
@@ -290,6 +316,8 @@ private func waitUntil(
 struct PortholeLifecycleControllerTests {
     @Test
     func lifecycleControllerRetriesBootstrapFailureAndRenewsBeforeExpiry() async throws {
+        let clock = LifecycleTestClock(startingAt: Date())
+        let initialNow = clock.now()
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("HavenAgentDLifecycle-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -305,8 +333,8 @@ struct PortholeLifecycleControllerTests {
         let processRunner = ScriptedLifecycleProcessRunner(
             outcomes: [
                 .fail("Simulated initial bootstrap failure."),
-                .success(contractID: "pac_test_0002", expiresAt: Date().addingTimeInterval(2)),
-                .success(contractID: "pac_test_0003", expiresAt: Date().addingTimeInterval(120))
+                .success(contractID: "pac_test_0002", expiresAt: initialNow.addingTimeInterval(2)),
+                .success(contractID: "pac_test_0003", expiresAt: initialNow.addingTimeInterval(120))
             ]
         )
         let client = SproutBootstrapClient(processRunner: processRunner)
@@ -318,7 +346,9 @@ struct PortholeLifecycleControllerTests {
             paths: paths,
             sproutBootstrapClient: client,
             ingress: ingress,
-            renewalService: renewalService
+            renewalService: renewalService,
+            now: { clock.now() },
+            sleep: { interval in await clock.sleep(interval) }
         )
 
         await controller.start(

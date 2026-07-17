@@ -46,6 +46,7 @@ public actor AgentRuntimeBridge {
     private var queuedIntents: [QueuedRemoteIntent] = []
     private var remoteIntentPolicy: RemoteIntentPolicy?
     private var remoteIntentExecutor: RemoteIntentExecutionBridge?
+    private var personalButlerScheduleService: PersonalButlerScheduleService?
     private var seenRemoteIntentNonces: Set<String> = []
     private var remoteIntentAuditTrail: [RemoteIntentAuditRecord] = []
     private var remoteIntentStateStore: RemoteIntentStateStore?
@@ -147,6 +148,14 @@ public actor AgentRuntimeBridge {
 
     public func remoteIntentExecutorSnapshot() -> RemoteIntentExecutionBridge? {
         remoteIntentExecutor
+    }
+
+    public func update(personalButlerScheduleService: PersonalButlerScheduleService?) {
+        self.personalButlerScheduleService = personalButlerScheduleService
+    }
+
+    public func personalButlerScheduleServiceSnapshot() -> PersonalButlerScheduleService? {
+        personalButlerScheduleService
     }
 
     public func configure(remoteIntentStateStore: RemoteIntentStateStore?) {

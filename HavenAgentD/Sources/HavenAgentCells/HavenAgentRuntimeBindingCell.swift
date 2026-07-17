@@ -94,21 +94,16 @@ public class HavenAgentRuntimeBindingCell: GeneralCell {
 
     private func proofCapableStoredOwner(requester: Identity?) async -> Identity? {
         let storedOwner = storedOwnerIdentity
-        if storedOwner.identityVault != nil {
+        if await requesterProvesOwnership(storedOwner) {
             return storedOwner
         }
         if let requester,
-           requester.identityVault != nil,
-           storedOwner.uuid == requester.uuid,
-           let storedFingerprint = storedOwner.signingPublicKeyFingerprint,
-           storedFingerprint == requester.signingPublicKeyFingerprint {
+           await restoreStoredOwnerIdentity(using: requester) {
             return requester
         }
         guard
             let hydratedOwner = await CellBase.defaultIdentityVault?.identity(forUUID: storedOwner.uuid),
-            storedOwner.uuid == hydratedOwner.uuid,
-            let storedFingerprint = storedOwner.signingPublicKeyFingerprint,
-            storedFingerprint == hydratedOwner.signingPublicKeyFingerprint
+            await restoreStoredOwnerIdentity(using: hydratedOwner)
         else {
             return nil
         }

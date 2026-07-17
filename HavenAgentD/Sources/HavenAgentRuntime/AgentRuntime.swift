@@ -249,6 +249,7 @@ public actor AgentRuntime {
     private let sproutBootstrapClient: SproutBootstrapClient
     private let dispatcher: ActionDispatcher
     private let remoteIntentStateStore: RemoteIntentStateStore
+    private let personalButlerScheduleService: PersonalButlerScheduleService
     private let portholeIngressController: any PortholeIngressControlling
     private let now: @Sendable () -> Date
     private let sleep: PortholeLifecycleController.SleepFunction
@@ -277,6 +278,11 @@ public actor AgentRuntime {
             localTaskRunner: LocalTaskRunner(processRunner: processRunner)
         )
         self.remoteIntentStateStore = RemoteIntentStateStore(fileURL: paths.remoteIntentStateFile)
+        self.personalButlerScheduleService = PersonalButlerScheduleService(
+            fileURL: paths.stateDirectory.appendingPathComponent("personal-butler-schedule.json"),
+            processRunner: processRunner,
+            now: now
+        )
         self.portholeIngressController = portholeIngressController ?? PortholeIngressSession()
         self.now = now
         self.sleep = sleep
@@ -309,6 +315,8 @@ public actor AgentRuntime {
 
     public func stop() async throws {
         await sessionSupervisor.stop()
+        await personalButlerScheduleService.stop()
+        await AgentRuntimeBridge.shared.update(personalButlerScheduleService: nil)
         await stopPortholeLifecycle()
         if let deviceActionRelay {
             await deviceActionRelay.stop()
@@ -353,6 +361,9 @@ public actor AgentRuntime {
             try await persistState()
             return
         }
+
+        try await personalButlerScheduleService.start()
+        await AgentRuntimeBridge.shared.update(personalButlerScheduleService: personalButlerScheduleService)
 
         if shouldEnablePortholeIngress(for: config) {
             try await startPortholeLifecycle(config: config)

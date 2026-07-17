@@ -5,8 +5,10 @@ import SproutCrypto
 import Testing
 @testable import HavenAgentRuntime
 
-private final class StatementTestIdentityVault: IdentityVaultProtocol, @unchecked Sendable {
+private actor StatementTestIdentityVault: IdentityVaultProtocol {
     private let privateKey: Curve25519.Signing.PrivateKey
+    private let vaultReference = "test://statement-identity-vault/\(UUID().uuidString.lowercased())"
+    private var identitiesByContext: [String: Identity] = [:]
 
     init(privateKey: Curve25519.Signing.PrivateKey) {
         self.privateKey = privateKey
@@ -16,23 +18,71 @@ private final class StatementTestIdentityVault: IdentityVaultProtocol, @unchecke
         self
     }
 
-    func addIdentity(identity: inout Identity, for identityContext: String) async {}
-
-    func identity(for identityContext: String, makeNewIfNotFound: Bool) async -> Identity? {
-        nil
+    func identityVaultReference() async -> String? {
+        vaultReference
     }
 
-    func saveIdentity(_ identity: Identity) async {}
+    func addIdentity(identity: inout Identity, for identityContext: String) async {
+        guard identity.publicSecureKey?.compressedKey == privateKey.publicKey.rawRepresentation else {
+            identity.identityVault = nil
+            identity.homeVaultReference = nil
+            return
+        }
+        identity.identityVault = self
+        identity.homeVaultReference = vaultReference
+        identitiesByContext[identityContext] = identity
+    }
+
+    func identity(for identityContext: String, makeNewIfNotFound: Bool) async -> Identity? {
+        identitiesByContext[identityContext]
+    }
+
+    func identity(forUUID uuid: String) async -> Identity? {
+        identitiesByContext.values.first { $0.uuid == uuid }
+    }
+
+    func identityExistInVault(_ identity: Identity) async -> Bool {
+        guard identity.homeVaultReference == vaultReference,
+              let stored = identitiesByContext.values.first(where: { $0.uuid == identity.uuid }),
+              let requestedFingerprint = identity.signingPublicKeyFingerprint,
+              requestedFingerprint == stored.signingPublicKeyFingerprint else {
+            return false
+        }
+        return true
+    }
+
+    func identityDomainBinding(for identity: Identity) async -> IdentityDomainBinding? {
+        guard await identityExistInVault(identity),
+              let context = identitiesByContext.first(where: { $0.value.uuid == identity.uuid })?.key else {
+            return nil
+        }
+        return IdentityDomainBinding(domain: context, identity: identity)
+    }
+
+    func saveIdentity(_ identity: Identity) async {
+        guard await identityExistInVault(identity),
+              let context = identitiesByContext.first(where: { $0.value.uuid == identity.uuid })?.key else {
+            return
+        }
+        identity.identityVault = self
+        identity.homeVaultReference = vaultReference
+        identitiesByContext[context] = identity
+    }
 
     func signMessageForIdentity(messageData: Data, identity: Identity) async throws -> Data {
-        guard identity.publicSecureKey?.compressedKey == privateKey.publicKey.rawRepresentation else {
+        guard identity.homeVaultReference == vaultReference,
+              await identityExistInVault(identity),
+              identity.publicSecureKey?.compressedKey == privateKey.publicKey.rawRepresentation else {
             throw IdentityVaultError.noKey
         }
         return try privateKey.signature(for: messageData)
     }
 
     func verifySignature(signature: Data, messageData: Data, for identity: Identity) async throws -> Bool {
-        let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: privateKey.publicKey.rawRepresentation)
+        guard let publicKeyData = identity.publicSecureKey?.compressedKey else {
+            return false
+        }
+        let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: publicKeyData)
         return publicKey.isValidSignature(signature, for: messageData)
     }
 
@@ -49,7 +99,8 @@ private final class StatementTestIdentityVault: IdentityVaultProtocol, @unchecke
 struct AgentSignStatementCommandServiceTests {
     @Test
     func signStatementCreatesVerifiableAudienceBoundEnvelope() async throws {
-        let fixture = try Self.makeFixture()
+        let fixture = try await Self.makeFixture()
+        defer { fixture.cleanup() }
         let request = Self.validRequest(payload: Data("hello HAVEN".utf8), nonce: "nonce-1234567890")
 
         let result = try await fixture.service.signStatement(request)
@@ -78,7 +129,8 @@ struct AgentSignStatementCommandServiceTests {
 
     @Test
     func duplicateNonceIsRejectedPersistently() async throws {
-        let fixture = try Self.makeFixture()
+        let fixture = try await Self.makeFixture()
+        defer { fixture.cleanup() }
         let request = Self.validRequest(payload: Data("first".utf8), nonce: "nonce-duplicate-123")
         _ = try await fixture.service.signStatement(request)
 
@@ -109,7 +161,8 @@ struct AgentSignStatementCommandServiceTests {
 
     @Test
     func wrongSignerIdentityIsRejectedBeforeSigning() async throws {
-        let fixture = try Self.makeFixture()
+        let fixture = try await Self.makeFixture()
+        defer { fixture.cleanup() }
         var request = Self.validRequest(payload: Data("hello".utf8), nonce: "nonce-wrong-signer")
         request.signerIdentityUUID = "not-the-agent"
 
@@ -123,7 +176,8 @@ struct AgentSignStatementCommandServiceTests {
 
     @Test
     func expiredStatementIsRejected() async throws {
-        let fixture = try Self.makeFixture()
+        let fixture = try await Self.makeFixture()
+        defer { fixture.cleanup() }
         var request = Self.validRequest(payload: Data("hello".utf8), nonce: "nonce-expired-statement")
         request.expiresAt = Self.iso8601String(Date(timeIntervalSince1970: 1_700_000_000 - 10))
 
@@ -140,10 +194,15 @@ struct AgentSignStatementCommandServiceTests {
         var descriptor: AgentIdentityDescriptor
         var service: AgentSignStatementCommandService
         var nonceFile: URL
+        var root: URL
         var now: @Sendable () -> Date
+
+        func cleanup() {
+            try? FileManager.default.removeItem(at: root)
+        }
     }
 
-    private static func makeFixture() throws -> Fixture {
+    private static func makeFixture() async throws -> Fixture {
         let privateKey = Curve25519.Signing.PrivateKey()
         let descriptor = AgentIdentityDescriptor(
             instanceName: "agent",
@@ -156,7 +215,7 @@ struct AgentSignStatementCommandServiceTests {
             storageKind: "test"
         )
         let vault = StatementTestIdentityVault(privateKey: privateKey)
-        let owner = Identity(descriptor.identityUUID, displayName: descriptor.displayName, identityVault: vault)
+        var owner = Identity(descriptor.identityUUID, displayName: descriptor.displayName, identityVault: vault)
         owner.publicSecureKey = SecureKey(
             date: Date(timeIntervalSince1970: 1_700_000_000),
             privateKey: false,
@@ -168,6 +227,7 @@ struct AgentSignStatementCommandServiceTests {
             y: nil,
             compressedKey: privateKey.publicKey.rawRepresentation
         )
+        await vault.addIdentity(identity: &owner, for: descriptor.identityContext)
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("AgentSignatureTests-\(UUID().uuidString)", isDirectory: true)
         let nonceFile = root.appendingPathComponent("identity-signature-nonces.json")
@@ -178,7 +238,14 @@ struct AgentSignStatementCommandServiceTests {
             nonceStore: AgentSignatureNonceStore(fileURL: nonceFile),
             now: now
         )
-        return Fixture(owner: owner, descriptor: descriptor, service: service, nonceFile: nonceFile, now: now)
+        return Fixture(
+            owner: owner,
+            descriptor: descriptor,
+            service: service,
+            nonceFile: nonceFile,
+            root: root,
+            now: now
+        )
     }
 
     private static func validRequest(payload: Data, nonce: String) -> AgentSignStatementRequest {

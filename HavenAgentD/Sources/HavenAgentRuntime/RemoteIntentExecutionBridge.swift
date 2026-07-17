@@ -4,6 +4,9 @@ import HavenMacAutomation
 public enum RemoteIntentAuditOutcome: String, Codable, Equatable, Sendable {
     case approvedDispatched = "approved_dispatched"
     case approvedFailed = "approved_failed"
+    case automaticDispatched = "automatic_dispatched"
+    case automaticSuppressed = "automatic_suppressed"
+    case automaticFailed = "automatic_failed"
     case rejected
 }
 

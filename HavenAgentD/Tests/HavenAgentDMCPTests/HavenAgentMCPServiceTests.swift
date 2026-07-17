@@ -272,15 +272,26 @@ struct HavenAgentMCPServiceTests {
         try FileManager.default.createDirectory(at: repliesDirectory, withIntermediateDirectories: true, attributes: nil)
 
         let writeReplyTask = Task {
-            try await Task.sleep(nanoseconds: 50_000_000)
-            let requestFiles = try FileManager.default.contentsOfDirectory(
-                at: paths.inboxDirectory.appendingPathComponent("Requests", isDirectory: true),
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-            guard let requestFile = requestFiles.first(where: { $0.pathExtension == "json" }),
-                  let requestData = try? Data(contentsOf: requestFile),
-                  let request = try? JSONDecoder().decode(DeviceActionRequest.self, from: requestData) else {
+            let requestsDirectory = paths.inboxDirectory.appendingPathComponent("Requests", isDirectory: true)
+            let deadline = Date().addingTimeInterval(2)
+            var queuedRequest: DeviceActionRequest?
+
+            while queuedRequest == nil, Date() < deadline, !Task.isCancelled {
+                let requestFiles = (try? FileManager.default.contentsOfDirectory(
+                    at: requestsDirectory,
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles]
+                )) ?? []
+                if let requestFile = requestFiles.first(where: { $0.pathExtension == "json" }),
+                   let requestData = try? Data(contentsOf: requestFile) {
+                    queuedRequest = try? JSONDecoder().decode(DeviceActionRequest.self, from: requestData)
+                }
+                if queuedRequest == nil {
+                    try await Task.sleep(nanoseconds: 10_000_000)
+                }
+            }
+
+            guard let request = queuedRequest else {
                 return
             }
 
@@ -311,7 +322,7 @@ struct HavenAgentMCPServiceTests {
                 "responseMode": "approval",
                 "title": "Continue coding",
                 "message": "Approve if the assistant should continue.",
-                "timeoutSeconds": 1,
+                "timeoutSeconds": 3,
                 "pollIntervalSeconds": 0.05
             ]
         )

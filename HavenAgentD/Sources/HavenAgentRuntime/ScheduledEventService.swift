@@ -127,6 +127,7 @@ public actor ScheduledEventService {
     private var policy = AutomationPolicy()
     private var records: [ScheduledEventRecord] = []
     private var worker: Task<Void, Never>?
+    private var isRunningDueEvents = false
 
     public init(
         fileURL: URL,
@@ -181,9 +182,11 @@ public actor ScheduledEventService {
         }
     }
 
-    public func stop() {
-        worker?.cancel()
+    public func stop() async {
+        let activeWorker = worker
         worker = nil
+        activeWorker?.cancel()
+        await activeWorker?.value
     }
 
     public func stopEvent(id: String) async throws -> ScheduledEventRecord {
@@ -201,6 +204,12 @@ public actor ScheduledEventService {
     }
 
     public func runDueEvents() async {
+        guard isRunningDueEvents == false else {
+            return
+        }
+        isRunningDueEvents = true
+        defer { isRunningDueEvents = false }
+
         if let persisted = try? await store.load() {
             records = persisted
         }

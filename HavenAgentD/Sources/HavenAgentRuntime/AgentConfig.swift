@@ -195,6 +195,11 @@ public struct LocalControlBridgeConfig: Codable, Equatable, Sendable {
             name: AgentSignatureStatement.controlBridgeRouteName,
             targetCellReference: "agent/identity/signatures",
             description: "Local identity signature surface: prepares and issues audience-bound detached signed statements through HAVENAgentD."
+        ),
+        LocalControlBridgeRoute(
+            name: "butler-scheduler",
+            targetCellReference: "agent/butler/scheduler",
+            description: "Owner-controlled Butler cadence, daemon schedule and fixed signed HAVEN wake policy."
         )
     ]
 
@@ -534,8 +539,12 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     TrustedRemoteIntentIssuer(
                         issuerID: "scaffold-entity.example",
                         publicSigningKeyBase64: "BASE64_PUBLIC_KEY_HERE",
-                        allowedTopics: ["intent.inbox"],
-                        allowedActionIDs: ["open-url-in-safari", AgentMailDraftAutomation.actionID]
+                        allowedTopics: ["intent.inbox", PersonalButlerScheduleService.remoteWakeTopic],
+                        allowedActionIDs: [
+                            "open-url-in-safari",
+                            AgentMailDraftAutomation.actionID,
+                            PersonalButlerScheduleService.remoteWakeActionID
+                        ]
                     )
                 ],
                 requireExpiry: true,

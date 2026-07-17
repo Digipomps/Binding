@@ -72,7 +72,8 @@ private actor RecordingSecureCredentialStore: SecureCredentialStore {
     }
 }
 
-private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendable {
+private actor MockIdentityVault: IdentityVaultProtocol {
+    private let vaultReference = "test://haven-agent-cells/\(UUID().uuidString.lowercased())"
     private var identities: [String: Identity] = [:]
     private var privateKeys: [String: Curve25519.Signing.PrivateKey] = [:]
 
@@ -80,8 +81,14 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
         self
     }
 
+    func identityVaultReference() async -> String? {
+        vaultReference
+    }
+
     func addIdentity(identity: inout Identity, for identityContext: String) async {
         ensureSigningKey(for: identity)
+        identity.identityVault = self
+        identity.homeVaultReference = vaultReference
         identities[identityContext] = identity
     }
 
@@ -94,17 +101,47 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
         }
         let identity = Identity(identityContext, displayName: identityContext, identityVault: self)
         ensureSigningKey(for: identity)
+        identity.homeVaultReference = vaultReference
         identities[identityContext] = identity
         return identity
     }
 
+    func identity(forUUID uuid: String) async -> Identity? {
+        identities.values.first { $0.uuid == uuid }
+    }
+
     func saveIdentity(_ identity: Identity) async {
+        guard identity.homeVaultReference == vaultReference,
+              let stored = identities.values.first(where: { $0.uuid == identity.uuid }),
+              publicSigningKeyMatches(identity, stored) else {
+            return
+        }
         ensureSigningKey(for: identity)
+        identity.identityVault = self
+        identity.homeVaultReference = vaultReference
         identities[identity.displayName] = identity
     }
 
+    func identityExistInVault(_ identity: Identity) async -> Bool {
+        guard identity.homeVaultReference == vaultReference,
+              let stored = identities.values.first(where: { $0.uuid == identity.uuid }) else {
+            return false
+        }
+        return publicSigningKeyMatches(identity, stored)
+    }
+
+    func identityDomainBinding(for identity: Identity) async -> IdentityDomainBinding? {
+        guard await identityExistInVault(identity),
+              let context = identities.first(where: { $0.value.uuid == identity.uuid })?.key else {
+            return nil
+        }
+        return IdentityDomainBinding(domain: context, identity: identity)
+    }
+
     func signMessageForIdentity(messageData: Data, identity: Identity) async throws -> Data {
-        guard let privateKey = privateKeys[identity.uuid] else {
+        guard identity.homeVaultReference == vaultReference,
+              await identityExistInVault(identity),
+              let privateKey = privateKeys[identity.uuid] else {
             throw MockIdentityVaultError.noPrivateKey
         }
         return try privateKey.signature(for: messageData)
@@ -128,6 +165,7 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
 
     private func ensureSigningKey(for identity: Identity) {
         identity.identityVault = self
+        identity.homeVaultReference = vaultReference
         if privateKeys[identity.uuid] != nil,
            identity.publicSecureKey?.compressedKey?.isEmpty == false {
             return
@@ -148,6 +186,14 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
         privateKeys[identity.uuid] = privateKey
     }
 
+    private func publicSigningKeyMatches(_ lhs: Identity, _ rhs: Identity) -> Bool {
+        guard let lhsFingerprint = lhs.signingPublicKeyFingerprint,
+              let rhsFingerprint = rhs.signingPublicKeyFingerprint else {
+            return false
+        }
+        return lhsFingerprint == rhsFingerprint
+    }
+
     enum MockIdentityVaultError: Error {
         case noPrivateKey
     }
@@ -157,19 +203,11 @@ private final class MockIdentityVault: IdentityVaultProtocol, @unchecked Sendabl
 struct AgentCellsTests {
     @Test
     func decodedAgentSupervisorIsReadyForImmediateConcurrentStateReads() async throws {
-        let previousDebugAccess = CellBase.debugValidateAccessForEverything
-        let previousVault = CellBase.defaultIdentityVault
         let vault = EphemeralIdentityVault()
         let owner = try #require(await vault.identity(
             for: "haven-agent-supervisor-decoded-readiness-\(UUID().uuidString)",
             makeNewIfNotFound: true
         ))
-        CellBase.debugValidateAccessForEverything = false
-        CellBase.defaultIdentityVault = vault
-        defer {
-            CellBase.debugValidateAccessForEverything = previousDebugAccess
-            CellBase.defaultIdentityVault = previousVault
-        }
 
         let fresh = await AgentSupervisorCell(owner: owner)
         let encoded = try JSONEncoder().encode(fresh)
@@ -197,8 +235,6 @@ struct AgentCellsTests {
 
     @Test
     func decodedDefaultAgentCellsInstallBindingsOnceBeforeImmediateStateReads() async throws {
-        let previousDebugAccess = CellBase.debugValidateAccessForEverything
-        let previousVault = CellBase.defaultIdentityVault
         let previousMetadataStoreFactory = SecretCredentialCell.metadataStoreFactory
         let previousSecureStoreFactory = SecretCredentialCell.secureStoreFactory
         let previousRuntimeVaultFactory = SecretCredentialCell.runtimeVaultFactory
@@ -210,14 +246,10 @@ struct AgentCellsTests {
             for: "haven-agent-default-cells-decoded-readiness-\(UUID().uuidString)",
             makeNewIfNotFound: true
         ))
-        CellBase.debugValidateAccessForEverything = false
-        CellBase.defaultIdentityVault = vault
         SecretCredentialCell.metadataStoreFactory = { metadataStore }
         SecretCredentialCell.secureStoreFactory = { secureStore }
         SecretCredentialCell.runtimeVaultFactory = { runtimeVault }
         defer {
-            CellBase.debugValidateAccessForEverything = previousDebugAccess
-            CellBase.defaultIdentityVault = previousVault
             SecretCredentialCell.metadataStoreFactory = previousMetadataStoreFactory
             SecretCredentialCell.secureStoreFactory = previousSecureStoreFactory
             SecretCredentialCell.runtimeVaultFactory = previousRuntimeVaultFactory
@@ -278,7 +310,7 @@ struct AgentCellsTests {
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for _ in 0..<20 {
                     group.addTask {
-                        try await cellReference.value.ensureRuntimeBindings()
+                        try await cellReference.value.ensureRuntimeBindings(requester: owner)
                     }
                 }
                 try await group.waitForAll()
@@ -299,8 +331,6 @@ struct AgentCellsTests {
 
     @Test
     func decodedAgentCellRejectsSameUUIDDifferentKeyAndRetriesWithOwnerVault() async throws {
-        let previousDebugAccess = CellBase.debugValidateAccessForEverything
-        let previousVault = CellBase.defaultIdentityVault
         let identityUUID = "haven-agent-decoded-owner-\(UUID().uuidString)"
         let ownerVault = EphemeralIdentityVault()
         var owner = Identity(identityUUID, displayName: "Haven Agent Owner", identityVault: ownerVault)
@@ -312,13 +342,6 @@ struct AgentCellsTests {
             identityVault: attackerVault
         )
         await attackerVault.addIdentity(identity: &sameUUIDDifferentKey, for: "haven-agent-attacker")
-
-        CellBase.debugValidateAccessForEverything = false
-        CellBase.defaultIdentityVault = attackerVault
-        defer {
-            CellBase.debugValidateAccessForEverything = previousDebugAccess
-            CellBase.defaultIdentityVault = previousVault
-        }
 
         #expect(owner.signingPublicKeyFingerprint != sameUUIDDifferentKey.signingPublicKeyFingerprint)
         let fresh = await AgentSupervisorCell(owner: owner)
@@ -349,7 +372,7 @@ struct AgentCellsTests {
         let cells = await AgentCellRegistry.instantiateDefaultCells(owner: owner)
 
         #expect(cells.count == AgentCellRegistry.concreteDescriptors.count)
-        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox, .signatureStatements])
+        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox, .signatureStatements, .personalButlerSchedule])
         #expect(cells.contains { $0 is AgentSupervisorCell })
         #expect(cells.contains { $0 is AgentIdentityCell })
         #expect(cells.contains { $0 is RemoteIntentInboxCell })
@@ -720,7 +743,7 @@ struct AgentCellsTests {
         let operatorPublicKeyBase64URL = Self.base64URLEncode(operatorPublicKey)
 
         let cell = await AgentIdentityCell(owner: owner)
-        try await Self.authorize(operatorIdentity, for: cell)
+        try await Self.authorize(operatorIdentity, for: cell, authorizedBy: owner)
         let response = try await cell.set(
             keypath: "enrollment.attest",
             value: .object([
@@ -876,7 +899,7 @@ struct AgentCellsTests {
         await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: pairingArtifactFile)
 
         let cell = await AgentIdentityCell(owner: owner)
-        try await Self.authorize(operatorIdentity, for: cell)
+        try await Self.authorize(operatorIdentity, for: cell, authorizedBy: owner)
         let response = try await cell.set(
             keypath: "entityLink.countersign",
             value: .object([
@@ -1350,10 +1373,17 @@ private extension AgentCellsTests {
         try artifactEncoder.encode(artifact).write(to: fileURL, options: [.atomic])
     }
 
-    static func authorize(_ identity: Identity, for cell: GeneralCell) async throws {
-        let agreement = cell.agreementTemplate
-        agreement.signatories.append(identity)
-        let state = await cell.addAgreement(agreement, for: identity)
+    static func authorize(
+        _ identity: Identity,
+        for cell: GeneralCell,
+        authorizedBy owner: Identity
+    ) async throws {
+        let agreement = Agreement(owner: owner)
+        agreement.name = cell.agreementTemplate.name
+        agreement.grants = cell.agreementTemplate.grants
+        agreement.conditions = cell.agreementTemplate.conditions
+        agreement.duration = cell.agreementTemplate.duration
+        let state = await cell.addAgreement(agreement, for: identity, authorizedBy: owner)
         #expect(state == .signed)
     }
 }
