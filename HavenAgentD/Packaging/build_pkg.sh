@@ -13,7 +13,7 @@
 #   "Developer ID Installer: Stiftelsen Digipomps (5UT5HQTCV9)"    (.pkg)
 #
 # Overridable via environment:
-#   VERSION        package version           (default 0.1.0)
+#   VERSION        package version           (default 0.3.0)
 #   DIST_DIR       output directory          (default <pkg>/dist)
 #   SPROUT_BIN     path to a built sprout    (default ../../sprout/.build/release/sprout)
 #   APP_IDENTITY / INSTALLER_IDENTITY  signing identity strings
@@ -24,7 +24,7 @@ set -euo pipefail
 PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # HavenAgentD root
 PACKAGING_DIR="$PKG_DIR/Packaging"
 
-VERSION="${VERSION:-0.2.1}"
+VERSION="${VERSION:-0.3.0}"
 DIST_DIR="${DIST_DIR:-$PKG_DIR/dist}"
 ARCH="$(uname -m)"   # arm64 on Apple Silicon
 PKG_IDENTIFIER="io.digipomps.haven.agentd"
@@ -60,6 +60,11 @@ log "Building haven-agentd (release)"
 AGENTD_BIN="$PKG_DIR/.build/release/haven-agentd"
 [[ -x "$AGENTD_BIN" ]] || die "build did not produce $AGENTD_BIN"
 
+log "Building haven-correspondence-mcp (release)"
+( cd "$PKG_DIR" && swift build -c release --product haven-correspondence-mcp )
+CORRESPONDENCE_BIN="$PKG_DIR/.build/release/haven-correspondence-mcp"
+[[ -x "$CORRESPONDENCE_BIN" ]] || die "build did not produce $CORRESPONDENCE_BIN"
+
 # --- stage payload -----------------------------------------------------------
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
@@ -69,17 +74,20 @@ mkdir -p "$PAYLOAD_LIBEXEC" "$PAYLOAD_SHARE"
 
 log "Staging payload under $INSTALL_PREFIX"
 cp "$AGENTD_BIN" "$PAYLOAD_LIBEXEC/haven-agentd"
+cp "$CORRESPONDENCE_BIN" "$PAYLOAD_LIBEXEC/haven-correspondence-mcp"
 cp "$SPROUT_BIN" "$PAYLOAD_LIBEXEC/sprout"
-chmod 755 "$PAYLOAD_LIBEXEC/haven-agentd" "$PAYLOAD_LIBEXEC/sprout"
+chmod 755 "$PAYLOAD_LIBEXEC/haven-agentd" "$PAYLOAD_LIBEXEC/haven-correspondence-mcp" "$PAYLOAD_LIBEXEC/sprout"
 
 if [[ "$STRIP" == "1" ]]; then
   log "Stripping binaries"
   strip "$PAYLOAD_LIBEXEC/haven-agentd"
+  strip "$PAYLOAD_LIBEXEC/haven-correspondence-mcp"
   strip "$PAYLOAD_LIBEXEC/sprout"
 fi
 
 cp "$PLIST_TEMPLATE" "$PAYLOAD_SHARE/io.digipomps.haven.agentd.plist.template"
 cp "$PACKAGING_DIR/Resources/QUICKSTART.md" "$PAYLOAD_SHARE/QUICKSTART.md"
+cp "$PACKAGING_DIR/Resources/ASSISTANT_CORRESPONDENCE.md" "$PAYLOAD_SHARE/ASSISTANT_CORRESPONDENCE.md"
 # sprout has no --version flag (it prints usage), so record the source revision
 # of the sprout repo the binary came from. Falls back to "unknown".
 SPROUT_SRC_DIR="$(cd "$(dirname "$SPROUT_BIN")/../.." 2>/dev/null && pwd || true)"
@@ -88,7 +96,7 @@ SPROUT_VERSION="$(git -C "$SPROUT_SRC_DIR" rev-parse --short HEAD 2>/dev/null ||
 # --- sign binaries (hardened runtime + entitlements + timestamp) -------------
 # Sign sprout first (inner), then haven-agentd. Each is an independent Mach-O,
 # not a nested bundle, so order only matters for clarity.
-for bin in sprout haven-agentd; do
+for bin in sprout haven-agentd haven-correspondence-mcp; do
   log "Signing $bin"
   codesign --force --options runtime --timestamp \
     --entitlements "$ENTITLEMENTS" \
@@ -100,9 +108,10 @@ done
 # --- checksums + manifest ----------------------------------------------------
 mkdir -p "$DIST_DIR"
 log "Writing checksums + manifest"
-( cd "$PAYLOAD_LIBEXEC" && shasum -a 256 haven-agentd sprout ) > "$DIST_DIR/SHA256SUMS"
+( cd "$PAYLOAD_LIBEXEC" && shasum -a 256 haven-agentd haven-correspondence-mcp sprout ) > "$DIST_DIR/SHA256SUMS"
 
 AGENTD_SHA="$(shasum -a 256 "$PAYLOAD_LIBEXEC/haven-agentd" | awk '{print $1}')"
+CORRESPONDENCE_SHA="$(shasum -a 256 "$PAYLOAD_LIBEXEC/haven-correspondence-mcp" | awk '{print $1}')"
 SPROUT_SHA="$(shasum -a 256 "$PAYLOAD_LIBEXEC/sprout" | awk '{print $1}')"
 cat > "$DIST_DIR/release-manifest.json" <<JSON
 {
@@ -115,6 +124,7 @@ cat > "$DIST_DIR/release-manifest.json" <<JSON
   "teamId": "5UT5HQTCV9",
   "artifacts": [
     { "name": "haven-agentd", "sha256": "$AGENTD_SHA" },
+    { "name": "haven-correspondence-mcp", "sha256": "$CORRESPONDENCE_SHA", "authority": "messages-only" },
     { "name": "sprout", "sha256": "$SPROUT_SHA", "version": "$SPROUT_VERSION" }
   ]
 }

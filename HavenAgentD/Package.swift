@@ -26,7 +26,8 @@ let package = Package(
         .library(name: "HavenAgentCells", targets: ["HavenAgentCells"]),
         .library(name: "HavenAgentCellRuntime", targets: ["HavenAgentCellRuntime"]),
         .executable(name: "haven-agentd", targets: ["HavenAgentD"]),
-        .executable(name: "haven-agentd-mcp", targets: ["HavenAgentDMCP"])
+        .executable(name: "haven-agentd-mcp", targets: ["HavenAgentDMCP"]),
+        .executable(name: "haven-correspondence-mcp", targets: ["HavenCorrespondenceMCP"])
     ],
     dependencies: [
         cellProtocolDependency,
@@ -100,6 +101,12 @@ let package = Package(
                 "HavenAgentCellRuntime"
             ]
         ),
+        .executableTarget(
+            name: "HavenCorrespondenceMCP",
+            dependencies: [
+                "HavenAgentRuntime"
+            ]
+        ),
         .testTarget(
             name: "HavenMacAutomationTests",
             dependencies: [
@@ -143,6 +150,13 @@ let package = Package(
                 "HavenAgentRuntime",
                 "HavenRuntimeBootstrap",
                 .product(name: "SproutCrypto", package: "sprout")
+            ]
+        ),
+        .testTarget(
+            name: "HavenCorrespondenceMCPTests",
+            dependencies: [
+                "HavenCorrespondenceMCP",
+                "HavenAgentRuntime"
             ]
         )
     ]

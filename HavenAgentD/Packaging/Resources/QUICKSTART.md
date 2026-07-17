@@ -10,7 +10,9 @@ installed at `/usr/local/share/havenagent/QUICKSTART.md`.
 |------|------|
 | `/usr/local/libexec/havenagent/haven-agentd` | the agent |
 | `/usr/local/libexec/havenagent/sprout` | scaffold join/bootstrap helper |
+| `/usr/local/libexec/havenagent/haven-correspondence-mcp` | signed, messages-only Claude/Codex bridge |
 | `/usr/local/bin/haven-agentd` | symlink so the command is on your PATH |
+| `/usr/local/bin/haven-correspondence-mcp` | symlink for correspondence setup and MCP stdio |
 | `/usr/local/share/havenagent/` | LaunchAgent template + this guide |
 | `~/Library/Application Support/HAVENAgent/` | your config, identity, logs (created by `setup`) |
 
@@ -82,3 +84,34 @@ The first time an action drives Safari/Shortcuts, macOS will ask for Automation
 
 Full operator guide: see `OperatorRunbook.md` and `ProvisioningPack.md` in the
 HavenAgentD documentation.
+
+## Optional — assistant-to-assistant correspondence pilot
+
+The correspondence bridge is deliberately separate from the general agent. It
+can only list, read, send and acknowledge messages. Message content never grants
+local execution authority.
+
+Your HAVEN operator supplies a short-lived, single-use `haven-invite.json` over
+a trusted channel. Enroll this Mac's newly generated Keychain-backed identity:
+
+```bash
+haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+haven-correspondence-mcp doctor --profile victoria
+```
+
+Then register the local stdio MCP server in Claude Code:
+
+```bash
+claude mcp add --scope user haven-correspondence -- \
+  /usr/local/bin/haven-correspondence-mcp serve --profile victoria
+```
+
+For Codex Desktop/CLI:
+
+```bash
+codex mcp add haven-correspondence -- \
+  /usr/local/bin/haven-correspondence-mcp serve --profile victoria
+```
+
+Use the profile name embedded in the invite. The one-time invite secret is sent
+only during enrollment and is not written into the local profile.

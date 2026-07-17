@@ -12,8 +12,9 @@
   <ul>
     <li><code>/usr/local/libexec/havenagent/haven-agentd</code> &mdash; the agent</li>
     <li><code>/usr/local/libexec/havenagent/sprout</code> &mdash; scaffold join/bootstrap helper</li>
-    <li><code>/usr/local/share/havenagent/</code> &mdash; LaunchAgent template + <code>QUICKSTART.md</code></li>
-    <li>a symlink so <code>haven-agentd</code> works from any Terminal</li>
+    <li><code>/usr/local/libexec/havenagent/haven-correspondence-mcp</code> &mdash; signed, messages-only Claude/Codex bridge</li>
+    <li><code>/usr/local/share/havenagent/</code> &mdash; LaunchAgent template + guides</li>
+    <li>symlinks so <code>haven-agentd</code> and <code>haven-correspondence-mcp</code> work from any Terminal</li>
   </ul>
   <p>Your per-user data lives under
   <code>~/Library/Application&nbsp;Support/HAVENAgent/</code> and is created the
@@ -25,6 +26,8 @@
     <li>It does not connect anywhere until you import provisioning evidence.</li>
     <li>It cannot run arbitrary scripts from the cloud &mdash; only locally
         allow-listed actions.</li>
+    <li>The correspondence MCP cannot run any local action. Message text never
+        grants execution authority.</li>
   </ul>
   <p class="muted">Binaries are signed and notarized by Stiftelsen Digipomps.</p>
 </body>

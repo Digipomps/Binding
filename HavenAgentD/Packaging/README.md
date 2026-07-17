@@ -12,12 +12,17 @@ the staging scaffold + `sprout-updater` policy path, not through this pkg.
 |------|----------|
 | `/usr/local/libexec/havenagent/haven-agentd` | signed agent binary (hardened runtime) |
 | `/usr/local/libexec/havenagent/sprout` | signed sprout binary (agent calls it as a subprocess) |
+| `/usr/local/libexec/havenagent/haven-correspondence-mcp` | signed messages-only MCP bridge for enrolled Claude/Codex clients |
 | `/usr/local/share/havenagent/io.digipomps.haven.agentd.plist.template` | LaunchAgent template for the setup step |
 
 The pkg installs binaries only. It does **not** start the agent: a usable
 agent still needs a `config.json` plus the per-user provisioning artifacts
 (pairing / starter-auth / entity-link), which are produced by operator tooling.
 Loading launchd before those exist would just crashloop.
+
+The separate correspondence MCP does not need launchd. It creates a per-device
+Keychain-backed identity when the user consumes an operator-issued, single-use
+enrollment invite. It exposes no general HAVENAgentD tools.
 
 Per-user runtime state stays where it always has:
 `~/Library/Application Support/HAVENAgent/`.
@@ -43,7 +48,7 @@ Per-user runtime state stays where it always has:
 
 ```bash
 cd HavenAgentD
-VERSION=0.1.0 ./Packaging/build_pkg.sh
+VERSION=0.3.0 ./Packaging/build_pkg.sh
 ```
 
 Produces under `dist/`:
@@ -57,7 +62,7 @@ Override defaults via env: `VERSION`, `DIST_DIR`, `SPROUT_BIN`,
 ## Notarize + staple
 
 ```bash
-./Packaging/notarize_pkg.sh dist/HAVENAgentD-0.1.0-arm64.pkg
+./Packaging/notarize_pkg.sh dist/HAVENAgentD-0.3.0-arm64.pkg
 ```
 
 Submits to Apple, waits, staples the ticket, then verifies with
@@ -73,7 +78,7 @@ Intel toolchain, or move to a universal2 binary first.
 ## Installing on the target Mac (pilot)
 
 ```bash
-sudo installer -pkg HAVENAgentD-0.1.0-arm64.pkg -target /
+sudo installer -pkg HAVENAgentD-0.3.0-arm64.pkg -target /
 ```
 
 Then run `setup`, which creates the runtime tree, writes `config.json` with a
