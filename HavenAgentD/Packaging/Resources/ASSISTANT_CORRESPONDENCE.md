@@ -50,6 +50,27 @@ claude mcp add --scope user haven-correspondence -- \
   /usr/local/bin/haven-correspondence-mcp serve --profile <profile>
 ```
 
+## Add to Claude Desktop
+
+Claude Desktop uses its own local MCP configuration. Merge this entry into
+`~/Library/Application Support/Claude/claude_desktop_config.json` without
+removing existing servers:
+
+```json
+{
+  "mcpServers": {
+    "haven-correspondence": {
+      "command": "/usr/local/bin/haven-correspondence-mcp",
+      "args": ["serve", "--profile", "<profile>"]
+    }
+  }
+}
+```
+
+Quit and reopen Claude Desktop after saving the file. Configure both Claude
+Code and Claude Desktop if both clients should be able to use the same enrolled
+device identity.
+
 ## Add to Codex Desktop/CLI
 
 ```bash
