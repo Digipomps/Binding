@@ -472,14 +472,208 @@ struct ChatWorkbenchParityTests {
         #expect(asString(tooSoon["reason"]) == "minimum_interval")
     }
 
+    @Test func personalButlerDefaultsTo72HoursAndEvaluatesLaunchTaskAndOwnerSchedule() throws {
+        let initial = BindingPersonalButlerPolicy.initialState()
+        let initialProactivity = try #require(asObject(initial["proactivity"]))
+        #expect(asInt(initialProactivity["minimumIntervalHours"]) == 72)
+        #expect(asBool(initialProactivity["appLaunchEnabled"]) == true)
+        #expect(asBool(initialProactivity["taskCompletionEnabled"]) == true)
+        #expect(asBool(initialProactivity["userScheduleEnabled"]) == false)
+        #expect(asBool(initialProactivity["stagingWakeEnabled"]) == false)
+
+        var butler = BindingPersonalButlerPolicy.configuringProactivity(
+            in: initial,
+            value: .object([
+                "enabled": .bool(true),
+                "quietHoursEnabled": .bool(false),
+                "userScheduleEnabled": .bool(true),
+                "userScheduleKind": .string("daily"),
+                "userScheduleLocalTime": .string("09:00")
+            ])
+        )
+        let monday = try #require(ISO8601DateFormatter().date(from: "2026-07-13T09:00:00Z"))
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+
+        let launch = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["triggerKind": .string("app_launch")]),
+            now: monday,
+            localHour: 12,
+            calendar: utcCalendar
+        )
+        #expect(asString(launch["status"]) == "offer")
+
+        var proactivity = try #require(asObject(butler["proactivity"]))
+        proactivity["lastOfferedAt"] = .string(BindingPersonalButlerPolicy.timestamp(monday))
+        butler["proactivity"] = .object(proactivity)
+        let taskTooSoon = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["triggerKind": .string("task_completed")]),
+            now: monday.addingTimeInterval(71 * 3_600),
+            localHour: 12,
+            calendar: utcCalendar
+        )
+        #expect(asString(taskTooSoon["reason"]) == "minimum_interval")
+
+        let taskAfterCadence = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["triggerKind": .string("task_completed")]),
+            now: monday.addingTimeInterval(73 * 3_600),
+            localHour: 12,
+            calendar: utcCalendar
+        )
+        #expect(asString(taskAfterCadence["status"]) == "offer")
+
+        proactivity["lastOfferedAt"] = .null
+        butler["proactivity"] = .object(proactivity)
+        let schedule = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["triggerKind": .string("user_schedule")]),
+            now: monday,
+            localHour: 12,
+            calendar: utcCalendar
+        )
+        #expect(asString(schedule["status"]) == "offer")
+        #expect(asString(schedule["scheduleSlot"]) == "daily:2026-07-13")
+
+        proactivity["lastScheduleSlot"] = schedule["scheduleSlot"] ?? .null
+        butler["proactivity"] = .object(proactivity)
+        let repeatedSlot = BindingPersonalButlerPolicy.evaluateSupport(
+            butler: butler,
+            value: .object(["triggerKind": .string("user_schedule")]),
+            now: monday.addingTimeInterval(60),
+            localHour: 12,
+            calendar: utcCalendar
+        )
+        #expect(asString(repeatedSlot["reason"]) == "schedule_not_due")
+    }
+
+    @Test func personalButlerTriggerActionStagesOnlyPolicyApprovedLaunchOffer() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-trigger")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        _ = try await chat.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "appLaunchEnabled": .bool(true),
+                "quietHoursEnabled": .bool(false)
+            ]),
+            requester: owner
+        )
+        let result = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.trigger.run",
+            value: .object(["triggerKind": .string("app_launch")]),
+            requester: owner
+        )))
+        #expect(asString(result["status"]) == "offer")
+        #expect(asBool(result["stagedInChat"]) == true)
+        #expect(asBool(result["providerInvoked"]) == false)
+        #expect(asBool(result["domainSideEffect"]) == false)
+    }
+
+    @Test func personalButlerSyncRequiresApprovalOnBothDevicesAndImportsOnlySignedPreferencesOnce() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-sync")
+        let source = await BindingPersonalChatHubCell(owner: owner)
+        let target = await BindingPersonalChatHubCell(owner: owner)
+        let approval: ValueType = .object(["approved": .bool(true), "confirm": .bool(true)])
+
+        _ = try await source.set(keypath: "chatHub.butler.sync.configure", value: approval, requester: owner)
+        _ = try await source.set(
+            keypath: "chatHub.butler.profile.displayName",
+            value: .string("Lumi"),
+            requester: owner
+        )
+        _ = try await source.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "minimumIntervalHours": .integer(120),
+                "userScheduleEnabled": .bool(true),
+                "stagingWakeEnabled": .bool(true),
+                "userScheduleKind": .string("weekdays"),
+                "userScheduleLocalTime": .string("10:15")
+            ]),
+            requester: owner
+        )
+        let exported = try #require(asObject(try await source.set(
+            keypath: "chatHub.butler.sync.export",
+            value: .object([:]),
+            requester: owner
+        )))
+        let packet = try #require(asObject(exported["packet"]))
+
+        let denied = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(denied["status"]) == "target_not_approved")
+
+        _ = try await target.set(keypath: "chatHub.butler.sync.configure", value: approval, requester: owner)
+        let imported = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(imported["status"]) == "imported")
+        #expect(asBool(imported["domainSideEffect"]) == true)
+
+        let targetButler = try #require(asObject(try await target.get(keypath: "chatHub.butler", requester: owner)))
+        let profile = try #require(asObject(targetButler["profile"]))
+        let proactivity = try #require(asObject(targetButler["proactivity"]))
+        let support = try #require(asObject(targetButler["support"]))
+        #expect(asString(profile["displayName"]) == "Lumi")
+        #expect(asString(profile["source"]) == "owner_approved_device_sync")
+        #expect(asInt(proactivity["minimumIntervalHours"]) == 120)
+        #expect(asString(proactivity["userScheduleLocalTime"]) == "10:15")
+        #expect(asBool(proactivity["stagingWakeEnabled"]) == true)
+        #expect(asString(support["status"]) == "idle")
+
+        let replay = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(replay["status"]) == "ignored_replay")
+        #expect(asBool(replay["sideEffect"]) == false)
+    }
+
     @Test func personalCopilotSkeletonExposesButlerProfileProactivityAndCapabilityControls() throws {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         let json = String(data: try JSONEncoder().encode(configuration), encoding: .utf8) ?? ""
         #expect(json.contains("chatHub.state.butler.profile.displayName"))
         #expect(json.contains("chatHub.butler.profile.feedback"))
         #expect(json.contains("chatHub.butler.proactivity.configure"))
+        #expect(json.contains("chatHub.butler.proactivity.schedule.localTime"))
+        #expect(json.contains("Tillat staging-vekking"))
+        #expect(json.contains("chatHub.butler.sync.configure"))
+        #expect(json.contains("chatHub.butler.sync.targetEndpoint"))
+        #expect(json.contains("chatHub.butler.sync.push"))
         #expect(json.contains("chatHub.butler.capabilities.refresh"))
         #expect(json.contains("chatHub.butler.support.dismiss"))
+    }
+
+    @Test func daemonWakeURLParserAcceptsOnlyFixedHAVENAgentDCheckInRoute() throws {
+        let scheduleURL = try #require(URL(string: "haven://butler/check-in?source=havenagentd&trigger=user_schedule&slot=daily:2026-07-13"))
+        let stagingURL = try #require(URL(string: "haven://butler/check-in?source=havenagentd&trigger=app_launch"))
+        let foreignSource = try #require(URL(string: "haven://butler/check-in?source=staging&trigger=app_launch"))
+        let arbitraryTrigger = try #require(URL(string: "haven://butler/check-in?source=havenagentd&trigger=run_command"))
+        let wrongRoute = try #require(URL(string: "haven://automation/run?source=havenagentd&trigger=app_launch"))
+
+        #expect(BindingPersonalButlerDaemonWakeRequest.triggerKind(from: scheduleURL) == "user_schedule")
+        #expect(BindingPersonalButlerDaemonWakeRequest.triggerKind(from: stagingURL) == "app_launch")
+        #expect(BindingPersonalButlerDaemonWakeRequest.triggerKind(from: foreignSource) == nil)
+        #expect(BindingPersonalButlerDaemonWakeRequest.triggerKind(from: arbitraryTrigger) == nil)
+        #expect(BindingPersonalButlerDaemonWakeRequest.triggerKind(from: wrongRoute) == nil)
     }
 
     @Test func providerCellsExposeCellScopedStateContracts() async throws {
@@ -497,6 +691,11 @@ struct ChatWorkbenchParityTests {
         #expect(asString(appleState["privacyLevel"]) == "local_device")
         #expect(asBool(appleState["requiresNetwork"]) == false)
         #expect(asBool(appleState["requiresUserApproval"]) == true)
+        #expect(asBool(appleState["supportsClaimAnalysis"]) == true)
+        #expect(asString(appleState["claimAnalysisSchema"]) == "binding.apple-claim-analysis.v1")
+        #expect(asString(appleState["claimDefinitionSchema"]) == "haven.claim-definition.v0")
+        #expect(asBool(appleState["modelMayInventClaimIDs"]) == false)
+        #expect(asBool(appleState["modelMayInventClaimText"]) == false)
         #expect(asStringList(appleState["purposeRefs"]).contains("personal.ai.provider.apple-intelligence"))
         #expect(asStringList(appleState["interests"]).contains("on-device"))
 
@@ -507,6 +706,266 @@ struct ChatWorkbenchParityTests {
         #expect(asString(localState["capability"]) == "llm.generate")
         #expect(asString(localState["privacyLevel"]) == "local_device_or_localhost")
         #expect(asBool(localState["requiresNetwork"]) == false)
+    }
+
+    @Test func applePurposeShortlistIsBoundedToDeterministicBindingCandidates() throws {
+        let prompt = "lag avstemning og lag oppgave for lanseringen"
+        let fallback = BindingChatIntentClassifier.classify(prompt: prompt)
+        let candidates = BindingApplePurposeDecompositionPipeline.shortlist(
+            prompt: prompt,
+            fallback: fallback
+        )
+
+        #expect(candidates.isEmpty == false)
+        #expect(candidates.count <= BindingApplePurposeDecompositionPipeline.maximumCandidateCount)
+        #expect(candidates.contains { $0.purposeRef == fallback.purposeRef })
+        #expect(candidates.contains { $0.purposeRef == "personal.chat.assist.todo" })
+        #expect(candidates.allSatisfy { candidate in
+            candidate.purposeRef.isEmpty == false
+                && candidate.purposeRef != BindingApplePurposeDecompositionPipeline.unknownPurposeRef
+                && candidate.resolverScore >= BindingApplePurposeDecompositionPipeline.minimumResolverScore
+        })
+    }
+
+    @Test func applePurposeGateIgnoresInventedRefsAndFailsClosedWhenNoCandidateIsConfirmed() throws {
+        let prompt = "lag oppgave for å teste kandidatporten"
+        let fallback = BindingChatIntentClassifier.classify(prompt: prompt)
+        let candidates = BindingApplePurposeDecompositionPipeline.shortlist(
+            prompt: prompt,
+            fallback: fallback
+        )
+        let fallbackCandidate = try #require(candidates.first { $0.purposeRef == fallback.purposeRef })
+
+        let selected = BindingApplePurposeDecompositionPipeline.resolve(
+            fallback: fallback,
+            candidates: candidates,
+            verdicts: [
+                BindingApplePurposeVerdictRecord(
+                    purposeRef: fallbackCandidate.purposeRef,
+                    verdict: "yes",
+                    attempts: 1
+                ),
+                BindingApplePurposeVerdictRecord(
+                    purposeRef: "purpose://invented-by-model",
+                    verdict: "yes",
+                    attempts: 1
+                )
+            ]
+        )
+        #expect(selected.classification.purposeRef == fallback.purposeRef)
+        #expect(selected.classification.requiresUserApproval == true)
+        #expect(selected.acceptedPurposeRefs == [fallback.purposeRef])
+        #expect(selected.verdicts.contains { $0.purposeRef == "purpose://invented-by-model" } == false)
+
+        let rejected = BindingApplePurposeDecompositionPipeline.resolve(
+            fallback: fallback,
+            candidates: candidates,
+            verdicts: candidates.map {
+                BindingApplePurposeVerdictRecord(purposeRef: $0.purposeRef, verdict: "no", attempts: 1)
+            }
+        )
+        #expect(rejected.classification.purposeRef == BindingApplePurposeDecompositionPipeline.unknownPurposeRef)
+        #expect(rejected.classification.shouldSuggest == false)
+        #expect(rejected.acceptedPurposeRefs.isEmpty)
+        #expect(rejected.status == "unknown")
+    }
+
+    @Test func appleProviderFixturePublishesCandidateAndGateAuditWithoutModelSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-purpose-fixture")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let state = try #require(asObject(try await apple.get(keypath: "ai.state", requester: owner)))
+        #expect(asString(state["purposeDecompositionSchema"]) == BindingApplePurposeDecompositionPipeline.schema)
+        #expect(asBool(state["modelMayInventPurposeRefs"]) == false)
+
+        let classified = try #require(asObject(try await apple.set(
+            keypath: "ai.classifyIntent",
+            value: .object([
+                "draft": .string("lag oppgave for kandidatbegrenset Apple-test"),
+                "evaluationMode": .string("fixture")
+            ]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(classified["purposeRef"]) == "personal.chat.assist.todo")
+        #expect(asBool(classified["requiresUserApproval"]) == true)
+
+        let decomposition = try #require(asObject(classified["purposeDecomposition"]))
+        #expect(asString(decomposition["schema"]) == BindingApplePurposeDecompositionPipeline.schema)
+        #expect(asString(decomposition["source"]) == "fixture_deterministic_fallback")
+        #expect(asBool(decomposition["sideEffectFree"]) == true)
+        #expect(asBool(decomposition["mutatesPerspective"]) == false)
+        #expect(asBool(decomposition["mutatesEntity"]) == false)
+        #expect(asStringList(decomposition["candidatePurposeRefs"]).contains("personal.chat.assist.todo"))
+        let gate = try #require(asObject(decomposition["gatePolicy"]))
+        #expect(asString(gate["policyID"]) == BindingApplePurposeDecompositionPipeline.gatePolicyID)
+        #expect(asBool(gate["modelMayInventPurposeRefs"]) == false)
+    }
+
+    @Test func appleProviderLiveGuidedPurposeSmokeStaysInsideDeterministicShortlist() async throws {
+#if !BINDING_APPLE_PURPOSE_SMOKE
+        return
+#else
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-purpose-live-smoke")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let state = try #require(asObject(try await apple.get(keypath: "ai.state", requester: owner)))
+        #expect(asString(state["status"]) == "ready")
+
+        let classified = try #require(asObject(try await apple.set(
+            keypath: "ai.classifyIntent",
+            value: .object([
+                "draft": .string("Lag oppgave: test kandidatporten i Binding.")
+            ]),
+            requester: owner
+        ) ?? .null))
+        let decomposition = try #require(asObject(classified["purposeDecomposition"]))
+        let candidateRefs = asStringList(decomposition["candidatePurposeRefs"])
+        let selectedPurposeRef = try #require(asString(decomposition["selectedPurposeRef"]))
+
+        #expect(asString(decomposition["source"]) == "apple_guided_candidate_verdicts")
+        #expect(asInt(decomposition["modelErrorCount"]) == 0)
+        #expect(candidateRefs.contains("personal.chat.assist.todo"))
+        #expect(selectedPurposeRef == "personal.chat.assist.todo")
+        #expect(candidateRefs.contains(selectedPurposeRef))
+        #expect(asStringList(decomposition["acceptedPurposeRefs"]).contains(selectedPurposeRef))
+        #expect(asBool(decomposition["sideEffectFree"]) == true)
+        #expect(asBool(decomposition["mutatesPerspective"]) == false)
+        #expect(asBool(decomposition["mutatesEntity"]) == false)
+#endif
+    }
+
+    @Test func appleClaimCandidatesKeepExactInputAnchorsAndStayBounded() throws {
+        let text = "HAVEN støtter lokal claim-analyse. Hvorfor nå? Produktiviteten øker med 12%."
+        let candidates = BindingAppleClaimArgumentPipeline.candidates(in: text)
+
+        #expect(candidates.isEmpty == false)
+        #expect(candidates.count <= BindingAppleClaimArgumentPipeline.maximumCandidateCount)
+        #expect(candidates.first?.quote == "HAVEN støtter lokal claim-analyse.")
+        #expect(candidates.allSatisfy { candidate in
+            let start = text.index(text.startIndex, offsetBy: candidate.startCharacter)
+            let end = text.index(text.startIndex, offsetBy: candidate.endCharacter)
+            return String(text[start..<end]) == candidate.quote
+                && candidate.claimID.hasPrefix("claim.binding.")
+        })
+
+        let linked = BindingAppleClaimArgumentPipeline.candidates(
+            in: "Kilden https://example.org/docs støtter denne påstanden."
+        )
+        #expect(linked.count == 1)
+        #expect(linked.first?.sourceRefs == ["https://example.org/docs"])
+        #expect(linked.first?.quote == "Kilden https://example.org/docs støtter denne påstanden.")
+    }
+
+    @Test func appleClaimGateRejectsInventedIDsAndUnboundedClaimTypes() throws {
+        let candidates = BindingAppleClaimArgumentPipeline.candidates(
+            in: "HAVEN støtter lokal claim-analyse."
+        )
+        let candidate = try #require(candidates.first)
+        let outcome = BindingAppleClaimArgumentPipeline.resolve(
+            candidates: candidates,
+            verdicts: [
+                BindingAppleClaimVerdictRecord(
+                    claimID: candidate.claimID,
+                    verdict: "yes",
+                    claimType: "project_capability",
+                    attempts: 2
+                ),
+                BindingAppleClaimVerdictRecord(
+                    claimID: "claim.invented-by-model",
+                    verdict: "yes",
+                    claimType: "factual",
+                    attempts: 1
+                ),
+                BindingAppleClaimVerdictRecord(
+                    claimID: candidate.claimID,
+                    verdict: "yes",
+                    claimType: "invented_claim_type",
+                    attempts: 1
+                )
+            ],
+            purposeRef: "purpose://claim-smoke"
+        )
+
+        #expect(outcome.verdicts.contains { $0.claimID == "claim.invented-by-model" } == false)
+        #expect(outcome.acceptedClaims.isEmpty)
+        #expect(outcome.status == "no_accepted_claims")
+    }
+
+    @Test func appleClaimProviderFixturePublishesClaimDefinitionWithoutSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-claim-fixture")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let analysis = try #require(asObject(try await apple.set(
+            keypath: "ai.analyzeClaims",
+            value: .object([
+                "text": .string("HAVEN støtter lokal claim-analyse. Produktiviteten øker med 12%."),
+                "purposeRef": .string("purpose://claim-analysis-smoke"),
+                "evaluationMode": .string("fixture")
+            ]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asString(analysis["schema"]) == "binding.apple-claim-analysis.v1")
+        #expect(asString(analysis["claimSchema"]) == "haven.claim-definition.v0")
+        #expect(asString(analysis["source"]) == "fixture_deterministic_claim_heuristics")
+        #expect(asBool(analysis["modelMayInventClaimIDs"]) == false)
+        #expect(asBool(analysis["modelMayInventClaimText"]) == false)
+        #expect(asBool(analysis["quotesAreExactInputAnchors"]) == true)
+        #expect(asBool(analysis["sourceAuditPerformed"]) == false)
+        #expect(asBool(analysis["argumentCompositionPerformed"]) == false)
+        #expect(asBool(analysis["sideEffectFree"]) == true)
+        #expect(asBool(analysis["mutatesPerspective"]) == false)
+        #expect(asBool(analysis["mutatesEntity"]) == false)
+
+        let claims = (asList(analysis["claimLedger"]) ?? []).compactMap(asObject)
+        #expect(claims.count == 2)
+        #expect(asString(claims.first?["schema"]) == "haven.claim-definition.v0")
+        #expect(asString(claims.first?["statement"]) == "HAVEN støtter lokal claim-analyse.")
+        #expect(asString(claims.first?["quote"]) == asString(claims.first?["statement"]))
+        #expect(asBool(claims.first?["isInferred"]) == false)
+        #expect(asString(claims.first?["claimType"]) == "project_capability")
+        #expect(asString(claims.first?["sourceAuditStatus"]) == "source_missing")
+        #expect(asString(claims.first?["purposeRef"]) == "purpose://claim-analysis-smoke")
+        #expect((asList(claims.first?["supports"]) ?? []).isEmpty)
+    }
+
+    @Test func appleProviderLiveGuidedClaimSmokeUsesExactQuoteAndBoundedType() async throws {
+#if !BINDING_APPLE_PURPOSE_SMOKE
+        return
+#else
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-claim-live-smoke")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let analysis = try #require(asObject(try await apple.set(
+            keypath: "ai.analyzeClaims",
+            value: .object([
+                "text": .string("HAVEN støtter lokal claim-analyse."),
+                "purposeRef": .string("purpose://claim-analysis-smoke")
+            ]),
+            requester: owner
+        ) ?? .null))
+
+        let claims = (asList(analysis["claimLedger"]) ?? []).compactMap(asObject)
+        let claim = try #require(claims.first)
+        #expect(asString(analysis["source"]) == "apple_guided_claim_microtasks")
+        #expect(asInt(analysis["modelErrorCount"]) == 0)
+        #expect(asString(claim["statement"]) == "HAVEN støtter lokal claim-analyse.")
+        #expect(asString(claim["quote"]) == "HAVEN støtter lokal claim-analyse.")
+        #expect(asString(claim["claimType"]) == "project_capability")
+        #expect(asBool(analysis["sideEffectFree"]) == true)
+#endif
     }
 
     @Test func ownerScopedChatAndProviderCellsRejectForeignRequesterWithoutDebugBypass() async throws {
@@ -558,6 +1017,13 @@ struct ChatWorkbenchParityTests {
             try await apple.set(
                 keypath: "ai.classifyIntent",
                 value: .object(["draft": .string("lag en oppgave")]),
+                requester: foreignRequester
+            )
+        }
+        await expectDenied {
+            try await apple.set(
+                keypath: "ai.analyzeClaims",
+                value: .object(["text": .string("HAVEN støtter lokal claim-analyse.")]),
                 requester: foreignRequester
             )
         }
@@ -1756,7 +2222,7 @@ struct ChatWorkbenchParityTests {
             let analyzedState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
             let analyzedUI = try #require(asObject(analyzedState["ui"]))
             #expect(asBool(analyzedUI["hasActionableSuggestion"]) == true)
-            #expect((asString(analyzedUI["primaryActionHint"]) ?? "").contains("Trykk hovedknappen"))
+            #expect((asString(analyzedUI["primaryActionHint"]) ?? "").contains("Åpne forslag"))
 
             let open = try #require(asObject(try await chat.set(
                 keypath: "chatHub.ui.openSuggestedHelper",
@@ -1775,6 +2241,80 @@ struct ChatWorkbenchParityTests {
             #expect((asList(openedUI["activeHelpers"]) ?? []).contains { asString(asObject($0)?["id"]) == scenario.helper })
             #expect(counters(.object(openedState)) == before)
         }
+    }
+
+    @Test func nearbyPersonLookupMentionsAndOpensEntityScanner() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = false
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-chat-nearby-person-lookup")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        let before = counters(try await chat.get(keypath: "state", requester: owner))
+
+        _ = try await chat.set(
+            keypath: "chatHub.setComposer",
+            value: .string("Hvordan kan jeg finne Vegar?"),
+            requester: owner
+        )
+        let analyze = try #require(asObject(try await chat.set(
+            keypath: "chatHub.assistant.analyzeDraft",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        let suggestion = try #require(asObject(analyze["suggestion"]))
+        #expect(asBool(analyze["sideEffect"]) == false)
+        #expect(asString(suggestion["helperID"]) == "nearby-scanner")
+        #expect(asString(suggestion["purposeRef"]) == "personal.chat.assist.entity-contact-request")
+        let explanation = asString(suggestion["explanation"]) ?? ""
+        #expect(explanation.contains("Nearby Scanner") == true)
+        #expect(explanation.contains("fysisk") == true)
+        #expect(explanation.contains("dele lokasjon") == true)
+        let followUpActions = (asList(suggestion["safeFollowUpActions"]) ?? []).compactMap(asObject)
+        let locationShare = followUpActions.first { asString($0["id"]) == "location-share-request" }
+        #expect(locationShare != nil)
+        #expect(asString(locationShare?["requestedAction"]) == "location.share.request")
+        #expect(asBool(locationShare?["requiresRecipientApproval"]) == true)
+        #expect(asBool(locationShare?["sideEffectBeforeUserAction"]) == false)
+
+        let resourceMatches = asList(analyze["resourceMatches"]) ?? []
+        let scannerMatch = resourceMatches.compactMap(asObject).first {
+            asString($0["title"]) == "Entity Scanner"
+        }
+        #expect(scannerMatch != nil)
+        #expect(asString(scannerMatch?["sourceCellEndpoint"]) == "cell:///EntityScanner")
+        let scannerSummary = asString(scannerMatch?["summary"]) ?? ""
+        #expect(scannerSummary.contains("lokasjonsdelingsforesporsel") == true)
+
+        let groundedPlan = try #require(asObject(analyze["groundedActionPlan"]))
+        let target = try #require(asObject(groundedPlan["target"]))
+        #expect(asString(target["actionKeypath"]) == "ui.openMatchedResourceLibrary")
+        #expect(asString(target["title"]) == "Entity Scanner")
+
+        let open = try #require(asObject(try await chat.set(
+            keypath: "chatHub.ui.openSuggestedHelper",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asBool(open["ok"]) == true)
+        #expect(asBool(open["sideEffect"]) == false)
+        #expect(asString(open["helper"]) == "nearby-scanner")
+        let openedResource = try #require(asObject(open["resource"]))
+        #expect(asString(openedResource["title"]) == "Entity Scanner")
+
+        let surface = try #require(asObject(open["surface"]))
+        #expect(asString(surface["kind"]) == "nearby-scanner")
+        let surfaceSummary = asString(surface["summary"]) ?? ""
+        #expect(surfaceSummary.contains("nearby scanning") == true)
+        #expect(surfaceSummary.contains("lokasjonsdelingsforesporsel") == true)
+        #expect(surfaceSummary.contains("Start") == true)
+
+        let openedState = try #require(asObject(try await chat.get(keypath: "chatHub.state", requester: owner)))
+        let openedUI = try #require(asObject(openedState["ui"]))
+        #expect(asBool(openedUI["hasActiveHelperSurface"]) == true)
+        #expect(asString(openedUI["activeTab"]) == "samtale")
+        #expect((asList(openedUI["activeHelpers"]) ?? []).contains { asString(asObject($0)?["id"]) == "nearby-scanner" })
+        #expect(counters(.object(openedState)) == before)
     }
 
     @Test func vaultIdeasAndObsidianGraphPromptsRouteToLocalSurfaces() async throws {
@@ -2271,7 +2811,7 @@ struct ChatWorkbenchParityTests {
         #expect(counters(.object(openedState)) == before)
     }
 
-    @Test func arendalsukaPromptOpensParticipantConfigurationAndBecomesChatHistory() async throws {
+    @Test func arendalsukaPromptOffersExplicitParticipantConfigurationLoadAndBecomesChatHistory() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = false
         defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
@@ -2280,18 +2820,12 @@ struct ChatWorkbenchParityTests {
         let chat = await BindingPersonalChatHubCell(owner: owner)
         let submitted = try #require(asObject(try await chat.set(
             keypath: "chatHub.prompt.submit",
-            value: .string("Hva skjer på arendalsuka?"),
+            value: .string("Hva skjer i arendalsuka?"),
             requester: owner
         ) ?? .null))
 
-        #expect(asString(submitted["status"]) == "library_open_requested")
-        #expect(asBool(submitted["configurationLoaded"]) == true)
-        let resource = try #require(asObject(submitted["resource"]))
-        #expect(asString(resource["title"]) == "Arendalsuka Participant Program")
-        #expect(asString(resource["sourceCellEndpoint"]) == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
-        let portholeUI = try #require(asObject(submitted["portholeUI"]))
-        #expect(asBool(portholeUI["openLibrary"]) == true)
-        #expect(asString(portholeUI["configurationName"]) == "Arendalsuka Participant Program")
+        #expect(asString(submitted["status"]) == "suggested")
+        #expect(submitted["configurationLoaded"] == nil)
 
         let state = try #require(asObject(submitted["state"]))
         #expect(asString(asObject(state["composer"])?["body"]) == "")
@@ -2300,15 +2834,41 @@ struct ChatWorkbenchParityTests {
         let latestRows = rows.suffix(2).compactMap(asObject)
         #expect(latestRows.count == 2)
         #expect(asString(latestRows.first?["role"]) == "user")
-        #expect(asString(latestRows.first?["body"]) == "Hva skjer på arendalsuka?")
+        #expect(asString(latestRows.first?["body"]) == "Hva skjer i arendalsuka?")
         #expect(asString(latestRows.last?["role"]) == "assistant")
+        #expect(asBool(latestRows.last?["canOpenSuggestion"]) == true)
         #expect((asString(latestRows.last?["body"]) ?? "").contains("Arendalsuka Participant Program"))
 
-        let configuration = try #require(
-            ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
-                includeAgentOperatorSurfaces: false
-            ).first { $0.name == "Arendalsuka Participant Program" }
-        )
+        let bridgeCapture = PortholeBridgeCapture()
+        let bridgeObserver = NotificationCenter.default.addObserver(
+            forName: BindingPortholeLoadBridge.notificationName,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let configuration = BindingPortholeLoadBridge.configuration(from: notification) else { return }
+            bridgeCapture.record(configuration)
+        }
+        defer { NotificationCenter.default.removeObserver(bridgeObserver) }
+
+        let opened = try #require(asObject(try await chat.set(
+            keypath: "chatHub.ui.openSuggestedHelper",
+            value: .object([:]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(opened["status"]) == "library_open_requested")
+        #expect(asBool(opened["configurationLoaded"]) == true)
+        let resource = try #require(asObject(opened["resource"]))
+        #expect(asString(resource["title"]) == "Arendalsuka Participant Program")
+        #expect(asString(resource["sourceCellEndpoint"]) == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
+        let portholeUI = try #require(asObject(opened["portholeUI"]))
+        #expect(asBool(portholeUI["openLibrary"]) == true)
+        #expect(asString(portholeUI["configurationName"]) == "Arendalsuka Participant Program")
+
+        let configuration = try #require(bridgeCapture.configuration)
+        #expect(configuration.name == "Arendalsuka Participant Program")
+        #expect(configuration.cellReferences?.contains {
+            $0.endpoint == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram"
+        } == true)
         #expect(configuration.skeleton != nil)
     }
 
@@ -2578,6 +3138,23 @@ struct ChatWorkbenchParityTests {
         let requester = await vault.identity(for: "binding-contact-requester-\(UUID().uuidString)", makeNewIfNotFound: true)!
         CellBase.defaultIdentityVault = previousVault
         return (owner, requester)
+    }
+}
+
+private final class PortholeBridgeCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var capturedConfiguration: CellConfiguration?
+
+    var configuration: CellConfiguration? {
+        lock.lock()
+        defer { lock.unlock() }
+        return capturedConfiguration
+    }
+
+    func record(_ configuration: CellConfiguration) {
+        lock.lock()
+        capturedConfiguration = configuration
+        lock.unlock()
     }
 }
 

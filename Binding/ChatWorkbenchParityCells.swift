@@ -2,13 +2,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
 
 import Foundation
-import CellBase
+@_spi(HAVENRuntime) import CellBase
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
 
+private struct UncheckedSendableReference<Value>: @unchecked Sendable {
+    let value: Value
+}
+
 protocol BindingRuntimeBindingEnsuring: AnyObject {
-    func ensureRuntimeBindings() async throws
+    func ensureRuntimeBindings(requester: Identity?) async throws
 }
 
 enum BindingRuntimeBindingError: Error {
@@ -79,37 +83,42 @@ class BindingRuntimeBindingCell: GeneralCell, BindingRuntimeBindingEnsuring {
         agreementTemplate.addGrant(permissions, for: keypath)
     }
 
-    func ensureRuntimeBindings() async throws {
-        try await runtimeBindingState.ensure { [weak self] in
-            guard let self,
-                  let owner = await self.proofCapableStoredOwner() else {
+    func ensureRuntimeBindings(requester: Identity? = nil) async throws {
+        let cell = UncheckedSendableReference(value: self)
+        let requesterReference = requester.map { UncheckedSendableReference(value: $0) }
+        try await runtimeBindingState.ensure {
+            guard let owner = await cell.value.proofCapableStoredOwner(
+                requester: requesterReference?.value
+            ) else {
                 return .failure(.ownerProofUnavailable)
             }
-            await self.installRuntimeBindings(owner: owner)
+            await cell.value.installRuntimeBindings(owner: owner)
             return .success(())
         }
     }
 
     override func get(keypath: String, requester: Identity) async throws -> ValueType {
-        try await ensureRuntimeBindings()
+        try await ensureRuntimeBindings(requester: requester)
         return try await super.get(keypath: keypath, requester: requester)
     }
 
     override func set(keypath: String, value: ValueType, requester: Identity) async throws -> ValueType? {
-        try await ensureRuntimeBindings()
+        try await ensureRuntimeBindings(requester: requester)
         return try await super.set(keypath: keypath, value: value, requester: requester)
     }
 
-    private func proofCapableStoredOwner() async -> Identity? {
+    private func proofCapableStoredOwner(requester: Identity?) async -> Identity? {
         let storedOwner = storedOwnerIdentity
-        if storedOwner.identityVault != nil {
+        if await requesterProvesOwnership(storedOwner) {
             return storedOwner
+        }
+        if let requester,
+           await bindStoredOwnerToRuntimeIdentity(requester) {
+            return requester
         }
         guard
             let hydratedOwner = await CellBase.defaultIdentityVault?.identity(forUUID: storedOwner.uuid),
-            storedOwner.uuid == hydratedOwner.uuid,
-            let storedFingerprint = storedOwner.signingPublicKeyFingerprint,
-            storedFingerprint == hydratedOwner.signingPublicKeyFingerprint
+            await bindStoredOwnerToRuntimeIdentity(hydratedOwner)
         else {
             return nil
         }
@@ -133,7 +142,7 @@ struct BindingChatIntentClassification: Codable, Equatable {
     }
 
     nonisolated func objectValue() -> Object {
-        [
+        var object: Object = [
             "kind": .string(intentKind),
             "intentKind": .string(intentKind),
             "purposeRef": .string(purposeRef),
@@ -148,6 +157,27 @@ struct BindingChatIntentClassification: Codable, Equatable {
             "targetPhrase": .string(helperID.isEmpty ? intentKind : helperID),
             "weightedScore": .float(confidence),
             "availability": .string(shouldSuggest ? "available_in_chat_scope" : "not_selected")
+        ]
+        object["safeFollowUpActions"] = .list(safeFollowUpActions.map(ValueType.object))
+        return object
+    }
+
+    nonisolated private var safeFollowUpActions: [Object] {
+        guard helperID == "nearby-scanner", shouldSuggest else { return [] }
+        return [
+            [
+                "id": .string("location-share-request"),
+                "title": .string("Be personen dele lokasjon"),
+                "summary": .string("Sender bare en foresporsel om lokasjonsdeling. Mottakeren ma godkjenne foer noen posisjon deles, og kan avslaa."),
+                "actionKeypath": .string("contact.request"),
+                "requestedAction": .string("location.share.request"),
+                "purposeRef": .string("personal.chat.assist.location-share-request"),
+                "requiresUserApproval": .bool(true),
+                "requiresRecipientApproval": .bool(true),
+                "requiresSignedIntent": .bool(true),
+                "sideEffectBeforeUserAction": .bool(false),
+                "permissionBoundary": .string("recipient_controls_location_share")
+            ]
         ]
     }
 
@@ -186,6 +216,8 @@ struct BindingChatIntentClassification: Codable, Equatable {
             return "Jeg kan apne behovsflaten som et lokalt utkast. Ingenting sendes videre for du bekrefter."
         case "resource-router":
             return "Jeg fant en synlig flate som passer. Apne hjelperen for aa filtrere Library uten aa laste eller kjore noe automatisk."
+        case "nearby-scanner":
+            return "Nearby Scanner kan hjelpe hvis personen er fysisk i naerheten og scanning startes eksplisitt. En annen trygg vei er aa sende en foresporsel om aa dele lokasjon; mottakeren maa godkjenne foer du ser noe."
         default:
             return reason
         }
@@ -951,6 +983,16 @@ enum BindingChatIntentClassifier {
            let resource = bestCellConfigurationResourceMatch(prompt: prompt) {
             return resourceMatchClassification(resource)
         }
+        if looksLikeNearbyPersonLookup(normalized) {
+            return positive(
+                kind: "nearby_person_lookup",
+                purposeRef: "personal.chat.assist.entity-contact-request",
+                interests: ["nearby", "scanner", "entity-scanner", "person-lookup", "physical-proximity", "privacy-boundary", "requires-user-approval"],
+                helperID: "nearby-scanner",
+                confidence: 0.84,
+                reason: "Meldingen ber om aa finne en person; paa en enhet med nearby scanning skal Co-Pilot foreslaa Entity Scanner og lokasjonsdelingsforesporsel uten aa love global lokasjon eller skjult tracking."
+            )
+        }
         if containsAny(normalized, ["inviter", "invite"]) {
             let ambiguous = containsAny(normalized, ["kollega"]) && !containsAny(normalized, ["nærmeste", "naermeste", "narmeste", "anna"])
             return BindingChatIntentClassification(
@@ -1198,6 +1240,69 @@ enum BindingChatIntentClassifier {
         ])
     }
 
+    nonisolated private static func looksLikeNearbyPersonLookup(_ text: String) -> Bool {
+        let asksHowToFind = containsAny(text, [
+            "hvordan kan jeg finne",
+            "hvordan finner jeg",
+            "hvor finner jeg",
+            "korleis finn eg",
+            "kordan finn eg",
+            "how can i find",
+            "how do i find",
+            "where can i find",
+            "where is"
+        ])
+        let explicitFind = containsAny(text, [
+            "finn person",
+            "finne person",
+            "finn deltaker",
+            "finn deltager",
+            "finn kontakt",
+            "find person",
+            "locate person"
+        ])
+        let personHint = containsAny(text, [
+            "person",
+            "kontakt",
+            "venn",
+            "kollega",
+            "deltaker",
+            "deltager",
+            "participant",
+            "speaker",
+            "vegar"
+        ])
+        let nearbyHint = containsAny(text, [
+            "nearby",
+            "i nærheten",
+            "i naerheten",
+            "her",
+            "samme rom",
+            "konferanse",
+            "conference",
+            "meetup",
+            "enhet",
+            "device",
+            "scanner"
+        ])
+        let resourceHint = containsAny(text, [
+            "dokument",
+            "dokumentasjon",
+            "docs",
+            "rag",
+            "vault",
+            "obsidian",
+            "graf",
+            "graph",
+            "prosjekt",
+            "oppgave",
+            "todo",
+            "kart",
+            "map"
+        ])
+        return resourceHint == false && (explicitFind || (asksHowToFind && (personHint || nearbyHint)))
+    }
+
     nonisolated static func resourceMatches(
         prompt: String,
         grantRAG: Bool = true,
@@ -1373,6 +1478,18 @@ enum BindingChatIntentClassifier {
                 purposeRef: "conference.demo.story.run",
                 interests: ["conference", "demo", "story", "participant", "sponsor", "exhibitor", "organizer", "resource-router"],
                 score: 0.9
+            ))
+        }
+        if looksLikeNearbyPersonLookup(normalized) {
+            matches.append(cellConfigurationResource(
+                id: "configuration:entity-scanner",
+                title: "Entity Scanner",
+                summary: "Start brukerinitiert nearby scanning for personer/enheter som er fysisk i naerheten, eller send en lokasjonsdelingsforesporsel som mottakeren maa godkjenne.",
+                sourceCellEndpoint: "cell:///EntityScanner",
+                sourceCellName: "EntityScannerCell",
+                purposeRef: "personal.chat.assist.entity-contact-request",
+                interests: ["scanner", "nearby", "identity", "peer", "person-lookup", "location-share-request", "privacy-boundary", "resource-router"],
+                score: 0.94
             ))
         }
         if looksLikePurposeInterestDocumentation(normalized) {
@@ -2255,7 +2372,7 @@ enum BindingGroundedActionPlanner {
         }
 
         let targetResource: Object?
-        if ["resource-router", "mermaid-diagram", "spatial-map"].contains(suggestion.helperID) {
+        if ["resource-router", "mermaid-diagram", "spatial-map", "nearby-scanner"].contains(suggestion.helperID) {
             targetResource = resourceMatches.first(where: {
                 let kind = BindingChatValue.string($0["kind"])
                 return kind == "cell_configuration" || kind == "truth_source"
@@ -2272,7 +2389,7 @@ enum BindingGroundedActionPlanner {
         let planHelperID = groundedHelperID(for: suggestion.helperID, resource: targetResource)
         var actionKeypath = canonicalActionKeypath(for: planHelperID)
         if let openAction = targetResource.flatMap({ BindingChatValue.string($0["openActionKeypath"]) }),
-           ["resource-router", "mermaid-diagram", "spatial-map", "docs-rag"].contains(suggestion.helperID),
+           ["resource-router", "mermaid-diagram", "spatial-map", "docs-rag", "nearby-scanner"].contains(suggestion.helperID),
            openAction.isEmpty == false {
             actionKeypath = canonicalActionKeypath(openAction)
         }
@@ -2376,6 +2493,8 @@ enum BindingGroundedActionPlanner {
             return "assistant.queryResource"
         case "resource-router", "mermaid-diagram", "spatial-map":
             return "ui.openMatchedResourceLibrary"
+        case "nearby-scanner":
+            return "ui.openMatchedResourceLibrary"
         case "capability-request":
             return "capabilityRequest.submit"
         default:
@@ -2448,7 +2567,7 @@ enum BindingGroundedActionPlanner {
             return resourceRisk
         }
         switch helperID {
-        case "docs-rag", "resource-router", "mermaid-diagram", "spatial-map":
+        case "docs-rag", "resource-router", "mermaid-diagram", "spatial-map", "nearby-scanner":
             return "read"
         case "agent-review", "agent-setup":
             return "local-agent"
@@ -2514,6 +2633,7 @@ enum BindingGroundedActionVerifier {
             helperSchema("meeting", actionKeypath: "chatHub.meeting.schedule", purposeRef: "personal.chat.assist.meeting.schedule", riskLevel: "draft"),
             helperSchema("onboarding", actionKeypath: "chatHub.onboarding.start", purposeRef: "personal.chat.assist.guided-onboarding", riskLevel: "draft"),
             helperSchema("resource-router", actionKeypath: "chatHub.ui.openMatchedResourceLibrary", purposeRef: "personal.chat.assist.resource-router", riskLevel: "read"),
+            helperSchema("nearby-scanner", actionKeypath: "chatHub.ui.openMatchedResourceLibrary", purposeRef: "personal.chat.assist.entity-contact-request", riskLevel: "read"),
             helperSchema("spatial-map", actionKeypath: "chatHub.ui.openMatchedResourceLibrary", purposeRef: "personal.chat.assist.spatial-query", riskLevel: "read"),
             helperSchema("docs-rag", actionKeypath: "chatHub.docsRAG.askRAG", purposeRef: "personal.chat.assist.rag-query", riskLevel: "query"),
             helperSchema("agent-review", actionKeypath: "chatHub.agent.review.create", purposeRef: "personal.agent.local.gui.review", riskLevel: "review"),
@@ -2717,7 +2837,7 @@ enum BindingGroundedActionVerifier {
         for suggestion: BindingChatIntentClassification,
         resourceMatches: [Object]
     ) -> Object? {
-        if suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" || suggestion.helperID == "spatial-map" {
+        if suggestion.helperID == "resource-router" || suggestion.helperID == "mermaid-diagram" || suggestion.helperID == "spatial-map" || suggestion.helperID == "nearby-scanner" {
             return resourceMatches.first(where: {
                 let kind = BindingChatValue.string($0["kind"])
                 return kind == "cell_configuration" || kind == "truth_source"
@@ -2739,7 +2859,7 @@ enum BindingGroundedActionVerifier {
         switch helperID {
         case "docs-rag": return "query"
         case "agent-review", "agent-setup": return "local-agent"
-        case "resource-router", "mermaid-diagram", "spatial-map": return "read"
+        case "resource-router", "mermaid-diagram", "spatial-map", "nearby-scanner": return "read"
         default: return "draft"
         }
     }
@@ -2884,7 +3004,7 @@ enum BindingChatProviderRouter {
             }
         }
         if suggestion.shouldSuggest,
-           ["invite", "poll", "idea-capture", "work-item", "docs-rag", "todo", "project", "reminder", "meeting", "onboarding", "capability-request", "resource-router", "spatial-map"].contains(suggestion.helperID) {
+           ["invite", "poll", "idea-capture", "work-item", "docs-rag", "todo", "project", "reminder", "meeting", "onboarding", "capability-request", "resource-router", "spatial-map", "nearby-scanner"].contains(suggestion.helperID) {
             return localRulesProvider()
         }
         if suggestion.helperID == "agent-review"
@@ -3033,9 +3153,11 @@ enum BindingChatProviderRouter {
 final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case lastClassification
+        case lastClaimAnalysis
     }
 
     nonisolated(unsafe) private var lastClassification: Object = [:]
+    nonisolated(unsafe) private var lastClaimAnalysis: Object = [:]
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -3046,6 +3168,7 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
     nonisolated required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         lastClassification = (try? container.decode(Object.self, forKey: .lastClassification)) ?? [:]
+        lastClaimAnalysis = (try? container.decode(Object.self, forKey: .lastClaimAnalysis)) ?? [:]
         try super.init(from: decoder)
     }
 
@@ -3053,13 +3176,14 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
         try super.encode(to: encoder)
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(lastClassification, forKey: .lastClassification)
+        try container.encode(lastClaimAnalysis, forKey: .lastClaimAnalysis)
     }
 
     override func installRuntimeBindings(owner: Identity) async {
-        for key in ["ai.state", "ai.lastClassification"] {
+        for key in ["ai.state", "ai.lastClassification", "ai.lastClaimAnalysis"] {
             ensureAgreementGrant("r---", for: key)
         }
-        for key in ["ai.classifyIntent", "ai.sendPrompt"] {
+        for key in ["ai.classifyIntent", "ai.analyzeClaims", "ai.sendPrompt"] {
             ensureAgreementGrant("rw--", for: key)
         }
 
@@ -3073,10 +3197,20 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             guard await self.validateAccess("r---", at: "ai.lastClassification", for: requester) else { return .string("denied") }
             return .object(self.lastClassification)
         }
+        await registerGet(key: "ai.lastClaimAnalysis", owner: owner, returns: .object([:])) { [weak self] requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "ai.lastClaimAnalysis", for: requester) else { return .string("denied") }
+            return .object(self.lastClaimAnalysis)
+        }
         await registerSet(key: "ai.classifyIntent", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "ai.classifyIntent", for: requester) else { return .string("denied") }
             return await self.classify(value)
+        }
+        await registerSet(key: "ai.analyzeClaims", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "ai.analyzeClaims", for: requester) else { return .string("denied") }
+            return await self.analyzeClaims(value)
         }
         await registerSet(key: "ai.sendPrompt", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
             guard let self else { return .string("failure") }
@@ -3102,6 +3236,18 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             "requiresUserApproval": .bool(true),
             "canInvokeFromChat": .bool(false),
             "supportsStructuredIntent": .bool(availability.structured),
+            "supportsClaimAnalysis": .bool(availability.structured),
+            "purposeDecompositionSchema": .string(BindingApplePurposeDecompositionPipeline.schema),
+            "purposeGatePolicy": .object(BindingApplePurposeDecompositionPipeline.gatePolicyObject()),
+            "modelMayInventPurposeRefs": .bool(false),
+            "claimAnalysisSchema": .string(BindingAppleClaimArgumentPipeline.schema),
+            "claimDefinitionSchema": .string(ClaimDefinition.schemaID),
+            "modelMayInventClaimIDs": .bool(false),
+            "modelMayInventClaimText": .bool(false),
+            "capabilities": .list([
+                .string("ai.classifyIntent"),
+                .string("ai.analyzeClaims")
+            ]),
             "purposeRefs": .list([
                 .string("personal.ai.provider.apple-intelligence"),
                 .string("personal.chat.assist.resource-router")
@@ -3114,7 +3260,8 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
                 .string("assistant")
             ]),
             "reason": .string(availability.reason),
-            "lastClassification": .object(lastClassification)
+            "lastClassification": .object(lastClassification),
+            "lastClaimAnalysis": .object(lastClaimAnalysis)
         ])
     }
 
@@ -3131,18 +3278,41 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             capabilityDiscoveryEnabled: capabilityDiscoveryEnabled,
             scaffoldContextAvailable: scaffoldContextAvailable
         )
+        let contextPack = contextPackForClassification(from: payload)
         let useFixtureFallback = BindingChatValue.string(payload["evaluationMode"]) == "fixture"
-        let classification = await Self.foundationModelClassification(
+        let outcome = await Self.foundationModelClassification(
             draft: draft,
-            contextPack: contextPackForClassification(from: payload),
+            contextPack: contextPack,
             fallback: fallback,
             allowFoundationModels: !useFixtureFallback
         )
-        var object = classification.objectValue()
+        var object = outcome.classification.objectValue()
         object["providerID"] = .string("binding.apple-intelligence")
         object["providerKind"] = .string("apple_intelligence")
-        object["usedContext"] = .object(contextPackForClassification(from: payload))
+        object["usedContext"] = .object(contextPack)
+        object["purposeDecomposition"] = .object(outcome.objectValue())
         lastClassification = object
+        return .object(object)
+    }
+
+    private func analyzeClaims(_ value: ValueType) async -> ValueType {
+        let payload = BindingChatValue.object(value) ?? [:]
+        let text = BindingChatValue.string(payload["text"])
+            ?? BindingChatValue.string(payload["draft"])
+            ?? BindingChatValue.string(payload["prompt"])
+            ?? (value.stringValueIfPossible ?? "")
+        let rawPurposeRef = BindingChatValue.string(payload["purposeRef"])
+        let purposeRef = rawPurposeRef?.isEmpty == false ? rawPurposeRef : nil
+        let useFixtureFallback = BindingChatValue.string(payload["evaluationMode"]) == "fixture"
+        let outcome = await BindingAppleClaimArgumentPipeline.analyze(
+            text: text,
+            purposeRef: purposeRef,
+            allowFoundationModels: !useFixtureFallback
+        )
+        var object = outcome.objectValue()
+        object["providerID"] = .string("binding.apple-intelligence")
+        object["providerKind"] = .string("apple_intelligence")
+        lastClaimAnalysis = object
         return .object(object)
     }
 
@@ -3192,39 +3362,82 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
         contextPack: Object,
         fallback: BindingChatIntentClassification,
         allowFoundationModels: Bool
-    ) async -> BindingChatIntentClassification {
-        guard allowFoundationModels else { return fallback }
+    ) async -> BindingApplePurposeDecompositionOutcome {
+        let candidates = BindingApplePurposeDecompositionPipeline.shortlist(
+            prompt: draft,
+            fallback: fallback
+        )
+        guard allowFoundationModels else {
+            return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+                fallback: fallback,
+                candidates: candidates,
+                source: "fixture_deterministic_fallback"
+            )
+        }
 #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *),
            SystemLanguageModel.default.isAvailable {
-            do {
-                let session = LanguageModelSession(instructions: """
-                Classify one private chat draft into a HAVEN PersonalChatHub helper intent.
-                Only use the provided draft, perspective summary and granted descriptors.
-                Never infer access to contacts, calendar, camera, microphone, vault or other threads.
-                If the user says not to do an action, set negativeIntent and use low_confidence.
-                """)
-                let contextJSON = (try? ValueType.object(contextPack).jsonString()) ?? "{}"
-                let response = try await session.respond(
-                    generating: BindingAppleStructuredIntent.self,
-                    includeSchemaInPrompt: true,
-                    options: GenerationOptions(sampling: .greedy)
-                ) {
-                    """
-                    Draft:
-                    \(draft)
-
-                    Context pack:
-                    \(contextJSON)
-                    """
-                }
-                return response.content.classification(fallback: fallback)
-            } catch {
-                return fallback
+            guard candidates.isEmpty == false else {
+                return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+                    fallback: fallback,
+                    candidates: [],
+                    source: "no_deterministic_candidates"
+                )
             }
+            let contextJSON = (try? ValueType.object(contextPack).jsonString()) ?? "{}"
+            var verdicts: [BindingApplePurposeVerdictRecord] = []
+            for candidate in candidates {
+                let session = LanguageModelSession()
+                var verdict = "error"
+                var attempts = 0
+                while attempts < 3 {
+                    attempts += 1
+                    do {
+                        let response = try await session.respond(
+                            generating: BindingApplePurposeMicroAnswer.self,
+                            includeSchemaInPrompt: true,
+                            options: GenerationOptions(sampling: .greedy)
+                        ) {
+                            """
+                            A user wrote this request to a private software assistant:
+                            "\(draft)"
+
+                            Candidate purpose from the Binding helper taxonomy:
+                            \(candidate.purposeRef) — \(candidate.title)
+                            Summary: \(candidate.summary)
+                            Goal outcome: \(candidate.goalOutcome)
+                            Deterministic resolver score: \(candidate.resolverScore)
+
+                            Allowed private context pack:
+                            \(contextJSON)
+
+                            Does fulfilling the user's request require this purpose? Consider it required when the request clearly needs it, even implicitly. Answer no when the user negates the action. Do not propose another purpose.
+                            """
+                        }
+                        verdict = response.content.verdict.rawValue
+                        break
+                    } catch {
+                        continue
+                    }
+                }
+                verdicts.append(BindingApplePurposeVerdictRecord(
+                    purposeRef: candidate.purposeRef,
+                    verdict: verdict,
+                    attempts: attempts
+                ))
+            }
+            return BindingApplePurposeDecompositionPipeline.resolve(
+                fallback: fallback,
+                candidates: candidates,
+                verdicts: verdicts
+            )
         }
 #endif
-        return fallback
+        return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+            fallback: fallback,
+            candidates: candidates,
+            source: "foundation_models_unavailable"
+        )
     }
 }
 
@@ -4485,10 +4698,12 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     nonisolated(unsafe) private var cachedState: Object = BindingPersonalChatHubCell.initialState()
     nonisolated(unsafe) private var registeredProviders: [BindingChatProviderDescriptor] = []
     nonisolated(unsafe) private var voiceTranscriber = BindingVoiceInputTranscriber()
+    nonisolated(unsafe) private var historyPolicyLoaded = false
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
         cachedState = Self.initialState()
+        historyPolicyLoaded = false
         await installRuntimeBindings(owner: owner)
         await markRuntimeBindingsInstalled()
     }
@@ -4496,7 +4711,12 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     nonisolated required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         cachedState = (try? container.decode(Object.self, forKey: .cachedState)) ?? Self.initialState()
+        let migratedButler = BindingPersonalButlerPolicy.migratingState(
+            BindingChatValue.object(cachedState["butler"])
+        )
+        cachedState["butler"] = .object(migratedButler)
         registeredProviders = (try? container.decode([BindingChatProviderDescriptor].self, forKey: .registeredProviders)) ?? []
+        historyPolicyLoaded = false
         try super.init(from: decoder)
     }
 
@@ -4510,18 +4730,50 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     override func installRuntimeBindings(owner: Identity) async {
         for key in readableKeys {
             ensureAgreementGrant("r---", for: key)
-            await registerGet(key: key, owner: owner, returns: .object([:])) { [weak self] requester in
+            await registerGet(
+                key: key,
+                owner: owner,
+                returns: .object([:]),
+                permissions: ["r---"],
+                description: .string("Reads owner-scoped PersonalChatHub state.")
+            ) { [weak self] requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
+                if Self.shouldHydrateHistoryPolicy(for: key) {
+                    await self.hydrateHistoryPolicyIfNeeded(requester: requester)
+                }
                 return self.readValue(for: key)
             }
         }
 
         for key in writableKeys {
             ensureAgreementGrant("rw--", for: key)
-            await registerSet(key: key, owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
+            await registerSet(
+                key: key,
+                owner: owner,
+                input: .object([:]),
+                returns: .object([:]),
+                permissions: ["rw--"],
+                description: .string("Runs an explicit owner-scoped PersonalChatHub action.")
+            ) { [weak self] requester, value in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("rw--", at: key, for: requester) else { return .string("denied") }
+                return await self.handleSet(key: key, value: value, requester: requester)
+            }
+        }
+
+        for key in historyStorageWritableKeys {
+            ensureAgreementGrant("rw-s", for: key)
+            await registerSet(
+                key: key,
+                owner: owner,
+                input: .object([:]),
+                returns: .object([:]),
+                permissions: ["rw-s"],
+                description: .string("Changes the owner's explicit Entity Chronicle retention policy.")
+            ) { [weak self] requester, value in
+                guard let self else { return .string("failure") }
+                guard await self.validateAccess("rw-s", at: key, for: requester) else { return .string("denied") }
                 return await self.handleSet(key: key, value: value, requester: requester)
             }
         }
@@ -4557,6 +4809,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "capabilityRequests",
             "entityExtension",
             "voiceState",
+            "history",
+            "state.history",
             "purposeWeights",
             "purposeGoal",
             "skeletonConfiguration"
@@ -4585,9 +4839,16 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "butler.profile.styleGuidance",
             "butler.profile.feedback",
             "butler.proactivity.configure",
+            "butler.proactivity.schedule.localTime",
             "butler.capabilities.refresh",
+            "butler.trigger.run",
             "butler.support.consider",
             "butler.support.dismiss",
+            "butler.sync.configure",
+            "butler.sync.targetEndpoint",
+            "butler.sync.export",
+            "butler.sync.receive",
+            "butler.sync.push",
             "assistant.setCandidateQuery",
             "assistant.selectCandidate",
             "entityExtension.scan",
@@ -4607,6 +4868,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "ui.setCurrentThread",
             "ui.openMatchedResourceLibrary",
             "ui.clearPromptHistory",
+            "history.clearLocal",
             "ui.clearComponentSurfaces",
             "ui.setActiveTab",
             "ui.setActiveHelper",
@@ -4682,6 +4944,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return canonicalKeys + canonicalKeys.map { "chatHub.\($0)" }
     }
 
+    private var historyStorageWritableKeys: [String] {
+        let canonicalKeys = ["history.configure"]
+        return canonicalKeys + canonicalKeys.map { "chatHub.\($0)" }
+    }
+
     private static let stateProjectionReadableKeys: [String] = [
         "state.assistant.assistantProviders",
         "state.assistant.candidateQuery",
@@ -4746,7 +5013,19 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.butler.capabilities.summary",
         "state.butler.capabilities.transparencySummary",
         "state.butler.proactivity.enabled",
+        "state.butler.proactivity.minimumIntervalHours",
+        "state.butler.proactivity.appLaunchEnabled",
+        "state.butler.proactivity.taskCompletionEnabled",
+        "state.butler.proactivity.userScheduleEnabled",
+        "state.butler.proactivity.stagingWakeEnabled",
+        "state.butler.proactivity.userScheduleKind",
+        "state.butler.proactivity.userScheduleLocalTime",
         "state.butler.proactivity.summary",
+        "state.butler.sync.approved",
+        "state.butler.sync.targetEndpoint",
+        "state.butler.sync.summary",
+        "state.butler.sync.privacySummary",
+        "state.butler.sync.lastStatus",
         "state.butler.support.status",
         "state.butler.support.summary",
         "state.butler.privacy.summary",
@@ -4815,6 +5094,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return key
     }
 
+    private static func shouldHydrateHistoryPolicy(for key: String) -> Bool {
+        let key = canonicalChatHubKey(key)
+        return key == "state" || key == "history" || key == "state.history"
+    }
+
     private func readValue(for key: String) -> ValueType {
         let key = Self.canonicalChatHubKey(key)
         switch key {
@@ -4852,6 +5136,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return BindingChatValue.nested("entityExtension", in: cachedState) ?? .object(entityExtensionState(matches: []))
         case "voiceState":
             return BindingChatValue.nested("voice", in: cachedState) ?? .object(Self.initialVoiceState())
+        case "history":
+            return BindingChatValue.nested("history", in: cachedState) ?? .object(Self.initialHistoryState())
         default:
             return BindingChatValue.nested(key, in: cachedState) ?? .null
         }
@@ -4895,6 +5181,10 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "ui.clearPromptHistory":
             BindingChatValue.set(.list([]), for: "ui.promptMessages", in: &cachedState)
             return .object(["ok": .bool(true), "sideEffect": .bool(false)])
+        case "history.clearLocal":
+            return clearLocalConversationHistory()
+        case "history.configure":
+            return await configureHistory(value, requester: requester)
         case "ui.clearComponentSurfaces":
             BindingChatValue.set(.list([]), for: "ui.componentSurfaces", in: &cachedState)
             BindingChatValue.set(.list([]), for: "ui.activeToolChips", in: &cachedState)
@@ -4958,12 +5248,26 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return recordButlerFeedback(value)
         case "butler.proactivity.configure":
             return configureButlerProactivity(value)
+        case "butler.proactivity.schedule.localTime":
+            return updateButlerScheduleTime(value)
         case "butler.capabilities.refresh":
             return await refreshButlerCapabilities(requester: requester)
+        case "butler.trigger.run":
+            return considerButlerSupport(value)
         case "butler.support.consider":
             return considerButlerSupport(value)
         case "butler.support.dismiss":
             return dismissButlerSupport(value)
+        case "butler.sync.configure":
+            return configureButlerSync(value)
+        case "butler.sync.targetEndpoint":
+            return updateButlerSyncTarget(value)
+        case "butler.sync.export":
+            return await exportButlerPreferences(requester: requester)
+        case "butler.sync.receive":
+            return await receiveButlerPreferences(value, requester: requester)
+        case "butler.sync.push":
+            return await pushButlerPreferences(requester: requester)
         case "assistant.setCandidateQuery":
             BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
             return response(status: "ok", message: "Candidate query updated.")
@@ -5161,7 +5465,215 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         }
     }
 
-    private func analyzeDraft(value: ValueType, requester: Identity) async -> ValueType {
+    private func hydrateHistoryPolicyIfNeeded(requester: Identity, force: Bool = false) async {
+        guard force || historyPolicyLoaded == false else { return }
+        historyPolicyLoaded = true
+        do {
+            if let policy = try await BindingPersonalChatChronicle.loadPolicy(requester: requester) {
+                storeHistoryPolicy(
+                    policy,
+                    policySource: "entity_anchor",
+                    lastPersistenceStatus: "ready",
+                    lastMessage: policy.summary
+                )
+            } else {
+                storeHistoryPolicy(
+                    .defaultOff,
+                    policySource: "default_off",
+                    lastPersistenceStatus: "not_configured",
+                    lastMessage: BindingPersonalChatHistoryPolicy.defaultOff.summary
+                )
+            }
+        } catch {
+            // Retention is fail-closed: a missing or unreadable policy never
+            // enables Chronicle capture implicitly.
+            storeHistoryPolicy(
+                .defaultOff,
+                policySource: "default_off_fail_closed",
+                lastPersistenceStatus: "unavailable",
+                lastMessage: error.localizedDescription,
+                lastError: error.localizedDescription
+            )
+        }
+    }
+
+    private func configureHistory(_ value: ValueType, requester: Identity) async -> ValueType {
+        let payload = BindingChatValue.object(value) ?? [:]
+        guard let policy = BindingPersonalChatChronicle.policy(from: payload) else {
+            return .object([
+                "ok": .bool(false),
+                "status": .string("confirmation_required"),
+                "message": .string("Velg off, metadata eller full. Metadata/full krever confirm=true; full krever også fullContentWarningAccepted=true."),
+                "sideEffect": .bool(false),
+                "mutatesEntity": .bool(false)
+            ])
+        }
+
+        do {
+            let acknowledgement = try await BindingPersonalChatChronicle.persistPolicy(
+                policy,
+                requester: requester,
+                sourceUUID: uuid
+            )
+            historyPolicyLoaded = true
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor",
+                lastPersistenceStatus: acknowledgement.status,
+                lastMessage: acknowledgement.message
+            )
+            return .object([
+                "ok": .bool(true),
+                "status": .string("persisted"),
+                "history": BindingChatValue.nested("history", in: cachedState) ?? .null,
+                "acknowledgement": .object(acknowledgement.objectValue),
+                "sideEffect": .bool(true),
+                "mutatesEntity": .bool(true),
+                "userControlled": .bool(true)
+            ])
+        } catch {
+            storeHistoryPolicy(
+                currentHistoryPolicy(),
+                policySource: "unchanged_after_failure",
+                lastPersistenceStatus: "failed",
+                lastMessage: error.localizedDescription,
+                lastError: error.localizedDescription
+            )
+            return .object([
+                "ok": .bool(false),
+                "status": .string("failed"),
+                "message": .string(error.localizedDescription),
+                "sideEffect": .bool(false),
+                "mutatesEntity": .bool(false)
+            ])
+        }
+    }
+
+    private func persistSubmittedPromptHistory(
+        turnID: String,
+        prompt: String,
+        analyzed: ValueType,
+        requester: Identity
+    ) async -> BindingPersonalChatChronicleAcknowledgement {
+        await hydrateHistoryPolicyIfNeeded(requester: requester)
+        let policy = currentHistoryPolicy()
+        guard policy.automaticCaptureEnabled else {
+            let acknowledgement = BindingPersonalChatChronicleAcknowledgement(
+                status: "off",
+                recordID: nil,
+                persistedPaths: [],
+                message: policy.summary
+            )
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor_or_default",
+                lastPersistenceStatus: acknowledgement.status,
+                lastMessage: acknowledgement.message
+            )
+            return acknowledgement
+        }
+
+        let analyzedObject = BindingChatValue.object(analyzed) ?? [:]
+        let suggestion = BindingChatValue.object(analyzedObject["suggestion"]) ?? [:]
+        let purposeRef = BindingChatValue.string(suggestion["purposeRef"]) ?? "purpose://prompt.unknown"
+        let helperID = BindingChatValue.string(suggestion["helperID"]) ?? ""
+        let assistantText = BindingChatValue.string(suggestion["explanation"])
+            ?? BindingChatValue.string(suggestion["reason"])
+            ?? ""
+        let threadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState))
+            ?? "local-copilot-thread"
+
+        do {
+            let acknowledgement = try await BindingPersonalChatChronicle.persistTurn(
+                turnID: turnID,
+                threadID: threadID,
+                prompt: prompt,
+                assistantText: assistantText,
+                purposeRef: purposeRef,
+                helperID: helperID,
+                policy: policy,
+                requester: requester,
+                sourceUUID: uuid
+            )
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor",
+                lastPersistenceStatus: acknowledgement.status,
+                lastMessage: acknowledgement.message,
+                lastRecordID: acknowledgement.recordID
+            )
+            return acknowledgement
+        } catch {
+            storeHistoryPolicy(
+                policy,
+                policySource: "entity_anchor",
+                lastPersistenceStatus: "failed",
+                lastMessage: error.localizedDescription,
+                lastError: error.localizedDescription
+            )
+            return BindingPersonalChatChronicleAcknowledgement(
+                status: "failed",
+                recordID: nil,
+                persistedPaths: [],
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    private func currentHistoryPolicy() -> BindingPersonalChatHistoryPolicy {
+        guard let policyValue = BindingChatValue.nested("history.policy", in: cachedState),
+              let object = BindingChatValue.object(policyValue),
+              let policy = BindingPersonalChatHistoryPolicy(object: object) else {
+            return .defaultOff
+        }
+        return policy
+    }
+
+    private func storeHistoryPolicy(
+        _ policy: BindingPersonalChatHistoryPolicy,
+        policySource: String,
+        lastPersistenceStatus: String,
+        lastMessage: String,
+        lastError: String? = nil,
+        lastRecordID: String? = nil
+    ) {
+        var state = Self.initialHistoryState()
+        state["policy"] = .object(policy.objectValue)
+        state["mode"] = .string(policy.mode.rawValue)
+        state["automaticCaptureEnabled"] = .bool(policy.automaticCaptureEnabled)
+        state["summary"] = .string(policy.summary)
+        state["policySource"] = .string(policySource)
+        state["lastPersistenceStatus"] = .string(lastPersistenceStatus)
+        state["lastMessage"] = .string(lastMessage)
+        state["lastError"] = lastError.map(ValueType.string) ?? .null
+        state["lastRecordID"] = lastRecordID.map(ValueType.string) ?? .null
+        BindingChatValue.set(.object(state), for: "history", in: &cachedState)
+    }
+
+    private func clearLocalConversationHistory() -> ValueType {
+        BindingChatValue.set(.list([]), for: "ui.promptMessages", in: &cachedState)
+        BindingChatValue.set(.list([]), for: "messages", in: &cachedState)
+        BindingChatValue.set(.list([]), for: "threads", in: &cachedState)
+        BindingChatValue.set(.integer(0), for: "messageCount", in: &cachedState)
+        BindingChatValue.set(.integer(0), for: "threadCount", in: &cachedState)
+        BindingChatValue.set(.string(""), for: "currentThread.composer.body", in: &cachedState)
+        BindingChatValue.set(.string(""), for: "composer.body", in: &cachedState)
+        cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("local_history_cleared"),
+            "message": .string("Lokal prompt- og chatthistorikk ble tømt. Eksisterende Chronicle-poster ble ikke endret."),
+            "chronicleChanged": .bool(false),
+            "sideEffect": .bool(true),
+            "mutatesEntity": .bool(false)
+        ])
+    }
+
+    private func analyzeDraft(
+        value: ValueType,
+        requester: Identity,
+        promptTurnID: String? = nil
+    ) async -> ValueType {
         let payload = BindingChatValue.object(value) ?? [:]
         let draft = BindingChatValue.string(payload["text"])
             ?? BindingChatValue.string(payload["draft"])
@@ -5326,7 +5838,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             draft: draft,
             suggestion: suggestion,
             groundedActionPlan: groundedActionPlan,
-            resourceMatches: resourceMatches
+            resourceMatches: resourceMatches,
+            turnID: promptTurnID
         )
         updateButlerSupportAfterAnalysis(suggestion)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
@@ -5367,21 +5880,27 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ?? BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
             ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
             ?? ""
+        let requestedTurnID = BindingChatValue.string(payload["turnID"])
+            ?? BindingChatValue.string(payload["requestID"])
+        let turnID = BindingPersonalChatChronicle.safeIdentifier(requestedTurnID)
         let analyzed = await analyzeDraft(
             value: .object(["prompt": .string(prompt)]),
+            requester: requester,
+            promptTurnID: turnID
+        )
+        let historyAcknowledgement = await persistSubmittedPromptHistory(
+            turnID: turnID,
+            prompt: prompt,
+            analyzed: analyzed,
             requester: requester
         )
         clearComposerAfterPromptSubmission()
-        if BindingChatValue.normalized(prompt).contains("arendalsuka"),
-           let resource = currentCellConfigurationResource() {
-            return openMatchedResourceLibrary(
-                .object([
-                    "resourceID": resource["id"] ?? .null,
-                    "autoOpen": .bool(true)
-                ])
-            )
-        }
         guard var response = BindingChatValue.object(analyzed) else { return analyzed }
+        response["history"] = .object(historyAcknowledgement.objectValue)
+        response["historyPersistenceFailed"] = .bool(historyAcknowledgement.status == "failed")
+        let committedNewMutation = historyAcknowledgement.status == "authority_committed"
+        response["mutatesEntity"] = .bool(committedNewMutation)
+        response["sideEffect"] = .bool(committedNewMutation)
         response["state"] = .object(cachedState)
         return .object(response)
     }
@@ -5521,7 +6040,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         draft: String,
         suggestion: BindingChatIntentClassification,
         groundedActionPlan: Object,
-        resourceMatches: [Object]
+        resourceMatches: [Object],
+        turnID: String? = nil
     ) {
         guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
@@ -5534,24 +6054,29 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ? "\(helperTitle(suggestion.helperID)) · \(nextStepTitle)"
             : nextStepTitle
         let butlerName = BindingChatValue.string(BindingChatValue.nested("butler.profile.displayName", in: cachedState)) ?? "HAVEN Co-Pilot"
+        let effectiveTurnID = BindingPersonalChatChronicle.safeIdentifier(turnID)
         let userMessage: Object = [
-            "id": .string(UUID().uuidString),
+            "id": .string("\(effectiveTurnID)-user"),
+            "turnID": .string(effectiveTurnID),
             "role": .string("user"),
             "speaker": .string("Du"),
             "body": .string(draft),
             "statusText": .string("Sendt"),
             "kind": .string("user_prompt"),
+            "canOpenSuggestion": .bool(false),
             "threadID": .string(threadID),
             "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-user"].map(ValueType.string))
         ]
         let assistantMessage: Object = [
-            "id": .string(UUID().uuidString),
+            "id": .string("\(effectiveTurnID)-assistant"),
+            "turnID": .string(effectiveTurnID),
             "role": .string("assistant"),
             "speaker": .string(butlerName),
             "body": .string("\(suggestion.explanation)\(resourceSummary)"),
             "statusText": .string(assistantStatus),
             "kind": .string("assistant_suggestion"),
             "helperID": .string(suggestion.helperID),
+            "canOpenSuggestion": .bool(suggestion.shouldSuggest),
             "resourceMatchCount": .integer(resourceMatches.count),
             "resourceTitles": .list(topResourceTitles.prefix(5).map(ValueType.string)),
             "threadID": .string(threadID),
@@ -6398,12 +6923,13 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ])
         }
 
-        if helper == "resource-router",
+        if (helper == "resource-router" || helper == "nearby-scanner"),
            let resource = currentCellConfigurationResource() {
             var opened = BindingChatValue.object(openMatchedResourceLibrary(
                 .object([
                     "resourceID": resource["id"] ?? .null,
-                    "autoOpen": .bool(true)
+                    "autoOpen": .bool(true),
+                    "surfaceKind": .string(helper)
                 ])
             )) ?? [:]
             opened["helper"] = .string(helper)
@@ -6922,6 +7448,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     private func openMatchedResourceLibrary(_ value: ValueType) -> ValueType {
         let object = BindingChatValue.object(value) ?? [:]
         let autoOpen = BindingChatValue.bool(object["autoOpen"]) ?? true
+        let surfaceKind = BindingChatValue.string(object["surfaceKind"]) ?? "resource-router"
         let resourceID = BindingChatValue.string(value)
             ?? BindingChatValue.string(object["resourceID"])
             ?? BindingChatValue.string(object["id"])
@@ -6948,9 +7475,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let portholeUI = BindingChatIntentClassifier.libraryUIRequest(for: resource, autoOpen: autoOpen)
         let loadedConfiguration = autoOpen ? configurationForResource(resource) : nil
         if let loadedConfiguration {
-            Task { @MainActor in
-                BindingPortholeLoadBridge.post(configuration: loadedConfiguration)
-            }
+            BindingPortholeLoadBridge.post(configuration: loadedConfiguration)
         }
         BindingChatValue.set(.object(portholeUI), for: "assistant.portholeUI", in: &cachedState)
         BindingChatValue.set(.object(resource), for: "assistant.selectedResourceMatch", in: &cachedState)
@@ -6958,20 +7483,25 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             BindingChatValue.set(.list([.object(resource)]), for: "assistant.resourceMatches", in: &cachedState)
             BindingChatValue.set(.integer(1), for: "assistant.resourceMatchCount", in: &cachedState)
         }
-        var surface = helperSurface(kind: "resource-router", source: "matched-resource")
+        var surface = helperSurface(kind: surfaceKind, source: "matched-resource")
         surface["selectedResourceID"] = BindingChatValue.string(resource["id"]).map(ValueType.string) ?? .null
         surface["selectedResourceTitle"] = BindingChatValue.string(resource["title"]).map(ValueType.string) ?? .null
-        surface["summary"] = .string(
-            loadedConfiguration == nil
-                ? "Valgt flate er klargjort i Library."
-                : "Valgt CellConfiguration er lastet i HAVEN."
-        )
+        let surfaceSummary: String
+        if surfaceKind == "nearby-scanner" {
+            surfaceSummary = "Entity Scanner er klargjort for eksplisitt nearby scanning. Du kan ogsaa sende en lokasjonsdelingsforesporsel; mottakeren maa godkjenne foer posisjon deles. Start, permission, kontaktforesporsel og proofs skjer bare etter egne brukerhandlinger."
+        } else if loadedConfiguration == nil {
+            surfaceSummary = "Valgt flate er klargjort i Library."
+        } else {
+            surfaceSummary = "Valgt CellConfiguration er lastet i HAVEN."
+        }
+        surface["summary"] = .string(surfaceSummary)
         appendSurface(surface)
         BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
         return .object([
             "ok": .bool(true),
             "status": .string("library_open_requested"),
             "resource": .object(resource),
+            "surface": .object(surface),
             "portholeUI": .object(portholeUI),
             "ui": BindingChatValue.nested("ui", in: cachedState) ?? .null,
             "state": .object(cachedState),
@@ -7978,13 +8508,18 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     }
 
     private func currentButlerState() -> Object {
-        BindingChatValue.object(BindingChatValue.nested("butler", in: cachedState))
-            ?? BindingPersonalButlerPolicy.initialState()
+        BindingPersonalButlerPolicy.migratingState(
+            BindingChatValue.object(BindingChatValue.nested("butler", in: cachedState))
+        )
     }
 
     private func storeButlerState(_ butler: Object) {
         BindingChatValue.set(.object(butler), for: "butler", in: &cachedState)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
+        NotificationCenter.default.post(
+            name: BindingPersonalButlerTriggerBridge.preferencesChangedNotification,
+            object: nil
+        )
     }
 
     private func updateButlerProfile(field: String, value: ValueType) -> ValueType {
@@ -8034,6 +8569,206 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         ])
     }
 
+    private func updateButlerScheduleTime(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.updatingScheduleTime(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "proactivity": updated["proactivity"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func configureButlerSync(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.configuringSync(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        let sync = BindingChatValue.object(updated["sync"]) ?? [:]
+        let lastStatus = BindingChatValue.string(sync["lastStatus"]) ?? "unknown"
+        return .object([
+            "ok": .bool(lastStatus != "approval_confirmation_required"),
+            "sync": .object(sync),
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func updateButlerSyncTarget(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.updatingSyncTarget(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "sync": updated["sync"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func exportButlerPreferences(requester: Identity) async -> ValueType {
+        var butler = currentButlerState()
+        let sync = BindingChatValue.object(butler["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("source_not_approved", "Eieren må godkjenne synk på denne enheten først.")
+        }
+        let now = Date()
+        let sourceDeviceID = BindingChatValue.string(sync["deviceID"]) ?? ""
+        let revision = Int(BindingChatValue.double(sync["localRevision"]) ?? 0)
+        guard sourceDeviceID.isEmpty == false else {
+            return butlerSyncFailure("missing_device_id", "Enheten mangler en lokal synkidentifikator.")
+        }
+        var packet: Object = [
+            "schema": .string(BindingPersonalButlerPolicy.syncPacketSchema),
+            "packetID": .string(UUID().uuidString.lowercased()),
+            "sourceDeviceID": .string(sourceDeviceID),
+            "revision": .integer(revision),
+            "issuedAt": .float(now.timeIntervalSince1970),
+            "expiresAt": .float(now.addingTimeInterval(BindingPersonalButlerPolicy.syncPacketTTLSeconds).timeIntervalSince1970),
+            "requesterIdentity": .identity(requester),
+            "preferences": .object(BindingPersonalButlerPolicy.preferenceSyncPayload(from: butler))
+        ]
+        do {
+            let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(packet))
+            guard let signature = try await requester.sign(data: canonical) else {
+                return butlerSyncFailure("signing_unavailable", "Preferansepakken kunne ikke signeres av eieridentiteten.")
+            }
+            packet["signature"] = .data(signature)
+            butler = BindingPersonalButlerPolicy.recordingSyncExport(in: butler, now: now)
+            storeButlerState(butler)
+            return .object([
+                "ok": .bool(true),
+                "status": .string("exported"),
+                "packet": .object(packet),
+                "providerInvoked": .bool(false),
+                "sideEffect": .bool(false),
+                "domainSideEffect": .bool(false)
+            ])
+        } catch {
+            return butlerSyncFailure("canonicalization_failed", "Preferansepakken kunne ikke klargjøres for signering.")
+        }
+    }
+
+    private func receiveButlerPreferences(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard var packet = BindingChatValue.object(value) else {
+            return butlerSyncFailure("invalid_packet", "Synk krever en signert preferansepakke.")
+        }
+        var butler = currentButlerState()
+        let sync = BindingChatValue.object(butler["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("target_not_approved", "Eieren må godkjenne synk på målenheten først.")
+        }
+        guard BindingChatValue.string(packet["schema"]) == BindingPersonalButlerPolicy.syncPacketSchema,
+              let sourceDeviceID = BindingChatValue.string(packet["sourceDeviceID"]),
+              let revisionValue = BindingChatValue.double(packet["revision"]),
+              let issuedAtValue = BindingChatValue.double(packet["issuedAt"]),
+              let expiresAtValue = BindingChatValue.double(packet["expiresAt"]),
+              case let .identity(signer)? = packet["requesterIdentity"],
+              case let .data(signature)? = packet["signature"],
+              let preferences = BindingChatValue.object(packet["preferences"]) else {
+            return butlerSyncFailure("invalid_packet", "Synkpakken mangler obligatoriske felter.")
+        }
+        guard signer.uuid == requester.uuid else {
+            return butlerSyncFailure("owner_mismatch", "Synkpakken er ikke signert av eieridentiteten som åpnet målcellen.")
+        }
+        let now = Date().timeIntervalSince1970
+        guard issuedAtValue <= now + 5 * 60, expiresAtValue >= now else {
+            return butlerSyncFailure("expired_packet", "Synkpakken er utløpt eller har ugyldig tidsstempel.")
+        }
+        guard sourceDeviceID != BindingChatValue.string(sync["deviceID"]) else {
+            return butlerSyncFailure("same_device", "Enheten kan ikke importere sin egen synkpakke.")
+        }
+        let revision = Int(revisionValue)
+        if let previous = BindingPersonalButlerPolicy.incomingRevision(for: sourceDeviceID, in: butler),
+           revision <= previous {
+            return .object([
+                "ok": .bool(true),
+                "status": .string("ignored_replay"),
+                "revision": .integer(revision),
+                "sideEffect": .bool(false),
+                "domainSideEffect": .bool(false)
+            ])
+        }
+        packet.removeValue(forKey: "signature")
+        do {
+            let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(packet))
+            guard await signer.verify(signature: signature, for: canonical) else {
+                return butlerSyncFailure("invalid_signature", "Signaturen på synkpakken kunne ikke verifiseres.")
+            }
+        } catch {
+            return butlerSyncFailure("verification_failed", "Synkpakken kunne ikke verifiseres.")
+        }
+        butler = BindingPersonalButlerPolicy.applyingSyncedPreferences(
+            to: butler,
+            payload: preferences,
+            sourceDeviceID: sourceDeviceID,
+            revision: revision
+        )
+        storeButlerState(butler)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("imported"),
+            "sourceDeviceID": .string(sourceDeviceID),
+            "revision": .integer(revision),
+            "allowedFields": BindingChatValue.nested("sync.allowedFields", in: butler) ?? .list([]),
+            "sideEffect": .bool(true),
+            "domainSideEffect": .bool(true)
+        ])
+    }
+
+    private func pushButlerPreferences(requester: Identity) async -> ValueType {
+        let sync = BindingChatValue.object(currentButlerState()["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("source_not_approved", "Eieren må godkjenne synk på denne enheten først.")
+        }
+        guard let endpoint = BindingChatValue.string(sync["targetEndpoint"]), endpoint.isEmpty == false else {
+            return butlerSyncFailure("target_not_configured", "Velg en cell://-adresse for målenheten først.")
+        }
+        let exported = await exportButlerPreferences(requester: requester)
+        guard let exportObject = BindingChatValue.object(exported),
+              BindingChatValue.bool(exportObject["ok"]) == true,
+              let packet = BindingChatValue.object(exportObject["packet"]) else {
+            return exported
+        }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            return butlerSyncFailure("resolver_unavailable", "CellResolver er ikke klar for synk.")
+        }
+        do {
+            guard let target = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle,
+                  let result = try await target.set(
+                    keypath: "chatHub.butler.sync.receive",
+                    value: .object(packet),
+                    requester: requester
+                  ) else {
+                return butlerSyncFailure("target_unavailable", "Målenheten kunne ikke motta preferansepakken.")
+            }
+            return result
+        } catch {
+            return butlerSyncFailure("transport_failed", "Preferansesynk til målenheten mislyktes.")
+        }
+    }
+
+    private func butlerSyncFailure(_ status: String, _ message: String) -> ValueType {
+        .object([
+            "ok": .bool(false),
+            "status": .string(status),
+            "message": .string(message),
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
     private func refreshButlerCapabilities(requester: Identity) async -> ValueType {
         let providers = await scopedProviders(requester: requester)
         let helperCount = BindingChatValue.list(BindingChatValue.nested("ui.helpers", in: cachedState))?.count ?? 0
@@ -8065,6 +8800,15 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         )
         let status = BindingChatValue.string(decision["status"]) ?? "suppressed"
         let signalKind = BindingChatValue.string(decision["signalKind"]) ?? "unknown"
+        if status == "suppressed",
+           signalKind == "user_schedule",
+           BindingChatValue.string(decision["scheduleSlot"]) == nil {
+            var response = decision
+            response["ok"] = .bool(true)
+            response["stagedInChat"] = .bool(false)
+            response["domainSideEffect"] = .bool(false)
+            return .object(response)
+        }
         var support = BindingChatValue.object(butler["support"]) ?? [:]
         support["status"] = .string(status == "offer" ? "offered" : "suppressed")
         support["reason"] = decision["reason"] ?? .string("unknown")
@@ -8077,6 +8821,12 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ? "Butleren har lagt inn et forsiktig tilbud om hjelp. Ingenting annet skjer uten svar."
             : "Butleren holdt tilbake: \(BindingChatValue.string(decision["reason"]) ?? "policy").")
         butler["support"] = .object(support)
+
+        if let scheduleSlot = BindingChatValue.string(decision["scheduleSlot"]) {
+            var proactivity = BindingChatValue.object(butler["proactivity"]) ?? [:]
+            proactivity["lastScheduleSlot"] = .string(scheduleSlot)
+            butler["proactivity"] = .object(proactivity)
+        }
 
         if status == "offer" {
             if signalKind != "explicit_help" {
@@ -8164,7 +8914,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "id": .string(id),
             "kind": .string(kind),
             "title": .string(helperTitle(kind)),
-            "summary": .string("Apnet fra Co-Pilot. Handling skjer bare etter eksplisitt brukerklikk."),
+            "summary": .string(helperSurfaceSummary(kind)),
             "state": .string("open"),
             "grantStatus": .string("granted_in_chat_scope"),
             "source": .string(source),
@@ -8193,6 +8943,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "agent-setup": return "Agent-oppsett"
         case "advisor-report": return "Rådgiver-rapport"
         case "spatial-map": return "Kart"
+        case "nearby-scanner": return "Nearby Scanner"
         case "capability-request": return "Meld behov"
         case "contact-endpoint": return "Kontakt-endepunkt"
         case "mermaid-diagram": return "Mermaid diagram"
@@ -8201,13 +8952,22 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         }
     }
 
-    nonisolated private static let defaultPrimaryActionHint = "Trykk hovedknappen for at Co-Pilot skal lese bare dette utkastet og foreslå neste trygge steg. Ingenting sendes eller lagres."
+    private func helperSurfaceSummary(_ kind: String) -> String {
+        switch kind {
+        case "nearby-scanner":
+            return "Entity Scanner er klargjort for brukerstartet nearby scanning. Den kan bare vise personer/enheter som er fysisk i naerheten og tilgjengelige etter Bluetooth/nearby-permission. Alternativt kan du be mottakeren dele lokasjon; mottakeren maa godkjenne foer posisjon deles."
+        default:
+            return "Apnet fra Co-Pilot. Handling skjer bare etter eksplisitt brukerklikk."
+        }
+    }
+
+    nonisolated private static let defaultPrimaryActionHint = "Send utkastet for å få et privat forslag. Ingenting åpnes, sendes videre eller opprettes uten et nytt klikk."
 
     private func primaryActionHint(for suggestion: BindingChatIntentClassification) -> String {
         guard suggestion.shouldSuggest else {
             return "Jeg fant ikke en trygg hjelper ennå. Skriv litt mer, eller åpne Mer for verktøy og avanserte valg."
         }
-        return "Trykk hovedknappen for å åpne \(helperTitle(suggestion.helperID)) som privat hjelper. Lagre, sende eller opprette skjer først etter et eget klikk der."
+        return "Trykk «Åpne forslag» i svaret for å åpne \(helperTitle(suggestion.helperID)). Lagre, sende eller opprette krever fortsatt et eget klikk."
     }
 
     private func text(from value: ValueType) -> String {
@@ -8267,6 +9027,25 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         ]
     }
 
+    nonisolated private static func initialHistoryState() -> Object {
+        let policy = BindingPersonalChatHistoryPolicy.defaultOff
+        return [
+            "schema": .string("binding.personal-chat-history-state.v1"),
+            "mode": .string(policy.mode.rawValue),
+            "automaticCaptureEnabled": .bool(false),
+            "policy": .object(policy.objectValue),
+            "policySource": .string("default_off"),
+            "summary": .string(policy.summary),
+            "lastPersistenceStatus": .string("not_configured"),
+            "lastMessage": .string(policy.summary),
+            "lastError": .null,
+            "lastRecordID": .null,
+            "userControlled": .bool(true),
+            "existingChronicleEntriesRemainUntilSeparateErase": .bool(true),
+            "automaticDeletionImplemented": .bool(false)
+        ]
+    }
+
     nonisolated static func initialState() -> Object {
         return [
             "title": .string("Co-Pilot"),
@@ -8276,6 +9055,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "inviteStatus": .string("not invited"),
             "blockedUsers": .list([]),
             "moderationStatus": .string("ready"),
+            "history": .object(initialHistoryState()),
             "currentThread": .object([
                 "id": .string("local-copilot-thread"),
                 "title": .string("Co-Pilot"),
@@ -8411,7 +9191,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 "capabilityDiscoveryEnabled": .bool(false),
                 "capabilityDiscoveryStatus": .string("off"),
                 "humanPresenceSummary": .string("Privat forslag forst; menneskechat oppdateres bare naar du sender eller inviterer."),
-                "promptOnlyReason": .string("Co-piloten leser bare ditt aktive utkast naar du trykker hovedknappen."),
+                "promptOnlyReason": .string("Co-piloten leser bare ditt aktive utkast når du sender det."),
                 "tabs": .list([
                     .object(["id": .string("samtale"), "title": .string("Samtale")]),
                     .object(["id": .string("aktivt"), "title": .string("Aktivt")]),
@@ -8606,44 +9386,3 @@ private extension ValueType {
         return text
     }
 }
-
-#if canImport(FoundationModels)
-@available(macOS 26.0, iOS 26.0, *)
-@Generable
-private struct BindingAppleStructuredIntent {
-    @Guide(description: "Intent kind such as invite_person, create_poll, idea_capture, todo, project, reminder, schedule_meeting, meeting_video, agent_action, or none.")
-    var intentKind: String
-    @Guide(description: "Canonical HAVEN purpose reference for the intent.")
-    var purposeRef: String
-    @Guide(description: "Short interest tags used for routing.")
-    var interests: [String]
-    @Guide(description: "Helper id such as invite, poll, idea-capture, todo, project, reminder, meeting, agent-review, or empty.")
-    var helperID: String
-    @Guide(description: "Confidence from 0.0 to 1.0.")
-    var confidence: Double
-    @Guide(description: "Always true for chat-originated helper or provider actions.")
-    var requiresUserApproval: Bool
-    @Guide(description: "Short human reason for the classification.")
-    var reason: String
-    @Guide(description: "Set to the forbidden intent when the user says not to do an action; otherwise empty.")
-    var negativeIntent: String
-    @Guide(description: "suggested, needs_candidate_selection, or low_confidence.")
-    var status: String
-
-    func classification(fallback: BindingChatIntentClassification) -> BindingChatIntentClassification {
-        let cleanStatus = ["suggested", "needs_candidate_selection", "low_confidence"].contains(status) ? status : fallback.status
-        let cleanKind = intentKind.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? fallback.intentKind : intentKind
-        return BindingChatIntentClassification(
-            intentKind: cleanKind,
-            purposeRef: purposeRef.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? fallback.purposeRef : purposeRef,
-            interests: interests.isEmpty ? fallback.interests : interests,
-            helperID: helperID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? fallback.helperID : helperID,
-            confidence: min(1.0, max(0.0, confidence)),
-            requiresUserApproval: true,
-            reason: reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? fallback.reason : reason,
-            negativeIntent: negativeIntent,
-            status: cleanStatus
-        )
-    }
-}
-#endif

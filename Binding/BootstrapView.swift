@@ -32,15 +32,40 @@ actor BindingLocalCellRegistration {
 
     private var isLocallyRegistered = false
     private var isRegistered = false
+    private var areLaunchCriticalCellsRegistered = false
     private var agentAdminCellsRegistered = false
+    private var launchCriticalRegistrationTask: Task<Void, Never>?
     private var localRegistrationTask: Task<Void, Never>?
     private var registrationTask: Task<Void, Never>?
+
+    func ensureLaunchCriticalCellsRegistered() async {
+        if areLaunchCriticalCellsRegistered,
+           let resolver = CellBase.defaultCellResolver as? CellResolver,
+           resolver === CellResolver.sharedInstance {
+            return
+        }
+        if let launchCriticalRegistrationTask {
+            await launchCriticalRegistrationTask.value
+            return
+        }
+
+        let task = Task {
+            let resolver = CellResolver.sharedInstance
+            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+            await Self.registerLaunchCriticalCells(on: resolver)
+        }
+        launchCriticalRegistrationTask = task
+        await task.value
+        areLaunchCriticalCellsRegistered = true
+        launchCriticalRegistrationTask = nil
+    }
 
     func ensureLocallyRegistered() async {
         if isLocallyRegistered {
             if !(await localRegistrationStillUsable()) {
                 isLocallyRegistered = false
                 isRegistered = false
+                areLaunchCriticalCellsRegistered = false
                 agentAdminCellsRegistered = false
             } else {
                 if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled,
@@ -57,16 +82,16 @@ actor BindingLocalCellRegistration {
             return
         }
 
+        await ensureLaunchCriticalCellsRegistered()
+
         let task = Task {
             let resolver = CellResolver.sharedInstance
-            await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
-            await Self.registerVaultGraphLocalCells(on: resolver)
             // Keep the launch path free of eager Porthole setup, owner-access
             // checks, LocalAuthentication and keychain prompts. Binding owns
             // local startup registration explicitly; AppInitializer.prepareLocalRuntime()
             // also schedules setupPorthole(), which is only safe once a user
             // surface asks for authenticated runtime work.
-            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+            await Self.registerVaultGraphLocalCells(on: resolver)
             await Self.registerAll(on: resolver)
         }
         localRegistrationTask = task
@@ -90,7 +115,7 @@ actor BindingLocalCellRegistration {
             return false
         }
 
-        for endpoint in ["cell:///Porthole", "cell:///Perspective"] {
+        for endpoint in ["cell:///Porthole", "cell:///Perspective", "cell:///ConferenceDemoLauncher"] {
             if (try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester)) == nil {
                 return false
             }
@@ -105,6 +130,7 @@ actor BindingLocalCellRegistration {
             }
             isRegistered = false
             isLocallyRegistered = false
+            areLaunchCriticalCellsRegistered = false
             agentAdminCellsRegistered = false
         }
         if let registrationTask {
@@ -120,7 +146,8 @@ actor BindingLocalCellRegistration {
 
         let task = Task {
             let resolver = CellResolver.sharedInstance
-            await Self.registerChatWorkbenchParityCells(on: resolver, persistency: nil)
+            await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+            await Self.registerChatWorkbenchParityCells(on: resolver)
             await Self.registerVaultGraphLocalCells(on: resolver)
             await AppInitializer.initialize()
             await Self.registerAll(on: resolver)
@@ -508,6 +535,28 @@ actor BindingLocalCellRegistration {
             cellScope: .scaffoldUnique,
             identityDomain: "private",
             type: GeneralCell.self,
+            resolver: resolver
+        )
+    }
+
+    private static func registerLaunchCriticalCells(on resolver: CellResolver) async {
+        // The typed storage utility must be installed before these persistent
+        // cells are registered, otherwise the first resolve can become ephemeral.
+        await registerChatWorkbenchParityCells(on: resolver)
+        await register(
+            name: "Porthole",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: OrchestratorCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "Perspective",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: PerspectiveCell.self,
             resolver: resolver
         )
     }
@@ -10686,7 +10735,7 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
             "actionSummary": .string("Velg en act under for å åpne neste conference-flate."),
             "nextStepSummary": .string("Act 0 åpner public surface. Act 0.5 åpner scaffold setup og identity-link review. Derfra går du videre til participant cockpit, chat og control tower."),
             "readinessSummary": .string("Public opener, scaffold setup / identity link review, participant cockpit, explicit chat, control tower og AI assistant er tilgjengelige som egne konfigurasjoner i HAVEN."),
-            "stretchSummary": .string("Nearby-radar forblir en tydelig merket HAVEN-only stretch, og er ikke del av den staging-first demo-historien."),
+            "stretchSummary": .string("Nearby Scanner er en first-class HAVEN-flate: lokal start/stopp, ærlig presisjonsstatus, MPC-fallback og conference follow-up er tilgjengelig. Live to-enhets UWB-aksept gjenstår før vi kaller hardware-sporet produksjonsverifisert."),
             "publicActSummary": .string("Vis publisert landing, spor og program som faktisk kommer fra CellScaffold på staging."),
             "identityLinkActSummary": .string("Åpne scaffold setup og review incoming identity-link challenge-data i HAVEN uten å omgå den delte cross-vault-protokollen."),
             "participantActSummary": .string("Fortsett i participant-portalen og åpne chatflaten eksplisitt når samtalen er startet."),

@@ -19,7 +19,8 @@ enum AgentLocalControlBridgeEndpointSupport {
         "agent/intents/inbox": "intent-inbox",
         "agent/intents/review": "intent-review",
         "agent/network/sentinel": "network-sentinel",
-        "agent/email/outbox": "email-outbox"
+        "agent/email/outbox": "email-outbox",
+        "agent/butler/scheduler": "butler-scheduler"
     ]
 
     private static let runtimeAccessBookmarkKey = "Binding.AgentRuntimeAccess.applicationSupportBookmark"

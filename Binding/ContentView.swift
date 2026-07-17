@@ -410,6 +410,8 @@ struct ContentView: View {
         case openLauncher = "open-launcher"
         case openParticipantPortal = "open-participant-portal"
         case openConferenceMVP = "open-conference-mvp"
+        case openNearbyScanner = "open-nearby-scanner"
+        case openConferenceNearbyRadar = "open-conference-nearby-radar"
         case openPublicSurface = "open-public-surface"
         case openControlTower = "open-control-tower"
         case openSponsorFollowUp = "open-sponsor-follow-up"
@@ -441,6 +443,10 @@ struct ContentView: View {
                 return "Open Conference Participant Portal"
             case .openConferenceMVP:
                 return "Open Conference MVP"
+            case .openNearbyScanner:
+                return "Open Nearby Scanner"
+            case .openConferenceNearbyRadar:
+                return "Open Conference Nearby Radar"
             case .openPublicSurface:
                 return "Open Conference Public Surface"
             case .openControlTower:
@@ -1904,7 +1910,11 @@ struct ContentView: View {
                 )
 
             if shouldLoadWithoutAuthenticatedRuntimeBootstrap(startupConfiguration) {
-                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+                if configurationNeedsFullLocalCellRegistration(startupConfiguration) {
+                    await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+                } else {
+                    await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
+                }
                 await repairPersistedConferenceLauncherIfNeeded()
                 await repairPersistedConferencePortalIfNeeded()
                 await repairPersistedConferenceControlTowerIfNeeded()
@@ -3177,6 +3187,12 @@ struct ContentView: View {
         Button(ConferenceAutomationHook.openConferenceMVP.title) {
             runConferenceAutomation(.openConferenceMVP)
         }
+        Button(ConferenceAutomationHook.openNearbyScanner.title) {
+            runConferenceAutomation(.openNearbyScanner)
+        }
+        Button(ConferenceAutomationHook.openConferenceNearbyRadar.title) {
+            runConferenceAutomation(.openConferenceNearbyRadar)
+        }
         Button(ConferenceAutomationHook.openPublicSurface.title) {
             runConferenceAutomation(.openPublicSurface)
         }
@@ -4306,6 +4322,20 @@ struct ContentView: View {
                     navigationMode: .automatic
                 )
             }
+        case .openNearbyScanner:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
+        case .openConferenceNearbyRadar:
+            await MainActor.run {
+                loadConferenceAutomationConfiguration(
+                    ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration(),
+                    navigationMode: .automatic
+                )
+            }
         case .openPublicSurface:
             await MainActor.run {
                 loadConferenceAutomationConfiguration(
@@ -4794,15 +4824,26 @@ struct ContentView: View {
     @MainActor
     private func waitForRuntimeBootstrapIfNeeded(
         requestID: UUID,
-        configurationName: String
+        configuration: CellConfiguration
     ) async -> Bool {
+        let configurationName = configuration.name
+        let needsFullLocalRegistration = configurationNeedsFullLocalCellRegistration(configuration)
+
         if runtimeBootstrapIsReady {
-            await BindingLocalCellRegistration.shared.ensureRegistered()
+            if needsFullLocalRegistration {
+                await BindingLocalCellRegistration.shared.ensureRegistered()
+            } else {
+                await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
+            }
             return true
         }
 
         if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            if needsFullLocalRegistration {
+                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            } else {
+                await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
+            }
             return true
         }
 
@@ -4811,11 +4852,16 @@ struct ContentView: View {
             requestID: requestID
         )
         await BindingRuntimeBootstrap.ensureBaseline()
-        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+        if !runtimeBootstrapIsReady,
+           !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
             await AppInitializer.initialize()
         }
         await BindingRuntimeBootstrap.ensureBaseline()
-        await BindingLocalCellRegistration.shared.ensureRegistered()
+        if needsFullLocalRegistration {
+            await BindingLocalCellRegistration.shared.ensureRegistered()
+        } else {
+            await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
+        }
         if runtimeBootstrapIsReady {
             return true
         }
@@ -4954,7 +5000,11 @@ struct ContentView: View {
         guard !Task.isCancelled else { return }
         if shouldLoadWithoutAuthenticatedRuntimeBootstrap(sanitizedConfiguration) {
             await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            if configurationNeedsFullLocalCellRegistration(sanitizedConfiguration) {
+                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+            } else {
+                await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
+            }
             updateLoadingStatus("Laster lokal konfigurasjon for \(sanitizedConfiguration.name)…", requestID: requestID)
             let startupRequester = await startupRequesterIdentity()
             let localRequester: Identity?
@@ -4987,7 +5037,7 @@ struct ContentView: View {
         if requiresAuthenticatedRuntimeBootstrap(sanitizedConfiguration) {
             guard await waitForRuntimeBootstrapIfNeeded(
                 requestID: requestID,
-                configurationName: sanitizedConfiguration.name
+                configuration: sanitizedConfiguration
             ) else { return }
         } else {
             await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
@@ -5192,6 +5242,23 @@ struct ContentView: View {
         return endpoints.allSatisfy { endpoint in
             !RemoteCatalogSupport.isRemoteEndpoint(endpoint)
         }
+    }
+
+    private func configurationNeedsFullLocalCellRegistration(_ configuration: CellConfiguration) -> Bool {
+        let launchCriticalEndpoints: Set<String> = [
+            "cell:///personalchathub",
+            "cell:///appleintelligence",
+            "cell:///localllm",
+            "cell:///contactendpoint",
+            "cell:///perspective",
+            "cell:///porthole"
+        ]
+        let localEndpoints = runtimeBootstrapEndpoints(for: configuration).filter {
+            !RemoteCatalogSupport.isRemoteEndpoint($0)
+        }.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        return localEndpoints.contains { !launchCriticalEndpoints.contains($0) }
     }
 
     private func runtimeBootstrapEndpoints(for configuration: CellConfiguration) -> [String] {
@@ -7564,7 +7631,7 @@ struct ContentView: View {
         }
 
         return (
-            upperLeft: [personalHome, inviteChat, matches],
+            upperLeft: [personalHome, entityScanner, inviteChat, matches],
             upperMid: upperMid,
             upperRight: upperRight,
             lowerLeft: lowerLeft,
@@ -7626,10 +7693,12 @@ struct ContentView: View {
         let localEntityScannerChecklist = ConfigurationCatalogCell.entityScannerPairingChecklistConfiguration()
         let agentSetup = ConfigurationCatalogCell.agentSetupWorkbenchMenuConfiguration()
 
-        let upperLeft = [conferenceDemoLauncher, conferencePublic, conferenceMVP, chat, todo, conferenceCodex]
+        let conferenceNearbyRadar = ConfigurationCatalogCell.conferenceNearbyRadarWorkbenchConfiguration()
+
+        let upperLeft = [conferenceDemoLauncher, conferencePublic, conferenceMVP, conferenceNearbyRadar, chat, todo, conferenceCodex]
         var upperMid = [conferenceDemoLauncher, conferenceIdentityLink, appleIntelligence, conferenceParticipantPortal, conferenceAIAssistant, conferenceSponsor, conferenceClaude, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, portholeWorkbench]
         let upperRight = [conferenceDemoLauncher, conferenceParticipantPortal, conferencePublic, conferenceAdmin, conferenceSponsor, conferenceIdentityLink, conferenceCodex, conferenceClaude, workflowStudioPortable, obsidian, portholeWorkbench]
-        let lowerLeft = [localEntityScanner, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist]
+        let lowerLeft = [localEntityScanner, conferenceNearbyRadar, workflowStudioWorkbench, workflowStudioPortable, perspectiveWorkbench, entityAnchorWorkbench, trustedIssuersWorkbench, localEntityScannerHelper, localEntityScannerChecklist]
         let lowerMid = [conferenceDemoLauncher, conferenceIdentityLink, conferenceParticipantPortal, conferenceAIAssistant, conferencePublic, conferenceMVP, conferenceSponsor, conferenceCodex, conferenceClaude, todo, catalogWorkbench, workflowStudioWorkbench, workflowStudioPortable, folderWatchWorkbench, graphIndexWorkbench]
         var lowerRight = [obsidian, vaultWorkbench, workflowStudioWorkbench, workflowStudioPortable, graphIndexWorkbench, trustedIssuersWorkbench, conferenceCodex, conferenceClaude]
 

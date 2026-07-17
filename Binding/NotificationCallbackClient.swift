@@ -181,11 +181,33 @@ final class NotificationCallbackClient {
         request.httpBody = try JSONEncoder().encode(payload)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw NotificationCallbackHTTPError(
+                statusCode: httpResponse.statusCode,
+                responseBody: Self.responseBodySnippet(from: data)
+            )
         }
         let decoded = try JSONDecoder().decode([String: JSONValue].self, from: data)
         return decoded
+    }
+
+    nonisolated static func responseBodySnippet(from data: Data, maxLength: Int = 512) -> String? {
+        guard data.isEmpty == false else {
+            return nil
+        }
+        guard var body = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              body.isEmpty == false else {
+            return nil
+        }
+        if body.count > maxLength {
+            let endIndex = body.index(body.startIndex, offsetBy: maxLength)
+            body = "\(body[..<endIndex])..."
+        }
+        return body
     }
 
     private enum NotificationResolutionOutcome {
@@ -389,5 +411,21 @@ final class NotificationCallbackClient {
         default:
             return nil
         }
+    }
+}
+
+struct NotificationCallbackHTTPError: LocalizedError, CustomStringConvertible {
+    var statusCode: Int
+    var responseBody: String?
+
+    var errorDescription: String? {
+        if let responseBody, responseBody.isEmpty == false {
+            return "Staging returned HTTP \(statusCode): \(responseBody)"
+        }
+        return "Staging returned HTTP \(statusCode) during notification callback."
+    }
+
+    var description: String {
+        errorDescription ?? "Staging returned an unexpected HTTP response."
     }
 }

@@ -575,6 +575,19 @@ struct BindingTests {
         #expect(!normalized.contains("control tower"))
     }
 
+    @Test func nearbyScannerIsFirstClassPersonalSurfaceWithNativePermissionMetadata() {
+        let configuration = ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+
+        #expect(configuration.name == "Entity Scanner")
+        #expect(configuration.discovery?.sourceCellEndpoint == "cell:///EntityScanner")
+        #expect(configuration.discovery?.menuSlots == ["upperLeft", "lowerLeft"])
+        #expect(metadata.policyCategory == "hardware-scanner")
+        #expect(metadata.surfaceFamily == "intelligence")
+        #expect(metadata.presentationClass == "hero")
+        #expect(metadata.nativePermissionRequests == ["nearby", "bluetooth"])
+    }
+
     @Test func stagingSurfaceTestingModeIsDebugOnlyAndCanBeDisabled() {
         #if DEBUG
         #expect(BindingPersonalCopilotV1Policy.stagingSurfaceTestingEnabled(environment: [:], launchArguments: []))
@@ -830,18 +843,18 @@ struct BindingTests {
                 keypath: "chatHub.state.ui.promptMessages",
                 in: conversationPanel
             ) {
-                #expect(!skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", in: promptLogRow))
+                #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "Åpne forslag", in: promptLogRow))
                 #expect(!skeletonContainsButton(keypath: "chatHub.ui.openMatchedResourceLibrary", in: promptLogRow))
                 #expect(!skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: promptLogRow))
             } else {
                 Issue.record("Co-Pilot Chat Samtale tab should render the prompt log")
             }
             #expect(!skeletonContainsButton(keypath: "chatHub.assistant.analyzeDraft", in: conversationPanel))
-            #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: conversationPanel))
+            #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: conversationPanel))
             func primaryActionButton(in element: SkeletonElement) -> SkeletonButton? {
                 switch element {
                 case .Button(let button):
-                    return button.keypath == "chatHub.ui.openSuggestedHelper" && button.label == "↑" ? button : nil
+                    return button.keypath == "chatHub.prompt.submit" && button.label == "↑" ? button : nil
                 case .VStack(let stack):
                     return stack.elements.lazy.compactMap(primaryActionButton).first
                 case .HStack(let stack):
@@ -865,7 +878,7 @@ struct BindingTests {
             #expect(skeletonContainsTextKeypath("chatHub.state.ui.primaryActionHint", in: conversationPanel))
             #expect(skeletonContainsTabs(tabsKeypath: "chatHub.state.ui.activeHelpers", in: conversationElement))
             #expect(!skeletonContainsLiteralText("Trykk pilen", in: conversationPanel))
-            #expect(!skeletonContainsButton(keypath: "chatHub.prompt.submit", in: conversationPanel))
+            #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.clearComposer", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.voice.requestPermission", in: conversationPanel))
@@ -1220,7 +1233,8 @@ struct BindingTests {
         #expect(skeletonContainsTextArea(targetKeypath: "teamChat.setComposer", in: mergeResult.rewrittenFragment))
         #expect(!skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: mergeResult.rewrittenFragment))
         #expect(skeletonContainsList(keypath: "teamChat.state.ui.promptMessages", topic: nil, in: mergeResult.rewrittenFragment))
-        #expect(skeletonContainsButton(keypath: "teamChat.ui.openSuggestedHelper", label: "↑", in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsButton(keypath: "teamChat.prompt.submit", label: "↑", in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsButton(keypath: "teamChat.ui.openSuggestedHelper", label: "Åpne forslag", in: mergeResult.rewrittenFragment))
         #expect(!skeletonContainsButton(keypath: "teamChat.sendComposedMessage", in: mergeResult.rewrittenFragment))
     }
 
@@ -1468,7 +1482,8 @@ struct BindingTests {
         #expect(references.contains(where: { $0.endpoint == "cell:///PersonalChatHub" && $0.label == "chatHub" }))
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: workingSkeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.ui.promptMessages", topic: nil, in: workingSkeleton))
-        #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: workingSkeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: workingSkeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "Åpne forslag", in: workingSkeleton))
         #expect(!skeletonContainsButton(keypath: "chatHub.sendComposedMessage", in: workingSkeleton))
     }
 
@@ -2266,14 +2281,41 @@ struct BindingTests {
 
     @Test func conferenceAutomationHookParsesSupportedURLs() throws {
         let portalURL = try #require(URL(string: "haven://conference-automation?action=open-participant-portal"))
+        let scannerURL = try #require(URL(string: "haven://conference-automation?action=open-nearby-scanner"))
+        let radarURL = try #require(URL(string: "haven://conference-automation?action=open-conference-nearby-radar"))
         let chatURL = try #require(URL(string: "haven://conference-automation?action=open-focused-chat-workbench"))
         let aiLogURL = try #require(URL(string: "haven://conference-automation?action=log-ai-assistant-state"))
         let identityLinkURL = try #require(URL(string: "haven://identity-link?requestId=REQ-123"))
 
         #expect(ContentView.conferenceAutomationHook(from: portalURL) == .openParticipantPortal)
+        #expect(ContentView.conferenceAutomationHook(from: scannerURL) == .openNearbyScanner)
+        #expect(ContentView.conferenceAutomationHook(from: radarURL) == .openConferenceNearbyRadar)
         #expect(ContentView.conferenceAutomationHook(from: chatURL) == .openFocusedChatWorkbench)
         #expect(ContentView.conferenceAutomationHook(from: aiLogURL) == .logAIAssistantState)
         #expect(ContentView.conferenceAutomationHook(from: identityLinkURL) == nil)
+    }
+
+    @Test func nearbyScannerDeclaresRequiredPlatformPrivacyDescriptions() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repoRoot = testFile.deletingLastPathComponent().deletingLastPathComponent()
+        let plistURL = repoRoot.appendingPathComponent("Binding/Info.plist")
+        let plistData = try Data(contentsOf: plistURL)
+        let plist = try #require(
+            PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any]
+        )
+
+        for key in [
+            "NSNearbyInteractionUsageDescription",
+            "NSLocalNetworkUsageDescription",
+            "NSBluetoothAlwaysUsageDescription"
+        ] {
+            let value = try #require(plist[key] as? String, "\(key) must be present for Nearby Scanner production readiness")
+            #expect(value.contains("Nearby Scanner"))
+            #expect(value.lowercased().contains("bare når du starter"))
+        }
+
+        let bonjourServices = try #require(plist["NSBonjourServices"] as? [String])
+        #expect(bonjourServices.contains("_haven-radar._tcp"))
     }
 
     @Test func runtimeSurfaceLaunchParsesOpaqueViewOnlyRoute() throws {
@@ -6545,43 +6587,31 @@ struct BindingTests {
             CellBase.defaultCellResolver = resolver
         }
 
-        let owner = await makeOwnerIdentity()
-
-        try? await resolver.addCellResolve(
-            name: "Porthole",
-            cellScope: .identityUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: OrchestratorCell.self
+        let owner = await makeIsolatedTestOwnerIdentity("apple-porthole-load-replaces")
+        let catalogEndpointName = uniqueTestCellEndpointName("ConfigurationCatalog")
+        let rootEndpointName = uniqueTestCellEndpointName("RootOnlyState")
+        let catalogCell = await ConfigurationCatalogCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: catalogEndpointName,
+            emitCell: catalogCell,
+            identity: owner
         )
-        try? await resolver.addCellResolve(
-            name: "ConfigurationCatalog",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: ConfigurationCatalogCell.self
-        )
-        try? await resolver.addCellResolve(
-            name: "RootOnlyState",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: RootOnlyStateCell.self
+        let rootStateCell = await RootOnlyStateCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: rootEndpointName,
+            emitCell: rootStateCell,
+            identity: owner
         )
 
-        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
-            Issue.record("Could not resolve Porthole")
-            return
-        }
-
+        let porthole = await OrchestratorCell(owner: owner)
         try await porthole.loadCellConfiguration(CellConfiguration(name: "Empty Porthole"), requester: owner)
 
         var catalogConfiguration = CellConfiguration(name: "Catalog Workspace")
-        catalogConfiguration.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
+        catalogConfiguration.addReference(CellReference(endpoint: "cell:///\(catalogEndpointName)", label: "catalog"))
         try await porthole.loadCellConfiguration(catalogConfiguration, requester: owner)
 
         var rootStateConfiguration = CellConfiguration(name: "Root State Workspace")
-        rootStateConfiguration.addReference(CellReference(endpoint: "cell:///RootOnlyState", label: "rootState"))
+        rootStateConfiguration.addReference(CellReference(endpoint: "cell:///\(rootEndpointName)", label: "rootState"))
         try await porthole.loadCellConfiguration(rootStateConfiguration, requester: owner)
 
         #expect(porthole.getCellConfiguration()?.name == "Root State Workspace")
@@ -6607,32 +6637,20 @@ struct BindingTests {
             CellBase.defaultCellResolver = resolver
         }
 
-        let owner = await makeOwnerIdentity()
-
-        try? await resolver.addCellResolve(
-            name: "Porthole",
-            cellScope: .identityUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: OrchestratorCell.self
-        )
-        try? await resolver.addCellResolve(
-            name: "ConfigurationCatalog",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: ConfigurationCatalogCell.self
+        let owner = await makeIsolatedTestOwnerIdentity("apple-porthole-load-rollback")
+        let catalogEndpointName = uniqueTestCellEndpointName("ConfigurationCatalog")
+        let catalogCell = await ConfigurationCatalogCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: catalogEndpointName,
+            emitCell: catalogCell,
+            identity: owner
         )
 
-        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
-            Issue.record("Could not resolve Porthole")
-            return
-        }
-
+        let porthole = await OrchestratorCell(owner: owner)
         try await porthole.loadCellConfiguration(CellConfiguration(name: "Empty Porthole"), requester: owner)
 
         var validConfiguration = CellConfiguration(name: "Catalog Workspace")
-        validConfiguration.addReference(CellReference(endpoint: "cell:///ConfigurationCatalog", label: "catalog"))
+        validConfiguration.addReference(CellReference(endpoint: "cell:///\(catalogEndpointName)", label: "catalog"))
         try await porthole.loadCellConfiguration(validConfiguration, requester: owner)
 
         var invalidConfiguration = CellConfiguration(name: "Broken Workspace")
@@ -6766,34 +6784,22 @@ struct BindingTests {
             CellBase.defaultCellResolver = resolver
         }
 
-        let owner = await makeOwnerIdentity()
-
-        try? await resolver.addCellResolve(
-            name: "Porthole",
-            cellScope: .identityUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: OrchestratorCell.self
-        )
-        try? await resolver.addCellResolve(
-            name: "RootOnlyState",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: RootOnlyStateCell.self
+        let owner = await makeIsolatedTestOwnerIdentity("apple-porthole-root-state")
+        let rootEndpointName = uniqueTestCellEndpointName("RootOnlyState")
+        let cell = await RootOnlyStateCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: rootEndpointName,
+            emitCell: cell,
+            identity: owner
         )
 
-        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
-            Issue.record("Could not resolve Porthole")
-            return
-        }
-
+        let porthole = await OrchestratorCell(owner: owner)
         porthole.detachAll(requester: owner)
 
         var configuration = CellConfiguration(name: "Root State Portal")
-        configuration.addReference(CellReference(endpoint: "cell:///RootOnlyState", label: "rootState"))
+        configuration.addReference(CellReference(endpoint: "cell:///\(rootEndpointName)", label: "rootState"))
 
-        _ = try await resolver.loadCell(from: configuration, into: porthole, requester: owner)
+        try await porthole.loadCellConfiguration(configuration, requester: owner)
 
         let titleValue = try await porthole.get(keypath: "rootState.state.workspace.title", requester: owner)
         #expect(titleValue == .string("Conference Participant Portal"))
@@ -6819,30 +6825,17 @@ struct BindingTests {
             CellBase.defaultCellResolver = resolver
         }
 
-        let owner = await makeOwnerIdentity()
-
-        try? await resolver.addCellResolve(
-            name: "Porthole",
-            cellScope: .identityUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: OrchestratorCell.self
-        )
-        let fixtureEndpoint = "cell:///ConferenceParticipantPreviewShellFixture"
-
-        try? await resolver.addCellResolve(
-            name: "ConferenceParticipantPreviewShellFixture",
-            cellScope: .scaffoldUnique,
-            persistency: .persistant,
-            identityDomain: "private",
-            type: ConferenceParticipantPreviewShellFixtureCell.self
+        let owner = await makeIsolatedTestOwnerIdentity("apple-porthole-conference-preview")
+        let fixtureEndpointName = uniqueTestCellEndpointName("ConferenceParticipantPreviewShellFixture")
+        let fixtureEndpoint = "cell:///\(fixtureEndpointName)"
+        let fixtureCell = await ConferenceParticipantPreviewShellFixtureCell(owner: owner)
+        try await resolver.registerNamedEmitCell(
+            name: fixtureEndpointName,
+            emitCell: fixtureCell,
+            identity: owner
         )
 
-        guard let porthole = try await resolver.cellAtEndpoint(endpoint: "cell:///Porthole", requester: owner) as? OrchestratorCell else {
-            Issue.record("Could not resolve Porthole")
-            return
-        }
-
+        let porthole = await OrchestratorCell(owner: owner)
         porthole.detachAll(requester: owner)
 
         let configuration = makeConferenceParticipantPortalConfiguration(endpoint: fixtureEndpoint)
@@ -7158,6 +7151,18 @@ struct BindingTests {
     private func makeOwnerIdentity() async -> Identity {
         CellBase.defaultIdentityVault = Self.testIdentityVault
         return await Self.testIdentityVault.identity(for: "private", makeNewIfNotFound: true)!
+    }
+
+    private func makeIsolatedTestOwnerIdentity(_ contextPrefix: String) async -> Identity {
+        CellBase.defaultIdentityVault = Self.testIdentityVault
+        return await Self.testIdentityVault.identity(
+            for: "\(contextPrefix)-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        )!
+    }
+
+    private func uniqueTestCellEndpointName(_ prefix: String) -> String {
+        "\(prefix)\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
     }
 
     private func makeIsolatedRuntimeIdentity(_ contextPrefix: String) async -> Identity {

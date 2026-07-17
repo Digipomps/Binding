@@ -23,6 +23,7 @@ struct BindingApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .modifier(BindingPersonalButlerLifecycleModifier())
 #if os(iOS)
                 .onOpenURL { url in
                     BindingIncomingURLBridge.post(url: url)
@@ -57,6 +58,12 @@ struct BindingConferenceAutomationCommands: Commands {
                 }
                 Button(ContentView.ConferenceAutomationHook.openConferenceMVP.title) {
                     post(.openConferenceMVP)
+                }
+                Button(ContentView.ConferenceAutomationHook.openNearbyScanner.title) {
+                    post(.openNearbyScanner)
+                }
+                Button(ContentView.ConferenceAutomationHook.openConferenceNearbyRadar.title) {
+                    post(.openConferenceNearbyRadar)
                 }
                 Button(ContentView.ConferenceAutomationHook.openPublicSurface.title) {
                     post(.openPublicSurface)

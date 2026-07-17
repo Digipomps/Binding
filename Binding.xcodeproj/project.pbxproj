@@ -69,7 +69,7 @@
 		24D800172EF195A000021B5A /* Binding */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				24D8005F2EF3077D00021B5A /* Exceptions for "Binding" folder in "Binding" target */,
+				24D8005F2EF3077D00021B5A /* Exceptions for "Binding" folder in "HAVEN" target */,
 			);
 			path = Binding;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 		24D8004D2EF2D58E00021B5A /* Documentation */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "Binding" target */,
+				24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "HAVEN" target */,
 			);
 			path = Documentation;
 			sourceTree = "<group>";
@@ -95,7 +95,7 @@
 		24D8004F2EF2D5AE00021B5A /* Prompts */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "Binding" target */,
+				24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "HAVEN" target */,
 			);
 			path = Prompts;
 			sourceTree = "<group>";

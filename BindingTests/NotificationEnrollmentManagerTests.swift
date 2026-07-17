@@ -97,6 +97,16 @@ struct NotificationEnrollmentManagerTests {
         }
     }
 
+    @Test func notificationCallbackHTTPErrorSurfacesStatusAndBody() {
+        let data = #"{"reason":"Invalid device callback ingress capability.","error":true}"#
+            .data(using: .utf8)!
+        let body = NotificationCallbackClient.responseBodySnippet(from: data)
+        let error = NotificationCallbackHTTPError(statusCode: 401, responseBody: body)
+
+        #expect(error.localizedDescription.contains("HTTP 401"))
+        #expect(error.localizedDescription.contains("Invalid device callback ingress capability"))
+    }
+
     private func stringArray(_ value: JSONValue?) -> [String] {
         guard case let .array(items)? = value else { return [] }
         return items.compactMap { item in

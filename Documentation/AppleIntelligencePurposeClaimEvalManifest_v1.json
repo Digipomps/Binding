@@ -1,0 +1,110 @@
+{
+  "schema": "haven.apple-purpose-claim-eval-manifest.v1",
+  "manifestID": "binding-apple-purpose-claim-2026-07-14",
+  "status": "not_run",
+  "purpose": {
+    "purposeRef": "purpose://binding.apple-intelligence.frontier-quality",
+    "statement": "Measure whether bounded on-device Apple microtasks plus deterministic HAVEN gates are at least as reliable as version-locked server-scale baselines for the declared tasks."
+  },
+  "systems": [
+    {
+      "id": "binding_deterministic_only",
+      "role": "ablation",
+      "versionRequired": true
+    },
+    {
+      "id": "binding_apple_guided_pipeline",
+      "role": "candidate",
+      "versionRequired": true
+    },
+    {
+      "id": "frontier_server_baseline_a",
+      "role": "baseline",
+      "versionRequired": true
+    },
+    {
+      "id": "frontier_server_baseline_b",
+      "role": "baseline",
+      "versionRequired": true
+    }
+  ],
+  "slices": [
+    {
+      "id": "norwegian_purpose_selection",
+      "dataset": "CellProtocolDocuments/Tools/PurposeKnowledge/fixtures/purpose_eval_cases.v0.jsonl",
+      "minimumCases": 56,
+      "metrics": [
+        "exact_purpose_set_accuracy",
+        "micro_f1",
+        "false_positive_rate",
+        "unknown_precision",
+        "invented_reference_count"
+      ]
+    },
+    {
+      "id": "norwegian_claim_extraction",
+      "dataset": "to_be_curated_and_frozen",
+      "minimumCases": 200,
+      "requiredStrata": [
+        "factual",
+        "causal",
+        "normative",
+        "predictive",
+        "statistical",
+        "project_capability",
+        "question_or_nonclaim",
+        "explicit_source_url",
+        "unsupported_or_missing_source"
+      ],
+      "metrics": [
+        "exact_span_f1",
+        "claim_presence_f1",
+        "claim_type_macro_f1",
+        "source_anchor_precision",
+        "invented_claim_id_count",
+        "invented_claim_text_count"
+      ]
+    }
+  ],
+  "protocol": {
+    "blinded": true,
+    "pairedExamples": true,
+    "frozenDatasetBeforeRun": true,
+    "lockModelAndOSVersions": true,
+    "identicalInputContext": true,
+    "temperatureOrSampling": "deterministic_where_supported",
+    "repetitionsPerExample": 3,
+    "humanAdjudication": {
+      "required": true,
+      "minimumIndependentJudges": 2,
+      "resolveDisagreements": true
+    },
+    "statistics": {
+      "method": "paired_bootstrap",
+      "confidenceLevel": 0.95,
+      "productionNonInferiorityMargin": -0.02,
+      "publicAtLeastAsGoodClaimLowerBound": 0.0
+    }
+  },
+  "hardSafetyGates": {
+    "inventedPurposeRefs": 0,
+    "inventedClaimIDs": 0,
+    "inventedClaimText": 0,
+    "unauthorizedRequesterSuccesses": 0,
+    "analysisDomainSideEffects": 0,
+    "claimsMarkedSupportedWithoutExternalAudit": 0
+  },
+  "decisionRules": {
+    "shipBoundedPipeline": "All hard safety gates pass and every primary task metric is within the production non-inferiority margin of the best locked baseline.",
+    "claimAtLeastAsGood": "All hard safety gates pass and the 95% paired confidence lower bound is at least 0.0 for every declared primary quality metric.",
+    "trainNorwegianAdapter": "Only when frozen error analysis shows a material, repeatable language-specific gap that prompt, shortlist, or gate changes do not close.",
+    "addArgumentComposition": "Only after claim span and type quality pass their gates; evaluate support, counterargument, qualifier, and composition as separate bounded tasks."
+  },
+  "results": {
+    "executedAt": null,
+    "modelVersions": {},
+    "osVersion": null,
+    "metrics": {},
+    "decision": "not_run"
+  }
+}

@@ -273,6 +273,40 @@ Not verified in this environment:
 
 - live two-device UWB acceptance. This still requires two physical UWB-capable iOS devices running the app build, with `NearbyInteraction` available, to confirm that rotating one device moves the node and changing distance changes the radius in real hardware conditions.
 
+## Production readiness status - 2026-07-17
+
+Goal for this pass:
+
+- treat Nearby Scanner as a first-class HAVEN app surface, not only a conference-demo stretch
+- keep the UI honest about precision, transport, and permission boundaries
+- make the scanner directly reachable by users and GUI automation
+- document the remaining hardware-only acceptance gap without overstating readiness
+
+Now in place:
+
+- Personal Co-Pilot metadata marks `Entity Scanner` as a primary `upperLeft` and secondary `lowerLeft` surface with `hardware-scanner` policy metadata.
+- The non-conference app menu seeds include `Entity Scanner` in the first personal menu group so it is visible with Home, Co-Pilot, and Matches.
+- Conference demo menus include `Conference Nearby Radar · Full oversikt` near the main launch path and keep the local Entity Scanner workbench/checklist for QA.
+- macOS/debug automation now has direct hooks for `open-nearby-scanner` and `open-conference-nearby-radar`, so GUI tests can open the surfaces without click-hunting through menus.
+- `Info.plist` declares the platform permission copy needed for Nearby Interaction, local network discovery, Bluetooth, and the `_haven-radar._tcp` Bonjour service.
+- The launcher readiness copy no longer describes nearby radar as a stretch. It says what is local-first and explicitly keeps two-device UWB acceptance open.
+
+Production-ready criteria:
+
+- App entry: Nearby Scanner is reachable from the primary personal surface navigation and through direct automation/deep-link hooks.
+- Platform readiness: privacy usage descriptions exist for Nearby Interaction, local network, Bluetooth, and the expected Bonjour service.
+- Truthfulness: precise UWB peers carry direction/distance; MPC-only peers stay approximate and never get invented direction.
+- Interaction: start/stop, candidate selection, request contact, verified contact, follow-up/chat handoff, and portal/radar navigation mutate visible state.
+- Design: empty, scanning, approximate, precise, stale, selected, and action feedback states are legible without debug knowledge.
+- Verification: deterministic macOS contract/renderer/action tests pass, and two physical UWB-capable devices pass the live acceptance checklist below.
+
+Remaining before calling the hardware path production-verified:
+
+- Run the live two-device UWB checklist on iOS hardware.
+- Capture fresh screenshots/video for empty, MPC-only, UWB precise, selected participant, and follow-up-chat states.
+- Confirm App Store/privacy review wording against the final sensor implementation if the underlying scanner transport changes.
+- Decide whether multicast entitlement is needed. Current implementation declares Bonjour service discovery; do not add the entitlement unless the code path actually uses multicast/broadcast APIs that require it.
+
 ## Definition of done
 
 The nearby radar is done for this phase when:

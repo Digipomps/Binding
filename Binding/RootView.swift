@@ -18,25 +18,26 @@ struct RootView: View {
         rootContent
         .task {
             if !initialized {
-                await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-                await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
-
-                let resolver = CellResolver.sharedInstance
-#if canImport(DiMyCellProtocolCells)
-                do {
-                    try await DiMyCellRuntimeRegistration.registerBindingCells(
-                        resolver: resolver,
-                        identityDomain: "private"
-                    )
-                } catch {
-                    print("DiMy micropayment cell registration failed with error: \(error)")
-                }
-#endif
+                await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
 
                 await MainActor.run {
                     NotificationEnrollmentManager.shared.bootstrapIfNeeded()
                     PendingActionInboxViewModel.shared.reloadPersistedActions()
                     initialized = true
+                }
+
+                Task {
+                    await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+#if canImport(DiMyCellProtocolCells)
+                    do {
+                        try await DiMyCellRuntimeRegistration.registerBindingCells(
+                            resolver: CellResolver.sharedInstance,
+                            identityDomain: "private"
+                        )
+                    } catch {
+                        print("DiMy micropayment cell registration failed with error: \(error)")
+                    }
+#endif
                 }
             }
         }
@@ -60,7 +61,7 @@ struct RootView: View {
                     ProgressView()
                     Text("Starter HAVEN-runtime…")
                         .font(.headline)
-                    Text("Laster lokale celler og demooppsett før arbeidsflaten vises.")
+                    Text("Klargjør privat chat og arbeidsflate.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

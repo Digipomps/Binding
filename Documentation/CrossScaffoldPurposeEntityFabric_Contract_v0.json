@@ -1,0 +1,213 @@
+{
+  "schema": "haven.cross-scaffold-purpose-entity-fabric.v0",
+  "status": "candidate_not_runtime_canonical",
+  "createdAt": "2026-07-14",
+  "canonicalTarget": [
+    "CellProtocolDocuments",
+    "CellProtocol"
+  ],
+  "rootPurpose": {
+    "purposeRef": "purpose://prompt.unknown",
+    "candidateNote": "distributed-purpose-and-entity-fabric",
+    "facets": [
+      "purpose://human-agency",
+      "purpose://access.audit.privacy"
+    ]
+  },
+  "invariants": [
+    "discovery_is_not_authority",
+    "resolver_validates_every_target_access",
+    "no_global_user_identity",
+    "one_authoritative_writer_per_partition_epoch",
+    "read_does_not_imply_store_or_forward",
+    "transport_ack_is_not_commit",
+    "no_silent_loss_of_committed_mutations",
+    "partial_stale_denied_unavailable_and_incomplete_are_visible",
+    "conflicting_valid_branches_are_preserved"
+  ],
+  "planes": {
+    "discovery": {
+      "descriptor": "haven.scaffold-capability-descriptor.v0",
+      "signed": true,
+      "ttlRequired": true,
+      "authority": false,
+      "privateEntityStateAllowed": false
+    },
+    "authority": {
+      "identityScope": "identity_domain",
+      "enrollment": "haven.entity-scaffold-enrollment.v0",
+      "targetResolverRequired": true,
+      "exactChecks": [
+        "purpose",
+        "capability",
+        "audience",
+        "requester",
+        "activeEnrollment"
+      ],
+      "privateKeysLeaveVault": false
+    },
+    "query": {
+      "request": "haven.purpose-scoped-query.v0",
+      "fragment": "haven.purpose-query-fragment.v0",
+      "result": "haven.purpose-query-result.v0",
+      "coordinatorCandidate": "PurposeQueryCoordinatorCell",
+      "fragmentBoundariesPreserved": true
+    },
+    "placement": {
+      "manifest": "haven.entity-data-placement-manifest.v0",
+      "ownerControlled": true,
+      "globalEntityObjectRequired": false,
+      "authorityTransfer": "signed_two_phase_epoch_fenced"
+    },
+    "durability": {
+      "journal": "durable_append_only_hash_chained",
+      "snapshot": "atomic_rebuildable_from_journal",
+      "idempotency": "stable_mutation_id",
+      "concurrency": "expected_revision_compare_and_swap",
+      "receipt": "haven.commit-receipt.v0"
+    }
+  },
+  "queryContracts": {
+    "requestRequiredFields": [
+      "queryID",
+      "purposeRefs",
+      "exploreContractDigest",
+      "requestedFields",
+      "consistency",
+      "maxStalenessMilliseconds",
+      "deadline",
+      "retentionIntent",
+      "requester",
+      "audience"
+    ],
+    "fragmentRequiredFields": [
+      "queryID",
+      "sourceScaffold",
+      "sourceCell",
+      "identityDomain",
+      "purposeRef",
+      "partitionID",
+      "epoch",
+      "revision",
+      "contentHash",
+      "provenanceSignature",
+      "freshness",
+      "redactions",
+      "accessDecision",
+      "status"
+    ],
+    "resultStatuses": [
+      "complete",
+      "partial",
+      "stale",
+      "denied",
+      "unavailable",
+      "incomplete"
+    ]
+  },
+  "placementManifest": {
+    "requiredFields": [
+      "ownerBinding",
+      "partitionID",
+      "authoritativeCellEndpoint",
+      "replicaEndpoints",
+      "epoch",
+      "revision",
+      "sensitivity",
+      "retentionPolicy",
+      "backupPolicy",
+      "signature"
+    ],
+    "examplePartitions": [
+      "entity.core",
+      "entity.projects",
+      "entity.purpose-overlay",
+      "commons.purpose-catalog"
+    ],
+    "prohibitedFields": [
+      "globalUserID"
+    ]
+  },
+  "mutationEnvelope": {
+    "schema": "haven.durable-mutation-envelope.v0",
+    "immutable": true,
+    "requiredFields": [
+      "mutationID",
+      "partitionID",
+      "epoch",
+      "expectedRevision",
+      "payloadHash",
+      "previousCommittedHash",
+      "requester",
+      "purposeRef",
+      "capability",
+      "signature",
+      "faultPolicyID"
+    ]
+  },
+  "integrityPolicy": {
+    "commitDefinition": "A mutation is committed only after the authoritative journal append and the configured durable replica quorum are verified.",
+    "productionDefaultFaultModel": {
+      "durableReplicaCount": 3,
+      "commitQuorum": 2,
+      "independentFailureDomainsRequired": true
+    },
+    "mutationStates": [
+      "pending",
+      "committed",
+      "conflict",
+      "denied",
+      "failed"
+    ],
+    "gapPolicy": "fail_incomplete_unless_durable_replay_succeeds",
+    "conflictPolicy": "preserve_all_valid_branches",
+    "prohibitions": [
+      "transport_ack_as_commit",
+      "http_success_as_commit",
+      "process_local_cache_as_durability",
+      "general_last_write_wins",
+      "silent_partial_merge",
+      "commit_receipt_before_quorum"
+    ]
+  },
+  "purposeDataSeparation": {
+    "commonsAuthority": [
+      "published_definitions",
+      "versions",
+      "public_relations"
+    ],
+    "ownerOverlayAuthority": [
+      "activated_purposes",
+      "private_goals",
+      "priorities",
+      "weights",
+      "private_notes",
+      "consents"
+    ],
+    "purposeRefIsAuthority": false
+  },
+  "acceptanceTests": [
+    "reject_expired_or_invalid_discovery_descriptor",
+    "reject_wrong_purpose_capability_audience_requester_or_enrollment",
+    "reject_cross_domain_identity_reuse",
+    "deduplicate_retried_mutation_by_mutation_id",
+    "preserve_conflict_on_stale_revision_or_epoch",
+    "never_issue_commit_receipt_before_quorum",
+    "recover_post_receipt_crash_to_identical_root_hash",
+    "mark_bridge_gap_incomplete_without_durable_replay",
+    "surface_unavailable_scaffold_as_partial_or_unavailable",
+    "exclude_private_overlay_from_discovery_and_logs",
+    "restore_each_partition_from_snapshot_and_journal"
+  ],
+  "implementationOrder": [
+    "promote_and_review_contract",
+    "harden_entity_anchor_persistence",
+    "add_bridge_durable_ack_and_range_replay",
+    "implement_placement_manifest",
+    "implement_read_only_query_coordinator",
+    "pass_fault_injection_and_restore_gates",
+    "enable_remote_writes",
+    "wire_binding_and_apple_context_provider"
+  ]
+}
+
