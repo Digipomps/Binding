@@ -13,6 +13,7 @@ public enum AgentCellKind: String, Codable, CaseIterable, Sendable {
     case secretCredential
     case emailOutbox
     case signatureStatements
+    case personalButlerSchedule
 }
 
 public struct AgentCellBlueprint: Codable, Equatable, Sendable {
@@ -107,6 +108,12 @@ public enum AgentCellCatalog {
             suggestedCellName: "AgentSignatureCell",
             purpose: "Prepare audience-bound detached signed statements using the stable local agent identity.",
             sideEffectBoundary: "Prepares redacted signing intents only; daemon-owned execution signs canonical metadata plus payload hash after purpose, audience, expiry and nonce validation."
+        ),
+        AgentCellBlueprint(
+            kind: .personalButlerSchedule,
+            suggestedCellName: "PersonalButlerScheduleCell",
+            purpose: "Run owner-approved Butler schedules in HAVENAgentD and evaluate fixed signed wake requests.",
+            sideEffectBoundary: "May launch only the HAVEN bundle with a fixed haven://butler/check-in URL after local owner policy approval."
         )
     ]
 }
