@@ -29,7 +29,7 @@ struct ConfigurationCatalogReadinessTests {
         try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<12 {
                 group.addTask {
-                    try await decoded.ensureRuntimeBindings()
+                    try await decoded.ensureRuntimeBindings(requester: owner)
                 }
             }
             try await group.waitForAll()
