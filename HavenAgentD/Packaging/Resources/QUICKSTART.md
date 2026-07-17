@@ -96,6 +96,13 @@ a trusted channel. Enroll this Mac's newly generated Keychain-backed identity:
 
 ```bash
 haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+```
+
+This submits a signed Entity-bound access request. Wait for the HAVEN operator
+to select **Utsted adgangsbevis** on a registered device, then run:
+
+```bash
+haven-correspondence-mcp activate --profile victoria
 haven-correspondence-mcp doctor --profile victoria
 ```
 
@@ -114,4 +121,5 @@ codex mcp add haven-correspondence -- \
 ```
 
 Use the profile name embedded in the invite. The one-time invite secret is sent
-only during enrollment and is not written into the local profile.
+only with the access request and is not written into the local profile. Every
+later message request includes the signed, Entity- and device-bound access proof.

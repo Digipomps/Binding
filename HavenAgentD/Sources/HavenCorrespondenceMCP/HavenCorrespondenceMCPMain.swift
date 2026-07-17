@@ -30,8 +30,25 @@ struct HavenCorrespondenceMCPMain {
         let (enrolled, _) = try await CorrespondenceClient.enroll(
           invite: invite, paths: invitePaths)
         print(try publicProfileJSON(enrolled))
+      case "activate":
+        let (updated, response) = try await CorrespondenceClient.refreshAccess(paths: paths)
+        var result = try publicProfileObject(updated)
+        result["serverStatus"] = response["status"]
+        result["notificationStatus"] = response["notificationStatus"]
+        print(try json(result))
+        if updated.accessCredential == nil { Darwin.exit(2) }
       case "doctor":
-        let client = try await CorrespondenceClient.load(paths: paths)
+        var client = try await CorrespondenceClient.load(paths: paths)
+        if client.profile.accessCredential == nil {
+          let (updated, response) = try await CorrespondenceClient.refreshAccess(paths: paths)
+          guard updated.accessCredential != nil else {
+            var pending = try publicProfileObject(updated)
+            pending["serverStatus"] = response["status"]
+            print(try json(pending))
+            Darwin.exit(2)
+          }
+          client = try await CorrespondenceClient.load(paths: paths)
+        }
         let response = try await client.perform(
           operation: "inbox.list", arguments: CorrespondenceArguments(limit: 1))
         var result = response.object
@@ -62,8 +79,14 @@ struct HavenCorrespondenceMCPMain {
   }
 
   private static func publicProfileJSON(_ profile: CorrespondenceProfile) throws -> String {
-    try json([
-      "status": "enrolled",
+    try json(try publicProfileObject(profile))
+  }
+
+  private static func publicProfileObject(_ profile: CorrespondenceProfile) throws
+    -> MCPJSONObject
+  {
+    var object: MCPJSONObject = [
+      "status": profile.accessCredential == nil ? "pending_approval" : "active",
       "profile": profile.profile,
       "principalID": profile.principalID,
       "deviceID": profile.deviceID,
@@ -72,7 +95,26 @@ struct HavenCorrespondenceMCPMain {
       "publicKeyBase64URL": profile.publicKeyBase64URL,
       "baseURL": profile.baseURL,
       "executionAuthority": false,
-    ])
+    ]
+    if let entityRef = profile.entityRef { object["entityRef"] = entityRef }
+    if let accessRequestID = profile.accessRequestID {
+      object["accessRequestID"] = accessRequestID
+    }
+    if let credential = profile.accessCredential {
+      object["accessProof"] = [
+        "credentialID": credential.payload.credentialID,
+        "credentialType": credential.payload.credentialType,
+        "approvalReceiptID": credential.payload.approvalReceiptID,
+        "issuerIdentityUUID": credential.payload.issuerIdentityUUID,
+        "expiresAt": credential.payload.expiresAt,
+        "resourceRefs": credential.payload.resourceRefs,
+        "allowedOperations": credential.payload.allowedOperations,
+        "presentedOnEveryRequest": true,
+      ]
+    } else {
+      object["accessProof"] = ["status": "not_issued"]
+    }
+    return object
   }
 
   private static func json(_ object: MCPJSONObject) throws -> String {
@@ -88,10 +130,13 @@ struct HavenCorrespondenceMCPMain {
 
       Usage:
         haven-correspondence-mcp setup --invite /path/to/invite.json [--root /path]
+        haven-correspondence-mcp activate --profile NAME [--root /path]
         haven-correspondence-mcp doctor --profile NAME [--root /path]
         haven-correspondence-mcp identity --profile NAME [--root /path]
         haven-correspondence-mcp serve --profile NAME [--root /path]
 
+      Setup submits an Entity-bound access request. Activate fetches the signed proof
+      after Kjetil has selected «Utsted adgangsbevis» on a registered device.
       The MCP surface is messages-only: list, read, send and acknowledge.
       Message text never grants code execution or machine authority.
       """)

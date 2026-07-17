@@ -173,10 +173,10 @@ private struct PendingAgentActionCard: View {
                         .disabled(isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .buttonStyle(.borderedProminent)
                 } else {
-                    Button("Reject", action: onReject)
+                    Button(rejectButtonTitle, action: onReject)
                         .disabled(isSending)
                         .buttonStyle(.bordered)
-                    Button(isSending ? "Sending..." : "Approve", action: onApprove)
+                    Button(isSending ? "Sender..." : approveButtonTitle, action: onApprove)
                         .disabled(isSending)
                         .buttonStyle(.borderedProminent)
                 }
@@ -210,9 +210,24 @@ private struct PendingAgentActionCard: View {
     }
 
     private var actionHint: String {
-        requiresPrompt
+        if isCorrespondenceAccessRequest {
+            return "Beviset bindes til Entitet, nøkkel, enhet, formål og fire meldingsoperasjoner."
+        }
+        return requiresPrompt
             ? "Svar sendes til staging og plukkes opp av HAVENAgent via flow."
             : "Beslutningen sendes tilbake via staging og havner i agentens reply-inbox."
+    }
+
+    private var isCorrespondenceAccessRequest: Bool {
+        action.requiredActionKey == "haven.assistant-correspondence.issue-access-proof"
+    }
+
+    private var approveButtonTitle: String {
+        isCorrespondenceAccessRequest ? "Utsted adgangsbevis" : "Approve"
+    }
+
+    private var rejectButtonTitle: String {
+        isCorrespondenceAccessRequest ? "Avslå" : "Reject"
     }
 
     private func stringValue(_ value: JSONValue?) -> String? {

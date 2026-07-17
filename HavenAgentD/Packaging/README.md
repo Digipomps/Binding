@@ -21,8 +21,10 @@ agent still needs a `config.json` plus the per-user provisioning artifacts
 Loading launchd before those exist would just crashloop.
 
 The separate correspondence MCP does not need launchd. It creates a per-device
-Keychain-backed identity when the user consumes an operator-issued, single-use
-enrollment invite. It exposes no general HAVENAgentD tools.
+Keychain-backed identity and uses a single-use invitation only to request
+access. Kjetil approves or rejects that request from a registered Binding
+device. Approval causes the staging Cell—not the client—to issue a signed,
+Entity-bound access proof. It exposes no general HAVENAgentD tools.
 
 Per-user runtime state stays where it always has:
 `~/Library/Application Support/HAVENAgent/`.

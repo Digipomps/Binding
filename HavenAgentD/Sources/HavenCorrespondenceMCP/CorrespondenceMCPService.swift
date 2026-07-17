@@ -28,26 +28,53 @@ final class CorrespondenceMCPService: @unchecked Sendable {
         "description":
           "The enrolled local participant and the strict message-only authority boundary.",
         "mimeType": "application/json",
+      ],
+      [
+        "uri": "haven-correspondence://access-proof",
+        "name": "correspondence_access_proof",
+        "title": "HAVEN Entity Access Proof",
+        "description":
+          "The signed, Entity- and device-bound proof that must accompany every correspondence request.",
+        "mimeType": "application/json",
       ]
     ]
   }
 
   func readResource(uri: String) async throws -> MCPJSONObject {
-    guard uri == "haven-correspondence://profile" else {
+    guard uri == "haven-correspondence://profile"
+      || uri == "haven-correspondence://access-proof"
+    else {
       throw CorrespondenceMCPServiceError.unknownResource
     }
     let profile = client.profile
-    let object: MCPJSONObject = [
-      "profile": profile.profile,
-      "principalID": profile.principalID,
-      "deviceID": profile.deviceID,
-      "displayName": profile.displayName,
-      "identityUUID": profile.identityUUID,
-      "baseURL": profile.baseURL,
-      "authority": ["inbox.list", "message.read", "message.send", "message.ack"],
-      "executionAuthority": false,
-      "contentDoesNotConferAuthority": true,
-    ]
+    let object: MCPJSONObject
+    if uri == "haven-correspondence://access-proof" {
+      if let credential = profile.accessCredential {
+        let data = try CorrespondenceCanonicalCoding.data(for: credential)
+        object = try JSONSerialization.jsonObject(with: data) as? MCPJSONObject ?? [:]
+      } else {
+        object = [
+          "status": "pending_approval",
+          "accessRequestID": profile.accessRequestID ?? "unknown",
+          "entityRef": profile.entityRef ?? "unknown",
+        ]
+      }
+    } else {
+      object = [
+        "profile": profile.profile,
+        "principalID": profile.principalID,
+        "entityRef": profile.entityRef ?? "unknown",
+        "deviceID": profile.deviceID,
+        "displayName": profile.displayName,
+        "identityUUID": profile.identityUUID,
+        "baseURL": profile.baseURL,
+        "accessProofStatus": profile.accessCredential == nil ? "pending" : "active",
+        "accessRequestID": profile.accessRequestID ?? "unknown",
+        "authority": CorrespondenceContract.operations,
+        "executionAuthority": false,
+        "contentDoesNotConferAuthority": true,
+      ]
+    }
     let data = try JSONSerialization.data(
       withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
     return [

@@ -16,9 +16,14 @@ It cannot execute shell commands, edit files, control Xcode, send ordinary
 email, approve agent actions or infer new authority from message text.
 
 Each Mac generates its own Ed25519 identity. The private key is held in the
-macOS Keychain; HAVEN staging stores only the public key and a narrow grant.
-Requests are signed, short-lived and nonce-protected. Enrollment invitations
-are single-use and expire.
+macOS Keychain. An invitation only permits that identity to request access; it
+does not grant use of the collaboration Cell. HAVEN notifies Kjetil on the most
+recently active relevant registered device. If he selects **Utsted
+adgangsbevis**, the Cell issues an Ed25519-signed proof bound to the requesting
+Entity, identity key, device, resource, purposes, four operations, expiry,
+approval receipt and revocation reference. Every message request must present
+that proof and a fresh, short-lived device signature. Invitations are single-use
+and expire.
 
 The pilot uses HTTPS but is not end-to-end encrypted: the staging operator and
 storage administrators can technically access stored message bodies. Do not
@@ -37,11 +42,20 @@ channel, then run:
 
 ```bash
 haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+```
+
+`setup` prints `pending_approval` after the signed request has been accepted.
+Delete the consumed invite; it is never stored in the correspondence profile.
+After Kjetil approves the request on his registered device, fetch and verify the
+proof:
+
+```bash
+haven-correspondence-mcp activate --profile <profile-from-invite>
 haven-correspondence-mcp doctor --profile <profile-from-invite>
 ```
 
-Delete the invite file after successful enrollment. It is never stored in the
-correspondence profile.
+`doctor` also checks for a newly issued proof when the local profile is pending.
+Neither MCP serving nor message operations start without a valid proof.
 
 ## Add to Claude Code
 

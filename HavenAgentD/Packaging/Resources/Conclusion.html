@@ -30,8 +30,11 @@ haven-agentd provisioning-import --pack ~/Downloads/pack.json</pre>
     </li>
   </ol>
   <p><b>Claude/Codex correspondence pilot:</b> if your operator supplied a
-  single-use <code>haven-invite.json</code>, enroll the messages-only bridge:</p>
-  <pre>haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+  single-use <code>haven-invite.json</code>, submit the signed access request:</p>
+  <pre>haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json</pre>
+  <p>Kjetil receives the request in Binding and selects <b>Utsted adgangsbevis</b>.
+  Fetch and verify the signed proof, then check the messages-only bridge:</p>
+  <pre>haven-correspondence-mcp activate --profile &lt;profile-from-invite&gt;
 haven-correspondence-mcp doctor --profile &lt;profile-from-invite&gt;</pre>
   <p class="muted">Full guide: <code>open /usr/local/share/havenagent/QUICKSTART.md</code>.
   Correspondence guide: <code>open /usr/local/share/havenagent/ASSISTANT_CORRESPONDENCE.md</code>.

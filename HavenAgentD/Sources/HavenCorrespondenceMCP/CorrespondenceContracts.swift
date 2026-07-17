@@ -5,6 +5,9 @@ enum CorrespondenceContract {
   static let schemaVersion = 1
   static let maximumRequestLifetime: TimeInterval = 5 * 60
   static let defaultPurposeRef = "purpose://contact.communication"
+  static let endpoint = "cell:///AssistantCorrespondence"
+  static let accessCredentialType = "HAVENAssistantCorrespondenceAccessCredential"
+  static let operations = ["inbox.list", "message.read", "message.send", "message.ack"]
 }
 
 struct CorrespondenceProof: Codable, Equatable, Sendable {
@@ -39,6 +42,7 @@ struct CorrespondenceRequestPayload: Codable, Equatable, Sendable {
 
 struct CorrespondenceSignedRequest: Codable, Equatable, Sendable {
   var payload: CorrespondenceRequestPayload
+  var accessCredential: CorrespondenceAccessCredential
   var proof: CorrespondenceProof
 }
 
@@ -50,11 +54,61 @@ struct CorrespondenceEnrollmentPayload: Codable, Equatable, Sendable {
   var principalID: String
   var deviceID: String
   var identityUUID: String
+  var entityRef: String
   var displayName: String
   var publicKeyBase64URL: String
   var issuedAt: String
   var expiresAt: String
   var nonce: String
+}
+
+struct CorrespondenceAccessStatusPayload: Codable, Equatable, Sendable {
+  var version: Int
+  var requestID: String
+  var accessRequestID: String
+  var principalID: String
+  var deviceID: String
+  var identityUUID: String
+  var issuedAt: String
+  var expiresAt: String
+  var nonce: String
+}
+
+struct CorrespondenceAccessStatusRequest: Codable, Equatable, Sendable {
+  var payload: CorrespondenceAccessStatusPayload
+  var proof: CorrespondenceProof
+}
+
+struct CorrespondenceAccessCredentialPayload: Codable, Equatable, Sendable {
+  var version: Int
+  var credentialID: String
+  var credentialType: String
+  var issuerIdentityUUID: String
+  var subjectEntityRef: String
+  var principalID: String
+  var deviceID: String
+  var identityUUID: String
+  var publicKeyBase64URL: String
+  var resourceRefs: [String]
+  var allowedPeerIDs: [String]
+  var allowedOperations: [String]
+  var allowedPurposeRefs: [String]
+  var issuedAt: String
+  var expiresAt: String
+  var approvalRequestID: String
+  var approvalReceiptID: String
+  var revocationRef: String
+}
+
+struct CorrespondenceAccessCredentialProof: Codable, Equatable, Sendable {
+  var algorithm: String
+  var issuerPublicKeyBase64URL: String
+  var signatureBase64URL: String
+}
+
+struct CorrespondenceAccessCredential: Codable, Equatable, Sendable {
+  var payload: CorrespondenceAccessCredentialPayload
+  var proof: CorrespondenceAccessCredentialProof
 }
 
 struct CorrespondenceEnrollmentRequest: Codable, Equatable, Sendable {
@@ -67,6 +121,7 @@ struct CorrespondenceEnrollmentInviteFile: Codable, Equatable, Sendable {
   var baseURL: String
   var profile: String
   var principalID: String
+  var entityRef: String
   var deviceID: String?
   var displayName: String
   var inviteID: String
@@ -78,11 +133,14 @@ struct CorrespondenceProfile: Codable, Equatable, Sendable {
   var profile: String
   var baseURL: String
   var principalID: String
+  var entityRef: String?
   var deviceID: String
   var displayName: String
   var identityUUID: String
   var publicKeyBase64URL: String
   var enrolledAt: String
+  var accessRequestID: String?
+  var accessCredential: CorrespondenceAccessCredential?
 }
 
 enum CorrespondenceCanonicalCoding {
@@ -96,6 +154,13 @@ enum CorrespondenceCanonicalCoding {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter.string(from: date)
+  }
+
+  static func date(_ raw: String) -> Date? {
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = fractional.date(from: raw) { return date }
+    return ISO8601DateFormatter().date(from: raw)
   }
 
   static func signed<T: Encodable>(_ payload: T, with material: AgentIdentityMaterial) throws

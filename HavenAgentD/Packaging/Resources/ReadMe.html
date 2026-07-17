@@ -23,11 +23,13 @@
   <h2>What it does NOT do</h2>
   <ul>
     <li>It does not start automatically after install &mdash; you run setup first.</li>
-    <li>It does not connect anywhere until you import provisioning evidence.</li>
+    <li>The general agent does not connect until you import provisioning evidence.</li>
     <li>It cannot run arbitrary scripts from the cloud &mdash; only locally
         allow-listed actions.</li>
     <li>The correspondence MCP cannot run any local action. Message text never
         grants execution authority.</li>
+    <li>A correspondence invitation only permits a signed access request. Kjetil
+        must explicitly issue the Entity-bound proof before any message tool works.</li>
   </ul>
   <p class="muted">Binaries are signed and notarized by Stiftelsen Digipomps.</p>
 </body>

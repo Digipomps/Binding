@@ -26,6 +26,7 @@ cat <<'EOF'
  invite supplied by the HAVEN operator:
 
    haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+   haven-correspondence-mcp activate --profile <profile-name>
    haven-correspondence-mcp doctor --profile <profile-name>
 
  See /usr/local/share/havenagent/ASSISTANT_CORRESPONDENCE.md
