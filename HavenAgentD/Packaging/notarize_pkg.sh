@@ -3,7 +3,7 @@
 # notarize_pkg.sh — submit a signed .pkg to Apple notary, wait, staple, verify.
 #
 # Usage:
-#   Packaging/notarize_pkg.sh dist/HAVENAgentD-0.1.0-arm64.pkg
+#   Packaging/notarize_pkg.sh dist/HAVENAgentD-0.3.1-universal2.pkg
 #
 # Requires a stored notarytool keychain profile (one-time setup):
 #   xcrun notarytool store-credentials "DIGIPOMPS_NOTARY" \

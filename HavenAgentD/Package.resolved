@@ -1,5 +1,5 @@
 {
-  "originHash" : "1993858396bf62c0a62c2dfa9a3c1fbed295ca50776e05d7ba83c620dffa403c",
+  "originHash" : "84b07370f65eee65f5269fa53c546084a78548bf995e2878c1b07da98a690439",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -26,6 +26,14 @@
       "state" : {
         "revision" : "e07e00fa1fd435143a2dcf8b7eec9a7710b2fdfe",
         "version" : "5.7.0"
+      }
+    },
+    {
+      "identity" : "cellprotocol",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Digipomps/CellProtocol.git",
+      "state" : {
+        "revision" : "0ef84bcfbb81d2e112e961719821ed218cf95169"
       }
     },
     {

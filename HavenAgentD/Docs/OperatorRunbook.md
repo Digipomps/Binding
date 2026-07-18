@@ -174,11 +174,11 @@ This produces the first-install artifact for a clean Mac. Full prerequisites, en
 ```bash
 cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
 
-# Build + sign (produces dist/HAVENAgentD-<version>-<arch>.pkg + SHA256SUMS + manifest)
-VERSION=0.1.0 ./Packaging/build_pkg.sh
+# Build + sign universal2 (produces pkg + package/payload checksums + manifest)
+ARCHS="arm64 x86_64" VERSION=0.3.1 ./Packaging/build_pkg.sh
 
 # Notarize + staple (passes Gatekeeper on a Mac that has never seen our dev account)
-./Packaging/notarize_pkg.sh dist/HAVENAgentD-0.1.0-arm64.pkg
+./Packaging/notarize_pkg.sh dist/HAVENAgentD-0.3.1-universal2.pkg
 ```
 
 The pkg installs **binaries only**. It does not start the agent — a usable agent still needs a `config.json` plus per-user provisioning, which the next phases create.
@@ -186,7 +186,7 @@ The pkg installs **binaries only**. It does not start the agent — a usable age
 ## Phase 3: Install the pkg on the target Mac
 
 ```bash
-sudo installer -pkg HAVENAgentD-0.1.0-arm64.pkg -target /
+sudo installer -pkg HAVENAgentD-0.3.1-universal2.pkg -target /
 ```
 
 This places `haven-agentd` and `sprout` under `/usr/local/libexec/havenagent/` and the LaunchAgent template under `/usr/local/share/havenagent/`. No runtime state is created yet.

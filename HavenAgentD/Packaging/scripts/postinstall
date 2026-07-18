@@ -11,15 +11,25 @@ BINDIR="/usr/local/bin"
 
 mkdir -p "$BINDIR"
 ln -sf "$LIBEXEC/haven-agentd" "$BINDIR/haven-agentd"
+ln -sf "$LIBEXEC/haven-correspondence-mcp" "$BINDIR/haven-correspondence-mcp"
 
 cat <<'EOF'
 
 ============================================================
  HAVEN Agent (haven-agentd) installed
 ============================================================
- Tools:    /usr/local/libexec/havenagent/{haven-agentd,sprout}
- Command:  haven-agentd   (now on PATH via /usr/local/bin)
+ Tools:    /usr/local/libexec/havenagent/{haven-agentd,haven-correspondence-mcp,sprout}
+ Commands: haven-agentd, haven-correspondence-mcp
  Guide:    /usr/local/share/havenagent/QUICKSTART.md
+
+ For the messages-only Claude/Codex pilot, use the separate enrollment
+ invite supplied by the HAVEN operator:
+
+   haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+   haven-correspondence-mcp activate --profile <profile-name>
+   haven-correspondence-mcp doctor --profile <profile-name>
+
+ See /usr/local/share/havenagent/ASSISTANT_CORRESPONDENCE.md
 
  This is a background tool with no app window. Next, in Terminal:
 
