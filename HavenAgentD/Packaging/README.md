@@ -41,30 +41,51 @@ Per-user runtime state stays where it always has:
      --team-id "5UT5HQTCV9" \
      --password "<app-specific-password>"
    ```
-3. A built `sprout` release binary (matching arch):
-   ```bash
-   (cd ../../sprout && swift build -c release --product sprout)
-   ```
+3. A Sprout source checkout at `../../sprout`, or explicitly supplied prebuilt
+   binaries containing every requested architecture.
 
 ## Build + sign
 
 ```bash
 cd HavenAgentD
-VERSION=0.3.0 ./Packaging/build_pkg.sh
+VERSION=0.3.1 ./Packaging/build_pkg.sh
+```
+
+Build the universal2 pilot package for Apple Silicon and Intel:
+
+```bash
+ARCHS="arm64 x86_64" VERSION=0.3.1 ./Packaging/build_pkg.sh
+```
+
+CI may build the three universal binaries in an unprivileged environment and
+pass them to the signing host. `AGENTD_PREBUILT` and
+`CORRESPONDENCE_PREBUILT` must be supplied together; the same architecture gate
+runs before any binary is signed:
+
+```bash
+ARCHS="arm64 x86_64" VERSION=0.3.1 \
+  AGENTD_PREBUILT=/artifacts/haven-agentd \
+  CORRESPONDENCE_PREBUILT=/artifacts/haven-correspondence-mcp \
+  SPROUT_BIN=/artifacts/sprout \
+  ./Packaging/build_pkg.sh
 ```
 
 Produces under `dist/`:
 - `HAVENAgentD-<version>-<arch>.pkg` — signed, ready to notarize
-- `SHA256SUMS` — hashes of the staged binaries
-- `release-manifest.json` — version / arch / signing / per-artifact hashes
+- `SHA256SUMS` — hash of the distributable package
+- `PAYLOAD_SHA256SUMS` — hashes of the three installed binaries
+- `release-manifest.json` — version, architectures, package hash, signing and
+  per-artifact hashes
 
-Override defaults via env: `VERSION`, `DIST_DIR`, `SPROUT_BIN`,
-`APP_IDENTITY`, `INSTALLER_IDENTITY`, `STRIP`.
+Override defaults via env: `VERSION`, `DIST_DIR`, `ARCHS`, `BUILD_ROOT`,
+`MACOS_DEPLOYMENT_TARGET`, `SPROUT_SRC_DIR`, `AGENTD_PREBUILT`,
+`CORRESPONDENCE_PREBUILT`, `SPROUT_BIN`, `APP_IDENTITY`,
+`INSTALLER_IDENTITY`, `STRIP`.
 
 ## Notarize + staple
 
 ```bash
-./Packaging/notarize_pkg.sh dist/HAVENAgentD-0.3.0-arm64.pkg
+./Packaging/notarize_pkg.sh dist/HAVENAgentD-0.3.1-universal2.pkg
 ```
 
 Submits to Apple, waits, staples the ticket, then verifies with
@@ -73,14 +94,17 @@ passes Gatekeeper on a Mac that has never seen our developer account.
 
 ## Architecture note
 
-The pkg is **single-arch** (whatever the build machine is — currently
-`arm64`). If a pilot user is on an Intel Mac, build an `x86_64` pkg on/at an
-Intel toolchain, or move to a universal2 binary first.
+The default is the current host architecture. External pilots should use
+`ARCHS="arm64 x86_64"`, which cross-compiles each Swift product separately and
+joins the slices with `lipo`. The build fails before signing if any of
+`haven-agentd`, `haven-correspondence-mcp`, or `sprout` lacks either slice.
+SwiftPM scratch directories are namespaced by a Swift/Xcode/SDK fingerprint so
+an SDK upgrade cannot reuse incompatible Clang or Foundation module caches.
 
 ## Installing on the target Mac (pilot)
 
 ```bash
-sudo installer -pkg HAVENAgentD-0.3.0-arm64.pkg -target /
+sudo installer -pkg HAVENAgentD-0.3.1-universal2.pkg -target /
 ```
 
 Then run `setup`, which creates the runtime tree, writes `config.json` with a

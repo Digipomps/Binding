@@ -117,7 +117,7 @@ final class CorrespondenceMCPServer {
           "serverInfo": [
             "name": "haven-correspondence-mcp",
             "title": "HAVEN Assistant Correspondence",
-            "version": "0.3.0",
+            "version": "0.3.1",
             "description": "Signed, message-only bridge between enrolled HAVEN assistant devices.",
           ],
           "instructions":
