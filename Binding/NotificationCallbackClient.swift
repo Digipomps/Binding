@@ -7,7 +7,6 @@ import UIKit
 final class NotificationCallbackClient {
     static let shared = NotificationCallbackClient()
     nonisolated static let defaultBaseURLString = "https://staging.haven.digipomps.org/conference-mvp/api/device"
-    nonisolated static let ingressTokenEnvironmentKey = "BINDING_DEVICE_CALLBACK_INGRESS_TOKEN"
 
     private init() {}
 
@@ -24,27 +23,6 @@ final class NotificationCallbackClient {
             return configured
         }
         return defaultBaseURLString
-    }
-
-    nonisolated static func ingressToken(
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> String? {
-        guard let token = environment[ingressTokenEnvironmentKey]?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              token.utf8.count >= 32 else {
-            return nil
-        }
-        return token
-    }
-
-    nonisolated static func configureIngressAuthorization(
-        on request: inout URLRequest,
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) throws {
-        guard let token = ingressToken(environment: environment) else {
-            throw NotificationCallbackClientError.ingressCapabilityUnavailable
-        }
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
     #if os(iOS)
@@ -200,7 +178,6 @@ final class NotificationCallbackClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try Self.configureIngressAuthorization(on: &request)
         request.httpBody = try JSONEncoder().encode(payload)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -412,13 +389,5 @@ final class NotificationCallbackClient {
         default:
             return nil
         }
-    }
-}
-
-enum NotificationCallbackClientError: LocalizedError {
-    case ingressCapabilityUnavailable
-
-    var errorDescription: String? {
-        "HAVEN device callback ingress capability is unavailable on this device."
     }
 }
