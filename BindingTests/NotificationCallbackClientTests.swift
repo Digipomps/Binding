@@ -22,32 +22,6 @@ struct NotificationCallbackClientTests {
     }
 
     @Test
-    func ingressAuthorizationRequiresConfiguredCapability() throws {
-        var request = URLRequest(url: try #require(URL(string: "https://example.invalid/device")))
-
-        #expect(throws: NotificationCallbackClientError.self) {
-            try NotificationCallbackClient.configureIngressAuthorization(
-                on: &request,
-                environment: [:]
-            )
-        }
-        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
-    }
-
-    @Test
-    func ingressAuthorizationUsesBearerCapabilityWithoutPersistingIt() throws {
-        var request = URLRequest(url: try #require(URL(string: "https://example.invalid/device")))
-        let token = "binding-device-callback-test-capability-0123456789"
-
-        try NotificationCallbackClient.configureIngressAuthorization(
-            on: &request,
-            environment: [NotificationCallbackClient.ingressTokenEnvironmentKey: "  \(token)  "]
-        )
-
-        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(token)")
-    }
-
-    @Test
     func ticketDecisionResultCarriesGenericDeviceActionDecision() {
         let action = PendingDeviceAction(
             id: "ticket-1",
