@@ -9,6 +9,7 @@ nonisolated enum BindingBuildProvenanceError: LocalizedError, Equatable {
     case missingCompilerInputManifest
     case invalidBuildResource
     case compilerInputManifestMismatch
+    case dirtySourceTree
     case unsignedBuild
     case codeSigningAuthorityUnavailable
     case codeSigningAuthorityMismatch
@@ -23,6 +24,8 @@ nonisolated enum BindingBuildProvenanceError: LocalizedError, Equatable {
             return "The build-generated Binding provenance resource is invalid."
         case .compilerInputManifestMismatch:
             return "The compiler-input manifest does not match its signed provenance digest."
+        case .dirtySourceTree:
+            return "The Binding candidate was built from a dirty Binding or CellProtocol source tree."
         case .unsignedBuild:
             return "This Binding build has no attested certificate signing authority."
         case .codeSigningAuthorityUnavailable:
@@ -40,11 +43,11 @@ nonisolated enum BindingBuildProvenanceError: LocalizedError, Equatable {
 /// This is intentionally not described as a complete-source claim. The exact
 /// coverage declaration is part of the signed resource and registration body.
 nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
-    static let currentSchema = "binding.build-provenance.v3"
+    static let currentSchema = "binding.build-provenance.v4"
     static let resourceName = "BindingBuildProvenance"
     static let compilerInputManifestResourceName = "BindingCompilerInputManifest"
     static let coverage =
-        "xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings"
+        "exact-head+dirty-state+xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings"
 
     enum CodeSigningMode: String, Codable, Sendable {
         case certificate
@@ -55,6 +58,8 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
     let coverageDeclaration: String
     let bindingGitRevision: String
     let cellProtocolGitRevision: String
+    let bindingSourceTreeDirty: Bool
+    let cellProtocolSourceTreeDirty: Bool
     let compilerInputManifestSHA256: String
     let compilerInputCount: Int
     let generatedCompilerInputCount: Int
@@ -78,6 +83,8 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
         coverageDeclaration: String = Self.coverage,
         bindingGitRevision: String,
         cellProtocolGitRevision: String,
+        bindingSourceTreeDirty: Bool,
+        cellProtocolSourceTreeDirty: Bool,
         compilerInputManifestSHA256: String,
         compilerInputCount: Int,
         generatedCompilerInputCount: Int,
@@ -137,6 +144,8 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
         self.coverageDeclaration = coverageDeclaration
         self.bindingGitRevision = bindingGitRevision
         self.cellProtocolGitRevision = cellProtocolGitRevision
+        self.bindingSourceTreeDirty = bindingSourceTreeDirty
+        self.cellProtocolSourceTreeDirty = cellProtocolSourceTreeDirty
         self.compilerInputManifestSHA256 = compilerInputManifestSHA256
         self.compilerInputCount = compilerInputCount
         self.generatedCompilerInputCount = generatedCompilerInputCount
@@ -163,6 +172,14 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
             coverageDeclaration: values.decode(String.self, forKey: .coverageDeclaration),
             bindingGitRevision: values.decode(String.self, forKey: .bindingGitRevision),
             cellProtocolGitRevision: values.decode(String.self, forKey: .cellProtocolGitRevision),
+            bindingSourceTreeDirty: values.decode(
+                Bool.self,
+                forKey: .bindingSourceTreeDirty
+            ),
+            cellProtocolSourceTreeDirty: values.decode(
+                Bool.self,
+                forKey: .cellProtocolSourceTreeDirty
+            ),
             compilerInputManifestSHA256: values.decode(
                 String.self,
                 forKey: .compilerInputManifestSHA256
@@ -245,6 +262,10 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
             throw BindingBuildProvenanceError.compilerInputManifestMismatch
         }
         if requireCertificateSignature {
+            guard provenance.bindingSourceTreeDirty == false,
+                  provenance.cellProtocolSourceTreeDirty == false else {
+                throw BindingBuildProvenanceError.dirtySourceTree
+            }
             guard provenance.codeSigningMode == .certificate else {
                 throw BindingBuildProvenanceError.unsignedBuild
             }
@@ -270,6 +291,8 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
             "coverageDeclaration": .string(coverageDeclaration),
             "bindingGitRevision": .string(bindingGitRevision),
             "cellProtocolGitRevision": .string(cellProtocolGitRevision),
+            "bindingSourceTreeDirty": .bool(bindingSourceTreeDirty),
+            "cellProtocolSourceTreeDirty": .bool(cellProtocolSourceTreeDirty),
             "compilerInputManifestSHA256": .string(compilerInputManifestSHA256),
             "compilerInputCount": .number(Double(compilerInputCount)),
             "generatedCompilerInputCount": .number(Double(generatedCompilerInputCount)),

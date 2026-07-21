@@ -5,7 +5,7 @@ send APNS, and is not an operational device-registration release.
 
 ## Exact source boundary
 
-- Binding base: `f6536c497b0a4c0a5b32531416bb3712708cf47e`
+- Binding base: `3791a431ddb3353c33a657a7bf2cb03cb6f557ea`
 - CellProtocol DeviceIngress v3: `79ce4f84666fedc446a1c80ab8adce1e7e3898e0`
 - Candidate state: uncommitted pending independent review
 - CellScaffold transport-contract reference only: draft PR #33 head
@@ -17,12 +17,15 @@ architecture, generated Swift inputs under `DerivedSources`, a complete
 `.swift` inventory of the filesystem-synchronized `Binding` and `Cells`
 roots, selected compiler/link settings, the Swift compiler and SDK, the built
 Binding Swift module, the Xcode link-file list, and the linked `CellBase.o` and
-`CellApple.o` artifacts. It also records the actual Binding and CellProtocol
-HEAD revisions and expected code-signing identity. An ignored or otherwise
-unlisted `.swift` file in either synchronized root makes the build fail.
+`CellApple.o` artifacts. It records the exact Binding and CellProtocol HEAD
+revisions, independent dirty-worktree flags, and expected code-signing
+identity. An ignored or otherwise unlisted `.swift` file in either
+synchronized root makes the build fail. Release provenance generation also
+fails closed if either source tree is dirty.
 
-This is not a complete-source, clean-worktree, or full transitive-build claim.
-Files outside those declared roots/inputs are not represented. On macOS,
+This is not a complete full-transitive-build claim. Files outside the declared
+roots/inputs are represented by the exact HEAD plus dirty flag, not individual
+file digests. On macOS,
 `BindingBuildProvenance.current()` checks the static code signature and running
 leaf-certificate fingerprint before the attestation may be included in a
 register body. Public iOS APIs used by this candidate cannot perform the same
@@ -45,11 +48,19 @@ contract:
 4. It calls `DeviceIngressRequestFactory.prepare` with the exact canonical
    challenge, protected registration body, persistent identity and
    non-authoritative domain binding.
-5. The local response expectation is crash-durably persisted before the first
-   mutation-capable transport call: write a mode-0600 temporary file, `fsync`
-   and `F_FULLFSYNC` it, atomically rename it, then `fsync` the parent
-   directory. Any failed durability barrier prevents submit and conservatively
-   leaves or creates a pending gate.
+5. The exact accepted consent proof, pending response expectation, and verified
+   response evidence are states in one hash-chained journal. Every transition
+   is serialized under the canonical OS lock and crash-durably persisted before
+   the first mutation-capable transport call: write a mode-0600 temporary file,
+   `fsync` and `F_FULLFSYNC` it, read it back, atomically rename the same inode,
+   `fsync` the parent directory, then reopen and verify the exact journal and
+   hash chain. After each durable journal replacement, its exact head hash and
+   monotonically increasing sequence are compare-and-swapped into a separate,
+   device-local, non-synchronizing Keychain item and read back while the same
+   OS lock remains held. A missing, stale, replayed or rewritten journal/anchor
+   pair fails closed; a crash between the two barriers leaves no usable local
+   authority. Any failed durability, anchor or read-back barrier prevents
+   submit.
 6. A registration is returned only after
    `DeviceIngressOperationResponseVerifier.verify` validates the exact signed
    response, durable mutation receipt, target Cell/owner/Agreement bindings
@@ -65,11 +76,12 @@ contract:
    `unlinkat` relative to the pinned directory. Managed files must be regular,
    owner-matching, exactly 0600 and `nlink=1`; descriptor, canonical name,
    inode, metadata and content are checked before and after access.
-9. A process-wide lock plus a cross-process record lock serializes all evidence
+9. A process-wide lock plus a cross-process record lock serializes all journal
    transactions. After `lockf` acquisition and at transaction boundaries, the
    canonical dirfd-relative lock name must still resolve to the same locked
    descriptor inode and unchanged metadata. Separate client/store instances
-   cannot both cross the pending/decline gate without one failing closed.
+   cannot both cross the pending/decline gate without one failing closed, and a
+   separate-process `lockf` test verifies the store waits on the OS claim.
 
 The local v1 capability model and its proof tests are removed. HTTP method,
 path, wrapper, bearer token and server secret are absent from the new Binding
@@ -83,12 +95,19 @@ and unsigned legacy registration-success state is also deleted. Persisted v3
 evidence contains the response expectation and signed receipt, not the raw
 token or request body.
 
-Terms acceptance is represented by a non-empty current terms version and a
-positive persisted acceptance timestamp. “Not now” is explicitly
-pre-registration-only. Under the same evidence transaction, it first rejects
-pending or verified evidence, durably writes a local decline tombstone, and
-then clears consent plus the in-memory token without an actor-reentrancy
-window. A prepared stale register cannot persist while that tombstone exists.
+Terms consent is an explicit `unknown`/`accepted`/`declined` state. Accepted
+state requires a journaled proof containing an acceptance ID, exact terms
+version, positive acceptance timestamp, and `accepted` decision; unsigned
+legacy UserDefaults values are deleted and never migrated to acceptance. The
+exact persisted proof is included in the protected registration body and must
+match at the pending transition. If the configured required terms version
+changes, an earlier accepted proof is projected as `unknown` and cannot prepare
+registration until the new version is explicitly accepted and journaled.
+“Not now” is explicitly pre-registration-only.
+Under the same journal transaction, it first rejects pending or verified
+evidence, durably transitions to `declined`, and then clears consent plus the
+in-memory token without an actor-reentrancy window. A prepared stale register
+cannot persist after that transition.
 If pending or verified evidence exists, local consent is preserved and a
 future typed signed revoke/deregister flow is required. That revoke operation
 is not implemented by this register-only candidate.
@@ -97,8 +116,9 @@ Neither absence of local evidence nor restored register evidence proves
 current server state. The UI keeps `isDeviceRegistered=false` even after a
 verified register mutation. A fresh signed server status/read-back bound to
 the current admission, authority and revocation generations, and reconciled
-with any local tombstone, is required before current active registration can
-be claimed. The v3 register-only dependency has no such operation yet.
+with the local consent journal state, is required before current active
+registration can be claimed. The v3 register-only dependency has no such
+operation yet.
 
 The runtime composition is intentionally inert. Resolve and submit also throw
 before network access; unsigned push payloads are not staged as a fallback.
@@ -125,10 +145,13 @@ composition root supplies all of the following:
 - reviewed iOS build/signing attestation, or an explicit decision that scoped
   build provenance is non-authoritative metadata only.
 
-Additional review work remains for subprocess-level cross-process locking,
-crash-window/ambiguous-pending adjudication, the `F_FULLFSYNC` support matrix,
-and documented legacy evidence erase/migration. These are not claimed closed
-by the in-process candidate tests.
+Additional review work remains for crash-window/ambiguous-pending
+adjudication and the `F_FULLFSYNC` support matrix. Legacy split evidence files
+cannot establish the new consent/vault authority and therefore fail closed
+rather than being silently migrated. The local rollback boundary assumes the
+OS Keychain item remains device-local and unavailable to a filesystem-only
+journal rewriter; loss, deletion or mismatch of that item requires explicit
+recovery and never recreates acceptance or registration authority.
 
 Only after those gates are deployed in one coordinated window may the physical
 iPad acceptance test begin. That later test must separately prove consented

@@ -28,8 +28,9 @@ struct NotificationEnrollmentManagerTests {
         #expect(stringValue(payload["conferenceId"]) == "conf-1")
         #expect(stringArray(payload["subscriptionTopics"]) == WorkflowNotificationPreferences.defaultSubscriptionTopics)
         #expect(stringArray(payload["callbackCapabilities"]) == ["http", "background", "notification-response", "bridge"])
-        #expect(payload["termsAccepted"] == .bool(true))
-        #expect(payload["termsVersion"] == .string(consent.termsVersion))
+        #expect(payload["termsAccepted"] == nil)
+        #expect(payload["termsConsentState"] == .string("accepted"))
+        #expect(payload["termsAcceptanceEvidence"] == .object(consent.registrationObject))
     }
 
     @Test func bridgePresenceQueryItemsCarryDeviceIdentityAndTopics() {
@@ -91,6 +92,13 @@ struct NotificationEnrollmentManagerTests {
         defaults.set(1_784_454_400.0, forKey: "binding.notifications.termsAcceptedAt")
 
         let evidence = EnrollmentEvidenceStore(containsEvidence: false)
+        try evidence.persistTermsAcceptance(try #require(
+            NotificationTermsConsentEvidence(
+                termsVersion: "v1",
+                acceptedAt: 1_784_454_400,
+                acceptanceID: "decline-fixture"
+            )
+        ))
         let manager = NotificationEnrollmentManager.testing(
             defaults: defaults,
             evidenceInspector: evidence
@@ -101,6 +109,7 @@ struct NotificationEnrollmentManagerTests {
         await manager.updateAPNSToken("test-apns-token")
 
         #expect(manager.needsTermsAcceptance)
+        #expect(manager.termsConsentState == .declined)
         #expect(manager.isDeviceRegistered == false)
         #expect(manager.lastRegistrationError == nil)
         #expect(defaults.object(forKey: "binding.notifications.termsVersion") == nil)
@@ -113,9 +122,17 @@ struct NotificationEnrollmentManagerTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set("v1", forKey: "binding.notifications.termsVersion")
         defaults.set(1_784_454_400.0, forKey: "binding.notifications.termsAcceptedAt")
+        let evidence = EnrollmentEvidenceStore(containsEvidence: true)
+        try evidence.persistTermsAcceptance(try #require(
+            NotificationTermsConsentEvidence(
+                termsVersion: "v1",
+                acceptedAt: 1_784_454_400,
+                acceptanceID: "registered-fixture"
+            )
+        ))
         let manager = NotificationEnrollmentManager.testing(
             defaults: defaults,
-            evidenceInspector: EnrollmentEvidenceStore(containsEvidence: true)
+            evidenceInspector: evidence
         )
 
         #expect(await manager.declineTermsBeforeRegistration() == false)
@@ -123,13 +140,57 @@ struct NotificationEnrollmentManagerTests {
         #expect(manager.needsTermsAcceptance == false)
         #expect(manager.isDeviceRegistered == false)
         #expect(manager.lastRegistrationError?.contains("signed revoke/deregister") == true)
-        #expect(defaults.string(forKey: "binding.notifications.termsVersion") == "v1")
-        #expect(defaults.double(forKey: "binding.notifications.termsAcceptedAt") > 0)
+        #expect(defaults.object(forKey: "binding.notifications.termsVersion") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.termsAcceptedAt") == nil)
     }
 
     @Test func invalidConsentCannotConstructConsentEvidence() {
         #expect(NotificationTermsConsentEvidence(termsVersion: "v1", acceptedAt: 0) == nil)
         #expect(NotificationTermsConsentEvidence(termsVersion: " ", acceptedAt: 1) == nil)
+    }
+
+    @Test func legacyImplicitAcceptanceIsDeletedAndMigratesToUnknown() throws {
+        let suiteName = "Binding.NotificationEnrollmentManagerTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("v1", forKey: "binding.notifications.termsVersion")
+        defaults.set(1_784_454_400.0, forKey: "binding.notifications.termsAcceptedAt")
+
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: EnrollmentEvidenceStore(containsEvidence: false)
+        )
+
+        #expect(manager.termsConsentState == .unknown)
+        #expect(manager.needsTermsAcceptance)
+        #expect(defaults.object(forKey: "binding.notifications.termsVersion") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.termsAcceptedAt") == nil)
+    }
+
+    @Test func termsVersionRolloverRequiresFreshAcceptanceBeforeRegistration() async throws {
+        let suiteName = "Binding.NotificationEnrollmentManagerTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let evidence = EnrollmentEvidenceStore(containsEvidence: false)
+        try evidence.persistTermsAcceptance(try #require(
+            NotificationTermsConsentEvidence(
+                termsVersion: "v1",
+                acceptedAt: 1_784_454_400,
+                acceptanceID: "superseded-v1-acceptance"
+            )
+        ))
+
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: evidence,
+            requiredTermsVersion: "v2"
+        )
+        await manager.updateAPNSToken("test-apns-token")
+
+        #expect(manager.termsConsentState == .unknown)
+        #expect(manager.needsTermsAcceptance)
+        #expect(manager.isDeviceRegistered == false)
+        #expect(manager.lastRegistrationError == nil)
     }
 
     @Test func protectedRegistrationBodyEmbedsGeneratedBuildProvenance() throws {
@@ -156,13 +217,24 @@ struct NotificationEnrollmentManagerTests {
         #expect(decoded["buildProvenance"] == .object(provenance.registrationObject))
     }
 
-    @Test func currentBuildLoadsScopedCompilerInputAttestation() throws {
+    @Test func currentBuildLoadsCleanOrDirtyScopedCompilerInputAttestation() throws {
         let provenance = try BindingBuildProvenance.current(
             requireCertificateSignature: false
         )
+        let manifestURL = try #require(Bundle.main.url(
+            forResource: BindingBuildProvenance.compilerInputManifestResourceName,
+            withExtension: "txt"
+        ))
+        let manifest = try String(contentsOf: manifestURL, encoding: .utf8)
 
         #expect([40, 64].contains(provenance.bindingGitRevision.count))
         #expect([40, 64].contains(provenance.cellProtocolGitRevision.count))
+        #expect(manifest.contains(
+            "source-control\tbinding-dirty\t\(provenance.bindingSourceTreeDirty)"
+        ))
+        #expect(manifest.contains(
+            "source-control\tcellprotocol-dirty\t\(provenance.cellProtocolSourceTreeDirty)"
+        ))
         #expect(provenance.compilerInputManifestSHA256.count == 64)
         #expect(provenance.compilerInputCount > 0)
         #expect(provenance.filesystemSynchronizedSourceCount > 0)
@@ -194,6 +266,8 @@ struct NotificationEnrollmentManagerTests {
         try BindingBuildProvenance(
             bindingGitRevision: String(repeating: "a", count: 40),
             cellProtocolGitRevision: String(repeating: "c", count: 40),
+            bindingSourceTreeDirty: false,
+            cellProtocolSourceTreeDirty: false,
             compilerInputManifestSHA256: String(repeating: "b", count: 64),
             compilerInputCount: 2,
             generatedCompilerInputCount: 1,
@@ -220,19 +294,41 @@ private final class EnrollmentEvidenceStore:
     @unchecked Sendable
 {
     private let containsEvidenceValue: Bool
+    private let lock = NSLock()
+    private var consentSnapshot = NotificationTermsConsentSnapshot(
+        state: .unknown,
+        acceptedEvidence: nil
+    )
 
     init(containsEvidence: Bool) {
         containsEvidenceValue = containsEvidence
     }
 
-    func persistPending(_ expectation: DeviceIngressResponseExpectation) throws {}
+    func termsConsentSnapshot() throws -> NotificationTermsConsentSnapshot {
+        lock.withLock { consentSnapshot }
+    }
+
+    func persistTermsAcceptance(_ evidence: NotificationTermsConsentEvidence) throws {
+        lock.withLock {
+            consentSnapshot = NotificationTermsConsentSnapshot(
+                state: .accepted,
+                acceptedEvidence: evidence
+            )
+        }
+    }
+
+    func persistPending(
+        _ expectation: DeviceIngressResponseExpectation,
+        consentEvidence: NotificationTermsConsentEvidence
+    ) throws {}
 
     func pendingExpectation() throws -> DeviceIngressResponseExpectation? { nil }
 
     func commitVerified(
         expectation: DeviceIngressResponseExpectation,
         canonicalResponseData: Data,
-        buildProvenance: BindingBuildProvenance
+        buildProvenance: BindingBuildProvenance,
+        vaultBinding: DeviceIngressPersistedVaultBinding
     ) throws {}
 
     func verifiedEvidence() throws -> DeviceIngressVerifiedRegistrationEvidence? { nil }
@@ -244,8 +340,12 @@ private final class EnrollmentEvidenceStore:
             throw DeviceIngressRegistrationClientError
                 .registrationEvidencePreventsPreRegistrationDecline
         }
+        lock.withLock {
+            consentSnapshot = NotificationTermsConsentSnapshot(
+                state: .declined,
+                acceptedEvidence: nil
+            )
+        }
         localStateClear()
     }
-
-    func clearPreRegistrationDecline() throws {}
 }

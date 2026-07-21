@@ -17,6 +17,8 @@ struct DeviceIngressRegistrationClientTests {
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
         let transport = FixtureTransport(
             challengeData: fixture.challengeData,
             evidenceStore: store,
@@ -31,7 +33,11 @@ struct DeviceIngressRegistrationClientTests {
             buildProvenance: buildProvenance
         )
 
-        let receipt = try await client.register(protectedBody: body, now: now)
+        let receipt = try await client.register(
+            protectedBody: body,
+            consentEvidence: consent,
+            now: now
+        )
 
         #expect(receipt.state == .activeConsented)
         #expect(receipt.deviceIdentityUUID == fixture.subject.uuid)
@@ -67,6 +73,8 @@ struct DeviceIngressRegistrationClientTests {
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
         let transport = FixtureTransport(
             challengeData: fixture.challengeData,
             evidenceStore: store,
@@ -82,14 +90,22 @@ struct DeviceIngressRegistrationClientTests {
         )
 
         await #expect(throws: DeviceIngressResponseValidationError.nonCanonicalResponse) {
-            try await client.register(protectedBody: body, now: now)
+            try await client.register(
+                protectedBody: body,
+                consentEvidence: consent,
+                now: now
+            )
         }
         #expect(try await store.pendingExpectation() != nil)
         #expect(try await store.verifiedEvidence() == nil)
         #expect(await transport.submitCount() == 1)
 
         await #expect(throws: DeviceIngressRegistrationClientError.pendingRegistrationExists) {
-            try await client.register(protectedBody: body, now: now)
+            try await client.register(
+                protectedBody: body,
+                consentEvidence: consent,
+                now: now
+            )
         }
         #expect(await transport.submitCount() == 1)
     }
@@ -111,7 +127,11 @@ struct DeviceIngressRegistrationClientTests {
         )
 
         await #expect(throws: DeviceIngressRegistrationClientError.notificationIdentityUnavailable) {
-            try await client.register(protectedBody: body, now: now)
+            try await client.register(
+                protectedBody: body,
+                consentEvidence: try makeConsentEvidence(),
+                now: now
+            )
         }
         #expect(await transport.fetchCount() == 0)
         #expect(await emptyVault.identity(
@@ -121,8 +141,51 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test
+    func exactPersistedTermsAcceptanceIsRequiredBeforeSubmit() async throws {
+        let fixture = try await makeFixture()
+        let persistedConsent = try makeConsentEvidence(acceptanceID: "persisted")
+        let presentedConsent = try makeConsentEvidence(acceptanceID: "presented")
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        try store.persistTermsAcceptance(persistedConsent)
+        let transport = FixtureTransport(
+            challengeData: fixture.challengeData,
+            evidenceStore: store,
+            targetOwner: fixture.targetOwner,
+            responseMode: .valid
+        )
+        let client = DeviceIngressRegistrationClient(
+            authenticatedVault: .testing(fixture.subjectVault),
+            transport: transport,
+            evidenceStore: store,
+            trust: fixture.trust,
+            buildProvenance: try makeBuildProvenance()
+        )
+
+        await #expect(
+            throws: DeviceIngressRegistrationClientError
+                .persistedTermsAcceptanceRequired
+        ) {
+            try await client.register(
+                protectedBody: body,
+                consentEvidence: presentedConsent,
+                now: now
+            )
+        }
+        #expect(await transport.submitCount() == 0)
+        #expect(try store.pendingExpectation() == nil)
+        #expect(try store.termsConsentSnapshot().state == .accepted)
+        #expect(try store.termsConsentSnapshot().acceptedEvidence == persistedConsent)
+    }
+
+    @Test
     func fileSynchronizationFailurePreventsSubmitAndLeavesNoPendingClaim() async throws {
         let fixture = try await makeFixture()
+        let consent = try makeConsentEvidence()
+        try FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        ).persistTermsAcceptance(consent)
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory,
             synchronizer: FailingDurabilitySynchronizer(failure: .file)
@@ -142,16 +205,24 @@ struct DeviceIngressRegistrationClientTests {
         )
 
         await #expect(throws: TestDurabilityError.file) {
-            try await client.register(protectedBody: body, now: now)
+            try await client.register(
+                protectedBody: body,
+                consentEvidence: consent,
+                now: now
+            )
         }
         #expect(await transport.submitCount() == 0)
         #expect(try await store.pendingExpectation() == nil)
     }
 
     @Test
-    func directorySynchronizationFailurePreventsSubmitAndBlocksRetry() async throws {
+    func directorySynchronizationFailurePreventsSubmitAndFailsClosedOnRetry() async throws {
         let fixture = try await makeFixture()
         try createPrivateDirectory(fixture.evidenceDirectory)
+        let consent = try makeConsentEvidence()
+        try FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        ).persistTermsAcceptance(consent)
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory,
             synchronizer: FailingDurabilitySynchronizer(failure: .directory)
@@ -171,13 +242,23 @@ struct DeviceIngressRegistrationClientTests {
         )
 
         await #expect(throws: TestDurabilityError.directory) {
-            try await client.register(protectedBody: body, now: now)
+            try await client.register(
+                protectedBody: body,
+                consentEvidence: consent,
+                now: now
+            )
         }
         #expect(await transport.submitCount() == 0)
-        #expect(try await store.pendingExpectation() != nil)
+        #expect(throws: DeviceIngressRegistrationClientError.invalidEvidenceJournal) {
+            try store.pendingExpectation()
+        }
 
-        await #expect(throws: DeviceIngressRegistrationClientError.pendingRegistrationExists) {
-            try await client.register(protectedBody: body, now: now)
+        await #expect(throws: DeviceIngressRegistrationClientError.invalidEvidenceJournal) {
+            try await client.register(
+                protectedBody: body,
+                consentEvidence: consent,
+                now: now
+            )
         }
         #expect(await transport.submitCount() == 0)
     }
@@ -191,6 +272,8 @@ struct DeviceIngressRegistrationClientTests {
         let secondStore = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
+        let consent = try makeConsentEvidence()
+        try firstStore.persistTermsAcceptance(consent)
         let underlyingTransport = FixtureTransport(
             challengeData: fixture.challengeData,
             evidenceStore: firstStore,
@@ -215,12 +298,20 @@ struct DeviceIngressRegistrationClientTests {
         )
 
         let firstRegistration = Task {
-            try await firstClient.register(protectedBody: body, now: now)
+            try await firstClient.register(
+                protectedBody: body,
+                consentEvidence: consent,
+                now: now
+            )
         }
         await transport.waitUntilSubmitStarted()
 
         await #expect(throws: DeviceIngressRegistrationClientError.pendingRegistrationExists) {
-            try await secondClient.register(protectedBody: body, now: now)
+            try await secondClient.register(
+                protectedBody: body,
+                consentEvidence: consent,
+                now: now
+            )
         }
         await transport.releaseSubmit()
         let receipt = try await firstRegistration.value
@@ -230,12 +321,52 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test
+    func canonicalPOSIXLockSerializesASeparateProcess() async throws {
+        let fixture = try await makeFixture()
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/lockf")
+        process.arguments = [
+            "-k",
+            fixture.evidenceDirectory
+                .appendingPathComponent("registration.lock").path,
+            "/bin/sleep",
+            "1"
+        ]
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+            process.waitUntilExit()
+        }
+
+        // Give the separate process a bounded window to enter its command
+        // after acquiring the same POSIX record lock. A missing/incompatible
+        // OS lock makes this assertion fail quickly instead of hanging.
+        try await Task.sleep(for: .milliseconds(100))
+        let startedAt = Date().timeIntervalSinceReferenceDate
+        let snapshot = try store.termsConsentSnapshot()
+        let elapsed = Date().timeIntervalSinceReferenceDate - startedAt
+
+        #expect(snapshot.acceptedEvidence == consent)
+        #expect(elapsed >= 0.5)
+    }
+
+    @Test
     func copiedVerifiedEvidenceIsRejectedByCurrentVaultIdentity() async throws {
         let fixture = try await makeFixture()
         let buildProvenance = try makeBuildProvenance()
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
         let transport = FixtureTransport(
             challengeData: fixture.challengeData,
             evidenceStore: store,
@@ -249,7 +380,11 @@ struct DeviceIngressRegistrationClientTests {
             trust: fixture.trust,
             buildProvenance: buildProvenance
         )
-        _ = try await registeringClient.register(protectedBody: body, now: now)
+        _ = try await registeringClient.register(
+            protectedBody: body,
+            consentEvidence: consent,
+            now: now
+        )
 
         let otherVault = EphemeralIdentityVault()
         var otherDeviceIdentity = Identity(
@@ -286,6 +421,8 @@ struct DeviceIngressRegistrationClientTests {
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
         let transport = FixtureTransport(
             challengeData: fixture.challengeData,
             evidenceStore: store,
@@ -299,7 +436,11 @@ struct DeviceIngressRegistrationClientTests {
             trust: fixture.trust,
             buildProvenance: registrationProvenance
         )
-        _ = try await registeringClient.register(protectedBody: body, now: now)
+        _ = try await registeringClient.register(
+            protectedBody: body,
+            consentEvidence: consent,
+            now: now
+        )
 
         let restoringClient = DeviceIngressRegistrationClient(
             authenticatedVault: .testing(fixture.subjectVault),
@@ -321,7 +462,7 @@ struct DeviceIngressRegistrationClientTests {
         )
         #expect(try await store.containsRegistrationEvidence() == false)
         let pendingURL = fixture.evidenceDirectory
-            .appendingPathComponent("pending-register-expectation.json")
+            .appendingPathComponent("registration-state-journal.json")
         try FileManager.default.createSymbolicLink(
             at: pendingURL,
             withDestinationURL: fixture.evidenceDirectory
@@ -341,9 +482,14 @@ struct DeviceIngressRegistrationClientTests {
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
-        try await store.persistPending(try await makeExpectation(fixture))
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
+        try await store.persistPending(
+            try await makeExpectation(fixture),
+            consentEvidence: consent
+        )
         let pendingURL = fixture.evidenceDirectory
-            .appendingPathComponent("pending-register-expectation.json")
+            .appendingPathComponent("registration-state-journal.json")
         try FileManager.default.linkItem(
             at: pendingURL,
             to: fixture.evidenceDirectory.appendingPathComponent("attacker-hardlink")
@@ -362,9 +508,14 @@ struct DeviceIngressRegistrationClientTests {
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
-        try await store.persistPending(try await makeExpectation(fixture))
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
+        try await store.persistPending(
+            try await makeExpectation(fixture),
+            consentEvidence: consent
+        )
         let path = fixture.evidenceDirectory
-            .appendingPathComponent("pending-register-expectation.json").path
+            .appendingPathComponent("registration-state-journal.json").path
         #expect(Darwin.chmod(path, 0o640) == 0)
 
         await #expect(
@@ -405,7 +556,7 @@ struct DeviceIngressRegistrationClientTests {
         let fixture = try await makeFixture()
         try createPrivateDirectory(fixture.evidenceDirectory)
         let pendingPath = fixture.evidenceDirectory
-            .appendingPathComponent("pending-register-expectation.json").path
+            .appendingPathComponent("registration-state-journal.json").path
         #expect(Darwin.mkfifo(pendingPath, 0o600) == 0)
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
@@ -440,13 +591,19 @@ struct DeviceIngressRegistrationClientTests {
     func concurrentWriterIsDetectedByBeforeAfterMetadata() async throws {
         let fixture = try await makeFixture()
         let pendingURL = fixture.evidenceDirectory
-            .appendingPathComponent("pending-register-expectation.json")
+            .appendingPathComponent("registration-state-journal.json")
         let observer = ConcurrentEvidenceWriter(fileURL: pendingURL)
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory,
             readObserver: observer
         )
-        try await store.persistPending(try await makeExpectation(fixture))
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
+        try await store.persistPending(
+            try await makeExpectation(fixture),
+            consentEvidence: consent
+        )
+        observer.arm()
 
         await #expect(
             throws: DeviceIngressEvidenceFileError.contentChangedDuringAccess
@@ -474,12 +631,119 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test
+    func journalHashTamperingIsRejectedAfterRestart() async throws {
+        let fixture = try await makeFixture()
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        try store.persistTermsAcceptance(try makeConsentEvidence())
+        let journalURL = fixture.evidenceDirectory
+            .appendingPathComponent("registration-state-journal.json")
+        try replaceFirstByte(
+            in: journalURL,
+            matching: UInt8(ascii: "f"),
+            with: UInt8(ascii: "e")
+        )
+
+        let restartedStore = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        #expect(throws: DeviceIngressRegistrationClientError.invalidEvidenceJournal) {
+            try restartedStore.termsConsentSnapshot()
+        }
+    }
+
+    @Test
+    func validPrefixJournalRollbackIsRejectedAfterRestart() async throws {
+        let fixture = try await makeFixture()
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
+        let journalURL = fixture.evidenceDirectory
+            .appendingPathComponent("registration-state-journal.json")
+        let acceptedOnlyPrefix = try Data(contentsOf: journalURL)
+        try store.persistPending(
+            try await makeExpectation(fixture),
+            consentEvidence: consent
+        )
+
+        try overwriteFileInPlace(acceptedOnlyPrefix, at: journalURL)
+
+        let restartedStore = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        #expect(throws: DeviceIngressRegistrationClientError.invalidEvidenceJournal) {
+            try restartedStore.termsConsentSnapshot()
+        }
+    }
+
+    @Test
+    func fullJournalRewriteAndRehashRollbackIsRejectedAfterRestart() async throws {
+        let fixture = try await makeFixture()
+        let targetStore = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        let targetConsent = try makeConsentEvidence(acceptanceID: "target-acceptance")
+        try targetStore.persistTermsAcceptance(targetConsent)
+        try targetStore.persistPending(
+            try await makeExpectation(fixture),
+            consentEvidence: targetConsent
+        )
+
+        let rewrittenDirectory = fixture.evidenceDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("rewritten-evidence", isDirectory: true)
+        let rewritingStore = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: rewrittenDirectory
+        )
+        try rewritingStore.persistTermsAcceptance(try makeConsentEvidence(
+            acceptanceID: "attacker-rewritten-acceptance"
+        ))
+        let rewrittenJournal = try Data(contentsOf: rewrittenDirectory
+            .appendingPathComponent("registration-state-journal.json"))
+        try overwriteFileInPlace(
+            rewrittenJournal,
+            at: fixture.evidenceDirectory
+                .appendingPathComponent("registration-state-journal.json")
+        )
+
+        let restartedStore = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        #expect(throws: DeviceIngressRegistrationClientError.invalidEvidenceJournal) {
+            try restartedStore.termsConsentSnapshot()
+        }
+    }
+
+    @Test
+    func legacyPreJournalPendingEvidenceFailsClosedInsteadOfMigratingAuthority() async throws {
+        let fixture = try await makeFixture()
+        try createPrivateDirectory(fixture.evidenceDirectory)
+        let legacyURL = fixture.evidenceDirectory
+            .appendingPathComponent("pending-register-expectation.json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        try encoder.encode(try await makeExpectation(fixture)).write(to: legacyURL)
+        #expect(Darwin.chmod(legacyURL.path, 0o600) == 0)
+
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            directoryURL: fixture.evidenceDirectory
+        )
+        #expect(throws: DeviceIngressRegistrationClientError.invalidEvidenceJournal) {
+            try store.termsConsentSnapshot()
+        }
+    }
+
+    @Test
     func durablePreRegistrationDeclineBlocksPreparedRegisterUntilExplicitAccept() async throws {
         let fixture = try await makeFixture()
         let store = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
         )
         let expectation = try await makeExpectation(fixture)
+        let consent = try makeConsentEvidence()
         var clearedLocalState = false
 
         try store.performPreRegistrationDecline {
@@ -488,11 +752,17 @@ struct DeviceIngressRegistrationClientTests {
 
         #expect(clearedLocalState)
         await #expect(throws: DeviceIngressRegistrationClientError.preRegistrationDeclined) {
-            try await store.persistPending(expectation)
+            try await store.persistPending(
+                expectation,
+                consentEvidence: consent
+            )
         }
 
-        try store.clearPreRegistrationDecline()
-        try await store.persistPending(expectation)
+        try store.persistTermsAcceptance(consent)
+        try await store.persistPending(
+            expectation,
+            consentEvidence: consent
+        )
         #expect(try await store.pendingExpectation() == expectation)
     }
 
@@ -511,6 +781,8 @@ struct DeviceIngressRegistrationClientTests {
             let registrationStore = FileDeviceIngressRegistrationEvidenceStore(
                 directoryURL: directory
             )
+            let consent = try makeConsentEvidence(acceptanceID: "race-\(iteration)")
+            try registrationStore.persistTermsAcceptance(consent)
 
             let outcomes = await withTaskGroup(
                 of: DeclineRegistrationRaceOutcome.self,
@@ -526,7 +798,10 @@ struct DeviceIngressRegistrationClientTests {
                 }
                 group.addTask {
                     do {
-                        try registrationStore.persistPending(expectation)
+                        try registrationStore.persistPending(
+                            expectation,
+                            consentEvidence: consent
+                        )
                         return .registrationSucceeded
                     } catch {
                         return .registrationRejected
@@ -561,6 +836,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: DeviceIngressRegistrationClientError.operationalCompositionUnavailable) {
             try await BindingDeviceIngressRegistrationComposition.register(
                 protectedBody: Data("test".utf8),
+                consentEvidence: try makeConsentEvidence(),
                 buildProvenance: try makeBuildProvenance()
             )
         }
@@ -629,12 +905,10 @@ struct DeviceIngressRegistrationClientTests {
             try writeTestFile("fixture\n", to: file)
         }
 
-        let gitInit = Process()
-        gitInit.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        gitInit.arguments = ["-C", syntheticRoot.path, "init", "-q"]
-        try gitInit.run()
-        gitInit.waitUntilExit()
-        #expect(gitInit.terminationStatus == 0)
+        try initializeGitRepository(at: syntheticRoot)
+        try initializeGitRepository(
+            at: workspace.appendingPathComponent("CellProtocol", isDirectory: true)
+        )
 
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -674,6 +948,109 @@ struct DeviceIngressRegistrationClientTests {
 
         #expect(process.terminationStatus == 65)
         #expect(errorText.contains("ignored source-like file is not attested"))
+    }
+
+    @Test
+    func dirtyReleaseSourceIsRejectedByProvenanceGenerator() throws {
+        let fileManager = FileManager.default
+        let workspace = fileManager.temporaryDirectory
+            .appendingPathComponent("BindingDirtyReleaseTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? fileManager.removeItem(at: workspace) }
+
+        let syntheticRoot = workspace.appendingPathComponent("Binding", isDirectory: true)
+        let bindingRoot = syntheticRoot.appendingPathComponent("Binding", isDirectory: true)
+        let cellsRoot = syntheticRoot.appendingPathComponent("Cells", isDirectory: true)
+        let cellProtocolRoot = workspace.appendingPathComponent(
+            "CellProtocol",
+            isDirectory: true
+        )
+        let objectRoot = workspace.appendingPathComponent("Objects/arm64", isDirectory: true)
+        let productsRoot = workspace.appendingPathComponent("Products", isDirectory: true)
+        let sdkRoot = workspace.appendingPathComponent("SDK", isDirectory: true)
+        let projectRoot = syntheticRoot.appendingPathComponent(
+            "Binding.xcodeproj",
+            isDirectory: true
+        )
+        let packageRoot = projectRoot.appendingPathComponent(
+            "project.xcworkspace/xcshareddata/swiftpm",
+            isDirectory: true
+        )
+        for directory in [
+            bindingRoot,
+            cellsRoot,
+            cellProtocolRoot,
+            objectRoot,
+            productsRoot,
+            sdkRoot,
+            packageRoot,
+            workspace.appendingPathComponent("TargetTemp/DerivedSources", isDirectory: true),
+            workspace.appendingPathComponent("Output", isDirectory: true)
+        ] {
+            try fileManager.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+        }
+
+        for file in [
+            objectRoot.appendingPathComponent("HAVEN.SwiftFileList"),
+            objectRoot.appendingPathComponent("HAVEN.LinkFileList"),
+            objectRoot.appendingPathComponent("Binding.swiftmodule"),
+            productsRoot.appendingPathComponent("CellBase.o"),
+            productsRoot.appendingPathComponent("CellApple.o"),
+            sdkRoot.appendingPathComponent("SDKSettings.plist"),
+            projectRoot.appendingPathComponent("project.pbxproj"),
+            packageRoot.appendingPathComponent("Package.resolved")
+        ] {
+            try writeTestFile("fixture\n", to: file)
+        }
+        try initializeGitRepository(at: syntheticRoot)
+        try initializeGitRepository(at: cellProtocolRoot)
+        try writeTestFile(
+            "struct DirtyReleaseSource {}\n",
+            to: bindingRoot.appendingPathComponent("DirtyReleaseSource.swift")
+        )
+
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let generator = repositoryRoot
+            .appendingPathComponent("Scripts/generate_binding_build_provenance.sh")
+        let standardError = Pipe()
+        let process = Process()
+        process.executableURL = generator
+        process.arguments = [
+            workspace.appendingPathComponent("Output/provenance.plist").path,
+            workspace.appendingPathComponent("Output/manifest.txt").path
+        ]
+        process.standardError = standardError
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "SRCROOT": syntheticRoot.path,
+            "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer",
+            "TOOLCHAIN_DIR": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain",
+            "OBJECT_FILE_DIR_normal": workspace.appendingPathComponent("Objects").path,
+            "ARCHS": "arm64",
+            "CURRENT_ARCH": "undefined_arch",
+            "PRODUCT_NAME": "HAVEN",
+            "PRODUCT_MODULE_NAME": "Binding",
+            "BUILT_PRODUCTS_DIR": productsRoot.path,
+            "SDKROOT": sdkRoot.path,
+            "PROJECT_FILE_PATH": projectRoot.path,
+            "TARGET_TEMP_DIR": workspace.appendingPathComponent("TargetTemp").path,
+            "CONFIGURATION": "Release",
+            "CODE_SIGNING_ALLOWED": "NO"
+        ]) { _, fixture in fixture }
+
+        try process.run()
+        process.waitUntilExit()
+        let errorText = String(
+            data: standardError.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        ) ?? ""
+
+        #expect(process.terminationStatus == 65)
+        #expect(errorText.contains("release build attestation refuses dirty"))
     }
 
     private struct Fixture {
@@ -809,6 +1186,87 @@ struct DeviceIngressRegistrationClientTests {
         try Data(value.utf8).write(to: url)
     }
 
+    private func initializeGitRepository(at url: URL) throws {
+        let commands = [
+            ["init", "-q"],
+            ["add", "-A"],
+            [
+                "-c", "user.name=Binding Fixture",
+                "-c", "user.email=binding-fixture@example.invalid",
+                "commit", "-q", "--allow-empty", "-m", "fixture"
+            ]
+        ]
+        for command in commands {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            process.arguments = ["-C", url.path] + command
+            try process.run()
+            process.waitUntilExit()
+            try #require(process.terminationStatus == 0)
+        }
+    }
+
+    private func replaceFirstByte(
+        in url: URL,
+        matching expected: UInt8,
+        with replacement: UInt8
+    ) throws {
+        let data = try Data(contentsOf: url)
+        guard let offset = data.firstIndex(of: expected) else {
+            throw DeviceIngressEvidenceFileError.contentChangedDuringAccess
+        }
+        let descriptor = Darwin.open(url.path, O_RDWR | O_CLOEXEC | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw DeviceIngressEvidenceFileError.posix(
+                operation: "test journal tamper open",
+                code: errno
+            )
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var byte = replacement
+        guard Darwin.pwrite(descriptor, &byte, 1, off_t(offset)) == 1 else {
+            throw DeviceIngressEvidenceFileError.posix(
+                operation: "test journal tamper write",
+                code: errno
+            )
+        }
+    }
+
+    private func overwriteFileInPlace(_ data: Data, at url: URL) throws {
+        let descriptor = Darwin.open(url.path, O_WRONLY | O_CLOEXEC | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw DeviceIngressEvidenceFileError.posix(
+                operation: "test journal rewrite open",
+                code: errno
+            )
+        }
+        defer { _ = Darwin.close(descriptor) }
+        guard Darwin.ftruncate(descriptor, 0) == 0 else {
+            throw DeviceIngressEvidenceFileError.posix(
+                operation: "test journal rewrite truncate",
+                code: errno
+            )
+        }
+        try data.withUnsafeBytes { buffer in
+            var offset = 0
+            while offset < buffer.count {
+                let count = Darwin.write(
+                    descriptor,
+                    buffer.baseAddress!.advanced(by: offset),
+                    buffer.count - offset
+                )
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else {
+                    throw DeviceIngressEvidenceFileError.posix(
+                        operation: "test journal rewrite write",
+                        code: errno
+                    )
+                }
+                offset += count
+            }
+        }
+    }
+
     private func persistedEvidenceText(in directory: URL) throws -> String {
         let urls = try FileManager.default.contentsOfDirectory(
             at: directory,
@@ -821,12 +1279,24 @@ struct DeviceIngressRegistrationClientTests {
         Int64((date.timeIntervalSince1970 * 1_000).rounded(.towardZero))
     }
 
+    private func makeConsentEvidence(
+        acceptanceID: String = "fixture-terms-acceptance"
+    ) throws -> NotificationTermsConsentEvidence {
+        try #require(NotificationTermsConsentEvidence(
+            termsVersion: "v1",
+            acceptedAt: now.timeIntervalSince1970,
+            acceptanceID: acceptanceID
+        ))
+    }
+
     private func makeBuildProvenance(
         bindingRevisionHex: Character = "a"
     ) throws -> BindingBuildProvenance {
         try BindingBuildProvenance(
             bindingGitRevision: String(repeating: bindingRevisionHex, count: 40),
             cellProtocolGitRevision: String(repeating: "c", count: 40),
+            bindingSourceTreeDirty: false,
+            cellProtocolSourceTreeDirty: false,
             compilerInputManifestSHA256: String(repeating: "b", count: 64),
             compilerInputCount: 2,
             generatedCompilerInputCount: 1,
@@ -911,6 +1381,7 @@ private final class ConcurrentEvidenceWriter:
     private let fileURL: URL
     private let lock = NSLock()
     private var hasMutated = false
+    private var isArmed = false
 
     init(fileURL: URL) {
         self.fileURL = fileURL
@@ -920,10 +1391,14 @@ private final class ConcurrentEvidenceWriter:
         lock.withLock { hasMutated }
     }
 
+    func arm() {
+        lock.withLock { isArmed = true }
+    }
+
     func didOpenForRead(fileName: String) throws {
-        guard fileName == "pending-register-expectation.json" else { return }
+        guard fileName == "registration-state-journal.json" else { return }
         let shouldMutate = lock.withLock { () -> Bool in
-            guard hasMutated == false else { return false }
+            guard isArmed, hasMutated == false else { return false }
             hasMutated = true
             return true
         }

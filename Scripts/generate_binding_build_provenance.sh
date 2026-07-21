@@ -75,6 +75,17 @@ git_revision() {
   print -r -- "$revision"
 }
 
+git_dirty() {
+  local repo="$1"
+  local porcelain
+  porcelain="$("$git_bin" -C "$repo" status --porcelain=v1 --untracked-files=all)"
+  if [[ -n "$porcelain" ]]; then
+    print -r -- true
+  else
+    print -r -- false
+  fi
+}
+
 logical_compiler_path() {
   local path="$1"
   case "$path" in
@@ -102,8 +113,23 @@ trap '/bin/rm -f "$temporary_manifest" "$temporary_unsorted" "$temporary_config"
 
 : > "$temporary_unsorted"
 : > "$temporary_config"
-print -r -- $'schema\tbinding.compiler-input-attestation.v3' >> "$temporary_unsorted"
-print -r -- $'coverage\txcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings' >> "$temporary_unsorted"
+print -r -- $'schema\tbinding.compiler-input-attestation.v4' >> "$temporary_unsorted"
+print -r -- $'coverage\texact-head+dirty-state+xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings' >> "$temporary_unsorted"
+
+binding_revision="$(git_revision "$root_dir")"
+cellprotocol_revision="$(git_revision "$cellprotocol_dir")"
+binding_dirty="$(git_dirty "$root_dir")"
+cellprotocol_dirty="$(git_dirty "$cellprotocol_dir")"
+print -r -- "source-control\tbinding-head\t${binding_revision}" >> "$temporary_unsorted"
+print -r -- "source-control\tcellprotocol-head\t${cellprotocol_revision}" >> "$temporary_unsorted"
+print -r -- "source-control\tbinding-dirty\t${binding_dirty}" >> "$temporary_unsorted"
+print -r -- "source-control\tcellprotocol-dirty\t${cellprotocol_dirty}" >> "$temporary_unsorted"
+
+if [[ "${CONFIGURATION:-unknown}" == "Release" &&
+      ("$binding_dirty" == true || "$cellprotocol_dirty" == true) ]]; then
+  print -u2 "release build attestation refuses dirty Binding or CellProtocol source"
+  exit 65
+fi
 
 typeset -A compiler_sources
 compiler_input_count=0
@@ -259,15 +285,15 @@ toolchain_sha256="$({
   print -r -- "$sdk_settings_sha256"
 } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
 
-binding_revision="$(git_revision "$root_dir")"
-cellprotocol_revision="$(git_revision "$cellprotocol_dir")"
 generated_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
 /usr/bin/plutil -create xml1 "$temporary_plist"
-/usr/bin/plutil -insert schema -string 'binding.build-provenance.v3' "$temporary_plist"
-/usr/bin/plutil -insert coverageDeclaration -string 'xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings' "$temporary_plist"
+/usr/bin/plutil -insert schema -string 'binding.build-provenance.v4' "$temporary_plist"
+/usr/bin/plutil -insert coverageDeclaration -string 'exact-head+dirty-state+xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings' "$temporary_plist"
 /usr/bin/plutil -insert bindingGitRevision -string "$binding_revision" "$temporary_plist"
 /usr/bin/plutil -insert cellProtocolGitRevision -string "$cellprotocol_revision" "$temporary_plist"
+/usr/bin/plutil -insert bindingSourceTreeDirty -bool "$binding_dirty" "$temporary_plist"
+/usr/bin/plutil -insert cellProtocolSourceTreeDirty -bool "$cellprotocol_dirty" "$temporary_plist"
 /usr/bin/plutil -insert compilerInputManifestSHA256 -string "$manifest_sha256" "$temporary_plist"
 /usr/bin/plutil -insert compilerInputCount -integer "$compiler_input_count" "$temporary_plist"
 /usr/bin/plutil -insert generatedCompilerInputCount -integer "$generated_input_count" "$temporary_plist"

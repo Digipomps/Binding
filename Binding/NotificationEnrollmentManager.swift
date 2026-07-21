@@ -7,22 +7,63 @@ import UIKit
 import UserNotifications
 #endif
 
-nonisolated struct NotificationTermsConsentEvidence: Equatable, Sendable {
-    let termsVersion: String
-    let acceptedAt: TimeInterval
+nonisolated enum NotificationTermsConsentState: String, Codable, Equatable, Sendable {
+    case unknown
+    case accepted
+    case declined
+}
 
-    init?(termsVersion: String, acceptedAt: TimeInterval) {
+/// Local, durable evidence of the exact affirmative action used to prepare a
+/// registration body. It is not server authority; only the exact signed
+/// DeviceIngress response can establish an `activeConsented` mutation result.
+nonisolated struct NotificationTermsConsentEvidence: Codable, Equatable, Sendable {
+    static let currentSchema = "binding.notification-terms-consent.v1"
+
+    let schema: String
+    let state: NotificationTermsConsentState
+    let acceptanceID: String
+    let termsVersion: String
+    let acceptedAtMilliseconds: Int64
+
+    init?(
+        termsVersion: String,
+        acceptedAt: TimeInterval,
+        acceptanceID: String = UUID().uuidString
+    ) {
         let normalizedVersion = termsVersion.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+        let normalizedAcceptanceID = acceptanceID.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
         guard normalizedVersion.isEmpty == false,
+              normalizedAcceptanceID.isEmpty == false,
               acceptedAt.isFinite,
-              acceptedAt > 0 else {
+              acceptedAt > 0,
+              acceptedAt <= Double(Int64.max) / 1_000 else {
             return nil
         }
+        schema = Self.currentSchema
+        state = .accepted
+        self.acceptanceID = normalizedAcceptanceID
         self.termsVersion = normalizedVersion
-        self.acceptedAt = acceptedAt
+        acceptedAtMilliseconds = Int64((acceptedAt * 1_000).rounded(.towardZero))
     }
+
+    var registrationObject: [String: JSONValue] {
+        [
+            "schema": .string(schema),
+            "state": .string(state.rawValue),
+            "acceptanceId": .string(acceptanceID),
+            "termsVersion": .string(termsVersion),
+            "acceptedAtMilliseconds": .number(Double(acceptedAtMilliseconds))
+        ]
+    }
+}
+
+nonisolated struct NotificationTermsConsentSnapshot: Equatable, Sendable {
+    let state: NotificationTermsConsentState
+    let acceptedEvidence: NotificationTermsConsentEvidence?
 }
 
 nonisolated enum NotificationEnrollmentStateError: LocalizedError, Equatable {
@@ -41,6 +82,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     static let shared = NotificationEnrollmentManager()
 
     @Published private(set) var needsTermsAcceptance: Bool = true
+    @Published private(set) var termsConsentState: NotificationTermsConsentState = .unknown
     @Published private(set) var pushPermissionGranted: Bool = false
     @Published private(set) var lastRegistrationError: String?
     @Published private(set) var isDeviceRegistered: Bool = false
@@ -48,6 +90,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let defaults: UserDefaults
     private let evidenceInspectorFactory:
         @Sendable () throws -> any DeviceIngressRegistrationEvidenceStoring
+    private let termsVersionProvider: @Sendable () -> String
 
     private let deviceIDKey = "binding.notifications.deviceId"
     private let termsVersionKey = "binding.notifications.termsVersion"
@@ -68,21 +111,28 @@ final class NotificationEnrollmentManager: ObservableObject {
         evidenceInspectorFactory: @escaping @Sendable () throws
             -> any DeviceIngressRegistrationEvidenceStoring = {
                 try FileDeviceIngressRegistrationEvidenceStore.applicationSupport()
-            }
+            },
+        termsVersionProvider: @escaping @Sendable () -> String = {
+            ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"]
+                ?? "v1"
+        }
     ) {
         self.defaults = defaults
         self.evidenceInspectorFactory = evidenceInspectorFactory
+        self.termsVersionProvider = termsVersionProvider
         bootstrapIfNeeded()
     }
 
     #if DEBUG
     static func testing(
         defaults: UserDefaults,
-        evidenceInspector: any DeviceIngressRegistrationEvidenceStoring
+        evidenceInspector: any DeviceIngressRegistrationEvidenceStoring,
+        requiredTermsVersion: String = "v1"
     ) -> NotificationEnrollmentManager {
         NotificationEnrollmentManager(
             defaults: defaults,
-            evidenceInspectorFactory: { evidenceInspector }
+            evidenceInspectorFactory: { evidenceInspector },
+            termsVersionProvider: { requiredTermsVersion }
         )
     }
     #endif
@@ -110,7 +160,19 @@ final class NotificationEnrollmentManager: ObservableObject {
 
         configureRemoteBridgePresenceProvider()
 
-        needsTermsAcceptance = currentTermsConsentEvidence() == nil
+        do {
+            applyConsentSnapshot(try evidenceInspectorFactory().termsConsentSnapshot())
+        } catch {
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
+            lastRegistrationError = "Notification consent evidence is unavailable: \(error.localizedDescription)"
+        }
+        // Legacy key pairs are deliberately not migrated into affirmative
+        // consent. They have no explicit decision or durable acceptance proof.
+        defaults.removeObject(forKey: termsVersionKey)
+        defaults.removeObject(forKey: termsAcceptedAtKey)
         pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
         defaults.removeObject(forKey: legacyAPNSTokenKey)
         defaults.removeObject(forKey: currentAPNSTokenKey)
@@ -140,21 +202,34 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     func acceptTermsAndEnableNotifications() async {
         lastRegistrationError = nil
+        guard let evidence = NotificationTermsConsentEvidence(
+            termsVersion: termsVersion(),
+            acceptedAt: Date().timeIntervalSince1970
+        ) else {
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
+            lastRegistrationError = "Cannot create notification consent evidence."
+            return
+        }
         do {
-            // Re-open the durable local registration gate before consent can
-            // be represented as accepted. This is synchronous and therefore
-            // has no MainActor reentrancy window.
-            try evidenceInspectorFactory().clearPreRegistrationDecline()
+            // The exact affirmative decision is journaled before UI state or
+            // registration can represent consent as accepted.
+            try evidenceInspectorFactory().persistTermsAcceptance(evidence)
         } catch {
-            needsTermsAcceptance = true
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
             isDeviceRegistered = false
             lastRegistrationError = "Cannot accept notification terms: \(error.localizedDescription)"
             return
         }
-        let acceptedAt = Date().timeIntervalSince1970
-        defaults.set(termsVersion(), forKey: termsVersionKey)
-        defaults.set(acceptedAt, forKey: termsAcceptedAtKey)
-        needsTermsAcceptance = false
+        applyConsentSnapshot(NotificationTermsConsentSnapshot(
+            state: .accepted,
+            acceptedEvidence: evidence
+        ))
 
         #if os(iOS)
         do {
@@ -236,13 +311,23 @@ final class NotificationEnrollmentManager: ObservableObject {
                 defaults.removeObject(forKey: termsVersionKey)
                 defaults.removeObject(forKey: termsAcceptedAtKey)
                 pendingAPNSToken = nil
-                needsTermsAcceptance = true
+                applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                    state: .declined,
+                    acceptedEvidence: nil
+                ))
                 isDeviceRegistered = false
             }
             return true
         } catch {
             isDeviceRegistered = false
-            needsTermsAcceptance = currentTermsConsentEvidence() == nil
+            if let snapshot = try? evidenceInspectorFactory().termsConsentSnapshot() {
+                applyConsentSnapshot(snapshot)
+            } else {
+                applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                    state: .unknown,
+                    acceptedEvidence: nil
+                ))
+            }
             lastRegistrationError = "Cannot decline notification terms: \(error.localizedDescription)"
             return false
         }
@@ -265,13 +350,27 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     func registerCurrentDeviceIfReady() async {
         pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
-        guard let consent = currentTermsConsentEvidence(),
+        let consentSnapshot: NotificationTermsConsentSnapshot
+        do {
+            consentSnapshot = try evidenceInspectorFactory().termsConsentSnapshot()
+            applyConsentSnapshot(consentSnapshot)
+        } catch {
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
+            isDeviceRegistered = false
+            lastRegistrationError = "Notification consent evidence is unavailable: \(error.localizedDescription)"
+            return
+        }
+        guard consentSnapshot.state == .accepted,
+              let consent = consentSnapshot.acceptedEvidence,
+              consent.termsVersion == termsVersion(),
               let participantID,
               let deviceID,
               let token = pendingAPNSToken,
               !token.isEmpty
         else {
-            needsTermsAcceptance = currentTermsConsentEvidence() == nil
             isDeviceRegistered = false
             return
         }
@@ -292,6 +391,7 @@ final class NotificationEnrollmentManager: ObservableObject {
             let protectedBody = try Self.registrationProtectedBody(payload)
             let receipt = try await BindingDeviceIngressRegistrationComposition.register(
                 protectedBody: protectedBody,
+                consentEvidence: consent,
                 buildProvenance: buildProvenance
             )
             guard receipt.state == .activeConsented else {
@@ -312,17 +412,16 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     private func termsVersion() -> String {
-        ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"] ?? "v1"
+        termsVersionProvider()
     }
 
-    private func currentTermsConsentEvidence() -> NotificationTermsConsentEvidence? {
-        guard defaults.string(forKey: termsVersionKey) == termsVersion() else {
-            return nil
-        }
-        return NotificationTermsConsentEvidence(
-            termsVersion: termsVersion(),
-            acceptedAt: defaults.double(forKey: termsAcceptedAtKey)
-        )
+    private func applyConsentSnapshot(_ snapshot: NotificationTermsConsentSnapshot) {
+        let isCurrentAcceptance = snapshot.state == .accepted
+            && snapshot.acceptedEvidence?.termsVersion == termsVersion()
+        termsConsentState = isCurrentAcceptance
+            ? .accepted
+            : (snapshot.state == .accepted ? .unknown : snapshot.state)
+        needsTermsAcceptance = isCurrentAcceptance == false
     }
 
     private func conferenceID() -> String? {
@@ -391,8 +490,8 @@ final class NotificationEnrollmentManager: ObservableObject {
             "deviceId": .string(deviceID),
             "platform": .string(platform),
             "pushToken": .string(pushToken),
-            "termsVersion": .string(consent.termsVersion),
-            "termsAccepted": .bool(true),
+            "termsConsentState": .string(consent.state.rawValue),
+            "termsAcceptanceEvidence": .object(consent.registrationObject),
             "callbackCapabilities": .array(defaultCallbackCapabilities().map(JSONValue.string)),
             "conferenceId": conferenceID.map(JSONValue.string) ?? .null,
             "subscriptionTopics": .array(normalizeTopics(subscriptionTopics).map(JSONValue.string)),

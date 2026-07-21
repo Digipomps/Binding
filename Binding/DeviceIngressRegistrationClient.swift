@@ -1,7 +1,9 @@
 import Foundation
+import CryptoKit
 import CellBase
 import CellApple
 import Darwin
+import Security
 
 nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable {
     case operationalCompositionUnavailable
@@ -13,6 +15,7 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
     case pendingRegistrationExists
     case verifiedRegistrationExists
     case preRegistrationDeclined
+    case persistedTermsAcceptanceRequired
     case registrationEvidencePreventsPreRegistrationDecline
     case pendingExpectationMissing
     case pendingExpectationMismatch
@@ -20,6 +23,7 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
     case evidenceDirectoryUnavailable
     case verifiedEvidenceDeviceIdentityMismatch
     case buildProvenanceMismatch
+    case invalidEvidenceJournal
     case responseWasNotRegistration
     case registrationWasNotActiveAndConsented
 
@@ -43,6 +47,8 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
             return "Historical verified registration evidence already exists; a fresh signed status/read-back is required before another register attempt."
         case .preRegistrationDeclined:
             return "Notification registration is locally closed by a durable pre-registration decline."
+        case .persistedTermsAcceptanceRequired:
+            return "The exact accepted notification-terms evidence is not durably persisted."
         case .registrationEvidencePreventsPreRegistrationDecline:
             return "Pending or verified registration evidence exists; pre-registration decline cannot represent server revocation, so a signed revoke/deregister flow is required."
         case .pendingExpectationMissing:
@@ -57,6 +63,8 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
             return "The verified registration evidence belongs to a different device identity."
         case .buildProvenanceMismatch:
             return "The verified registration evidence belongs to a different Binding build."
+        case .invalidEvidenceJournal:
+            return "The DeviceIngress evidence journal is missing its exact monotonic anchor, has an invalid hash chain, or contains an invalid state transition."
         case .responseWasNotRegistration:
             return "The signed DeviceIngress response was not a registration receipt."
         case .registrationWasNotActiveAndConsented:
@@ -103,22 +111,56 @@ nonisolated struct InertDeviceIngressRegistrationTransport: DeviceIngressRegistr
 }
 
 nonisolated struct DeviceIngressVerifiedRegistrationEvidence: Codable, Equatable, Sendable {
-    static let currentSchema = "binding.device-ingress.registration-evidence.v2"
+    static let currentSchema = "binding.device-ingress.registration-evidence.v3"
 
     let schema: String
     let expectation: DeviceIngressResponseExpectation
     let canonicalResponseData: Data
     let buildProvenance: BindingBuildProvenance
+    let vaultBinding: DeviceIngressPersistedVaultBinding
 
     init(
         expectation: DeviceIngressResponseExpectation,
         canonicalResponseData: Data,
-        buildProvenance: BindingBuildProvenance
+        buildProvenance: BindingBuildProvenance,
+        vaultBinding: DeviceIngressPersistedVaultBinding
     ) {
         schema = Self.currentSchema
         self.expectation = expectation
         self.canonicalResponseData = canonicalResponseData
         self.buildProvenance = buildProvenance
+        self.vaultBinding = vaultBinding
+    }
+}
+
+nonisolated struct DeviceIngressPersistedVaultBinding: Codable, Equatable, Sendable {
+    static let currentSchema = "binding.device-ingress.vault-binding.v1"
+
+    let schema: String
+    let identityDomain: String
+    let identityUUID: String
+    let signingKeyFingerprint: String
+
+    init(
+        binding: IdentityDomainBinding,
+        identity: Identity,
+        descriptor: IdentityPublicKeyDescriptor
+    ) throws {
+        guard binding.schema == IdentityDomainBinding.currentSchema,
+              binding.bindingKind == IdentityDomainBinding.vaultContextKind,
+              binding.grantsAuthority == false,
+              binding.domain == DeviceIngressEnvelope.identityDomain,
+              binding.identityUUID == descriptor.uuid,
+              binding.matches(identity: identity),
+              DeviceIngressIdentityDescriptor.publicDescriptor(for: identity) == descriptor,
+              binding.identityUUID.isEmpty == false,
+              binding.signingKeyFingerprint.isEmpty == false else {
+            throw DeviceIngressRegistrationClientError.notificationDomainBindingUnavailable
+        }
+        schema = Self.currentSchema
+        identityDomain = binding.domain
+        identityUUID = binding.identityUUID
+        signingKeyFingerprint = binding.signingKeyFingerprint
     }
 }
 
@@ -151,24 +193,331 @@ nonisolated struct DeviceIngressPreRegistrationDeclineTombstone:
     }
 }
 
+nonisolated private enum DeviceIngressEvidenceMutation: String, Codable, Sendable {
+    case acceptTerms
+    case declineTerms
+    case persistPending
+    case commitVerified
+}
+
+nonisolated private struct DeviceIngressEvidenceStateSnapshot:
+    Codable,
+    Equatable,
+    Sendable
+{
+    let consentState: NotificationTermsConsentState
+    let acceptedConsentEvidence: NotificationTermsConsentEvidence?
+    let pendingExpectation: DeviceIngressResponseExpectation?
+    let verifiedEvidence: DeviceIngressVerifiedRegistrationEvidence?
+
+    static let empty = Self(
+        consentState: .unknown,
+        acceptedConsentEvidence: nil,
+        pendingExpectation: nil,
+        verifiedEvidence: nil
+    )
+
+    func validate() throws {
+        switch consentState {
+        case .unknown, .declined:
+            guard acceptedConsentEvidence == nil else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        case .accepted:
+            guard let acceptedConsentEvidence,
+                  acceptedConsentEvidence.schema
+                    == NotificationTermsConsentEvidence.currentSchema,
+                  acceptedConsentEvidence.state == .accepted,
+                  acceptedConsentEvidence.acceptanceID.isEmpty == false,
+                  acceptedConsentEvidence.termsVersion.isEmpty == false,
+                  acceptedConsentEvidence.acceptedAtMilliseconds > 0 else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        }
+        guard pendingExpectation == nil || verifiedEvidence == nil else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        if pendingExpectation != nil || verifiedEvidence != nil {
+            guard consentState == .accepted,
+                  acceptedConsentEvidence != nil else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        }
+        if let verifiedEvidence {
+            guard verifiedEvidence.schema
+                    == DeviceIngressVerifiedRegistrationEvidence.currentSchema,
+                  verifiedEvidence.expectation.operation == .register,
+                  verifiedEvidence.vaultBinding.schema
+                    == DeviceIngressPersistedVaultBinding.currentSchema,
+                  verifiedEvidence.vaultBinding.identityDomain
+                    == DeviceIngressEnvelope.identityDomain,
+                  verifiedEvidence.vaultBinding.identityUUID
+                    == verifiedEvidence.expectation.subjectIdentityUUID,
+                  verifiedEvidence.vaultBinding.signingKeyFingerprint
+                    == verifiedEvidence.expectation.subjectSigningKeyFingerprint else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        }
+    }
+}
+
+nonisolated private struct DeviceIngressEvidenceJournalEntry:
+    Codable,
+    Equatable,
+    Sendable
+{
+    struct HashPayload: Codable {
+        let sequence: UInt64
+        let previousEntrySHA256: String
+        let mutation: DeviceIngressEvidenceMutation
+        let state: DeviceIngressEvidenceStateSnapshot
+    }
+
+    let sequence: UInt64
+    let previousEntrySHA256: String
+    let mutation: DeviceIngressEvidenceMutation
+    let state: DeviceIngressEvidenceStateSnapshot
+    let entrySHA256: String
+
+    init(
+        sequence: UInt64,
+        previousEntrySHA256: String,
+        mutation: DeviceIngressEvidenceMutation,
+        state: DeviceIngressEvidenceStateSnapshot
+    ) throws {
+        self.sequence = sequence
+        self.previousEntrySHA256 = previousEntrySHA256
+        self.mutation = mutation
+        self.state = state
+        entrySHA256 = try Self.hash(
+            sequence: sequence,
+            previousEntrySHA256: previousEntrySHA256,
+            mutation: mutation,
+            state: state
+        )
+    }
+
+    func validateHash() throws {
+        let expectedEntrySHA256 = try Self.hash(
+            sequence: sequence,
+            previousEntrySHA256: previousEntrySHA256,
+            mutation: mutation,
+            state: state
+        )
+        guard entrySHA256 == expectedEntrySHA256 else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+    }
+
+    private static func hash(
+        sequence: UInt64,
+        previousEntrySHA256: String,
+        mutation: DeviceIngressEvidenceMutation,
+        state: DeviceIngressEvidenceStateSnapshot
+    ) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(HashPayload(
+            sequence: sequence,
+            previousEntrySHA256: previousEntrySHA256,
+            mutation: mutation,
+            state: state
+        ))
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+nonisolated private struct DeviceIngressEvidenceJournal:
+    Codable,
+    Equatable,
+    Sendable
+{
+    static let currentSchema = "binding.device-ingress.evidence-journal.v1"
+    static let genesisSHA256 = String(repeating: "0", count: 64)
+    static let maximumEntryCount = 1_024
+
+    let schema: String
+    let entries: [DeviceIngressEvidenceJournalEntry]
+
+    init(entries: [DeviceIngressEvidenceJournalEntry]) {
+        schema = Self.currentSchema
+        self.entries = entries
+    }
+
+    var currentState: DeviceIngressEvidenceStateSnapshot {
+        entries.last?.state ?? .empty
+    }
+
+    var currentAnchor: DeviceIngressEvidenceJournalAnchor? {
+        entries.last.map {
+            DeviceIngressEvidenceJournalAnchor(
+                sequence: $0.sequence,
+                journalHeadSHA256: $0.entrySHA256
+            )
+        }
+    }
+
+    var previousAnchor: DeviceIngressEvidenceJournalAnchor? {
+        entries.dropLast().last.map {
+            DeviceIngressEvidenceJournalAnchor(
+                sequence: $0.sequence,
+                journalHeadSHA256: $0.entrySHA256
+            )
+        }
+    }
+
+    func appending(
+        mutation: DeviceIngressEvidenceMutation,
+        state: DeviceIngressEvidenceStateSnapshot
+    ) throws -> Self {
+        guard entries.count < Self.maximumEntryCount else {
+            throw DeviceIngressRegistrationClientError.evidenceTooLarge
+        }
+        let entry = try DeviceIngressEvidenceJournalEntry(
+            sequence: UInt64(entries.count + 1),
+            previousEntrySHA256: entries.last?.entrySHA256 ?? Self.genesisSHA256,
+            mutation: mutation,
+            state: state
+        )
+        let result = Self(entries: entries + [entry])
+        try result.validate()
+        return result
+    }
+
+    func validate() throws {
+        guard schema == Self.currentSchema,
+              entries.isEmpty == false,
+              entries.count <= Self.maximumEntryCount else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        var previousState = DeviceIngressEvidenceStateSnapshot.empty
+        var previousHash = Self.genesisSHA256
+        for (index, entry) in entries.enumerated() {
+            guard entry.sequence == UInt64(index + 1),
+                  entry.previousEntrySHA256 == previousHash else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+            try entry.validateHash()
+            try entry.state.validate()
+            try Self.validateTransition(
+                mutation: entry.mutation,
+                from: previousState,
+                to: entry.state
+            )
+            previousState = entry.state
+            previousHash = entry.entrySHA256
+        }
+    }
+
+    private static func validateTransition(
+        mutation: DeviceIngressEvidenceMutation,
+        from old: DeviceIngressEvidenceStateSnapshot,
+        to new: DeviceIngressEvidenceStateSnapshot
+    ) throws {
+        switch mutation {
+        case .acceptTerms:
+            guard old.pendingExpectation == nil,
+                  old.verifiedEvidence == nil,
+                  new.consentState == .accepted,
+                  new.acceptedConsentEvidence != nil,
+                  new.pendingExpectation == nil,
+                  new.verifiedEvidence == nil else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        case .declineTerms:
+            guard old.pendingExpectation == nil,
+                  old.verifiedEvidence == nil,
+                  new.consentState == .declined,
+                  new.acceptedConsentEvidence == nil,
+                  new.pendingExpectation == nil,
+                  new.verifiedEvidence == nil else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        case .persistPending:
+            guard old.consentState == .accepted,
+                  old.acceptedConsentEvidence == new.acceptedConsentEvidence,
+                  old.pendingExpectation == nil,
+                  old.verifiedEvidence == nil,
+                  new.consentState == .accepted,
+                  new.pendingExpectation != nil,
+                  new.verifiedEvidence == nil else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        case .commitVerified:
+            guard old.consentState == .accepted,
+                  old.acceptedConsentEvidence == new.acceptedConsentEvidence,
+                  let pending = old.pendingExpectation,
+                  old.verifiedEvidence == nil,
+                  new.consentState == .accepted,
+                  new.pendingExpectation == nil,
+                  new.verifiedEvidence?.expectation == pending else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+        }
+    }
+}
+
+/// The current journal head is anchored outside the replaceable journal. The
+/// production anchor lives in the device-local Keychain; the file-backed form
+/// is available only to DEBUG tests that use an isolated temporary directory.
+nonisolated private struct DeviceIngressEvidenceJournalAnchor:
+    Codable,
+    Equatable,
+    Sendable
+{
+    static let currentSchema = "binding.device-ingress.evidence-journal-anchor.v1"
+
+    let schema: String
+    let sequence: UInt64
+    let journalHeadSHA256: String
+
+    init(sequence: UInt64, journalHeadSHA256: String) {
+        schema = Self.currentSchema
+        self.sequence = sequence
+        self.journalHeadSHA256 = journalHeadSHA256
+    }
+
+    func validate() throws {
+        guard schema == Self.currentSchema,
+              sequence > 0,
+              journalHeadSHA256.count == 64,
+              journalHeadSHA256.allSatisfy({
+                $0.isHexDigit && $0.isUppercase == false
+              }) else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+    }
+
+    func validateAdvance(after previous: Self?) throws {
+        try validate()
+        guard sequence == (previous?.sequence ?? 0) + 1 else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+    }
+}
+
 nonisolated protocol DeviceIngressRegistrationEvidenceStoring: Sendable {
+    func termsConsentSnapshot() throws -> NotificationTermsConsentSnapshot
+    func persistTermsAcceptance(_ evidence: NotificationTermsConsentEvidence) throws
     func persistPending(
-        _ expectation: DeviceIngressResponseExpectation
+        _ expectation: DeviceIngressResponseExpectation,
+        consentEvidence: NotificationTermsConsentEvidence
     ) throws
     func pendingExpectation() throws -> DeviceIngressResponseExpectation?
     func commitVerified(
         expectation: DeviceIngressResponseExpectation,
         canonicalResponseData: Data,
-        buildProvenance: BindingBuildProvenance
+        buildProvenance: BindingBuildProvenance,
+        vaultBinding: DeviceIngressPersistedVaultBinding
     ) throws
     func verifiedEvidence() throws -> DeviceIngressVerifiedRegistrationEvidence?
     func containsRegistrationEvidence() throws -> Bool
     func performPreRegistrationDecline(_ localStateClear: () -> Void) throws
-    func clearPreRegistrationDecline() throws
 }
 
 nonisolated enum DeviceIngressEvidenceFileError: LocalizedError, Equatable {
     case posix(operation: String, code: Int32)
+    case secureAnchor(operation: String, status: OSStatus)
     case invalidPathComponent
     case metadataRejected(reason: String)
     case pathIdentityChanged
@@ -178,6 +527,8 @@ nonisolated enum DeviceIngressEvidenceFileError: LocalizedError, Equatable {
         switch self {
         case let .posix(operation, code):
             return "DeviceIngress evidence \(operation) failed with errno \(code)."
+        case let .secureAnchor(operation, status):
+            return "DeviceIngress secure journal anchor \(operation) failed with status \(status)."
         case .invalidPathComponent:
             return "DeviceIngress evidence contains an invalid path component."
         case let .metadataRejected(reason):
@@ -187,6 +538,87 @@ nonisolated enum DeviceIngressEvidenceFileError: LocalizedError, Equatable {
         case .contentChangedDuringAccess:
             return "DeviceIngress evidence content changed during access."
         }
+    }
+}
+
+nonisolated private struct KeychainDeviceIngressJournalAnchorStore: Sendable {
+    private static let service = "org.digipomps.binding.device-ingress-journal-anchor"
+    private let account: String
+
+    init(namespace: String) {
+        account = SHA256.hash(data: Data(namespace.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    func load() throws -> DeviceIngressEvidenceJournalAnchor? {
+        var query = baseQuery
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query[kSecReturnData as String] = true
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = item as? Data else {
+            throw DeviceIngressEvidenceFileError.secureAnchor(
+                operation: "read",
+                status: status
+            )
+        }
+        do {
+            let anchor = try JSONDecoder().decode(
+                DeviceIngressEvidenceJournalAnchor.self,
+                from: data
+            )
+            try anchor.validate()
+            return anchor
+        } catch {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+    }
+
+    func compareAndSwap(
+        expected: DeviceIngressEvidenceJournalAnchor?,
+        new: DeviceIngressEvidenceJournalAnchor
+    ) throws {
+        let actual = try load()
+        guard actual == expected else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        try new.validateAdvance(after: expected)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(new)
+        let status: OSStatus
+        if actual == nil {
+            var query = baseQuery
+            query[kSecAttrAccessible as String] =
+                kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            query[kSecAttrSynchronizable as String] = false
+            query[kSecValueData as String] = data
+            status = SecItemAdd(query as CFDictionary, nil)
+        } else {
+            status = SecItemUpdate(
+                baseQuery as CFDictionary,
+                [kSecValueData as String: data] as CFDictionary
+            )
+        }
+        guard status == errSecSuccess else {
+            throw DeviceIngressEvidenceFileError.secureAnchor(
+                operation: actual == nil ? "create" : "advance",
+                status: status
+            )
+        }
+        guard try load() == new else {
+            throw DeviceIngressEvidenceFileError.contentChangedDuringAccess
+        }
+    }
+
+    private var baseQuery: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: account
+        ]
     }
 }
 
@@ -341,6 +773,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
     private let relativeDirectoryComponents: [String]
     private let synchronizer: any DeviceIngressDurabilitySynchronizing
     private let readObserver: any DeviceIngressEvidenceReadObserving
+    private let journalAnchorStorage: JournalAnchorStorage
     private var pinnedDirectories: [PinnedDirectory] = []
     private var activeTransactionValidator: (() throws -> Void)?
 
@@ -351,6 +784,14 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
         let requiresPrivateMetadata: Bool
     }
 
+    private enum JournalAnchorStorage: Sendable {
+        case keychain(KeychainDeviceIngressJournalAnchorStore)
+        #if DEBUG
+        case testFile
+        #endif
+    }
+
+    #if DEBUG
     init(
         directoryURL: URL,
         synchronizer: any DeviceIngressDurabilitySynchronizing =
@@ -358,12 +799,15 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
         readObserver: any DeviceIngressEvidenceReadObserving =
             NoopDeviceIngressEvidenceReadObserver()
     ) {
-        anchorPath = directoryURL.deletingLastPathComponent()
-            .resolvingSymlinksInPath().path
+        anchorPath = Self.canonicalExistingPath(
+            directoryURL.deletingLastPathComponent().standardizedFileURL.path
+        )
         relativeDirectoryComponents = [directoryURL.lastPathComponent]
         self.synchronizer = synchronizer
         self.readObserver = readObserver
+        journalAnchorStorage = .testFile
     }
+    #endif
 
     init(
         anchorDirectoryURL: URL,
@@ -373,10 +817,37 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
         readObserver: any DeviceIngressEvidenceReadObserving =
             NoopDeviceIngressEvidenceReadObserver()
     ) {
-        anchorPath = anchorDirectoryURL.resolvingSymlinksInPath().path
+        let canonicalAnchorPath = Self.canonicalExistingPath(
+            anchorDirectoryURL.standardizedFileURL.path
+        )
+        anchorPath = canonicalAnchorPath
         self.relativeDirectoryComponents = relativeDirectoryComponents
         self.synchronizer = synchronizer
         self.readObserver = readObserver
+        journalAnchorStorage = .keychain(KeychainDeviceIngressJournalAnchorStore(
+            namespace: relativeDirectoryComponents.joined(separator: "/")
+        ))
+    }
+
+    /// Foundation's `resolvingSymlinksInPath()` does not resolve macOS's
+    /// top-level `/var` and `/tmp` aliases consistently. Canonicalize only the
+    /// already-existing anchor once; every descendant is still opened and
+    /// revalidated descriptor-relatively without following symlinks.
+    private static func canonicalExistingPath(_ path: String) -> String {
+        let macOSCanonicalPath: String
+        if path == "/var" || path.hasPrefix("/var/") {
+            macOSCanonicalPath = "/private\(path)"
+        } else if path == "/tmp" || path.hasPrefix("/tmp/") {
+            macOSCanonicalPath = "/private\(path)"
+        } else {
+            macOSCanonicalPath = path
+        }
+        let resolved = macOSCanonicalPath.withCString {
+            Darwin.realpath($0, nil)
+        }
+        guard let resolved else { return macOSCanonicalPath }
+        defer { Darwin.free(resolved) }
+        return String(cString: resolved)
     }
 
     deinit {
@@ -398,61 +869,110 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
         )
     }
 
-    func persistPending(
-        _ expectation: DeviceIngressResponseExpectation
+    func termsConsentSnapshot() throws -> NotificationTermsConsentSnapshot {
+        try withExclusiveAccess { directoryDescriptor in
+            let state = try loadJournalUnlocked(
+                directoryDescriptor: directoryDescriptor
+            )?.currentState ?? .empty
+            return NotificationTermsConsentSnapshot(
+                state: state.consentState,
+                acceptedEvidence: state.acceptedConsentEvidence
+            )
+        }
+    }
+
+    func persistTermsAcceptance(
+        _ evidence: NotificationTermsConsentEvidence
     ) throws {
-        try withExclusiveAccess {
-            guard try readUnlocked(
-                DeviceIngressPreRegistrationDeclineTombstone.self,
-                from: preRegistrationDeclineFileName,
-                directoryDescriptor: $0
-            ) == nil else {
-                throw DeviceIngressRegistrationClientError.preRegistrationDeclined
-            }
-            guard try readUnlocked(
-                DeviceIngressResponseExpectation.self,
-                from: pendingFileName,
-                directoryDescriptor: $0
-            ) == nil else {
-                throw DeviceIngressRegistrationClientError.pendingRegistrationExists
-            }
-            guard try readUnlocked(
-                DeviceIngressVerifiedRegistrationEvidence.self,
-                from: verifiedFileName,
-                directoryDescriptor: $0
-            ) == nil else {
+        guard evidence.schema == NotificationTermsConsentEvidence.currentSchema,
+              evidence.state == .accepted,
+              evidence.acceptanceID.isEmpty == false,
+              evidence.termsVersion.isEmpty == false,
+              evidence.acceptedAtMilliseconds > 0 else {
+            throw DeviceIngressRegistrationClientError.persistedTermsAcceptanceRequired
+        }
+        try withExclusiveAccess { directoryDescriptor in
+            let existing = try loadJournalUnlocked(
+                directoryDescriptor: directoryDescriptor
+            )
+            let old = existing?.currentState ?? .empty
+            guard old.pendingExpectation == nil,
+                  old.verifiedEvidence == nil else {
                 throw DeviceIngressRegistrationClientError.verifiedRegistrationExists
             }
-            try writeUnlocked(
-                expectation,
-                to: pendingFileName,
-                directoryDescriptor: $0,
-                replaceExisting: false
+            let state = DeviceIngressEvidenceStateSnapshot(
+                consentState: .accepted,
+                acceptedConsentEvidence: evidence,
+                pendingExpectation: nil,
+                verifiedEvidence: nil
+            )
+            try persistJournalUnlocked(
+                try (existing ?? DeviceIngressEvidenceJournal(entries: []))
+                    .appending(mutation: .acceptTerms, state: state),
+                replacingExisting: existing != nil,
+                directoryDescriptor: directoryDescriptor
+            )
+        }
+    }
+
+    func persistPending(
+        _ expectation: DeviceIngressResponseExpectation,
+        consentEvidence: NotificationTermsConsentEvidence
+    ) throws {
+        try withExclusiveAccess { directoryDescriptor in
+            let existing = try loadJournalUnlocked(
+                directoryDescriptor: directoryDescriptor
+            )
+            let old = existing?.currentState ?? .empty
+            guard old.consentState != .declined else {
+                throw DeviceIngressRegistrationClientError.preRegistrationDeclined
+            }
+            guard old.consentState == .accepted,
+                  old.acceptedConsentEvidence == consentEvidence else {
+                throw DeviceIngressRegistrationClientError.persistedTermsAcceptanceRequired
+            }
+            guard old.pendingExpectation == nil else {
+                throw DeviceIngressRegistrationClientError.pendingRegistrationExists
+            }
+            guard old.verifiedEvidence == nil else {
+                throw DeviceIngressRegistrationClientError.verifiedRegistrationExists
+            }
+            let state = DeviceIngressEvidenceStateSnapshot(
+                consentState: .accepted,
+                acceptedConsentEvidence: consentEvidence,
+                pendingExpectation: expectation,
+                verifiedEvidence: nil
+            )
+            try persistJournalUnlocked(
+                try (existing ?? DeviceIngressEvidenceJournal(entries: []))
+                    .appending(mutation: .persistPending, state: state),
+                replacingExisting: existing != nil,
+                directoryDescriptor: directoryDescriptor
             )
         }
     }
 
     func pendingExpectation() throws -> DeviceIngressResponseExpectation? {
         try withExclusiveAccess {
-            try readUnlocked(
-                DeviceIngressResponseExpectation.self,
-                from: pendingFileName,
-                directoryDescriptor: $0
-            )
+            try loadJournalUnlocked(directoryDescriptor: $0)?
+                .currentState.pendingExpectation
         }
     }
 
     func commitVerified(
         expectation: DeviceIngressResponseExpectation,
         canonicalResponseData: Data,
-        buildProvenance: BindingBuildProvenance
+        buildProvenance: BindingBuildProvenance,
+        vaultBinding: DeviceIngressPersistedVaultBinding
     ) throws {
-        try withExclusiveAccess {
-            guard let pending = try readUnlocked(
-                DeviceIngressResponseExpectation.self,
-                from: pendingFileName,
-                directoryDescriptor: $0
+        try withExclusiveAccess { directoryDescriptor in
+            guard let existing = try loadJournalUnlocked(
+                directoryDescriptor: directoryDescriptor
             ) else {
+                throw DeviceIngressRegistrationClientError.pendingExpectationMissing
+            }
+            let old = existing.currentState
+            guard let pending = old.pendingExpectation else {
                 throw DeviceIngressRegistrationClientError.pendingExpectationMissing
             }
             guard pending == expectation else {
@@ -462,41 +982,35 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
             let evidence = DeviceIngressVerifiedRegistrationEvidence(
                 expectation: expectation,
                 canonicalResponseData: canonicalResponseData,
-                buildProvenance: buildProvenance
+                buildProvenance: buildProvenance,
+                vaultBinding: vaultBinding
             )
-            try writeUnlocked(
-                evidence,
-                to: verifiedFileName,
-                directoryDescriptor: $0,
-                replaceExisting: true
+            let state = DeviceIngressEvidenceStateSnapshot(
+                consentState: old.consentState,
+                acceptedConsentEvidence: old.acceptedConsentEvidence,
+                pendingExpectation: nil,
+                verifiedEvidence: evidence
             )
-            try removeUnlocked(pendingFileName, directoryDescriptor: $0)
+            try persistJournalUnlocked(
+                try existing.appending(mutation: .commitVerified, state: state),
+                replacingExisting: true,
+                directoryDescriptor: directoryDescriptor
+            )
         }
     }
 
     func verifiedEvidence() throws -> DeviceIngressVerifiedRegistrationEvidence? {
         try withExclusiveAccess {
-            try readUnlocked(
-                DeviceIngressVerifiedRegistrationEvidence.self,
-                from: verifiedFileName,
-                directoryDescriptor: $0
-            )
+            try loadJournalUnlocked(directoryDescriptor: $0)?
+                .currentState.verifiedEvidence
         }
     }
 
     func containsRegistrationEvidence() throws -> Bool {
         try withExclusiveAccess {
-            let pending = try readUnlocked(
-                DeviceIngressResponseExpectation.self,
-                from: pendingFileName,
-                directoryDescriptor: $0
-            )
-            let verified = try readUnlocked(
-                DeviceIngressVerifiedRegistrationEvidence.self,
-                from: verifiedFileName,
-                directoryDescriptor: $0
-            )
-            return pending != nil || verified != nil
+            let state = try loadJournalUnlocked(directoryDescriptor: $0)?
+                .currentState ?? .empty
+            return state.pendingExpectation != nil || state.verifiedEvidence != nil
         }
     }
 
@@ -505,45 +1019,178 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
     /// returns, a register attempt prepared from stale in-memory consent still
     /// cannot persist its expectation.
     func performPreRegistrationDecline(_ localStateClear: () -> Void) throws {
-        try withExclusiveAccess {
-            let pending = try readUnlocked(
-                DeviceIngressResponseExpectation.self,
-                from: pendingFileName,
-                directoryDescriptor: $0
+        try withExclusiveAccess { directoryDescriptor in
+            let existing = try loadJournalUnlocked(
+                directoryDescriptor: directoryDescriptor
             )
-            let verified = try readUnlocked(
-                DeviceIngressVerifiedRegistrationEvidence.self,
-                from: verifiedFileName,
-                directoryDescriptor: $0
-            )
-            guard pending == nil, verified == nil else {
+            let old = existing?.currentState ?? .empty
+            guard old.pendingExpectation == nil,
+                  old.verifiedEvidence == nil else {
                 throw DeviceIngressRegistrationClientError
                     .registrationEvidencePreventsPreRegistrationDecline
             }
-            try writeUnlocked(
-                DeviceIngressPreRegistrationDeclineTombstone(),
-                to: preRegistrationDeclineFileName,
-                directoryDescriptor: $0,
-                replaceExisting: true
+            let state = DeviceIngressEvidenceStateSnapshot(
+                consentState: .declined,
+                acceptedConsentEvidence: nil,
+                pendingExpectation: nil,
+                verifiedEvidence: nil
+            )
+            try persistJournalUnlocked(
+                try (existing ?? DeviceIngressEvidenceJournal(entries: []))
+                    .appending(mutation: .declineTerms, state: state),
+                replacingExisting: existing != nil,
+                directoryDescriptor: directoryDescriptor
             )
             localStateClear()
             try validateActiveTransaction()
         }
     }
 
-    func clearPreRegistrationDecline() throws {
-        try withExclusiveAccess {
-            try removeUnlocked(
-                preRegistrationDeclineFileName,
-                directoryDescriptor: $0
+    private let journalFileName = "registration-state-journal.json"
+    private let testJournalAnchorFileName = "registration-state-journal-anchor.json"
+    private let legacyPendingFileName = "pending-register-expectation.json"
+    private let legacyVerifiedFileName = "verified-register-evidence.json"
+    private let legacyPreRegistrationDeclineFileName = "pre-registration-decline.json"
+    private let lockFileName = "registration.lock"
+
+    private func loadJournalUnlocked(
+        directoryDescriptor: Int32
+    ) throws -> DeviceIngressEvidenceJournal? {
+        if let journal = try readUnlocked(
+            DeviceIngressEvidenceJournal.self,
+            from: journalFileName,
+            directoryDescriptor: directoryDescriptor
+        ) {
+            try journal.validate()
+            guard let journalAnchor = journal.currentAnchor,
+                  try readJournalAnchorUnlocked(
+                    directoryDescriptor: directoryDescriptor
+                  ) == journalAnchor else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+            return journal
+        }
+
+        // Pre-journal files cannot prove an explicit accepted decision or the
+        // v3 vault binding. Validate their metadata without granting a silent
+        // migration, then fail closed if any are present.
+        let legacyPending = try readUnlocked(
+            DeviceIngressResponseExpectation.self,
+            from: legacyPendingFileName,
+            directoryDescriptor: directoryDescriptor
+        )
+        let legacyVerified = try readUnlocked(
+            DeviceIngressVerifiedRegistrationEvidence.self,
+            from: legacyVerifiedFileName,
+            directoryDescriptor: directoryDescriptor
+        )
+        let legacyDecline = try readUnlocked(
+            DeviceIngressPreRegistrationDeclineTombstone.self,
+            from: legacyPreRegistrationDeclineFileName,
+            directoryDescriptor: directoryDescriptor
+        )
+        guard legacyPending == nil,
+              legacyVerified == nil,
+              legacyDecline == nil else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        guard try readJournalAnchorUnlocked(
+            directoryDescriptor: directoryDescriptor
+        ) == nil else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        return nil
+    }
+
+    private func persistJournalUnlocked(
+        _ journal: DeviceIngressEvidenceJournal,
+        replacingExisting: Bool,
+        directoryDescriptor: Int32
+    ) throws {
+        try journal.validate()
+        guard let newAnchor = journal.currentAnchor else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        let expectedAnchor = journal.previousAnchor
+        guard replacingExisting == (expectedAnchor != nil) else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        guard try readJournalAnchorUnlocked(
+            directoryDescriptor: directoryDescriptor
+        ) == expectedAnchor else {
+            throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+        }
+        try writeUnlocked(
+            journal,
+            to: journalFileName,
+            directoryDescriptor: directoryDescriptor,
+            replaceExisting: replacingExisting
+        )
+        guard let readBack = try readUnlocked(
+            DeviceIngressEvidenceJournal.self,
+            from: journalFileName,
+            directoryDescriptor: directoryDescriptor
+        ), readBack == journal else {
+            throw DeviceIngressEvidenceFileError.contentChangedDuringAccess
+        }
+        try readBack.validate()
+        try compareAndSwapJournalAnchorUnlocked(
+            expected: expectedAnchor,
+            new: newAnchor,
+            directoryDescriptor: directoryDescriptor
+        )
+    }
+
+    private func readJournalAnchorUnlocked(
+        directoryDescriptor: Int32
+    ) throws -> DeviceIngressEvidenceJournalAnchor? {
+        switch journalAnchorStorage {
+        case let .keychain(store):
+            return try store.load()
+        #if DEBUG
+        case .testFile:
+            let anchor = try readUnlocked(
+                DeviceIngressEvidenceJournalAnchor.self,
+                from: testJournalAnchorFileName,
+                directoryDescriptor: directoryDescriptor
             )
+            try anchor?.validate()
+            return anchor
+        #endif
         }
     }
 
-    private let pendingFileName = "pending-register-expectation.json"
-    private let verifiedFileName = "verified-register-evidence.json"
-    private let preRegistrationDeclineFileName = "pre-registration-decline.json"
-    private let lockFileName = "registration.lock"
+    private func compareAndSwapJournalAnchorUnlocked(
+        expected: DeviceIngressEvidenceJournalAnchor?,
+        new: DeviceIngressEvidenceJournalAnchor,
+        directoryDescriptor: Int32
+    ) throws {
+        switch journalAnchorStorage {
+        case let .keychain(store):
+            try store.compareAndSwap(expected: expected, new: new)
+        #if DEBUG
+        case .testFile:
+            let actual = try readJournalAnchorUnlocked(
+                directoryDescriptor: directoryDescriptor
+            )
+            guard actual == expected else {
+                throw DeviceIngressRegistrationClientError.invalidEvidenceJournal
+            }
+            try new.validateAdvance(after: expected)
+            try writeUnlocked(
+                new,
+                to: testJournalAnchorFileName,
+                directoryDescriptor: directoryDescriptor,
+                replaceExisting: actual != nil
+            )
+            guard try readJournalAnchorUnlocked(
+                directoryDescriptor: directoryDescriptor
+            ) == new else {
+                throw DeviceIngressEvidenceFileError.contentChangedDuringAccess
+            }
+        #endif
+        }
+    }
 
     /// NSLock closes the same-process gap in POSIX record-lock semantics;
     /// lockf then serializes cooperating app/extension processes using the
@@ -664,8 +1311,14 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
                 requiresPrivateMetadata: false
             ))
 
-            let anchorComponents = URL(fileURLWithPath: anchorPath)
-                .standardizedFileURL.pathComponents.filter { $0 != "/" }
+            // `standardizedFileURL` rewrites `/private/var` back to the
+            // top-level `/var` symlink on macOS, undoing the canonical anchor.
+            // The anchor is already absolute and canonical, so split it
+            // without another Foundation path normalization pass.
+            let anchorComponents = anchorPath.split(
+                separator: "/",
+                omittingEmptySubsequences: true
+            ).map(String.init)
             for component in anchorComponents {
                 try appendPinnedDirectory(
                     component,
@@ -745,7 +1398,9 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
             )
         } else {
             guard before.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else {
-                throw DeviceIngressEvidenceFileError.metadataRejected(reason: "path-not-directory")
+                throw DeviceIngressEvidenceFileError.metadataRejected(
+                    reason: "path-not-directory:\(component)"
+                )
             }
         }
         let descriptor = try openFileAt(
@@ -916,7 +1571,12 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
             directoryDescriptor,
             name: fileName
         )
-        guard installedMetadata == persistedMetadata else {
+        // APFS updates ctime when the temporary inode is renamed into its
+        // canonical name. Bind the installation to the same inode/device and
+        // byte length here; the caller immediately reopens and verifies the
+        // exact journal bytes after the directory durability barrier.
+        guard installedMetadata.hasSameIdentity(as: persistedMetadata),
+              installedMetadata.size == persistedMetadata.size else {
             throw DeviceIngressEvidenceFileError.pathIdentityChanged
         }
         try synchronizer.synchronizeDirectory(directoryDescriptor)
@@ -924,7 +1584,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
             directoryDescriptor,
             name: fileName
         )
-        guard postSyncMetadata == persistedMetadata else {
+        guard postSyncMetadata == installedMetadata else {
             throw DeviceIngressEvidenceFileError.contentChangedDuringAccess
         }
         try validateActiveTransaction()
@@ -1190,6 +1850,7 @@ nonisolated actor DeviceIngressRegistrationClient {
 
     func register(
         protectedBody: Data,
+        consentEvidence: NotificationTermsConsentEvidence,
         now: Date = Date()
     ) async throws -> DeviceIngressRegistrationReceipt {
         guard protectedBody.isEmpty == false,
@@ -1200,6 +1861,11 @@ nonisolated actor DeviceIngressRegistrationClient {
         let requester = requesterContext.identity
         let binding = requesterContext.binding
         let subject = requesterContext.descriptor
+        let persistedVaultBinding = try DeviceIngressPersistedVaultBinding(
+            binding: binding,
+            identity: requester,
+            descriptor: subject
+        )
 
         let challengeData = try await transport.fetchRegisterChallenge(subject: subject)
         let prepared = try await DeviceIngressRequestFactory.prepare(
@@ -1218,7 +1884,10 @@ nonisolated actor DeviceIngressRegistrationClient {
         // This durable write intentionally precedes the first mutation-capable
         // transport call. An ambiguous send leaves evidence pending and blocks
         // silent retry.
-        try await evidenceStore.persistPending(prepared.expectation)
+        try evidenceStore.persistPending(
+            prepared.expectation,
+            consentEvidence: consentEvidence
+        )
         let responseData = try await transport.submitRegister(
             canonicalChallengeData: challengeData,
             canonicalRequestData: prepared.canonicalRequestData,
@@ -1239,10 +1908,11 @@ nonisolated actor DeviceIngressRegistrationClient {
 
         // Marking succeeds only after cryptographic verification and durable
         // local evidence replacement. No HTTP status can reach this branch.
-        try await evidenceStore.commitVerified(
+        try evidenceStore.commitVerified(
             expectation: prepared.expectation,
             canonicalResponseData: responseData,
-            buildProvenance: buildProvenance
+            buildProvenance: buildProvenance,
+            vaultBinding: persistedVaultBinding
         )
         return receipt
     }
@@ -1250,7 +1920,7 @@ nonisolated actor DeviceIngressRegistrationClient {
     func restoreHistoricalRegistrationEvidence() async throws
         -> DeviceIngressHistoricalRegistrationEvidence?
     {
-        guard let evidence = try await evidenceStore.verifiedEvidence() else {
+        guard let evidence = try evidenceStore.verifiedEvidence() else {
             return nil
         }
         guard evidence.schema == DeviceIngressVerifiedRegistrationEvidence.currentSchema else {
@@ -1264,7 +1934,17 @@ nonisolated actor DeviceIngressRegistrationClient {
         // installation controls the registered device identity. Rebind it to
         // the currently authenticated persistent vault before accepting it.
         let requesterContext = try await currentRequesterContext()
-        guard evidence.expectation.subjectIdentityUUID
+        guard evidence.vaultBinding.schema
+                == DeviceIngressPersistedVaultBinding.currentSchema,
+              evidence.vaultBinding.identityDomain
+                == DeviceIngressEnvelope.identityDomain,
+              evidence.vaultBinding.identityUUID
+                == requesterContext.descriptor.uuid,
+              evidence.vaultBinding.identityUUID
+                == requesterContext.binding.identityUUID,
+              evidence.vaultBinding.signingKeyFingerprint
+                == requesterContext.binding.signingKeyFingerprint,
+              evidence.expectation.subjectIdentityUUID
                 == requesterContext.descriptor.uuid,
               evidence.expectation.subjectSigningKeyFingerprint
                 == requesterContext.binding.signingKeyFingerprint else {
@@ -1307,6 +1987,8 @@ nonisolated actor DeviceIngressRegistrationClient {
             throw DeviceIngressRegistrationClientError.notificationIdentityUnavailable
         }
         guard let binding = await identityVault.identityDomainBinding(for: requester),
+              binding.schema == IdentityDomainBinding.currentSchema,
+              binding.bindingKind == IdentityDomainBinding.vaultContextKind,
               binding.domain == DeviceIngressEnvelope.identityDomain,
               binding.matches(identity: requester),
               binding.grantsAuthority == false else {
@@ -1328,9 +2010,10 @@ nonisolated actor DeviceIngressRegistrationClient {
 enum BindingDeviceIngressRegistrationComposition {
     static func register(
         protectedBody: Data,
+        consentEvidence: NotificationTermsConsentEvidence,
         buildProvenance: BindingBuildProvenance
     ) async throws -> DeviceIngressRegistrationReceipt {
-        _ = (protectedBody, buildProvenance)
+        _ = (protectedBody, consentEvidence, buildProvenance)
         throw DeviceIngressRegistrationClientError.operationalCompositionUnavailable
     }
 }
