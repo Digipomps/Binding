@@ -48,6 +48,9 @@ class AppleReleaseM0PreflightTests(unittest.TestCase):
         report = audit_fixtures("facts-pass.json", "policy-pass.json")
         self.assertEqual(report["status"], "PASS")
         self.assertEqual(report["findings"], [])
+        self.assertTrue(
+            all(gate["status"] == "PASS" for gate in report["gates"].values())
+        )
 
     def test_report_is_deterministic(self) -> None:
         first = serialize_report(
@@ -67,7 +70,16 @@ class AppleReleaseM0PreflightTests(unittest.TestCase):
         codes = {finding["code"] for finding in report["findings"]}
         self.assertIn("REVISION_UNDECIDED", codes)
         self.assertIn("DEVELOPMENT_TEAM_PENDING", codes)
+        self.assertIn("PRODUCTION_ORIGIN_PENDING", codes)
+        self.assertIn("BUILD_AND_ARCHIVE_UNPROVED", codes)
         self.assertIn("SIGNING_AND_PROVISIONING_UNPROVED", codes)
+        self.assertIn("TESTFLIGHT_SMOKE_UNPROVED", codes)
+        self.assertIn("APP_STORE_REVIEW_READINESS_UNPROVED", codes)
+        self.assertEqual(report["gates"]["buildAndArchive"]["status"], "BLOCKED")
+        self.assertEqual(report["gates"]["testFlightSmoke"]["status"], "BLOCKED")
+        self.assertEqual(
+            report["gates"]["appStoreReviewReadiness"]["status"], "BLOCKED"
+        )
 
     def test_mismatched_policy_is_blocked(self) -> None:
         report = audit_fixtures("facts-pass.json", "policy-mismatch.json")
@@ -75,6 +87,7 @@ class AppleReleaseM0PreflightTests(unittest.TestCase):
         codes = {finding["code"] for finding in report["findings"]}
         self.assertIn("REVISION_MISMATCH", codes)
         self.assertIn("BUNDLE_IDENTIFIER_MISMATCH", codes)
+        self.assertIn("PRODUCTION_ORIGIN_MISMATCH", codes)
         self.assertIn("APS_ENVIRONMENT_MISMATCH", codes)
 
     def test_dirty_source_is_blocked(self) -> None:
@@ -85,7 +98,7 @@ class AppleReleaseM0PreflightTests(unittest.TestCase):
 
     def test_malformed_policy_is_rejected(self) -> None:
         with self.assertRaises(PREFLIGHT.PreflightInputError) as context:
-            PREFLIGHT.audit(load_fixture("facts-pass.json"), {"schemaVersion": 1})
+            PREFLIGHT.audit(load_fixture("facts-pass.json"), {"schemaVersion": 2})
         self.assertIn("requires decisions and proofs", str(context.exception))
 
     def test_arbitrary_fixture_fields_are_not_serialized(self) -> None:
@@ -108,7 +121,74 @@ class AppleReleaseM0PreflightTests(unittest.TestCase):
         )
         self.assertEqual(report["facts"]["build"]["configuration"], "Release")
         self.assertEqual(report["facts"]["build"]["platformName"], "iphoneos")
+        self.assertEqual(
+            report["facts"]["build"]["bundleIdentifier"], "org.digipomps.haven"
+        )
+        self.assertEqual(
+            report["facts"]["build"]["productionOrigin"],
+            "https://haven.digipomps.org",
+        )
+        self.assertEqual(
+            report["policy"]["decisions"]["bundleIdentifier"]["value"],
+            "org.digipomps.haven",
+        )
+        self.assertEqual(
+            report["policy"]["decisions"]["productionOrigin"]["value"],
+            "https://haven.digipomps.org",
+        )
+        self.assertEqual(report["gates"]["buildAndArchive"]["status"], "BLOCKED")
+        self.assertEqual(
+            report["gates"]["signingAndProvisioning"]["status"], "BLOCKED"
+        )
+        self.assertEqual(report["gates"]["testFlightSmoke"]["status"], "BLOCKED")
+        self.assertEqual(
+            report["gates"]["appStoreReviewReadiness"]["status"], "BLOCKED"
+        )
         self.assertRegex(report["sourceRevision"], r"^[0-9a-f]{40}$")
+
+    def test_testflight_and_app_store_gates_depend_on_prior_gates(self) -> None:
+        facts = load_fixture("facts-pass.json")
+        policy = load_fixture("policy-pass.json")
+        policy["proofs"]["signingAndProvisioning"]["status"] = "unproved"
+        policy["proofs"]["signingAndProvisioning"]["evidenceReference"] = None
+        report = PREFLIGHT.audit(facts, policy)
+        self.assertEqual(report["gates"]["buildAndArchive"]["status"], "PASS")
+        self.assertEqual(
+            report["gates"]["signingAndProvisioning"]["status"], "BLOCKED"
+        )
+        self.assertEqual(report["gates"]["testFlightSmoke"]["status"], "BLOCKED")
+        self.assertEqual(
+            report["gates"]["appStoreReviewReadiness"]["status"], "BLOCKED"
+        )
+        self.assertIn(
+            "SIGNING_AND_PROVISIONING_UNPROVED",
+            report["gates"]["appStoreReviewReadiness"]["blockerCodes"],
+        )
+
+    def test_uncategorized_finding_blocks_every_gate(self) -> None:
+        gates = PREFLIGHT.summarize_gates(
+            [PREFLIGHT.finding("NEW_UNCATEGORIZED_CHECK", "fixture")]
+        )
+        self.assertTrue(all(gate["status"] == "BLOCKED" for gate in gates.values()))
+        self.assertIn(
+            "NEW_UNCATEGORIZED_CHECK",
+            gates["appStoreReviewReadiness"]["blockerCodes"],
+        )
+
+    def test_production_origin_must_be_canonical_https_origin(self) -> None:
+        invalid_values = (
+            "http://example.org",
+            "https://example.org/",
+            "https://example.org/path",
+            "https://user@example.org",
+        )
+        for value in invalid_values:
+            with self.subTest(value=value):
+                facts = load_fixture("facts-pass.json")
+                facts["build"]["productionOrigin"] = value
+                with self.assertRaises(PREFLIGHT.PreflightInputError) as context:
+                    PREFLIGHT.audit(facts, load_fixture("policy-pass.json"))
+                self.assertIn("productionOrigin", str(context.exception))
 
     def test_decided_null_apns_is_rejected(self) -> None:
         facts = load_fixture("facts-pass.json")

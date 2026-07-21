@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "expectedRevision": "0123456789abcdef0123456789abcdef01234567",
   "decisions": {
     "developmentTeam": {
@@ -11,6 +11,11 @@
       "status": "decided",
       "value": "org.example.haven",
       "decisionRecord": "fixture:bundle-decision"
+    },
+    "productionOrigin": {
+      "status": "decided",
+      "value": "https://example.org",
+      "decisionRecord": "fixture:origin-decision"
     },
     "associatedDomains": {
       "status": "decided",
@@ -27,13 +32,21 @@
     }
   },
   "proofs": {
+    "buildAndArchive": {
+      "status": "proved",
+      "evidenceReference": "fixture:archive-proof-reference"
+    },
     "signingAndProvisioning": {
       "status": "proved",
       "evidenceReference": "fixture:signing-proof-reference"
     },
-    "appStoreConnectRecord": {
+    "testFlightSmoke": {
       "status": "proved",
-      "evidenceReference": "fixture:app-store-record-reference"
+      "evidenceReference": "fixture:testflight-smoke-reference"
+    },
+    "appStoreReviewReadiness": {
+      "status": "proved",
+      "evidenceReference": "fixture:app-store-review-reference"
     }
   }
 }

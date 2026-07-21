@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": {
     "revision": "0123456789abcdef0123456789abcdef01234567",
     "treeClean": true,
@@ -12,6 +12,7 @@
     "productName": "HAVEN",
     "developmentTeam": "ABCDE12345",
     "bundleIdentifier": "org.example.haven",
+    "productionOrigin": "https://example.org",
     "entitlementsPath": "Binding/Binding-iOS.entitlements",
     "codeSignStyle": "Automatic",
     "codeSignIdentityKind": "Apple Development",

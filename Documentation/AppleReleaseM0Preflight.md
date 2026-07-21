@@ -1,9 +1,11 @@
-# Binding Apple Release M0 Preflight
+# Binding Apple Release Preflight (M0 + M1 decisions)
 
 This is a deliberately unsigned, fail-closed gate before any Apple archive,
-TestFlight upload, or App Store operation. It does not choose or modify HAVEN's
-Apple identity. It produces deterministic JSON audit material that binds the
-resolved iPhoneOS Release configuration to an exact Git revision.
+TestFlight upload, or App Store operation. M1 binds Kjetil's decided production
+bundle identifier and origin, but does not choose Team ID, Associated Domains,
+APNs environment, signing, or provisioning. It produces deterministic JSON
+audit material that binds the resolved iPhoneOS Release configuration to an
+exact Git revision.
 
 ## Safety boundary
 
@@ -30,16 +32,17 @@ evidence reference is present.
 
 ## Run it
 
-The committed policy is intentionally pending, so this command must return exit
-code `1` and status `BLOCKED` until Kjetil records the decisions and external
-proofs:
+The committed policy records only the decided bundle identifier and production
+origin. This command must return exit code `1` and status `BLOCKED` while the
+remaining decisions and external proofs are pending:
 
 ```sh
 Scripts/apple_release_m0_preflight.sh \
   --output /tmp/binding-apple-release-m0-audit.json
 ```
 
-Create a local, uncommitted policy when the decisions have been made:
+Create a local, uncommitted policy when the remaining decisions and proofs have
+been made:
 
 ```sh
 cp Documentation/AppleReleaseM0Policy.template.json \
@@ -56,7 +59,7 @@ Scripts/apple_release_m0_preflight.sh \
 
 Exit codes are part of the contract:
 
-- `0`: every M0 gate passed;
+- `0`: every cumulative release gate passed;
 - `1`: valid audit completed but one or more release blockers remain;
 - `2`: facts or policy could not be collected or validated safely.
 
@@ -72,15 +75,18 @@ Set `status` to `decided`, supply the exact `value`, and add a non-secret
 `decisionRecord` reference for each item. Do not put credentials or Apple
 account exports in the policy.
 
-A `decided` value cannot be `null`. Team ID, bundle ID, and APNs environment
-must be non-empty strings. APNs accepts only Apple's `development` or
-`production` values. Associated Domains may be an explicitly decided empty
-array, but duplicate, empty, or whitespace-padded entries are rejected.
+A `decided` value cannot be `null`. Team ID, bundle ID, production origin, and
+APNs environment must be non-empty strings. Production origin must be a
+canonical HTTPS origin with no path, query, fragment, user information, or
+trailing slash. APNs accepts only Apple's `development` or `production` values.
+Associated Domains may be an explicitly decided empty array, but duplicate,
+empty, or whitespace-padded entries are rejected.
 
 | Policy item | Decision required | Match enforced by M0 |
 | --- | --- | --- |
 | `developmentTeam` | The Apple Developer team that owns the explicit App ID and App Store Connect app | Statically resolved `DEVELOPMENT_TEAM` for HAVEN Release/iphoneos |
 | `bundleIdentifier` | The final stable bundle ID | Statically resolved `PRODUCT_BUNDLE_IDENTIFIER` |
+| `productionOrigin` | The canonical public HTTPS origin selected for production | Statically resolved `HAVEN_PRODUCTION_ORIGIN` for HAVEN Release/iphoneos |
 | `associatedDomains` | The complete service-qualified domain list; an empty array is allowed only as an explicit decision | Sorted `com.apple.developer.associated-domains` entitlement values |
 | `apsEnvironment` | The APNs environment expected in release entitlements | Resolved source `aps-environment` value |
 | `expectedRevision` | The exact release-candidate commit | Full Git `HEAD` with a clean tree |
@@ -92,9 +98,11 @@ Domains entitlement is an array of `<service>:<fully qualified domain>` values;
 `applinks` and `webcredentials` are separate services and should be selected
 only when the product contract requires them.
 
-The M0 gate also requires non-empty marketing version/build number and resolved
+The audit also requires non-empty marketing version/build number and resolved
 `Release` + `iphoneos` settings. It reports but does not mutate signing style or
-identity class.
+identity class. The selected production origin is a configuration fact only: it
+does not prove DNS, TLS, deployment, endpoint reachability, Associated Domains,
+or an `apple-app-site-association` contract.
 
 The static resolver fails closed if a Release configuration starts using a
 base `.xcconfig`, if a critical value retains an unresolved variable, or if the
@@ -105,14 +113,27 @@ resolved and signed distribution product.
 
 ## External proof gates
 
-Both proof statuses remain `unproved` until a later, explicitly authorized
-Apple workflow has produced evidence:
+All four proof statuses remain `unproved` until later, explicitly authorized
+workflows produce evidence. Gates are cumulative: a later gate remains
+`BLOCKED` whenever it or any prior gate has blockers.
 
-1. `signingAndProvisioning`: prove that the selected team, explicit App ID,
+1. `buildAndArchive`: prove that Xcode produced the intended distribution
+   archive from the attested clean revision with the selected bundle ID,
+   production origin, version, and build number. This static audit does not run
+   or claim an archive.
+2. `signingAndProvisioning`: prove that the selected team, explicit App ID,
    distribution signing, provisioning profile, and final signed entitlements
-   agree. This M0 tool cannot prove that from an unsigned build.
-2. `appStoreConnectRecord`: prove that the app record exists under the selected
-   team and has the same bundle ID. No account access is performed here.
+   agree. This unsigned tool cannot prove them.
+3. `testFlightSmoke`: prove that the processed build was distributed through
+   TestFlight and that the explicitly owned device/user smoke passed. TestFlight
+   is an intermediate beta gate, not App Store approval.
+4. `appStoreReviewReadiness`: prove that the selected build and the separately
+   owned App Store metadata/privacy/review audit are ready for submission. M1
+   does not inspect or modify those materials and does not claim Apple approval.
+
+No gate proof is inferred from a non-secret `evidenceReference`; the reference
+only records where separately controlled evidence is held. No Apple account
+access is performed here.
 
 For APNs, Apple's entitlement documentation says `development` selects the
 sandbox while production provisioning and beta distribution use `production`;
@@ -141,23 +162,26 @@ unavailable through the production CLI or shell wrapper:
 ```
 
 It covers a complete pass, deterministic output/digest, pending decisions,
-configuration mismatches, a dirty source tree, malformed input, missing/invalid
-APNs, invalid Associated Domains, and rejection of arbitrary/provisioning fields
-from serialized audit material.
+configuration mismatches, cumulative gate dependencies, a dirty source tree,
+malformed or non-canonical origins, missing/invalid APNs, invalid Associated
+Domains, and rejection of arbitrary/provisioning fields from serialized audit
+material.
 
 ## Current repository state versus release readiness
 
-The policy template contains no selected production values. Consequently a
-default run is expected to report `BLOCKED`, not to infer approval from the
-values currently present in the project. No M0 implementation file changes
-`Binding.xcodeproj/project.pbxproj`, `Binding/Info.plist`,
-`Binding/Binding-iOS.entitlements`, Team ID, bundle ID, Associated Domains, APNs
-environment, or signing/provisioning settings.
+The policy and HAVEN Release configuration bind `org.digipomps.haven` and
+`https://haven.digipomps.org`. The expected release revision, Team ID,
+Associated Domains, APNs environment, and every external proof remain pending
+or unproved. Consequently a default run must report all four gates `BLOCKED`.
+M1 does not change `Binding/Info.plist`, `Binding/Binding-iOS.entitlements`, Team
+ID, Associated Domains, APNs environment, or signing/provisioning settings.
 
 ## Official Apple references
 
 - [Register an App ID](https://developer.apple.com/help/account/identifiers/register-an-app-id/)
 - [Upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)
+- [TestFlight overview](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
+- [Submit an app for review](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app)
 - [Create an App Store Connect provisioning profile](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile/)
 - [Associated Domains entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.associated-domains)
 - [APS Environment entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/aps-environment)

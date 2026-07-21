@@ -17,9 +17,10 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 APNS_ENVIRONMENTS = {"development", "production"}
 BUILD_SETTING_ALLOWLIST = {
@@ -29,6 +30,7 @@ BUILD_SETTING_ALLOWLIST = {
     "CONFIGURATION",
     "CURRENT_PROJECT_VERSION",
     "DEVELOPMENT_TEAM",
+    "HAVEN_PRODUCTION_ORIGIN",
     "MARKETING_VERSION",
     "PLATFORM_NAME",
     "PRODUCT_BUNDLE_IDENTIFIER",
@@ -39,20 +41,53 @@ BUILD_SETTING_ALLOWLIST = {
 DECISION_FIELDS = {
     "developmentTeam": str,
     "bundleIdentifier": str,
+    "productionOrigin": str,
     "associatedDomains": list,
     "apsEnvironment": str,
 }
 PROOF_FIELDS = (
+    "buildAndArchive",
     "signingAndProvisioning",
-    "appStoreConnectRecord",
+    "testFlightSmoke",
+    "appStoreReviewReadiness",
 )
+GATE_ORDER = (
+    "buildAndArchive",
+    "signingAndProvisioning",
+    "testFlightSmoke",
+    "appStoreReviewReadiness",
+)
+GATE_FINDING_PREFIXES = {
+    "buildAndArchive": (
+        "REVISION_",
+        "SOURCE_TREE_",
+        "CONFIGURATION_",
+        "PLATFORM_",
+        "MARKETING_VERSION_",
+        "BUILD_NUMBER_",
+        "BUNDLE_IDENTIFIER_",
+        "PRODUCTION_ORIGIN_",
+        "BUILD_AND_ARCHIVE_",
+    ),
+    "signingAndProvisioning": (
+        "DEVELOPMENT_TEAM_",
+        "ASSOCIATED_DOMAINS_",
+        "APS_ENVIRONMENT_",
+        "SIGNING_AND_PROVISIONING_",
+    ),
+    "testFlightSmoke": ("TESTFLIGHT_SMOKE_",),
+    "appStoreReviewReadiness": ("APP_STORE_REVIEW_READINESS_",),
+}
 CODE_PREFIXES = {
     "developmentTeam": "DEVELOPMENT_TEAM",
     "bundleIdentifier": "BUNDLE_IDENTIFIER",
+    "productionOrigin": "PRODUCTION_ORIGIN",
     "associatedDomains": "ASSOCIATED_DOMAINS",
     "apsEnvironment": "APS_ENVIRONMENT",
+    "buildAndArchive": "BUILD_AND_ARCHIVE",
     "signingAndProvisioning": "SIGNING_AND_PROVISIONING",
-    "appStoreConnectRecord": "APP_STORE_CONNECT_RECORD",
+    "testFlightSmoke": "TESTFLIGHT_SMOKE",
+    "appStoreReviewReadiness": "APP_STORE_REVIEW_READINESS",
 }
 
 
@@ -180,6 +215,7 @@ def collect_build_settings(repo_root: Path) -> dict[str, str]:
         "CONFIGURATION",
         "CURRENT_PROJECT_VERSION",
         "DEVELOPMENT_TEAM",
+        "HAVEN_PRODUCTION_ORIGIN",
         "MARKETING_VERSION",
         "PLATFORM_NAME",
         "PRODUCT_BUNDLE_IDENTIFIER",
@@ -211,6 +247,25 @@ def validate_associated_domains(value: Any, owner: str) -> None:
         )
     if len(value) != len(set(value)):
         raise PreflightInputError(f"{owner} Associated Domains cannot contain duplicates")
+
+
+def validate_production_origin(value: Any, owner: str) -> None:
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        raise PreflightInputError(f"{owner} productionOrigin must be a non-empty string")
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+        or value != f"https://{parsed.netloc.lower()}"
+    ):
+        raise PreflightInputError(
+            f"{owner} productionOrigin must be a canonical HTTPS origin without a path"
+        )
 
 
 def collect_live_facts(repo_root: Path) -> dict[str, Any]:
@@ -264,6 +319,7 @@ def collect_live_facts(repo_root: Path) -> dict[str, Any]:
             "productName": settings.get("PRODUCT_NAME", ""),
             "developmentTeam": settings["DEVELOPMENT_TEAM"],
             "bundleIdentifier": settings["PRODUCT_BUNDLE_IDENTIFIER"],
+            "productionOrigin": settings["HAVEN_PRODUCTION_ORIGIN"],
             "entitlementsPath": entitlements_setting,
             "codeSignStyle": settings.get("CODE_SIGN_STYLE", ""),
             "codeSignIdentityKind": normalize_code_sign_identity(
@@ -305,12 +361,14 @@ def validate_facts(facts: dict[str, Any]) -> None:
         "platformName",
         "developmentTeam",
         "bundleIdentifier",
+        "productionOrigin",
         "entitlementsPath",
         "marketingVersion",
         "buildNumber",
     )
     if any(not isinstance(build.get(field), str) for field in required_strings):
         raise PreflightInputError("facts build fields have invalid types")
+    validate_production_origin(build["productionOrigin"], "facts")
     domains = entitlements.get("associatedDomains")
     validate_associated_domains(domains, "facts")
     aps_environment = entitlements.get("apsEnvironment")
@@ -347,6 +405,7 @@ def sanitize_facts(facts: dict[str, Any]) -> dict[str, Any]:
             "productName": build.get("productName", ""),
             "developmentTeam": build["developmentTeam"],
             "bundleIdentifier": build["bundleIdentifier"],
+            "productionOrigin": build["productionOrigin"],
             "entitlementsPath": build["entitlementsPath"],
             "codeSignStyle": build.get("codeSignStyle", ""),
             "codeSignIdentityKind": normalize_code_sign_identity(
@@ -398,7 +457,12 @@ def validate_policy(policy: dict[str, Any]) -> None:
                 raise PreflightInputError(
                     f"policy decision {name} requires a non-null value when decided"
                 )
-            if name in {"developmentTeam", "bundleIdentifier", "apsEnvironment"} and (
+            if name in {
+                "developmentTeam",
+                "bundleIdentifier",
+                "productionOrigin",
+                "apsEnvironment",
+            } and (
                 not isinstance(value, str) or not value.strip()
             ):
                 raise PreflightInputError(
@@ -406,6 +470,8 @@ def validate_policy(policy: dict[str, Any]) -> None:
                 )
         if name == "associatedDomains" and value is not None:
             validate_associated_domains(value, "policy")
+        if name == "productionOrigin" and value is not None:
+            validate_production_origin(value, "policy")
         if name == "apsEnvironment" and value is not None and value not in APNS_ENVIRONMENTS:
             raise PreflightInputError(
                 "policy apsEnvironment must be development or production"
@@ -442,6 +508,38 @@ def normalize_code_sign_identity(value: Any) -> str:
     if value.startswith("Apple Distribution"):
         return "Apple Distribution"
     return "Other"
+
+
+def summarize_gates(findings: list[dict[str, str]]) -> dict[str, dict[str, Any]]:
+    gates: dict[str, dict[str, Any]] = {}
+    finding_codes = {finding_item["code"] for finding_item in findings}
+    classified_codes = {
+        code
+        for code in finding_codes
+        if any(
+            code.startswith(GATE_FINDING_PREFIXES[gate_name])
+            for gate_name in GATE_ORDER
+        )
+    }
+    # A new finding must never leave every named gate green merely because its
+    # prefix has not been categorized yet. Treat it as an earliest-gate blocker.
+    cumulative_codes = sorted(finding_codes - classified_codes)
+    previous_gate = None
+    for gate_name in GATE_ORDER:
+        prefixes = GATE_FINDING_PREFIXES[gate_name]
+        local_codes = sorted(
+            finding_item["code"]
+            for finding_item in findings
+            if finding_item["code"].startswith(prefixes)
+        )
+        cumulative_codes = sorted(set(cumulative_codes + local_codes))
+        gates[gate_name] = {
+            "status": "PASS" if not cumulative_codes else "BLOCKED",
+            "dependsOn": previous_gate,
+            "blockerCodes": cumulative_codes,
+        }
+        previous_gate = gate_name
+    return gates
 
 
 def audit(facts: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
@@ -484,6 +582,7 @@ def audit(facts: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
     observed_values = {
         "developmentTeam": build["developmentTeam"],
         "bundleIdentifier": build["bundleIdentifier"],
+        "productionOrigin": build["productionOrigin"],
         "associatedDomains": sorted(entitlements["associatedDomains"]),
         "apsEnvironment": entitlements.get("apsEnvironment"),
     }
@@ -549,6 +648,7 @@ def audit(facts: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
         "sourceRevision": source["revision"],
         "facts": facts,
         "policy": policy_summary,
+        "gates": summarize_gates(findings),
         "findings": sorted(findings, key=lambda item: item["code"]),
     }
     canonical_core = json.dumps(

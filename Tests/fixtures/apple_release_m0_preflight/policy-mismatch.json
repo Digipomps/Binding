@@ -1,14 +1,17 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "expectedRevision": "fedcba9876543210fedcba9876543210fedcba98",
   "decisions": {
     "developmentTeam": { "status": "decided", "value": "WRONG12345", "decisionRecord": "fixture:mismatch" },
     "bundleIdentifier": { "status": "decided", "value": "org.example.wrong", "decisionRecord": "fixture:mismatch" },
+    "productionOrigin": { "status": "decided", "value": "https://wrong.example.org", "decisionRecord": "fixture:mismatch" },
     "associatedDomains": { "status": "decided", "value": [], "decisionRecord": "fixture:mismatch" },
     "apsEnvironment": { "status": "decided", "value": "development", "decisionRecord": "fixture:mismatch" }
   },
   "proofs": {
+    "buildAndArchive": { "status": "proved", "evidenceReference": "fixture:proof" },
     "signingAndProvisioning": { "status": "proved", "evidenceReference": "fixture:proof" },
-    "appStoreConnectRecord": { "status": "proved", "evidenceReference": "fixture:proof" }
+    "testFlightSmoke": { "status": "proved", "evidenceReference": "fixture:proof" },
+    "appStoreReviewReadiness": { "status": "proved", "evidenceReference": "fixture:proof" }
   }
 }

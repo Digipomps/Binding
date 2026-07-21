@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "expectedRevision": null,
   "decisions": {
     "developmentTeam": {
@@ -8,9 +8,14 @@
       "decisionRecord": null
     },
     "bundleIdentifier": {
-      "status": "pending",
-      "value": null,
-      "decisionRecord": null
+      "status": "decided",
+      "value": "org.digipomps.haven",
+      "decisionRecord": "Kjetil decision 2026-07-21: HAVEN development admin DECISIONS.md"
+    },
+    "productionOrigin": {
+      "status": "decided",
+      "value": "https://haven.digipomps.org",
+      "decisionRecord": "Kjetil decision 2026-07-21: HAVEN development admin DECISIONS.md"
     },
     "associatedDomains": {
       "status": "pending",
@@ -24,11 +29,19 @@
     }
   },
   "proofs": {
+    "buildAndArchive": {
+      "status": "unproved",
+      "evidenceReference": null
+    },
     "signingAndProvisioning": {
       "status": "unproved",
       "evidenceReference": null
     },
-    "appStoreConnectRecord": {
+    "testFlightSmoke": {
+      "status": "unproved",
+      "evidenceReference": null
+    },
+    "appStoreReviewReadiness": {
       "status": "unproved",
       "evidenceReference": null
     }

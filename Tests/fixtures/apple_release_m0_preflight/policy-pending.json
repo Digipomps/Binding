@@ -1,14 +1,17 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "expectedRevision": null,
   "decisions": {
     "developmentTeam": { "status": "pending", "value": null, "decisionRecord": null },
     "bundleIdentifier": { "status": "pending", "value": null, "decisionRecord": null },
+    "productionOrigin": { "status": "pending", "value": null, "decisionRecord": null },
     "associatedDomains": { "status": "pending", "value": null, "decisionRecord": null },
     "apsEnvironment": { "status": "pending", "value": null, "decisionRecord": null }
   },
   "proofs": {
+    "buildAndArchive": { "status": "unproved", "evidenceReference": null },
     "signingAndProvisioning": { "status": "unproved", "evidenceReference": null },
-    "appStoreConnectRecord": { "status": "unproved", "evidenceReference": null }
+    "testFlightSmoke": { "status": "unproved", "evidenceReference": null },
+    "appStoreReviewReadiness": { "status": "unproved", "evidenceReference": null }
   }
 }
