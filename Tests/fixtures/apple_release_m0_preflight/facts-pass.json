@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "revision": "0123456789abcdef0123456789abcdef01234567",
+    "treeClean": true,
+    "dirtyEntryCount": 0
+  },
+  "build": {
+    "configuration": "Release",
+    "platformName": "iphoneos",
+    "sdkRoot": "iphoneos",
+    "productName": "HAVEN",
+    "developmentTeam": "ABCDE12345",
+    "bundleIdentifier": "org.example.haven",
+    "entitlementsPath": "Binding/Binding-iOS.entitlements",
+    "codeSignStyle": "Automatic",
+    "codeSignIdentityKind": "Apple Development",
+    "provisioningProfileSpecifierPresent": false,
+    "marketingVersion": "1.0",
+    "buildNumber": "1"
+  },
+  "entitlements": {
+    "associatedDomains": [
+      "webcredentials:example.org",
+      "applinks:example.org"
+    ],
+    "associatedDomainsKeyPresent": true,
+    "apsEnvironment": "production",
+    "apsEnvironmentKeyPresent": true
+  }
+}

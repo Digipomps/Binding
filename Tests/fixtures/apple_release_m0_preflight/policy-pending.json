@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "expectedRevision": null,
+  "decisions": {
+    "developmentTeam": { "status": "pending", "value": null, "decisionRecord": null },
+    "bundleIdentifier": { "status": "pending", "value": null, "decisionRecord": null },
+    "associatedDomains": { "status": "pending", "value": null, "decisionRecord": null },
+    "apsEnvironment": { "status": "pending", "value": null, "decisionRecord": null }
+  },
+  "proofs": {
+    "signingAndProvisioning": { "status": "unproved", "evidenceReference": null },
+    "appStoreConnectRecord": { "status": "unproved", "evidenceReference": null }
+  }
+}

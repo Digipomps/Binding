@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "expectedRevision": "fedcba9876543210fedcba9876543210fedcba98",
+  "decisions": {
+    "developmentTeam": { "status": "decided", "value": "WRONG12345", "decisionRecord": "fixture:mismatch" },
+    "bundleIdentifier": { "status": "decided", "value": "org.example.wrong", "decisionRecord": "fixture:mismatch" },
+    "associatedDomains": { "status": "decided", "value": [], "decisionRecord": "fixture:mismatch" },
+    "apsEnvironment": { "status": "decided", "value": "development", "decisionRecord": "fixture:mismatch" }
+  },
+  "proofs": {
+    "signingAndProvisioning": { "status": "proved", "evidenceReference": "fixture:proof" },
+    "appStoreConnectRecord": { "status": "proved", "evidenceReference": "fixture:proof" }
+  }
+}

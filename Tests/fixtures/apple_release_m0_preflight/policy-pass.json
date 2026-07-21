@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "expectedRevision": "0123456789abcdef0123456789abcdef01234567",
+  "decisions": {
+    "developmentTeam": {
+      "status": "decided",
+      "value": "ABCDE12345",
+      "decisionRecord": "fixture:team-decision"
+    },
+    "bundleIdentifier": {
+      "status": "decided",
+      "value": "org.example.haven",
+      "decisionRecord": "fixture:bundle-decision"
+    },
+    "associatedDomains": {
+      "status": "decided",
+      "value": [
+        "applinks:example.org",
+        "webcredentials:example.org"
+      ],
+      "decisionRecord": "fixture:domains-decision"
+    },
+    "apsEnvironment": {
+      "status": "decided",
+      "value": "production",
+      "decisionRecord": "fixture:apns-decision"
+    }
+  },
+  "proofs": {
+    "signingAndProvisioning": {
+      "status": "proved",
+      "evidenceReference": "fixture:signing-proof-reference"
+    },
+    "appStoreConnectRecord": {
+      "status": "proved",
+      "evidenceReference": "fixture:app-store-record-reference"
+    }
+  }
+}
