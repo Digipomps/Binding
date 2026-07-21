@@ -1,113 +1,137 @@
-# Device callback capability contract
+# Binding DeviceIngress v3 register candidate
 
-Status: Binding-side contract candidate. Not wired to live transport and not a
-claim of staging readiness.
+Status: isolated review candidate only. It is not wired to staging, does not
+send APNS, and is not an operational device-registration release.
 
-## Purposes
+## Exact source boundary
 
-- `purpose://access.audit.privacy`: a device may register an APNS token or use a
-  callback only through an explicit, identity-bound authority path.
-- `purpose://test.acceptance`: success requires a physical-device round trip,
-  persistence across restart and negative replay/revocation evidence.
+- Binding base: `f6536c497b0a4c0a5b32531416bb3712708cf47e`
+- CellProtocol DeviceIngress v3: `79ce4f84666fedc446a1c80ab8adce1e7e3898e0`
+- Candidate state: uncommitted pending independent review
+- CellScaffold transport-contract reference only: draft PR #33 head
+  `38195a233b84d09f66e5ef483800228f857fff2a`
 
-## Incident and prohibited workaround
+The HAVEN target generates a scoped compiler-input attestation after
+compilation. It records the actual Xcode Swift file list for the sole build
+architecture, generated Swift inputs under `DerivedSources`, a complete
+`.swift` inventory of the filesystem-synchronized `Binding` and `Cells`
+roots, selected compiler/link settings, the Swift compiler and SDK, the built
+Binding Swift module, the Xcode link-file list, and the linked `CellBase.o` and
+`CellApple.o` artifacts. It also records the actual Binding and CellProtocol
+HEAD revisions and expected code-signing identity. An ignored or otherwise
+unlisted `.swift` file in either synchronized root makes the build fail.
 
-The deployed `f916` server rejects Binding registration with HTTP 401 in
-`VaporDeviceCallback.authorize(_:)`. Binding `6071ca11` sends no ingress
-capability. Commit `ce8644e9` injects one shared bearer from an environment
-variable. Although that commit is not an ancestor of Binding main, equivalent
-code was squashed into `0905abc0`; this change removes it. A shared secret
-embedded in an iOS app is extractable, transferable to another device and not bound to a
-CellProtocol Identity, purpose, Agreement, request body or expiry.
+This is not a complete-source, clean-worktree, or full transitive-build claim.
+Files outside those declared roots/inputs are not represented. On macOS,
+`BindingBuildProvenance.current()` checks the static code signature and running
+leaf-certificate fingerprint before the attestation may be included in a
+register body. Public iOS APIs used by this candidate cannot perform the same
+running-certificate binding, so certificate-required provenance fails closed
+on iOS. Build provenance is descriptive evidence and is never an authorization
+grant.
 
-Participant ID, device ID, APNS token, URL possession and a successful TLS
-connection are not authority.
+## Implemented register-only contract
 
-## Binding-side v1 proof
+`DeviceIngressRegistrationClient` uses only CellProtocol's canonical v3
+contract:
 
-`DeviceCallbackCapabilityProofIssuer` signs an exact request with the existing
-persistent IdentityVault identity in
-`domain:device:notification-callback`. It refuses to create a new identity in
-the request path. `DeviceCallbackAuthenticatedVaultHandle.current()` also
-rejects the prompt-free `BindingStartupIdentityVault`; a process-local startup
-identity can never become a device credential. The signed canonical payload
-binds:
+1. It requires an already-provisioned identity in
+   `domain:device:notification-callback` and calls the vault with
+   `makeNewIfNotFound: false`.
+2. Production construction accepts only the authenticated persistent
+   `CellApple.IdentityVault`; the prompt-free startup vault is rejected.
+3. Audience and challenge issuer are caller-pinned trust inputs. Neither the
+   challenge nor transport can select its own trust root.
+4. It calls `DeviceIngressRequestFactory.prepare` with the exact canonical
+   challenge, protected registration body, persistent identity and
+   non-authoritative domain binding.
+5. The local response expectation is crash-durably persisted before the first
+   mutation-capable transport call: write a mode-0600 temporary file, `fsync`
+   and `F_FULLFSYNC` it, atomically rename it, then `fsync` the parent
+   directory. Any failed durability barrier prevents submit and conservatively
+   leaves or creates a pending gate.
+6. A registration is returned only after
+   `DeviceIngressOperationResponseVerifier.verify` validates the exact signed
+   response, durable mutation receipt, target Cell/owner/Agreement bindings
+   and an `active_consented` registration receipt.
+7. Verified response bytes and their local expectation are persisted together
+   and re-verified on restart. Restore returns explicitly historical mutation
+   evidence only. It first rebinds evidence to the
+   currently authenticated persistent vault's notification identity UUID and
+   signing-key fingerprint; portable signed evidence copied from another
+   device is rejected.
+8. The evidence store walks and pins its owner-controlled 0700 directory chain
+   with descriptors. Evidence access is `openat`/`fstatat`/`renameat[x]`/
+   `unlinkat` relative to the pinned directory. Managed files must be regular,
+   owner-matching, exactly 0600 and `nlink=1`; descriptor, canonical name,
+   inode, metadata and content are checked before and after access.
+9. A process-wide lock plus a cross-process record lock serializes all evidence
+   transactions. After `lockf` acquisition and at transaction boundaries, the
+   canonical dirfd-relative lock name must still resolve to the same locked
+   descriptor inode and unchanged metadata. Separate client/store instances
+   cannot both cross the pending/decline gate without one failing closed.
 
-- a short-lived server nonce and challenge ID;
-- exact HTTP method, path, purpose, audience and origin;
-- requested capability;
-- SHA-256 of the exact HTTP body;
-- public identity descriptor and non-authoritative vault domain binding;
-- a non-secret reference to a previously issued Agreement/credential, including
-  the expected participant label, device label, identity UUID and signing-key
-  fingerprint; the server still treats all labels as claims until the stored
-  authority record is resolved and verified;
-- creation time and expiry.
+The local v1 capability model and its proof tests are removed. HTTP method,
+path, wrapper, bearer token and server secret are absent from the new Binding
+contract. Transport is a byte-preserving protocol and has no policy role.
 
-The transport representation is
-`Authorization: HAVEN-Device-Proof <base64url-json>`, not a bearer secret.
-Authorization headers and request bodies must be redacted from logs.
+## Privacy and fail-closed behavior
 
-This commit deliberately does not connect the proof issuer to
-`NotificationCallbackClient`. The currently deployed server has no matching
-challenge, Agreement-resolution or proof-verification contract. Wiring only
-one side would turn a known 401 into an incompatible release.
+Raw APNS tokens are held only in memory until a protected body is prepared.
+Legacy/current APNS-token UserDefaults keys are deleted without reading them,
+and unsigned legacy registration-success state is also deleted. Persisted v3
+evidence contains the response expectation and signed receipt, not the raw
+token or request body.
 
-## Required CellScaffold server contract
+Terms acceptance is represented by a non-empty current terms version and a
+positive persisted acceptance timestamp. “Not now” is explicitly
+pre-registration-only. Under the same evidence transaction, it first rejects
+pending or verified evidence, durably writes a local decline tombstone, and
+then clears consent plus the in-memory token without an actor-reentrancy
+window. A prepared stale register cannot persist while that tombstone exists.
+If pending or verified evidence exists, local consent is preserved and a
+future typed signed revoke/deregister flow is required. That revoke operation
+is not implemented by this register-only candidate.
 
-The server must implement this atomically before Binding transport wiring:
+Neither absence of local evidence nor restored register evidence proves
+current server state. The UI keeps `isDeviceRegistered=false` even after a
+verified register mutation. A fresh signed server status/read-back bound to
+the current admission, authority and revocation generations, and reconciled
+with any local tombstone, is required before current active registration can
+be claimed. The v3 register-only dependency has no such operation yet.
 
-1. Issue a cryptographically random, 16–64 byte challenge with at most five
-   minutes TTL, pinned to one method, path, capability, purpose, public
-   authority and normalized HTTPS origin.
-2. Consume the challenge exactly once in persistent or otherwise
-   restart-safe replay state. Rate-limit challenge issuance and protected
-   calls without identity/IP labels in metrics.
-3. Decode `HAVEN-Device-Proof`, reconstruct the canonical payload and verify
-   the embedded public-key signature.
-4. Require the identity descriptor and vault domain binding to match exactly.
-   Domain binding is context evidence and grants no authority.
-5. Resolve `credentialID` and `agreementID` from server-owned storage. Require
-   participant, device, subject UUID/fingerprint, purpose, capability, time window and
-   revocation state to match. Unknown, expired or revoked authority fails
-   closed. A caller-supplied ID is never sufficient.
-6. Verify the SHA-256 digest against the exact received body before decoding or
-   mutating `DeviceRegistrationCell`/callback state.
-7. Persist only the minimum DeviceRegistration data. APNS tokens remain private
-   and must never appear in receipts, logs, metrics or public Entity indexes.
-8. Return a signed, subject-bound persistence receipt. Re-read after write and
-   prove participant, device hash, identity fingerprint, active consent,
-   capability set and update time without returning the APNS token.
-9. Preserve DeviceRegistration, Agreement, revocation and replay state across
-   restart. A registration is not green until the same identity/fingerprint
-   remains active after cold restart.
+The runtime composition is intentionally inert. Resolve and submit also throw
+before network access; unsigned push payloads are not staged as a fallback.
+No owner identity, Agreement, revocation state, audience, issuer or transport
+framing is auto-provisioned or inferred.
 
-Admission needs an explicit provisioning path that installs the referenced
-Agreement/credential for the device identity. A participant label is not that
-path. The recommended route is an existing-device/custodian-approved
-CellProtocol identity enrollment followed by a narrow, revocable Grant for
-`device.registration.write`, `device.callback.resolve` and/or
-`device.callback.submit`.
+## Remaining operational gates
 
-Binding already contains models and testable protocol services for that
-enrollment (`IdentityEnrollmentRequest`, owner/custodian approval,
-`SameEntityIdentityLinkCredential`, verifier-bound presentation and
-`IdentityLinkRecord`). No installed DeviceCallback credential is established
-on the physical iPad by source code or current evidence. The minimum exchange
-can be contract-tested without UI, but a real device still needs an explicit
-deep-link/UI provisioning step and a persisted completion receipt.
+CellScaffold PR #33 is used only as a transport-contract reference. Its clean
+head does not establish a challenge issuer, durable admission/replay, or
+operational authority. Binding remains unavailable until a reviewed
+composition root supplies all of the following:
 
-## Acceptance gate
+- persistent challenge issuer and client-pinned issuer descriptor;
+- owner-pinned target Cell and exact signed Contract/Agreement;
+- durable authority and revocation generations;
+- atomic admission/replay ledger and same-Cell signed response persistence;
+- a shared, reviewed transport package so Binding does not copy or guess HTTP
+  framing;
+- readiness that is red when any dependency is unavailable;
+- an explicit custodian/owner provisioning flow for the physical device.
+- a canonical signed status/read-back and typed signed revoke/deregister
+  operation with durable local tombstone/retry reconciliation;
+- reviewed iOS build/signing attestation, or an explicit decision that scoped
+  build provenance is non-authoritative metadata only.
 
-Do not call APNS production-ready until one named physical iPad/iPhone proves:
+Additional review work remains for subprocess-level cross-process locking,
+crash-window/ambiguous-pending adjudication, the `F_FULLFSYNC` support matrix,
+and documented legacy evidence erase/migration. These are not claimed closed
+by the in-process candidate tests.
 
-1. correct signed app revision and APNS entitlement;
-2. user consent and persistent device identity;
-3. valid challenge/proof registration;
-4. rejection of missing proof, shared bearer, wrong audience/path/body,
-   expired challenge, replay, wrong subject and revoked Agreement;
-5. exactly one APNS test ticket accepted and shown on the target device;
-6. callback resolve and submit use separate single-use proofs;
-7. cold server restart preserves the active, consented registration and cold
-   app restart preserves the same device identity;
-8. a second test request is not sent when evidence for the first is ambiguous.
+Only after those gates are deployed in one coordinated window may the physical
+iPad acceptance test begin. That later test must separately prove consented
+registration, provider acceptance, visible device receipt, callback receipt,
+restart continuity and exact build provenance. This candidate proves none of
+those live outcomes.
