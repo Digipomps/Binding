@@ -186,6 +186,7 @@
 				24D800112EF195A000021B5A /* Sources */,
 				24D800122EF195A000021B5A /* Frameworks */,
 				24D800132EF195A000021B5A /* Resources */,
+				A1D3E5F72F6A4B8C90123456 /* Embed Build Provenance */,
 			);
 			buildRules = (
 			);
@@ -328,6 +329,37 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A1D3E5F72F6A4B8C90123456 /* Embed Build Provenance */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_NAME).SwiftFileList",
+				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_NAME).LinkFileList",
+				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_MODULE_NAME).swiftmodule",
+				"$(BUILT_PRODUCTS_DIR)/CellBase.o",
+				"$(BUILT_PRODUCTS_DIR)/CellApple.o",
+				"$(SRCROOT)/Scripts/generate_binding_build_provenance.sh",
+			);
+			name = "Embed Build Provenance";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingBuildProvenance.plist",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingCompilerInputManifest.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nresources=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\n\"${SRCROOT}/Scripts/generate_binding_build_provenance.sh\" \\\n  \"${resources}/BindingBuildProvenance.plist\" \\\n  \"${resources}/BindingCompilerInputManifest.txt\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		24D800112EF195A000021B5A /* Sources */ = {

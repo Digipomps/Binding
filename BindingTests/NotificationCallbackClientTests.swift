@@ -5,20 +5,22 @@ import Foundation
 @MainActor
 struct NotificationCallbackClientTests {
     @Test
-    func baseURLDefaultsToStagingDeviceCallbackAPI() {
-        #expect(
-            NotificationCallbackClient.baseURLString(environment: [:])
-                == "https://staging.haven.digipomps.org/conference-mvp/api/device"
-        )
-    }
-
-    @Test
-    func baseURLPrefersEnvironmentOverride() {
-        #expect(
-            NotificationCallbackClient.baseURLString(
-                environment: ["BINDING_NOTIFICATION_API_BASE": "http://localhost:9089/conference-mvp/api/device"]
-            ) == "http://localhost:9089/conference-mvp/api/device"
-        )
+    func resolveAndSubmitRemainFailClosed() async {
+        await #expect(throws: NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable) {
+            try await NotificationCallbackClient.shared.resolveTicket(
+                participantId: "participant-1",
+                deviceId: "device-1",
+                ticketId: "ticket-1"
+            )
+        }
+        await #expect(throws: NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable) {
+            try await NotificationCallbackClient.shared.submitTicketResult(
+                participantId: "participant-1",
+                deviceId: "device-1",
+                ticketId: "ticket-1",
+                result: [:]
+            )
+        }
     }
 
     @Test

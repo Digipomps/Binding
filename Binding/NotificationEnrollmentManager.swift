@@ -7,11 +7,32 @@ import UIKit
 import UserNotifications
 #endif
 
-enum NotificationRegistrationValidationError: LocalizedError {
-    case invalidServerResponse
+nonisolated struct NotificationTermsConsentEvidence: Equatable, Sendable {
+    let termsVersion: String
+    let acceptedAt: TimeInterval
+
+    init?(termsVersion: String, acceptedAt: TimeInterval) {
+        let normalizedVersion = termsVersion.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard normalizedVersion.isEmpty == false,
+              acceptedAt.isFinite,
+              acceptedAt > 0 else {
+            return nil
+        }
+        self.termsVersion = normalizedVersion
+        self.acceptedAt = acceptedAt
+    }
+}
+
+nonisolated enum NotificationEnrollmentStateError: LocalizedError, Equatable {
+    case declineRequiresSignedRevocation
 
     var errorDescription: String? {
-        "Staging returned an invalid notification device registration response."
+        switch self {
+        case .declineRequiresSignedRevocation:
+            return "Notifications were previously registered or have an ambiguous pending registration. ‘Not now’ is pre-registration only; a signed revoke/deregister flow is required."
+        }
     }
 }
 
@@ -24,11 +45,15 @@ final class NotificationEnrollmentManager: ObservableObject {
     @Published private(set) var lastRegistrationError: String?
     @Published private(set) var isDeviceRegistered: Bool = false
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
+    private let evidenceInspectorFactory:
+        @Sendable () throws -> any DeviceIngressRegistrationEvidenceStoring
 
     private let deviceIDKey = "binding.notifications.deviceId"
     private let termsVersionKey = "binding.notifications.termsVersion"
     private let termsAcceptedAtKey = "binding.notifications.termsAcceptedAt"
+    // Migration-only keys. Values are deleted without being read so raw APNS
+    // tokens and unsigned legacy success state cannot enter the v3 runtime.
     private let legacyAPNSTokenKey = "binding.notifications.apnsToken"
     private let currentAPNSTokenKey = "binding.notifications.currentAPNSToken"
     private let registrationSucceededAtKey = "binding.notifications.registrationSucceededAt"
@@ -38,9 +63,29 @@ final class NotificationEnrollmentManager: ObservableObject {
     private var pendingAPNSToken: String?
     private var lastTokenRefreshRequestedAt: Date?
 
-    private init() {
+    private init(
+        defaults: UserDefaults = .standard,
+        evidenceInspectorFactory: @escaping @Sendable () throws
+            -> any DeviceIngressRegistrationEvidenceStoring = {
+                try FileDeviceIngressRegistrationEvidenceStore.applicationSupport()
+            }
+    ) {
+        self.defaults = defaults
+        self.evidenceInspectorFactory = evidenceInspectorFactory
         bootstrapIfNeeded()
     }
+
+    #if DEBUG
+    static func testing(
+        defaults: UserDefaults,
+        evidenceInspector: any DeviceIngressRegistrationEvidenceStoring
+    ) -> NotificationEnrollmentManager {
+        NotificationEnrollmentManager(
+            defaults: defaults,
+            evidenceInspectorFactory: { evidenceInspector }
+        )
+    }
+    #endif
 
     func bootstrapIfNeeded() {
         if participantID == nil {
@@ -65,14 +110,12 @@ final class NotificationEnrollmentManager: ObservableObject {
 
         configureRemoteBridgePresenceProvider()
 
-        let currentTermsVersion = termsVersion()
-        needsTermsAcceptance = defaults.string(forKey: termsVersionKey) != currentTermsVersion || defaults.double(forKey: termsAcceptedAtKey) <= 0
-        pendingAPNSToken = Self.preferredAPNSToken(
-            pending: pendingAPNSToken,
-            stored: defaults.string(forKey: currentAPNSTokenKey) ?? defaults.string(forKey: legacyAPNSTokenKey)
-        )
+        needsTermsAcceptance = currentTermsConsentEvidence() == nil
+        pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
         defaults.removeObject(forKey: legacyAPNSTokenKey)
-        isDeviceRegistered = defaults.double(forKey: registrationSucceededAtKey) > 0
+        defaults.removeObject(forKey: currentAPNSTokenKey)
+        defaults.removeObject(forKey: registrationSucceededAtKey)
+        isDeviceRegistered = false
 
         Task { @MainActor in
             #if os(iOS)
@@ -97,6 +140,17 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     func acceptTermsAndEnableNotifications() async {
         lastRegistrationError = nil
+        do {
+            // Re-open the durable local registration gate before consent can
+            // be represented as accepted. This is synchronous and therefore
+            // has no MainActor reentrancy window.
+            try evidenceInspectorFactory().clearPreRegistrationDecline()
+        } catch {
+            needsTermsAcceptance = true
+            isDeviceRegistered = false
+            lastRegistrationError = "Cannot accept notification terms: \(error.localizedDescription)"
+            return
+        }
         let acceptedAt = Date().timeIntervalSince1970
         defaults.set(termsVersion(), forKey: termsVersionKey)
         defaults.set(acceptedAt, forKey: termsAcceptedAtKey)
@@ -165,16 +219,41 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
     #endif
 
-    func declineTerms() {
-        needsTermsAcceptance = false
+    /// "Not now" is deliberately pre-registration-only. Once any verified or
+    /// ambiguous pending evidence exists, removing local consent would falsely
+    /// imply server revocation. Until a signed revoke operation exists, this
+    /// API fails closed and preserves consent state.
+    @discardableResult
+    func declineTermsBeforeRegistration() async -> Bool {
+        lastRegistrationError = nil
+        do {
+            let evidenceInspector = try evidenceInspectorFactory()
+            // Evidence decision, durable gate and local state clear execute
+            // synchronously while the same descriptor-relative cross-process
+            // transaction remains held. There is no MainActor reentrancy
+            // window in which persistPending can cross this decision.
+            try evidenceInspector.performPreRegistrationDecline {
+                defaults.removeObject(forKey: termsVersionKey)
+                defaults.removeObject(forKey: termsAcceptedAtKey)
+                pendingAPNSToken = nil
+                needsTermsAcceptance = true
+                isDeviceRegistered = false
+            }
+            return true
+        } catch {
+            isDeviceRegistered = false
+            needsTermsAcceptance = currentTermsConsentEvidence() == nil
+            lastRegistrationError = "Cannot decline notification terms: \(error.localizedDescription)"
+            return false
+        }
     }
 
     func updateAPNSToken(_ token: String) async {
         let normalizedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedToken.isEmpty else { return }
         pendingAPNSToken = normalizedToken
-        defaults.set(normalizedToken, forKey: currentAPNSTokenKey)
         defaults.removeObject(forKey: legacyAPNSTokenKey)
+        defaults.removeObject(forKey: currentAPNSTokenKey)
         await registerCurrentDeviceIfReady()
     }
 
@@ -185,42 +264,46 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func registerCurrentDeviceIfReady() async {
-        pendingAPNSToken = Self.preferredAPNSToken(
-            pending: pendingAPNSToken,
-            stored: defaults.string(forKey: currentAPNSTokenKey)
-        )
-        guard !needsTermsAcceptance,
+        pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
+        guard let consent = currentTermsConsentEvidence(),
               let participantID,
               let deviceID,
               let token = pendingAPNSToken,
               !token.isEmpty
         else {
+            needsTermsAcceptance = currentTermsConsentEvidence() == nil
+            isDeviceRegistered = false
             return
         }
 
-        let payload = Self.registrationPayload(
-            participantID: participantID,
-            deviceID: deviceID,
-            pushToken: token,
-            platform: "ios",
-            termsVersion: termsVersion(),
-            conferenceID: conferenceID(),
-            subscriptionTopics: subscriptionTopics(),
-            mutedEventTypes: mutedEventTypes()
-        )
-
         do {
-            let response = try await NotificationCallbackClient.shared.registerDevice(payload: payload)
-            try Self.validateRegistrationResponse(
-                response,
-                expectedParticipantID: participantID,
-                expectedDeviceID: deviceID
+            let buildProvenance = try BindingBuildProvenance.current()
+            let payload = Self.registrationPayload(
+                participantID: participantID,
+                deviceID: deviceID,
+                pushToken: token,
+                platform: "ios",
+                consent: consent,
+                conferenceID: conferenceID(),
+                subscriptionTopics: subscriptionTopics(),
+                mutedEventTypes: mutedEventTypes(),
+                buildProvenance: buildProvenance
             )
+            let protectedBody = try Self.registrationProtectedBody(payload)
+            let receipt = try await BindingDeviceIngressRegistrationComposition.register(
+                protectedBody: protectedBody,
+                buildProvenance: buildProvenance
+            )
+            guard receipt.state == .activeConsented else {
+                throw DeviceIngressRegistrationClientError.registrationWasNotActiveAndConsented
+            }
+            // A register mutation receipt is durable historical evidence, not
+            // current status. The register-only v3 candidate has no canonical
+            // status/read-back operation, so it must not claim current
+            // registration even immediately after this response.
             pendingAPNSToken = nil
-            defaults.set(token, forKey: currentAPNSTokenKey)
-            defaults.set(Date().timeIntervalSince1970, forKey: registrationSucceededAtKey)
-            isDeviceRegistered = true
-            lastRegistrationError = nil
+            isDeviceRegistered = false
+            lastRegistrationError = "Registration evidence was verified, but a fresh signed status read-back is required before this device can be shown as registered."
         } catch {
             lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
             isDeviceRegistered = false
@@ -228,26 +311,18 @@ final class NotificationEnrollmentManager: ObservableObject {
         }
     }
 
-    nonisolated static func validateRegistrationResponse(
-        _ response: [String: JSONValue],
-        expectedParticipantID: String,
-        expectedDeviceID: String
-    ) throws {
-        guard case let .string(participantID)? = response["participantId"],
-              participantID == expectedParticipantID,
-              case let .string(deviceID)? = response["deviceId"],
-              deviceID == expectedDeviceID,
-              case let .bool(isActive)? = response["isActive"],
-              isActive,
-              case let .string(pushTokenHash)? = response["pushTokenHash"],
-              !pushTokenHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else {
-            throw NotificationRegistrationValidationError.invalidServerResponse
-        }
-    }
-
     private func termsVersion() -> String {
         ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"] ?? "v1"
+    }
+
+    private func currentTermsConsentEvidence() -> NotificationTermsConsentEvidence? {
+        guard defaults.string(forKey: termsVersionKey) == termsVersion() else {
+            return nil
+        }
+        return NotificationTermsConsentEvidence(
+            termsVersion: termsVersion(),
+            acceptedAt: defaults.double(forKey: termsAcceptedAtKey)
+        )
     }
 
     private func conferenceID() -> String? {
@@ -304,23 +379,34 @@ final class NotificationEnrollmentManager: ObservableObject {
         deviceID: String,
         pushToken: String,
         platform: String,
-        termsVersion: String,
+        consent: NotificationTermsConsentEvidence,
         conferenceID: String?,
         subscriptionTopics: [String],
-        mutedEventTypes: [String]
+        mutedEventTypes: [String],
+        buildProvenance: BindingBuildProvenance
     ) -> [String: JSONValue] {
         [
+            "schema": .string("binding.device-registration.body.v3-candidate"),
             "participantId": .string(participantID),
             "deviceId": .string(deviceID),
             "platform": .string(platform),
             "pushToken": .string(pushToken),
-            "termsVersion": .string(termsVersion),
+            "termsVersion": .string(consent.termsVersion),
             "termsAccepted": .bool(true),
             "callbackCapabilities": .array(defaultCallbackCapabilities().map(JSONValue.string)),
             "conferenceId": conferenceID.map(JSONValue.string) ?? .null,
             "subscriptionTopics": .array(normalizeTopics(subscriptionTopics).map(JSONValue.string)),
-            "mutedEventTypes": .array(normalizeTopics(mutedEventTypes).map(JSONValue.string))
+            "mutedEventTypes": .array(normalizeTopics(mutedEventTypes).map(JSONValue.string)),
+            "buildProvenance": .object(buildProvenance.registrationObject)
         ]
+    }
+
+    nonisolated static func registrationProtectedBody(
+        _ payload: [String: JSONValue]
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(payload)
     }
 
     nonisolated static func bridgePresenceQueryItems(
@@ -367,8 +453,8 @@ final class NotificationEnrollmentManager: ObservableObject {
         return now.timeIntervalSince(lastRequestedAt) >= minimumInterval
     }
 
-    nonisolated static func preferredAPNSToken(pending: String?, stored: String?) -> String? {
-        normalizedIdentifier(pending) ?? normalizedIdentifier(stored)
+    nonisolated static func normalizedAPNSToken(_ token: String?) -> String? {
+        normalizedIdentifier(token)
     }
 
     private nonisolated static func normalizedIdentifier(_ value: String?) -> String? {
