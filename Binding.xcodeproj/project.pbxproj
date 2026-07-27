@@ -292,7 +292,7 @@
 			mainGroup = 24D8000C2EF195A000021B5A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../CellProtocol" */,
+				24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
@@ -403,6 +403,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				APNS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -466,6 +467,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				APNS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -537,6 +539,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;
+				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
+				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://staging.haven.digipomps.org";
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -605,6 +610,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;
+				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
+				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://staging.haven.digipomps.org";
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -796,12 +804,16 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../CellProtocol" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../CellProtocol;
+/* Begin XCRemoteSwiftPackageReference section */
+		24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
+			requirement = {
+				kind = revision;
+				revision = 79ce4f84666fedc446a1c80ab8adce1e7e3898e0;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		24FEA0042F421297000334E1 /* CellBase */ = {

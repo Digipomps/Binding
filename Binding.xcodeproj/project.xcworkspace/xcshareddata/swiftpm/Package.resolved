@@ -1,5 +1,5 @@
 {
-  "originHash" : "cf9a400c03d04962bcf74660b53032eb5334d1223f59a4d3009b4c07d8b8be2d",
+  "originHash" : "fd3d0e91720cf803da9c2ad8ae78958688ca9fda0e144485268b4b8537e57ac8",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -29,6 +29,14 @@
       }
     },
     {
+      "identity" : "cellprotocol",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Digipomps/CellProtocol.git",
+      "state" : {
+        "revision" : "79ce4f84666fedc446a1c80ab8adce1e7e3898e0"
+      }
+    },
+    {
       "identity" : "console-kit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/console-kit.git",
@@ -51,7 +59,6 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Digipomps/FileUtils-c.git",
       "state" : {
-        "branch" : "main",
         "revision" : "26f365ca39955ee693e138ef028560df3bdf218c"
       }
     },

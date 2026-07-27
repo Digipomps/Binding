@@ -397,6 +397,11 @@ final class NotificationEnrollmentManager: ObservableObject {
             guard receipt.state == .activeConsented else {
                 throw DeviceIngressRegistrationClientError.registrationWasNotActiveAndConsented
             }
+            self.participantID = receipt.deviceIdentityUUID
+            self.deviceID = receipt.deviceIdentityUUID
+            defaults.set(receipt.deviceIdentityUUID, forKey: participantIDKey)
+            defaults.set(receipt.deviceIdentityUUID, forKey: deviceIDKey)
+            configureRemoteBridgePresenceProvider()
             // A register mutation receipt is durable historical evidence, not
             // current status. The register-only v3 candidate has no canonical
             // status/read-back operation, so it must not claim current
@@ -492,6 +497,8 @@ final class NotificationEnrollmentManager: ObservableObject {
             "pushToken": .string(pushToken),
             "termsConsentState": .string(consent.state.rawValue),
             "termsAcceptanceEvidence": .object(consent.registrationObject),
+            "termsVersion": .string(consent.termsVersion),
+            "termsAccepted": .bool(consent.state == .accepted),
             "callbackCapabilities": .array(defaultCallbackCapabilities().map(JSONValue.string)),
             "conferenceId": conferenceID.map(JSONValue.string) ?? .null,
             "subscriptionTopics": .array(normalizeTopics(subscriptionTopics).map(JSONValue.string)),

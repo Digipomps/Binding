@@ -8,6 +8,13 @@ fi
 
 root_dir="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cellprotocol_dir="${root_dir}/../CellProtocol"
+if [[ -n "${BUILD_DIR:-}" ]]; then
+  resolved_cellprotocol_dir="${BUILD_DIR}/../../SourcePackages/checkouts/CellProtocol"
+  if [[ -d "${resolved_cellprotocol_dir}/.git" ||
+        -f "${resolved_cellprotocol_dir}/.git" ]]; then
+    cellprotocol_dir="$resolved_cellprotocol_dir"
+  fi
+fi
 output_plist="$1"
 output_manifest="$2"
 git_bin="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}/usr/bin/git"
@@ -47,7 +54,7 @@ for required in \
 done
 
 if [[ ! -d "$cellprotocol_dir" ]]; then
-  print -u2 "CellProtocol sibling is missing: $cellprotocol_dir"
+  print -u2 "Resolved CellProtocol source is missing: $cellprotocol_dir"
   exit 66
 fi
 

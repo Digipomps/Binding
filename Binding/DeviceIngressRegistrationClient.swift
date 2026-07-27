@@ -26,6 +26,8 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
     case invalidEvidenceJournal
     case responseWasNotRegistration
     case registrationWasNotActiveAndConsented
+    case invalidTransportConfiguration
+    case transportRejected
 
     var errorDescription: String? {
         switch self {
@@ -69,6 +71,10 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
             return "The signed DeviceIngress response was not a registration receipt."
         case .registrationWasNotActiveAndConsented:
             return "The signed registration receipt did not confirm active consent."
+        case .invalidTransportConfiguration:
+            return "DeviceIngress HTTPS origin, audience, or pinned challenge issuer is missing or invalid."
+        case .transportRejected:
+            return "The DeviceIngress HTTPS carrier rejected the request or returned invalid bytes."
         }
     }
 }
@@ -107,6 +113,223 @@ nonisolated struct InertDeviceIngressRegistrationTransport: DeviceIngressRegistr
         protectedBody: Data
     ) async throws -> Data {
         throw DeviceIngressRegistrationClientError.operationalCompositionUnavailable
+    }
+}
+
+nonisolated private struct DeviceIngressRegisterChallengeTransportRequest:
+    Codable,
+    Sendable
+{
+    static let currentSchema = "haven.device-ingress.challenge-request.v1"
+
+    let schema: String
+    let operation: DeviceIngressOperation
+    let subject: IdentityPublicKeyDescriptor
+
+    init(subject: IdentityPublicKeyDescriptor) {
+        schema = Self.currentSchema
+        operation = .register
+        self.subject = subject
+    }
+}
+
+nonisolated private struct DeviceIngressRegisterTransportEnvelope:
+    Codable,
+    Sendable
+{
+    static let currentSchema = "haven.device-callback.transport.v3"
+
+    let schema: String
+    let canonicalChallenge: Data
+    let canonicalRequest: Data
+    let protectedBody: Data
+
+    init(
+        canonicalChallenge: Data,
+        canonicalRequest: Data,
+        protectedBody: Data
+    ) {
+        schema = Self.currentSchema
+        self.canonicalChallenge = canonicalChallenge
+        self.canonicalRequest = canonicalRequest
+        self.protectedBody = protectedBody
+    }
+}
+
+nonisolated final class DeviceIngressNoRedirectSessionDelegate:
+    NSObject,
+    URLSessionTaskDelegate,
+    @unchecked Sendable
+{
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
+nonisolated struct URLSessionDeviceIngressRegistrationTransport:
+    DeviceIngressRegistrationTransport,
+    @unchecked Sendable
+{
+    private let origin: URL
+    private let session: URLSession
+
+    init(origin: URL, session: URLSession? = nil) throws {
+        guard origin.scheme?.lowercased() == "https",
+              origin.user == nil,
+              origin.password == nil,
+              origin.query == nil,
+              origin.fragment == nil,
+              origin.path.isEmpty || origin.path == "/",
+              origin.host?.isEmpty == false else {
+            throw DeviceIngressRegistrationClientError.invalidTransportConfiguration
+        }
+        self.origin = origin
+        if let session {
+            self.session = session
+        } else {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            configuration.timeoutIntervalForRequest = 20
+            configuration.timeoutIntervalForResource = 30
+            configuration.httpShouldSetCookies = false
+            configuration.httpCookieAcceptPolicy = .never
+            self.session = URLSession(
+                configuration: configuration,
+                delegate: DeviceIngressNoRedirectSessionDelegate(),
+                delegateQueue: nil
+            )
+        }
+    }
+
+    func fetchRegisterChallenge(
+        subject: IdentityPublicKeyDescriptor
+    ) async throws -> Data {
+        try await post(
+            path: "/conference-mvp/api/device/challenge",
+            body: try Self.encoded(
+                DeviceIngressRegisterChallengeTransportRequest(subject: subject)
+            ),
+            maximumResponseBytes: DeviceIngressEnvelope.maximumEncodedBytes
+        )
+    }
+
+    func submitRegister(
+        canonicalChallengeData: Data,
+        canonicalRequestData: Data,
+        protectedBody: Data
+    ) async throws -> Data {
+        try await post(
+            path: "/conference-mvp/api/device/register",
+            body: try Self.encoded(DeviceIngressRegisterTransportEnvelope(
+                canonicalChallenge: canonicalChallengeData,
+                canonicalRequest: canonicalRequestData,
+                protectedBody: protectedBody
+            )),
+            maximumResponseBytes: DeviceIngressOperationResponse.maximumEncodedBytes
+        )
+    }
+
+    private func post(
+        path: String,
+        body: Data,
+        maximumResponseBytes: Int
+    ) async throws -> Data {
+        guard let url = URL(string: path, relativeTo: origin)?.absoluteURL,
+              url.scheme == origin.scheme,
+              url.host == origin.host,
+              url.port == origin.port else {
+            throw DeviceIngressRegistrationClientError.invalidTransportConfiguration
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (responseData, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              http.statusCode == 200,
+              responseData.isEmpty == false,
+              responseData.count <= maximumResponseBytes,
+              http.url?.scheme == origin.scheme,
+              http.url?.host == origin.host,
+              http.url?.port == origin.port else {
+            throw DeviceIngressRegistrationClientError.transportRejected
+        }
+        return responseData
+    }
+
+    private static func encoded<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+}
+
+nonisolated private struct BindingDeviceIngressRuntimeConfiguration:
+    Sendable
+{
+    static let originKey = "HAVENDeviceIngressPublicOrigin"
+    static let audienceKey = "HAVENDeviceIngressAudience"
+    static let issuerKey = "HAVENDeviceIngressChallengeIssuerBase64"
+
+    let origin: URL
+    let trust: DeviceIngressRegistrationTrustConfiguration
+
+    static func current(bundle: Bundle = .main) throws -> Self {
+        guard let originText = normalized(bundle.object(
+            forInfoDictionaryKey: originKey
+        ) as? String),
+              let audience = normalized(bundle.object(
+                  forInfoDictionaryKey: audienceKey
+              ) as? String),
+              let issuerBase64 = normalized(bundle.object(
+                  forInfoDictionaryKey: issuerKey
+              ) as? String),
+              let origin = URL(string: originText),
+              origin.scheme?.lowercased() == "https",
+              origin.user == nil,
+              origin.password == nil,
+              origin.query == nil,
+              origin.fragment == nil,
+              origin.path.isEmpty || origin.path == "/",
+              let host = origin.host?.lowercased(),
+              audience == "\(host)\(origin.port.map { ":\($0)" } ?? "")",
+              let issuerData = Data(base64Encoded: issuerBase64),
+              let issuer = try? JSONDecoder().decode(
+                  IdentityPublicKeyDescriptor.self,
+                  from: issuerData
+              ),
+              issuer.displayName == nil,
+              IdentityLinkProtocolService.identity(from: issuer)
+                .signingPublicKeyFingerprint != nil else {
+            throw DeviceIngressRegistrationClientError.invalidTransportConfiguration
+        }
+        return Self(
+            origin: origin,
+            trust: DeviceIngressRegistrationTrustConfiguration(
+                expectedAudience: audience,
+                expectedChallengeIssuer: issuer
+            )
+        )
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false,
+              trimmed.contains("$(") == false else {
+            return nil
+        }
+        return trimmed
     }
 }
 
@@ -1905,6 +2128,9 @@ nonisolated actor DeviceIngressRegistrationClient {
         guard receipt.state == .activeConsented else {
             throw DeviceIngressRegistrationClientError.registrationWasNotActiveAndConsented
         }
+        guard receipt.deviceIdentityUUID == subject.uuid else {
+            throw DeviceIngressRegistrationClientError.registrationWasNotActiveAndConsented
+        }
 
         // Marking succeeds only after cryptographic verification and durable
         // local evidence replacement. No HTTP status can reach this branch.
@@ -2003,9 +2229,6 @@ nonisolated actor DeviceIngressRegistrationClient {
     }
 }
 
-/// Runtime integration is deliberately inert. PR #33 does not provide an
-/// operational challenge issuer, durable authority composition or a shared
-/// client transport package, so Binding must not infer those details.
 @MainActor
 enum BindingDeviceIngressRegistrationComposition {
     static func register(
@@ -2013,7 +2236,60 @@ enum BindingDeviceIngressRegistrationComposition {
         consentEvidence: NotificationTermsConsentEvidence,
         buildProvenance: BindingBuildProvenance
     ) async throws -> DeviceIngressRegistrationReceipt {
-        _ = (protectedBody, consentEvidence, buildProvenance)
-        throw DeviceIngressRegistrationClientError.operationalCompositionUnavailable
+        let vaultHandle = try DeviceIngressAuthenticatedVaultHandle.current()
+        guard let notificationIdentity = await vaultHandle.identityVault.identity(
+            for: DeviceIngressEnvelope.identityDomain,
+            makeNewIfNotFound: true
+        ),
+              let descriptor = DeviceIngressIdentityDescriptor.publicDescriptor(
+                  for: notificationIdentity
+              ) else {
+            throw DeviceIngressRegistrationClientError.notificationIdentityUnavailable
+        }
+        let identityBoundBody = try identityBoundRegistrationBody(
+            protectedBody,
+            deviceIdentityUUID: descriptor.uuid,
+            consentEvidence: consentEvidence
+        )
+        let configuration = try BindingDeviceIngressRuntimeConfiguration.current()
+        let evidenceStore = try FileDeviceIngressRegistrationEvidenceStore
+            .applicationSupport()
+        let transport = try URLSessionDeviceIngressRegistrationTransport(
+            origin: configuration.origin
+        )
+        let client = DeviceIngressRegistrationClient(
+            authenticatedVault: vaultHandle,
+            transport: transport,
+            evidenceStore: evidenceStore,
+            trust: configuration.trust,
+            buildProvenance: buildProvenance
+        )
+        return try await client.register(
+            protectedBody: identityBoundBody,
+            consentEvidence: consentEvidence
+        )
+    }
+
+    private static func identityBoundRegistrationBody(
+        _ data: Data,
+        deviceIdentityUUID: String,
+        consentEvidence: NotificationTermsConsentEvidence
+    ) throws -> Data {
+        guard var payload = try? JSONDecoder().decode(
+            [String: JSONValue].self,
+            from: data
+        ),
+              case .string("binding.device-registration.body.v3-candidate")?
+                = payload["schema"],
+              consentEvidence.state == .accepted else {
+            throw DeviceIngressRegistrationClientError.invalidProtectedBody
+        }
+        payload["participantId"] = .string(deviceIdentityUUID)
+        payload["deviceId"] = .string(deviceIdentityUUID)
+        payload["termsVersion"] = .string(consentEvidence.termsVersion)
+        payload["termsAccepted"] = .bool(true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(payload)
     }
 }

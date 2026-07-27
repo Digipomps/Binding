@@ -832,13 +832,102 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test @MainActor
-    func runtimeCompositionRemainsInert() async {
-        await #expect(throws: DeviceIngressRegistrationClientError.operationalCompositionUnavailable) {
+    func runtimeCompositionFailsClosedWithoutAuthenticatedVault() async {
+        await #expect(throws: DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable) {
             try await BindingDeviceIngressRegistrationComposition.register(
                 protectedBody: Data("test".utf8),
                 consentEvidence: try makeConsentEvidence(),
                 buildProvenance: try makeBuildProvenance()
             )
+        }
+    }
+
+    @Test
+    func httpsTransportPostsCanonicalChallengeAndRegisterEnvelopes() async throws {
+        let fixture = try await makeFixture()
+        let challengeResponse = Data("challenge-response".utf8)
+        let registerResponse = Data("register-response".utf8)
+        DeviceIngressFixtureURLProtocol.install { request in
+            let responseBody: Data
+            switch request.url?.path {
+            case "/conference-mvp/api/device/challenge":
+                responseBody = challengeResponse
+            case "/conference-mvp/api/device/register":
+                responseBody = registerResponse
+            default:
+                return (404, Data())
+            }
+            return (200, responseBody)
+        }
+        defer { DeviceIngressFixtureURLProtocol.reset() }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [DeviceIngressFixtureURLProtocol.self]
+        let transport = try URLSessionDeviceIngressRegistrationTransport(
+            origin: try #require(URL(string: "https://staging.haven.digipomps.org")),
+            session: URLSession(configuration: configuration)
+        )
+        let subject = try #require(
+            DeviceIngressIdentityDescriptor.publicDescriptor(for: fixture.subject)
+        )
+
+        #expect(try await transport.fetchRegisterChallenge(subject: subject) == challengeResponse)
+        #expect(try await transport.submitRegister(
+            canonicalChallengeData: Data("challenge".utf8),
+            canonicalRequestData: Data("request".utf8),
+            protectedBody: Data("body".utf8)
+        ) == registerResponse)
+
+        let requests = DeviceIngressFixtureURLProtocol.capturedRequests()
+        #expect(requests.count == 2)
+        #expect(requests.allSatisfy { $0.method == "POST" })
+        #expect(requests.allSatisfy { $0.host == "staging.haven.digipomps.org" })
+        #expect(requests.map(\.path) == [
+            "/conference-mvp/api/device/challenge",
+            "/conference-mvp/api/device/register"
+        ])
+
+        let challengeJSON = try #require(
+            try JSONSerialization.jsonObject(with: requests[0].body) as? [String: Any]
+        )
+        #expect(challengeJSON["schema"] as? String == "haven.device-ingress.challenge-request.v1")
+        #expect(challengeJSON["operation"] as? String == "register")
+
+        let registerJSON = try #require(
+            try JSONSerialization.jsonObject(with: requests[1].body) as? [String: Any]
+        )
+        #expect(registerJSON["schema"] as? String == "haven.device-callback.transport.v3")
+        #expect(registerJSON["canonicalChallenge"] as? String
+            == Data("challenge".utf8).base64EncodedString())
+        #expect(registerJSON["canonicalRequest"] as? String
+            == Data("request".utf8).base64EncodedString())
+        #expect(registerJSON["protectedBody"] as? String
+            == Data("body".utf8).base64EncodedString())
+    }
+
+    @Test
+    func httpsTransportRejectsInsecureOriginAndNonSuccessResponse() async throws {
+        #expect(throws: DeviceIngressRegistrationClientError.invalidTransportConfiguration) {
+            _ = try URLSessionDeviceIngressRegistrationTransport(
+                origin: try #require(URL(string: "http://staging.haven.digipomps.org"))
+            )
+        }
+
+        let fixture = try await makeFixture()
+        DeviceIngressFixtureURLProtocol.install { _ in (503, Data("unavailable".utf8)) }
+        defer { DeviceIngressFixtureURLProtocol.reset() }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [DeviceIngressFixtureURLProtocol.self]
+        let transport = try URLSessionDeviceIngressRegistrationTransport(
+            origin: try #require(URL(string: "https://staging.haven.digipomps.org")),
+            session: URLSession(configuration: configuration)
+        )
+        let subject = try #require(
+            DeviceIngressIdentityDescriptor.publicDescriptor(for: fixture.subject)
+        )
+
+        await #expect(throws: DeviceIngressRegistrationClientError.transportRejected) {
+            try await transport.fetchRegisterChallenge(subject: subject)
         }
     }
 
@@ -1677,4 +1766,103 @@ private struct OperationResponseFixture: Codable {
     let expiresAtMilliseconds: Int64
     let signer: IdentityPublicKeyDescriptor
     var proof: DeviceIngressIdentityProof?
+}
+
+private final class DeviceIngressFixtureURLProtocol: URLProtocol, @unchecked Sendable {
+    struct CapturedRequest: Sendable {
+        let method: String
+        let host: String
+        let path: String
+        let body: Data
+    }
+
+    typealias Handler = @Sendable (URLRequest) -> (status: Int, body: Data)
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var handler: Handler?
+    nonisolated(unsafe) private static var requests: [CapturedRequest] = []
+
+    static func install(_ newHandler: @escaping Handler) {
+        lock.lock()
+        handler = newHandler
+        requests = []
+        lock.unlock()
+    }
+
+    static func reset() {
+        lock.lock()
+        handler = nil
+        requests = []
+        lock.unlock()
+    }
+
+    static func capturedRequests() -> [CapturedRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.scheme == "https"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let url = request.url else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+        let body = Self.requestBody(request)
+        Self.lock.lock()
+        let currentHandler = Self.handler
+        Self.requests.append(CapturedRequest(
+            method: request.httpMethod ?? "",
+            host: url.host ?? "",
+            path: url.path,
+            body: body
+        ))
+        Self.lock.unlock()
+
+        guard let currentHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
+            return
+        }
+        let result = currentHandler(request)
+        guard let response = HTTPURLResponse(
+            url: url,
+            statusCode: result.status,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: result.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+
+    private static func requestBody(_ request: URLRequest) -> Data {
+        if let body = request.httpBody {
+            return body
+        }
+        guard let stream = request.httpBodyStream else {
+            return Data()
+        }
+        stream.open()
+        defer { stream.close() }
+        var body = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            body.append(buffer, count: count)
+        }
+        return body
+    }
 }

@@ -6,6 +6,12 @@
 	<string>HAVEN</string>
 	<key>CFBundleName</key>
 	<string>HAVEN</string>
+	<key>HAVENDeviceIngressPublicOrigin</key>
+	<string>$(HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN)</string>
+	<key>HAVENDeviceIngressAudience</key>
+	<string>$(HAVEN_DEVICE_INGRESS_AUDIENCE)</string>
+	<key>HAVENDeviceIngressChallengeIssuerBase64</key>
+	<string>$(HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64)</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
