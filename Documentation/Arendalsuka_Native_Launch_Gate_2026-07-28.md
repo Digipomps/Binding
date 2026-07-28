@@ -32,6 +32,8 @@ fortsette på web til Binding har en separat, testet native mottaker.
   authority-/path-/query-/fragmentvarianter og kontrollerer at
   programkonfigurasjonen er skrivebeskyttet og sideeffektfri.
 - `HAVEN`-skjemaet bygger uten feil for generisk iOS Simulator med Xcode 26.3.
+- Debug, Release og det bygde iOS-bundlets `Info.plist` rapporterer
+  `org.digipomps.haven`.
 - Begge entitlement-filene består `plutil -lint`.
 - CellScaffold AASA-suiten består 19 Swift-tester, seks compose-kontrakttester
   og én eksplisitt miljøallowlist-test.
@@ -76,12 +78,12 @@ Domeneendring krever samtidig endring i:
 Repoet bruker per 28. juli:
 
 ```text
-PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.havenplayground
+PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.haven
 DEVELOPMENT_TEAM=5UT5HQTCV9
 ```
 
-- [ ] Bestem om `org.digipomps.havenplayground` er endelig produksjons-bundle
-  ID eller om appen skal få en varig produkt-ID.
+- [x] Varig produksjons-bundle ID er besluttet:
+  `org.digipomps.haven`.
 - [ ] Registrer/bekreft en eksplisitt App ID i Apple Developer.
 - [ ] Aktiver Associated Domains for denne App ID-en.
 - [ ] Opprett App Store Connect-record med samme bundle ID.

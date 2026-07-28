@@ -36,15 +36,19 @@ Runtime config lives in:
 /home/ops/CellScaffold/.env
 ```
 
-Relevant env keys:
+Required env keys after the `org.digipomps.haven` signing migration:
 
 ```text
 APNS_TEAM_ID=<set in staging .env>
 APNS_KEY_ID=ZPJC567ND5
-APNS_BUNDLE_ID=org.digipomps.havenplayground
+APNS_BUNDLE_ID=org.digipomps.haven
 APNS_USE_SANDBOX=true
 APNS_PRIVATE_KEY_PATH=/run/secrets/apns-auth-key.p8
 ```
+
+This is the target contract, not evidence that the live `.env` has already
+changed. Keep the live topic aligned with the exact signed build during the
+migration.
 
 The Docker compose mount maps the staging host file to the runtime path:
 
@@ -213,16 +217,22 @@ curl -ksS https://staging.haven.digipomps.org/.well-known/haven-scaffold-admin-t
 Binding development builds currently use:
 
 ```text
-PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.havenplayground
+PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.haven
 aps-environment=development
 ```
 
 For Xcode-installed iPhone builds, staging must use:
 
 ```text
-APNS_BUNDLE_ID=org.digipomps.havenplayground
+APNS_BUNDLE_ID=org.digipomps.haven
 APNS_USE_SANDBOX=true
 ```
+
+This is the source-controlled target contract as of 2026-07-28. Do not change
+the live staging value until a signed `org.digipomps.haven` build has a valid
+APNS entitlement and provisioning profile; the previous
+`org.digipomps.havenplayground` device token/profile is not proof for the new
+topic.
 
 Binding registers the phone with:
 

@@ -215,6 +215,20 @@ Current live blocker:
 - App logs after the deploy showed only the local malformed curl probe hitting `/conference-mvp/api/device/register`; no real phone registration was observed after staging was corrected.
 - Binding now keeps explicit registration-success state and shows a retry prompt when notification permission exists but the phone is not registered with staging.
 
+## Update As Of 2026-07-28
+
+The production Bundle ID decision supersedes the June development identity:
+
+- Binding Debug and Release now use `org.digipomps.haven`.
+- The June `org.digipomps.havenplayground` profile, APNS topic and device-token
+  evidence remain historical and must not be reused as release proof.
+- Register/confirm `org.digipomps.haven` as an explicit App ID, enable Push
+  Notifications and Associated Domains, and regenerate the development and
+  distribution profiles.
+- Change staging `APNS_BUNDLE_ID` to `org.digipomps.haven` only when testing a
+  signed build with that exact application identifier; then register a fresh
+  device token.
+
 ## What Was Proven Today
 
 ### 1. The app can now be built for iPhone again
