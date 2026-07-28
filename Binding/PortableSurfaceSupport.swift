@@ -22,6 +22,51 @@ nonisolated enum BindingRuntimeSurfaceLaunchPayloadResult: Equatable {
     case rejected(String)
 }
 
+nonisolated enum BindingArendalsukaUniversalLinkParseResult: Equatable {
+    case notArendalsukaRoute
+    case accepted
+    case rejected(String)
+}
+
+/// Fail-closed native entry for the one HTTPS route that Binding can render
+/// end-to-end for the Arendalsuka release. Invitation and collaboration URLs
+/// stay on the web until Binding has a reviewed native recipient for them.
+nonisolated enum BindingArendalsukaUniversalLinkSupport {
+    static let trustedHost = "staging.haven.digipomps.org"
+    static let programPath = "/arendalsuka"
+    static let configurationName = "Arendalsuka Participant Program"
+    private static let maximumURLLength = 2_048
+
+    static func parse(_ url: URL) -> BindingArendalsukaUniversalLinkParseResult {
+        guard url.scheme == "https", url.host == trustedHost else {
+            return .notArendalsukaRoute
+        }
+        guard url.absoluteString.utf8.count <= maximumURLLength else {
+            return .rejected("url_too_large")
+        }
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.scheme == "https",
+              components.host == trustedHost,
+              components.user == nil,
+              components.password == nil,
+              components.port == nil,
+              components.percentEncodedPath == programPath,
+              components.query == nil,
+              components.fragment == nil,
+              url.absoluteString == "https://\(trustedHost)\(programPath)" else {
+            return .rejected("noncanonical_or_unapproved_url")
+        }
+        return .accepted
+    }
+
+    static func programConfiguration() -> CellConfiguration? {
+        ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
+            includeAgentOperatorSurfaces: false
+        )
+        .first { $0.name == configurationName }
+    }
+}
+
 nonisolated enum BindingRuntimeSurfaceLaunchSupport {
     static let registrySchema = "haven.scaffold.surface-launch-registry.v1"
     static let registryCellName = "ScaffoldLaunchRegistry"

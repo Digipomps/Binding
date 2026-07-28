@@ -2694,6 +2694,54 @@ struct BindingTests {
         #expect(request.surfaceID == "runtime-only-surface")
     }
 
+    @Test func arendalsukaUniversalLinkAcceptsOnlyCanonicalProgramURL() throws {
+        let canonical = try #require(URL(
+            string: "https://staging.haven.digipomps.org/arendalsuka"
+        ))
+        #expect(BindingArendalsukaUniversalLinkSupport.parse(canonical) == .accepted)
+
+        let configuration = try #require(
+            BindingArendalsukaUniversalLinkSupport.programConfiguration()
+        )
+        #expect(configuration.name == "Arendalsuka Participant Program")
+        #expect(
+            try Self.cellEndpointStrings(in: configuration)
+                .contains("cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
+        )
+        #expect(
+            CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(configuration)
+        )
+    }
+
+    @Test func arendalsukaUniversalLinkRejectsAuthorityAndRouteVariants() throws {
+        for rawURL in [
+            "https://staging.haven.digipomps.org/arendalsuka/",
+            "https://staging.haven.digipomps.org/arendalsuka?token=secret",
+            "https://staging.haven.digipomps.org/arendalsuka#fragment",
+            "https://staging.haven.digipomps.org:443/arendalsuka",
+            "https://user@staging.haven.digipomps.org/arendalsuka",
+            "https://staging.haven.digipomps.org/personal-copilot-v1/collaborate/token",
+            "https://staging.haven.digipomps.org/workbench/access/token"
+        ] {
+            let url = try #require(URL(string: rawURL))
+            guard case .rejected = BindingArendalsukaUniversalLinkSupport.parse(url) else {
+                Issue.record("Expected rejection for \(rawURL)")
+                continue
+            }
+        }
+
+        for rawURL in [
+            "http://staging.haven.digipomps.org/arendalsuka",
+            "https://evil.example/arendalsuka",
+            "haven://open?schema=haven.surface-launch.v1&surfaceID=arendalsuka&intent=view"
+        ] {
+            let url = try #require(URL(string: rawURL))
+            #expect(
+                BindingArendalsukaUniversalLinkSupport.parse(url) == .notArendalsukaRoute
+            )
+        }
+    }
+
     @Test func runtimeSurfaceLaunchRejectsDuplicateOrAuthorityBearingParameters() throws {
         let duplicate = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=one&surfaceID=two&intent=view"))
         let action = try #require(URL(string: "haven://open?schema=haven.surface-launch.v1&surfaceID=one&intent=view&action=delete"))

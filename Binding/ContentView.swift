@@ -4557,6 +4557,23 @@ struct ContentView: View {
             await performConferenceAutomation(hook)
             return
         }
+        switch BindingArendalsukaUniversalLinkSupport.parse(url) {
+        case .accepted:
+            await openArendalsukaUniversalLink(execution: execution)
+            return
+        case .rejected(let reason):
+            execution.commit {
+                loadErrorMessage = "Arendalsuka-lenken kunne ikke åpnes fordi adressen er ugyldig."
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.arendalsukaUniversalLink",
+                    message: "Avviste Arendalsuka universal link: \(reason)."
+                )
+            }
+            return
+        case .notArendalsukaRoute:
+            break
+        }
         switch BindingRuntimeSurfaceLaunchSupport.parse(url) {
         case .accepted(let request):
             await openRuntimeSurfaceLaunch(request, execution: execution)
@@ -4591,6 +4608,49 @@ struct ContentView: View {
                 provenance: .localTrusted
             )
         }) else { return }
+        if let loadTask {
+            await withTaskCancellationHandler {
+                await loadTask.value
+            } onCancel: {
+                loadTask.cancel()
+            }
+        }
+    }
+
+    @MainActor
+    private func openArendalsukaUniversalLink(
+        execution: BindingRuntimeRouteExecution
+    ) async {
+        guard let configuration = BindingArendalsukaUniversalLinkSupport.programConfiguration(),
+              CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(configuration)
+        else {
+            execution.commit {
+                loadErrorMessage = "Arendalsuka-programmet er ikke tilgjengelig i denne appversjonen."
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.arendalsukaUniversalLink",
+                    message: "Mangler en side-effect-free Arendalsuka Participant Program-konfigurasjon."
+                )
+            }
+            return
+        }
+
+        var loadTask: Task<Void, Never>?
+        guard execution.commit({
+            diagnosticsStore.record(
+                domain: "binding.arendalsukaUniversalLink",
+                message: "Åpner Arendalsuka Participant Program fra validert HTTPS universal link."
+            )
+            if editorMode == .edit {
+                editorMode = .view
+            }
+            loadTask = queueConfigurationLoad(
+                configuration,
+                navigationMode: .automatic,
+                provenance: .hostPreparedExternalView(mayUseLocalControlPlane: false)
+            )
+        }) else { return }
+
         if let loadTask {
             await withTaskCancellationHandler {
                 await loadTask.value
