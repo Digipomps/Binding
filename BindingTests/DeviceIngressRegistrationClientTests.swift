@@ -320,6 +320,7 @@ struct DeviceIngressRegistrationClientTests {
         #expect(await underlyingTransport.submitCount() == 1)
     }
 
+    #if os(macOS)
     @Test
     func canonicalPOSIXLockSerializesASeparateProcess() async throws {
         let fixture = try await makeFixture()
@@ -357,6 +358,7 @@ struct DeviceIngressRegistrationClientTests {
         #expect(snapshot.acceptedEvidence == consent)
         #expect(elapsed >= 0.5)
     }
+    #endif
 
     @Test
     func copiedVerifiedEvidenceIsRejectedByCurrentVaultIdentity() async throws {
@@ -522,6 +524,98 @@ struct DeviceIngressRegistrationClientTests {
             throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "file-mode")
         ) {
             try await store.pendingExpectation()
+        }
+    }
+
+    @Test
+    func applicationSupportLayoutAcceptsOwnedReadOnlyNamespacesAndKeepsEvidencePrivate() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BindingDeviceIngressApplicationSupportTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let applicationSupport = workspace
+            .appendingPathComponent("Application Support", isDirectory: true)
+        let bindingNamespace = applicationSupport
+            .appendingPathComponent("Binding", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: bindingNamespace,
+            withIntermediateDirectories: true
+        )
+        #expect(Darwin.chmod(applicationSupport.path, 0o755) == 0)
+        #expect(Darwin.chmod(bindingNamespace.path, 0o755) == 0)
+
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            testingAnchorDirectoryURL: applicationSupport,
+            relativeDirectoryComponents: ["Binding", "DeviceIngressRegistration"]
+        )
+        let consent = try makeConsentEvidence()
+        try store.persistTermsAcceptance(consent)
+
+        #expect(try store.termsConsentSnapshot().acceptedEvidence == consent)
+        let evidenceDirectory = bindingNamespace
+            .appendingPathComponent("DeviceIngressRegistration", isDirectory: true)
+        let attributes = try FileManager.default.attributesOfItem(
+            atPath: evidenceDirectory.path
+        )
+        #expect(
+            (attributes[.posixPermissions] as? NSNumber)?.uint16Value == 0o700
+        )
+    }
+
+    @Test
+    func applicationSupportLayoutRejectsGroupWritableNamespace() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BindingDeviceIngressApplicationSupportTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let applicationSupport = workspace
+            .appendingPathComponent("Application Support", isDirectory: true)
+        let bindingNamespace = applicationSupport
+            .appendingPathComponent("Binding", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: bindingNamespace,
+            withIntermediateDirectories: true
+        )
+        #expect(Darwin.chmod(applicationSupport.path, 0o755) == 0)
+        #expect(Darwin.chmod(bindingNamespace.path, 0o775) == 0)
+
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            testingAnchorDirectoryURL: applicationSupport,
+            relativeDirectoryComponents: ["Binding", "DeviceIngressRegistration"]
+        )
+
+        #expect(
+            throws: DeviceIngressEvidenceFileError.metadataRejected(
+                reason: "directory-group-or-other-writable"
+            )
+        ) {
+            try store.termsConsentSnapshot()
+        }
+    }
+
+    @Test
+    func applicationSupportLayoutRejectsMissingPrivateEvidenceDirectory() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        try FileManager.default.createDirectory(
+            at: workspace,
+            withIntermediateDirectories: true
+        )
+
+        let store = FileDeviceIngressRegistrationEvidenceStore(
+            testingAnchorDirectoryURL: workspace,
+            relativeDirectoryComponents: []
+        )
+
+        #expect(
+            throws: DeviceIngressEvidenceFileError.metadataRejected(
+                reason: "private-evidence-directory-missing"
+            )
+        ) {
+            try store.termsConsentSnapshot()
         }
     }
 
@@ -931,6 +1025,7 @@ struct DeviceIngressRegistrationClientTests {
         }
     }
 
+    #if os(macOS)
     @Test
     func ignoredSourceLikeFileOutsideSwiftFileListIsRejectedByProvenanceGenerator() throws {
         let fileManager = FileManager.default
@@ -1141,6 +1236,7 @@ struct DeviceIngressRegistrationClientTests {
         #expect(process.terminationStatus == 65)
         #expect(errorText.contains("release build attestation refuses dirty"))
     }
+    #endif
 
     private struct Fixture {
         let subjectVault: EphemeralIdentityVault
@@ -1271,6 +1367,7 @@ struct DeviceIngressRegistrationClientTests {
         }
     }
 
+    #if os(macOS)
     private func writeTestFile(_ value: String, to url: URL) throws {
         try Data(value.utf8).write(to: url)
     }
@@ -1294,6 +1391,7 @@ struct DeviceIngressRegistrationClientTests {
             try #require(process.terminationStatus == 0)
         }
     }
+    #endif
 
     private func replaceFirstByte(
         in url: URL,

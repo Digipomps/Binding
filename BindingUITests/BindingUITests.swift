@@ -154,6 +154,64 @@ final class BindingUITests: XCTestCase {
     }
 
     @MainActor
+    func testLivePhysicalDeviceNotificationEnrollment() throws {
+        guard ProcessInfo.processInfo.environment[
+            "RUN_LIVE_DEVICE_INGRESS_ACCEPTANCE"
+        ] == "1" else {
+            throw XCTSkip("Requires an explicitly authorized physical-device staging run.")
+        }
+
+        let app = XCUIApplication()
+        app.launch()
+
+        let accept = app.buttons["Godta og fortsett"]
+        let retry = app.buttons["Registrer på nytt"]
+        if accept.waitForExistence(timeout: 90) {
+            accept.tap()
+        } else {
+            XCTAssertTrue(
+                retry.waitForExistence(timeout: 10),
+                "Neither notification consent nor registration retry was available."
+            )
+            retry.tap()
+        }
+
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let notificationAlert = springboard.alerts.firstMatch
+        if notificationAlert.waitForExistence(timeout: 8) {
+            let allow = notificationAlert.buttons["Tillat"].exists
+                ? notificationAlert.buttons["Tillat"]
+                : notificationAlert.buttons["Allow"]
+            if allow.exists {
+                allow.tap()
+            } else {
+                XCTAssertGreaterThan(
+                    notificationAlert.buttons.count,
+                    1,
+                    "Notification permission alert had no affirmative action."
+                )
+                notificationAlert.buttons.element(boundBy: 1).tap()
+            }
+        }
+
+        let verifiedReceipt = app.staticTexts.matching(
+            NSPredicate(
+                format: "label CONTAINS[c] %@",
+                "Registration evidence was verified"
+            )
+        ).firstMatch
+        XCTAssertTrue(
+            verifiedReceipt.waitForExistence(timeout: 60),
+            "No verified DeviceIngress registration receipt appeared."
+        )
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Physical iPad DeviceIngress registration receipt"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
