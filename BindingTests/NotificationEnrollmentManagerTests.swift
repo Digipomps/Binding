@@ -28,9 +28,30 @@ struct NotificationEnrollmentManagerTests {
         #expect(stringValue(payload["conferenceId"]) == "conf-1")
         #expect(stringArray(payload["subscriptionTopics"]) == WorkflowNotificationPreferences.defaultSubscriptionTopics)
         #expect(stringArray(payload["callbackCapabilities"]) == ["http", "background", "notification-response", "bridge"])
-        #expect(payload["termsAccepted"] == .bool(true))
+        #expect(payload["termsAccepted"] == nil)
         #expect(payload["termsConsentState"] == .string("accepted"))
         #expect(payload["termsAcceptanceEvidence"] == .object(consent.registrationObject))
+    }
+
+    @Test func termsAcceptanceDoesNotPersistBeforeAuthenticatedRuntime() async throws {
+        let suiteName = "NotificationEnrollmentManagerTests.auth.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let evidence = EnrollmentEvidenceStore(containsEvidence: false)
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: evidence,
+            authenticatedRuntimePreparer: {
+                throw DeviceIngressRegistrationClientError
+                    .authenticatedIdentityVaultUnavailable
+            }
+        )
+
+        await manager.acceptTermsAndEnableNotifications()
+
+        #expect(try evidence.termsConsentSnapshot().state == .unknown)
+        #expect(manager.needsTermsAcceptance)
+        #expect(manager.lastRegistrationError?.contains("Authentication is required") == true)
     }
 
     @Test func bridgePresenceQueryItemsCarryDeviceIdentityAndTopics() {

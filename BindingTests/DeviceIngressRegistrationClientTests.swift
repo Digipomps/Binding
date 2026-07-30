@@ -915,13 +915,15 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test @MainActor
-    func promptFreeStartupVaultCannotBeUsedAsAuthenticatedDeviceVault() {
+    func promptFreeStartupVaultCannotBeUsedAsAuthenticatedDeviceVault() async {
         let previousVault = CellBase.defaultIdentityVault
         defer { CellBase.defaultIdentityVault = previousVault }
         CellBase.defaultIdentityVault = BindingStartupIdentityVault.shared
 
-        #expect(throws: DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable) {
-            try DeviceIngressAuthenticatedVaultHandle.current()
+        await #expect(
+            throws: DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
+        ) {
+            try await DeviceIngressAuthenticatedVaultHandle.current()
         }
     }
 
