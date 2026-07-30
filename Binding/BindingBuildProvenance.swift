@@ -46,6 +46,8 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
     static let currentSchema = "binding.build-provenance.v4"
     static let resourceName = "BindingBuildProvenance"
     static let compilerInputManifestResourceName = "BindingCompilerInputManifest"
+    static let canonicalIOSBundleIdentifier = "org.digipomps.haven"
+    static let canonicalIOSTeamIdentifier = "5UT5HQTCV9"
     static let coverage =
         "exact-head+dirty-state+xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings"
 
@@ -274,15 +276,48 @@ nonisolated struct BindingBuildProvenance: Codable, Equatable, Sendable {
             guard runningFingerprint == provenance.codeSigningIdentityFingerprint else {
                 throw BindingBuildProvenanceError.codeSigningAuthorityMismatch
             }
+            #elseif os(iOS)
+            #if targetEnvironment(simulator)
+            // APNS DeviceIngress is a physical-device contract. A simulator
+            // build cannot provide that platform execution prerequisite.
+            throw BindingBuildProvenanceError.codeSigningAuthorityUnavailable
             #else
-            // Public iOS APIs do not expose the running leaf signing
-            // certificate needed to bind this Xcode attestation to the
-            // current process. Registration authority must therefore remain
-            // fail-closed until a reviewed iOS attestation design exists.
+            // iOS verifies the application code signature before launch, but
+            // does not expose the running leaf signing certificate through a
+            // public API. Validate the signed, build-generated provenance
+            // against the canonical App ID and team instead. This is a local
+            // platform execution prerequisite; it is not remote app-integrity
+            // attestation and must not be represented as App Attest.
+            try validateIOSPlatformSigning(
+                provenance,
+                bundleIdentifier: bundle.bundleIdentifier
+            )
+            #endif
+            #else
             throw BindingBuildProvenanceError.codeSigningAuthorityUnavailable
             #endif
         }
         return provenance
+    }
+
+    static func validateIOSPlatformSigning(
+        _ provenance: Self,
+        bundleIdentifier: String?,
+        expectedBundleIdentifier: String = canonicalIOSBundleIdentifier,
+        expectedTeamIdentifier: String = canonicalIOSTeamIdentifier
+    ) throws {
+        guard let bundleIdentifier,
+              isNonempty(bundleIdentifier),
+              isNonempty(expectedBundleIdentifier),
+              isNonempty(expectedTeamIdentifier) else {
+            throw BindingBuildProvenanceError.codeSigningAuthorityUnavailable
+        }
+        guard provenance.codeSigningMode == .certificate,
+              provenance.sdkName.lowercased().hasPrefix("iphoneos"),
+              bundleIdentifier == expectedBundleIdentifier,
+              provenance.codeSigningTeamIdentifier == expectedTeamIdentifier else {
+            throw BindingBuildProvenanceError.codeSigningAuthorityMismatch
+        }
     }
 
     var registrationObject: [String: JSONValue] {

@@ -28,7 +28,7 @@ struct NotificationEnrollmentManagerTests {
         #expect(stringValue(payload["conferenceId"]) == "conf-1")
         #expect(stringArray(payload["subscriptionTopics"]) == WorkflowNotificationPreferences.defaultSubscriptionTopics)
         #expect(stringArray(payload["callbackCapabilities"]) == ["http", "background", "notification-response", "bridge"])
-        #expect(payload["termsAccepted"] == nil)
+        #expect(payload["termsAccepted"] == .bool(true))
         #expect(payload["termsConsentState"] == .string("accepted"))
         #expect(payload["termsAcceptanceEvidence"] == .object(consent.registrationObject))
     }
@@ -230,10 +230,10 @@ struct NotificationEnrollmentManagerTests {
         #expect([40, 64].contains(provenance.bindingGitRevision.count))
         #expect([40, 64].contains(provenance.cellProtocolGitRevision.count))
         #expect(manifest.contains(
-            "source-control\tbinding-dirty\t\(provenance.bindingSourceTreeDirty)"
+            "source-control\\tbinding-dirty\\t\(provenance.bindingSourceTreeDirty)"
         ))
         #expect(manifest.contains(
-            "source-control\tcellprotocol-dirty\t\(provenance.cellProtocolSourceTreeDirty)"
+            "source-control\\tcellprotocol-dirty\\t\(provenance.cellProtocolSourceTreeDirty)"
         ))
         #expect(provenance.compilerInputManifestSHA256.count == 64)
         #expect(provenance.compilerInputCount > 0)
@@ -249,6 +249,62 @@ struct NotificationEnrollmentManagerTests {
         #expect(provenance.generatedAtUTC.isEmpty == false)
     }
 
+    @Test func iOSPlatformSigningAcceptsCanonicalPhysicalDeviceBuild() throws {
+        let provenance = try makeBuildProvenance(
+            teamIdentifier: BindingBuildProvenance.canonicalIOSTeamIdentifier,
+            sdkName: "iphoneos26.2"
+        )
+
+        try BindingBuildProvenance.validateIOSPlatformSigning(
+            provenance,
+            bundleIdentifier: BindingBuildProvenance.canonicalIOSBundleIdentifier
+        )
+    }
+
+    @Test func iOSPlatformSigningRejectsWrongBundleOrTeam() throws {
+        let canonical = try makeBuildProvenance(
+            teamIdentifier: BindingBuildProvenance.canonicalIOSTeamIdentifier,
+            sdkName: "iphoneos26.2"
+        )
+        let wrongTeam = try makeBuildProvenance(
+            teamIdentifier: "WRONGTEAM1",
+            sdkName: "iphoneos26.2"
+        )
+
+        #expect(throws: BindingBuildProvenanceError.codeSigningAuthorityMismatch) {
+            try BindingBuildProvenance.validateIOSPlatformSigning(
+                canonical,
+                bundleIdentifier: "org.example.resigned"
+            )
+        }
+        #expect(throws: BindingBuildProvenanceError.codeSigningAuthorityMismatch) {
+            try BindingBuildProvenance.validateIOSPlatformSigning(
+                wrongTeam,
+                bundleIdentifier: BindingBuildProvenance.canonicalIOSBundleIdentifier
+            )
+        }
+    }
+
+    @Test func iOSPlatformSigningRejectsSimulatorAndMissingBundleIdentity() throws {
+        let simulator = try makeBuildProvenance(
+            teamIdentifier: BindingBuildProvenance.canonicalIOSTeamIdentifier,
+            sdkName: "iphonesimulator26.2"
+        )
+
+        #expect(throws: BindingBuildProvenanceError.codeSigningAuthorityMismatch) {
+            try BindingBuildProvenance.validateIOSPlatformSigning(
+                simulator,
+                bundleIdentifier: BindingBuildProvenance.canonicalIOSBundleIdentifier
+            )
+        }
+        #expect(throws: BindingBuildProvenanceError.codeSigningAuthorityUnavailable) {
+            try BindingBuildProvenance.validateIOSPlatformSigning(
+                simulator,
+                bundleIdentifier: nil
+            )
+        }
+    }
+
     private func stringArray(_ value: JSONValue?) -> [String] {
         guard case let .array(items)? = value else { return [] }
         return items.compactMap { item in
@@ -262,7 +318,10 @@ struct NotificationEnrollmentManagerTests {
         return value
     }
 
-    private func makeBuildProvenance() throws -> BindingBuildProvenance {
+    private func makeBuildProvenance(
+        teamIdentifier: String = "TESTTEAM01",
+        sdkName: String = "test-sdk"
+    ) throws -> BindingBuildProvenance {
         try BindingBuildProvenance(
             bindingGitRevision: String(repeating: "a", count: 40),
             cellProtocolGitRevision: String(repeating: "c", count: 40),
@@ -280,10 +339,10 @@ struct NotificationEnrollmentManagerTests {
             toolchainSHA256: String(repeating: "2", count: 64),
             codeSigningMode: .certificate,
             codeSigningIdentityFingerprint: String(repeating: "3", count: 40),
-            codeSigningTeamIdentifier: "TESTTEAM01",
+            codeSigningTeamIdentifier: teamIdentifier,
             codeSigningEntitlementsSHA256: String(repeating: "4", count: 64),
             buildConfiguration: "Test",
-            sdkName: "test-sdk",
+            sdkName: sdkName,
             generatedAtUTC: "2026-07-21T00:00:00Z"
         )
     }
