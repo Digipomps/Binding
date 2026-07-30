@@ -82,6 +82,21 @@ Override defaults via env: `VERSION`, `DIST_DIR`, `ARCHS`, `BUILD_ROOT`,
 `CORRESPONDENCE_PREBUILT`, `SPROUT_BIN`, `APP_IDENTITY`,
 `INSTALLER_IDENTITY`, `STRIP`.
 
+## Internal two-laptop correspondence setup
+
+When Developer ID signing is temporarily unavailable, an operator may build a
+user-scoped internal-test ZIP containing only `haven-correspondence-mcp`:
+
+```bash
+swift build -c release --product haven-correspondence-mcp
+VERSION=0.3.1-internal.1 ./Packaging/build_correspondence_pilot_zip.sh
+```
+
+The ZIP is ad-hoc signed, does not require root, does not install a daemon and
+does not edit Claude/Codex configuration. It is intentionally marked as
+non-notarized and must not be represented as an external release. External
+pilots should receive the Developer ID-signed and notarized universal2 `.pkg`.
+
 ## Notarize + staple
 
 ```bash
