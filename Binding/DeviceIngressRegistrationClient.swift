@@ -2125,10 +2125,22 @@ nonisolated struct DeviceIngressAuthenticatedVaultHandle: Sendable {
     fileprivate let identityVault: any IdentityVaultProtocol
 
     @MainActor
-    static func current() throws -> Self {
+    static func current() async throws -> Self {
         guard BindingRuntimeBootstrap.authenticatedRuntimeIsReady,
               let identityVault = CellBase.defaultIdentityVault,
               identityVault is IdentityVault else {
+            throw DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
+        }
+        guard let privateIdentity = await identityVault.identity(
+            for: "private",
+            makeNewIfNotFound: false
+        ),
+              let privateBinding = await identityVault.identityDomainBinding(
+                for: privateIdentity
+              ),
+              privateBinding.domain == "private",
+              privateBinding.matches(identity: privateIdentity),
+              privateBinding.grantsAuthority == false else {
             throw DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
         }
         return Self(identityVault: identityVault)
@@ -2327,7 +2339,7 @@ enum BindingDeviceIngressRegistrationComposition {
         consentEvidence: NotificationTermsConsentEvidence,
         buildProvenance: BindingBuildProvenance
     ) async throws -> DeviceIngressRegistrationReceipt {
-        let vaultHandle = try DeviceIngressAuthenticatedVaultHandle.current()
+        let vaultHandle = try await DeviceIngressAuthenticatedVaultHandle.current()
         guard let notificationIdentity = await vaultHandle.identityVault.identity(
             for: DeviceIngressEnvelope.identityDomain,
             makeNewIfNotFound: true

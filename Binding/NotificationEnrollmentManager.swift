@@ -91,6 +91,8 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let evidenceInspectorFactory:
         @Sendable () throws -> any DeviceIngressRegistrationEvidenceStoring
     private let termsVersionProvider: @Sendable () -> String
+    private let authenticatedRuntimePreparer:
+        @MainActor @Sendable () async throws -> Void
 
     private let deviceIDKey = "binding.notifications.deviceId"
     private let termsVersionKey = "binding.notifications.termsVersion"
@@ -115,11 +117,17 @@ final class NotificationEnrollmentManager: ObservableObject {
         termsVersionProvider: @escaping @Sendable () -> String = {
             ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"]
                 ?? "v1"
+        },
+        authenticatedRuntimePreparer: @escaping
+            @MainActor @Sendable () async throws -> Void = {
+                await BindingRuntimeBootstrap.ensureBaseline()
+                _ = try await DeviceIngressAuthenticatedVaultHandle.current()
         }
     ) {
         self.defaults = defaults
         self.evidenceInspectorFactory = evidenceInspectorFactory
         self.termsVersionProvider = termsVersionProvider
+        self.authenticatedRuntimePreparer = authenticatedRuntimePreparer
         bootstrapIfNeeded()
     }
 
@@ -127,12 +135,15 @@ final class NotificationEnrollmentManager: ObservableObject {
     static func testing(
         defaults: UserDefaults,
         evidenceInspector: any DeviceIngressRegistrationEvidenceStoring,
-        requiredTermsVersion: String = "v1"
+        requiredTermsVersion: String = "v1",
+        authenticatedRuntimePreparer: @escaping
+            @MainActor @Sendable () async throws -> Void = {}
     ) -> NotificationEnrollmentManager {
         NotificationEnrollmentManager(
             defaults: defaults,
             evidenceInspectorFactory: { evidenceInspector },
-            termsVersionProvider: { requiredTermsVersion }
+            termsVersionProvider: { requiredTermsVersion },
+            authenticatedRuntimePreparer: authenticatedRuntimePreparer
         )
     }
     #endif
@@ -202,6 +213,18 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     func acceptTermsAndEnableNotifications() async {
         lastRegistrationError = nil
+        do {
+            // This is an explicit user action, so it may open CellApple's
+            // device-owner authentication UI. Background refresh paths must
+            // never trigger authentication implicitly.
+            try await authenticatedRuntimePreparer()
+        } catch {
+            isDeviceRegistered = false
+            lastRegistrationError =
+                "Authentication is required before notification terms can be accepted: "
+                + error.localizedDescription
+            return
+        }
         guard let evidence = NotificationTermsConsentEvidence(
             termsVersion: termsVersion(),
             acceptedAt: Date().timeIntervalSince1970
@@ -252,6 +275,15 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     func retryDeviceRegistration() async {
         lastRegistrationError = nil
+        do {
+            try await authenticatedRuntimePreparer()
+        } catch {
+            isDeviceRegistered = false
+            lastRegistrationError =
+                "Authentication is required before device registration can be retried: "
+                + error.localizedDescription
+            return
+        }
         #if os(iOS)
         await refreshPushAuthorizationStatus()
         if pushPermissionGranted {
