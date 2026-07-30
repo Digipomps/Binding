@@ -1552,6 +1552,39 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
 
         var opened: [PinnedDirectory] = []
         do {
+            #if os(iOS)
+            // iOS permits the app to open its own sandbox container path, but
+            // denies opening system-owned ancestors such as `/private` while
+            // walking from `/` with directory descriptors. `anchorPath` is
+            // already canonicalized from Foundation's app-owned Application
+            // Support URL. Pin that existing anchor directly, then keep every
+            // app-created descendant descriptor-relative and no-follow.
+            let anchorDescriptor = Darwin.open(
+                anchorPath,
+                O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW
+            )
+            guard anchorDescriptor >= 0 else {
+                throw DeviceIngressEvidenceFileError.posix(
+                    operation: "sandbox anchor directory open",
+                    code: errno
+                )
+            }
+            let anchorMetadata = try metadataForDescriptor(
+                anchorDescriptor,
+                operation: "anchor directory stat"
+            )
+            try DeviceIngressEvidenceMetadataPolicy.validateOwnedDirectory(
+                anchorMetadata,
+                expectedOwner: UInt32(geteuid())
+            )
+            opened.append(PinnedDirectory(
+                descriptor: anchorDescriptor,
+                parentIndex: nil,
+                nameInParent: nil,
+                requiresOwnedMetadata: true,
+                requiresPrivateMetadata: false
+            ))
+            #else
             let rootDescriptor = Darwin.open(
                 "/",
                 O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW
@@ -1605,6 +1638,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
                 ),
                 expectedOwner: UInt32(geteuid())
             )
+            #endif
 
             guard let privateDirectoryIndex = relativeDirectoryComponents.indices.last else {
                 throw DeviceIngressEvidenceFileError.metadataRejected(

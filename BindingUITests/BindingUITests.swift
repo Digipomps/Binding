@@ -135,13 +135,24 @@ final class BindingUITests: XCTestCase {
                 "Registration evidence was verified"
             )
         ).firstMatch
-        XCTAssertTrue(
-            verifiedReceipt.waitForExistence(timeout: 60),
-            "No verified DeviceIngress registration receipt appeared."
-        )
+        guard verifiedReceipt.waitForExistence(timeout: 60) else {
+            let visibleLabels = app.staticTexts.allElementsBoundByIndex
+                .map(\.label)
+                .filter { $0.isEmpty == false }
+                .joined(separator: " | ")
+            let failureAttachment = XCTAttachment(screenshot: app.screenshot())
+            failureAttachment.name = "Physical DeviceIngress registration failure"
+            failureAttachment.lifetime = .keepAlways
+            add(failureAttachment)
+            XCTFail(
+                "No verified DeviceIngress registration receipt appeared. "
+                    + "Visible labels: \(visibleLabels)"
+            )
+            return
+        }
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Physical iPad DeviceIngress registration receipt"
+        attachment.name = "Physical DeviceIngress registration receipt"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
