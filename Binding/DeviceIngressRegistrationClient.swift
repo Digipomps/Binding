@@ -900,6 +900,23 @@ nonisolated struct DeviceIngressEvidenceMetadataSnapshot: Equatable, Sendable {
 }
 
 nonisolated enum DeviceIngressEvidenceMetadataPolicy {
+    static func validateOwnedDirectory(
+        _ metadata: DeviceIngressEvidenceMetadataSnapshot,
+        expectedOwner: UInt32
+    ) throws {
+        guard metadata.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else {
+            throw DeviceIngressEvidenceFileError.metadataRejected(reason: "not-directory")
+        }
+        guard metadata.mode & 0o022 == 0 else {
+            throw DeviceIngressEvidenceFileError.metadataRejected(
+                reason: "directory-group-or-other-writable"
+            )
+        }
+        guard metadata.owner == expectedOwner else {
+            throw DeviceIngressEvidenceFileError.metadataRejected(reason: "directory-owner")
+        }
+    }
+
     static func validateDirectory(
         _ metadata: DeviceIngressEvidenceMetadataSnapshot,
         expectedOwner: UInt32
@@ -1004,6 +1021,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
         let descriptor: Int32
         let parentIndex: Int?
         let nameInParent: String?
+        let requiresOwnedMetadata: Bool
         let requiresPrivateMetadata: Bool
     }
 
@@ -1026,6 +1044,23 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
             directoryURL.deletingLastPathComponent().standardizedFileURL.path
         )
         relativeDirectoryComponents = [directoryURL.lastPathComponent]
+        self.synchronizer = synchronizer
+        self.readObserver = readObserver
+        journalAnchorStorage = .testFile
+    }
+
+    init(
+        testingAnchorDirectoryURL: URL,
+        relativeDirectoryComponents: [String],
+        synchronizer: any DeviceIngressDurabilitySynchronizing =
+            DarwinDeviceIngressDurabilitySynchronizer(),
+        readObserver: any DeviceIngressEvidenceReadObserving =
+            NoopDeviceIngressEvidenceReadObserver()
+    ) {
+        anchorPath = Self.canonicalExistingPath(
+            testingAnchorDirectoryURL.standardizedFileURL.path
+        )
+        self.relativeDirectoryComponents = relativeDirectoryComponents
         self.synchronizer = synchronizer
         self.readObserver = readObserver
         journalAnchorStorage = .testFile
@@ -1531,6 +1566,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
                 descriptor: rootDescriptor,
                 parentIndex: nil,
                 nameInParent: nil,
+                requiresOwnedMetadata: false,
                 requiresPrivateMetadata: false
             ))
 
@@ -1546,6 +1582,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
                 try appendPinnedDirectory(
                     component,
                     createIfMissing: false,
+                    requiresOwnedMetadata: false,
                     requiresPrivateMetadata: false,
                     to: &opened
                 )
@@ -1558,9 +1595,10 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
                 descriptor: opened[anchorIndex].descriptor,
                 parentIndex: opened[anchorIndex].parentIndex,
                 nameInParent: opened[anchorIndex].nameInParent,
-                requiresPrivateMetadata: true
+                requiresOwnedMetadata: true,
+                requiresPrivateMetadata: false
             )
-            try DeviceIngressEvidenceMetadataPolicy.validateDirectory(
+            try DeviceIngressEvidenceMetadataPolicy.validateOwnedDirectory(
                 try metadataForDescriptor(
                     opened[anchorIndex].descriptor,
                     operation: "anchor directory stat"
@@ -1568,11 +1606,18 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
                 expectedOwner: UInt32(geteuid())
             )
 
-            for component in relativeDirectoryComponents {
+            guard let privateDirectoryIndex = relativeDirectoryComponents.indices.last else {
+                throw DeviceIngressEvidenceFileError.metadataRejected(
+                    reason: "private-evidence-directory-missing"
+                )
+            }
+            for (index, component) in relativeDirectoryComponents.enumerated() {
                 try appendPinnedDirectory(
                     component,
                     createIfMissing: true,
-                    requiresPrivateMetadata: true,
+                    requiresOwnedMetadata: true,
+                    // Shared app namespaces may be 0755, but the evidence leaf remains 0700.
+                    requiresPrivateMetadata: index == privateDirectoryIndex,
                     to: &opened
                 )
             }
@@ -1591,6 +1636,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
     private func appendPinnedDirectory(
         _ component: String,
         createIfMissing: Bool,
+        requiresOwnedMetadata: Bool,
         requiresPrivateMetadata: Bool,
         to opened: inout [PinnedDirectory]
     ) throws {
@@ -1619,6 +1665,11 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
                 before,
                 expectedOwner: UInt32(geteuid())
             )
+        } else if requiresOwnedMetadata {
+            try DeviceIngressEvidenceMetadataPolicy.validateOwnedDirectory(
+                before,
+                expectedOwner: UInt32(geteuid())
+            )
         } else {
             guard before.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else {
                 throw DeviceIngressEvidenceFileError.metadataRejected(
@@ -1642,6 +1693,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
             descriptor: descriptor,
             parentIndex: opened.index(before: opened.endIndex),
             nameInParent: component,
+            requiresOwnedMetadata: requiresOwnedMetadata,
             requiresPrivateMetadata: requiresPrivateMetadata
         ))
     }
@@ -1655,6 +1707,11 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
             )
             if directory.requiresPrivateMetadata {
                 try DeviceIngressEvidenceMetadataPolicy.validateDirectory(
+                    descriptorMetadata,
+                    expectedOwner: UInt32(geteuid())
+                )
+            } else if directory.requiresOwnedMetadata {
+                try DeviceIngressEvidenceMetadataPolicy.validateOwnedDirectory(
                     descriptorMetadata,
                     expectedOwner: UInt32(geteuid())
                 )
