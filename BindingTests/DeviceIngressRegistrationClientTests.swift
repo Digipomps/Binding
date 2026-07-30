@@ -939,6 +939,46 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test
+    func runtimeConfigurationPinsExactStagingScaffoldIssuer() throws {
+        let configuration = try BindingDeviceIngressRuntimeConfiguration.validated(
+            originText: "https://staging.haven.digipomps.org",
+            audienceText: "staging.haven.digipomps.org",
+            issuerBase64Text: "eyJhbGdvcml0aG0iOiJFZERTQSIsImN1cnZlVHlwZSI6IkN1cnZlMjU1MTkiLCJwdWJsaWNLZXkiOiJPb0tqN3Q4L2dXajVKRFhwbjVuZmdUcFZoMTAxbWtGcFNIeG9JOWtoOEdJPSIsInV1aWQiOiI2N0YxMjU2Ny1BMUFBLTQ0NjUtQUNBRi1GRkQ5RUE0RUQzOTIifQ=="
+        )
+
+        #expect(configuration.origin.absoluteString == "https://staging.haven.digipomps.org")
+        #expect(configuration.trust.expectedAudience == "staging.haven.digipomps.org")
+        #expect(
+            configuration.trust.expectedChallengeIssuer.uuid
+                == "67F12567-A1AA-4465-ACAF-FFD9EA4ED392"
+        )
+        #expect(
+            configuration.trust.expectedChallengeIssuer.publicKey
+                == Data(base64Encoded: "OoKj7t8/gWj5JDXpn5nfgTpVh101mkFpSHxoI9kh8GI=")
+        )
+    }
+
+    @Test
+    func runtimeConfigurationRejectsAudienceOrIssuerSubstitution() {
+        let issuer = "eyJhbGdvcml0aG0iOiJFZERTQSIsImN1cnZlVHlwZSI6IkN1cnZlMjU1MTkiLCJwdWJsaWNLZXkiOiJPb0tqN3Q4L2dXajVKRFhwbjVuZmdUcFZoMTAxbWtGcFNIeG9JOWtoOEdJPSIsInV1aWQiOiI2N0YxMjU2Ny1BMUFBLTQ0NjUtQUNBRi1GRkQ5RUE0RUQzOTIifQ=="
+
+        #expect(throws: DeviceIngressRegistrationClientError.invalidTransportConfiguration) {
+            try BindingDeviceIngressRuntimeConfiguration.validated(
+                originText: "https://staging.haven.digipomps.org",
+                audienceText: "attacker.example",
+                issuerBase64Text: issuer
+            )
+        }
+        #expect(throws: DeviceIngressRegistrationClientError.invalidTransportConfiguration) {
+            try BindingDeviceIngressRuntimeConfiguration.validated(
+                originText: "https://staging.haven.digipomps.org",
+                audienceText: "staging.haven.digipomps.org",
+                issuerBase64Text: "not-a-public-identity"
+            )
+        }
+    }
+
+    @Test
     func httpsTransportPostsCanonicalChallengeAndRegisterEnvelopes() async throws {
         let fixture = try await makeFixture()
         let challengeResponse = Data("challenge-response".utf8)
