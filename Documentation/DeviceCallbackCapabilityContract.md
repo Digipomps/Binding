@@ -6,7 +6,7 @@ send APNS, and is not an operational device-registration release.
 ## Exact source boundary
 
 - Binding base: `3791a431ddb3353c33a657a7bf2cb03cb6f557ea`
-- CellProtocol DeviceIngress v3: `79ce4f84666fedc446a1c80ab8adce1e7e3898e0`
+- CellProtocol DeviceIngress v3: `35c8484c35a8f5e6e04b003c2b58c0981e6972f3`
 - Candidate state: uncommitted pending independent review
 - CellScaffold transport-contract reference only: draft PR #33 head
   `38195a233b84d09f66e5ef483800228f857fff2a`
