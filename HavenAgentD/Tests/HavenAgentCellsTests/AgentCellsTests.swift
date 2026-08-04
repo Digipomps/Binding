@@ -349,7 +349,7 @@ struct AgentCellsTests {
         let cells = await AgentCellRegistry.instantiateDefaultCells(owner: owner)
 
         #expect(cells.count == AgentCellRegistry.concreteDescriptors.count)
-        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox, .signatureStatements])
+        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox, .signatureStatements, .personalButlerSchedule])
         #expect(cells.contains { $0 is AgentSupervisorCell })
         #expect(cells.contains { $0 is AgentIdentityCell })
         #expect(cells.contains { $0 is RemoteIntentInboxCell })
