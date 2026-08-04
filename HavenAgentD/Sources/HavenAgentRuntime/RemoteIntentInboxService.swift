@@ -14,11 +14,18 @@ public enum RemoteIntentInboxService {
         }
 
         if let scheduleService = await AgentRuntimeBridge.shared.personalButlerScheduleServiceSnapshot() {
-            let outcome = await scheduleService.handleRemoteWake(intent: intent)
+            guard let currentPolicy = await AgentRuntimeBridge.shared.remoteIntentPolicySnapshot() else {
+                throw RemoteIntentVerificationError.policyUnavailable
+            }
+            let executionIntent = try RemoteIntentVerifier.reverifyQueuedIntent(
+                intent,
+                policy: currentPolicy
+            )
+            let outcome = await scheduleService.handleRemoteWake(intent: executionIntent)
             if outcome != .notApplicable {
-                let audit = makeAutomaticAuditRecord(intent: intent, outcome: outcome)
+                let audit = makeAutomaticAuditRecord(intent: executionIntent, outcome: outcome)
                 await AgentRuntimeBridge.shared.appendRemoteIntentAuditRecord(audit)
-                return intent
+                return executionIntent
             }
         } else if intent.actionID == PersonalButlerScheduleService.remoteWakeActionID {
             let audit = makeAutomaticAuditRecord(

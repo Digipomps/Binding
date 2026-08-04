@@ -33,7 +33,7 @@ Binding is now treated as a standalone app product, so agent-specific operator/a
 - verifies the persisted Binding<->agent pairing artifact before treating an operator identity as paired
 - lets `sprout bootstrap join` consume purpose-bound entity-link evidence generated from the Binding<->agent pairing flow
 - installs those cells into a local `CellResolver` graph during `run`
-- verifies signed remote intent envelopes against a local trusted-issuer policy before queueing them
+- verifies signed remote intent envelopes against a fail-closed local trusted-issuer policy before queueing them and again immediately before execution
 - allows explicit approve/reject review of verified intents before any remote side effect is dispatched
 - surfaces native porthole ingress status in runtime state and the supervisor cell
 - exposes a loopback-only, token-gated local CellProtocol control bridge for operator tooling
@@ -212,7 +212,7 @@ The current remote flow is:
 3. `PortholeIngressSession` loads each fresh artifact into a native `PortholeClientSession` and subscribes to the live bridge websocket.
 4. Signed envelope-shaped flow events are verified and queued through the same remote-intent policy path as `RemoteIntentInboxCell.enqueueSigned`.
 5. `RemoteIntentReviewCell.approve` or `reject` records an audit decision.
-6. Approved intents dispatch through `RemoteIntentExecutionBridge`, which still enforces the local automation allowlist for remote execution.
+6. Approved intents dispatch through `RemoteIntentExecutionBridge`, which revalidates signature, expiry and current issuer policy before enforcing the local automation allowlist for remote execution. A stored `verificationStatus` string alone cannot authorize dispatch.
 
 The current local identity-pairing flow is:
 

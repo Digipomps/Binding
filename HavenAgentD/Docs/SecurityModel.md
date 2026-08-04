@@ -142,9 +142,13 @@ Each trusted issuer entry supplies:
 - the topics that issuer may send
 - the action IDs that issuer may request
 
+Both per-issuer allowlists are mandatory and fail closed. An empty topic list,
+an empty action-ID list, or more than one issuer entry with the same issuer ID
+authorizes nothing.
+
 The envelope may prove that a trusted issuer signed the payload, but it cannot upgrade its own authority beyond what the local policy says that issuer may do.
 
-## Why expiry and nonce checks happen before queueing
+## Why verification happens before queueing and again before execution
 
 `RemoteIntentInboxCell.enqueueSigned` and the native `PortholeIngressSession` now verify:
 
@@ -155,6 +159,18 @@ The envelope may prove that a trusted issuer signed the payload, but it cannot u
 - nonce uniqueness with persisted replay state across normal restarts
 
 This happens before the intent is appended to the queue. Rejected envelopes emit a rejection flow event instead of silently failing open.
+
+The queue persists the signature together with the exact signed payload fields.
+Immediately before dispatch, the execution bridge reconstructs the canonical
+payload and verifies the signature, expiry, issuer trust and current per-issuer
+allowlists again. The stored `verificationStatus` string is not authority by
+itself. Legacy or locally constructed queue entries without signed-envelope
+evidence cannot enter the remote execution path.
+
+The execution-time check does not consume the nonce again. Replay protection is
+still established once during inbox admission and remains persisted across
+normal restarts; execution-time verification is a freshness and current-policy
+check of that already admitted envelope.
 
 ## Why native porthole ingress is artifact-derived
 
@@ -199,6 +215,7 @@ The agent now has a `RemoteIntentReviewCell`, but approval still sits between in
 
 - inbox verification proves the payload came from a trusted issuer
 - review decides whether that verified request should be acted on locally
+- execution revalidates the signed payload against expiry and the current issuer policy
 - execution still goes back through the local automation allowlist using remote origin rules
 
 That means a valid signature is necessary, but not sufficient, for a remote side effect to happen.

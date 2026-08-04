@@ -44,7 +44,8 @@ public struct RemoteIntentPolicy: Codable, Equatable, Sendable {
     }
 
     public func issuer(for issuerID: String) -> TrustedRemoteIntentIssuer? {
-        issuers.first { $0.issuerID == issuerID }
+        let matches = issuers.filter { $0.issuerID == issuerID }
+        return matches.count == 1 ? matches[0] : nil
     }
 }
 
@@ -92,7 +93,10 @@ public struct SignedRemoteIntentEnvelope: Codable, Equatable, Sendable {
 public enum RemoteIntentVerificationError: Error, Equatable, Sendable, LocalizedError {
     case policyUnavailable
     case untrustedIssuer(String)
+    case ambiguousIssuer(String)
     case invalidIssuerKey(String)
+    case issuerTopicsNotConfigured(String)
+    case issuerActionsNotConfigured(String)
     case missingExpiry
     case invalidTimestamp(String)
     case envelopeExpired
@@ -110,8 +114,14 @@ public enum RemoteIntentVerificationError: Error, Equatable, Sendable, Localized
             return "Remote intent policy is not configured."
         case .untrustedIssuer(let issuerID):
             return "Remote issuer is not trusted: \(issuerID)"
+        case .ambiguousIssuer(let issuerID):
+            return "Remote issuer policy is ambiguous because the issuer ID is configured more than once: \(issuerID)"
         case .invalidIssuerKey(let issuerID):
             return "Trusted issuer key is invalid for: \(issuerID)"
+        case .issuerTopicsNotConfigured(let issuerID):
+            return "Trusted remote issuer has no allowed topics configured: \(issuerID)"
+        case .issuerActionsNotConfigured(let issuerID):
+            return "Trusted remote issuer has no allowed actions configured: \(issuerID)"
         case .missingExpiry:
             return "Signed remote intent is missing expiresAt."
         case .invalidTimestamp(let field):
@@ -145,13 +155,23 @@ public enum RemoteIntentVerifier {
         let payload = envelope.payload
         try validatePayloadShape(payload, policy: policy)
 
-        guard let issuer = policy.issuer(for: payload.issuerID) else {
+        let matchingIssuers = policy.issuers.filter { $0.issuerID == payload.issuerID }
+        guard let issuer = matchingIssuers.first else {
             throw RemoteIntentVerificationError.untrustedIssuer(payload.issuerID)
         }
-        if !issuer.allowedTopics.isEmpty && !issuer.allowedTopics.contains(payload.topic) {
+        guard matchingIssuers.count == 1 else {
+            throw RemoteIntentVerificationError.ambiguousIssuer(payload.issuerID)
+        }
+        guard !issuer.allowedTopics.isEmpty else {
+            throw RemoteIntentVerificationError.issuerTopicsNotConfigured(issuer.issuerID)
+        }
+        guard !issuer.allowedActionIDs.isEmpty else {
+            throw RemoteIntentVerificationError.issuerActionsNotConfigured(issuer.issuerID)
+        }
+        if !issuer.allowedTopics.contains(payload.topic) {
             throw RemoteIntentVerificationError.topicNotAllowed(payload.topic)
         }
-        if !issuer.allowedActionIDs.isEmpty && !issuer.allowedActionIDs.contains(payload.actionID) {
+        if !issuer.allowedActionIDs.contains(payload.actionID) {
             throw RemoteIntentVerificationError.actionNotAllowed(payload.actionID)
         }
 
@@ -197,7 +217,47 @@ public enum RemoteIntentVerifier {
             issuerID: payload.issuerID,
             issuedAt: payload.issuedAt,
             expiresAt: payload.expiresAt,
+            signatureBase64: envelope.signatureBase64,
             verificationStatus: "verified"
+        )
+    }
+
+    /// Reconstructs and verifies the signed envelope represented by a queued intent.
+    /// Replay state is deliberately not mutated here: the nonce was consumed during
+    /// inbox admission, while signature, expiry and current issuer policy must be
+    /// checked again before dispatch.
+    public static func reverifyQueuedIntent(
+        _ intent: QueuedRemoteIntent,
+        policy: RemoteIntentPolicy,
+        now: Date = Date()
+    ) throws -> QueuedRemoteIntent {
+        guard let issuerID = intent.issuerID, !issuerID.isEmpty else {
+            throw RemoteIntentVerificationError.invalidPayload("queuedIntent.issuerID")
+        }
+        guard let issuedAt = intent.issuedAt, !issuedAt.isEmpty else {
+            throw RemoteIntentVerificationError.invalidPayload("queuedIntent.issuedAt")
+        }
+        guard let signatureBase64 = intent.signatureBase64, !signatureBase64.isEmpty else {
+            throw RemoteIntentVerificationError.invalidPayload("queuedIntent.signatureBase64")
+        }
+
+        let payload = SignedRemoteIntentPayload(
+            issuerID: issuerID,
+            nonce: intent.id,
+            topic: intent.topic,
+            origin: intent.origin,
+            actionID: intent.actionID,
+            arguments: intent.arguments,
+            issuedAt: issuedAt,
+            expiresAt: intent.expiresAt
+        )
+        return try verify(
+            envelope: SignedRemoteIntentEnvelope(
+                payload: payload,
+                signatureBase64: signatureBase64
+            ),
+            policy: policy,
+            now: now
         )
     }
 

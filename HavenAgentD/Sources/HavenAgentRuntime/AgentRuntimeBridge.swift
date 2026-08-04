@@ -10,6 +10,7 @@ public struct QueuedRemoteIntent: Codable, Equatable, Sendable {
     public var issuerID: String?
     public var issuedAt: String?
     public var expiresAt: String?
+    public var signatureBase64: String?
     public var verificationStatus: String
 
     public init(
@@ -22,6 +23,7 @@ public struct QueuedRemoteIntent: Codable, Equatable, Sendable {
         issuerID: String? = nil,
         issuedAt: String? = nil,
         expiresAt: String? = nil,
+        signatureBase64: String? = nil,
         verificationStatus: String = "local"
     ) {
         self.id = id
@@ -33,6 +35,7 @@ public struct QueuedRemoteIntent: Codable, Equatable, Sendable {
         self.issuerID = issuerID
         self.issuedAt = issuedAt
         self.expiresAt = expiresAt
+        self.signatureBase64 = signatureBase64
         self.verificationStatus = verificationStatus
     }
 }
