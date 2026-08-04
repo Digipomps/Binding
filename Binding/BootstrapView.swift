@@ -254,6 +254,7 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await registerCellAppleUtilityCells(on: resolver)
+        await registerEntityScannerCell(on: resolver)
         await registerChatWorkbenchParityCells(on: resolver)
         await register(
             name: "EventEmitter",
@@ -559,6 +560,20 @@ actor BindingLocalCellRegistration {
             type: PerspectiveCell.self,
             resolver: resolver
         )
+    }
+
+    private static func registerEntityScannerCell(on resolver: CellResolver) async {
+        do {
+            try await AppInitializer.registerEntityScannerResolve(on: resolver)
+        } catch {
+            let errorDescription = String(describing: error).lowercased()
+            guard !errorDescription.contains("duplicatedendpointname"),
+                  !errorDescription.contains("registeratalreadytakenendpoint"),
+                  !errorDescription.contains("duplicatedcodingname") else {
+                return
+            }
+            print("HAVEN local cell registration failed for EntityScanner: \(error)")
+        }
     }
 
     private static func registerCellAppleUtilityCells(on resolver: CellResolver) async {

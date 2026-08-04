@@ -6,6 +6,9 @@ IPAD_DEVICE_ID="${IPAD_DEVICE_ID:-90C8A134-0A1A-5026-8C21-0DA21DC67AA8}"
 BUNDLE_ID="${BUNDLE_ID:-org.digipomps.havenplayground}"
 DEEP_LINK="${DEEP_LINK:-haven://conference-automation?action=open-nearby-scanner}"
 SKIP_INSTALL="${SKIP_INSTALL:-0}"
+ENABLE_CONFERENCE_AUTOMATION="${ENABLE_CONFERENCE_AUTOMATION:-1}"
+CONFERENCE_AUTOMATION_DEEPLINK_ARGUMENT="${CONFERENCE_AUTOMATION_DEEPLINK_ARGUMENT:---enable-conference-automation-deeplinks}"
+POST_LAUNCH_SETTLE_SECONDS="${POST_LAUNCH_SETTLE_SECONDS:-6}"
 
 usage() {
   cat <<USAGE
@@ -21,6 +24,12 @@ Environment:
   BUNDLE_ID        App bundle id. Default: ${BUNDLE_ID}
   DEEP_LINK        Scanner deep link. Default: ${DEEP_LINK}
   SKIP_INSTALL     Set to 1 to skip install and only launch.
+  ENABLE_CONFERENCE_AUTOMATION
+                   Set to 0 to omit the conference automation deep-link launch argument.
+  CONFERENCE_AUTOMATION_DEEPLINK_ARGUMENT
+                   Launch argument used to opt into automation deep links without verifier runtime.
+  POST_LAUNCH_SETTLE_SECONDS
+                   Seconds to wait before checking that HAVEN is still running. Default: ${POST_LAUNCH_SETTLE_SECONDS}
 USAGE
 }
 
@@ -78,12 +87,47 @@ fi
 
 for device in "${PHONE_DEVICE_ID}" "${IPAD_DEVICE_ID}"; do
   echo "Launching nearby scanner on ${device}"
-  xcrun devicectl device process launch \
-    --device "${device}" \
-    --terminate-existing \
-    --payload-url "${DEEP_LINK}" \
-    "${BUNDLE_ID}"
+  launch_args=()
+  if [[ "${ENABLE_CONFERENCE_AUTOMATION}" == "1" ]]; then
+    launch_args+=("${CONFERENCE_AUTOMATION_DEEPLINK_ARGUMENT}")
+  fi
+  if ! xcrun devicectl device process launch \
+      --device "${device}" \
+      --terminate-existing \
+      --payload-url "${DEEP_LINK}" \
+      "${BUNDLE_ID}" \
+      "${launch_args[@]}"; then
+    echo "Launch failed on ${device}; retrying once after CoreDevice settles" >&2
+    sleep 3
+    xcrun devicectl device process launch \
+      --device "${device}" \
+      --terminate-existing \
+      --payload-url "${DEEP_LINK}" \
+      "${BUNDLE_ID}" \
+      "${launch_args[@]}"
+  fi
 done
+
+if [[ "${POST_LAUNCH_SETTLE_SECONDS}" != "0" ]]; then
+  echo "Waiting ${POST_LAUNCH_SETTLE_SECONDS}s for post-launch stability"
+  sleep "${POST_LAUNCH_SETTLE_SECONDS}"
+fi
+
+process_check_failed=0
+for device in "${PHONE_DEVICE_ID}" "${IPAD_DEVICE_ID}"; do
+  echo "Checking HAVEN process on ${device}"
+  if xcrun devicectl device info processes --device "${device}" | grep -q "HAVEN.app/HAVEN"; then
+    echo "OK: HAVEN is still running on ${device}"
+  else
+    echo "FAIL: HAVEN is not running on ${device}" >&2
+    process_check_failed=1
+  fi
+done
+
+if [[ "${process_check_failed}" != "0" ]]; then
+  echo "Nearby scanner launch stability check failed." >&2
+  exit "${process_check_failed}"
+fi
 
 echo
 echo "Manual acceptance checklist:"

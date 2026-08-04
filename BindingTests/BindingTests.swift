@@ -512,6 +512,21 @@ final class BindingRuntimeBootstrapXCTest: XCTestCase {
         XCTAssertTrue(verifierPath.hasPrefix(NSTemporaryDirectory()))
         XCTAssertTrue(verifierPath.hasSuffix("Binding/CellDocumentRoot"))
     }
+
+    func testNearbyScannerPersonalShellMetadataStaysLightweight() {
+        let configuration = BindingPersonalCopilotDestination.entityScanner.shellConfiguration
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+
+        XCTAssertEqual(configuration.name, "Entity Scanner")
+        XCTAssertEqual(configuration.description, "Nearby scanning og signed contact flow.")
+        XCTAssertEqual(configuration.discovery?.sourceCellEndpoint, "cell:///EntityScanner")
+        XCTAssertNil(configuration.cellReferences)
+        XCTAssertEqual(metadata.policyCategory, "hardware-scanner")
+        XCTAssertEqual(metadata.presentationClass, "hero")
+        XCTAssertEqual(metadata.nativePermissionRequests, ["nearby", "bluetooth"])
+        XCTAssertTrue(BindingPersonalCopilotDestination.entityScanner.matches(configurationName: "Entity Scanner"))
+        XCTAssertTrue(BindingPersonalCopilotDestination.inviteChat.matches(configurationName: "Co-Pilot Chat"))
+    }
 }
 
 @Suite(.serialized)
@@ -582,10 +597,29 @@ struct BindingTests {
         #expect(configuration.name == "Entity Scanner")
         #expect(configuration.discovery?.sourceCellEndpoint == "cell:///EntityScanner")
         #expect(configuration.discovery?.menuSlots == ["upperLeft", "lowerLeft"])
+        let references = configuration.cellReferences ?? []
+        #expect(!references.contains(where: { RemoteCatalogSupport.isRemoteEndpoint($0.endpoint) }))
+        #expect(references.contains(where: { $0.endpoint == "cell:///EntityScanner" }))
+        #expect(references.contains(where: { $0.endpoint == "cell:///ConferenceNearbyRadar" }))
         #expect(metadata.policyCategory == "hardware-scanner")
         #expect(metadata.surfaceFamily == "intelligence")
         #expect(metadata.presentationClass == "hero")
         #expect(metadata.nativePermissionRequests == ["nearby", "bluetooth"])
+    }
+
+    @Test func nearbyScannerPersonalShellMetadataStaysLightweight() {
+        let configuration = BindingPersonalCopilotDestination.entityScanner.shellConfiguration
+        let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
+
+        #expect(configuration.name == "Entity Scanner")
+        #expect(configuration.description == "Nearby scanning og signed contact flow.")
+        #expect(configuration.discovery?.sourceCellEndpoint == "cell:///EntityScanner")
+        #expect(configuration.cellReferences == nil)
+        #expect(metadata.policyCategory == "hardware-scanner")
+        #expect(metadata.presentationClass == "hero")
+        #expect(metadata.nativePermissionRequests == ["nearby", "bluetooth"])
+        #expect(BindingPersonalCopilotDestination.entityScanner.matches(configurationName: "Entity Scanner"))
+        #expect(BindingPersonalCopilotDestination.inviteChat.matches(configurationName: "Co-Pilot Chat"))
     }
 
     @Test func stagingSurfaceTestingModeIsDebugOnlyAndCanBeDisabled() {
@@ -2618,6 +2652,15 @@ struct BindingTests {
                 persistedOptIn: false
             ) == true
         )
+
+        #expect(
+            ContentView.conferenceAutomationEnabled(
+                debugPanelVisible: false,
+                environment: [:],
+                launchArguments: ["Binding", ContentView.conferenceAutomationDeepLinkLaunchArgument],
+                persistedOptIn: false
+            ) == true
+        )
     }
 
     @Test func conferenceAutomationUsesStartupRuntimeBootstrap() {
@@ -2639,6 +2682,13 @@ struct BindingTests {
             !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier(
                 environment: [:],
                 launchArguments: ["Binding"]
+            )
+        )
+
+        #expect(
+            !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier(
+                environment: [:],
+                launchArguments: ["Binding", ContentView.conferenceAutomationDeepLinkLaunchArgument]
             )
         )
     }
@@ -2670,6 +2720,14 @@ struct BindingTests {
             ContentView.conferenceAutomationGlobalOptInEnabled(
                 environment: [:],
                 launchArguments: ["Binding", "--enable-conference-automation"],
+                persistedOptIn: false
+            ) == true
+        )
+
+        #expect(
+            ContentView.conferenceAutomationGlobalOptInEnabled(
+                environment: [:],
+                launchArguments: ["Binding", ContentView.conferenceAutomationDeepLinkLaunchArgument],
                 persistedOptIn: false
             ) == true
         )
@@ -3504,7 +3562,7 @@ struct BindingTests {
             let references = configuration.cellReferences ?? []
             #expect(references.contains(where: { $0.endpoint == "cell:///EntityScanner" }))
             #expect(references.contains(where: { $0.endpoint == "cell:///ConferenceNearbyRadar" }))
-            #expect(!references.contains(where: { $0.endpoint.contains("staging.haven.digipomps.org/EntityScanner") }))
+            #expect(!references.contains(where: { RemoteCatalogSupport.isRemoteEndpoint($0.endpoint) }))
 
             guard let skeleton = configuration.skeleton else {
                 Issue.record("\(configuration.name) mangler skeleton")

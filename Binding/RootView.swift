@@ -12,6 +12,7 @@ import DiMyCellProtocolCells
 #endif
 
 struct RootView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var initialized = false
 
     var body: some View {
@@ -57,8 +58,12 @@ struct RootView: View {
             ZStack {
                 launchBackgroundColor
                     .ignoresSafeArea()
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
+                    HavenArcMark(color: colorScheme == .dark ? HavenBrandPalette.cream : HavenBrandPalette.strong)
+                        .frame(width: 88, height: 88)
+                        .padding(.bottom, 2)
                     ProgressView()
+                        .tint(colorScheme == .dark ? HavenBrandPalette.accentDark : HavenBrandPalette.accent)
                     Text("Starter HAVEN-runtime…")
                         .font(.headline)
                     Text("Klargjør privat chat og arbeidsflate.")
@@ -71,10 +76,6 @@ struct RootView: View {
     }
 
     private var launchBackgroundColor: Color {
-#if os(iOS)
-        Color(uiColor: .systemBackground)
-#else
-        Color(nsColor: .windowBackgroundColor)
-#endif
+        colorScheme == .dark ? HavenBrandPalette.darkCanvas : HavenBrandPalette.canvas
     }
 }

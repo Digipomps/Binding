@@ -328,7 +328,134 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     }
 
     var systemImage: String {
-        configuration.skeletonIconName
+        switch self {
+        case .personalHome:
+            return "house.fill"
+        case .myProfile:
+            return "person.crop.circle.fill"
+        case .publishPublicProfile:
+            return "person.crop.circle.badge.checkmark"
+        case .publicProfileDirectory:
+            return "person.2.wave.2.fill"
+        case .matches:
+            return "person.2.fill"
+        case .inviteChat:
+            return "bubble.left.and.bubble.right.fill"
+        case .agendaContext:
+            return "calendar.badge.clock"
+        case .butterpopStudio:
+            return "wand.and.sparkles"
+        case .vaultIdeas:
+            return "rectangle.stack.fill"
+        case .meetingIntent:
+            return "calendar.badge.plus"
+        case .privacyAudit:
+            return "lock.shield.fill"
+        case .personalCopilotCatalog:
+            return "square.grid.2x2.fill"
+        case .appleIntelligence:
+            return "apple.intelligence"
+        case .entityScanner:
+            return "dot.radiowaves.left.and.right"
+        case .workflowStudio:
+            return "point.3.connected.trianglepath.dotted"
+        }
+    }
+
+    var sidebarSubtitle: String {
+        switch self {
+        case .personalHome:
+            return "Identitet, konto og lokal startflate."
+        case .myProfile:
+            return "Privat profilutkast på enheten."
+        case .publishPublicProfile:
+            return "Eksplisitt publisering og sletting."
+        case .publicProfileDirectory:
+            return "Finn offentlige profiler fra staging."
+        case .matches:
+            return "Relevante personer og formålstreff."
+        case .inviteChat:
+            return "Privat co-pilot-samtale og forslag."
+        case .agendaContext:
+            return "Kalender- og påminnelseskontekst."
+        case .butterpopStudio:
+            return "Lokal ide- og prosjektflyt."
+        case .vaultIdeas:
+            return "Notater, ideer og knowledge graph."
+        case .meetingIntent:
+            return "Foreslå møter med tydelig samtykke."
+        case .privacyAudit:
+            return "Personvern, eksport og blokkering."
+        case .personalCopilotCatalog:
+            return "Godkjente Personal Co-Pilot-flater."
+        case .appleIntelligence:
+            return "Lokal Apple Intelligence-adapter."
+        case .entityScanner:
+            return "Nearby scanning og signed contact flow."
+        case .workflowStudio:
+            return "Bygg og test lokale arbeidsflyter."
+        }
+    }
+
+    var shellConfiguration: CellConfiguration {
+        var configuration = CellConfiguration(name: title)
+        configuration.description = sidebarSubtitle
+        configuration.discovery = CellConfigurationDiscovery(
+            sourceCellEndpoint: shellSourceEndpoint,
+            sourceCellName: title,
+            purpose: title,
+            purposeDescription: sidebarSubtitle,
+            interests: shellMetadataInterests
+        )
+        return configuration
+    }
+
+    private var shellSourceEndpoint: String? {
+        switch self {
+        case .publicProfileDirectory:
+            return "cell://staging.haven.digipomps.org/PublicProfileDirectory"
+        case .inviteChat:
+            return "cell:///PersonalChatHub"
+        case .agendaContext:
+            return "cell:///Calendar"
+        case .butterpopStudio:
+            return "cell:///ButterpopStudio"
+        case .vaultIdeas:
+            return "cell:///Vault"
+        case .appleIntelligence:
+            return "cell:///AppleIntelligence"
+        case .entityScanner:
+            return "cell:///EntityScanner"
+        case .workflowStudio:
+            return "cell:///WorkflowStudio"
+        default:
+            return nil
+        }
+    }
+
+    private var shellMetadataInterests: [String] {
+        var interests = [
+            "appStoreScope=\(BindingPersonalCopilotV1Policy.appStoreScope)",
+            "surfaceFamily=intelligence"
+        ]
+
+        switch self {
+        case .entityScanner:
+            interests.append("policyCategory=hardware-scanner")
+            interests.append("presentationClass=hero")
+            interests.append("nativePermissionRequests=nearby,bluetooth")
+        case .myProfile, .publishPublicProfile, .meetingIntent, .privacyAudit:
+            interests.append("policyCategory=privacy")
+            interests.append("presentationClass=form")
+        case .publicProfileDirectory, .matches, .personalCopilotCatalog:
+            interests.append("policyCategory=directory")
+            interests.append("presentationClass=list")
+        default:
+            interests.append("policyCategory=personal-copilot")
+            interests.append("presentationClass=grid")
+        }
+
+        return interests
     }
 
     var configuration: CellConfiguration {
@@ -364,6 +491,10 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         case .workflowStudio:
             return ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
         }
+    }
+
+    func matches(configurationName: String?) -> Bool {
+        Self.matching(configurationName: configurationName) == self
     }
 
     static var phonePrimaryTabs: [BindingPersonalCopilotPhoneTab] {
@@ -1211,7 +1342,7 @@ struct ContentView: View {
                     Text(destination.title)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.primary)
-                    Text(destination.configuration.description ?? "")
+                    Text(destination.sidebarSubtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -1285,7 +1416,7 @@ struct ContentView: View {
             if activeConfigurationIsAdHocPersonalCopilotSurface {
                 return
             }
-            guard activeConfiguration?.name != destination.title else { return }
+            guard !destination.matches(configurationName: activeConfiguration?.name) else { return }
             queueConfigurationLoad(destination.configuration, navigationMode: .reset)
         }
     }
@@ -1320,15 +1451,15 @@ struct ContentView: View {
         guard let activeConfiguration,
               BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(activeConfiguration)
         else {
-            return destination.configuration
+            return destination.shellConfiguration
         }
-        if activeConfiguration.name == destination.title {
+        if destination.matches(configurationName: activeConfiguration.name) {
             return activeConfiguration
         }
         if BindingPersonalCopilotDestination.matching(configurationName: activeConfiguration.name) == nil {
             return activeConfiguration
         }
-        return destination.configuration
+        return destination.shellConfiguration
     }
 
     private var activeConfigurationIsAdHocPersonalCopilotSurface: Bool {
@@ -7470,6 +7601,7 @@ struct ContentView: View {
     }
 
     static let conferenceAutomationDefaultsKey = "Binding.EnableConferenceAutomation"
+    static let conferenceAutomationDeepLinkLaunchArgument = "--enable-conference-automation-deeplinks"
 
     static func conferenceAutomationGlobalOptInEnabled(
         environment: [String: String],
@@ -7496,6 +7628,10 @@ struct ContentView: View {
         }
 
         if launchArguments.contains("--enable-conference-automation") {
+            return true
+        }
+
+        if launchArguments.contains(Self.conferenceAutomationDeepLinkLaunchArgument) {
             return true
         }
 
