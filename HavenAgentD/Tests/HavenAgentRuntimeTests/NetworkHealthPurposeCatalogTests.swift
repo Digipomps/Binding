@@ -69,6 +69,8 @@ struct NetworkHealthPurposeCatalogTests {
     func classifiesHarmfulVersusBenign() {
         #expect(NetworkHealthPurposeCatalog.isHarmful(.interfaceDistress) == true)
         #expect(NetworkHealthPurposeCatalog.isHarmful(.highPacketRate) == true)
+        #expect(NetworkHealthPurposeCatalog.isHarmful(.highLatency) == true)
+        #expect(NetworkHealthPurposeCatalog.isHarmful(.packetLoss) == true)
         #expect(NetworkHealthPurposeCatalog.isHarmful(.bulkDownload) == false)
         #expect(NetworkHealthPurposeCatalog.isHarmful(.unknown) == false)
     }

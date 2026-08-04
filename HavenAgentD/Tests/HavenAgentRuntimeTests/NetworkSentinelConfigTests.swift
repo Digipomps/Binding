@@ -15,6 +15,10 @@ struct NetworkSentinelConfigTests {
         #expect(config.interface == "en5")
         // Unspecified fields keep the built-in defaults rather than failing to decode.
         #expect(config.intervalSeconds == 2.0)
+        #expect(config.probeMonitoringEnabled == false)
+        #expect(config.probeKind == .tcpConnect)
+        #expect(config.probeTarget == "1.1.1.1:443")
+        #expect(config.probeTimeoutSeconds == 3.0)
         #expect(config.notificationsEnabled == true)
         #expect(config.captureEnabled == true)
         #expect(config.thresholds == NetworkSentinelThresholds())
@@ -34,15 +38,36 @@ struct NetworkSentinelConfigTests {
             enabled: true,
             interface: "en0",
             intervalSeconds: 3,
+            probeMonitoringEnabled: true,
+            probeKind: .icmpPing,
+            probeTarget: "router.local:443",
+            probeTimeoutSeconds: 1.5,
             notificationsEnabled: false,
             captureEnabled: false,
             captureDurationSeconds: 8,
             capturePacketLimit: 5_000,
             captureSnaplen: 96,
-            thresholds: NetworkSentinelThresholds(packetsPerSecond: 9_000)
+            thresholds: NetworkSentinelThresholds(
+                packetsPerSecond: 9_000,
+                latencyMs: 300,
+                packetLossPercent: 40,
+                probeWindowSamples: 4
+            )
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(NetworkSentinelConfig.self, from: data)
         #expect(decoded == original)
+    }
+
+    @Test
+    func partialThresholdJSONFallsBackToDefaults() throws {
+        let json = Data(#"{ "latencyMs": 250, "packetLossPercent": 10 }"#.utf8)
+        let thresholds = try JSONDecoder().decode(NetworkSentinelThresholds.self, from: json)
+
+        #expect(thresholds.packetsPerSecond == NetworkSentinelThresholds().packetsPerSecond)
+        #expect(thresholds.errorsPerSecond == NetworkSentinelThresholds().errorsPerSecond)
+        #expect(thresholds.latencyMs == 250)
+        #expect(thresholds.packetLossPercent == 10)
+        #expect(thresholds.probeWindowSamples == NetworkSentinelThresholds().probeWindowSamples)
     }
 }

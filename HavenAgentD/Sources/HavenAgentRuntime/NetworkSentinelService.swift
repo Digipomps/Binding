@@ -16,9 +16,30 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
     /// Called on every publish. The event is non-nil only on a lifecycle
     /// transition (started / resolved) so the consumer can decide to alert.
     public typealias EventSink = @Sendable (NetworkHealthSnapshot, NetworkFloodEvent?) async -> Void
+    public typealias ProbeRunner = @Sendable (NetworkProbeKind, String, UInt16, Double) async -> NetworkReachabilityProbeResult
+
+    private enum NetworkHealthAnomaly {
+        case traffic(NetworkHealthSample)
+        case probe(NetworkProbeSample)
+    }
+
+    private enum SignalChannel {
+        case traffic
+        case probe
+    }
+
+    private struct DetectorState {
+        var hotStreak = 0
+        var calmStreak = 0
+        var activeEvent: NetworkFloodEvent?
+    }
 
     private let interface: String
     private let intervalSeconds: Double
+    private let probeMonitoringEnabled: Bool
+    private let probeKind: NetworkProbeKind
+    private let probeTimeoutSeconds: Double
+    private let probeRunner: ProbeRunner
     private let captureDirectory: URL
     private let captureEnabled: Bool
     private let captureDurationSeconds: Double
@@ -38,20 +59,22 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
 
     private var previous: InterfaceCounterReading?
     private var previousMonotonicNanos: UInt64?
-    private var hotStreak = 0
-    private var calmStreak = 0
     private var latest: NetworkHealthSample?
-    private var activeEvent: NetworkFloodEvent?
+    private var trafficDetector = DetectorState()
+    private var probeDetector = DetectorState()
     private var recentEvents: [NetworkFloodEvent] = []
     private var status = "starting"
     private var recentSamples: [NetworkHealthSample] = []
+    private var latestProbe: NetworkProbeSample?
+    private var recentProbes: [NetworkProbeSample] = []
+    private var recentProbeResults: [NetworkReachabilityProbeResult] = []
     private var interfaces: [InterfaceInfo] = []
     private var activeTab = "dashboard"
-    private var probeTarget = "192.168.1.1:443"
+    private var probeTarget: String
     private var probeResult: String?
     private var lastCaptureSummary: String?
-    private let reachabilityProbe = NetworkReachabilityProbe()
     private let maxRecentSamples = 60
+    private let maxRecentProbes = 60
     private var pendingListenDurationNanos: UInt64?
     private var listenStartMonotonic: UInt64?
     private var listenDurationNanos: UInt64 = 0
@@ -64,6 +87,10 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
         interface: String = "en0",
         thresholds: NetworkSentinelThresholds = .init(),
         intervalSeconds: Double = 2.0,
+        probeMonitoringEnabled: Bool = false,
+        probeKind: NetworkProbeKind = .tcpConnect,
+        probeTarget: String = "1.1.1.1:443",
+        probeTimeoutSeconds: Double = 3.0,
         notificationsEnabled: Bool = true,
         captureDirectory: URL,
         captureEnabled: Bool = true,
@@ -72,11 +99,23 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
         captureSnaplen: Int = 160,
         maxRecentEvents: Int = 20,
         counterProvider: @escaping @Sendable (String) -> InterfaceCounterReading? = { InterfaceCounters.read(interface: $0) },
-        uptimeNanos: @escaping @Sendable () -> UInt64 = { DispatchTime.now().uptimeNanoseconds }
+        uptimeNanos: @escaping @Sendable () -> UInt64 = { DispatchTime.now().uptimeNanoseconds },
+        probeRunner: @escaping ProbeRunner = { kind, host, port, timeout in
+            switch kind {
+            case .tcpConnect:
+                return await NetworkReachabilityProbe().probeResult(host: host, port: port, timeoutSeconds: timeout)
+            case .icmpPing:
+                return await SystemPingProbe().probeResult(host: host, timeoutSeconds: timeout)
+            }
+        }
     ) {
         self.interface = interface
         self.thresholds = thresholds
         self.intervalSeconds = max(0.5, intervalSeconds)
+        self.probeMonitoringEnabled = probeMonitoringEnabled
+        self.probeKind = probeKind
+        self.probeTarget = probeTarget
+        self.probeTimeoutSeconds = max(0.1, probeTimeoutSeconds)
         self.notificationsEnabled = notificationsEnabled
         self.captureDirectory = captureDirectory
         self.captureEnabled = captureEnabled
@@ -86,6 +125,7 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
         self.maxRecentEvents = max(1, maxRecentEvents)
         self.counterProvider = counterProvider
         self.uptimeNanos = uptimeNanos
+        self.probeRunner = probeRunner
     }
 
     // MARK: - Control
@@ -118,9 +158,14 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
 
     @discardableResult
     public func acknowledgeActiveEvent() async -> Bool {
-        guard activeEvent != nil else { return false }
-        activeEvent?.acknowledged = true
-        if let id = activeEvent?.id, let idx = recentEvents.firstIndex(where: { $0.id == id }) {
+        guard let channel = activeEventChannel() else { return false }
+        switch channel {
+        case .traffic:
+            trafficDetector.activeEvent?.acknowledged = true
+        case .probe:
+            probeDetector.activeEvent?.acknowledged = true
+        }
+        if let id = currentActiveEvent()?.id, let idx = recentEvents.firstIndex(where: { $0.id == id }) {
             recentEvents[idx].acknowledged = true
         }
         await publish(transition: nil)
@@ -141,10 +186,11 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
 
     public func runProbe() async -> String {
         let (host, port) = NetworkReachabilityProbe.parseTarget(probeTarget)
-        let result = await reachabilityProbe.probe(host: host, port: port)
-        probeResult = result
-        await publish(transition: nil)
-        return result
+        let result = await probeRunner(probeKind, host, port, probeTimeoutSeconds)
+        await recordProbe(result: result, wallClock: Date(), evaluateForAlert: false)
+        let message = result.displayText
+        probeResult = message
+        return message
     }
 
     public func captureNow() async -> String {
@@ -255,9 +301,11 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
             interface: interface,
             status: status,
             latest: latest,
-            activeEvent: activeEvent,
+            activeEvent: currentActiveEvent(),
             recentEvents: recentEvents,
             recentSamples: recentSamples,
+            latestProbe: latestProbe,
+            recentProbes: recentProbes,
             interfaces: interfaces,
             notificationsEnabled: notificationsEnabled,
             thresholds: thresholds,
@@ -272,6 +320,18 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
 
     public var isNotificationsEnabled: Bool { notificationsEnabled }
 
+    private func currentActiveEvent() -> NetworkFloodEvent? {
+        // Probe incidents are usually the user-visible symptom ("nettet svarer
+        // sakte"/"pakketap"), so prefer them when both channels are active.
+        probeDetector.activeEvent ?? trafficDetector.activeEvent
+    }
+
+    private func activeEventChannel() -> SignalChannel? {
+        if probeDetector.activeEvent != nil { return .probe }
+        if trafficDetector.activeEvent != nil { return .traffic }
+        return nil
+    }
+
     // MARK: - Loop
 
     private func runLoop() async {
@@ -282,11 +342,15 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
     }
 
     private func tick() async {
+        let wallClock = Date()
         await ingest(
             reading: counterProvider(interface),
             monotonicNanos: uptimeNanos(),
-            wallClock: Date()
+            wallClock: wallClock
         )
+        if probeMonitoringEnabled {
+            await runScheduledProbe(wallClock: wallClock)
+        }
     }
 
     /// Core measurement step. Exposed (internal) so tests can drive deterministic
@@ -333,41 +397,144 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
             || sample.megabitsPerSecond >= thresholds.megabitsPerSecond
             || sample.errorsPerSecond >= thresholds.errorsPerSecond
 
-        if isHot {
-            hotStreak += 1
-            calmStreak = 0
-        } else {
-            calmStreak += 1
-            hotStreak = 0
+        await handleSignal(isHot: isHot, anomaly: .traffic(sample), channel: .traffic, at: wallClock)
+    }
+
+    /// Records a structured reachability sample. Tests use this directly so we can
+    /// prove latency/loss alerting without depending on live network timing.
+    func ingestProbe(result: NetworkReachabilityProbeResult, wallClock: Date) async {
+        await recordProbe(result: result, wallClock: wallClock, evaluateForAlert: true)
+    }
+
+    private func runScheduledProbe(wallClock: Date) async {
+        let (host, port) = NetworkReachabilityProbe.parseTarget(probeTarget)
+        let result = await probeRunner(probeKind, host, port, probeTimeoutSeconds)
+        await recordProbe(result: result, wallClock: wallClock, evaluateForAlert: true)
+    }
+
+    private func recordProbe(
+        result: NetworkReachabilityProbeResult,
+        wallClock: Date,
+        evaluateForAlert: Bool
+    ) async {
+        recentProbeResults.append(result)
+        let windowSize = max(1, thresholds.probeWindowSamples)
+        if recentProbeResults.count > windowSize {
+            recentProbeResults.removeFirst(recentProbeResults.count - windowSize)
         }
 
-        if activeEvent == nil {
-            status = "calm"
-            if hotStreak >= thresholds.sustainedSamples {
-                await beginEvent(with: sample, at: wallClock)
-            } else {
-                await publish(transition: nil)
-            }
-        } else {
-            status = "flooding"
-            updateActiveEvent(with: sample, at: wallClock)
-            if calmStreak >= thresholds.resolveSamples {
-                await resolveActiveEvent(at: wallClock)
-            } else {
-                await publish(transition: nil)
-            }
+        let sent = recentProbeResults.count
+        let received = recentProbeResults.filter { $0.succeeded }.count
+        let loss = sent == 0 ? 0.0 : (Double(sent - received) / Double(sent)) * 100.0
+        let latencies = recentProbeResults.compactMap(\.latencyMs)
+        let averageLatency = latencies.isEmpty ? nil : latencies.reduce(0.0, +) / Double(latencies.count)
+        let maxLatency = latencies.max()
+        let target = displayTarget(for: result)
+        let sample = NetworkProbeSample(
+            kind: result.kind,
+            target: target,
+            sent: sent,
+            received: received,
+            packetLossPercent: loss,
+            averageLatencyMs: averageLatency,
+            maxLatencyMs: maxLatency,
+            sampledAt: isoFormatter.string(from: wallClock),
+            summary: summarizeProbe(
+                target: target,
+                sent: sent,
+                received: received,
+                packetLossPercent: loss,
+                maxLatencyMs: maxLatency
+            )
+        )
+        latestProbe = sample
+        recentProbes.append(sample)
+        if recentProbes.count > maxRecentProbes {
+            recentProbes.removeFirst(recentProbes.count - maxRecentProbes)
         }
+        probeResult = result.displayText
+
+        guard evaluateForAlert else {
+            await publish(transition: nil)
+            return
+        }
+
+        let latencyHot = (maxLatency ?? 0) >= thresholds.latencyMs
+        let lossHot = sample.packetLossPercent >= thresholds.packetLossPercent
+        await handleSignal(isHot: latencyHot || lossHot, anomaly: .probe(sample), channel: .probe, at: wallClock)
+    }
+
+    private func displayTarget(for result: NetworkReachabilityProbeResult) -> String {
+        switch result.kind {
+        case .tcpConnect:
+            return "\(result.host):\(Int(result.port))"
+        case .icmpPing:
+            return result.host
+        }
+    }
+
+    private func handleSignal(
+        isHot: Bool,
+        anomaly: NetworkHealthAnomaly,
+        channel: SignalChannel,
+        at wallClock: Date
+    ) async {
+        let transition: NetworkFloodEvent?
+        switch channel {
+        case .traffic:
+            transition = updateDetector(&trafficDetector, isHot: isHot, anomaly: anomaly, at: wallClock)
+        case .probe:
+            transition = updateDetector(&probeDetector, isHot: isHot, anomaly: anomaly, at: wallClock)
+        }
+        status = currentActiveEvent() == nil ? "calm" : "flooding"
+        await publish(transition: transition)
+    }
+
+    private func updateDetector(
+        _ detector: inout DetectorState,
+        isHot: Bool,
+        anomaly: NetworkHealthAnomaly,
+        at wallClock: Date
+    ) -> NetworkFloodEvent? {
+        if isHot {
+            detector.hotStreak += 1
+            detector.calmStreak = 0
+        } else {
+            detector.calmStreak += 1
+            detector.hotStreak = 0
+        }
+
+        if detector.activeEvent == nil {
+            guard detector.hotStreak >= thresholds.sustainedSamples else { return nil }
+            let event = beginEvent(with: anomaly, at: wallClock)
+            detector.activeEvent = event
+            return event
+        }
+
+        guard isHot else {
+            if detector.calmStreak >= thresholds.resolveSamples {
+                return resolveActiveEvent(in: &detector, at: wallClock)
+            }
+            return nil
+        }
+
+        if var event = detector.activeEvent {
+            updateActiveEvent(&event, with: anomaly, at: wallClock)
+            detector.activeEvent = event
+        }
+        return nil
     }
 
     // MARK: - Event lifecycle
 
-    private func beginEvent(with sample: NetworkHealthSample, at now: Date) async {
+    private func beginEvent(with anomaly: NetworkHealthAnomaly, at now: Date) -> NetworkFloodEvent {
         let timestamp = isoFormatter.string(from: now)
-        let classification = classify(sample)
+        let classification = classify(anomaly)
         let eventID = UUID().uuidString
         let capturePath = captureEnabled
             ? captureDirectory.appendingPathComponent("flood-\(eventID).pcap").path
             : nil
+        let peaks = eventPeaks(from: anomaly)
 
         let event = NetworkFloodEvent(
             id: eventID,
@@ -375,48 +542,54 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
             classification: classification,
             startedAt: timestamp,
             updatedAt: timestamp,
-            peakPacketsPerSecond: sample.packetsPerSecond,
-            peakMegabitsPerSecond: sample.megabitsPerSecond,
+            peakPacketsPerSecond: peaks.packetsPerSecond,
+            peakMegabitsPerSecond: peaks.megabitsPerSecond,
+            peakLatencyMs: peaks.latencyMs,
+            packetLossPercent: peaks.packetLossPercent,
             capturePath: capturePath,
-            summary: summarize(sample, classification: classification),
+            summary: summarize(anomaly, classification: classification),
             acknowledged: false
         )
-        activeEvent = event
-        status = "flooding"
         appendRecent(event)
         triggerCaptureIfEnabled(eventID: eventID)
-        await publish(transition: event)
+        return event
     }
 
-    private func updateActiveEvent(with sample: NetworkHealthSample, at now: Date) {
-        guard var event = activeEvent else { return }
+    private func updateActiveEvent(_ event: inout NetworkFloodEvent, with anomaly: NetworkHealthAnomaly, at now: Date) {
+        let peaks = eventPeaks(from: anomaly)
         event.phase = .ongoing
         event.updatedAt = isoFormatter.string(from: now)
-        event.peakPacketsPerSecond = max(event.peakPacketsPerSecond, sample.packetsPerSecond)
-        event.peakMegabitsPerSecond = max(event.peakMegabitsPerSecond, sample.megabitsPerSecond)
-        // Sharpen classification if the picture changed (e.g. errors appeared).
-        if event.classification == .unknown || event.classification == .bulkDownload {
-            let refined = classify(sample)
-            if refined == .interfaceDistress { event.classification = refined }
+        event.peakPacketsPerSecond = max(event.peakPacketsPerSecond, peaks.packetsPerSecond)
+        event.peakMegabitsPerSecond = max(event.peakMegabitsPerSecond, peaks.megabitsPerSecond)
+        if let latencyMs = peaks.latencyMs {
+            event.peakLatencyMs = max(event.peakLatencyMs ?? 0, latencyMs)
         }
-        event.summary = summarize(sample, classification: event.classification)
-        activeEvent = event
+        if let packetLossPercent = peaks.packetLossPercent {
+            event.packetLossPercent = max(event.packetLossPercent ?? 0, packetLossPercent)
+        }
+        // Sharpen classification if the picture changed (e.g. errors appeared).
+        if event.classification == .unknown || event.classification == .bulkDownload || event.classification == .highLatency {
+            let refined = classify(anomaly)
+            if NetworkHealthPurposeCatalog.isHarmful(refined) {
+                event.classification = refined
+            }
+        }
+        event.summary = summarize(anomaly, classification: event.classification)
         if let idx = recentEvents.firstIndex(where: { $0.id == event.id }) {
             recentEvents[idx] = event
         }
     }
 
-    private func resolveActiveEvent(at now: Date) async {
-        guard var event = activeEvent else { return }
+    private func resolveActiveEvent(in detector: inout DetectorState, at now: Date) -> NetworkFloodEvent? {
+        guard var event = detector.activeEvent else { return nil }
         event.phase = .resolved
         event.resolvedAt = isoFormatter.string(from: now)
         event.updatedAt = event.resolvedAt ?? event.updatedAt
-        activeEvent = nil
-        status = "calm"
+        detector.activeEvent = nil
         if let idx = recentEvents.firstIndex(where: { $0.id == event.id }) {
             recentEvents[idx] = event
         }
-        await publish(transition: event)
+        return event
     }
 
     private func appendRecent(_ event: NetworkFloodEvent) {
@@ -427,6 +600,15 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
     }
 
     // MARK: - Classification
+
+    private func classify(_ anomaly: NetworkHealthAnomaly) -> NetworkFloodClass {
+        switch anomaly {
+        case .traffic(let sample):
+            return classify(sample)
+        case .probe(let sample):
+            return classify(sample)
+        }
+    }
 
     private func classify(_ sample: NetworkHealthSample) -> NetworkFloodClass {
         if sample.errorsPerSecond >= thresholds.errorsPerSecond {
@@ -444,9 +626,59 @@ public actor NetworkSentinelService: NetworkSentinelControlling {
         return .unknown
     }
 
+    private func classify(_ sample: NetworkProbeSample) -> NetworkFloodClass {
+        if sample.packetLossPercent >= thresholds.packetLossPercent {
+            return .packetLoss
+        }
+        if (sample.maxLatencyMs ?? 0) >= thresholds.latencyMs {
+            return .highLatency
+        }
+        return .unknown
+    }
+
     private func summarize(_ sample: NetworkHealthSample, classification: NetworkFloodClass) -> String {
         let mbps = String(format: "%.1f", sample.megabitsPerSecond)
         return "\(interface): \(sample.packetsPerSecond) pk/s, \(mbps) Mbps, \(sample.errorsPerSecond) err/s (\(classification.rawValue))"
+    }
+
+    private func summarize(_ anomaly: NetworkHealthAnomaly, classification: NetworkFloodClass) -> String {
+        switch anomaly {
+        case .traffic(let sample):
+            return summarize(sample, classification: classification)
+        case .probe(let sample):
+            return "\(sample.summary) (\(classification.rawValue))"
+        }
+    }
+
+    private func summarizeProbe(
+        target: String,
+        sent: Int,
+        received: Int,
+        packetLossPercent: Double,
+        maxLatencyMs: Double?
+    ) -> String {
+        let loss = String(format: "%.0f", packetLossPercent)
+        let latency = maxLatencyMs.map { String(format: "%.0f ms", $0) } ?? "ingen svar"
+        return "\(target): \(received)/\(sent) svar, \(loss)% tap, maks \(latency)"
+    }
+
+    private func eventPeaks(from anomaly: NetworkHealthAnomaly) -> (
+        packetsPerSecond: Int,
+        megabitsPerSecond: Double,
+        latencyMs: Double?,
+        packetLossPercent: Double?
+    ) {
+        switch anomaly {
+        case .traffic(let sample):
+            return (sample.packetsPerSecond, sample.megabitsPerSecond, nil, nil)
+        case .probe(let sample):
+            return (
+                latest?.packetsPerSecond ?? 0,
+                latest?.megabitsPerSecond ?? 0,
+                sample.maxLatencyMs,
+                sample.packetLossPercent
+            )
+        }
     }
 
     // MARK: - Capture

@@ -15583,7 +15583,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         var probeTargetField = SkeletonTextField(
             sourceKeypath: "networkSentinel.state.probe.target",
             targetKeypath: "probeTarget",
-            placeholder: "vert:port (f.eks. 1.1.1.1:443)"
+            placeholder: "vert eller vert:port (f.eks. 1.1.1.1)"
         )
         probeTargetField.modifiers = modifier {
             $0.padding = 8
@@ -15660,6 +15660,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                         ], spacing: 8)
                     ),
                     bindingConferencePortalKeyText("networkSentinel.state.probe.result", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 3),
+                    networkSentinelMetricRow("Probe:", "networkSentinel.state.probe.kindText", "Mål:", "networkSentinel.state.probe.target"),
+                    networkSentinelMetricRow("Latency:", "networkSentinel.state.probe.latencyText", "Tap:", "networkSentinel.state.probe.lossText"),
+                    networkSentinelMetricRow("Svar:", "networkSentinel.state.probe.receivedText", "Vindu:", "networkSentinel.state.thresholds.probeWindowSamples"),
                     bindingConferencePortalStaticText("Pakkefangst og lyttemåling", fontSize: 13, fontWeight: "semibold", foregroundColor: "#8DE1DA"),
                     .HStack(
                         SkeletonHStack(elements: [
@@ -15680,7 +15683,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                     .Toggle(notificationsToggle),
                     bindingConferencePortalStaticText("Av/på gjelder brukervarsel. Hendelser logges uansett.", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 3),
                     networkSentinelMetricRow("Pakker/s:", "networkSentinel.state.thresholds.packetsPerSecond", "Mbps:", "networkSentinel.state.thresholds.megabitsPerSecond"),
-                    networkSentinelMetricRow("Feil/s:", "networkSentinel.state.thresholds.errorsPerSecond", "Resolve:", "networkSentinel.state.thresholds.resolveSamples")
+                    networkSentinelMetricRow("Feil/s:", "networkSentinel.state.thresholds.errorsPerSecond", "Resolve:", "networkSentinel.state.thresholds.resolveSamples"),
+                    networkSentinelMetricRow("Latency ms:", "networkSentinel.state.thresholds.latencyMs", "Tap %:", "networkSentinel.state.thresholds.packetLossPercent")
                 ]
             )
         ])
@@ -15752,8 +15756,6 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         configuration.addReference(nearbyRadarReference)
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
         configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
-        configuration.addReference(CellReference(endpoint: "cell://staging.haven.digipomps.org/PublicProfileDirectory", label: "publicProfiles"))
-        configuration.addReference(CellReference(endpoint: "cell://staging.haven.digipomps.org/PersonalChatHub", label: "chatHub"))
         configuration.addReference(CellReference(endpoint: "cell:///Vault", label: "vault"))
 
         let card = conferenceCardModifier(
