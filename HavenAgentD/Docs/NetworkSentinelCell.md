@@ -124,7 +124,7 @@ arriving. The pcap path is recorded on the event.
 | `thresholds` | `rw--` | adjust pps/Mbps/errors/sustained/resolve |
 | `acknowledge` | `rw--` | acknowledge the active event |
 | `selectTab` | `rw--` | switch the GUI's active tab (navigation state) |
-| `probeTarget` · `probe` | `rw--` | set "host:port" · run on-demand TCP reachability probe |
+| `probeTarget` · `probe` | `rw--` | set host or host:port · run on-demand probe using configured `probeKind` |
 | `captureNow` | `rw--` | trigger an immediate bounded packet capture |
 | `runListen` | `rw--` | start a bounded native listen window; value is minutes (`1...180`) |
 | `lastListenSummary` | `r---` | latest listen-window summary as structured data |
@@ -138,7 +138,11 @@ capture/listen summaries, and nested `events` / `interfaces` / `history` lists)
 so a GUI can bind to one subscription.
 
 Flow topics: `network.health` (`.event`) for routine/resolution,
-`network.health.flood` (`.alert`) for an active flood.
+`network.health.flood` (`.alert`) for an active harmful condition. The event
+classification now covers both traffic/counter issues and probe health:
+`highPacketRate`, `interfaceDistress`, `bulkUpload`, `highLatency`, and
+`packetLoss` can put the network-health goal at risk; benign `bulkDownload` is
+recorded but stays quiet.
 
 ## Local operation (no staging)
 
@@ -179,6 +183,10 @@ lenient: omit the whole key, or any field, and the built-in defaults apply.
     "enabled": true,
     "interface": "en0",
     "intervalSeconds": 2.0,
+    "probeMonitoringEnabled": false,
+    "probeKind": "icmpPing",
+    "probeTarget": "1.1.1.1",
+    "probeTimeoutSeconds": 3.0,
     "notificationsEnabled": true,
     "captureEnabled": true,
     "captureDurationSeconds": 12.0,
@@ -188,6 +196,9 @@ lenient: omit the whole key, or any field, and the built-in defaults apply.
       "packetsPerSecond": 12000,
       "megabitsPerSecond": 500.0,
       "errorsPerSecond": 50,
+      "latencyMs": 750.0,
+      "packetLossPercent": 25.0,
+      "probeWindowSamples": 3,
       "sustainedSamples": 2,
       "resolveSamples": 3
     },
@@ -198,9 +209,22 @@ lenient: omit the whole key, or any field, and the built-in defaults apply.
 }
 ```
 
-Defaults treat **benign high throughput as not a flood** (a saturated link with
-no errors is normal); a flood is sustained very high packet rate, or rising
-interface errors.
+Defaults treat **benign high throughput as not a user-facing alert** (a
+saturated link with no errors is normal). A user-facing harmful condition is
+sustained very high packet rate, rising interface errors, high outbound
+saturation, high latency, or probe loss.
+
+`probeMonitoringEnabled` is intentionally `false` by default. Turning it on makes
+the agent periodically run the configured bounded probe to `probeTarget`; the
+sentinel then computes moving-window response time and loss percentages.
+
+Use `probeKind: "icmpPing"` for production laptop/network monitoring. It runs
+macOS `/sbin/ping` with one packet, quiet output, ping's own wait bound, and an
+outer Swift timeout/termination guard. This gives real ICMP round-trip time and
+packet/probe loss without leaving a long-running ping process behind.
+
+Use `probeKind: "tcpConnect"` when ICMP is blocked or when you specifically want
+application-path reachability to a `host:port` such as `1.1.1.1:443`.
 
 ## On-demand tools (beyond passive monitoring)
 
@@ -209,9 +233,16 @@ The cell makes the sensor a more complete network tool:
 - **Interface inventory** — native `getifaddrs` enumeration of every interface
   (name, up/down, MAC, IPv4/IPv6).
 - **Rolling history** — the last samples, for a trend view.
-- **Reachability probe** — `NetworkReachabilityProbe` opens a bounded TCP
-  connection (Network framework, monotonic timing) to a `host:port` and reports
-  reachability + handshake latency. Set `probeTarget`, then `probe`.
+- **Reachability probe** — `probeKind` chooses between `SystemPingProbe`
+  (`icmpPing`, real ICMP RTT/loss using `/sbin/ping`) and
+  `NetworkReachabilityProbe` (`tcpConnect`, Network framework TCP handshake to
+  `host:port`). Set `probeTarget`, then `probe`.
+- **Latency/loss alerting** — when `probeMonitoringEnabled` is true, the same
+  bounded probe runs periodically. Sustained samples above `thresholds.latencyMs`
+  produce a `highLatency` event. Failed/time-out probes above
+  `thresholds.packetLossPercent` over `thresholds.probeWindowSamples` produce a
+  `packetLoss` event. Both flow through the existing purpose/goal gate and local
+  notification dispatcher.
 - **Capture now** — `captureNow` fires an immediate `BoundedPacketCapture` (the
   same time+count bounded capture used on a flood), non-blocking.
 - **Listen window** — `runListen` starts a bounded native measurement window.
@@ -255,7 +286,7 @@ guarantees schema validity; Porthole confirms rendering on desktop + mobile.
 ## Files
 
 Runtime (`HavenAgentRuntime`):
-- `NetworkReachabilityProbe.swift` — on-demand TCP reachability probe
+- `NetworkReachabilityProbe.swift` — bounded TCP reachability and system ping probes
 - `NetworkHealth.swift` — value types, `NetworkSentinelControlling`, flow topics
 - `InterfaceCounters.swift` — native `getifaddrs` reader
 - `NetworkSentinelService.swift` — measurement loop (monotonic timing)

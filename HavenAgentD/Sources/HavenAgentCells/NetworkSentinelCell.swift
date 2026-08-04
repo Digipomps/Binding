@@ -208,6 +208,8 @@ public final class NetworkSentinelCell: HavenAgentRuntimeBindingCell {
         ]
         payload["resolvedAt"] = event.resolvedAt.map(ValueType.string) ?? .null
         payload["capturePath"] = event.capturePath.map(ValueType.string) ?? .null
+        payload["peakLatencyMs"] = event.peakLatencyMs.map(ValueType.float) ?? .null
+        payload["packetLossPercent"] = event.packetLossPercent.map(ValueType.float) ?? .null
 
         // Purpose/Goal evaluation travels in the payload so an in-HAVEN surface sees
         // WHY this matters (which formål is at risk), not just raw metrics.
@@ -280,10 +282,7 @@ public final class NetworkSentinelCell: HavenAgentRuntimeBindingCell {
                 "purpose": .string(goal.purposeRef)
             ]),
             "thresholds": thresholdsValue(snapshot.thresholds),
-            "probe": .object([
-                "target": .string(snapshot.probeTarget),
-                "result": .string(snapshot.probeResult ?? "Ingen test kjørt ennå.")
-            ]),
+            "probe": probeValue(snapshot),
             "capture": .object([
                 "summary": .string(snapshot.lastCaptureSummary ?? "Ingen manuell capture ennå.")
             ]),
@@ -440,6 +439,8 @@ public final class NetworkSentinelCell: HavenAgentRuntimeBindingCell {
         ]
         object["resolvedAt"] = event.resolvedAt.map(ValueType.string) ?? .null
         object["capturePath"] = event.capturePath.map(ValueType.string) ?? .null
+        object["peakLatencyMs"] = event.peakLatencyMs.map(ValueType.float) ?? .null
+        object["packetLossPercent"] = event.packetLossPercent.map(ValueType.float) ?? .null
         return .object(object)
     }
 
@@ -448,9 +449,56 @@ public final class NetworkSentinelCell: HavenAgentRuntimeBindingCell {
             "packetsPerSecond": .integer(thresholds.packetsPerSecond),
             "megabitsPerSecond": .float(thresholds.megabitsPerSecond),
             "errorsPerSecond": .integer(thresholds.errorsPerSecond),
+            "latencyMs": .float(thresholds.latencyMs),
+            "packetLossPercent": .float(thresholds.packetLossPercent),
+            "probeWindowSamples": .integer(thresholds.probeWindowSamples),
             "sustainedSamples": .integer(thresholds.sustainedSamples),
             "resolveSamples": .integer(thresholds.resolveSamples)
         ])
+    }
+
+    private func probeValue(_ snapshot: NetworkHealthSnapshot) -> ValueType {
+        var object: Object = [
+            "target": .string(snapshot.probeTarget),
+            "kind": .string(snapshot.latestProbe?.kind.rawValue ?? "unknown"),
+            "kindText": .string(Self.probeKindText(snapshot.latestProbe?.kind)),
+            "result": .string(snapshot.probeResult ?? "Ingen test kjørt ennå."),
+            "summary": .string(snapshot.latestProbe?.summary ?? "Ingen probe-målinger ennå."),
+            "lossText": .string(Self.probeLossText(snapshot.latestProbe)),
+            "latencyText": .string(Self.probeLatencyText(snapshot.latestProbe)),
+            "receivedText": .string(Self.probeReceivedText(snapshot.latestProbe))
+        ]
+        object["packetLossPercent"] = snapshot.latestProbe.map { .float($0.packetLossPercent) } ?? .null
+        object["averageLatencyMs"] = snapshot.latestProbe?.averageLatencyMs.map(ValueType.float) ?? .null
+        object["maxLatencyMs"] = snapshot.latestProbe?.maxLatencyMs.map(ValueType.float) ?? .null
+        object["sampledAt"] = snapshot.latestProbe.map { .string($0.sampledAt) } ?? .null
+        return .object(object)
+    }
+
+    private static func probeKindText(_ kind: NetworkProbeKind?) -> String {
+        switch kind {
+        case .icmpPing:
+            return "ICMP ping"
+        case .tcpConnect:
+            return "TCP connect"
+        case nil:
+            return "Ukjent probe"
+        }
+    }
+
+    private static func probeLossText(_ sample: NetworkProbeSample?) -> String {
+        guard let sample else { return "Tap: ukjent" }
+        return String(format: "Tap: %.0f%%", sample.packetLossPercent)
+    }
+
+    private static func probeLatencyText(_ sample: NetworkProbeSample?) -> String {
+        guard let latency = sample?.maxLatencyMs else { return "Latency: ingen svar" }
+        return String(format: "Latency maks: %.0f ms", latency)
+    }
+
+    private static func probeReceivedText(_ sample: NetworkProbeSample?) -> String {
+        guard let sample else { return "Svar: 0/0" }
+        return "Svar: \(sample.received)/\(sample.sent)"
     }
 
     private func makeListenValue() async -> ValueType {
@@ -530,6 +578,9 @@ public final class NetworkSentinelCell: HavenAgentRuntimeBindingCell {
             packetsPerSecond: intValue(object["packetsPerSecond"]) ?? current.packetsPerSecond,
             megabitsPerSecond: doubleValue(object["megabitsPerSecond"]) ?? current.megabitsPerSecond,
             errorsPerSecond: intValue(object["errorsPerSecond"]) ?? current.errorsPerSecond,
+            latencyMs: doubleValue(object["latencyMs"]) ?? current.latencyMs,
+            packetLossPercent: doubleValue(object["packetLossPercent"]) ?? current.packetLossPercent,
+            probeWindowSamples: intValue(object["probeWindowSamples"]) ?? current.probeWindowSamples,
             sustainedSamples: intValue(object["sustainedSamples"]) ?? current.sustainedSamples,
             resolveSamples: intValue(object["resolveSamples"]) ?? current.resolveSamples
         )

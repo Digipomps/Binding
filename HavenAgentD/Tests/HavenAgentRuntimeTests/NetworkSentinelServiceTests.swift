@@ -44,6 +44,21 @@ struct NetworkSentinelServiceTests {
         )
     }
 
+    private func probeResult(
+        succeeded: Bool,
+        latencyMs: Double? = nil,
+        host: String = "router.local",
+        port: UInt16 = 443
+    ) -> NetworkReachabilityProbeResult {
+        NetworkReachabilityProbeResult(
+            host: host,
+            port: port,
+            succeeded: succeeded,
+            latencyMs: latencyMs,
+            errorDescription: succeeded ? nil : "timeout"
+        )
+    }
+
     @Test
     func detectsAndResolvesASustainedFloodAsOneEvent() async {
         let thresholds = NetworkSentinelThresholds(
@@ -161,6 +176,132 @@ struct NetworkSentinelServiceTests {
 
         let snapshot = await service.snapshot()
         #expect(snapshot.activeEvent?.classification == .interfaceDistress)
+    }
+
+    @Test
+    func detectsSustainedHighProbeLatencyAsOneAlertableEvent() async {
+        let thresholds = NetworkSentinelThresholds(
+            packetsPerSecond: 10_000_000,
+            megabitsPerSecond: 100_000,
+            errorsPerSecond: 100_000,
+            latencyMs: 100,
+            packetLossPercent: 80,
+            probeWindowSamples: 3,
+            sustainedSamples: 2,
+            resolveSamples: 2
+        )
+        let service = makeService(thresholds: thresholds)
+        let recorder = TransitionRecorder()
+        await service.setSink { _, transition in await recorder.record(transition) }
+
+        await service.ingestProbe(result: probeResult(succeeded: true, latencyMs: 250), wallClock: wall)
+        await service.ingestProbe(result: probeResult(succeeded: true, latencyMs: 260), wallClock: wall)
+
+        let snapshot = await service.snapshot()
+        #expect(snapshot.status == "flooding")
+        #expect(snapshot.latestProbe?.maxLatencyMs == 260)
+        #expect(snapshot.activeEvent?.classification == .highLatency)
+        #expect(snapshot.activeEvent?.peakLatencyMs == 260)
+        #expect(NetworkHealthPurposeCatalog.isHarmful(snapshot.activeEvent?.classification ?? .unknown))
+
+        let transitions = await recorder.snapshot()
+        #expect(transitions.count == 1)
+        #expect(transitions.first?.phase == .started)
+        #expect(transitions.first?.classification == .highLatency)
+    }
+
+    @Test
+    func calmTrafficSamplesDoNotResetSustainedProbeLatency() async {
+        let thresholds = NetworkSentinelThresholds(
+            packetsPerSecond: 10_000_000,
+            megabitsPerSecond: 100_000,
+            errorsPerSecond: 100_000,
+            latencyMs: 100,
+            packetLossPercent: 80,
+            probeWindowSamples: 3,
+            sustainedSamples: 2,
+            resolveSamples: 2
+        )
+        let service = makeService(thresholds: thresholds)
+        await service.ingest(reading: reading(), monotonicNanos: 0, wallClock: wall)
+        await service.ingest(reading: reading(ipackets: 1), monotonicNanos: oneSecondNanos, wallClock: wall)
+        await service.ingestProbe(result: probeResult(succeeded: true, latencyMs: 250), wallClock: wall)
+        await service.ingest(reading: reading(ipackets: 2), monotonicNanos: oneSecondNanos * 2, wallClock: wall)
+        await service.ingestProbe(result: probeResult(succeeded: true, latencyMs: 260), wallClock: wall)
+
+        let snapshot = await service.snapshot()
+        #expect(snapshot.activeEvent?.classification == .highLatency)
+        #expect(snapshot.activeEvent?.peakLatencyMs == 260)
+    }
+
+    @Test
+    func detectsSustainedProbeLossAndResolvesAfterHealthyResponses() async {
+        let thresholds = NetworkSentinelThresholds(
+            packetsPerSecond: 10_000_000,
+            megabitsPerSecond: 100_000,
+            errorsPerSecond: 100_000,
+            latencyMs: 1_000,
+            packetLossPercent: 75,
+            probeWindowSamples: 2,
+            sustainedSamples: 2,
+            resolveSamples: 2
+        )
+        let service = makeService(thresholds: thresholds)
+        let recorder = TransitionRecorder()
+        await service.setSink { _, transition in await recorder.record(transition) }
+
+        await service.ingestProbe(result: probeResult(succeeded: false), wallClock: wall)
+        await service.ingestProbe(result: probeResult(succeeded: false), wallClock: wall)
+
+        var snapshot = await service.snapshot()
+        #expect(snapshot.activeEvent?.classification == .packetLoss)
+        #expect(snapshot.activeEvent?.packetLossPercent == 100)
+
+        await service.ingestProbe(result: probeResult(succeeded: true, latencyMs: 20), wallClock: wall)
+        await service.ingestProbe(result: probeResult(succeeded: true, latencyMs: 25), wallClock: wall)
+        snapshot = await service.snapshot()
+        #expect(snapshot.status == "calm")
+        #expect(snapshot.activeEvent == nil)
+
+        let transitions = await recorder.snapshot()
+        #expect(transitions.count == 2)
+        #expect(transitions.first?.classification == .packetLoss)
+        #expect(transitions.first?.phase == .started)
+        #expect(transitions.last?.phase == .resolved)
+        #expect(transitions.first?.id == transitions.last?.id)
+    }
+
+    @Test
+    func parsesMacOSPingSummary() {
+        let output = """
+        PING 1.1.1.1 (1.1.1.1): 56 data bytes
+
+        --- 1.1.1.1 ping statistics ---
+        1 packets transmitted, 1 packets received, 0.0% packet loss
+        round-trip min/avg/max/stddev = 17.084/17.084/17.084/0.000 ms
+        """
+        let parsed = SystemPingProbe.parsePingOutput(output)
+
+        #expect(parsed.transmitted == 1)
+        #expect(parsed.received == 1)
+        #expect(parsed.packetLossPercent == 0.0)
+        #expect(parsed.averageLatencyMs == 17.084)
+    }
+
+    @Test
+    func parsesMacOSPingLossSummary() {
+        let output = """
+        PING 203.0.113.1 (203.0.113.1): 56 data bytes
+
+        --- 203.0.113.1 ping statistics ---
+        1 packets transmitted, 0 packets received, 100.0% packet loss
+        """
+        let parsed = SystemPingProbe.parsePingOutput(output)
+
+        #expect(parsed.transmitted == 1)
+        #expect(parsed.received == 0)
+        #expect(parsed.packetLossPercent == 100.0)
+        #expect(parsed.averageLatencyMs == nil)
     }
 
     @Test

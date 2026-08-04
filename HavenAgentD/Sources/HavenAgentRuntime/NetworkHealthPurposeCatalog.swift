@@ -9,10 +9,11 @@ import Foundation
 /// Instead of a hardcoded popup, a detected flood is turned into a
 /// `GoalObservation` and evaluated against a `GoalDefinition` by the shared
 /// `GoalEvaluationEngine`. The goal "keep the local link healthy" becomes
-/// `at-risk` only when a *harmful* flood is observed (interface distress or an
-/// unexplained high packet rate). Benign throughput saturation — a large
-/// download that fully uses the link with no errors — evaluates as `satisfied`,
-/// so it is recorded but never interrupts the operator.
+/// `at-risk` only when a *harmful* network-health event is observed (interface
+/// distress, unexplained high packet rate, high latency, or probe loss). Benign
+/// throughput saturation — a large download that fully uses the link with no
+/// errors — evaluates as `satisfied`, so it is recorded but never interrupts the
+/// operator.
 ///
 /// This is what makes the alert a *purpose match* (`formål`): notification is
 /// gated on the goal evaluation, not on raw thresholds.
@@ -26,14 +27,15 @@ public enum NetworkHealthPurposeCatalog {
     public static let purposeTitle = "Keep the local link healthy"
     public static let purposeDescription = """
     The home link stays healthy. A harmful flood — rising interface errors, or an \
-    unexplained high packet rate — puts this goal at risk and is surfaced to the \
-    operator. Benign throughput saturation (for example a large download) does not.
+    unexplained high packet rate — or sustained high latency / probe loss puts \
+    this goal at risk and is surfaced to the operator. Benign throughput \
+    saturation (for example a large download) does not.
     """
 
     /// Classifications that represent a *harmful* flood worth the operator's attention.
     public static func isHarmful(_ classification: NetworkFloodClass) -> Bool {
         switch classification {
-        case .interfaceDistress, .highPacketRate, .bulkUpload:
+        case .interfaceDistress, .highPacketRate, .bulkUpload, .highLatency, .packetLoss:
             return true
         case .bulkDownload, .unknown:
             return false
