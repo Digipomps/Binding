@@ -551,6 +551,77 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(suppressed["stagedInChat"]) == false)
     }
 
+    @Test func personalButlerSyncRequiresApprovalOnBothDevicesAndImportsOnlySignedPreferencesOnce() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-sync")
+        let source = await BindingPersonalChatHubCell(owner: owner)
+        let target = await BindingPersonalChatHubCell(owner: owner)
+        let approval: ValueType = .object(["approved": .bool(true), "confirm": .bool(true)])
+
+        _ = try await source.set(keypath: "chatHub.butler.sync.configure", value: approval, requester: owner)
+        _ = try await source.set(
+            keypath: "chatHub.butler.profile.displayName",
+            value: .string("Lumi"),
+            requester: owner
+        )
+        _ = try await source.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "minimumIntervalHours": .integer(120),
+                "userScheduleEnabled": .bool(true),
+                "stagingWakeEnabled": .bool(true),
+                "userScheduleKind": .string("weekdays"),
+                "userScheduleLocalTime": .string("10:15")
+            ]),
+            requester: owner
+        )
+        let exported = try #require(asObject(try await source.set(
+            keypath: "chatHub.butler.sync.export",
+            value: .object([:]),
+            requester: owner
+        )))
+        let packet = try #require(asObject(exported["packet"]))
+
+        let denied = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(denied["status"]) == "target_not_approved")
+
+        _ = try await target.set(keypath: "chatHub.butler.sync.configure", value: approval, requester: owner)
+        let imported = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(imported["status"]) == "imported")
+        #expect(asBool(imported["domainSideEffect"]) == true)
+
+        let targetButler = try #require(asObject(try await target.get(keypath: "chatHub.butler", requester: owner)))
+        let profile = try #require(asObject(targetButler["profile"]))
+        let proactivity = try #require(asObject(targetButler["proactivity"]))
+        let support = try #require(asObject(targetButler["support"]))
+        #expect(asString(profile["displayName"]) == "Lumi")
+        #expect(asString(profile["source"]) == "owner_approved_device_sync")
+        #expect(asInt(proactivity["minimumIntervalHours"]) == 120)
+        #expect(asString(proactivity["userScheduleLocalTime"]) == "10:15")
+        #expect(asBool(proactivity["stagingWakeEnabled"]) == true)
+        #expect(asString(support["status"]) == "idle")
+
+        let replay = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(replay["status"]) == "ignored_replay")
+        #expect(asBool(replay["sideEffect"]) == false)
+    }
+
     @Test func appleProviderFixturePublishesCandidateAndGateAuditWithoutModelSideEffects() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
