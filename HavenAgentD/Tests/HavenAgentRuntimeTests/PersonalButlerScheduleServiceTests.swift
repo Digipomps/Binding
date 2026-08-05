@@ -75,6 +75,7 @@ struct PersonalButlerScheduleServiceTests {
         #expect(calls.count == 1)
         #expect(calls[0].executableURL.path == "/usr/bin/open")
         #expect(calls[0].arguments.first == "-b")
+        #expect(PersonalButlerScheduleService.havenBundleIdentifier == "org.digipomps.haven")
         #expect(calls[0].arguments.contains(PersonalButlerScheduleService.havenBundleIdentifier))
         let url = try #require(calls[0].arguments.last)
         #expect(url.contains("haven://butler/check-in"))

@@ -6,6 +6,16 @@ Mål: HAVEN tilgjengelig for deltakere ved Arendalsuka 10.–14. august 2026
 
 Binding-revisjon undersøkt: `7884e566420cd90eb288881cc8a5df0e3685386b`
 
+> Oppdatering 5. august 2026: Resten av dokumentet er den historiske
+> 3. august-auditen. App-targetet, signering og de operative launcher-standardene
+> bruker nå `org.digipomps.haven`. App Store Connect-recorden finnes
+> (Apple ID 6798157457), og build 1 ble levert. Produksjons-AASA peker nå på
+> `5UT5HQTCV9.org.digipomps.haven` for `/arendalsuka*`. Apples
+> ITMS-90737-varsel er korrigert i en separat build-3-PR ved å fjerne den falske
+> dokumentåpningsdeklarasjonen. Ny build må fortsatt lastes opp, prosesseres,
+> fysisk smoke-testes og sendes til review. Med festivalstart 10. august er
+> dette nå et tidskritisk stretch-mål, ikke en bekreftet lansering.
+
 Metode: kildeaudit, rådgiverpanel, lokal Release-bygg/test, live read-only staging-prober og kontroll mot gjeldende Apple-kilder. Ingen produktkode eller stagingdata ble endret.
 
 ## Beslutning

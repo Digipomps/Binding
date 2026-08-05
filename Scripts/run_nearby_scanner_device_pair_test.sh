@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PHONE_DEVICE_ID="${PHONE_DEVICE_ID:-2A446771-99B8-5EB2-B384-07A156FB3107}"
-IPAD_DEVICE_ID="${IPAD_DEVICE_ID:-90C8A134-0A1A-5026-8C21-0DA21DC67AA8}"
-BUNDLE_ID="${BUNDLE_ID:-org.digipomps.havenplayground}"
+PHONE_DEVICE_ID="${PHONE_DEVICE_ID:-}"
+IPAD_DEVICE_ID="${IPAD_DEVICE_ID:-}"
+BUNDLE_ID="${BUNDLE_ID:-org.digipomps.haven}"
 DEEP_LINK="${DEEP_LINK:-haven://conference-automation?action=open-nearby-scanner}"
 SKIP_INSTALL="${SKIP_INSTALL:-0}"
 
@@ -37,6 +37,11 @@ case "${1:-}" in
     exit 64
     ;;
 esac
+
+if [[ -z "${PHONE_DEVICE_ID}" || -z "${IPAD_DEVICE_ID}" ]]; then
+  echo "PHONE_DEVICE_ID and IPAD_DEVICE_ID must be provided explicitly." >&2
+  exit 64
+fi
 
 newest_haven_app() {
   local roots=(
