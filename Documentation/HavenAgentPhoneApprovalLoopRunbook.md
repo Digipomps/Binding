@@ -215,6 +215,18 @@ Current live blocker:
 - App logs after the deploy showed only the local malformed curl probe hitting `/conference-mvp/api/device/register`; no real phone registration was observed after staging was corrected.
 - Binding now keeps explicit registration-success state and shows a retry prompt when notification permission exists but the phone is not registered with staging.
 
+## Update As Of 2026-08-05
+
+- New Binding builds use `org.digipomps.haven`; the 2026-06-23 proof below is
+  retained only as historical evidence for the legacy development build.
+- The App Store record and matching signing configuration now exist.
+- Keep the server APNs topic aligned with the build that is actually installed.
+  Switch to `APNS_BUNDLE_ID=org.digipomps.haven` only when the new build has
+  registered a fresh device token, then rerun the physical registration and
+  APNs canary.
+- TestFlight/App Store builds use production APNs; Xcode development builds use
+  the sandbox environment.
+
 ## What Was Proven Today
 
 ### 1. The app can now be built for iPhone again
