@@ -4699,6 +4699,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "butler.capabilities.refresh",
             "butler.support.consider",
             "butler.support.dismiss",
+            "butler.sync.configure",
+            "butler.sync.targetEndpoint",
+            "butler.sync.export",
+            "butler.sync.receive",
+            "butler.sync.push",
             "assistant.setCandidateQuery",
             "assistant.selectCandidate",
             "entityExtension.scan",
@@ -4864,6 +4869,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.butler.capabilities.transparencySummary",
         "state.butler.proactivity.enabled",
         "state.butler.proactivity.summary",
+        "state.butler.sync.approved",
+        "state.butler.sync.targetEndpoint",
+        "state.butler.sync.summary",
+        "state.butler.sync.privacySummary",
+        "state.butler.sync.lastStatus",
         "state.butler.support.status",
         "state.butler.support.summary",
         "state.butler.privacy.summary",
@@ -5092,6 +5102,16 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return considerButlerSupport(value)
         case "butler.support.dismiss":
             return dismissButlerSupport(value)
+        case "butler.sync.configure":
+            return configureButlerSync(value)
+        case "butler.sync.targetEndpoint":
+            return updateButlerSyncTarget(value)
+        case "butler.sync.export":
+            return await exportButlerPreferences(requester: requester)
+        case "butler.sync.receive":
+            return await receiveButlerPreferences(value, requester: requester)
+        case "butler.sync.push":
+            return await pushButlerPreferences(requester: requester)
         case "assistant.setCandidateQuery":
             BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
             return response(status: "ok", message: "Candidate query updated.")
@@ -8476,6 +8496,191 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "ok": .bool(true),
             "support": updated["support"] ?? .null,
             "proactivity": updated["proactivity"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func configureButlerSync(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.configuringSync(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        let sync = BindingChatValue.object(updated["sync"]) ?? [:]
+        let lastStatus = BindingChatValue.string(sync["lastStatus"]) ?? "unknown"
+        return .object([
+            "ok": .bool(lastStatus != "approval_confirmation_required"),
+            "sync": .object(sync),
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func updateButlerSyncTarget(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.updatingSyncTarget(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "sync": updated["sync"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func exportButlerPreferences(requester: Identity) async -> ValueType {
+        var butler = currentButlerState()
+        let sync = BindingChatValue.object(butler["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("source_not_approved", "Eieren må godkjenne synk på denne enheten først.")
+        }
+        let now = Date()
+        let sourceDeviceID = BindingChatValue.string(sync["deviceID"]) ?? ""
+        let revision = Int(BindingChatValue.double(sync["localRevision"]) ?? 0)
+        guard sourceDeviceID.isEmpty == false else {
+            return butlerSyncFailure("missing_device_id", "Enheten mangler en lokal synkidentifikator.")
+        }
+        var packet: Object = [
+            "schema": .string(BindingPersonalButlerPolicy.syncPacketSchema),
+            "packetID": .string(UUID().uuidString.lowercased()),
+            "sourceDeviceID": .string(sourceDeviceID),
+            "revision": .integer(revision),
+            "issuedAt": .float(now.timeIntervalSince1970),
+            "expiresAt": .float(now.addingTimeInterval(BindingPersonalButlerPolicy.syncPacketTTLSeconds).timeIntervalSince1970),
+            "requesterIdentity": .identity(requester),
+            "preferences": .object(BindingPersonalButlerPolicy.preferenceSyncPayload(from: butler))
+        ]
+        do {
+            let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(packet))
+            guard let signature = try await requester.sign(data: canonical) else {
+                return butlerSyncFailure("signing_unavailable", "Preferansepakken kunne ikke signeres av eieridentiteten.")
+            }
+            packet["signature"] = .data(signature)
+            butler = BindingPersonalButlerPolicy.recordingSyncExport(in: butler, now: now)
+            storeButlerState(butler)
+            return .object([
+                "ok": .bool(true),
+                "status": .string("exported"),
+                "packet": .object(packet),
+                "providerInvoked": .bool(false),
+                "sideEffect": .bool(false),
+                "domainSideEffect": .bool(false)
+            ])
+        } catch {
+            return butlerSyncFailure("canonicalization_failed", "Preferansepakken kunne ikke klargjøres for signering.")
+        }
+    }
+
+    private func receiveButlerPreferences(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard var packet = BindingChatValue.object(value) else {
+            return butlerSyncFailure("invalid_packet", "Synk krever en signert preferansepakke.")
+        }
+        var butler = currentButlerState()
+        let sync = BindingChatValue.object(butler["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("target_not_approved", "Eieren må godkjenne synk på målenheten først.")
+        }
+        guard BindingChatValue.string(packet["schema"]) == BindingPersonalButlerPolicy.syncPacketSchema,
+              let sourceDeviceID = BindingChatValue.string(packet["sourceDeviceID"]),
+              let revisionValue = BindingChatValue.double(packet["revision"]),
+              let issuedAtValue = BindingChatValue.double(packet["issuedAt"]),
+              let expiresAtValue = BindingChatValue.double(packet["expiresAt"]),
+              case let .identity(signer)? = packet["requesterIdentity"],
+              case let .data(signature)? = packet["signature"],
+              let preferences = BindingChatValue.object(packet["preferences"]) else {
+            return butlerSyncFailure("invalid_packet", "Synkpakken mangler obligatoriske felter.")
+        }
+        guard signer.uuid == requester.uuid else {
+            return butlerSyncFailure("owner_mismatch", "Synkpakken er ikke signert av eieridentiteten som åpnet målcellen.")
+        }
+        let now = Date().timeIntervalSince1970
+        guard issuedAtValue <= now + 5 * 60, expiresAtValue >= now else {
+            return butlerSyncFailure("expired_packet", "Synkpakken er utløpt eller har ugyldig tidsstempel.")
+        }
+        guard sourceDeviceID != BindingChatValue.string(sync["deviceID"]) else {
+            return butlerSyncFailure("same_device", "Enheten kan ikke importere sin egen synkpakke.")
+        }
+        let revision = Int(revisionValue)
+        if let previous = BindingPersonalButlerPolicy.incomingRevision(for: sourceDeviceID, in: butler),
+           revision <= previous {
+            return .object([
+                "ok": .bool(true),
+                "status": .string("ignored_replay"),
+                "revision": .integer(revision),
+                "sideEffect": .bool(false),
+                "domainSideEffect": .bool(false)
+            ])
+        }
+        packet.removeValue(forKey: "signature")
+        do {
+            let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(packet))
+            guard await signer.verify(signature: signature, for: canonical) else {
+                return butlerSyncFailure("invalid_signature", "Signaturen på synkpakken kunne ikke verifiseres.")
+            }
+        } catch {
+            return butlerSyncFailure("verification_failed", "Synkpakken kunne ikke verifiseres.")
+        }
+        butler = BindingPersonalButlerPolicy.applyingSyncedPreferences(
+            to: butler,
+            payload: preferences,
+            sourceDeviceID: sourceDeviceID,
+            revision: revision
+        )
+        storeButlerState(butler)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("imported"),
+            "sourceDeviceID": .string(sourceDeviceID),
+            "revision": .integer(revision),
+            "allowedFields": BindingChatValue.nested("sync.allowedFields", in: butler) ?? .list([]),
+            "sideEffect": .bool(true),
+            "domainSideEffect": .bool(true)
+        ])
+    }
+
+    private func pushButlerPreferences(requester: Identity) async -> ValueType {
+        let sync = BindingChatValue.object(currentButlerState()["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("source_not_approved", "Eieren må godkjenne synk på denne enheten først.")
+        }
+        guard let endpoint = BindingChatValue.string(sync["targetEndpoint"]), endpoint.isEmpty == false else {
+            return butlerSyncFailure("target_not_configured", "Velg en cell://-adresse for målenheten først.")
+        }
+        let exported = await exportButlerPreferences(requester: requester)
+        guard let exportObject = BindingChatValue.object(exported),
+              BindingChatValue.bool(exportObject["ok"]) == true,
+              let packet = BindingChatValue.object(exportObject["packet"]) else {
+            return exported
+        }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            return butlerSyncFailure("resolver_unavailable", "CellResolver er ikke klar for synk.")
+        }
+        do {
+            guard let target = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle,
+                  let result = try await target.set(
+                    keypath: "chatHub.butler.sync.receive",
+                    value: .object(packet),
+                    requester: requester
+                  ) else {
+                return butlerSyncFailure("target_unavailable", "Målenheten kunne ikke motta preferansepakken.")
+            }
+            return result
+        } catch {
+            return butlerSyncFailure("transport_failed", "Preferansesynk til målenheten mislyktes.")
+        }
+    }
+
+    private func butlerSyncFailure(_ status: String, _ message: String) -> ValueType {
+        .object([
+            "ok": .bool(false),
+            "status": .string(status),
+            "message": .string(message),
             "providerInvoked": .bool(false),
             "sideEffect": .bool(false),
             "domainSideEffect": .bool(false)
