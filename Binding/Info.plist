@@ -38,6 +38,12 @@
 	<array>
 		<string>_haven-radar._tcp</string>
 	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>HAVEN bruker Bluetooth bare når du starter Nearby Scanner, for å oppdage nærliggende HAVEN-enheter og etablere kontakt med eksplisitt samtykke.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>HAVEN bruker lokalnett bare når du starter Nearby Scanner, for å finne nearby HAVEN-enheter på samme nettverk.</string>
+	<key>NSNearbyInteractionUsageDescription</key>
+	<string>HAVEN bruker Nearby Interaction bare når du starter Nearby Scanner, for å vise ærlig avstand og retning til enheter du velger å oppdage.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

@@ -23,6 +23,7 @@ struct BindingApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .modifier(BindingPersonalButlerLifecycleModifier())
         }
 #if os(macOS)
         .restorationBehavior(.disabled)
