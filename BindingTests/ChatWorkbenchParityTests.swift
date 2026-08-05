@@ -2248,7 +2248,7 @@ struct ChatWorkbenchParityTests {
             keypath: "chatHub.ui.openMatchedResourceLibrary",
             value: .object([
                 "configurationName": .string("Arendalsuka Participant Program"),
-                "sourceCellEndpoint": .string("cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram"),
+                "sourceCellEndpoint": .string(BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint),
                 "resourceID": .string("configuration:arendalsuka-participant-program"),
                 "autoOpen": .bool(false)
             ]),
@@ -2288,7 +2288,7 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(submitted["configurationLoaded"]) == true)
         let resource = try #require(asObject(submitted["resource"]))
         #expect(asString(resource["title"]) == "Arendalsuka Participant Program")
-        #expect(asString(resource["sourceCellEndpoint"]) == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
+        #expect(asString(resource["sourceCellEndpoint"]) == BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint)
         let portholeUI = try #require(asObject(submitted["portholeUI"]))
         #expect(asBool(portholeUI["openLibrary"]) == true)
         #expect(asString(portholeUI["configurationName"]) == "Arendalsuka Participant Program")
@@ -2304,11 +2304,7 @@ struct ChatWorkbenchParityTests {
         #expect(asString(latestRows.last?["role"]) == "assistant")
         #expect((asString(latestRows.last?["body"]) ?? "").contains("Arendalsuka Participant Program"))
 
-        let configuration = try #require(
-            ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
-                includeAgentOperatorSurfaces: false
-            ).first { $0.name == "Arendalsuka Participant Program" }
-        )
+        let configuration = ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
         #expect(configuration.skeleton != nil)
     }
 

@@ -52,9 +52,21 @@ enum BindingPortholeLoadBridge {
 
 enum BindingPersonalCopilotV1Policy {
     nonisolated static let appStoreScope = "personal-copilot-v1"
-    nonisolated static let approvedRemoteHosts: Set<String> = [
-        "staging.haven.digipomps.org"
+    nonisolated static let arendalsukaConfigurationName = "Arendalsuka Participant Program"
+    nonisolated static let arendalsukaProductionEndpoint = "cell://haven.digipomps.org/ArendalsukaParticipantProgram"
+    nonisolated static let releaseAllowedConfigurationNames: Set<String> = [
+        "co-pilot",
+        "arendalsuka participant program",
+        "vault / ideas"
     ]
+
+    nonisolated static var approvedRemoteHosts: Set<String> {
+        var hosts: Set<String> = ["haven.digipomps.org"]
+#if DEBUG
+        hosts.insert("staging.haven.digipomps.org")
+#endif
+        return hosts
+    }
     nonisolated static let allowedStyleRoles: Set<String> = [
         "markdown",
         "tabstrip",
@@ -277,9 +289,19 @@ enum BindingPersonalCopilotV1Policy {
     }
 
     nonisolated static func isAllowedInPersonalCopilotV1(_ configuration: CellConfiguration) -> Bool {
+        let normalizedName = normalizedConfigurationName(configuration.name)
+        guard releaseAllowedConfigurationNames.contains(normalizedName),
+              declaredEndpoints(in: configuration).allSatisfy(isApprovedEndpoint),
+              endpointsMatchReleaseSurface(configuration, normalizedName: normalizedName) else {
+            return false
+        }
+
+        if normalizedName == normalizedConfigurationName(arendalsukaConfigurationName) {
+            return true
+        }
+
         guard hasPersonalCopilotScope(configuration) else { return false }
-        guard !containsHiddenConferenceSurface(configuration) else { return false }
-        return referencedEndpoints(in: configuration).allSatisfy(isApprovedEndpoint)
+        return !containsHiddenConferenceSurface(configuration)
     }
 
     nonisolated static func isApprovedEndpoint(_ endpoint: String) -> Bool {
@@ -297,7 +319,7 @@ enum BindingPersonalCopilotV1Policy {
     }
 
     nonisolated static func unavailableMessage(for configurationName: String) -> String {
-        "\(configurationName) er ikke del av Personal Co-Pilot V1 i App Store-modus. Den kan åpnes i utviklingsmodus eller via eksplisitt godkjent katalog senere."
+        "\(configurationName) er ikke del av den smale Arendalsuka-utgaven av HAVEN."
     }
 
     nonisolated static func referencedEndpoints(in configuration: CellConfiguration) -> [String] {
@@ -305,8 +327,46 @@ enum BindingPersonalCopilotV1Policy {
         return references.flatMap(Self.referencedEndpoints(in:))
     }
 
+    nonisolated private static func declaredEndpoints(in configuration: CellConfiguration) -> [String] {
+        var endpoints = referencedEndpoints(in: configuration)
+        if let sourceEndpoint = configuration.discovery?.sourceCellEndpoint?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !sourceEndpoint.isEmpty {
+            endpoints.append(sourceEndpoint)
+        }
+        return endpoints
+    }
+
     nonisolated private static func referencedEndpoints(in reference: CellReference) -> [String] {
         [reference.endpoint] + reference.subscriptions.flatMap(Self.referencedEndpoints(in:))
+    }
+
+    nonisolated private static func endpointsMatchReleaseSurface(
+        _ configuration: CellConfiguration,
+        normalizedName: String
+    ) -> Bool {
+        let allowedEndpointNames: Set<String>
+        switch normalizedName {
+        case "co-pilot":
+            allowedEndpointNames = ["personalchathub", "perspective"]
+        case "arendalsuka participant program":
+            allowedEndpointNames = ["arendalsukaparticipantprogram"]
+        case "vault / ideas":
+            allowedEndpointNames = ["vault", "graphindex"]
+        default:
+            return false
+        }
+
+        let actualEndpointNames = Set(declaredEndpoints(in: configuration).compactMap { endpoint -> String? in
+            guard let components = URLComponents(string: endpoint) else { return nil }
+            let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            return path.split(separator: "/").last.map { $0.lowercased() }
+        })
+        return actualEndpointNames == allowedEndpointNames
+    }
+
+    nonisolated private static func normalizedConfigurationName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     nonisolated private static func hasPersonalCopilotScope(_ configuration: CellConfiguration) -> Bool {
@@ -5814,12 +5874,31 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 requiresLogin: requiresLogin,
                 requiresUserGeneratedContentModeration: requiresUserGeneratedContentModeration,
                 nativePermissionRequests: nativePermissionRequests,
-                universalLink: "https://staging.haven.digipomps.org/app/\(universalLinkPath)",
+                universalLink: "https://haven.digipomps.org/app/\(universalLinkPath)",
                 reviewSummary: "Curated Personal Co-Pilot V1 surface for \(policyCategory)."
             )
         }
 
         return [
+            StaticCatalogDescriptor(
+                sourceCellEndpoint: BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint,
+                sourceCellName: "ArendalsukaParticipantProgramCell",
+                displayName: BindingPersonalCopilotV1Policy.arendalsukaConfigurationName,
+                purpose: "Finn og planlegg arrangementer under Arendalsuka",
+                purposeDescription: "Førsteparts, deklarativ programflate med søk, detaljer og privat agenda. Ingen innlogging kreves i event-v1.",
+                interests: scopedInterests(["arendalsuka", "event-program", "agenda", "sessions", "private-saved-items"], policyCategory: "event-program"),
+                summary: "Program, arrangementsdetaljer og privat agenda for Arendalsuka.",
+                categoryPath: ["personal-copilot", "arendalsuka", "program"],
+                tags: ["arendalsuka", "program", "agenda"],
+                menuSlots: [.upperMid, .lowerMid],
+                chip: "PROGRAM",
+                borderColor: "#2563EB",
+                policyHints: hints("event-program", universalLinkPath: "arendalsuka"),
+                flowDriven: true,
+                recommendedContexts: ["event", "program", "agenda"],
+                ioGetKeys: ["state", "skeletonConfiguration"],
+                ioSetKeys: ["program.search", "program.selectSession", "agenda.toggleSavedSession", "agenda.setView"]
+            ),
             StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell:///PersonalIdentity",
                 sourceCellName: "PersonalIdentityCell",
@@ -7125,6 +7204,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             return personalInviteChatMenuConfiguration()
         case "cell://staging.haven.digipomps.org/personalchathub":
             return personalInviteChatMenuConfiguration(chatHubEndpoint: descriptor.sourceCellEndpoint)
+        case "cell://haven.digipomps.org/arendalsukaparticipantprogram":
+            return arendalsukaParticipantProgramAppStoreConfiguration()
         case "cell:///personalagendacontext":
             return personalAgendaContextMenuConfiguration()
         case "cell:///calendarstore":
@@ -7812,29 +7893,11 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     }
 
     nonisolated static func personalCopilotV1MenuConfigurations() -> [CellConfiguration] {
-        var configurations = [
-            personalHomeMenuConfiguration(),
-            personalProfileMenuConfiguration(),
-            personalPublicProfileMenuConfiguration(),
-            personalPublicProfileDirectoryMenuConfiguration(),
-            butterpopStudioMenuConfiguration(),
-            personalMatchesMenuConfiguration(),
-            personalInviteChatMenuConfiguration(),
-            personalAgendaContextMenuConfiguration(),
-            personalCalendarStoreMenuConfiguration(),
-            personalVaultIdeasMenuConfiguration(),
-            personalMeetingIntentMenuConfiguration(),
-            personalPrivacyAuditMenuConfiguration(),
-            personalCopilotCatalogMenuConfiguration(),
-            appleIntelligenceLandingForPersonalCopilotConfiguration(),
-            entityScannerForPersonalCopilotConfiguration(),
-            workflowStudioForPersonalCopilotConfiguration()
+        let configurations = [
+            arendalsukaCopilotMenuConfiguration(),
+            arendalsukaParticipantProgramAppStoreConfiguration(),
+            personalVaultIdeasMenuConfiguration()
         ]
-
-        if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
-            configurations.append(agentSetupWorkbenchMenuConfiguration())
-        }
-
         return configurations
     }
 
@@ -8272,6 +8335,25 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         return configuration
     }
 
+    nonisolated static func arendalsukaParticipantProgramAppStoreConfiguration() -> CellConfiguration {
+        personalReferenceCardConfiguration(
+            name: BindingPersonalCopilotV1Policy.arendalsukaConfigurationName,
+            endpoint: BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint,
+            label: "arendalsukaParticipant",
+            title: "Arendalsuka-programmet",
+            subtitle: "Finn arrangementer, åpne detaljer og bygg en privat agenda.",
+            chip: "PROGRAM",
+            borderColor: "#2563EB",
+            sourceCellName: "ArendalsukaParticipantProgramCell",
+            purpose: "Finn og planlegg arrangementer under Arendalsuka",
+            purposeDescription: "Førsteparts, deklarativ programflate med søk, detaljer og privat agenda. Ingen innlogging kreves i event-v1.",
+            interests: ["arendalsuka", "event-program", "agenda", "sessions", "private-saved-items"],
+            menuSlots: [.upperMid, .lowerMid],
+            policyCategory: "event-program",
+            universalLinkPath: "arendalsuka"
+        )
+    }
+
     nonisolated static func personalHomeMenuConfiguration() -> CellConfiguration {
         var configuration = personalReferenceCardConfiguration(
             name: "Personal Home",
@@ -8595,6 +8677,81 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             policyCategory: "workflow-studio"
         )
         return withPersonalCopilotRecoveryAction(configuration)
+    }
+
+    nonisolated static func arendalsukaCopilotMenuConfiguration() -> CellConfiguration {
+        var configuration = CellConfiguration(name: "Co-Pilot")
+        configuration.description = "Beskriv hva du ser etter under Arendalsuka. HAVEN åpner bare den godkjente programflaten."
+        configuration.addReference(CellReference(endpoint: "cell:///PersonalChatHub", label: "chatHub"))
+        configuration.addReference(CellReference(endpoint: "cell:///Perspective", subscribeFeed: false, label: "perspective"))
+        configuration = withPersonalCopilotMetadata(
+            configuration,
+            sourceCellEndpoint: "cell:///PersonalChatHub",
+            sourceCellName: "PersonalChatHubCell",
+            purpose: "Finn relevante arrangementer i Arendalsuka-programmet",
+            purposeDescription: "Begrenset event-query som bare kan åpne den eksplisitt allowlistede Arendalsuka-programflaten.",
+            interests: [
+                "arendalsuka",
+                "event-query",
+                "agenda",
+                "resource-router",
+                "requires-user-approval",
+                "purposeRef=event.participation"
+            ],
+            menuSlots: [.upperLeft, .lowerLeft],
+            policyCategory: "event-query",
+            universalLinkPath: "arendalsuka/spor"
+        )
+
+        let composer = SkeletonTextArea(
+            text: nil,
+            sourceKeypath: "chatHub.state.composer.body",
+            targetKeypath: "chatHub.setComposer",
+            placeholder: "Hva slags arrangement ser du etter?",
+            minLines: 2,
+            maxLines: 4,
+            submitOnEnter: true,
+            submitActionKeypath: "chatHub.prompt.submit",
+            modifiers: BindingPersonalCopilotDesignSystem.chatComposerFieldCard()
+        )
+        let submit = personalActionButton(
+            keypath: "chatHub.prompt.submit",
+            label: "Finn i programmet",
+            payload: .object([:])
+        )
+        let clear = personalActionButton(
+            keypath: "chatHub.clearComposer",
+            label: "Tøm",
+            payload: .object([:]),
+            style: .secondary
+        )
+
+        configuration.skeleton = personalChatSurfacePage(
+            title: "Co-Pilot",
+            subtitle: "Spør om tema, tidspunkt eller type arrangement. Forslaget åpnes i Arendalsuka-programmet.",
+            chip: "EVENT",
+            content: [
+                personalCompactSection(
+                    "Finn arrangementer",
+                    role: "personal-chat-composer-field",
+                    content: [
+                        .TextArea(composer),
+                        .HStack(SkeletonHStack(elements: [
+                            .Button(submit),
+                            .Button(clear)
+                        ], spacing: 8)),
+                        .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 3))
+                    ]
+                ),
+                personalCompactSection(
+                    "Privat som standard",
+                    content: [
+                        .Text(personalBodyText("Søk og lokale notater publiseres ikke. Programdata kommer fra HAVENs administrerte tjeneste.", lineLimit: 3))
+                    ]
+                )
+            ]
+        )
+        return configuration
     }
 
     nonisolated static func personalInviteChatMenuConfiguration(
@@ -11046,7 +11203,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             requiresLogin: requiresLogin,
             requiresUserGeneratedContentModeration: requiresUserGeneratedContentModeration,
             nativePermissionRequests: nativePermissionRequests,
-            universalLink: "https://staging.haven.digipomps.org/app/\(universalPath)",
+            universalLink: "https://haven.digipomps.org/app/\(universalPath)",
             reviewSummary: reviewSummary
         )
         let existingInterests = updated.discovery?.interests ?? []

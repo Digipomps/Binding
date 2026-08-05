@@ -40,22 +40,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "HAVEN" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				AppleIntelligence_Workflow.md,
-				HowTo_CreateCell.md,
-				SkeletonElements_Detailed.md,
-			);
-			target = 24D800142EF195A000021B5A /* HAVEN */;
-		};
-		24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "HAVEN" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				CONTRIBUTING.md,
-			);
-			target = 24D800142EF195A000021B5A /* HAVEN */;
-		};
 		24D8005F2EF3077D00021B5A /* Exceptions for "Binding" folder in "HAVEN" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -86,17 +70,11 @@
 		};
 		24D8004D2EF2D58E00021B5A /* Documentation */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				24386EBC2F0D8E0700490131 /* Exceptions for "Documentation" folder in "Binding" target */,
-			);
 			path = Documentation;
 			sourceTree = "<group>";
 		};
 		24D8004F2EF2D5AE00021B5A /* Prompts */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				24D800592EF2F14900021B5A /* Exceptions for "Prompts" folder in "Binding" target */,
-			);
 			path = Prompts;
 			sourceTree = "<group>";
 		};
@@ -488,6 +466,7 @@
 		24D800372EF195A200021B5A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -495,8 +474,10 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Binding/Binding-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Binding/Binding-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				"CODE_SIGN_STYLE[sdk=iphoneos*]" = Manual;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5UT5HQTCV9;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -507,16 +488,17 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for aa laase opp identiteter og signere handlinger med noekler som brukeren kontrollerer.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare naar du starter tale-til-tekst i Co-Pilot Chat.";
-				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "HAVEN bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "HAVEN bruker Nearby Interaction for å anslå avstand og retning til en nær enhet når maskinvaren støtter det.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
 				INFOPLIST_KEY_NSRemindersUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN bruker talegjenkjenning for aa skrive inn diktert tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN bruker talegjenkjenning for å skrive inn diktert tekst i Co-Pilot Chat.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -529,25 +511,26 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				"INFOPLIST_KEY_UISupportsDocumentBrowser[sdk=iphoneos*]" = NO;
 				"INFOPLIST_KEY_UISupportsDocumentBrowser[sdk=iphonesimulator*]" = NO;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.havenplayground;
+				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.haven;
 				PRODUCT_MODULE_NAME = Binding;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "HAVEN iOS Development 2026";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Debug;
@@ -555,6 +538,7 @@
 		24D800382EF195A200021B5A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -562,8 +546,10 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Binding/Binding-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Binding/Binding-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				"CODE_SIGN_STYLE[sdk=iphoneos*]" = Manual;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5UT5HQTCV9;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -574,16 +560,17 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for aa laase opp identiteter og signere handlinger med noekler som brukeren kontrollerer.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for a oppdage andre HAVEN-enheter og etablere peer-to-peer kontakt.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare naar du starter tale-til-tekst i Co-Pilot Chat.";
-				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "HAVEN bruker Nearby Interaction for a ansla avstand og retning til en naer enhet nar maskinvaren stotter det.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "HAVEN bruker Nearby Interaction for å anslå avstand og retning til en nær enhet når maskinvaren støtter det.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
 				INFOPLIST_KEY_NSRemindersUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN bruker talegjenkjenning for aa skrive inn diktert tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN bruker talegjenkjenning for å skrive inn diktert tekst i Co-Pilot Chat.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -596,25 +583,26 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				"INFOPLIST_KEY_UISupportsDocumentBrowser[sdk=iphoneos*]" = NO;
 				"INFOPLIST_KEY_UISupportsDocumentBrowser[sdk=iphonesimulator*]" = NO;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.havenplayground;
+				PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.haven;
 				PRODUCT_MODULE_NAME = Binding;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "HAVEN App Store Distribution 2026";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Release;
