@@ -3027,9 +3027,11 @@ enum BindingChatProviderRouter {
 final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case lastClassification
+        case lastClaimAnalysis
     }
 
     nonisolated(unsafe) private var lastClassification: Object = [:]
+    nonisolated(unsafe) private var lastClaimAnalysis: Object = [:]
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -3040,6 +3042,7 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
     nonisolated required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         lastClassification = (try? container.decode(Object.self, forKey: .lastClassification)) ?? [:]
+        lastClaimAnalysis = (try? container.decode(Object.self, forKey: .lastClaimAnalysis)) ?? [:]
         try super.init(from: decoder)
     }
 
@@ -3047,13 +3050,14 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
         try super.encode(to: encoder)
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(lastClassification, forKey: .lastClassification)
+        try container.encode(lastClaimAnalysis, forKey: .lastClaimAnalysis)
     }
 
     override func installRuntimeBindings(owner: Identity) async {
-        for key in ["ai.state", "ai.lastClassification"] {
+        for key in ["ai.state", "ai.lastClassification", "ai.lastClaimAnalysis"] {
             ensureAgreementGrant("r---", for: key)
         }
-        for key in ["ai.classifyIntent", "ai.sendPrompt"] {
+        for key in ["ai.classifyIntent", "ai.analyzeClaims", "ai.sendPrompt"] {
             ensureAgreementGrant("rw--", for: key)
         }
 
@@ -3067,10 +3071,20 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             guard await self.validateAccess("r---", at: "ai.lastClassification", for: requester) else { return .string("denied") }
             return .object(self.lastClassification)
         }
+        await registerGet(key: "ai.lastClaimAnalysis", owner: owner, returns: .object([:])) { [weak self] requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "ai.lastClaimAnalysis", for: requester) else { return .string("denied") }
+            return .object(self.lastClaimAnalysis)
+        }
         await registerSet(key: "ai.classifyIntent", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "ai.classifyIntent", for: requester) else { return .string("denied") }
             return await self.classify(value)
+        }
+        await registerSet(key: "ai.analyzeClaims", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "ai.analyzeClaims", for: requester) else { return .string("denied") }
+            return await self.analyzeClaims(value)
         }
         await registerSet(key: "ai.sendPrompt", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
             guard let self else { return .string("failure") }
@@ -3096,6 +3110,18 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             "requiresUserApproval": .bool(true),
             "canInvokeFromChat": .bool(false),
             "supportsStructuredIntent": .bool(availability.structured),
+            "supportsClaimAnalysis": .bool(availability.structured),
+            "purposeDecompositionSchema": .string(BindingApplePurposeDecompositionPipeline.schema),
+            "purposeGatePolicy": .object(BindingApplePurposeDecompositionPipeline.gatePolicyObject()),
+            "modelMayInventPurposeRefs": .bool(false),
+            "claimAnalysisSchema": .string(BindingAppleClaimArgumentPipeline.schema),
+            "claimDefinitionSchema": .string(ClaimDefinition.schemaID),
+            "modelMayInventClaimIDs": .bool(false),
+            "modelMayInventClaimText": .bool(false),
+            "capabilities": .list([
+                .string("ai.classifyIntent"),
+                .string("ai.analyzeClaims")
+            ]),
             "purposeRefs": .list([
                 .string("personal.ai.provider.apple-intelligence"),
                 .string("personal.chat.assist.resource-router")
@@ -3108,7 +3134,8 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
                 .string("assistant")
             ]),
             "reason": .string(availability.reason),
-            "lastClassification": .object(lastClassification)
+            "lastClassification": .object(lastClassification),
+            "lastClaimAnalysis": .object(lastClaimAnalysis)
         ])
     }
 
@@ -3125,18 +3152,41 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             capabilityDiscoveryEnabled: capabilityDiscoveryEnabled,
             scaffoldContextAvailable: scaffoldContextAvailable
         )
+        let contextPack = contextPackForClassification(from: payload)
         let useFixtureFallback = BindingChatValue.string(payload["evaluationMode"]) == "fixture"
-        let classification = await Self.foundationModelClassification(
+        let outcome = await Self.foundationModelClassification(
             draft: draft,
-            contextPack: contextPackForClassification(from: payload),
+            contextPack: contextPack,
             fallback: fallback,
             allowFoundationModels: !useFixtureFallback
         )
-        var object = classification.objectValue()
+        var object = outcome.classification.objectValue()
         object["providerID"] = .string("binding.apple-intelligence")
         object["providerKind"] = .string("apple_intelligence")
-        object["usedContext"] = .object(contextPackForClassification(from: payload))
+        object["usedContext"] = .object(contextPack)
+        object["purposeDecomposition"] = .object(outcome.objectValue())
         lastClassification = object
+        return .object(object)
+    }
+
+    private func analyzeClaims(_ value: ValueType) async -> ValueType {
+        let payload = BindingChatValue.object(value) ?? [:]
+        let text = BindingChatValue.string(payload["text"])
+            ?? BindingChatValue.string(payload["draft"])
+            ?? BindingChatValue.string(payload["prompt"])
+            ?? (value.stringValueIfPossible ?? "")
+        let rawPurposeRef = BindingChatValue.string(payload["purposeRef"])
+        let purposeRef = rawPurposeRef?.isEmpty == false ? rawPurposeRef : nil
+        let useFixtureFallback = BindingChatValue.string(payload["evaluationMode"]) == "fixture"
+        let outcome = await BindingAppleClaimArgumentPipeline.analyze(
+            text: text,
+            purposeRef: purposeRef,
+            allowFoundationModels: !useFixtureFallback
+        )
+        var object = outcome.objectValue()
+        object["providerID"] = .string("binding.apple-intelligence")
+        object["providerKind"] = .string("apple_intelligence")
+        lastClaimAnalysis = object
         return .object(object)
     }
 
@@ -3186,39 +3236,82 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
         contextPack: Object,
         fallback: BindingChatIntentClassification,
         allowFoundationModels: Bool
-    ) async -> BindingChatIntentClassification {
-        guard allowFoundationModels else { return fallback }
+    ) async -> BindingApplePurposeDecompositionOutcome {
+        let candidates = BindingApplePurposeDecompositionPipeline.shortlist(
+            prompt: draft,
+            fallback: fallback
+        )
+        guard allowFoundationModels else {
+            return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+                fallback: fallback,
+                candidates: candidates,
+                source: "fixture_deterministic_fallback"
+            )
+        }
 #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *),
            SystemLanguageModel.default.isAvailable {
-            do {
-                let session = LanguageModelSession(instructions: """
-                Classify one private chat draft into a HAVEN PersonalChatHub helper intent.
-                Only use the provided draft, perspective summary and granted descriptors.
-                Never infer access to contacts, calendar, camera, microphone, vault or other threads.
-                If the user says not to do an action, set negativeIntent and use low_confidence.
-                """)
-                let contextJSON = (try? ValueType.object(contextPack).jsonString()) ?? "{}"
-                let response = try await session.respond(
-                    generating: BindingAppleStructuredIntent.self,
-                    includeSchemaInPrompt: true,
-                    options: GenerationOptions(sampling: .greedy)
-                ) {
-                    """
-                    Draft:
-                    \(draft)
-
-                    Context pack:
-                    \(contextJSON)
-                    """
-                }
-                return response.content.classification(fallback: fallback)
-            } catch {
-                return fallback
+            guard candidates.isEmpty == false else {
+                return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+                    fallback: fallback,
+                    candidates: [],
+                    source: "no_deterministic_candidates"
+                )
             }
+            let contextJSON = (try? ValueType.object(contextPack).jsonString()) ?? "{}"
+            var verdicts: [BindingApplePurposeVerdictRecord] = []
+            for candidate in candidates {
+                let session = LanguageModelSession()
+                var verdict = "error"
+                var attempts = 0
+                while attempts < 3 {
+                    attempts += 1
+                    do {
+                        let response = try await session.respond(
+                            generating: BindingApplePurposeMicroAnswer.self,
+                            includeSchemaInPrompt: true,
+                            options: GenerationOptions(sampling: .greedy)
+                        ) {
+                            """
+                            A user wrote this request to a private software assistant:
+                            "\(draft)"
+
+                            Candidate purpose from the Binding helper taxonomy:
+                            \(candidate.purposeRef) — \(candidate.title)
+                            Summary: \(candidate.summary)
+                            Goal outcome: \(candidate.goalOutcome)
+                            Deterministic resolver score: \(candidate.resolverScore)
+
+                            Allowed private context pack:
+                            \(contextJSON)
+
+                            Does fulfilling the user's request require this purpose? Consider it required when the request clearly needs it, even implicitly. Answer no when the user negates the action. Do not propose another purpose.
+                            """
+                        }
+                        verdict = response.content.verdict.rawValue
+                        break
+                    } catch {
+                        continue
+                    }
+                }
+                verdicts.append(BindingApplePurposeVerdictRecord(
+                    purposeRef: candidate.purposeRef,
+                    verdict: verdict,
+                    attempts: attempts
+                ))
+            }
+            return BindingApplePurposeDecompositionPipeline.resolve(
+                fallback: fallback,
+                candidates: candidates,
+                verdicts: verdicts
+            )
         }
 #endif
-        return fallback
+        return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+            fallback: fallback,
+            candidates: candidates,
+            source: "foundation_models_unavailable"
+        )
     }
 }
 
