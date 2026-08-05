@@ -583,7 +583,9 @@ enum BindingRuntimeBootstrap {
     }
 
     @MainActor
-    static func ensureBaseline() async {
+    static func ensureBaseline(
+        authenticatedIdentityVault: (any IdentityVaultProtocol)? = nil
+    ) async {
         if shouldUseLocalRuntimeOnlyForVerifier() {
             await ensureInfrastructureBaseline()
             return
@@ -591,7 +593,7 @@ enum BindingRuntimeBootstrap {
 
         await ensureInfrastructureBaseline()
 
-        let identityVault = IdentityVault.shared
+        let identityVault: any IdentityVaultProtocol = authenticatedIdentityVault ?? IdentityVault.shared
         _ = await identityVault.initialize()
         CellBase.defaultIdentityVault = identityVault
         await CellResolver.sharedInstance.refreshNamedResolveOwnersFromCurrentVault()

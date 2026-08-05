@@ -17,8 +17,7 @@ final class CatalogAbsorbXCTest: XCTestCase {
         }
 
         if CellBase.defaultIdentityVault == nil {
-            CellBase.defaultIdentityVault = IdentityVault.shared
-            _ = await IdentityVault.shared.initialize()
+            CellBase.defaultIdentityVault = await EphemeralIdentityVault().initialize()
         }
 
         guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
