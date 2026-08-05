@@ -104,7 +104,11 @@ struct BindingPersonalButlerLifecycleModifier: ViewModifier {
 
     private func dispatch(triggerKind: String) async {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
+        // Use the validated registration path. A butler trigger must not reach
+        // PersonalChatHub on a partially registered runtime.
+        guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+            return
+        }
 
         guard let requester = await BindingStartupIdentityVault.shared.identity(
             for: "private",
@@ -131,7 +135,11 @@ struct BindingPersonalButlerLifecycleModifier: ViewModifier {
 
     private func syncDaemonPreferences() async {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLaunchCriticalCellsRegistered()
+        // Use the validated registration path. A butler trigger must not reach
+        // PersonalChatHub on a partially registered runtime.
+        guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
+            return
+        }
         guard let requester = await BindingStartupIdentityVault.shared.identity(
             for: "private",
             makeNewIfNotFound: true
