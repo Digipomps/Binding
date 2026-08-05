@@ -509,6 +509,81 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(localState["requiresNetwork"]) == false)
     }
 
+    @Test func appleProviderFixturePublishesCandidateAndGateAuditWithoutModelSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-purpose-fixture")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let state = try #require(asObject(try await apple.get(keypath: "ai.state", requester: owner)))
+        #expect(asString(state["purposeDecompositionSchema"]) == BindingApplePurposeDecompositionPipeline.schema)
+        #expect(asBool(state["modelMayInventPurposeRefs"]) == false)
+
+        let classified = try #require(asObject(try await apple.set(
+            keypath: "ai.classifyIntent",
+            value: .object([
+                "draft": .string("lag oppgave for kandidatbegrenset Apple-test"),
+                "evaluationMode": .string("fixture")
+            ]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(classified["purposeRef"]) == "personal.chat.assist.todo")
+        #expect(asBool(classified["requiresUserApproval"]) == true)
+
+        let decomposition = try #require(asObject(classified["purposeDecomposition"]))
+        #expect(asString(decomposition["schema"]) == BindingApplePurposeDecompositionPipeline.schema)
+        #expect(asString(decomposition["source"]) == "fixture_deterministic_fallback")
+        #expect(asBool(decomposition["sideEffectFree"]) == true)
+        #expect(asBool(decomposition["mutatesPerspective"]) == false)
+        #expect(asBool(decomposition["mutatesEntity"]) == false)
+        #expect(asStringList(decomposition["candidatePurposeRefs"]).contains("personal.chat.assist.todo"))
+        let gate = try #require(asObject(decomposition["gatePolicy"]))
+        #expect(asString(gate["policyID"]) == BindingApplePurposeDecompositionPipeline.gatePolicyID)
+        #expect(asBool(gate["modelMayInventPurposeRefs"]) == false)
+    }
+
+    @Test func appleClaimProviderFixturePublishesClaimDefinitionWithoutSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-claim-fixture")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let analysis = try #require(asObject(try await apple.set(
+            keypath: "ai.analyzeClaims",
+            value: .object([
+                "text": .string("HAVEN støtter lokal claim-analyse. Produktiviteten øker med 12%."),
+                "purposeRef": .string("purpose://claim-analysis-smoke"),
+                "evaluationMode": .string("fixture")
+            ]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asString(analysis["schema"]) == "binding.apple-claim-analysis.v1")
+        #expect(asString(analysis["claimSchema"]) == "haven.claim-definition.v0")
+        #expect(asString(analysis["source"]) == "fixture_deterministic_claim_heuristics")
+        #expect(asBool(analysis["modelMayInventClaimIDs"]) == false)
+        #expect(asBool(analysis["modelMayInventClaimText"]) == false)
+        #expect(asBool(analysis["quotesAreExactInputAnchors"]) == true)
+        #expect(asBool(analysis["sourceAuditPerformed"]) == false)
+        #expect(asBool(analysis["argumentCompositionPerformed"]) == false)
+        #expect(asBool(analysis["sideEffectFree"]) == true)
+        #expect(asBool(analysis["mutatesPerspective"]) == false)
+        #expect(asBool(analysis["mutatesEntity"]) == false)
+
+        let claims = (asList(analysis["claimLedger"]) ?? []).compactMap(asObject)
+        #expect(claims.count == 2)
+        #expect(asString(claims.first?["schema"]) == "haven.claim-definition.v0")
+        #expect(asString(claims.first?["statement"]) == "HAVEN støtter lokal claim-analyse.")
+        #expect(asString(claims.first?["quote"]) == asString(claims.first?["statement"]))
+        #expect(asBool(claims.first?["isInferred"]) == false)
+        #expect(asString(claims.first?["claimType"]) == "project_capability")
+        #expect(asString(claims.first?["sourceAuditStatus"]) == "source_missing")
+        #expect(asString(claims.first?["purposeRef"]) == "purpose://claim-analysis-smoke")
+        #expect((asList(claims.first?["supports"]) ?? []).isEmpty)
+    }
+
     @Test func ownerScopedChatAndProviderCellsRejectForeignRequesterWithoutDebugBypass() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         let previousVault = CellBase.defaultIdentityVault
