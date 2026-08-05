@@ -37,11 +37,7 @@ struct BindingSkeletonView: View {
 
         ZStack {
             if let baseElement = extraction.baseElement {
-                SkeletonView(
-                    element: baseElement,
-                    userInfoValue: userInfoValue,
-                    showsKeyboardToolbar: true
-                )
+                SkeletonView(element: baseElement, userInfoValue: userInfoValue)
                     .environmentObject(viewModel)
             }
 
@@ -753,11 +749,7 @@ private struct BindingSkeletonPresentationLayer: View {
                 backdrop(for: effectivePresentation)
             }
 
-            SkeletonView(
-                element: node.element,
-                userInfoValue: userInfoValue,
-                showsKeyboardToolbar: false
-            )
+            SkeletonView(element: node.element, userInfoValue: userInfoValue)
                 .environmentObject(viewModel)
                 .frame(
                     maxWidth: maxPanelWidth(for: effectivePresentation),

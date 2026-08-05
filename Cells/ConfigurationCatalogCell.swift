@@ -5524,7 +5524,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 purpose: "Entity discovery og sikker kontaktetablering",
                 purposeDescription: "Oppdag andre i naerheten, send kontaktforespoersel, signer motet og eksporter encounter som bevis.",
                 interests: ["scanner", "nearby", "identity", "conference", "peer"],
-                menuSlots: [.upperLeft, .lowerLeft],
+                menuSlots: [.lowerLeft],
                 goal: entityScannerGoal,
                 configuration: entityScannerWorkbench,
                 displayName: "Entity Scanner",
@@ -6207,7 +6207,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 summary: "Oppdag naerliggende enheter og etabler kontakt trygt.",
                 categoryPath: ["personal-copilot", "hardware"],
                 tags: ["scanner", "nearby", "identity"],
-                menuSlots: [.upperLeft, .lowerLeft],
+                menuSlots: [.lowerLeft],
                 chip: "LOCAL",
                 borderColor: "#0891B2",
                 policyHints: hints("hardware-scanner", nativePermissionRequests: ["nearby", "bluetooth"], universalLinkPath: "personal/scanner"),
@@ -8659,7 +8659,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             purpose: "Entity Scanner for personlig kontaktetablering",
             purposeDescription: "Oppdag naerliggende enheter og etabler kontakt med tydelige permissions og lokale proofs.",
             interests: ["scanner", "nearby", "identity", "peer", "proofs"],
-            menuSlots: [.upperLeft, .lowerLeft],
+            menuSlots: [.lowerLeft],
             policyCategory: "hardware-scanner",
             nativePermissionRequests: ["nearby", "bluetooth"]
         )
@@ -9029,20 +9029,6 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             submitOnEnter: false,
             modifiers: fieldCard
         )
-        let butlerScheduleTimeField = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "chatHub.state.butler.proactivity.userScheduleLocalTime",
-            targetKeypath: "chatHub.butler.proactivity.schedule.localTime",
-            placeholder: "Lokalt klokkeslett, for eksempel 09:00",
-            modifiers: fieldCard
-        )
-        let butlerSyncEndpointField = SkeletonTextField(
-            text: nil,
-            sourceKeypath: "chatHub.state.butler.sync.targetEndpoint",
-            targetKeypath: "chatHub.butler.sync.targetEndpoint",
-            placeholder: "cell://-adresse til din andre enhet",
-            modifiers: fieldCard
-        )
         let mermaidSourceField = SkeletonTextArea(
             text: nil,
             sourceKeypath: "chatHub.state.assistant.candidateQuery",
@@ -9128,23 +9114,10 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         var promptStatus = personalBoundText("statusText", lineLimit: 1)
         promptStatus.modifiers?.foregroundColor = BindingPersonalCopilotDesignSystem.textTertiary
         promptStatus.modifiers?.fontSize = 11
-        var promptOpenSuggestionButton = button(
-            "chatHub.ui.openSuggestedHelper",
-            "Åpne forslag",
-            style: .secondary
-        )
-        promptOpenSuggestionButton.modifiers?.visibility = SkeletonVisibilityRule(
-            when: SkeletonCondition(
-                scope: .item,
-                keypath: "canOpenSuggestion",
-                equals: .bool(true)
-            )
-        )
         var promptMessageRow = SkeletonVStack(elements: [
             .Text(promptSpeaker),
             .Text(promptBody),
-            .Text(promptStatus),
-            .Button(promptOpenSuggestionButton)
+            .Text(promptStatus)
         ], spacing: 5)
         promptMessageRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "chat-prompt-message")
         var promptMessages = SkeletonList(topic: nil, keypath: "chatHub.state.ui.promptMessages", flowElementSkeleton: promptMessageRow)
@@ -9587,17 +9560,24 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         primaryActionHint.modifiers?.fontSize = 12
 
         let primaryPromptButton = button(
-            "chatHub.prompt.submit",
+            "chatHub.ui.openSuggestedHelper",
             "↑",
             style: .iconPrimary
         )
-        var composerStack = SkeletonHStack(
+        var primaryActionStack = SkeletonVStack(
             elements: [
-                .TextArea(composer),
                 .Button(primaryPromptButton)
             ],
-            spacing: 10
+            spacing: 0
         )
+        primaryActionStack.modifiers = modifier {
+            $0.hAlignment = "trailing"
+            $0.styleRole = "chat-primary-action"
+        }
+        var composerStack = SkeletonVStack(elements: [
+            .TextArea(composer),
+            .VStack(primaryActionStack)
+        ], spacing: 10)
         composerStack.modifiers = modifier {
             $0.maxWidthInfinity = true
             $0.styleRole = "personal-draft-composer"
@@ -9609,7 +9589,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 role: "personal-draft-composer",
                 content: [
                     .List(promptMessages),
-                    .HStack(composerStack),
+                    .VStack(composerStack),
                     .Text(primaryActionHint),
                     .Text(personalBoundText("chatHub.state.assistant.whySummary", lineLimit: 3)),
                     .List(activeToolChips),
@@ -9730,14 +9710,12 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                     .Button(button("chatHub.butler.profile.feedback", "Mindre initiativ", payload: .object(["signal": .string("less_proactive")]), style: .secondary))
                 ], spacing: 8)),
                 .Divider(SkeletonDivider()),
-                .Text(personalBodyText("Initiativ er av som standard. Når du slår det på, kan butleren vurdere appstart, fullført oppgave og din egen plan. HAVENAgentD kjører planen også når appen er lukket. Stille timer og 72 timer som startverdi gjelder.")),
+                .Text(personalBodyText("Innsjekker er av som standard. Når du slår dem på, gjelder stille timer og minst 72 timer mellom tilbud.")),
                 .Text(personalBoundText("chatHub.state.butler.proactivity.summary", lineLimit: 4)),
                 .HStack(SkeletonHStack(elements: [
                     .Button(button("chatHub.butler.proactivity.configure", "Tillat sjeldne innsjekker", payload: .object([
                         "enabled": .bool(true),
-                        "checkInsEnabled": .bool(true),
-                        "appLaunchEnabled": .bool(true),
-                        "taskCompletionEnabled": .bool(true)
+                        "checkInsEnabled": .bool(true)
                     ]), style: .secondary)),
                     .Button(button("chatHub.butler.proactivity.configure", "Stopp initiativ", payload: .object([
                         "enabled": .bool(false)
@@ -9750,72 +9728,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                         "snoozeHours": .integer(168)
                     ]), style: .secondary))
                 ], spacing: 8)),
-                .Text(personalBodyText("Velg når vurderingen kan kjøres. En utløsning er bare en lokal policyvurdering; den starter ingen språkmodell og gjør ingenting videre uten svaret ditt.")),
-                .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.butler.proactivity.configure", "Appstart på", payload: .object([
-                        "enabled": .bool(true),
-                        "appLaunchEnabled": .bool(true)
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.proactivity.configure", "Appstart av", payload: .object([
-                        "appLaunchEnabled": .bool(false)
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.proactivity.configure", "Etter oppgave på", payload: .object([
-                        "enabled": .bool(true),
-                        "taskCompletionEnabled": .bool(true)
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.proactivity.configure", "Etter oppgave av", payload: .object([
-                        "taskCompletionEnabled": .bool(false)
-                    ]), style: .secondary))
-                ], spacing: 8)),
-                .TextField(butlerScheduleTimeField),
-                .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.butler.proactivity.configure", "Daglig", payload: .object([
-                        "enabled": .bool(true),
-                        "userScheduleEnabled": .bool(true),
-                        "userScheduleKind": .string("daily")
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.proactivity.configure", "Hverdager", payload: .object([
-                        "enabled": .bool(true),
-                        "userScheduleEnabled": .bool(true),
-                        "userScheduleKind": .string("weekdays")
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.proactivity.configure", "Ukentlig mandag", payload: .object([
-                        "enabled": .bool(true),
-                        "userScheduleEnabled": .bool(true),
-                        "userScheduleKind": .string("weekly"),
-                        "userScheduleWeekday": .integer(2)
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.proactivity.configure", "Plan av", payload: .object([
-                        "userScheduleEnabled": .bool(false)
-                    ]), style: .secondary))
-                ], spacing: 8)),
-                .Text(personalBodyText("Et signal fra staging kan bare starte HAVEN gjennom en signert, lokalt allowlistet vekkehandling. Dette er av som standard, signalet kan ikke velge URL eller kommando, og samtykket kan trekkes tilbake her.")),
-                .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.butler.proactivity.configure", "Tillat staging-vekking", payload: .object([
-                        "enabled": .bool(true),
-                        "appLaunchEnabled": .bool(true),
-                        "stagingWakeEnabled": .bool(true)
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.proactivity.configure", "Stopp staging-vekking", payload: .object([
-                        "stagingWakeEnabled": .bool(false)
-                    ]), style: .warning))
-                ], spacing: 8)),
                 .Text(personalBoundText("chatHub.state.butler.support.summary", lineLimit: 4)),
-                .Divider(SkeletonDivider()),
-                .Text(personalBodyText("Synk av navn, stil og kadanse må godkjennes på begge enheter. Pakken signeres av eieren. Chat, rå feedback, støttehistorikk og modellresultater synkes ikke.")),
-                .TextField(butlerSyncEndpointField),
-                .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.butler.sync.configure", "Godkjenn på denne enheten", payload: .object([
-                        "approved": .bool(true),
-                        "confirm": .bool(true)
-                    ]), style: .secondary)),
-                    .Button(button("chatHub.butler.sync.configure", "Trekk godkjenning", payload: .object([
-                        "approved": .bool(false)
-                    ]), style: .warning)),
-                    .Button(button("chatHub.butler.sync.push", "Synk nå", style: .secondary))
-                ], spacing: 8)),
-                .Text(personalBoundText("chatHub.state.butler.sync.summary", lineLimit: 4)),
-                .Text(personalBoundText("chatHub.state.butler.sync.privacySummary", lineLimit: 4)),
                 .Divider(SkeletonDivider()),
                 .Text(personalBodyText("Kapasiteten følger kontekst, synlige hjelpere, registrerte provider-descriptors og lokal agentstatus. En oppdatering starter ingen modell.")),
                 .HStack(SkeletonHStack(elements: [

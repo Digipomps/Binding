@@ -325,18 +325,11 @@ enum ComponentPaletteCatalog {
         )
 
         var sendButton = SkeletonButton(
-            keypath: "\(referenceLabel).prompt.submit",
+            keypath: "\(referenceLabel).ui.openSuggestedHelper",
             label: "↑",
             payload: .bool(true)
         )
         sendButton.modifiers = primaryButton
-
-        var openSuggestionButton = SkeletonButton(
-            keypath: "\(referenceLabel).ui.openSuggestedHelper",
-            label: "Åpne forslag",
-            payload: .bool(true)
-        )
-        openSuggestionButton.modifiers = secondaryButton
 
         var clearButton = SkeletonButton(
             keypath: "\(referenceLabel).clearComposer",
@@ -354,7 +347,6 @@ enum ComponentPaletteCatalog {
 
         let actionsRow = SkeletonHStack(elements: [
             .Button(sendButton),
-            .Button(openSuggestionButton),
             .Button(clearButton)
         ])
 
