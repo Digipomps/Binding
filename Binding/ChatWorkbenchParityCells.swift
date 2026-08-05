@@ -1337,11 +1337,11 @@ enum BindingChatIntentClassifier {
                 matches.append(cellConfigurationResource(
                     id: "configuration:arendalsuka-participant-program",
                     title: "Arendalsuka Participant Program",
-                    summary: "Deltakerprogram fra staging med arrangementer, agenda og navigasjon for Arendalsuka.",
-                    sourceCellEndpoint: "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram",
+                    summary: "Deltakerprogram med arrangementer, privat agenda og navigasjon for Arendalsuka.",
+                    sourceCellEndpoint: BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint,
                     sourceCellName: "ArendalsukaParticipantProgramCell",
-                    purposeRef: "conference.agenda.view",
-                    interests: ["arendalsuka", "conference", "agenda", "participant", "sessions", "event-day", "resource-router"],
+                    purposeRef: "event.participation.program.view",
+                    interests: ["arendalsuka", "event-program", "agenda", "participant", "sessions", "event-day", "resource-router"],
                     score: 0.96
                 ))
             } else {
@@ -7259,6 +7259,14 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     private func configurationForResource(_ resource: Object) -> CellConfiguration? {
         guard let configurationName = BindingChatValue.string(resource["configurationName"])
             ?? BindingChatValue.string(resource["title"]) else {
+            return nil
+        }
+
+        if configurationName == BindingPersonalCopilotV1Policy.arendalsukaConfigurationName {
+            return ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
+        }
+
+        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else {
             return nil
         }
         return ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(

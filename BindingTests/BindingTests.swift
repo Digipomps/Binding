@@ -777,28 +777,8 @@ struct BindingTests {
         let configurations = ConfigurationCatalogCell.personalCopilotV1MenuConfigurations()
         let names = Set(configurations.map(\.name))
 
-        for requiredName in [
-            "Personal Home",
-            "My Profile",
-            "Publish Public Profile",
-            "Public Profile Directory",
-            "Matches",
-            "Co-Pilot",
-            "Agenda Context",
-            "Butterpop Studio",
-            "Calendar",
-            "Vault / Ideas",
-            "Meeting Intent",
-            "Privacy Audit",
-            "Personal Co-Pilot Catalog",
-            "Apple Intelligence Purpose Matcher",
-            "Entity Scanner",
-            "Workflow Studio"
-        ] {
-            #expect(names.contains(requiredName))
-        }
-
-        #expect(configurations.count == 16)
+        #expect(names == Set(["Co-Pilot", "Arendalsuka Participant Program", "Vault / Ideas"]))
+        #expect(configurations.count == 3)
         #expect(configurations.allSatisfy(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1))
 
         let visibleText = configurations.flatMap { configuration in
@@ -1232,10 +1212,20 @@ struct BindingTests {
         )
         #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(scopedConference))
 
-        var offHost = ConfigurationCatalogCell.personalHomeMenuConfiguration()
-        offHost.cellReferences = [CellReference(endpoint: "cell://unapproved.example.org/PersonalIdentity", label: "identity")]
+        var offHost = ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+        offHost.cellReferences = [CellReference(endpoint: "cell://unapproved.example.org/PersonalChatHub", label: "chatHub")]
         #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(offHost))
-        #expect(BindingPersonalCopilotV1Policy.unavailableMessage(for: offHost.name).contains("Personal Co-Pilot V1"))
+        #expect(BindingPersonalCopilotV1Policy.unavailableMessage(for: offHost.name).contains("Arendalsuka-utgaven"))
+
+        var spoofedEndpoint = ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+        spoofedEndpoint.cellReferences = [CellReference(endpoint: "cell:///WorkflowStudio", label: "chatHub")]
+        #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(spoofedEndpoint))
+
+        let program = ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
+        #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(program))
+        #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: program) == [
+            BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint
+        ])
     }
 
     @Test func conferenceDemoMenusCanBePersistentlyEnabledInDebugBuilds() {
@@ -1360,7 +1350,7 @@ struct BindingTests {
         }
 
         let agenda = ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
-        #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(agenda))
+        #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(agenda))
         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: agenda).contains("cell:///PersonalAgendaContext"))
         #expect((agenda.discovery?.interests ?? []).contains("policyCategory=agenda-context"))
         #expect((agenda.discovery?.interests ?? []).contains("nativePermissionRequests=calendar,reminders"))
@@ -4544,9 +4534,10 @@ struct BindingTests {
         #expect(effective.name == "Co-Pilot")
         if let skeleton = effective.skeleton {
             #expect(!skeletonContainsLiteralText("Start her", in: skeleton))
-            #expect(skeletonTabPanel(id: "hjelp", in: skeleton) != nil)
+            #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: skeleton))
+            #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", in: skeleton))
         } else {
-            Issue.record("Co-Pilot Chat default should keep its factory skeleton")
+            Issue.record("Arendalsuka Co-Pilot default should keep its factory skeleton")
         }
     }
 

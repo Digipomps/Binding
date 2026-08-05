@@ -39,10 +39,13 @@ final class NotificationEnrollmentManager: ObservableObject {
     private var lastTokenRefreshRequestedAt: Date?
 
     private init() {
+        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return }
         bootstrapIfNeeded()
     }
 
     func bootstrapIfNeeded() {
+        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return }
+
         if participantID == nil {
             let envParticipant = ProcessInfo.processInfo.environment["BINDING_PARTICIPANT_ID"]
             participantID = defaults.string(forKey: participantIDKey) ?? envParticipant ?? "binding-participant"

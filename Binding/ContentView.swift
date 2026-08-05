@@ -344,6 +344,9 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         case .matches:
             return ConfigurationCatalogCell.personalMatchesMenuConfiguration()
         case .inviteChat:
+            if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+                return ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+            }
             return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         case .agendaContext:
             return ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
@@ -367,15 +370,30 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     }
 
     static var phonePrimaryTabs: [BindingPersonalCopilotPhoneTab] {
-        BindingPersonalCopilotPhoneTab.allCases
+        BindingPersonalCopilotPhoneTab.allCases.filter { tab in
+            visibleDestinations.contains { $0.phoneTab == tab }
+        }
     }
 
     static var sidebarSections: [(title: String, destinations: [BindingPersonalCopilotDestination])] {
-        [
+        let sections: [(title: String, destinations: [BindingPersonalCopilotDestination])] = [
             ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit]),
             ("Network", [.matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
             ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
         ]
+        return sections.compactMap { section in
+            let destinations = section.destinations.filter(visibleDestinations.contains)
+            return destinations.isEmpty ? nil : (section.title, destinations)
+        }
+    }
+
+    static var visibleDestinations: [BindingPersonalCopilotDestination] {
+        guard BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return allCases }
+        return allCases.filter { destination in
+            BindingPersonalCopilotV1Policy.releaseAllowedConfigurationNames.contains(
+                destination.configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            )
+        }
     }
 
     static func matching(configurationName: String?) -> BindingPersonalCopilotDestination? {
@@ -388,7 +406,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     }
 
     static func destinations(for tab: BindingPersonalCopilotPhoneTab) -> [BindingPersonalCopilotDestination] {
-        allCases.filter { $0.phoneTab == tab }
+        visibleDestinations.filter { $0.phoneTab == tab }
     }
 
     static func defaultDestination(for tab: BindingPersonalCopilotPhoneTab) -> BindingPersonalCopilotDestination {
@@ -1102,7 +1120,8 @@ struct ContentView: View {
 
     private var showsPersonalCopilotInspector: Bool {
 #if os(iOS)
-        horizontalSizeClass != .compact
+        !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
+            && horizontalSizeClass != .compact
 #else
         true
 #endif
@@ -1729,7 +1748,9 @@ struct ContentView: View {
         personalCopilotDestination = .inviteChat
         personalCopilotPhoneTab = .chat
         queueConfigurationLoad(
-            ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
+            BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
+                ? ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+                : ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
             navigationMode: .reset,
             provenance: .localTrusted
         )
@@ -1965,29 +1986,31 @@ struct ContentView: View {
             .accessibilityLabel("Bibliotek")
             .help("Åpne hele biblioteket")
 
-            Menu {
-                Button {
-                    copyLoadedConfigurationJSONToClipboard()
-                } label: {
-                    Label("Kopier JSON", systemImage: "doc.on.doc")
-                }
+            if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+                Menu {
+                    Button {
+                        copyLoadedConfigurationJSONToClipboard()
+                    } label: {
+                        Label("Kopier JSON", systemImage: "doc.on.doc")
+                    }
 
-                Button {
-                    editorMode = .edit
-                } label: {
-                    Label("Rediger", systemImage: "square.and.pencil")
-                }
+                    Button {
+                        editorMode = .edit
+                    } label: {
+                        Label("Rediger", systemImage: "square.and.pencil")
+                    }
 
-                Button {
-                    diagnosticsStore.panelVisible.toggle()
+                    Button {
+                        diagnosticsStore.panelVisible.toggle()
+                    } label: {
+                        Label("Feilsøking", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+                    }
                 } label: {
-                    Label("Feilsøking", systemImage: diagnosticsStore.panelVisible ? "ladybug.fill" : "ladybug")
+                    Image(systemName: "ellipsis.circle")
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle")
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
         }
         .padding(usesCompactEditorChrome ? 10 : 12)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: usesCompactEditorChrome ? 12 : 14, style: .continuous))
@@ -5511,6 +5534,26 @@ struct ContentView: View {
             )
             return
         }
+        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
+                || BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(sanitizedConfiguration) else {
+            loadErrorMessage = BindingPersonalCopilotV1Policy.unavailableMessage(for: sanitizedConfiguration.name)
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.app-store-scope",
+                message: "Rejected non-allowlisted configuration before load: \(sanitizedConfiguration.name)"
+            )
+            return
+        }
+        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
+                || !provenance.isUntrustedImport else {
+            loadErrorMessage = "Importerte konfigurasjoner er ikke tilgjengelige i Arendalsuka-utgaven."
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.app-store-scope",
+                message: "Rejected untrusted configuration import in App Store scope: \(sanitizedConfiguration.name)"
+            )
+            return
+        }
         guard CellConfigurationEndpointRetargeting.isAllowedByHostTrustBoundary(
             sanitizedConfiguration,
             mayUseLocalControlPlane: provenance.mayUseLocalControlPlane
@@ -5558,6 +5601,13 @@ struct ContentView: View {
                 activeSourceBackedContext = nil
             }
             let configurationToLoad = activeConfiguration ?? sanitizedConfiguration
+            guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
+                    || BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(configurationToLoad) else {
+                activeConfiguration = nil
+                activeSourceBackedContext = nil
+                loadErrorMessage = BindingPersonalCopilotV1Policy.unavailableMessage(for: configurationToLoad.name)
+                return
+            }
             guard !provenance.requiresSideEffectFreeView
                     || CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(configurationToLoad) else {
                 loadErrorMessage = "View-lenken ble avvist fordi den resolvede konfigurasjonen inneholder initializer-writes."
@@ -5664,6 +5714,17 @@ struct ContentView: View {
                 || CellConfigurationEndpointRetargeting.isSideEffectFreeForExternalView(normalizedConfiguration) else {
             loadErrorMessage = "View-lenken ble avvist fordi den resolvede konfigurasjonen inneholder initializer-writes."
             activeSourceBackedContext = nil
+            return
+        }
+        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
+                || BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(normalizedConfiguration) else {
+            activeSourceBackedContext = nil
+            loadErrorMessage = BindingPersonalCopilotV1Policy.unavailableMessage(for: normalizedConfiguration.name)
+            diagnosticsStore.record(
+                severity: .warning,
+                domain: "binding.app-store-scope",
+                message: "Rejected resolved configuration outside release allowlist: \(normalizedConfiguration.name)"
+            )
             return
         }
         activeConfiguration = normalizedConfiguration
@@ -8015,7 +8076,7 @@ struct ContentView: View {
 
     static func defaultDemoStartConfiguration() -> CellConfiguration {
         if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
-            return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+            return ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
         }
         return conferenceDemoLauncherMenuSeedConfiguration()
     }
@@ -8201,6 +8262,20 @@ struct ContentView: View {
     private func curatedMenuSeedConfigurations() -> MenuConfigurationBuckets {
         guard !BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled else {
             return conferenceDemoMenuSeedConfigurations()
+        }
+
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            let copilot = ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+            let program = ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
+            let vault = ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration()
+            return (
+                upperLeft: [copilot],
+                upperMid: [program],
+                upperRight: [vault],
+                lowerLeft: [copilot],
+                lowerMid: [program],
+                lowerRight: [vault]
+            )
         }
 
         let personalHome = ConfigurationCatalogCell.personalHomeMenuConfiguration()
