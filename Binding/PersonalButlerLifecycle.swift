@@ -123,7 +123,7 @@ struct BindingPersonalButlerLifecycleModifier: ViewModifier {
             return
         }
         _ = try? await chat.set(
-            keypath: "chatHub.butler.trigger.run",
+            keypath: "chatHub.butler.support.consider",
             value: .object([
                 "triggerKind": .string(triggerKind),
                 "source": .string("binding.lifecycle")

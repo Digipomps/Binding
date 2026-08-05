@@ -509,6 +509,48 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(localState["requiresNetwork"]) == false)
     }
 
+    @Test func butlerWakeReachesPolicyThroughSupportConsider() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-wake")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        _ = try await chat.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "appLaunchEnabled": .bool(true),
+                "quietHoursEnabled": .bool(false)
+            ]),
+            requester: owner
+        )
+        // The lifecycle wakes the butler through this keypath. It must reach
+        // the policy, and the policy — not the wake — decides what happens.
+        let offered = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.support.consider",
+            value: .object(["triggerKind": .string("app_launch")]),
+            requester: owner
+        )))
+        #expect(asString(offered["status"]) == "offer")
+        #expect(asBool(offered["stagedInChat"]) == true)
+        #expect(asBool(offered["providerInvoked"]) == false)
+        #expect(asBool(offered["domainSideEffect"]) == false)
+
+        _ = try await chat.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object(["enabled": .bool(false)]),
+            requester: owner
+        )
+        let suppressed = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.support.consider",
+            value: .object(["triggerKind": .string("app_launch")]),
+            requester: owner
+        )))
+        #expect(asString(suppressed["status"]) != "offer")
+        #expect(asBool(suppressed["stagedInChat"]) == false)
+    }
+
     @Test func appleProviderFixturePublishesCandidateAndGateAuditWithoutModelSideEffects() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
