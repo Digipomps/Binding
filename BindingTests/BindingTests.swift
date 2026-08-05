@@ -4615,56 +4615,28 @@ struct BindingTests {
         #expect(SkeletonBindingProbeSupport.failureDetail(from: stateValue) == nil)
     }
 
-    @Test func localStartupPortholeDoesNotExposeAgentSetupWorkbench() async throws {
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.typedCellUtility = nil
+    @Test func localStartupPortholeDoesNotExposeAgentSetupWorkbench() async {
+        await withIsolatedAgentSetupWorkbenchRuntime(optedIn: false) { resolver, owner in
+            let provisioningResolved: Bool
+            do {
+                _ = try await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
+                provisioningResolved = true
+            } catch {
+                provisioningResolved = false
+            }
 
-        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            Issue.record("Expected CellResolver after local startup bootstrap")
-            return
+            #expect(provisioningResolved == false)
         }
-        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Expected startup vault identity for local startup bootstrap")
-            return
-        }
-
-        let provisioningResolved: Bool
-        do {
-            _ = try await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
-            provisioningResolved = true
-        } catch {
-            provisioningResolved = false
-        }
-
-        #expect(provisioningResolved == false)
     }
 
-    @Test func localStartupPortholeExposesAgentSetupWorkbenchWhenOptedIn() async throws {
-        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
-        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey) }
-
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.typedCellUtility = nil
-
-        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            Issue.record("Expected CellResolver after local startup bootstrap")
-            return
+    @Test func localStartupPortholeExposesAgentSetupWorkbenchWhenOptedIn() async {
+        await withIsolatedAgentSetupWorkbenchRuntime(optedIn: true) { resolver, owner in
+            let provisioning = try? await resolver.cellAtEndpoint(
+                endpoint: "cell:///AgentProvisioning",
+                requester: owner
+            )
+            #expect(provisioning != nil)
         }
-        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Expected startup vault identity for local startup bootstrap")
-            return
-        }
-
-        let provisioning = try? await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
-        #expect(provisioning != nil)
     }
 
     @Test func localBootstrapRegistersPerspectiveCell() async throws {
@@ -8417,6 +8389,63 @@ struct BindingTests {
             makeNewIfNotFound: true
         )!
         return (resolver, owner)
+    }
+
+    @MainActor
+    private func withIsolatedAgentSetupWorkbenchRuntime(
+        optedIn: Bool,
+        operation: (CellResolver, Identity) async -> Void
+    ) async {
+        let defaults = UserDefaults.standard
+        let defaultsKey = BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey
+        let previousOptIn = defaults.object(forKey: defaultsKey)
+        let previousVault = CellBase.defaultIdentityVault
+        let previousResolver = CellBase.defaultCellResolver
+        let previousTypedUtility = CellBase.typedCellUtility
+        let resolver = CellResolver.sharedInstance
+
+        // CellResolver is process-wide. Its supported DEBUG reset gives each
+        // policy test a fresh registry instead of inheriting named resolves
+        // from whichever test happened to execute first.
+        await AppInitializer.resetRuntimeStateForTesting()
+        await resolver.resetRuntimeStateForTesting()
+        if optedIn {
+            defaults.set(true, forKey: defaultsKey)
+        } else {
+            defaults.removeObject(forKey: defaultsKey)
+        }
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        if let activeResolver = CellBase.defaultCellResolver as? CellResolver,
+           let owner = await CellBase.defaultIdentityVault?.identity(
+               for: "private",
+               makeNewIfNotFound: true
+           ) {
+            await operation(activeResolver, owner)
+        } else {
+            Issue.record("Expected isolated CellResolver and startup identity")
+        }
+
+        await AppInitializer.resetRuntimeStateForTesting()
+        await resolver.resetRuntimeStateForTesting()
+        if let previousOptIn {
+            defaults.set(previousOptIn, forKey: defaultsKey)
+        } else {
+            defaults.removeObject(forKey: defaultsKey)
+        }
+        CellBase.defaultIdentityVault = previousVault
+        CellBase.defaultCellResolver = previousResolver
+        CellBase.typedCellUtility = previousTypedUtility
+
+        if let previousResolver = previousResolver as? CellResolver,
+           previousResolver === resolver {
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        }
     }
 
     private func makeIsolatedRuntimeIdentity(_ contextPrefix: String) async -> Identity {
