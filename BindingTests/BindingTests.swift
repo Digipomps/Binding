@@ -1267,7 +1267,7 @@ struct BindingTests {
         #expect(interests.contains("policyCategory=profile-publish"))
         #expect(interests.contains("requiresLogin=true"))
         #expect(interests.contains("requiresUserGeneratedContentModeration=true"))
-        #expect(interests.contains { $0.hasPrefix("universalLink=https://staging.haven.digipomps.org/app/personal/profile/publish") })
+        #expect(interests.contains { $0.hasPrefix("universalLink=https://haven.digipomps.org/app/personal/profile/publish") })
         #expect(interests.contains { $0.hasPrefix("reviewSummary=Curated Personal Co-Pilot surface") })
     }
 
@@ -1399,11 +1399,18 @@ struct BindingTests {
     }
 
     @Test func personalCopilotNavigationModelStaysStable() {
-        #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.home, .matches, .chat, .vault, .profile])
-        #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Personal", "Network", "Workspace"])
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .home) == .personalHome)
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.chat, .vault])
+            #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Network", "Workspace"])
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .chat) == .inviteChat)
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
+        } else {
+            #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.home, .matches, .chat, .vault, .profile])
+            #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Personal", "Network", "Workspace"])
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .home) == .personalHome)
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
+        }
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
@@ -6654,7 +6661,7 @@ struct BindingTests {
         let cell = await ConfigurationCatalogCell(owner: owner)
         let response = try await cell.set(
             keypath: "matching.runPromptInput",
-            value: .string("Finn CellConfiguration som kan hjelpe brukeren aa oppfylle en moteintensjon"),
+            value: .string("Finn CellConfiguration som kan hjelpe brukeren aa samle ideer og notater i et lokalt vault"),
             requester: owner
         )
 
@@ -6675,7 +6682,7 @@ struct BindingTests {
                   case let .string(name)? = object["name"] else {
                 return false
             }
-            return name == "Meeting Intent" || name == "Apple Intelligence Purpose Matcher"
+            return name == "Vault / Ideas"
         })
     }
 
@@ -6814,23 +6821,22 @@ struct BindingTests {
             return
         }
 
-        #expect(items.count >= 12)
+        let names = Set(items.compactMap { value -> String? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name
+        })
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            #expect(names == Set(["Co-Pilot", "Arendalsuka Participant Program", "Vault / Ideas"]))
+            #expect(items.count == 3)
+        } else {
+            #expect(items.count >= 12)
+        }
     }
 
     @Test func configurationCatalogExposesSafeButterpopStudioLauncher() async throws {
-        let owner = await makeOwnerIdentity()
-        let cell = await ConfigurationCatalogCell(owner: owner)
-
-        let configurations = try await cell.get(keypath: "configurations", requester: owner)
-        guard case let .list(items) = configurations,
-              let butterpop = items.compactMap({ value -> CellConfiguration? in
-                  guard case let .cellConfiguration(configuration) = value,
-                        configuration.name == "Butterpop Studio" else { return nil }
-                  return configuration
-              }).first,
-              let skeleton = butterpop.skeleton
-        else {
-            Issue.record("Forventet Butterpop Studio i HAVEN-katalogen")
+        let butterpop = ConfigurationCatalogCell.butterpopStudioMenuConfiguration()
+        guard let skeleton = butterpop.skeleton else {
+            Issue.record("Forventet skeleton for Butterpop Studio")
             return
         }
 
@@ -6859,6 +6865,7 @@ struct BindingTests {
         let validation = await CellConfigurationValidationService.validate(butterpop)
         let validationErrorCount = await MainActor.run { validation.errorCount }
         #expect(butterpop.cellReferences?.isEmpty != false)
+        #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(butterpop))
         #expect(validationErrorCount == 0)
         #expect(SkeletonButtonNavigation.isNavigationButton(launcher))
         #expect(
