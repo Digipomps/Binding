@@ -111,7 +111,7 @@ private struct AgentControlBridgeRoutes: RouteCollection {
                 let transport = VaporBridgeTransport(webSocket: ws)
                 let config = BridgeBase.Config(
                     owner: owner,
-                    contractTemplate: await Agreement(),
+                    contractTemplate: Agreement(owner: owner),
                     transport: transport,
                     connection: .inbound(publisherUuid: route.targetCellReference)
                 )

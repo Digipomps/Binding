@@ -24,6 +24,7 @@ struct RemoteIntentStateStoreTests {
                     issuerID: "trusted.issuer",
                     issuedAt: "2026-03-13T10:59:00Z",
                     expiresAt: "2026-03-13T11:05:00Z",
+                    signatureBase64: "c2lnbmF0dXJl",
                     verificationStatus: "verified"
                 )
             ],

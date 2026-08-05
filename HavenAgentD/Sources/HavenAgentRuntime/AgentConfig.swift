@@ -195,6 +195,11 @@ public struct LocalControlBridgeConfig: Codable, Equatable, Sendable {
             name: AgentSignatureStatement.controlBridgeRouteName,
             targetCellReference: "agent/identity/signatures",
             description: "Local identity signature surface: prepares and issues audience-bound detached signed statements through HAVENAgentD."
+        ),
+        LocalControlBridgeRoute(
+            name: "butler-scheduler",
+            targetCellReference: "agent/butler/scheduler",
+            description: "Owner-controlled Butler cadence, daemon schedule and fixed signed HAVEN wake policy."
         )
     ]
 
@@ -294,6 +299,10 @@ public struct NetworkSentinelConfig: Codable, Equatable, Sendable {
     public var enabled: Bool
     public var interface: String
     public var intervalSeconds: Double
+    public var probeMonitoringEnabled: Bool
+    public var probeKind: NetworkProbeKind
+    public var probeTarget: String
+    public var probeTimeoutSeconds: Double
     public var notificationsEnabled: Bool
     public var captureEnabled: Bool
     public var captureDurationSeconds: Double
@@ -308,6 +317,10 @@ public struct NetworkSentinelConfig: Codable, Equatable, Sendable {
         enabled: Bool = true,
         interface: String = "en0",
         intervalSeconds: Double = 2.0,
+        probeMonitoringEnabled: Bool = false,
+        probeKind: NetworkProbeKind = .tcpConnect,
+        probeTarget: String = "1.1.1.1:443",
+        probeTimeoutSeconds: Double = 3.0,
         notificationsEnabled: Bool = true,
         captureEnabled: Bool = true,
         captureDurationSeconds: Double = 12.0,
@@ -321,6 +334,10 @@ public struct NetworkSentinelConfig: Codable, Equatable, Sendable {
         self.enabled = enabled
         self.interface = interface
         self.intervalSeconds = intervalSeconds
+        self.probeMonitoringEnabled = probeMonitoringEnabled
+        self.probeKind = probeKind
+        self.probeTarget = probeTarget
+        self.probeTimeoutSeconds = probeTimeoutSeconds
         self.notificationsEnabled = notificationsEnabled
         self.captureEnabled = captureEnabled
         self.captureDurationSeconds = captureDurationSeconds
@@ -333,7 +350,8 @@ public struct NetworkSentinelConfig: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, interface, intervalSeconds, notificationsEnabled, captureEnabled
+        case enabled, interface, intervalSeconds, probeMonitoringEnabled, probeKind, probeTarget, probeTimeoutSeconds
+        case notificationsEnabled, captureEnabled
         case captureDurationSeconds, capturePacketLimit, captureSnaplen, thresholds, purpose, goal, interests
     }
 
@@ -343,6 +361,10 @@ public struct NetworkSentinelConfig: Codable, Equatable, Sendable {
         self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? defaults.enabled
         self.interface = try container.decodeIfPresent(String.self, forKey: .interface) ?? defaults.interface
         self.intervalSeconds = try container.decodeIfPresent(Double.self, forKey: .intervalSeconds) ?? defaults.intervalSeconds
+        self.probeMonitoringEnabled = try container.decodeIfPresent(Bool.self, forKey: .probeMonitoringEnabled) ?? defaults.probeMonitoringEnabled
+        self.probeKind = try container.decodeIfPresent(NetworkProbeKind.self, forKey: .probeKind) ?? defaults.probeKind
+        self.probeTarget = try container.decodeIfPresent(String.self, forKey: .probeTarget) ?? defaults.probeTarget
+        self.probeTimeoutSeconds = try container.decodeIfPresent(Double.self, forKey: .probeTimeoutSeconds) ?? defaults.probeTimeoutSeconds
         self.notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
         self.captureEnabled = try container.decodeIfPresent(Bool.self, forKey: .captureEnabled) ?? defaults.captureEnabled
         self.captureDurationSeconds = try container.decodeIfPresent(Double.self, forKey: .captureDurationSeconds) ?? defaults.captureDurationSeconds
@@ -534,8 +556,12 @@ public struct AgentConfig: Codable, Equatable, Sendable {
                     TrustedRemoteIntentIssuer(
                         issuerID: "scaffold-entity.example",
                         publicSigningKeyBase64: "BASE64_PUBLIC_KEY_HERE",
-                        allowedTopics: ["intent.inbox"],
-                        allowedActionIDs: ["open-url-in-safari", AgentMailDraftAutomation.actionID]
+                        allowedTopics: ["intent.inbox", PersonalButlerScheduleService.remoteWakeTopic],
+                        allowedActionIDs: [
+                            "open-url-in-safari",
+                            AgentMailDraftAutomation.actionID,
+                            PersonalButlerScheduleService.remoteWakeActionID
+                        ]
                     )
                 ],
                 requireExpiry: true,

@@ -35,7 +35,7 @@ public struct NetworkAlertNotificationDispatcher: Sendable {
             // download) evaluates as `satisfied` and is intentionally NOT shown.
             let evaluation = NetworkHealthPurposeCatalog.evaluate(snapshot: snapshot, transition: transition)
             guard NetworkHealthPurposeCatalog.warrantsNotification(evaluation) else { return }
-            title = "Nettverk: mulig flooding (\(event.classification.rawValue))"
+            title = Self.notificationTitle(for: event.classification)
             message = event.summary
         case .resolved:
             // Only announce resolution for a harmful flood we would have alerted on.
@@ -62,6 +62,17 @@ public struct NetworkAlertNotificationDispatcher: Sendable {
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\r", with: " ")
         return String(collapsed.prefix(200))
+    }
+
+    private static func notificationTitle(for classification: NetworkFloodClass) -> String {
+        switch classification {
+        case .highLatency:
+            return "Nettverk: høy svartid"
+        case .packetLoss:
+            return "Nettverk: pakketap"
+        default:
+            return "Nettverk: mulig flooding (\(classification.rawValue))"
+        }
     }
 
     private static func makePolicy() -> AutomationPolicy {

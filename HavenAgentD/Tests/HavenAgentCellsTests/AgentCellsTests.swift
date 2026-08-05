@@ -349,7 +349,7 @@ struct AgentCellsTests {
         let cells = await AgentCellRegistry.instantiateDefaultCells(owner: owner)
 
         #expect(cells.count == AgentCellRegistry.concreteDescriptors.count)
-        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox, .signatureStatements])
+        #expect(AgentCellRegistry.concreteDescriptors.map(\.kind) == [.agentSupervisor, .agentIdentity, .remoteIntentInbox, .remoteIntentReview, .localModel, .networkSentinel, .secretCredential, .emailOutbox, .signatureStatements, .personalButlerSchedule])
         #expect(cells.contains { $0 is AgentSupervisorCell })
         #expect(cells.contains { $0 is AgentIdentityCell })
         #expect(cells.contains { $0 is RemoteIntentInboxCell })
@@ -1096,20 +1096,39 @@ struct AgentCellsTests {
     @Test
     func remoteIntentReviewCellApprovesVerifiedIntentAndRecordsAudit() async throws {
         await AgentRuntimeBridge.shared.resetRemoteIntentState()
+        let issuerPrivateKey = Curve25519.Signing.PrivateKey()
+        let issuedAt = Date()
+        let signedPayload = SignedRemoteIntentPayload(
+            issuerID: "scaffold-entity.example",
+            nonce: "review-intent-1",
+            topic: "intent.inbox",
+            origin: "scaffold-entity.example",
+            actionID: "open-url-in-safari",
+            arguments: ["url": "https://example.com"],
+            issuedAt: ISO8601DateFormatter().string(from: issuedAt),
+            expiresAt: ISO8601DateFormatter().string(from: issuedAt.addingTimeInterval(60))
+        )
+        let signedEnvelope = SignedRemoteIntentEnvelope(
+            payload: signedPayload,
+            signatureBase64: try issuerPrivateKey.signature(
+                for: RemoteIntentVerifier.canonicalPayloadData(signedPayload)
+            ).base64EncodedString()
+        )
+        let remoteIntentPolicy = RemoteIntentPolicy(
+            issuers: [
+                TrustedRemoteIntentIssuer(
+                    issuerID: signedPayload.issuerID,
+                    publicSigningKeyBase64: issuerPrivateKey.publicKey.rawRepresentation.base64EncodedString(),
+                    allowedTopics: [signedPayload.topic],
+                    allowedActionIDs: [signedPayload.actionID]
+                )
+            ]
+        )
         await AgentRuntimeBridge.shared.update(
             remoteIntentExecutor: RemoteIntentExecutionBridge(processRunner: RecordingProcessRunner())
         )
         await AgentRuntimeBridge.shared.update(
-            remoteIntentPolicy: RemoteIntentPolicy(
-                issuers: [
-                    TrustedRemoteIntentIssuer(
-                        issuerID: "scaffold-entity.example",
-                        publicSigningKeyBase64: Curve25519.Signing.PrivateKey().publicKey.rawRepresentation.base64EncodedString(),
-                        allowedTopics: ["intent.inbox"],
-                        allowedActionIDs: ["open-url-in-safari"]
-                    )
-                ]
-            )
+            remoteIntentPolicy: remoteIntentPolicy
         )
         await (AgentRuntimeBridge.shared.remoteIntentExecutorSnapshot())?.update(
             policy: AutomationPolicy(
@@ -1135,17 +1154,10 @@ struct AgentCellsTests {
         )
 
         await AgentRuntimeBridge.shared.enqueue(
-            intent: QueuedRemoteIntent(
-                id: "review-intent-1",
-                topic: "intent.inbox",
-                origin: "scaffold-entity.example",
-                actionID: "open-url-in-safari",
-                arguments: ["url": "https://example.com"],
-                receivedAt: ISO8601DateFormatter().string(from: Date()),
-                issuerID: "scaffold-entity.example",
-                issuedAt: ISO8601DateFormatter().string(from: Date()),
-                expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(60)),
-                verificationStatus: "verified"
+            intent: try RemoteIntentVerifier.verify(
+                envelope: signedEnvelope,
+                policy: remoteIntentPolicy,
+                now: issuedAt
             )
         )
 

@@ -12,11 +12,17 @@ import Crypto
 public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProviderProtocol, IdentityKeyRoleProviderProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var identitiesByContext: [String: Identity] = [:]
+    private var identityContextByUUID: [String: String] = [:]
     private var signingKeysByIdentityUUID: [String: Curve25519.Signing.PrivateKey] = [:]
     private var keyAgreementKeysByIdentityUUID: [String: Curve25519.KeyAgreement.PrivateKey] = [:]
     private var scopedSecretsByTag: [String: Data] = [:]
+    private let vaultReference = "haven-agent-local:v1"
 
     public init() {}
+
+    public func identityVaultReference() async -> String? {
+        vaultReference
+    }
 
     public func initialize() async -> IdentityVaultProtocol {
         self
@@ -24,15 +30,28 @@ public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProvid
 
     public func addIdentity(identity: inout Identity, for identityContext: String) async {
         withLock {
+            if let stored = identityForUUIDLocked(identity.uuid) {
+                guard identitiesReferenceSame(identity, stored),
+                      identity.homeVaultReference == vaultReference else {
+                    identity.identityVault = nil
+                    identity.homeVaultReference = nil
+                    return
+                }
+            }
             installBackingKeyIfNeeded(for: &identity)
             identity.identityVault = self
+            identity.homeVaultReference = vaultReference
             identitiesByContext[identityContext] = identity
+            identityContextByUUID[identity.uuid] = identityContext
         }
     }
 
     public func identity(for identityContext: String, makeNewIfNotFound: Bool) async -> Identity? {
         withLock {
             if let existing = identitiesByContext[identityContext] {
+                existing.identityVault = self
+                existing.homeVaultReference = vaultReference
+                identityContextByUUID[existing.uuid] = identityContext
                 return existing
             }
             guard makeNewIfNotFound else {
@@ -42,22 +61,57 @@ public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProvid
             var identity = Identity(identityContext, displayName: identityContext, identityVault: self)
             installBackingKeyIfNeeded(for: &identity)
             identitiesByContext[identityContext] = identity
+            identityContextByUUID[identity.uuid] = identityContext
+            return identity
+        }
+    }
+
+    public func identity(forUUID uuid: String) async -> Identity? {
+        withLock {
+            guard let identity = identityForUUIDLocked(uuid) else {
+                return nil
+            }
+            identity.identityVault = self
+            identity.homeVaultReference = vaultReference
             return identity
         }
     }
 
     public func saveIdentity(_ identity: Identity) async {
         withLock {
-            var identity = identity
-            installBackingKeyIfNeeded(for: &identity)
-            identitiesByContext[identity.displayName] = identity
-            identitiesByContext[identity.uuid] = identity
+            guard let stored = identityForUUIDLocked(identity.uuid),
+                  identitiesReferenceSame(identity, stored),
+                  identity.homeVaultReference == vaultReference else {
+                return
+            }
+            stored.displayName = identity.displayName
+            stored.properties = identity.properties
+            stored.identityVault = self
+            stored.homeVaultReference = vaultReference
+            identitiesByContext[stored.displayName] = stored
+            identitiesByContext[stored.uuid] = stored
         }
     }
 
     public func identityExistInVault(_ identity: Identity) async -> Bool {
         withLock {
-            identitiesByContext.values.contains { $0.uuid == identity.uuid }
+            guard identity.homeVaultReference == vaultReference,
+                  let stored = identityForUUIDLocked(identity.uuid) else {
+                return false
+            }
+            return identitiesReferenceSame(identity, stored)
+        }
+    }
+
+    public func identityDomainBinding(for identity: Identity) async -> IdentityDomainBinding? {
+        guard await identityExistInVault(identity) else {
+            return nil
+        }
+        return withLock {
+            guard let context = identityContextByUUID[identity.uuid] else {
+                return nil
+            }
+            return IdentityDomainBinding(domain: context, identity: identity)
         }
     }
 
@@ -97,15 +151,22 @@ public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProvid
                 compressedKey: keyAgreementKey.publicKey.rawRepresentation
             )
             identity.identityVault = self
+            identity.homeVaultReference = vaultReference
             identitiesByContext[descriptor.identityContext] = identity
             identitiesByContext[descriptor.identityUUID] = identity
+            identityContextByUUID[descriptor.identityUUID] = descriptor.identityContext
             return identity
         }
     }
 
     public func signMessageForIdentity(messageData: Data, identity: Identity) async throws -> Data {
         let privateKey: Curve25519.Signing.PrivateKey? = withLock {
-            signingKeysByIdentityUUID[identity.uuid]
+            guard identity.homeVaultReference == vaultReference,
+                  let stored = identityForUUIDLocked(identity.uuid),
+                  identitiesReferenceSame(identity, stored) else {
+                return nil
+            }
+            return signingKeysByIdentityUUID[identity.uuid]
         }
         guard let privateKey else {
             throw IdentityVaultError.noKey
@@ -157,14 +218,45 @@ public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProvid
         }
     }
 
-    public func privateKeyData(for identity: Identity, role: IdentityKeyRole) async throws -> Data? {
-        withLock {
-            switch role {
-            case .signing:
-                return signingKeysByIdentityUUID[identity.uuid]?.rawRepresentation
-            case .keyAgreement:
-                return keyAgreementKeysByIdentityUUID[identity.uuid]?.rawRepresentation
+    public func openContentEnvelope(
+        for identity: Identity,
+        ephemeralPublicKey: Data,
+        wrappedKeyMaterial: Data,
+        encryptedContent: Data,
+        keyDerivationSalt: Data,
+        keyDerivationInfo: Data,
+        authenticatedData: Data
+    ) async throws -> Data? {
+        let privateKey: Curve25519.KeyAgreement.PrivateKey? = withLock {
+            guard identity.homeVaultReference == vaultReference,
+                  let stored = identityForUUIDLocked(identity.uuid),
+                  identitiesReferenceSame(identity, stored),
+                  identity.publicKeyAgreementSecureKey?.compressedKey
+                    == stored.publicKeyAgreementSecureKey?.compressedKey else {
+                return nil
             }
+            return keyAgreementKeysByIdentityUUID[identity.uuid]
+        }
+        guard let privateKey else { return nil }
+        do {
+            let ephemeralKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: ephemeralPublicKey)
+            let sharedSecret = try privateKey.sharedSecretFromKeyAgreement(with: ephemeralKey)
+            let wrappingKey = sharedSecret.hkdfDerivedSymmetricKey(
+                using: SHA256.self,
+                salt: keyDerivationSalt,
+                sharedInfo: keyDerivationInfo,
+                outputByteCount: 32
+            )
+            let wrappedKeyBox = try ChaChaPoly.SealedBox(combined: wrappedKeyMaterial)
+            let contentKeyData = try ChaChaPoly.open(wrappedKeyBox, using: wrappingKey)
+            let contentBox = try ChaChaPoly.SealedBox(combined: encryptedContent)
+            return try ChaChaPoly.open(
+                contentBox,
+                using: SymmetricKey(data: contentKeyData),
+                authenticating: authenticatedData
+            )
+        } catch {
+            return nil
         }
     }
 
@@ -213,6 +305,20 @@ public final class LocalIdentityVault: IdentityVaultProtocol, ScopedSecretProvid
             )
         }
         identity.identityVault = self
+        identity.homeVaultReference = vaultReference
+    }
+
+    private func identityForUUIDLocked(_ uuid: String) -> Identity? {
+        identitiesByContext.values.first { $0.uuid == uuid }
+    }
+
+    private func identitiesReferenceSame(_ lhs: Identity, _ rhs: Identity) -> Bool {
+        guard lhs.uuid == rhs.uuid,
+              let lhsFingerprint = lhs.signingPublicKeyFingerprint,
+              let rhsFingerprint = rhs.signingPublicKeyFingerprint else {
+            return false
+        }
+        return lhsFingerprint == rhsFingerprint
     }
 
     private func withLock<T>(_ operation: () throws -> T) rethrows -> T {

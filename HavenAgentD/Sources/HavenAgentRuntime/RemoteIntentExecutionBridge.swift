@@ -4,6 +4,9 @@ import HavenMacAutomation
 public enum RemoteIntentAuditOutcome: String, Codable, Equatable, Sendable {
     case approvedDispatched = "approved_dispatched"
     case approvedFailed = "approved_failed"
+    case automaticDispatched = "automatic_dispatched"
+    case automaticSuppressed = "automatic_suppressed"
+    case automaticFailed = "automatic_failed"
     case rejected
 }
 
@@ -72,11 +75,21 @@ public actor RemoteIntentExecutionBridge {
 
     private let shortcutRunner: ShortcutRunner
     private let appleScriptRunner: AppleScriptRunner
+    private let verificationNow: @Sendable () -> Date
+    private let verificationPolicyProvider: @Sendable () async -> RemoteIntentPolicy?
     private var policy: AutomationPolicy?
 
-    public init(processRunner: any ProcessRunning = FoundationProcessRunner()) {
+    public init(
+        processRunner: any ProcessRunning = FoundationProcessRunner(),
+        verificationNow: @escaping @Sendable () -> Date = { Date() },
+        verificationPolicyProvider: @escaping @Sendable () async -> RemoteIntentPolicy? = {
+            AgentRuntimeBridge.shared.remoteIntentPolicySnapshot()
+        }
+    ) {
         self.shortcutRunner = ShortcutRunner(processRunner: processRunner)
         self.appleScriptRunner = AppleScriptRunner(processRunner: processRunner)
+        self.verificationNow = verificationNow
+        self.verificationPolicyProvider = verificationPolicyProvider
     }
 
     public func update(policy: AutomationPolicy?) {
@@ -90,6 +103,14 @@ public actor RemoteIntentExecutionBridge {
         guard let policy else {
             throw RemoteIntentExecutionError.policyUnavailable
         }
+        guard let verificationPolicy = await verificationPolicyProvider() else {
+            throw RemoteIntentVerificationError.policyUnavailable
+        }
+        _ = try RemoteIntentVerifier.reverifyQueuedIntent(
+            intent,
+            policy: verificationPolicy,
+            now: verificationNow()
+        )
 
         let matchingShortcuts = policy.shortcuts.filter { $0.id == intent.actionID }
         let matchingAppleScripts = policy.appleScripts.filter { $0.id == intent.actionID }
