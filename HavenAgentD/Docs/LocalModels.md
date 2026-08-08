@@ -40,6 +40,46 @@ Known profiles:
 | --- | --- | ---: | --- |
 | `qwen2.5-0.5b-instruct-q4_k_m` | `Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M` | 8080 | Fast local integration and playground testing. |
 | `borealis-4b-instruct-q4_k_m` | `NbAiLab/borealis-4b-instruct-preview-gguf:Q4_K_M` | 8082 | Norwegian/EU local assistant profile for private Co-Pilot prompts where Apple Intelligence is not enough. Hugging Face marks it experimental/pre-release; Q4_K_M is listed as 2.49 GB. |
+| `qwen3-8b-q4_k_m` | `Qwen3-8B-Q4_K_M.gguf` | 8083 | Stable AgentD/provider identifier for the locally tested Qwen3 8B text runtime. The model remains experimental for product use. |
+| `gemma4-e4b-qat-mlx-vlm` | `mlx-community/gemma-4-E4B-it-qat-4bit` | 8094 | Stable AgentD/provider identifier for the locally tested MLX/VLM runtime. Supply the machine-local model path through `HAVEN_AGENTD_LOCAL_LLM_MODEL`. |
+
+The Qwen3 and Gemma profile/provider identifiers are stable routing contracts;
+`isExperimental` remains true because benchmark quality does not make either
+model a policy authority or participant-ready default.
+
+Qwen3 8B backend and AgentD selection:
+
+```bash
+llama-server \
+  --model /absolute/path/to/Qwen3-8B-Q4_K_M.gguf \
+  --host 127.0.0.1 \
+  --port 8083 \
+  --ctx-size 32768 \
+  --gpu-layers all \
+  --no-webui
+
+HAVEN_AGENTD_LOCAL_LLM_PROFILE=qwen3-8b-q4_k_m \
+HAVEN_AGENTD_LOCAL_LLM_MODEL=Qwen3-8B-Q4_K_M.gguf \
+haven-agentd run
+```
+
+Gemma 4 E4B QAT backend and AgentD selection:
+
+```bash
+python -m mlx_vlm.server \
+  --host 127.0.0.1 \
+  --port 8094 \
+  --model /absolute/path/to/mlx-community-gemma-4-E4B-it-qat-4bit \
+  --max-tokens 512
+
+HAVEN_AGENTD_LOCAL_LLM_PROFILE=gemma4-e4b-qat-mlx-vlm \
+HAVEN_AGENTD_LOCAL_LLM_MODEL=/absolute/path/to/mlx-community-gemma-4-E4B-it-qat-4bit \
+haven-agentd run
+```
+
+Gemma's verified `mlx_vlm.server` path requires the local model path in the
+request. The profile intentionally keeps that machine-specific path out of
+source control and relies on the existing environment override.
 
 Borealis local backend:
 

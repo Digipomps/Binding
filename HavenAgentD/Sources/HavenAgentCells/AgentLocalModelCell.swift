@@ -120,9 +120,90 @@ public struct AgentLocalModelProfile: Codable, Equatable, Sendable {
         sourceURL: "https://huggingface.co/NbAiLab/borealis-4b-instruct-preview-gguf"
     )
 
+    public static let qwen3_8BQ4KM = AgentLocalModelProfile(
+        id: "qwen3-8b-q4_k_m",
+        title: "Qwen3 8B Q4_K_M GGUF",
+        summary: "Stable AgentD profile identifier for the locally tested Qwen3 8B text model; product policy remains deterministic outside the model.",
+        providerID: "local.qwen3.8b.q4-k-m.llama-server",
+        model: "Qwen3-8B-Q4_K_M.gguf",
+        repoID: "Qwen/Qwen3-8B-GGUF",
+        quantization: "Q4_K_M",
+        parameterCount: "8B",
+        role: "local-norwegian-text-assistant",
+        defaultPort: 8083,
+        purposeRefs: [
+            "personal.ai.provider.agent-local-model",
+            "personal.ai.provider.gdpr-local-processing",
+            "personal.chat.assist.private-local-model",
+            "personal.chat.assist.norwegian-language"
+        ],
+        interests: [
+            "agentd",
+            "qwen3",
+            "qwen",
+            "gguf",
+            "llama-server",
+            "norwegian",
+            "norsk",
+            "local",
+            "offline",
+            "private",
+            "text",
+            "commons",
+            "librarian"
+        ],
+        privacyLevel: "local_agent_loopback_no_external_provider",
+        executionScope: "local_agent",
+        gdprProcessingNote: "Prompt and response stay on the operator-controlled local AgentD backend when llama-server is bound to loopback; Agreement grants, retention policy and logging policy are still required.",
+        isExperimental: true,
+        sourceURL: "https://huggingface.co/Qwen/Qwen3-8B-GGUF"
+    )
+
+    public static let gemma4E4BQATMlxVLM = AgentLocalModelProfile(
+        id: "gemma4-e4b-qat-mlx-vlm",
+        title: "Gemma 4 E4B QAT MLX/VLM",
+        summary: "Stable AgentD profile identifier for the locally tested Apple Silicon Gemma runtime; the local model path must be supplied by environment.",
+        providerID: "local.gemma4.e4b.qat.mlx-vlm",
+        model: "mlx-community/gemma-4-E4B-it-qat-4bit",
+        repoID: "mlx-community/gemma-4-E4B-it-qat-4bit",
+        quantization: "qat-4bit",
+        parameterCount: "E4B",
+        role: "local-norwegian-multimodal-assistant",
+        defaultPort: 8094,
+        purposeRefs: [
+            "personal.ai.provider.agent-local-model",
+            "personal.ai.provider.gdpr-local-processing",
+            "personal.chat.assist.private-local-model",
+            "personal.chat.assist.norwegian-language"
+        ],
+        interests: [
+            "agentd",
+            "gemma4",
+            "gemma",
+            "mlx",
+            "mlx-vlm",
+            "apple-silicon",
+            "norwegian",
+            "norsk",
+            "local",
+            "offline",
+            "private",
+            "multimodal",
+            "commons",
+            "librarian"
+        ],
+        privacyLevel: "local_agent_loopback_no_external_provider",
+        executionScope: "local_agent",
+        gdprProcessingNote: "Prompt and response stay on the operator-controlled local AgentD backend when mlx_vlm.server is bound to loopback; Agreement grants, retention policy and logging policy are still required.",
+        isExperimental: true,
+        sourceURL: "https://huggingface.co/mlx-community/gemma-4-E4B-it-qat-4bit"
+    )
+
     public static let knownProfiles: [AgentLocalModelProfile] = [
         .qwen25SmallTest,
-        .borealis4BInstructQ4KM
+        .borealis4BInstructQ4KM,
+        .qwen3_8BQ4KM,
+        .gemma4E4BQATMlxVLM
     ]
 
     public static func resolve(_ value: String?) -> AgentLocalModelProfile? {

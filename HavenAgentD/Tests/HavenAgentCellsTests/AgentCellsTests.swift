@@ -612,6 +612,14 @@ struct AgentCellsTests {
             guard case let .object(profile) = item else { return false }
             return profile["id"] == .string("borealis-4b-instruct-q4_k_m")
         })
+        #expect(modelProfiles.contains { item in
+            guard case let .object(profile) = item else { return false }
+            return profile["id"] == .string("qwen3-8b-q4_k_m")
+        })
+        #expect(modelProfiles.contains { item in
+            guard case let .object(profile) = item else { return false }
+            return profile["id"] == .string("gemma4-e4b-qat-mlx-vlm")
+        })
     }
 
     @Test
@@ -639,6 +647,41 @@ struct AgentCellsTests {
         #expect(config.providerID == "agent-borealis")
         #expect(config.baseURL == "http://127.0.0.1:8082")
         #expect(config.model == "NbAiLab/borealis-4b-instruct-preview-gguf:Q4_K_M")
+    }
+
+    @Test
+    func localModelBackendConfigSelectsQwen3ProfileFromEnvironment() throws {
+        let config = AgentLocalModelBackendConfig.load(environment: [
+            "HAVEN_AGENTD_LOCAL_LLM_PROFILE": "qwen3-8b-q4_k_m"
+        ])
+
+        #expect(config.profileID == "qwen3-8b-q4_k_m")
+        #expect(config.providerID == "local.qwen3.8b.q4-k-m.llama-server")
+        #expect(config.baseURL == "http://127.0.0.1:8083")
+        #expect(config.model == "Qwen3-8B-Q4_K_M.gguf")
+        #expect(AgentLocalModelProfile.resolve("Qwen/Qwen3-8B-GGUF")?.id == config.profileID)
+    }
+
+    @Test
+    func localModelBackendConfigSelectsGemma4ProfileAndKeepsLocalPathOverride() throws {
+        let localPath = "/opt/haven/models/gemma-4-E4B-it-qat-4bit"
+        let config = AgentLocalModelBackendConfig.load(environment: [
+            "HAVEN_AGENTD_LOCAL_LLM_PROFILE": "gemma4-e4b-qat-mlx-vlm",
+            "HAVEN_AGENTD_LOCAL_LLM_MODEL": localPath
+        ])
+
+        #expect(config.profileID == "gemma4-e4b-qat-mlx-vlm")
+        #expect(config.providerID == "local.gemma4.e4b.qat.mlx-vlm")
+        #expect(config.baseURL == "http://127.0.0.1:8094")
+        #expect(config.model == localPath)
+        #expect(AgentLocalModelProfile.resolve("local.gemma4.e4b.qat.mlx-vlm")?.id == config.profileID)
+    }
+
+    @Test
+    func localModelProfileIdentifiersAndProviderIDsAreUnique() {
+        let profiles = AgentLocalModelProfile.knownProfiles
+        #expect(Set(profiles.map(\.id)).count == profiles.count)
+        #expect(Set(profiles.map(\.providerID)).count == profiles.count)
     }
 
     @Test
