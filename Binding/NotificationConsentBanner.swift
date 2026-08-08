@@ -26,8 +26,8 @@ struct NotificationConsentBanner: View {
             Text("For å varsle deg om møterespons og handlinger som krever enheten din, må du lagre en enhets-ID og push-token og gi tillatelse til varsling.")
                 .font(.subheadline)
             HStack {
-                Button("Ikke nå") {
-                    manager.declineTerms()
+                Button("Ikke nå (før registrering)") {
+                    Task { await manager.declineTermsBeforeRegistration() }
                 }
                 .buttonStyle(.bordered)
 

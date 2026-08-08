@@ -164,6 +164,7 @@
 				24D800112EF195A000021B5A /* Sources */,
 				24D800122EF195A000021B5A /* Frameworks */,
 				24D800132EF195A000021B5A /* Resources */,
+				A1D3E5F72F6A4B8C90123456 /* Embed Build Provenance */,
 			);
 			buildRules = (
 			);
@@ -269,7 +270,7 @@
 			mainGroup = 24D8000C2EF195A000021B5A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../CellProtocol" */,
+				24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
@@ -306,6 +307,37 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A1D3E5F72F6A4B8C90123456 /* Embed Build Provenance */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_NAME).SwiftFileList",
+				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_NAME).LinkFileList",
+				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_MODULE_NAME).swiftmodule",
+				"$(BUILT_PRODUCTS_DIR)/CellBase.o",
+				"$(BUILT_PRODUCTS_DIR)/CellApple.o",
+				"$(SRCROOT)/Scripts/generate_binding_build_provenance.sh",
+			);
+			name = "Embed Build Provenance";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingBuildProvenance.plist",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingCompilerInputManifest.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nresources=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\n\"${SRCROOT}/Scripts/generate_binding_build_provenance.sh\" \\\n  \"${resources}/BindingBuildProvenance.plist\" \\\n  \"${resources}/BindingCompilerInputManifest.txt\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		24D800112EF195A000021B5A /* Sources */ = {
@@ -486,6 +518,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;
+				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
+				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://staging.haven.digipomps.org";
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -558,6 +593,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HAVEN_DEVICE_INGRESS_AUDIENCE = haven.digipomps.org;
+				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
+				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://haven.digipomps.org";
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -750,12 +788,16 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../CellProtocol" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../CellProtocol;
+/* Begin XCRemoteSwiftPackageReference section */
+		24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
+			requirement = {
+				kind = revision;
+				revision = 1632ed65d5e4aaf663b26cee1cdddfdcdd5e4412;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		24FEA0042F421297000334E1 /* CellBase */ = {

@@ -7,11 +7,73 @@ import UIKit
 import UserNotifications
 #endif
 
-enum NotificationRegistrationValidationError: LocalizedError {
-    case invalidServerResponse
+nonisolated enum NotificationTermsConsentState: String, Codable, Equatable, Sendable {
+    case unknown
+    case accepted
+    case declined
+}
+
+/// Local, durable evidence of the exact affirmative action used to prepare a
+/// registration body. It is not server authority; only the exact signed
+/// DeviceIngress response can establish an `activeConsented` mutation result.
+nonisolated struct NotificationTermsConsentEvidence: Codable, Equatable, Sendable {
+    static let currentSchema = "binding.notification-terms-consent.v1"
+
+    let schema: String
+    let state: NotificationTermsConsentState
+    let acceptanceID: String
+    let termsVersion: String
+    let acceptedAtMilliseconds: Int64
+
+    init?(
+        termsVersion: String,
+        acceptedAt: TimeInterval,
+        acceptanceID: String = UUID().uuidString
+    ) {
+        let normalizedVersion = termsVersion.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let normalizedAcceptanceID = acceptanceID.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard normalizedVersion.isEmpty == false,
+              normalizedAcceptanceID.isEmpty == false,
+              acceptedAt.isFinite,
+              acceptedAt > 0,
+              acceptedAt <= Double(Int64.max) / 1_000 else {
+            return nil
+        }
+        schema = Self.currentSchema
+        state = .accepted
+        self.acceptanceID = normalizedAcceptanceID
+        self.termsVersion = normalizedVersion
+        acceptedAtMilliseconds = Int64((acceptedAt * 1_000).rounded(.towardZero))
+    }
+
+    var registrationObject: [String: JSONValue] {
+        [
+            "schema": .string(schema),
+            "state": .string(state.rawValue),
+            "acceptanceId": .string(acceptanceID),
+            "termsVersion": .string(termsVersion),
+            "acceptedAtMilliseconds": .number(Double(acceptedAtMilliseconds))
+        ]
+    }
+}
+
+nonisolated struct NotificationTermsConsentSnapshot: Equatable, Sendable {
+    let state: NotificationTermsConsentState
+    let acceptedEvidence: NotificationTermsConsentEvidence?
+}
+
+nonisolated enum NotificationEnrollmentStateError: LocalizedError, Equatable {
+    case declineRequiresSignedRevocation
 
     var errorDescription: String? {
-        "Staging returned an invalid notification device registration response."
+        switch self {
+        case .declineRequiresSignedRevocation:
+            return "Notifications were previously registered or have an ambiguous pending registration. ‘Not now’ is pre-registration only; a signed revoke/deregister flow is required."
+        }
     }
 }
 
@@ -20,15 +82,24 @@ final class NotificationEnrollmentManager: ObservableObject {
     static let shared = NotificationEnrollmentManager()
 
     @Published private(set) var needsTermsAcceptance: Bool = true
+    @Published private(set) var termsConsentState: NotificationTermsConsentState = .unknown
     @Published private(set) var pushPermissionGranted: Bool = false
     @Published private(set) var lastRegistrationError: String?
     @Published private(set) var isDeviceRegistered: Bool = false
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
+    private let evidenceInspectorFactory:
+        @Sendable () throws -> any DeviceIngressRegistrationEvidenceStoring
+    private let termsVersionProvider: @Sendable () -> String
+    private let enrollmentEnabled: Bool
+    private let authenticatedRuntimePreparer:
+        @MainActor @Sendable () async throws -> Void
 
     private let deviceIDKey = "binding.notifications.deviceId"
     private let termsVersionKey = "binding.notifications.termsVersion"
     private let termsAcceptedAtKey = "binding.notifications.termsAcceptedAt"
+    // Migration-only keys. Values are deleted without being read so raw APNS
+    // tokens and unsigned legacy success state cannot enter the v3 runtime.
     private let legacyAPNSTokenKey = "binding.notifications.apnsToken"
     private let currentAPNSTokenKey = "binding.notifications.currentAPNSToken"
     private let registrationSucceededAtKey = "binding.notifications.registrationSucceededAt"
@@ -38,13 +109,53 @@ final class NotificationEnrollmentManager: ObservableObject {
     private var pendingAPNSToken: String?
     private var lastTokenRefreshRequestedAt: Date?
 
-    private init() {
-        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return }
+    private init(
+        defaults: UserDefaults = .standard,
+        evidenceInspectorFactory: @escaping @Sendable () throws
+            -> any DeviceIngressRegistrationEvidenceStoring = {
+                try FileDeviceIngressRegistrationEvidenceStore.applicationSupport()
+            },
+        termsVersionProvider: @escaping @Sendable () -> String = {
+            ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"]
+                ?? "v1"
+        },
+        appStoreCatalogGateEnabled: Bool =
+            BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled,
+        authenticatedRuntimePreparer: @escaping
+            @MainActor @Sendable () async throws -> Void = {
+                await BindingRuntimeBootstrap.ensureBaseline()
+                _ = try await DeviceIngressAuthenticatedVaultHandle.current()
+        }
+    ) {
+        self.defaults = defaults
+        self.evidenceInspectorFactory = evidenceInspectorFactory
+        self.termsVersionProvider = termsVersionProvider
+        enrollmentEnabled = appStoreCatalogGateEnabled == false
+        self.authenticatedRuntimePreparer = authenticatedRuntimePreparer
+        guard enrollmentEnabled else { return }
         bootstrapIfNeeded()
     }
 
+    #if DEBUG
+    static func testing(
+        defaults: UserDefaults,
+        evidenceInspector: any DeviceIngressRegistrationEvidenceStoring,
+        requiredTermsVersion: String = "v1",
+        authenticatedRuntimePreparer: @escaping
+            @MainActor @Sendable () async throws -> Void = {}
+    ) -> NotificationEnrollmentManager {
+        NotificationEnrollmentManager(
+            defaults: defaults,
+            evidenceInspectorFactory: { evidenceInspector },
+            termsVersionProvider: { requiredTermsVersion },
+            appStoreCatalogGateEnabled: false,
+            authenticatedRuntimePreparer: authenticatedRuntimePreparer
+        )
+    }
+    #endif
+
     func bootstrapIfNeeded() {
-        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return }
+        guard enrollmentEnabled else { return }
 
         if participantID == nil {
             let envParticipant = ProcessInfo.processInfo.environment["BINDING_PARTICIPANT_ID"]
@@ -68,14 +179,24 @@ final class NotificationEnrollmentManager: ObservableObject {
 
         configureRemoteBridgePresenceProvider()
 
-        let currentTermsVersion = termsVersion()
-        needsTermsAcceptance = defaults.string(forKey: termsVersionKey) != currentTermsVersion || defaults.double(forKey: termsAcceptedAtKey) <= 0
-        pendingAPNSToken = Self.preferredAPNSToken(
-            pending: pendingAPNSToken,
-            stored: defaults.string(forKey: currentAPNSTokenKey) ?? defaults.string(forKey: legacyAPNSTokenKey)
-        )
+        do {
+            applyConsentSnapshot(try evidenceInspectorFactory().termsConsentSnapshot())
+        } catch {
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
+            lastRegistrationError = "Notification consent evidence is unavailable: \(error.localizedDescription)"
+        }
+        // Legacy key pairs are deliberately not migrated into affirmative
+        // consent. They have no explicit decision or durable acceptance proof.
+        defaults.removeObject(forKey: termsVersionKey)
+        defaults.removeObject(forKey: termsAcceptedAtKey)
+        pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
         defaults.removeObject(forKey: legacyAPNSTokenKey)
-        isDeviceRegistered = defaults.double(forKey: registrationSucceededAtKey) > 0
+        defaults.removeObject(forKey: currentAPNSTokenKey)
+        defaults.removeObject(forKey: registrationSucceededAtKey)
+        isDeviceRegistered = false
 
         Task { @MainActor in
             #if os(iOS)
@@ -100,10 +221,46 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     func acceptTermsAndEnableNotifications() async {
         lastRegistrationError = nil
-        let acceptedAt = Date().timeIntervalSince1970
-        defaults.set(termsVersion(), forKey: termsVersionKey)
-        defaults.set(acceptedAt, forKey: termsAcceptedAtKey)
-        needsTermsAcceptance = false
+        do {
+            // This is an explicit user action, so it may open CellApple's
+            // device-owner authentication UI. Background refresh paths must
+            // never trigger authentication implicitly.
+            try await authenticatedRuntimePreparer()
+        } catch {
+            isDeviceRegistered = false
+            lastRegistrationError =
+                "Authentication is required before notification terms can be accepted: "
+                + error.localizedDescription
+            return
+        }
+        guard let evidence = NotificationTermsConsentEvidence(
+            termsVersion: termsVersion(),
+            acceptedAt: Date().timeIntervalSince1970
+        ) else {
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
+            lastRegistrationError = "Cannot create notification consent evidence."
+            return
+        }
+        do {
+            // The exact affirmative decision is journaled before UI state or
+            // registration can represent consent as accepted.
+            try evidenceInspectorFactory().persistTermsAcceptance(evidence)
+        } catch {
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
+            isDeviceRegistered = false
+            lastRegistrationError = "Cannot accept notification terms: \(error.localizedDescription)"
+            return
+        }
+        applyConsentSnapshot(NotificationTermsConsentSnapshot(
+            state: .accepted,
+            acceptedEvidence: evidence
+        ))
 
         #if os(iOS)
         do {
@@ -126,6 +283,15 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     func retryDeviceRegistration() async {
         lastRegistrationError = nil
+        do {
+            try await authenticatedRuntimePreparer()
+        } catch {
+            isDeviceRegistered = false
+            lastRegistrationError =
+                "Authentication is required before device registration can be retried: "
+                + error.localizedDescription
+            return
+        }
         #if os(iOS)
         await refreshPushAuthorizationStatus()
         if pushPermissionGranted {
@@ -168,16 +334,51 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
     #endif
 
-    func declineTerms() {
-        needsTermsAcceptance = false
+    /// "Not now" is deliberately pre-registration-only. Once any verified or
+    /// ambiguous pending evidence exists, removing local consent would falsely
+    /// imply server revocation. Until a signed revoke operation exists, this
+    /// API fails closed and preserves consent state.
+    @discardableResult
+    func declineTermsBeforeRegistration() async -> Bool {
+        lastRegistrationError = nil
+        do {
+            let evidenceInspector = try evidenceInspectorFactory()
+            // Evidence decision, durable gate and local state clear execute
+            // synchronously while the same descriptor-relative cross-process
+            // transaction remains held. There is no MainActor reentrancy
+            // window in which persistPending can cross this decision.
+            try evidenceInspector.performPreRegistrationDecline {
+                defaults.removeObject(forKey: termsVersionKey)
+                defaults.removeObject(forKey: termsAcceptedAtKey)
+                pendingAPNSToken = nil
+                applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                    state: .declined,
+                    acceptedEvidence: nil
+                ))
+                isDeviceRegistered = false
+            }
+            return true
+        } catch {
+            isDeviceRegistered = false
+            if let snapshot = try? evidenceInspectorFactory().termsConsentSnapshot() {
+                applyConsentSnapshot(snapshot)
+            } else {
+                applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                    state: .unknown,
+                    acceptedEvidence: nil
+                ))
+            }
+            lastRegistrationError = "Cannot decline notification terms: \(error.localizedDescription)"
+            return false
+        }
     }
 
     func updateAPNSToken(_ token: String) async {
         let normalizedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedToken.isEmpty else { return }
         pendingAPNSToken = normalizedToken
-        defaults.set(normalizedToken, forKey: currentAPNSTokenKey)
         defaults.removeObject(forKey: legacyAPNSTokenKey)
+        defaults.removeObject(forKey: currentAPNSTokenKey)
         await registerCurrentDeviceIfReady()
     }
 
@@ -188,42 +389,66 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func registerCurrentDeviceIfReady() async {
-        pendingAPNSToken = Self.preferredAPNSToken(
-            pending: pendingAPNSToken,
-            stored: defaults.string(forKey: currentAPNSTokenKey)
-        )
-        guard !needsTermsAcceptance,
+        pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
+        let consentSnapshot: NotificationTermsConsentSnapshot
+        do {
+            consentSnapshot = try evidenceInspectorFactory().termsConsentSnapshot()
+            applyConsentSnapshot(consentSnapshot)
+        } catch {
+            applyConsentSnapshot(NotificationTermsConsentSnapshot(
+                state: .unknown,
+                acceptedEvidence: nil
+            ))
+            isDeviceRegistered = false
+            lastRegistrationError = "Notification consent evidence is unavailable: \(error.localizedDescription)"
+            return
+        }
+        guard consentSnapshot.state == .accepted,
+              let consent = consentSnapshot.acceptedEvidence,
+              consent.termsVersion == termsVersion(),
               let participantID,
               let deviceID,
               let token = pendingAPNSToken,
               !token.isEmpty
         else {
+            isDeviceRegistered = false
             return
         }
 
-        let payload = Self.registrationPayload(
-            participantID: participantID,
-            deviceID: deviceID,
-            pushToken: token,
-            platform: "ios",
-            termsVersion: termsVersion(),
-            conferenceID: conferenceID(),
-            subscriptionTopics: subscriptionTopics(),
-            mutedEventTypes: mutedEventTypes()
-        )
-
         do {
-            let response = try await NotificationCallbackClient.shared.registerDevice(payload: payload)
-            try Self.validateRegistrationResponse(
-                response,
-                expectedParticipantID: participantID,
-                expectedDeviceID: deviceID
+            let buildProvenance = try BindingBuildProvenance.current()
+            let payload = Self.registrationPayload(
+                participantID: participantID,
+                deviceID: deviceID,
+                pushToken: token,
+                platform: "ios",
+                consent: consent,
+                conferenceID: conferenceID(),
+                subscriptionTopics: subscriptionTopics(),
+                mutedEventTypes: mutedEventTypes(),
+                buildProvenance: buildProvenance
             )
+            let protectedBody = try Self.registrationProtectedBody(payload)
+            let receipt = try await BindingDeviceIngressRegistrationComposition.register(
+                protectedBody: protectedBody,
+                consentEvidence: consent,
+                buildProvenance: buildProvenance
+            )
+            guard receipt.state == .activeConsented else {
+                throw DeviceIngressRegistrationClientError.registrationWasNotActiveAndConsented
+            }
+            self.participantID = receipt.deviceIdentityUUID
+            self.deviceID = receipt.deviceIdentityUUID
+            defaults.set(receipt.deviceIdentityUUID, forKey: participantIDKey)
+            defaults.set(receipt.deviceIdentityUUID, forKey: deviceIDKey)
+            configureRemoteBridgePresenceProvider()
+            // A register mutation receipt is durable historical evidence, not
+            // current status. The register-only v3 candidate has no canonical
+            // status/read-back operation, so it must not claim current
+            // registration even immediately after this response.
             pendingAPNSToken = nil
-            defaults.set(token, forKey: currentAPNSTokenKey)
-            defaults.set(Date().timeIntervalSince1970, forKey: registrationSucceededAtKey)
-            isDeviceRegistered = true
-            lastRegistrationError = nil
+            isDeviceRegistered = false
+            lastRegistrationError = "Registration evidence was verified, but a fresh signed status read-back is required before this device can be shown as registered."
         } catch {
             lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
             isDeviceRegistered = false
@@ -231,26 +456,17 @@ final class NotificationEnrollmentManager: ObservableObject {
         }
     }
 
-    nonisolated static func validateRegistrationResponse(
-        _ response: [String: JSONValue],
-        expectedParticipantID: String,
-        expectedDeviceID: String
-    ) throws {
-        guard case let .string(participantID)? = response["participantId"],
-              participantID == expectedParticipantID,
-              case let .string(deviceID)? = response["deviceId"],
-              deviceID == expectedDeviceID,
-              case let .bool(isActive)? = response["isActive"],
-              isActive,
-              case let .string(pushTokenHash)? = response["pushTokenHash"],
-              !pushTokenHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else {
-            throw NotificationRegistrationValidationError.invalidServerResponse
-        }
+    private func termsVersion() -> String {
+        termsVersionProvider()
     }
 
-    private func termsVersion() -> String {
-        ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"] ?? "v1"
+    private func applyConsentSnapshot(_ snapshot: NotificationTermsConsentSnapshot) {
+        let isCurrentAcceptance = snapshot.state == .accepted
+            && snapshot.acceptedEvidence?.termsVersion == termsVersion()
+        termsConsentState = isCurrentAcceptance
+            ? .accepted
+            : (snapshot.state == .accepted ? .unknown : snapshot.state)
+        needsTermsAcceptance = isCurrentAcceptance == false
     }
 
     private func conferenceID() -> String? {
@@ -307,23 +523,35 @@ final class NotificationEnrollmentManager: ObservableObject {
         deviceID: String,
         pushToken: String,
         platform: String,
-        termsVersion: String,
+        consent: NotificationTermsConsentEvidence,
         conferenceID: String?,
         subscriptionTopics: [String],
-        mutedEventTypes: [String]
+        mutedEventTypes: [String],
+        buildProvenance: BindingBuildProvenance
     ) -> [String: JSONValue] {
         [
+            "schema": .string("binding.device-registration.body.v3-candidate"),
             "participantId": .string(participantID),
             "deviceId": .string(deviceID),
             "platform": .string(platform),
             "pushToken": .string(pushToken),
-            "termsVersion": .string(termsVersion),
-            "termsAccepted": .bool(true),
+            "termsConsentState": .string(consent.state.rawValue),
+            "termsAcceptanceEvidence": .object(consent.registrationObject),
+            "termsVersion": .string(consent.termsVersion),
             "callbackCapabilities": .array(defaultCallbackCapabilities().map(JSONValue.string)),
             "conferenceId": conferenceID.map(JSONValue.string) ?? .null,
             "subscriptionTopics": .array(normalizeTopics(subscriptionTopics).map(JSONValue.string)),
-            "mutedEventTypes": .array(normalizeTopics(mutedEventTypes).map(JSONValue.string))
+            "mutedEventTypes": .array(normalizeTopics(mutedEventTypes).map(JSONValue.string)),
+            "buildProvenance": .object(buildProvenance.registrationObject)
         ]
+    }
+
+    nonisolated static func registrationProtectedBody(
+        _ payload: [String: JSONValue]
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(payload)
     }
 
     nonisolated static func bridgePresenceQueryItems(
@@ -370,8 +598,8 @@ final class NotificationEnrollmentManager: ObservableObject {
         return now.timeIntervalSince(lastRequestedAt) >= minimumInterval
     }
 
-    nonisolated static func preferredAPNSToken(pending: String?, stored: String?) -> String? {
-        normalizedIdentifier(pending) ?? normalizedIdentifier(stored)
+    nonisolated static func normalizedAPNSToken(_ token: String?) -> String? {
+        normalizedIdentifier(token)
     }
 
     private nonisolated static func normalizedIdentifier(_ value: String?) -> String? {
