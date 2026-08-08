@@ -593,9 +593,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;
+				HAVEN_DEVICE_INGRESS_AUDIENCE = haven.digipomps.org;
 				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
-				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://staging.haven.digipomps.org";
+				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://haven.digipomps.org";
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -794,7 +794,7 @@
 			repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
 			requirement = {
 				kind = revision;
-				revision = 35c8484c35a8f5e6e04b003c2b58c0981e6972f3;
+				revision = 1632ed65d5e4aaf663b26cee1cdddfdcdd5e4412;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

@@ -2385,7 +2385,7 @@ enum BindingDeviceIngressRegistrationComposition {
         )
     }
 
-    private static func identityBoundRegistrationBody(
+    nonisolated static func identityBoundRegistrationBody(
         _ data: Data,
         deviceIdentityUUID: String,
         consentEvidence: NotificationTermsConsentEvidence
@@ -2401,8 +2401,12 @@ enum BindingDeviceIngressRegistrationComposition {
         }
         payload["participantId"] = .string(deviceIdentityUUID)
         payload["deviceId"] = .string(deviceIdentityUUID)
+        payload["termsConsentState"] = .string(consentEvidence.state.rawValue)
+        payload["termsAcceptanceEvidence"] = .object(
+            consentEvidence.registrationObject
+        )
         payload["termsVersion"] = .string(consentEvidence.termsVersion)
-        payload["termsAccepted"] = .bool(true)
+        payload.removeValue(forKey: "termsAccepted")
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(payload)

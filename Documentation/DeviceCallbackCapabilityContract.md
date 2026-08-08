@@ -1,15 +1,27 @@
 # Binding DeviceIngress v3 register candidate
 
-Status: isolated review candidate only. It is not wired to staging, does not
-send APNS, and is not an operational device-registration release.
+Status: source-integrated review candidate in Binding PR #9. It is not wired
+to an operational DeviceIngress service, does not send APNS, and is not an
+operational device-registration release. The current App Store catalog policy
+keeps notification enrollment disabled, and the challenge-issuer setting is
+deliberately empty so an accidentally opened registration path fails before
+network access.
 
 ## Exact source boundary
 
-- Binding base: `3791a431ddb3353c33a657a7bf2cb03cb6f557ea`
-- CellProtocol DeviceIngress v3: `35c8484c35a8f5e6e04b003c2b58c0981e6972f3`
-- Candidate state: uncommitted pending independent review
-- CellScaffold transport-contract reference only: draft PR #33 head
-  `38195a233b84d09f66e5ef483800228f857fff2a`
+- Original PR #9 head: `16af4e85e21c15d5f0fa430fd5c045d85f16312b`
+- Binding main integrated by this candidate:
+  `2d326349643e4b8448a00bae4ce16087209a2586`
+- CellProtocol exact revision: `1632ed65d5e4aaf663b26cee1cdddfdcdd5e4412`
+- CellScaffold main observed during integration:
+  `57b500455a2df668b29a10445f476e07d7aa99dc`
+- Candidate state: PR #9 integration pending independent review. The exact
+  final Git revision is supplied by Git and the generated build provenance,
+  rather than a self-referential hard-coded source constant.
+
+The CellScaffold revision above is an observation boundary, not operational
+proof. The earlier DeviceIngress server prototype branches are not treated as
+authority, deployment, readiness, or a current shared transport contract.
 
 The HAVEN target generates a scoped compiler-input attestation after
 compilation. It records the actual Xcode Swift file list for the sole build
@@ -28,10 +40,14 @@ roots/inputs are represented by the exact HEAD plus dirty flag, not individual
 file digests. On macOS,
 `BindingBuildProvenance.current()` checks the static code signature and running
 leaf-certificate fingerprint before the attestation may be included in a
-register body. Public iOS APIs used by this candidate cannot perform the same
-running-certificate binding, so certificate-required provenance fails closed
-on iOS. Build provenance is descriptive evidence and is never an authorization
-grant.
+register body. Public iOS APIs used by this candidate cannot expose the same
+running leaf certificate. The iOS path therefore accepts only the generated
+certificate-required mode together with the canonical HAVEN bundle identifier,
+the pinned development-team identifier, and a physical-device `iphoneos`
+platform attestation; simulator, unsigned-mode, wrong-bundle and wrong-team
+inputs fail closed. This is intentionally a narrower platform/build check, not
+a claim of running leaf-certificate equivalence. Build provenance is
+descriptive evidence and is never an authorization grant.
 
 ## Implemented register-only contract
 
@@ -48,6 +64,10 @@ contract:
 4. It calls `DeviceIngressRequestFactory.prepare` with the exact canonical
    challenge, protected registration body, persistent identity and
    non-authoritative domain binding.
+   Before that call, Binding replaces caller-supplied participant/device and
+   consent fields with the authenticated persistent device-identity UUID and
+   exact durable consent evidence. The protected body omits the redundant
+   `termsAccepted` boolean.
 5. The exact accepted consent proof, pending response expectation, and verified
    response evidence are states in one hash-chained journal. Every transition
    is serialized under the canonical OS lock and crash-durably persisted before
@@ -120,16 +140,19 @@ with the local consent journal state, is required before current active
 registration can be claimed. The v3 register-only dependency has no such
 operation yet.
 
-The runtime composition is intentionally inert. Resolve and submit also throw
-before network access; unsigned push payloads are not staged as a fallback.
-No owner identity, Agreement, revocation state, audience, issuer or transport
-framing is auto-provisioned or inferred.
+The register transport implementation is present, but the shipped/default
+composition remains inert: the App Store catalog gate disables enrollment and
+the empty issuer descriptor makes runtime configuration unavailable before
+network access. Resolve and submit also throw before network access; unsigned
+push payloads are not staged as a fallback. No owner identity, Agreement,
+revocation state, audience, issuer or transport framing is auto-provisioned or
+inferred.
 
 ## Remaining operational gates
 
-CellScaffold PR #33 is used only as a transport-contract reference. Its clean
-head does not establish a challenge issuer, durable admission/replay, or
-operational authority. Binding remains unavailable until a reviewed
+Neither current CellScaffold main nor the earlier server prototype branches
+establish a deployed challenge issuer, durable admission/replay, or operational
+authority for this candidate. Binding remains unavailable until a reviewed
 composition root supplies all of the following:
 
 - persistent challenge issuer and client-pinned issuer descriptor;
@@ -139,7 +162,7 @@ composition root supplies all of the following:
 - a shared, reviewed transport package so Binding does not copy or guess HTTP
   framing;
 - readiness that is red when any dependency is unavailable;
-- an explicit custodian/owner provisioning flow for the physical device.
+- an explicit custodian/owner provisioning flow for the physical device;
 - a canonical signed status/read-back and typed signed revoke/deregister
   operation with durable local tombstone/retry reconciliation;
 - reviewed iOS build/signing attestation, or an explicit decision that scoped

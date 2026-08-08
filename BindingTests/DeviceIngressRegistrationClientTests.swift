@@ -939,7 +939,42 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test
-    func runtimeConfigurationPinsExactStagingScaffoldIssuer() throws {
+    func identityBoundRegistrationBodyReplacesCallerIdentityAndConsent() throws {
+        let consent = try makeConsentEvidence()
+        let callerBody = try JSONEncoder().encode([
+            "schema": JSONValue.string(
+                "binding.device-registration.body.v3-candidate"
+            ),
+            "participantId": .string("caller-participant"),
+            "deviceId": .string("caller-device"),
+            "termsAccepted": .bool(true),
+            "termsConsentState": .string("declined"),
+            "termsAcceptanceEvidence": .object(["state": .string("declined")])
+        ])
+
+        let protectedBody = try BindingDeviceIngressRegistrationComposition
+            .identityBoundRegistrationBody(
+                callerBody,
+                deviceIdentityUUID: "device-identity",
+                consentEvidence: consent
+            )
+        let payload = try JSONDecoder().decode(
+            [String: JSONValue].self,
+            from: protectedBody
+        )
+
+        #expect(payload["participantId"] == .string("device-identity"))
+        #expect(payload["deviceId"] == .string("device-identity"))
+        #expect(payload["termsAccepted"] == nil)
+        #expect(payload["termsConsentState"] == .string("accepted"))
+        #expect(
+            payload["termsAcceptanceEvidence"]
+                == .object(consent.registrationObject)
+        )
+    }
+
+    @Test
+    func runtimeConfigurationAcceptsExplicitMatchingIssuerDescriptor() throws {
         let configuration = try BindingDeviceIngressRuntimeConfiguration.validated(
             originText: "https://staging.haven.digipomps.org",
             audienceText: "staging.haven.digipomps.org",
