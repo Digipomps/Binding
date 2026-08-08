@@ -274,7 +274,7 @@ nonisolated struct URLSessionDeviceIngressRegistrationTransport:
     }
 }
 
-nonisolated private struct BindingDeviceIngressRuntimeConfiguration:
+nonisolated struct BindingDeviceIngressRuntimeConfiguration:
     Sendable
 {
     static let originKey = "HAVENDeviceIngressPublicOrigin"
@@ -285,15 +285,27 @@ nonisolated private struct BindingDeviceIngressRuntimeConfiguration:
     let trust: DeviceIngressRegistrationTrustConfiguration
 
     static func current(bundle: Bundle = .main) throws -> Self {
-        guard let originText = normalized(bundle.object(
+        try validated(
+            originText: bundle.object(
             forInfoDictionaryKey: originKey
-        ) as? String),
-              let audience = normalized(bundle.object(
+            ) as? String,
+            audienceText: bundle.object(
                   forInfoDictionaryKey: audienceKey
-              ) as? String),
-              let issuerBase64 = normalized(bundle.object(
+            ) as? String,
+            issuerBase64Text: bundle.object(
                   forInfoDictionaryKey: issuerKey
-              ) as? String),
+            ) as? String
+        )
+    }
+
+    static func validated(
+        originText: String?,
+        audienceText: String?,
+        issuerBase64Text: String?
+    ) throws -> Self {
+        guard let originText = normalized(originText),
+              let audience = normalized(audienceText),
+              let issuerBase64 = normalized(issuerBase64Text),
               let origin = URL(string: originText),
               origin.scheme?.lowercased() == "https",
               origin.user == nil,
