@@ -509,6 +509,194 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(localState["requiresNetwork"]) == false)
     }
 
+    @Test func butlerWakeReachesPolicyThroughSupportConsider() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-wake")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        _ = try await chat.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "appLaunchEnabled": .bool(true),
+                "quietHoursEnabled": .bool(false)
+            ]),
+            requester: owner
+        )
+        // The lifecycle wakes the butler through this keypath. It must reach
+        // the policy, and the policy — not the wake — decides what happens.
+        let offered = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.support.consider",
+            value: .object(["triggerKind": .string("app_launch")]),
+            requester: owner
+        )))
+        #expect(asString(offered["status"]) == "offer")
+        #expect(asBool(offered["stagedInChat"]) == true)
+        #expect(asBool(offered["providerInvoked"]) == false)
+        #expect(asBool(offered["domainSideEffect"]) == false)
+
+        _ = try await chat.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object(["enabled": .bool(false)]),
+            requester: owner
+        )
+        let suppressed = try #require(asObject(try await chat.set(
+            keypath: "chatHub.butler.support.consider",
+            value: .object(["triggerKind": .string("app_launch")]),
+            requester: owner
+        )))
+        #expect(asString(suppressed["status"]) != "offer")
+        #expect(asBool(suppressed["stagedInChat"]) == false)
+    }
+
+    @Test func personalButlerSyncRequiresApprovalOnBothDevicesAndImportsOnlySignedPreferencesOnce() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-personal-butler-sync")
+        let source = await BindingPersonalChatHubCell(owner: owner)
+        let target = await BindingPersonalChatHubCell(owner: owner)
+        let approval: ValueType = .object(["approved": .bool(true), "confirm": .bool(true)])
+
+        _ = try await source.set(keypath: "chatHub.butler.sync.configure", value: approval, requester: owner)
+        _ = try await source.set(
+            keypath: "chatHub.butler.profile.displayName",
+            value: .string("Lumi"),
+            requester: owner
+        )
+        _ = try await source.set(
+            keypath: "chatHub.butler.proactivity.configure",
+            value: .object([
+                "enabled": .bool(true),
+                "minimumIntervalHours": .integer(120),
+                "userScheduleEnabled": .bool(true),
+                "stagingWakeEnabled": .bool(true),
+                "userScheduleKind": .string("weekdays"),
+                "userScheduleLocalTime": .string("10:15")
+            ]),
+            requester: owner
+        )
+        let exported = try #require(asObject(try await source.set(
+            keypath: "chatHub.butler.sync.export",
+            value: .object([:]),
+            requester: owner
+        )))
+        let packet = try #require(asObject(exported["packet"]))
+
+        let denied = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(denied["status"]) == "target_not_approved")
+
+        _ = try await target.set(keypath: "chatHub.butler.sync.configure", value: approval, requester: owner)
+        let imported = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(imported["status"]) == "imported")
+        #expect(asBool(imported["domainSideEffect"]) == true)
+
+        let targetButler = try #require(asObject(try await target.get(keypath: "chatHub.butler", requester: owner)))
+        let profile = try #require(asObject(targetButler["profile"]))
+        let proactivity = try #require(asObject(targetButler["proactivity"]))
+        let support = try #require(asObject(targetButler["support"]))
+        #expect(asString(profile["displayName"]) == "Lumi")
+        #expect(asString(profile["source"]) == "owner_approved_device_sync")
+        #expect(asInt(proactivity["minimumIntervalHours"]) == 120)
+        #expect(asString(proactivity["userScheduleLocalTime"]) == "10:15")
+        #expect(asBool(proactivity["stagingWakeEnabled"]) == true)
+        #expect(asString(support["status"]) == "idle")
+
+        let replay = try #require(asObject(try await target.set(
+            keypath: "chatHub.butler.sync.receive",
+            value: .object(packet),
+            requester: owner
+        )))
+        #expect(asString(replay["status"]) == "ignored_replay")
+        #expect(asBool(replay["sideEffect"]) == false)
+    }
+
+    @Test func appleProviderFixturePublishesCandidateAndGateAuditWithoutModelSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-purpose-fixture")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let state = try #require(asObject(try await apple.get(keypath: "ai.state", requester: owner)))
+        #expect(asString(state["purposeDecompositionSchema"]) == BindingApplePurposeDecompositionPipeline.schema)
+        #expect(asBool(state["modelMayInventPurposeRefs"]) == false)
+
+        let classified = try #require(asObject(try await apple.set(
+            keypath: "ai.classifyIntent",
+            value: .object([
+                "draft": .string("lag oppgave for kandidatbegrenset Apple-test"),
+                "evaluationMode": .string("fixture")
+            ]),
+            requester: owner
+        ) ?? .null))
+        #expect(asString(classified["purposeRef"]) == "personal.chat.assist.todo")
+        #expect(asBool(classified["requiresUserApproval"]) == true)
+
+        let decomposition = try #require(asObject(classified["purposeDecomposition"]))
+        #expect(asString(decomposition["schema"]) == BindingApplePurposeDecompositionPipeline.schema)
+        #expect(asString(decomposition["source"]) == "fixture_deterministic_fallback")
+        #expect(asBool(decomposition["sideEffectFree"]) == true)
+        #expect(asBool(decomposition["mutatesPerspective"]) == false)
+        #expect(asBool(decomposition["mutatesEntity"]) == false)
+        #expect(asStringList(decomposition["candidatePurposeRefs"]).contains("personal.chat.assist.todo"))
+        let gate = try #require(asObject(decomposition["gatePolicy"]))
+        #expect(asString(gate["policyID"]) == BindingApplePurposeDecompositionPipeline.gatePolicyID)
+        #expect(asBool(gate["modelMayInventPurposeRefs"]) == false)
+    }
+
+    @Test func appleClaimProviderFixturePublishesClaimDefinitionWithoutSideEffects() async throws {
+        let previousDebugAccess = CellBase.debugValidateAccessForEverything
+        CellBase.debugValidateAccessForEverything = true
+        defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
+
+        let owner = await signedOwner("binding-apple-claim-fixture")
+        let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+        let analysis = try #require(asObject(try await apple.set(
+            keypath: "ai.analyzeClaims",
+            value: .object([
+                "text": .string("HAVEN støtter lokal claim-analyse. Produktiviteten øker med 12%."),
+                "purposeRef": .string("purpose://claim-analysis-smoke"),
+                "evaluationMode": .string("fixture")
+            ]),
+            requester: owner
+        ) ?? .null))
+
+        #expect(asString(analysis["schema"]) == "binding.apple-claim-analysis.v1")
+        #expect(asString(analysis["claimSchema"]) == "haven.claim-definition.v0")
+        #expect(asString(analysis["source"]) == "fixture_deterministic_claim_heuristics")
+        #expect(asBool(analysis["modelMayInventClaimIDs"]) == false)
+        #expect(asBool(analysis["modelMayInventClaimText"]) == false)
+        #expect(asBool(analysis["quotesAreExactInputAnchors"]) == true)
+        #expect(asBool(analysis["sourceAuditPerformed"]) == false)
+        #expect(asBool(analysis["argumentCompositionPerformed"]) == false)
+        #expect(asBool(analysis["sideEffectFree"]) == true)
+        #expect(asBool(analysis["mutatesPerspective"]) == false)
+        #expect(asBool(analysis["mutatesEntity"]) == false)
+
+        let claims = (asList(analysis["claimLedger"]) ?? []).compactMap(asObject)
+        #expect(claims.count == 2)
+        #expect(asString(claims.first?["schema"]) == "haven.claim-definition.v0")
+        #expect(asString(claims.first?["statement"]) == "HAVEN støtter lokal claim-analyse.")
+        #expect(asString(claims.first?["quote"]) == asString(claims.first?["statement"]))
+        #expect(asBool(claims.first?["isInferred"]) == false)
+        #expect(asString(claims.first?["claimType"]) == "project_capability")
+        #expect(asString(claims.first?["sourceAuditStatus"]) == "source_missing")
+        #expect(asString(claims.first?["purposeRef"]) == "purpose://claim-analysis-smoke")
+        #expect((asList(claims.first?["supports"]) ?? []).isEmpty)
+    }
+
     @Test func ownerScopedChatAndProviderCellsRejectForeignRequesterWithoutDebugBypass() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         let previousVault = CellBase.defaultIdentityVault
@@ -2248,7 +2436,7 @@ struct ChatWorkbenchParityTests {
             keypath: "chatHub.ui.openMatchedResourceLibrary",
             value: .object([
                 "configurationName": .string("Arendalsuka Participant Program"),
-                "sourceCellEndpoint": .string("cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram"),
+                "sourceCellEndpoint": .string(BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint),
                 "resourceID": .string("configuration:arendalsuka-participant-program"),
                 "autoOpen": .bool(false)
             ]),
@@ -2288,7 +2476,7 @@ struct ChatWorkbenchParityTests {
         #expect(asBool(submitted["configurationLoaded"]) == true)
         let resource = try #require(asObject(submitted["resource"]))
         #expect(asString(resource["title"]) == "Arendalsuka Participant Program")
-        #expect(asString(resource["sourceCellEndpoint"]) == "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram")
+        #expect(asString(resource["sourceCellEndpoint"]) == BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint)
         let portholeUI = try #require(asObject(submitted["portholeUI"]))
         #expect(asBool(portholeUI["openLibrary"]) == true)
         #expect(asString(portholeUI["configurationName"]) == "Arendalsuka Participant Program")
@@ -2304,11 +2492,7 @@ struct ChatWorkbenchParityTests {
         #expect(asString(latestRows.last?["role"]) == "assistant")
         #expect((asString(latestRows.last?["body"]) ?? "").contains("Arendalsuka Participant Program"))
 
-        let configuration = try #require(
-            ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
-                includeAgentOperatorSurfaces: false
-            ).first { $0.name == "Arendalsuka Participant Program" }
-        )
+        let configuration = ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
         #expect(configuration.skeleton != nil)
     }
 

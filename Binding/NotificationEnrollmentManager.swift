@@ -91,6 +91,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let evidenceInspectorFactory:
         @Sendable () throws -> any DeviceIngressRegistrationEvidenceStoring
     private let termsVersionProvider: @Sendable () -> String
+    private let enrollmentEnabled: Bool
 
     private let deviceIDKey = "binding.notifications.deviceId"
     private let termsVersionKey = "binding.notifications.termsVersion"
@@ -115,11 +116,15 @@ final class NotificationEnrollmentManager: ObservableObject {
         termsVersionProvider: @escaping @Sendable () -> String = {
             ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"]
                 ?? "v1"
-        }
+        },
+        appStoreCatalogGateEnabled: Bool =
+            BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
     ) {
         self.defaults = defaults
         self.evidenceInspectorFactory = evidenceInspectorFactory
         self.termsVersionProvider = termsVersionProvider
+        enrollmentEnabled = appStoreCatalogGateEnabled == false
+        guard enrollmentEnabled else { return }
         bootstrapIfNeeded()
     }
 
@@ -132,12 +137,15 @@ final class NotificationEnrollmentManager: ObservableObject {
         NotificationEnrollmentManager(
             defaults: defaults,
             evidenceInspectorFactory: { evidenceInspector },
-            termsVersionProvider: { requiredTermsVersion }
+            termsVersionProvider: { requiredTermsVersion },
+            appStoreCatalogGateEnabled: false
         )
     }
     #endif
 
     func bootstrapIfNeeded() {
+        guard enrollmentEnabled else { return }
+
         if participantID == nil {
             let envParticipant = ProcessInfo.processInfo.environment["BINDING_PARTICIPANT_ID"]
             participantID = defaults.string(forKey: participantIDKey) ?? envParticipant ?? "binding-participant"
@@ -498,7 +506,6 @@ final class NotificationEnrollmentManager: ObservableObject {
             "termsConsentState": .string(consent.state.rawValue),
             "termsAcceptanceEvidence": .object(consent.registrationObject),
             "termsVersion": .string(consent.termsVersion),
-            "termsAccepted": .bool(consent.state == .accepted),
             "callbackCapabilities": .array(defaultCallbackCapabilities().map(JSONValue.string)),
             "conferenceId": conferenceID.map(JSONValue.string) ?? .null,
             "subscriptionTopics": .array(normalizeTopics(subscriptionTopics).map(JSONValue.string)),

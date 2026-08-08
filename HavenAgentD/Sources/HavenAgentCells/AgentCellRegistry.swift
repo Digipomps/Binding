@@ -71,6 +71,12 @@ public enum AgentCellRegistry {
             endpoint: AgentSignatureStatement.endpoint,
             typeName: "AgentSignatureCell",
             sideEffectBoundary: "Prepares audience-bound signing intents; daemon-owned execution signs detached payload hashes with nonce and expiry enforcement."
+        ),
+        AgentCellDescriptor(
+            kind: .personalButlerSchedule,
+            endpoint: "cell:///agent/butler/scheduler",
+            typeName: "PersonalButlerScheduleCell",
+            sideEffectBoundary: "Stores privacy-safe cadence and may launch only HAVEN after owner-approved schedule or signed staging wake policy."
         )
     ]
 
@@ -94,6 +100,8 @@ public enum AgentCellRegistry {
             return await AgentMailDraftCell(owner: owner)
         case .signatureStatements:
             return await AgentSignatureCell(owner: owner)
+        case .personalButlerSchedule:
+            return await PersonalButlerScheduleCell(owner: owner)
         default:
             throw AgentCellRegistryError.unsupportedConcreteKind(kind)
         }

@@ -1337,11 +1337,11 @@ enum BindingChatIntentClassifier {
                 matches.append(cellConfigurationResource(
                     id: "configuration:arendalsuka-participant-program",
                     title: "Arendalsuka Participant Program",
-                    summary: "Deltakerprogram fra staging med arrangementer, agenda og navigasjon for Arendalsuka.",
-                    sourceCellEndpoint: "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram",
+                    summary: "Deltakerprogram med arrangementer, privat agenda og navigasjon for Arendalsuka.",
+                    sourceCellEndpoint: BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint,
                     sourceCellName: "ArendalsukaParticipantProgramCell",
-                    purposeRef: "conference.agenda.view",
-                    interests: ["arendalsuka", "conference", "agenda", "participant", "sessions", "event-day", "resource-router"],
+                    purposeRef: "event.participation.program.view",
+                    interests: ["arendalsuka", "event-program", "agenda", "participant", "sessions", "event-day", "resource-router"],
                     score: 0.96
                 ))
             } else {
@@ -3027,9 +3027,11 @@ enum BindingChatProviderRouter {
 final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case lastClassification
+        case lastClaimAnalysis
     }
 
     nonisolated(unsafe) private var lastClassification: Object = [:]
+    nonisolated(unsafe) private var lastClaimAnalysis: Object = [:]
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -3040,6 +3042,7 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
     nonisolated required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         lastClassification = (try? container.decode(Object.self, forKey: .lastClassification)) ?? [:]
+        lastClaimAnalysis = (try? container.decode(Object.self, forKey: .lastClaimAnalysis)) ?? [:]
         try super.init(from: decoder)
     }
 
@@ -3047,13 +3050,14 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
         try super.encode(to: encoder)
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(lastClassification, forKey: .lastClassification)
+        try container.encode(lastClaimAnalysis, forKey: .lastClaimAnalysis)
     }
 
     override func installRuntimeBindings(owner: Identity) async {
-        for key in ["ai.state", "ai.lastClassification"] {
+        for key in ["ai.state", "ai.lastClassification", "ai.lastClaimAnalysis"] {
             ensureAgreementGrant("r---", for: key)
         }
-        for key in ["ai.classifyIntent", "ai.sendPrompt"] {
+        for key in ["ai.classifyIntent", "ai.analyzeClaims", "ai.sendPrompt"] {
             ensureAgreementGrant("rw--", for: key)
         }
 
@@ -3067,10 +3071,20 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             guard await self.validateAccess("r---", at: "ai.lastClassification", for: requester) else { return .string("denied") }
             return .object(self.lastClassification)
         }
+        await registerGet(key: "ai.lastClaimAnalysis", owner: owner, returns: .object([:])) { [weak self] requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("r---", at: "ai.lastClaimAnalysis", for: requester) else { return .string("denied") }
+            return .object(self.lastClaimAnalysis)
+        }
         await registerSet(key: "ai.classifyIntent", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "ai.classifyIntent", for: requester) else { return .string("denied") }
             return await self.classify(value)
+        }
+        await registerSet(key: "ai.analyzeClaims", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "ai.analyzeClaims", for: requester) else { return .string("denied") }
+            return await self.analyzeClaims(value)
         }
         await registerSet(key: "ai.sendPrompt", owner: owner, input: .object([:]), returns: .object([:])) { [weak self] requester, value in
             guard let self else { return .string("failure") }
@@ -3096,6 +3110,18 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             "requiresUserApproval": .bool(true),
             "canInvokeFromChat": .bool(false),
             "supportsStructuredIntent": .bool(availability.structured),
+            "supportsClaimAnalysis": .bool(availability.structured),
+            "purposeDecompositionSchema": .string(BindingApplePurposeDecompositionPipeline.schema),
+            "purposeGatePolicy": .object(BindingApplePurposeDecompositionPipeline.gatePolicyObject()),
+            "modelMayInventPurposeRefs": .bool(false),
+            "claimAnalysisSchema": .string(BindingAppleClaimArgumentPipeline.schema),
+            "claimDefinitionSchema": .string(ClaimDefinition.schemaID),
+            "modelMayInventClaimIDs": .bool(false),
+            "modelMayInventClaimText": .bool(false),
+            "capabilities": .list([
+                .string("ai.classifyIntent"),
+                .string("ai.analyzeClaims")
+            ]),
             "purposeRefs": .list([
                 .string("personal.ai.provider.apple-intelligence"),
                 .string("personal.chat.assist.resource-router")
@@ -3108,7 +3134,8 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
                 .string("assistant")
             ]),
             "reason": .string(availability.reason),
-            "lastClassification": .object(lastClassification)
+            "lastClassification": .object(lastClassification),
+            "lastClaimAnalysis": .object(lastClaimAnalysis)
         ])
     }
 
@@ -3125,18 +3152,41 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
             capabilityDiscoveryEnabled: capabilityDiscoveryEnabled,
             scaffoldContextAvailable: scaffoldContextAvailable
         )
+        let contextPack = contextPackForClassification(from: payload)
         let useFixtureFallback = BindingChatValue.string(payload["evaluationMode"]) == "fixture"
-        let classification = await Self.foundationModelClassification(
+        let outcome = await Self.foundationModelClassification(
             draft: draft,
-            contextPack: contextPackForClassification(from: payload),
+            contextPack: contextPack,
             fallback: fallback,
             allowFoundationModels: !useFixtureFallback
         )
-        var object = classification.objectValue()
+        var object = outcome.classification.objectValue()
         object["providerID"] = .string("binding.apple-intelligence")
         object["providerKind"] = .string("apple_intelligence")
-        object["usedContext"] = .object(contextPackForClassification(from: payload))
+        object["usedContext"] = .object(contextPack)
+        object["purposeDecomposition"] = .object(outcome.objectValue())
         lastClassification = object
+        return .object(object)
+    }
+
+    private func analyzeClaims(_ value: ValueType) async -> ValueType {
+        let payload = BindingChatValue.object(value) ?? [:]
+        let text = BindingChatValue.string(payload["text"])
+            ?? BindingChatValue.string(payload["draft"])
+            ?? BindingChatValue.string(payload["prompt"])
+            ?? (value.stringValueIfPossible ?? "")
+        let rawPurposeRef = BindingChatValue.string(payload["purposeRef"])
+        let purposeRef = rawPurposeRef?.isEmpty == false ? rawPurposeRef : nil
+        let useFixtureFallback = BindingChatValue.string(payload["evaluationMode"]) == "fixture"
+        let outcome = await BindingAppleClaimArgumentPipeline.analyze(
+            text: text,
+            purposeRef: purposeRef,
+            allowFoundationModels: !useFixtureFallback
+        )
+        var object = outcome.objectValue()
+        object["providerID"] = .string("binding.apple-intelligence")
+        object["providerKind"] = .string("apple_intelligence")
+        lastClaimAnalysis = object
         return .object(object)
     }
 
@@ -3186,39 +3236,82 @@ final class BindingAppleIntelligenceProviderCell: BindingRuntimeBindingCell {
         contextPack: Object,
         fallback: BindingChatIntentClassification,
         allowFoundationModels: Bool
-    ) async -> BindingChatIntentClassification {
-        guard allowFoundationModels else { return fallback }
+    ) async -> BindingApplePurposeDecompositionOutcome {
+        let candidates = BindingApplePurposeDecompositionPipeline.shortlist(
+            prompt: draft,
+            fallback: fallback
+        )
+        guard allowFoundationModels else {
+            return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+                fallback: fallback,
+                candidates: candidates,
+                source: "fixture_deterministic_fallback"
+            )
+        }
 #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *),
            SystemLanguageModel.default.isAvailable {
-            do {
-                let session = LanguageModelSession(instructions: """
-                Classify one private chat draft into a HAVEN PersonalChatHub helper intent.
-                Only use the provided draft, perspective summary and granted descriptors.
-                Never infer access to contacts, calendar, camera, microphone, vault or other threads.
-                If the user says not to do an action, set negativeIntent and use low_confidence.
-                """)
-                let contextJSON = (try? ValueType.object(contextPack).jsonString()) ?? "{}"
-                let response = try await session.respond(
-                    generating: BindingAppleStructuredIntent.self,
-                    includeSchemaInPrompt: true,
-                    options: GenerationOptions(sampling: .greedy)
-                ) {
-                    """
-                    Draft:
-                    \(draft)
-
-                    Context pack:
-                    \(contextJSON)
-                    """
-                }
-                return response.content.classification(fallback: fallback)
-            } catch {
-                return fallback
+            guard candidates.isEmpty == false else {
+                return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+                    fallback: fallback,
+                    candidates: [],
+                    source: "no_deterministic_candidates"
+                )
             }
+            let contextJSON = (try? ValueType.object(contextPack).jsonString()) ?? "{}"
+            var verdicts: [BindingApplePurposeVerdictRecord] = []
+            for candidate in candidates {
+                let session = LanguageModelSession()
+                var verdict = "error"
+                var attempts = 0
+                while attempts < 3 {
+                    attempts += 1
+                    do {
+                        let response = try await session.respond(
+                            generating: BindingApplePurposeMicroAnswer.self,
+                            includeSchemaInPrompt: true,
+                            options: GenerationOptions(sampling: .greedy)
+                        ) {
+                            """
+                            A user wrote this request to a private software assistant:
+                            "\(draft)"
+
+                            Candidate purpose from the Binding helper taxonomy:
+                            \(candidate.purposeRef) — \(candidate.title)
+                            Summary: \(candidate.summary)
+                            Goal outcome: \(candidate.goalOutcome)
+                            Deterministic resolver score: \(candidate.resolverScore)
+
+                            Allowed private context pack:
+                            \(contextJSON)
+
+                            Does fulfilling the user's request require this purpose? Consider it required when the request clearly needs it, even implicitly. Answer no when the user negates the action. Do not propose another purpose.
+                            """
+                        }
+                        verdict = response.content.verdict.rawValue
+                        break
+                    } catch {
+                        continue
+                    }
+                }
+                verdicts.append(BindingApplePurposeVerdictRecord(
+                    purposeRef: candidate.purposeRef,
+                    verdict: verdict,
+                    attempts: attempts
+                ))
+            }
+            return BindingApplePurposeDecompositionPipeline.resolve(
+                fallback: fallback,
+                candidates: candidates,
+                verdicts: verdicts
+            )
         }
 #endif
-        return fallback
+        return BindingApplePurposeDecompositionPipeline.deterministicOutcome(
+            fallback: fallback,
+            candidates: candidates,
+            source: "foundation_models_unavailable"
+        )
     }
 }
 
@@ -4606,6 +4699,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "butler.capabilities.refresh",
             "butler.support.consider",
             "butler.support.dismiss",
+            "butler.sync.configure",
+            "butler.sync.targetEndpoint",
+            "butler.sync.export",
+            "butler.sync.receive",
+            "butler.sync.push",
             "assistant.setCandidateQuery",
             "assistant.selectCandidate",
             "entityExtension.scan",
@@ -4771,6 +4869,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.butler.capabilities.transparencySummary",
         "state.butler.proactivity.enabled",
         "state.butler.proactivity.summary",
+        "state.butler.sync.approved",
+        "state.butler.sync.targetEndpoint",
+        "state.butler.sync.summary",
+        "state.butler.sync.privacySummary",
+        "state.butler.sync.lastStatus",
         "state.butler.support.status",
         "state.butler.support.summary",
         "state.butler.privacy.summary",
@@ -4999,6 +5102,16 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return considerButlerSupport(value)
         case "butler.support.dismiss":
             return dismissButlerSupport(value)
+        case "butler.sync.configure":
+            return configureButlerSync(value)
+        case "butler.sync.targetEndpoint":
+            return updateButlerSyncTarget(value)
+        case "butler.sync.export":
+            return await exportButlerPreferences(requester: requester)
+        case "butler.sync.receive":
+            return await receiveButlerPreferences(value, requester: requester)
+        case "butler.sync.push":
+            return await pushButlerPreferences(requester: requester)
         case "assistant.setCandidateQuery":
             BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
             return response(status: "ok", message: "Candidate query updated.")
@@ -7261,6 +7374,14 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ?? BindingChatValue.string(resource["title"]) else {
             return nil
         }
+
+        if configurationName == BindingPersonalCopilotV1Policy.arendalsukaConfigurationName {
+            return ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
+        }
+
+        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else {
+            return nil
+        }
         return ConfigurationCatalogCell.stagingSurfaceTestingMenuConfigurations(
             includeAgentOperatorSurfaces: false
         ).first { $0.name == configurationName }
@@ -8375,6 +8496,191 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "ok": .bool(true),
             "support": updated["support"] ?? .null,
             "proactivity": updated["proactivity"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func configureButlerSync(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.configuringSync(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        let sync = BindingChatValue.object(updated["sync"]) ?? [:]
+        let lastStatus = BindingChatValue.string(sync["lastStatus"]) ?? "unknown"
+        return .object([
+            "ok": .bool(lastStatus != "approval_confirmation_required"),
+            "sync": .object(sync),
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func updateButlerSyncTarget(_ value: ValueType) -> ValueType {
+        let updated = BindingPersonalButlerPolicy.updatingSyncTarget(
+            in: currentButlerState(),
+            value: value
+        )
+        storeButlerState(updated)
+        return .object([
+            "ok": .bool(true),
+            "sync": updated["sync"] ?? .null,
+            "providerInvoked": .bool(false),
+            "sideEffect": .bool(false),
+            "domainSideEffect": .bool(false)
+        ])
+    }
+
+    private func exportButlerPreferences(requester: Identity) async -> ValueType {
+        var butler = currentButlerState()
+        let sync = BindingChatValue.object(butler["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("source_not_approved", "Eieren må godkjenne synk på denne enheten først.")
+        }
+        let now = Date()
+        let sourceDeviceID = BindingChatValue.string(sync["deviceID"]) ?? ""
+        let revision = Int(BindingChatValue.double(sync["localRevision"]) ?? 0)
+        guard sourceDeviceID.isEmpty == false else {
+            return butlerSyncFailure("missing_device_id", "Enheten mangler en lokal synkidentifikator.")
+        }
+        var packet: Object = [
+            "schema": .string(BindingPersonalButlerPolicy.syncPacketSchema),
+            "packetID": .string(UUID().uuidString.lowercased()),
+            "sourceDeviceID": .string(sourceDeviceID),
+            "revision": .integer(revision),
+            "issuedAt": .float(now.timeIntervalSince1970),
+            "expiresAt": .float(now.addingTimeInterval(BindingPersonalButlerPolicy.syncPacketTTLSeconds).timeIntervalSince1970),
+            "requesterIdentity": .identity(requester),
+            "preferences": .object(BindingPersonalButlerPolicy.preferenceSyncPayload(from: butler))
+        ]
+        do {
+            let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(packet))
+            guard let signature = try await requester.sign(data: canonical) else {
+                return butlerSyncFailure("signing_unavailable", "Preferansepakken kunne ikke signeres av eieridentiteten.")
+            }
+            packet["signature"] = .data(signature)
+            butler = BindingPersonalButlerPolicy.recordingSyncExport(in: butler, now: now)
+            storeButlerState(butler)
+            return .object([
+                "ok": .bool(true),
+                "status": .string("exported"),
+                "packet": .object(packet),
+                "providerInvoked": .bool(false),
+                "sideEffect": .bool(false),
+                "domainSideEffect": .bool(false)
+            ])
+        } catch {
+            return butlerSyncFailure("canonicalization_failed", "Preferansepakken kunne ikke klargjøres for signering.")
+        }
+    }
+
+    private func receiveButlerPreferences(_ value: ValueType, requester: Identity) async -> ValueType {
+        guard var packet = BindingChatValue.object(value) else {
+            return butlerSyncFailure("invalid_packet", "Synk krever en signert preferansepakke.")
+        }
+        var butler = currentButlerState()
+        let sync = BindingChatValue.object(butler["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("target_not_approved", "Eieren må godkjenne synk på målenheten først.")
+        }
+        guard BindingChatValue.string(packet["schema"]) == BindingPersonalButlerPolicy.syncPacketSchema,
+              let sourceDeviceID = BindingChatValue.string(packet["sourceDeviceID"]),
+              let revisionValue = BindingChatValue.double(packet["revision"]),
+              let issuedAtValue = BindingChatValue.double(packet["issuedAt"]),
+              let expiresAtValue = BindingChatValue.double(packet["expiresAt"]),
+              case let .identity(signer)? = packet["requesterIdentity"],
+              case let .data(signature)? = packet["signature"],
+              let preferences = BindingChatValue.object(packet["preferences"]) else {
+            return butlerSyncFailure("invalid_packet", "Synkpakken mangler obligatoriske felter.")
+        }
+        guard signer.uuid == requester.uuid else {
+            return butlerSyncFailure("owner_mismatch", "Synkpakken er ikke signert av eieridentiteten som åpnet målcellen.")
+        }
+        let now = Date().timeIntervalSince1970
+        guard issuedAtValue <= now + 5 * 60, expiresAtValue >= now else {
+            return butlerSyncFailure("expired_packet", "Synkpakken er utløpt eller har ugyldig tidsstempel.")
+        }
+        guard sourceDeviceID != BindingChatValue.string(sync["deviceID"]) else {
+            return butlerSyncFailure("same_device", "Enheten kan ikke importere sin egen synkpakke.")
+        }
+        let revision = Int(revisionValue)
+        if let previous = BindingPersonalButlerPolicy.incomingRevision(for: sourceDeviceID, in: butler),
+           revision <= previous {
+            return .object([
+                "ok": .bool(true),
+                "status": .string("ignored_replay"),
+                "revision": .integer(revision),
+                "sideEffect": .bool(false),
+                "domainSideEffect": .bool(false)
+            ])
+        }
+        packet.removeValue(forKey: "signature")
+        do {
+            let canonical = try FlowCanonicalEncoder.canonicalData(for: .object(packet))
+            guard await signer.verify(signature: signature, for: canonical) else {
+                return butlerSyncFailure("invalid_signature", "Signaturen på synkpakken kunne ikke verifiseres.")
+            }
+        } catch {
+            return butlerSyncFailure("verification_failed", "Synkpakken kunne ikke verifiseres.")
+        }
+        butler = BindingPersonalButlerPolicy.applyingSyncedPreferences(
+            to: butler,
+            payload: preferences,
+            sourceDeviceID: sourceDeviceID,
+            revision: revision
+        )
+        storeButlerState(butler)
+        return .object([
+            "ok": .bool(true),
+            "status": .string("imported"),
+            "sourceDeviceID": .string(sourceDeviceID),
+            "revision": .integer(revision),
+            "allowedFields": BindingChatValue.nested("sync.allowedFields", in: butler) ?? .list([]),
+            "sideEffect": .bool(true),
+            "domainSideEffect": .bool(true)
+        ])
+    }
+
+    private func pushButlerPreferences(requester: Identity) async -> ValueType {
+        let sync = BindingChatValue.object(currentButlerState()["sync"]) ?? [:]
+        guard BindingChatValue.bool(sync["approved"]) == true else {
+            return butlerSyncFailure("source_not_approved", "Eieren må godkjenne synk på denne enheten først.")
+        }
+        guard let endpoint = BindingChatValue.string(sync["targetEndpoint"]), endpoint.isEmpty == false else {
+            return butlerSyncFailure("target_not_configured", "Velg en cell://-adresse for målenheten først.")
+        }
+        let exported = await exportButlerPreferences(requester: requester)
+        guard let exportObject = BindingChatValue.object(exported),
+              BindingChatValue.bool(exportObject["ok"]) == true,
+              let packet = BindingChatValue.object(exportObject["packet"]) else {
+            return exported
+        }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            return butlerSyncFailure("resolver_unavailable", "CellResolver er ikke klar for synk.")
+        }
+        do {
+            guard let target = try await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle,
+                  let result = try await target.set(
+                    keypath: "chatHub.butler.sync.receive",
+                    value: .object(packet),
+                    requester: requester
+                  ) else {
+                return butlerSyncFailure("target_unavailable", "Målenheten kunne ikke motta preferansepakken.")
+            }
+            return result
+        } catch {
+            return butlerSyncFailure("transport_failed", "Preferansesynk til målenheten mislyktes.")
+        }
+    }
+
+    private func butlerSyncFailure(_ status: String, _ message: String) -> ValueType {
+        .object([
+            "ok": .bool(false),
+            "status": .string(status),
+            "message": .string(message),
             "providerInvoked": .bool(false),
             "sideEffect": .bool(false),
             "domainSideEffect": .bool(false)

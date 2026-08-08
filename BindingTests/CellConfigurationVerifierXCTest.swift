@@ -269,11 +269,19 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             .filter { $0.skeleton != nil }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
-        XCTAssertGreaterThanOrEqual(
-            configurations.count,
-            12,
-            "Expected the audit to cover the seeded Binding catalog, got \(configurations.count)"
-        )
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            XCTAssertEqual(
+                Set(configurations.map(\.name)),
+                Set(["Co-Pilot", "Arendalsuka Participant Program", "Vault / Ideas"]),
+                "Expected the audit to cover the exact App Store release catalog"
+            )
+        } else {
+            XCTAssertGreaterThanOrEqual(
+                configurations.count,
+                12,
+                "Expected the audit to cover the seeded development catalog, got \(configurations.count)"
+            )
+        }
 
         let reports = configurations.map(Self.staticSkeletonAudit)
         let fatalIssues = reports.flatMap { report in

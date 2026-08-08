@@ -1,0 +1,9 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
+  <title id="title">HAVEN app icon source</title>
+  <description id="description">Two opposing cream arcs derived from the HAVEN wordmark on a full-bleed purple background.</description>
+  <rect width="1024" height="1024" fill="#433C98"/>
+  <g fill="none" stroke="#FFF8EE" stroke-width="68" stroke-linecap="butt">
+    <path d="M 184 380 C 317 150, 707 150, 840 380"/>
+    <path d="M 184 644 C 317 874, 707 874, 840 644"/>
+  </g>
+</svg>

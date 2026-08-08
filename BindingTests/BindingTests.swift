@@ -777,28 +777,8 @@ struct BindingTests {
         let configurations = ConfigurationCatalogCell.personalCopilotV1MenuConfigurations()
         let names = Set(configurations.map(\.name))
 
-        for requiredName in [
-            "Personal Home",
-            "My Profile",
-            "Publish Public Profile",
-            "Public Profile Directory",
-            "Matches",
-            "Co-Pilot",
-            "Agenda Context",
-            "Butterpop Studio",
-            "Calendar",
-            "Vault / Ideas",
-            "Meeting Intent",
-            "Privacy Audit",
-            "Personal Co-Pilot Catalog",
-            "Apple Intelligence Purpose Matcher",
-            "Entity Scanner",
-            "Workflow Studio"
-        ] {
-            #expect(names.contains(requiredName))
-        }
-
-        #expect(configurations.count == 16)
+        #expect(names == Set(["Co-Pilot", "Arendalsuka Participant Program", "Vault / Ideas"]))
+        #expect(configurations.count == 3)
         #expect(configurations.allSatisfy(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1))
 
         let visibleText = configurations.flatMap { configuration in
@@ -1232,10 +1212,20 @@ struct BindingTests {
         )
         #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(scopedConference))
 
-        var offHost = ConfigurationCatalogCell.personalHomeMenuConfiguration()
-        offHost.cellReferences = [CellReference(endpoint: "cell://unapproved.example.org/PersonalIdentity", label: "identity")]
+        var offHost = ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+        offHost.cellReferences = [CellReference(endpoint: "cell://unapproved.example.org/PersonalChatHub", label: "chatHub")]
         #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(offHost))
-        #expect(BindingPersonalCopilotV1Policy.unavailableMessage(for: offHost.name).contains("Personal Co-Pilot V1"))
+        #expect(BindingPersonalCopilotV1Policy.unavailableMessage(for: offHost.name).contains("Arendalsuka-utgaven"))
+
+        var spoofedEndpoint = ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+        spoofedEndpoint.cellReferences = [CellReference(endpoint: "cell:///WorkflowStudio", label: "chatHub")]
+        #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(spoofedEndpoint))
+
+        let program = ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
+        #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(program))
+        #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: program) == [
+            BindingPersonalCopilotV1Policy.arendalsukaProductionEndpoint
+        ])
     }
 
     @Test func conferenceDemoMenusCanBePersistentlyEnabledInDebugBuilds() {
@@ -1277,7 +1267,7 @@ struct BindingTests {
         #expect(interests.contains("policyCategory=profile-publish"))
         #expect(interests.contains("requiresLogin=true"))
         #expect(interests.contains("requiresUserGeneratedContentModeration=true"))
-        #expect(interests.contains { $0.hasPrefix("universalLink=https://staging.haven.digipomps.org/app/personal/profile/publish") })
+        #expect(interests.contains { $0.hasPrefix("universalLink=https://haven.digipomps.org/app/personal/profile/publish") })
         #expect(interests.contains { $0.hasPrefix("reviewSummary=Curated Personal Co-Pilot surface") })
     }
 
@@ -1360,7 +1350,7 @@ struct BindingTests {
         }
 
         let agenda = ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
-        #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(agenda))
+        #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(agenda))
         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: agenda).contains("cell:///PersonalAgendaContext"))
         #expect((agenda.discovery?.interests ?? []).contains("policyCategory=agenda-context"))
         #expect((agenda.discovery?.interests ?? []).contains("nativePermissionRequests=calendar,reminders"))
@@ -1409,11 +1399,18 @@ struct BindingTests {
     }
 
     @Test func personalCopilotNavigationModelStaysStable() {
-        #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.home, .matches, .chat, .vault, .profile])
-        #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Personal", "Network", "Workspace"])
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .home) == .personalHome)
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.chat, .vault])
+            #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Network", "Workspace"])
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .chat) == .inviteChat)
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
+        } else {
+            #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.home, .matches, .chat, .vault, .profile])
+            #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Personal", "Network", "Workspace"])
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .home) == .personalHome)
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
+        }
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
@@ -4544,9 +4541,10 @@ struct BindingTests {
         #expect(effective.name == "Co-Pilot")
         if let skeleton = effective.skeleton {
             #expect(!skeletonContainsLiteralText("Start her", in: skeleton))
-            #expect(skeletonTabPanel(id: "hjelp", in: skeleton) != nil)
+            #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: skeleton))
+            #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", in: skeleton))
         } else {
-            Issue.record("Co-Pilot Chat default should keep its factory skeleton")
+            Issue.record("Arendalsuka Co-Pilot default should keep its factory skeleton")
         }
     }
 
@@ -4617,56 +4615,28 @@ struct BindingTests {
         #expect(SkeletonBindingProbeSupport.failureDetail(from: stateValue) == nil)
     }
 
-    @Test func localStartupPortholeDoesNotExposeAgentSetupWorkbench() async throws {
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.typedCellUtility = nil
+    @Test func localStartupPortholeDoesNotExposeAgentSetupWorkbench() async {
+        await withIsolatedAgentSetupWorkbenchRuntime(optedIn: false) { resolver, owner in
+            let provisioningResolved: Bool
+            do {
+                _ = try await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
+                provisioningResolved = true
+            } catch {
+                provisioningResolved = false
+            }
 
-        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            Issue.record("Expected CellResolver after local startup bootstrap")
-            return
+            #expect(provisioningResolved == false)
         }
-        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Expected startup vault identity for local startup bootstrap")
-            return
-        }
-
-        let provisioningResolved: Bool
-        do {
-            _ = try await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
-            provisioningResolved = true
-        } catch {
-            provisioningResolved = false
-        }
-
-        #expect(provisioningResolved == false)
     }
 
-    @Test func localStartupPortholeExposesAgentSetupWorkbenchWhenOptedIn() async throws {
-        UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
-        defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey) }
-
-        CellBase.defaultIdentityVault = nil
-        CellBase.defaultCellResolver = nil
-        CellBase.typedCellUtility = nil
-
-        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
-        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
-
-        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
-            Issue.record("Expected CellResolver after local startup bootstrap")
-            return
+    @Test func localStartupPortholeExposesAgentSetupWorkbenchWhenOptedIn() async {
+        await withIsolatedAgentSetupWorkbenchRuntime(optedIn: true) { resolver, owner in
+            let provisioning = try? await resolver.cellAtEndpoint(
+                endpoint: "cell:///AgentProvisioning",
+                requester: owner
+            )
+            #expect(provisioning != nil)
         }
-        guard let owner = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Expected startup vault identity for local startup bootstrap")
-            return
-        }
-
-        let provisioning = try? await resolver.cellAtEndpoint(endpoint: "cell:///AgentProvisioning", requester: owner)
-        #expect(provisioning != nil)
     }
 
     @Test func localBootstrapRegistersPerspectiveCell() async throws {
@@ -6663,7 +6633,7 @@ struct BindingTests {
         let cell = await ConfigurationCatalogCell(owner: owner)
         let response = try await cell.set(
             keypath: "matching.runPromptInput",
-            value: .string("Finn CellConfiguration som kan hjelpe brukeren aa oppfylle en moteintensjon"),
+            value: .string("Finn CellConfiguration som kan hjelpe brukeren aa samle ideer og notater i et lokalt vault"),
             requester: owner
         )
 
@@ -6684,7 +6654,7 @@ struct BindingTests {
                   case let .string(name)? = object["name"] else {
                 return false
             }
-            return name == "Meeting Intent" || name == "Apple Intelligence Purpose Matcher"
+            return name == "Vault / Ideas"
         })
     }
 
@@ -6823,23 +6793,22 @@ struct BindingTests {
             return
         }
 
-        #expect(items.count >= 12)
+        let names = Set(items.compactMap { value -> String? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name
+        })
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            #expect(names == Set(["Co-Pilot", "Arendalsuka Participant Program", "Vault / Ideas"]))
+            #expect(items.count == 3)
+        } else {
+            #expect(items.count >= 12)
+        }
     }
 
     @Test func configurationCatalogExposesSafeButterpopStudioLauncher() async throws {
-        let owner = await makeOwnerIdentity()
-        let cell = await ConfigurationCatalogCell(owner: owner)
-
-        let configurations = try await cell.get(keypath: "configurations", requester: owner)
-        guard case let .list(items) = configurations,
-              let butterpop = items.compactMap({ value -> CellConfiguration? in
-                  guard case let .cellConfiguration(configuration) = value,
-                        configuration.name == "Butterpop Studio" else { return nil }
-                  return configuration
-              }).first,
-              let skeleton = butterpop.skeleton
-        else {
-            Issue.record("Forventet Butterpop Studio i HAVEN-katalogen")
+        let butterpop = ConfigurationCatalogCell.butterpopStudioMenuConfiguration()
+        guard let skeleton = butterpop.skeleton else {
+            Issue.record("Forventet skeleton for Butterpop Studio")
             return
         }
 
@@ -6868,6 +6837,7 @@ struct BindingTests {
         let validation = await CellConfigurationValidationService.validate(butterpop)
         let validationErrorCount = await MainActor.run { validation.errorCount }
         #expect(butterpop.cellReferences?.isEmpty != false)
+        #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(butterpop))
         #expect(validationErrorCount == 0)
         #expect(SkeletonButtonNavigation.isNavigationButton(launcher))
         #expect(
@@ -8419,6 +8389,63 @@ struct BindingTests {
             makeNewIfNotFound: true
         )!
         return (resolver, owner)
+    }
+
+    @MainActor
+    private func withIsolatedAgentSetupWorkbenchRuntime(
+        optedIn: Bool,
+        operation: (CellResolver, Identity) async -> Void
+    ) async {
+        let defaults = UserDefaults.standard
+        let defaultsKey = BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey
+        let previousOptIn = defaults.object(forKey: defaultsKey)
+        let previousVault = CellBase.defaultIdentityVault
+        let previousResolver = CellBase.defaultCellResolver
+        let previousTypedUtility = CellBase.typedCellUtility
+        let resolver = CellResolver.sharedInstance
+
+        // CellResolver is process-wide. Its supported DEBUG reset gives each
+        // policy test a fresh registry instead of inheriting named resolves
+        // from whichever test happened to execute first.
+        await AppInitializer.resetRuntimeStateForTesting()
+        await resolver.resetRuntimeStateForTesting()
+        if optedIn {
+            defaults.set(true, forKey: defaultsKey)
+        } else {
+            defaults.removeObject(forKey: defaultsKey)
+        }
+        CellBase.defaultIdentityVault = nil
+        CellBase.defaultCellResolver = nil
+        CellBase.typedCellUtility = nil
+
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+
+        if let activeResolver = CellBase.defaultCellResolver as? CellResolver,
+           let owner = await CellBase.defaultIdentityVault?.identity(
+               for: "private",
+               makeNewIfNotFound: true
+           ) {
+            await operation(activeResolver, owner)
+        } else {
+            Issue.record("Expected isolated CellResolver and startup identity")
+        }
+
+        await AppInitializer.resetRuntimeStateForTesting()
+        await resolver.resetRuntimeStateForTesting()
+        if let previousOptIn {
+            defaults.set(previousOptIn, forKey: defaultsKey)
+        } else {
+            defaults.removeObject(forKey: defaultsKey)
+        }
+        CellBase.defaultIdentityVault = previousVault
+        CellBase.defaultCellResolver = previousResolver
+        CellBase.typedCellUtility = previousTypedUtility
+
+        if let previousResolver = previousResolver as? CellResolver,
+           previousResolver === resolver {
+            await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
+        }
     }
 
     private func makeIsolatedRuntimeIdentity(_ contextPrefix: String) async -> Identity {

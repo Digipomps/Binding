@@ -125,6 +125,22 @@ final class NotificationCallbackClient {
         throw NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable
     }
 
+    nonisolated static func responseBodySnippet(from data: Data, maxLength: Int = 512) -> String? {
+        guard data.isEmpty == false else {
+            return nil
+        }
+        guard var body = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              body.isEmpty == false else {
+            return nil
+        }
+        if body.count > maxLength {
+            let endIndex = body.index(body.startIndex, offsetBy: maxLength)
+            body = "\(body[..<endIndex])..."
+        }
+        return body
+    }
+
     private enum NotificationResolutionOutcome {
         case resolved
         case noTicket
@@ -256,5 +272,21 @@ final class NotificationCallbackClient {
         default:
             return nil
         }
+    }
+}
+
+struct NotificationCallbackHTTPError: LocalizedError, CustomStringConvertible {
+    var statusCode: Int
+    var responseBody: String?
+
+    var errorDescription: String? {
+        if let responseBody, responseBody.isEmpty == false {
+            return "Staging returned HTTP \(statusCode): \(responseBody)"
+        }
+        return "Staging returned HTTP \(statusCode) during notification callback."
+    }
+
+    var description: String {
+        errorDescription ?? "Staging returned an unexpected HTTP response."
     }
 }

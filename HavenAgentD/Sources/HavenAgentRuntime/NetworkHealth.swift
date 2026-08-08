@@ -15,7 +15,19 @@ public enum NetworkFloodClass: String, Codable, Sendable, Equatable {
     case highPacketRate
     /// Rising interface input/output errors or drops — the link is in distress.
     case interfaceDistress
+    /// Probe replies are arriving, but response time is above the configured budget.
+    case highLatency
+    /// Probe attempts are timing out or failing above the configured loss budget.
+    case packetLoss
     case unknown
+}
+
+/// Probe implementation used by Network Sentinel. `tcpConnect` is fully
+/// unprivileged and works in more sandboxes; `icmpPing` uses the system ping
+/// tool for real ICMP round-trip/loss monitoring on a normal macOS user session.
+public enum NetworkProbeKind: String, Codable, Sendable, Equatable {
+    case tcpConnect
+    case icmpPing
 }
 
 /// Lifecycle phase of a flood event. A sustained condition is ONE event that
@@ -68,6 +80,9 @@ public struct NetworkSentinelThresholds: Codable, Sendable, Equatable {
     public var packetsPerSecond: Int
     public var megabitsPerSecond: Double
     public var errorsPerSecond: Int
+    public var latencyMs: Double
+    public var packetLossPercent: Double
+    public var probeWindowSamples: Int
     public var sustainedSamples: Int
     public var resolveSamples: Int
 
@@ -75,14 +90,41 @@ public struct NetworkSentinelThresholds: Codable, Sendable, Equatable {
         packetsPerSecond: Int = 12_000,
         megabitsPerSecond: Double = 500.0,
         errorsPerSecond: Int = 50,
+        latencyMs: Double = 750.0,
+        packetLossPercent: Double = 25.0,
+        probeWindowSamples: Int = 3,
         sustainedSamples: Int = 2,
         resolveSamples: Int = 3
     ) {
         self.packetsPerSecond = packetsPerSecond
         self.megabitsPerSecond = megabitsPerSecond
         self.errorsPerSecond = errorsPerSecond
+        self.latencyMs = max(1.0, latencyMs)
+        self.packetLossPercent = min(100.0, max(0.0, packetLossPercent))
+        self.probeWindowSamples = max(1, probeWindowSamples)
         self.sustainedSamples = max(1, sustainedSamples)
         self.resolveSamples = max(1, resolveSamples)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case packetsPerSecond, megabitsPerSecond, errorsPerSecond
+        case latencyMs, packetLossPercent, probeWindowSamples
+        case sustainedSamples, resolveSamples
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = NetworkSentinelThresholds()
+        self.init(
+            packetsPerSecond: try container.decodeIfPresent(Int.self, forKey: .packetsPerSecond) ?? defaults.packetsPerSecond,
+            megabitsPerSecond: try container.decodeIfPresent(Double.self, forKey: .megabitsPerSecond) ?? defaults.megabitsPerSecond,
+            errorsPerSecond: try container.decodeIfPresent(Int.self, forKey: .errorsPerSecond) ?? defaults.errorsPerSecond,
+            latencyMs: try container.decodeIfPresent(Double.self, forKey: .latencyMs) ?? defaults.latencyMs,
+            packetLossPercent: try container.decodeIfPresent(Double.self, forKey: .packetLossPercent) ?? defaults.packetLossPercent,
+            probeWindowSamples: try container.decodeIfPresent(Int.self, forKey: .probeWindowSamples) ?? defaults.probeWindowSamples,
+            sustainedSamples: try container.decodeIfPresent(Int.self, forKey: .sustainedSamples) ?? defaults.sustainedSamples,
+            resolveSamples: try container.decodeIfPresent(Int.self, forKey: .resolveSamples) ?? defaults.resolveSamples
+        )
     }
 }
 
@@ -98,6 +140,8 @@ public struct NetworkFloodEvent: Codable, Sendable, Equatable, Identifiable {
     public var resolvedAt: String?
     public var peakPacketsPerSecond: Int
     public var peakMegabitsPerSecond: Double
+    public var peakLatencyMs: Double?
+    public var packetLossPercent: Double?
     public var capturePath: String?
     public var summary: String
     public var acknowledged: Bool
@@ -111,6 +155,8 @@ public struct NetworkFloodEvent: Codable, Sendable, Equatable, Identifiable {
         resolvedAt: String? = nil,
         peakPacketsPerSecond: Int,
         peakMegabitsPerSecond: Double,
+        peakLatencyMs: Double? = nil,
+        packetLossPercent: Double? = nil,
         capturePath: String? = nil,
         summary: String,
         acknowledged: Bool = false
@@ -123,9 +169,68 @@ public struct NetworkFloodEvent: Codable, Sendable, Equatable, Identifiable {
         self.resolvedAt = resolvedAt
         self.peakPacketsPerSecond = peakPacketsPerSecond
         self.peakMegabitsPerSecond = peakMegabitsPerSecond
+        self.peakLatencyMs = peakLatencyMs
+        self.packetLossPercent = packetLossPercent
         self.capturePath = capturePath
         self.summary = summary
         self.acknowledged = acknowledged
+    }
+}
+
+/// Aggregated reachability probe window. One failed TCP probe is not called
+/// "packet loss" by itself; the sentinel turns consecutive bounded probe
+/// successes/failures into this small moving window so alerting can reason about
+/// loss percentage and response time without parsing localized text.
+public struct NetworkProbeSample: Codable, Sendable, Equatable {
+    public var kind: NetworkProbeKind
+    public var target: String
+    public var sent: Int
+    public var received: Int
+    public var packetLossPercent: Double
+    public var averageLatencyMs: Double?
+    public var maxLatencyMs: Double?
+    public var sampledAt: String
+    public var summary: String
+
+    public init(
+        kind: NetworkProbeKind = .tcpConnect,
+        target: String,
+        sent: Int,
+        received: Int,
+        packetLossPercent: Double,
+        averageLatencyMs: Double? = nil,
+        maxLatencyMs: Double? = nil,
+        sampledAt: String,
+        summary: String
+    ) {
+        self.kind = kind
+        self.target = target
+        self.sent = sent
+        self.received = received
+        self.packetLossPercent = packetLossPercent
+        self.averageLatencyMs = averageLatencyMs
+        self.maxLatencyMs = maxLatencyMs
+        self.sampledAt = sampledAt
+        self.summary = summary
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, target, sent, received, packetLossPercent, averageLatencyMs, maxLatencyMs, sampledAt, summary
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            kind: try container.decodeIfPresent(NetworkProbeKind.self, forKey: .kind) ?? .tcpConnect,
+            target: try container.decode(String.self, forKey: .target),
+            sent: try container.decode(Int.self, forKey: .sent),
+            received: try container.decode(Int.self, forKey: .received),
+            packetLossPercent: try container.decode(Double.self, forKey: .packetLossPercent),
+            averageLatencyMs: try container.decodeIfPresent(Double.self, forKey: .averageLatencyMs),
+            maxLatencyMs: try container.decodeIfPresent(Double.self, forKey: .maxLatencyMs),
+            sampledAt: try container.decode(String.self, forKey: .sampledAt),
+            summary: try container.decode(String.self, forKey: .summary)
+        )
     }
 }
 
@@ -231,6 +336,8 @@ public struct NetworkHealthSnapshot: Codable, Sendable, Equatable {
     public var activeEvent: NetworkFloodEvent?
     public var recentEvents: [NetworkFloodEvent]
     public var recentSamples: [NetworkHealthSample]
+    public var latestProbe: NetworkProbeSample?
+    public var recentProbes: [NetworkProbeSample]
     public var interfaces: [InterfaceInfo]
     public var notificationsEnabled: Bool
     public var thresholds: NetworkSentinelThresholds
@@ -248,6 +355,8 @@ public struct NetworkHealthSnapshot: Codable, Sendable, Equatable {
         activeEvent: NetworkFloodEvent?,
         recentEvents: [NetworkFloodEvent],
         recentSamples: [NetworkHealthSample] = [],
+        latestProbe: NetworkProbeSample? = nil,
+        recentProbes: [NetworkProbeSample] = [],
         interfaces: [InterfaceInfo] = [],
         notificationsEnabled: Bool,
         thresholds: NetworkSentinelThresholds,
@@ -264,6 +373,8 @@ public struct NetworkHealthSnapshot: Codable, Sendable, Equatable {
         self.activeEvent = activeEvent
         self.recentEvents = recentEvents
         self.recentSamples = recentSamples
+        self.latestProbe = latestProbe
+        self.recentProbes = recentProbes
         self.interfaces = interfaces
         self.notificationsEnabled = notificationsEnabled
         self.thresholds = thresholds

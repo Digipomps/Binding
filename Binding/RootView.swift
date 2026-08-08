@@ -63,7 +63,9 @@ struct RootView: View {
 #endif
 
                 await MainActor.run {
-                    NotificationEnrollmentManager.shared.bootstrapIfNeeded()
+                    if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+                        NotificationEnrollmentManager.shared.bootstrapIfNeeded()
+                    }
                     PendingActionInboxViewModel.shared.reloadPersistedActions()
                     initializationFailure = nil
                     initialized = true
@@ -134,7 +136,9 @@ struct RootView: View {
         if initialized {
             ContentView(incomingURLSceneID: incomingURLSceneID)
                 .overlay(alignment: .top) {
-                    NotificationConsentBanner()
+                    if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+                        NotificationConsentBanner()
+                    }
                 }
                 .overlay(alignment: .bottom) {
                     PendingAgentActionOverlay()
