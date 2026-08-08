@@ -47,6 +47,12 @@ The Qwen3 and Gemma profile/provider identifiers are stable routing contracts;
 `isExperimental` remains true because benchmark quality does not make either
 model a policy authority or participant-ready default.
 
+The Qwen3 profile sends llama-server's model-specific
+`chat_template_kwargs.enable_thinking=false`. This prevents a short health
+check from consuming its whole token budget as hidden reasoning and guarantees
+that `llm.health` receives visible output. Other profiles do not receive this
+Qwen-specific argument.
+
 Qwen3 8B backend and AgentD selection:
 
 ```bash
@@ -80,6 +86,35 @@ haven-agentd run
 Gemma's verified `mlx_vlm.server` path requires the local model path in the
 request. The profile intentionally keeps that machine-specific path out of
 source control and relies on the existing environment override.
+
+## Opt-in Live Cell Smoke Test
+
+The live smoke runs the real `AgentLocalModelCell` contract (`llm.health` and
+`llm.generate`) against the selected loopback server. Its prompts are fixed,
+synthetic strings and contain no person data. It is disabled during ordinary
+test runs and activates only when the explicit guard is set.
+
+Qwen3 on canonical port 8083:
+
+```bash
+RUN_HAVEN_AGENTD_LOCAL_MODEL_LIVE_TEST=1 \
+HAVEN_AGENTD_LOCAL_LLM_PROFILE=qwen3-8b-q4_k_m \
+HAVEN_AGENTD_LOCAL_LLM_MODEL=Qwen3-8B-Q4_K_M.gguf \
+HAVEN_AGENTD_LOCAL_LLM_TIMEOUT_MS=90000 \
+swift test --package-path HavenAgentD \
+  --filter AgentCellsTests.localModelCellLiveLoopbackSmoke
+```
+
+Gemma 4 on canonical port 8094:
+
+```bash
+RUN_HAVEN_AGENTD_LOCAL_MODEL_LIVE_TEST=1 \
+HAVEN_AGENTD_LOCAL_LLM_PROFILE=gemma4-e4b-qat-mlx-vlm \
+HAVEN_AGENTD_LOCAL_LLM_MODEL=/absolute/path/to/mlx-community-gemma-4-E4B-it-qat-4bit \
+HAVEN_AGENTD_LOCAL_LLM_TIMEOUT_MS=90000 \
+swift test --package-path HavenAgentD \
+  --filter AgentCellsTests.localModelCellLiveLoopbackSmoke
+```
 
 Borealis local backend:
 

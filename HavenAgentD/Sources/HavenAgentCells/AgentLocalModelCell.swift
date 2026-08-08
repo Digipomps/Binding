@@ -449,7 +449,21 @@ public struct AgentLocalModelHTTPClient: AgentLocalModelInvoking {
         if let maxTokens = request.maxTokens {
             body["max_tokens"] = maxTokens
         }
+        if config.profileID == AgentLocalModelProfile.qwen3_8BQ4KM.id {
+            // Qwen3 spends its small health-check token budget on hidden
+            // reasoning unless thinking is disabled. llama-server supports
+            // this model-specific chat-template argument and then returns the
+            // visible answer required by the AgentLocalModelCell contract.
+            body["chat_template_kwargs"] = ["enable_thinking": false]
+        }
         return body
+    }
+
+    static func bodyForTesting(
+        config: AgentLocalModelBackendConfig,
+        request: AgentLocalModelInvokeRequest
+    ) -> [String: Any] {
+        body(config: config, request: request)
     }
 
     private static func decodeResponse(

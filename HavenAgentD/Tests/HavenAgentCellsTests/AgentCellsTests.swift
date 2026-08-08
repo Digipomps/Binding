@@ -623,6 +623,73 @@ struct AgentCellsTests {
     }
 
     @Test
+    func localModelCellLiveLoopbackSmoke() async throws {
+        guard ProcessInfo.processInfo.environment["RUN_HAVEN_AGENTD_LOCAL_MODEL_LIVE_TEST"] == "1" else {
+            return
+        }
+        let config = AgentLocalModelBackendConfig.load()
+        #expect(["qwen3-8b-q4_k_m", "gemma4-e4b-qat-mlx-vlm"].contains(config.profileID))
+        #expect(config.allowNonLoopback == false)
+        let endpoint = try config.endpointURL()
+        #expect(endpoint.host == "127.0.0.1" || endpoint.host == "localhost" || endpoint.host == "::1")
+
+        AgentLocalModelCell.clientFactory = { AgentLocalModelHTTPClient() }
+        AgentLocalModelCell.backendConfigFactory = { config }
+        defer {
+            AgentLocalModelCell.clientFactory = { AgentLocalModelHTTPClient() }
+            AgentLocalModelCell.backendConfigFactory = { AgentLocalModelBackendConfig.load() }
+        }
+
+        let vault = MockIdentityVault()
+        let owner = try #require(await vault.identity(for: "live-local-model-smoke-owner", makeNewIfNotFound: true))
+        let cell = await AgentLocalModelCell(owner: owner)
+        let health = try await cell.set(
+            keypath: "llm.health",
+            value: .object([
+                "prompt": .string("Svar kun med ordet ok."),
+                "modelProfile": .string(config.profileID),
+                "correlationID": .string("synthetic-agentd-live-health")
+            ]),
+            requester: owner
+        )
+        guard case let .object(healthObject) = health else {
+            Issue.record("Expected live local-model health object.")
+            return
+        }
+        #expect(healthObject["status"] == .string("healthy"))
+        #expect(healthObject["providerID"] == .string(config.providerID))
+        guard case let .string(healthOutput)? = healthObject["outputText"] else {
+            Issue.record("Expected non-empty health output.")
+            return
+        }
+        #expect(healthOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+
+        let generated = try await cell.set(
+            keypath: "llm.generate",
+            value: .object([
+                "prompt": .string("Skriv én kort norsk setning om et syntetisk bibliotek."),
+                "systemPrompt": .string("Dette er en syntetisk lokal røykprøve. Ikke bruk verktøy eller eksterne data."),
+                "modelProfile": .string(config.profileID),
+                "maxTokens": .integer(48),
+                "deterministicMode": .bool(true),
+                "correlationID": .string("synthetic-agentd-live-generate")
+            ]),
+            requester: owner
+        )
+        guard case let .object(generatedObject) = generated else {
+            Issue.record("Expected live local-model generation object.")
+            return
+        }
+        #expect(generatedObject["status"] == .string("completed"))
+        #expect(generatedObject["providerID"] == .string(config.providerID))
+        guard case let .string(output)? = generatedObject["outputText"] else {
+            Issue.record("Expected non-empty live model output.")
+            return
+        }
+        #expect(output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+    }
+
+    @Test
     func localModelBackendRejectsNonLoopbackByDefault() throws {
         let config = AgentLocalModelBackendConfig(
             providerID: "remote",
@@ -660,6 +727,20 @@ struct AgentCellsTests {
         #expect(config.baseURL == "http://127.0.0.1:8083")
         #expect(config.model == "Qwen3-8B-Q4_K_M.gguf")
         #expect(AgentLocalModelProfile.resolve("Qwen/Qwen3-8B-GGUF")?.id == config.profileID)
+
+        let body = AgentLocalModelHTTPClient.bodyForTesting(
+            config: config,
+            request: AgentLocalModelInvokeRequest(
+                prompt: "Synthetic prompt",
+                systemPrompt: "Synthetic system prompt",
+                temperature: 0,
+                maxTokens: 8,
+                deterministicMode: true,
+                correlationID: nil
+            )
+        )
+        let templateArguments = body["chat_template_kwargs"] as? [String: Bool]
+        #expect(templateArguments?["enable_thinking"] == false)
     }
 
     @Test
@@ -675,6 +756,18 @@ struct AgentCellsTests {
         #expect(config.baseURL == "http://127.0.0.1:8094")
         #expect(config.model == localPath)
         #expect(AgentLocalModelProfile.resolve("local.gemma4.e4b.qat.mlx-vlm")?.id == config.profileID)
+        let body = AgentLocalModelHTTPClient.bodyForTesting(
+            config: config,
+            request: AgentLocalModelInvokeRequest(
+                prompt: "Synthetic prompt",
+                systemPrompt: "Synthetic system prompt",
+                temperature: 0,
+                maxTokens: 8,
+                deterministicMode: true,
+                correlationID: nil
+            )
+        )
+        #expect(body["chat_template_kwargs"] == nil)
     }
 
     @Test
