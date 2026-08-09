@@ -36,7 +36,6 @@
 		24D800152EF195A000021B5A /* HAVEN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HAVEN.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D800222EF195A200021B5A /* BindingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24D8002C2EF195A200021B5A /* BindingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BindingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		C256FCFF172C4305B1C877FB /* CellProtocolDocuments */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CellProtocolDocuments; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -135,7 +134,6 @@
 				24D800BB2EF9AB1300021B5A /* gfx */,
 				24D8004F2EF2D5AE00021B5A /* Prompts */,
 				24D8004D2EF2D58E00021B5A /* Documentation */,
-				C256FCFF172C4305B1C877FB /* CellProtocolDocuments */,
 				24D800172EF195A000021B5A /* Binding */,
 				24D800252EF195A200021B5A /* BindingTests */,
 				24D8002F2EF195A200021B5A /* BindingUITests */,
