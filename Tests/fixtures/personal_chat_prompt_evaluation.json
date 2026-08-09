@@ -917,13 +917,13 @@
       "expected": {
         "shouldSuggest": true,
         "intentKind": "resource_match",
-        "purposeRef": "conference.agenda.view",
+        "purposeRef": "event.participation.program.view",
         "suggestionStatus": "suggested",
         "helperID": "resource-router",
         "forbiddenIntentKind": "invite_person",
         "resourceMatchKind": "cell_configuration",
-        "resourcePurposeRef": "conference.agenda.view",
-        "conferenceObservationStatus": "conference_scope_required",
+        "resourcePurposeRef": "event.participation.program.view",
+        "conferenceObservationStatus": "arendalsuka_scope_required",
         "groundedPlan": {
           "intentKind": "resource_match",
           "targetActionKeypath": "ui.openMatchedResourceLibrary",

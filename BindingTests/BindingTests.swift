@@ -699,7 +699,10 @@ struct BindingTests {
         CellBase.typedCellUtility = nil
         CellBase.documentRootPath = ""
 
-        await BindingRuntimeBootstrap.ensureBaseline()
+        // This test verifies deterministic defaults only. The authenticated
+        // baseline may invoke LocalAuthentication/keychain services and is an
+        // integration concern, not a unit-test prerequisite.
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
 
         #expect(CellBase.defaultIdentityVault != nil)
         #expect(CellBase.defaultCellResolver is CellResolver)
@@ -1267,7 +1270,7 @@ struct BindingTests {
         #expect(interests.contains("policyCategory=profile-publish"))
         #expect(interests.contains("requiresLogin=true"))
         #expect(interests.contains("requiresUserGeneratedContentModeration=true"))
-        #expect(interests.contains { $0.hasPrefix("universalLink=https://staging.haven.digipomps.org/app/personal/profile/publish") })
+        #expect(interests.contains { $0.hasPrefix("universalLink=https://haven.digipomps.org/app/personal/profile/publish") })
         #expect(interests.contains { $0.hasPrefix("reviewSummary=Curated Personal Co-Pilot surface") })
     }
 
@@ -1399,10 +1402,16 @@ struct BindingTests {
     }
 
     @Test func personalCopilotNavigationModelStaysStable() {
-        #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.home, .matches, .chat, .vault, .profile])
-        #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Personal", "Network", "Workspace"])
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.chat, .vault])
+            #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Network", "Workspace"])
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .personalHome)
+        } else {
+            #expect(BindingPersonalCopilotDestination.phonePrimaryTabs == [.home, .matches, .chat, .vault, .profile])
+            #expect(BindingPersonalCopilotDestination.sidebarSections.map(\.title) == ["Personal", "Network", "Workspace"])
+            #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
+        }
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .home) == .personalHome)
-        #expect(BindingPersonalCopilotDestination.defaultDestination(for: .profile) == .myProfile)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .matches) == .matches)
         #expect(BindingPersonalCopilotDestination.defaultDestination(for: .vault) == .vaultIdeas)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot") == .inviteChat)
@@ -4609,6 +4618,9 @@ struct BindingTests {
     }
 
     @Test func localStartupPortholeDoesNotExposeAgentSetupWorkbench() async throws {
+        UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
+        await AppInitializer.resetRuntimeStateForTesting()
+        await CellResolver.sharedInstance.resetRuntimeStateForTesting()
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
         CellBase.typedCellUtility = nil
@@ -4640,6 +4652,8 @@ struct BindingTests {
         UserDefaults.standard.set(true, forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey)
         defer { UserDefaults.standard.removeObject(forKey: BindingPersonalCopilotV1Policy.agentSetupWorkbenchDefaultsKey) }
 
+        await AppInitializer.resetRuntimeStateForTesting()
+        await CellResolver.sharedInstance.resetRuntimeStateForTesting()
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
         CellBase.typedCellUtility = nil
@@ -6654,7 +6668,7 @@ struct BindingTests {
         let cell = await ConfigurationCatalogCell(owner: owner)
         let response = try await cell.set(
             keypath: "matching.runPromptInput",
-            value: .string("Finn CellConfiguration som kan hjelpe brukeren aa oppfylle en moteintensjon"),
+            value: .string("Finn CellConfiguration for Arendalsuka-programmet og privat agenda"),
             requester: owner
         )
 
@@ -6675,7 +6689,7 @@ struct BindingTests {
                   case let .string(name)? = object["name"] else {
                 return false
             }
-            return name == "Meeting Intent" || name == "Apple Intelligence Purpose Matcher"
+            return name == BindingPersonalCopilotV1Policy.arendalsukaConfigurationName
         })
     }
 
@@ -6803,7 +6817,7 @@ struct BindingTests {
         #expect(editorState.sourceBackedChangeNotice == nil)
     }
 
-    @Test func configurationCatalogSeedsRichLibrary() async throws {
+    @Test func configurationCatalogHonorsCurrentProductCatalogPolicy() async throws {
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
@@ -6814,25 +6828,38 @@ struct BindingTests {
             return
         }
 
-        #expect(items.count >= 12)
+        let configurationNames = Set(items.compactMap { value -> String? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        })
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            #expect(configurationNames == BindingPersonalCopilotV1Policy.releaseAllowedConfigurationNames)
+        } else {
+            #expect(items.count >= 12)
+        }
     }
 
-    @Test func configurationCatalogExposesSafeButterpopStudioLauncher() async throws {
+    @Test func configurationCatalogKeepsButterpopOutOfAppStoreCatalogAndFactoryLauncherSafe() async throws {
         let owner = await makeOwnerIdentity()
         let cell = await ConfigurationCatalogCell(owner: owner)
 
         let configurations = try await cell.get(keypath: "configurations", requester: owner)
-        guard case let .list(items) = configurations,
-              let butterpop = items.compactMap({ value -> CellConfiguration? in
-                  guard case let .cellConfiguration(configuration) = value,
-                        configuration.name == "Butterpop Studio" else { return nil }
-                  return configuration
-              }).first,
-              let skeleton = butterpop.skeleton
-        else {
-            Issue.record("Forventet Butterpop Studio i HAVEN-katalogen")
+        guard case let .list(items) = configurations else {
+            Issue.record("Forventet liste fra configurations")
             return
         }
+        let exposedNames = Set(items.compactMap { value -> String? in
+            guard case let .cellConfiguration(configuration) = value else { return nil }
+            return configuration.name
+        })
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            #expect(!exposedNames.contains("Butterpop Studio"))
+        } else {
+            #expect(exposedNames.contains("Butterpop Studio"))
+        }
+
+        let butterpop = ConfigurationCatalogCell.butterpopStudioMenuConfiguration()
+        let skeleton = try #require(butterpop.skeleton)
 
         func collectButtons(_ element: SkeletonElement) -> [SkeletonButton] {
             switch element {
@@ -8413,8 +8440,9 @@ struct BindingTests {
     }
 
     private func makeIsolatedRuntimeIdentity(_ contextPrefix: String) async -> Identity {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
+        await AppInitializer.resetRuntimeStateForTesting()
+        await CellResolver.sharedInstance.resetRuntimeStateForTesting()
+        let identityVault = EphemeralIdentityVault()
         CellBase.defaultIdentityVault = identityVault
         return await identityVault.identity(
             for: "\(contextPrefix)-\(UUID().uuidString)",

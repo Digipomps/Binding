@@ -2610,7 +2610,7 @@ struct ChatWorkbenchParityTests {
         #expect(asString(selected["threadID"]) == "local-copilot-thread")
     }
 
-    @Test func providerEvaluationRunnerUsesCellScaffoldFixtureForLocalProviders() async throws {
+    @Test func providerEvaluationRunnerUsesSharedPromptFixtureForLocalProviders() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true
         defer { CellBase.debugValidateAccessForEverything = previousDebugAccess }
