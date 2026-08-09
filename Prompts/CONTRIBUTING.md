@@ -29,7 +29,7 @@ This document provides conventions for contributing to the Binding app and the b
 - `Entity` refers to digital presence/resources/functionality under a person's control, not the person itself.
 - Non-compliance must be represented explicitly (`non-compliant` event/report) and handled by declared policy, not hidden implicit logic.
 - Before implementing behavior that may break or reinterpret CellProtocol concepts, stop and discuss the change with the user first.
-- Always evaluate proposed solutions against concepts documented in `Prompts/` and `CellProtocolDocuments/`.
+- Always evaluate proposed solutions against concepts documented in `Prompts/` and `../../CellProtocolDocuments/`.
 
 ## Code style and Swift conventions
 - Prefer Swift Concurrency (`async/await`).

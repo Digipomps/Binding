@@ -3,11 +3,15 @@
 Use this file as the Xcode 5.3 assistant prompt seed. It mirrors Codex context by referencing the same canonical files.
 
 ## Required Read Order
-1. `../CellProtocolDocuments/Prompts/CoreContext.md`
+1. `../../CellProtocolDocuments/Prompts/CoreContext.md`
 2. `Prompts/CoreContext.md`
 3. `Prompts/CurrentState.md`
 4. `Prompts/Architecture.md`
 5. `Prompts/CONTRIBUTING.md`
+
+If the sibling checkout in step 1 is missing, stop and report the missing
+`HAVEN/CellProtocolDocuments` dependency. Do not fall back to a copied or stale
+document inside Binding.
 
 ## Assistant Expectations
 - Reason from project concepts (`CellConfiguration`, `SkeletonElement`, `Meddle`, `FlowElement`, `Perspective`).

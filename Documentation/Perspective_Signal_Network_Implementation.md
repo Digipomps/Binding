@@ -2,11 +2,11 @@
 
 Canonical behavior for implemented Perspective runtime matching is documented in:
 
-- `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+- `../../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
 
 Agent-level implementation rules for `GeneralCell` and Perspective APIs are in:
 
-- `CellProtocolDocuments/Book/13_Agent_Instructions.md`
+- `../../CellProtocolDocuments/Book/13_Agent_Instructions.md`
 
 This Binding file is only a local note for product planning.
 
@@ -19,4 +19,4 @@ Potential future extensions that may be implemented above core protocol level:
 - entity credibility integration from social evidence graphs
 
 When such behavior becomes part of shared protocol/runtime contract, document it
-first in `CellProtocolDocuments` and keep Binding docs as integration summaries.
+first in `../../CellProtocolDocuments` and keep Binding docs as integration summaries.

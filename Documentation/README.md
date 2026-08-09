@@ -333,9 +333,9 @@ Projects importing CellProtocol must include:
 
 ## Canonical doc placement
 - Core protocol/runtime documentation needed for CellProtocol/HAVEN interoperability belongs in:
-  - `CellProtocolDocuments` (submodule), for example:
-    - `CellProtocolDocuments/Book/13_Agent_Instructions.md`
-    - `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+  - the sibling checkout `../../CellProtocolDocuments`, for example:
+    - `../../CellProtocolDocuments/Book/13_Agent_Instructions.md`
+    - `../../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
 - Binding `Documentation/` should primarily contain Binding-specific integration notes.
 - Product/commercial behavior built on top of CellProtocol/HAVEN should stay in product repositories (for example DiMy repos), including their product docs.
 
@@ -369,7 +369,7 @@ Projects importing CellProtocol must include:
 - Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
 - HavenAgentD docs index: [../HavenAgentD/Docs/README.md](../HavenAgentD/Docs/README.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
-- Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
+- Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](../../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
 - Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)
 
 See also:

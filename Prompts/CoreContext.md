@@ -1,7 +1,10 @@
 # Core Context (Binding Overlay)
 
 Shared canonical context now lives in:
-- `../CellProtocolDocuments/Prompts/CoreContext.md`
+- `../../CellProtocolDocuments/Prompts/CoreContext.md`
+
+If that sibling checkout is missing, stop and report the missing dependency;
+do not continue from a copied or stale Binding-local protocol document.
 
 This file is Binding-specific overlay context only.
 
@@ -12,5 +15,5 @@ This file is Binding-specific overlay context only.
 - Agreement-template work must follow capability-based authorization (per-Identity grants, no role labels), support explicit rollout/re-evaluation behavior, and be checked against documented CellProtocol concepts before implementation.
 
 ## Reminder
-- Keep shared concepts in `CellProtocolDocuments/Prompts/CoreContext.md`.
+- Keep shared concepts in `../../CellProtocolDocuments/Prompts/CoreContext.md`.
 - Keep tactical state in `Prompts/CurrentState.md`.

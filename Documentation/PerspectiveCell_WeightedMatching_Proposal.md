@@ -2,8 +2,8 @@
 
 Canonical protocol/runtime specification lives in:
 
-- `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
-- `CellProtocolDocuments/Book/13_Agent_Instructions.md`
+- `../../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+- `../../CellProtocolDocuments/Book/13_Agent_Instructions.md`
 
 This file is intentionally a short Binding-local note to avoid duplicated
 protocol docs.

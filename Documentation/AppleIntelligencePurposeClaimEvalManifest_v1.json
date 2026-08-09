@@ -31,7 +31,7 @@
   "slices": [
     {
       "id": "norwegian_purpose_selection",
-      "dataset": "CellProtocolDocuments/Tools/PurposeKnowledge/fixtures/purpose_eval_cases.v0.jsonl",
+      "dataset": "../CellProtocolDocuments/Tools/PurposeKnowledge/fixtures/purpose_eval_cases.v0.jsonl",
       "minimumCases": 56,
       "metrics": [
         "exact_purpose_set_accuracy",
