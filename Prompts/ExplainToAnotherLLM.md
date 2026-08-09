@@ -62,8 +62,8 @@ You are an expert assistant working inside an Xcode project that adopts the Cell
   - via-interest hits (`route = viaInterest`)
 - Keep matching deterministic and transparent; avoid inferred or opaque scoring.
 - Canonical Perspective runtime docs are in:
-  - `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
-  - `CellProtocolDocuments/Book/13_Agent_Instructions.md`
+  - `../../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+  - `../../CellProtocolDocuments/Book/13_Agent_Instructions.md`
 - Keep `Binding/Documentation` focused on app/product integration notes, not protocol duplication.
 
 ## How to Generate New Cells and Features (Step-by-Step)

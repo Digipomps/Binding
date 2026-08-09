@@ -74,7 +74,7 @@ From the existing identity model:
 
 Relevant code and docs:
 
-- `CellProtocolDocuments/Book/03_Identity_Model.md`
+- `../../CellProtocolDocuments/Book/03_Identity_Model.md`
 - `CellProtocol/Sources/CellBase/Identity/Identity.swift`
 - `CellProtocol/Sources/CellApple/IdentityVault.swift`
 

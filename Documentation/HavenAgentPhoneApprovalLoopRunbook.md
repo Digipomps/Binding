@@ -99,7 +99,7 @@ Interpretation:
 
 Related CellProtocolDocuments/CellScaffold work checked on 2026-05-14:
 
-- `CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md` documents `ContactEndpointCell` as the protocol-native contact surface for other entity endpoints.
+- `../../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md` documents `ContactEndpointCell` as the protocol-native contact surface for other entity endpoints.
 - `ContactEndpointCell` and `ContactRegistryCell` are implemented in CellScaffold.
 - `swift test --package-path ../CellScaffold --filter ContactEndpointCellTests` passed 13 tests.
 - `swift test --package-path ../CellScaffold --filter ContactRegistryCellTests` passed 5 tests.

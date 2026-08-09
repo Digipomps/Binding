@@ -8,13 +8,13 @@ HAVEN is the primary app-side integration project for CellProtocol in this works
 - Local/runtime cells in `Cells/`
 - HAVEN-specific docs in `Documentation/`
 - Prompt and workflow docs in `Prompts/`
-- Shared protocol docs via `CellProtocolDocuments/`
+- Shared protocol docs via the sibling checkout [`../CellProtocolDocuments`](../CellProtocolDocuments/README-CellProtocol.md)
 
 ## Start Here
 
 1. Open `Binding.xcworkspace`.
 2. Read `Documentation/README.md`.
-3. Use `CellProtocolDocuments/Book/10_Quickstart.md` for protocol/runtime onboarding.
+3. Use [`../CellProtocolDocuments/Book/10_Quickstart.md`](../CellProtocolDocuments/Book/10_Quickstart.md) for protocol/runtime onboarding.
 
 ## Status
 

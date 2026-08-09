@@ -25,9 +25,9 @@ Evidence used:
   `PersonalCopilotV1_CellContracts.md` and
   `AppStoreReviewNotes_PersonalCopilotV1.md`.
 - CellProtocol identity/access docs:
-  `../CellProtocolDocuments/Book/03_Identity_Model.md`,
-  `../CellProtocolDocuments/Book/04_Agreements_Contracts.md`,
-  `../CellProtocolDocuments/Book/06_CellResolver.md` and
+  `../../CellProtocolDocuments/Book/03_Identity_Model.md`,
+  `../../CellProtocolDocuments/Book/04_Agreements_Contracts.md`,
+  `../../CellProtocolDocuments/Book/06_CellResolver.md` and
   `../CellProtocol/SECURITY.md`.
 
 Advisor note: I asked two local explorer advisors for independent UX and

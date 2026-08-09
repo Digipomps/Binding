@@ -36,7 +36,7 @@ This project enforces access control through CellProtocol, with state access med
 - Agreement workflows should support signatures from all involved parties and retrieval for storage in each party-controlled entity context.
 - `Entity` means digital presence/resources/functionality controlled by a person, not the person directly.
 - If a user marks a contract change as non-compliant, emit an explicit event and apply configured policy (manual/escalation/automatic handling) instead of silently overriding state.
-- Any proposed implementation that could conflict with CellProtocol concepts in `Prompts/` or `CellProtocolDocuments/` must be discussed with the user before code changes are made.
+- Any proposed implementation that could conflict with CellProtocol concepts in `Prompts/` or `../../CellProtocolDocuments/` must be discussed with the user before code changes are made.
 
 ## Interceptor policy (authoritative)
 We only use `addInterceptForGet` and `addInterceptForSet` to expose behavior and state externally. Do not use `registerAction`/`registerSetter` or ad‑hoc side channels.
@@ -61,8 +61,8 @@ When a `GeneralCell` subclass provides Perspective-aware matching (`Purpose` and
 - Keep scoring deterministic and transparent so identical inputs produce identical ordering.
 
 Canonical shared contract lives in:
-- `CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
-- `CellProtocolDocuments/Book/13_Agent_Instructions.md`
+- `../../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md`
+- `../../CellProtocolDocuments/Book/13_Agent_Instructions.md`
 
 Use `Binding` docs only for app-specific integration details.
 

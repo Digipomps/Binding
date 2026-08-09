@@ -3,13 +3,16 @@
 This file is now an index to avoid prompt drift across assistants.
 
 ## Canonical Sources
-- `../CellProtocolDocuments/Prompts/CoreContext.md` (shared concepts and non-negotiable rules)
+- `../../CellProtocolDocuments/Prompts/CoreContext.md` (shared concepts and non-negotiable rules)
 - `Prompts/CoreContext.md` (Binding-specific overlay)
 - `Prompts/CurrentState.md` (living implementation status)
 - `Prompts/Architecture.md` (authoritative architecture policy)
 - `Prompts/CONTRIBUTING.md` (contribution conventions)
 - `Prompts/AgreementTemplateEditorPlan.md` (approved draft plan for agreement template editor)
 - `Prompts/AttachmentSurface_Binding_ThreadPrompt.md` (Binding renderer plan for shared attachment fields)
+
+If the sibling `HAVEN/CellProtocolDocuments` checkout is missing, stop and
+report it. Do not silently use a copied or stale Binding-local document.
 
 ## Assistant Wrappers
 - `Prompts/SystemPrompt-Codex.md`
