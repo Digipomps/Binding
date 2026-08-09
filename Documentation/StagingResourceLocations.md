@@ -210,19 +210,24 @@ curl -ksS https://staging.haven.digipomps.org/.well-known/haven-scaffold-admin-t
 
 ## Binding Device Registration
 
-Binding development builds currently use:
+New Binding development and distribution builds use:
 
 ```text
-PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.havenplayground
+PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.haven
 aps-environment=development
 ```
 
-For Xcode-installed iPhone builds, staging must use:
+After a new build is installed and its device token is registered, staging must
+use:
 
 ```text
-APNS_BUNDLE_ID=org.digipomps.havenplayground
+APNS_BUNDLE_ID=org.digipomps.haven
 APNS_USE_SANDBOX=true
 ```
+
+Do not change the active staging APNs topic before that cutover: tokens from an
+installed legacy `org.digipomps.havenplayground` build only work with the old
+topic. TestFlight/App Store builds use the production APNs environment.
 
 Binding registers the phone with:
 

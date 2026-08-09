@@ -6,6 +6,11 @@ Mål: HAVEN tilgjengelig for deltakere ved Arendalsuka 10.–14. august 2026
 
 Binding-revisjon undersøkt: `7884e566420cd90eb288881cc8a5df0e3685386b`
 
+> Oppdatering 4. august 2026: app-targetet og butlerens runtime-konstant er
+> endret til `org.digipomps.haven`. Resten av dette dokumentet er en historisk
+> vurdering av 3. august-builden; signing, provisioning og distribusjon for den
+> nye ID-en er fortsatt lanseringskrav.
+
 Metode: kildeaudit, rådgiverpanel, lokal Release-bygg/test, live read-only staging-prober og kontroll mot gjeldende Apple-kilder. Ingen produktkode eller stagingdata ble endret.
 
 ## Beslutning

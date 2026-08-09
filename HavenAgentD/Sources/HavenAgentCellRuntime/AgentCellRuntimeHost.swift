@@ -108,6 +108,11 @@ private struct SentinelCellBox: @unchecked Sendable {
     let cell: NetworkSentinelCell
 }
 
+private struct LocalModelCellBox: @unchecked Sendable {
+    let cell: AgentLocalModelCell
+    let owner: Identity
+}
+
 private actor AgentCellRuntimeSnapshotStore {
     private let fileURL: URL
     private let encoder: JSONEncoder
@@ -225,6 +230,36 @@ public actor AgentCellRuntimeHost {
             }
 
             activeRegistrations = registrations
+            if let localModelCell = registrations
+                .first(where: { $0.descriptor.kind == .localModel })?.cell as? AgentLocalModelCell {
+                let box = LocalModelCellBox(cell: localModelCell, owner: owner)
+                await AgentRuntimeBridge.shared.update(
+                    localModelProviderID: AgentLocalModelCell.backendConfigFactory().providerID
+                )
+                await AgentRuntimeBridge.shared.update(localModelReverseIntentHandler: { request in
+                    let backend = AgentLocalModelCell.backendConfigFactory()
+                    guard request.providerID == backend.providerID else {
+                        return .object([
+                            "status": .string("providerUnavailable"),
+                            "requestedProviderID": .string(request.providerID),
+                            "providerID": .string(backend.providerID),
+                            "error": .string("The requested provider is not served by this AgentD runtime.")
+                        ])
+                    }
+                    do {
+                        return try await box.cell.set(
+                            keypath: "llm.generate",
+                            value: request.cellValue,
+                            requester: box.owner
+                        ) ?? .object(["status": .string("emptyResponse")])
+                    } catch {
+                        return .object([
+                            "status": .string("failed"),
+                            "error": .string(error.localizedDescription)
+                        ])
+                    }
+                })
+            }
             await startNetworkSentinel(registrations: registrations, config: networkSentinel ?? NetworkSentinelConfig())
             let controlBridgeStatus: LocalControlBridgeStatus?
             if let configuration {
@@ -299,6 +334,8 @@ public actor AgentCellRuntimeHost {
         }
         networkSentinelService = nil
         await AgentRuntimeBridge.shared.update(networkSentinelControl: nil)
+        await AgentRuntimeBridge.shared.update(localModelReverseIntentHandler: nil)
+        await AgentRuntimeBridge.shared.update(localModelProviderID: nil)
 
         let instanceName = currentSnapshot?.instanceName ?? "unknown"
         let ownerUUID = currentSnapshot?.ownerUUID ?? "unknown"

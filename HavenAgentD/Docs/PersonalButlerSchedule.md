@@ -28,7 +28,7 @@ quiet hours, snooze and minimum-interval gates. The slot is consumed even when a
 gate suppresses it, preventing a minute-by-minute retry. An accepted slot runs:
 
 ```text
-/usr/bin/open -b org.digipomps.havenplayground \
+/usr/bin/open -b org.digipomps.haven \
   haven://butler/check-in?source=havenagentd&trigger=user_schedule&slot=...
 ```
 

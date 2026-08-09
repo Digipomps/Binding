@@ -147,6 +147,19 @@ public actor PortholeIngressSession: PortholeIngressControlling {
             }
         )
 
+        if artifact.session.contract.capability_grants.contains(AgentLocalModelReverseIntentContract.capability),
+           let providerID = await AgentRuntimeBridge.shared.localModelProviderIDSnapshot(),
+           let remotePorthole = remotePorthole as? Meddle {
+            _ = try await remotePorthole.set(
+                keypath: AgentLocalModelReverseIntentContract.registrationKeypath,
+                value: .object([
+                    "contractID": .string(artifact.session.contract.contract_id),
+                    "providerID": .string(providerID)
+                ]),
+                requester: requester
+            )
+        }
+
         await updateStatus(
             phase: .connected,
             contractID: artifact.session.contract.contract_id,
@@ -194,6 +207,9 @@ public actor PortholeIngressSession: PortholeIngressControlling {
         let messageTimestamp = Self.iso8601String(Date())
         do {
             let acceptedIntent = try await RemoteIntentInboxService.enqueueSignedEnvelope(envelope)
+            if acceptedIntent.actionID == AgentLocalModelReverseIntentContract.actionID {
+                await handleLocalModelReverseIntent(acceptedIntent)
+            }
             await updateStatus(
                 phase: .connected,
                 contractID: currentStatus.contractID,
@@ -214,6 +230,42 @@ public actor PortholeIngressSession: PortholeIngressControlling {
                 lastError: nil
             )
         }
+    }
+
+    private func handleLocalModelReverseIntent(_ intent: QueuedRemoteIntent) async {
+        let response: ValueType
+        let requestID = intent.arguments["requestID"] ?? intent.id
+        let providerID = intent.arguments["providerID"] ?? "unknown"
+        do {
+            guard let currentPolicy = await AgentRuntimeBridge.shared.remoteIntentPolicySnapshot() else {
+                throw RemoteIntentVerificationError.policyUnavailable
+            }
+            _ = try RemoteIntentVerifier.reverifyQueuedIntent(intent, policy: currentPolicy)
+            let request = try AgentLocalModelReverseIntentContract.decode(arguments: intent.arguments)
+            let result = await AgentRuntimeBridge.shared.invokeLocalModelReverseIntent(request)
+            response = AgentLocalModelReverseIntentContract.responseValue(
+                requestID: request.requestID,
+                providerID: request.providerID,
+                result: result
+            )
+        } catch {
+            response = .object([
+                "requestID": .string(requestID),
+                "providerID": .string(providerID),
+                "result": .object([
+                    "status": .string("rejected"),
+                    "error": .string(error.localizedDescription)
+                ])
+            ])
+        }
+
+        guard let requester = currentRequester,
+              let remotePorthole = currentEmit as? Meddle else { return }
+        _ = try? await remotePorthole.set(
+            keypath: AgentLocalModelReverseIntentContract.responseKeypath,
+            value: response,
+            requester: requester
+        )
     }
 
     private func handleCompletion(_ completion: Subscribers.Completion<Error>) async {

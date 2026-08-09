@@ -41,9 +41,6 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
-		<string>push-to-talk</string>
-		<string>nearby-interaction</string>
-		<string>bluetooth-central</string>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
