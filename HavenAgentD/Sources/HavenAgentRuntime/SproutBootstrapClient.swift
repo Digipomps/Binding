@@ -134,6 +134,12 @@ public final class SproutBootstrapClient: @unchecked Sendable {
             "--interests", scaffold.interests.joined(separator: ","),
             "--porthole", scaffold.requestedPortholeKind
         ]
+        if !scaffold.requestedCapabilities.isEmpty {
+            arguments.append(contentsOf: [
+                "--requested-capabilities",
+                Array(Set(scaffold.requestedCapabilities)).sorted().joined(separator: ",")
+            ])
+        }
 
         if let starterAuthPath = scaffold.starterAuthPath {
             arguments.append(contentsOf: ["--starter", expandPath(starterAuthPath)])

@@ -14,6 +14,7 @@ public enum AgentCellKind: String, Codable, CaseIterable, Sendable {
     case emailOutbox
     case signatureStatements
     case personalButlerSchedule
+    case entityAnchor
 }
 
 public struct AgentCellBlueprint: Codable, Equatable, Sendable {
@@ -114,6 +115,12 @@ public enum AgentCellCatalog {
             suggestedCellName: "PersonalButlerScheduleCell",
             purpose: "Run owner-approved Butler schedules in HAVENAgentD and evaluate fixed signed wake requests.",
             sideEffectBoundary: "May launch only the HAVEN bundle with a fixed haven://butler/check-in URL after local owner policy approval."
+        ),
+        AgentCellBlueprint(
+            kind: .entityAnchor,
+            suggestedCellName: "EntityAnchorCell",
+            purpose: "Retain owner-approved private Entity data for later agent reuse.",
+            sideEffectBoundary: "Persists only schema-admitted, owner-signed Entity mutations; storage never implies disclosure."
         )
     ]
 }

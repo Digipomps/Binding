@@ -53,6 +53,71 @@ private enum PortholeIngressFixtureFactory {
 
 struct PortholeIngressSessionTests {
     @Test
+    func requesterUsesVaultBackedAgentIdentity() async throws {
+        let vault = EphemeralIdentityVault()
+        guard let identity = await vault.identity(
+            for: "haven-agentd-test",
+            makeNewIfNotFound: true
+        ), let publicKey = identity.publicSecureKey?.compressedKey else {
+            Issue.record("Expected proof-capable test identity.")
+            return
+        }
+        let publicKeyBase64URL = Base64URL.encode(publicKey)
+        let descriptor = AgentIdentityDescriptor(
+            instanceName: "haven-agentd-test",
+            identityContext: "haven-agentd-test",
+            identityUUID: identity.uuid,
+            displayName: "HAVEN Agent test",
+            publicKeyBase64URL: publicKeyBase64URL,
+            didKey: "did:key:test",
+            createdAt: "2026-08-09T22:00:00Z",
+            storageKind: "ephemeral-test"
+        )
+
+        let requester = try await PortholeIngressSession.makeRequesterIdentity(
+            publicKeyBase64URL: publicKeyBase64URL,
+            descriptor: descriptor,
+            vault: vault
+        )
+
+        #expect(requester === identity)
+        #expect(await vault.identityExistInVault(requester))
+    }
+
+    @Test
+    func requesterRejectsContractIdentityKeyMismatch() async throws {
+        let vault = EphemeralIdentityVault()
+        guard let identity = await vault.identity(
+            for: "haven-agentd-test-mismatch",
+            makeNewIfNotFound: true
+        ), let publicKey = identity.publicSecureKey?.compressedKey else {
+            Issue.record("Expected proof-capable test identity.")
+            return
+        }
+        let descriptor = AgentIdentityDescriptor(
+            instanceName: "haven-agentd-test-mismatch",
+            identityContext: "haven-agentd-test-mismatch",
+            identityUUID: identity.uuid,
+            displayName: "HAVEN Agent mismatch test",
+            publicKeyBase64URL: Base64URL.encode(publicKey),
+            didKey: "did:key:test-mismatch",
+            createdAt: "2026-08-09T22:00:00Z",
+            storageKind: "ephemeral-test"
+        )
+
+        do {
+            _ = try await PortholeIngressSession.makeRequesterIdentity(
+                publicKeyBase64URL: Base64URL.encode(Data(repeating: 0xA5, count: 32)),
+                descriptor: descriptor,
+                vault: vault
+            )
+            Issue.record("Expected contract identity mismatch rejection.")
+        } catch let error as PortholeIngressError {
+            #expect(error == .requesterPublicKeyMismatch)
+        }
+    }
+
+    @Test
     func bootstrapArtifactLoaderBuildsNativeSessionFromJoinArtifact() throws {
         let contract = try PortholeIngressFixtureFactory.makeSignedPortholeAccessContract()
         let context = BootstrapExecutionContext(

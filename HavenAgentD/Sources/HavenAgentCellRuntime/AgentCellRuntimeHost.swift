@@ -1,5 +1,7 @@
 import Foundation
-@preconcurrency import CellBase
+@_spi(CellRuntimeRecovery) @preconcurrency import CellBase
+import CellVapor
+import CryptoKit
 import HavenAgentCells
 import HavenAgentRuntime
 import HavenMacAutomation
@@ -60,6 +62,9 @@ private struct CellBaseGlobals {
     var defaultIdentityVault: IdentityVaultProtocol?
     var defaultCellResolver: CellResolverProtocol?
     var documentRootPath: String?
+    var typedCellUtility: TypedCellProtocol?
+    var resolverTypedCellUtility: TypedCellUtility?
+    var persistedCellMasterKey: Data?
 }
 
 private struct ActiveCellRegistration {
@@ -108,9 +113,20 @@ private struct SentinelCellBox: @unchecked Sendable {
     let cell: NetworkSentinelCell
 }
 
+private struct LocalModelCellBox: @unchecked Sendable {
+    let cell: AgentLocalModelCell
+    let owner: Identity
+}
+
+private struct EntityAnchorCellBox: @unchecked Sendable {
+    let cell: EntityAnchorCell
+    let owner: Identity
+}
+
 private actor AgentCellRuntimeSnapshotStore {
     private let fileURL: URL
     private let encoder: JSONEncoder
+    private let decoder = JSONDecoder()
 
     init(fileURL: URL) {
         self.fileURL = fileURL
@@ -128,15 +144,28 @@ private actor AgentCellRuntimeSnapshotStore {
         )
         try data.write(to: fileURL, options: [.atomic])
     }
+
+    func read() throws -> AgentCellRuntimeSnapshot? {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return nil
+        }
+        return try decoder.decode(
+            AgentCellRuntimeSnapshot.self,
+            from: Data(contentsOf: fileURL, options: [.mappedIfSafe])
+        )
+    }
 }
 
 public enum AgentCellRuntimeHostError: Error, LocalizedError, Sendable {
     case ownerIdentityUnavailable(String)
+    case entityAnchorRecoveryFailed(String)
 
     public var errorDescription: String? {
         switch self {
         case .ownerIdentityUnavailable(let instanceName):
             return "Unable to create or load a local owner identity for instance '\(instanceName)'."
+        case .entityAnchorRecoveryFailed(let detail):
+            return "Unable to recover the persistent local EntityAnchor: \(detail)"
         }
     }
 }
@@ -151,6 +180,7 @@ public actor AgentCellRuntimeHost {
     private var installedGlobals: CellBaseGlobals?
     private var currentSnapshot: AgentCellRuntimeSnapshot?
     private var activeRegistrations: [ActiveCellRegistration] = []
+    private var entityAnchorBox: EntityAnchorCellBox?
     private var networkSentinelService: NetworkSentinelService?
     private var globalStateLockToken: UUID?
 
@@ -185,14 +215,16 @@ public actor AgentCellRuntimeHost {
         globalStateLockToken = await AgentCellRuntimeGlobalStateLock.shared.acquire()
         do {
             _ = try bootstrap.bootstrap(paths: paths)
+            let persistedRuntimeSnapshot = try await snapshotStore.read()
             await AgentRuntimeBridge.shared.configure(pairingArtifactFileURL: paths.pairingArtifactFile)
 
             let identityStore = AgentIdentityStore(fileURL: paths.agentIdentityFile)
             let identityMaterial = try await identityStore.loadOrCreate(instanceName: instanceName)
+            let identityPrivateKey = try identityMaterial.privateKey()
             let vault = LocalIdentityVault()
             let owner = await vault.installIdentity(
                 descriptor: identityMaterial.descriptor,
-                privateKey: try identityMaterial.privateKey()
+                privateKey: identityPrivateKey
             )
             SecretCredentialCell.metadataStoreFactory = { [paths] in
                 FileSecretCredentialMetadataStore(
@@ -203,16 +235,129 @@ public actor AgentCellRuntimeHost {
             let previousGlobals = CellBaseGlobals(
                 defaultIdentityVault: CellBase.defaultIdentityVault,
                 defaultCellResolver: CellBase.defaultCellResolver,
-                documentRootPath: CellBase.documentRootPath
+                documentRootPath: CellBase.documentRootPath,
+                typedCellUtility: CellBase.typedCellUtility,
+                resolverTypedCellUtility: resolver.tcUtility,
+                persistedCellMasterKey: CellBase.persistedCellMasterKey
             )
             installedGlobals = previousGlobals
             CellBase.defaultIdentityVault = vault
             CellBase.defaultCellResolver = resolver
             CellBase.documentRootPath = paths.cellDocumentDirectory.path
+            var persistenceKeyMaterial = Data(
+                "haven-agentd.cell-persistence-master.v1\u{0}".utf8
+            )
+            persistenceKeyMaterial.append(identityPrivateKey.rawRepresentation)
+            CellBase.persistedCellMasterKey = Data(
+                SHA256.hash(data: persistenceKeyMaterial)
+            )
+            let typedCellUtility = TypedCellUtility(storage: FileSystemCellStorage())
+            CellBase.typedCellUtility = typedCellUtility
+            resolver.tcUtility = typedCellUtility
             try await resolver.registerDefaultWebSocketBridgeTransports()
 
+            let entityAnchorName = "EntityAnchor"
+            let registrySnapshot = await resolver.resolverRegistrySnapshot(requester: owner)
+            if let registeredResolve = registrySnapshot.resolves.first(where: { $0.name == entityAnchorName }) {
+                guard registeredResolve.cellType == String(describing: EntityAnchorCell.self),
+                      registeredResolve.cellScope == .identityUnique,
+                      registeredResolve.persistancy == .persistant,
+                      registeredResolve.identityDomain == identityMaterial.descriptor.identityContext else {
+                    throw AgentCellRuntimeHostError.entityAnchorRecoveryFailed(
+                        "the existing resolver contract does not match the agent EntityAnchor contract"
+                    )
+                }
+                try typedCellUtility.register(
+                    name: String(describing: EntityAnchorCell.self),
+                    type: EntityAnchorCell.self
+                )
+            } else {
+                try await resolver.addCellResolve(
+                    name: entityAnchorName,
+                    cellScope: .identityUnique,
+                    persistency: .persistant,
+                    identityDomain: identityMaterial.descriptor.identityContext,
+                    type: EntityAnchorCell.self
+                )
+            }
+
+            var expectedRecoveredEntityAnchorUUID: String?
+            if let persistedRuntimeSnapshot,
+               let persistedCell = persistedRuntimeSnapshot.cells.first(where: {
+                   $0.endpoint == "cell:///\(entityAnchorName)"
+               }) {
+                guard persistedRuntimeSnapshot.instanceName == instanceName,
+                      persistedRuntimeSnapshot.ownerUUID == owner.uuid,
+                      persistedRuntimeSnapshot.ownerPublicKeyBase64URL == identityMaterial.descriptor.publicKeyBase64URL,
+                      persistedRuntimeSnapshot.documentRootPath == paths.cellDocumentDirectory.path,
+                      UUID(uuidString: persistedCell.uuid) != nil else {
+                    throw AgentCellRuntimeHostError.entityAnchorRecoveryFailed(
+                        "the persisted runtime manifest is not bound to the active agent identity and storage root"
+                    )
+                }
+
+                switch await resolver.loadTypedEmitCellResult(with: persistedCell.uuid) {
+                case .loaded(let loaded):
+                    guard let persistedEntityAnchor = loaded as? EntityAnchorCell,
+                          persistedEntityAnchor.cellScope == .identityUnique,
+                          persistedEntityAnchor.persistancy == .persistant else {
+                        throw AgentCellRuntimeHostError.entityAnchorRecoveryFailed(
+                            "the persisted Cell does not prove the expected type, scope, and persistence"
+                        )
+                    }
+                    let persistedOwner = try await persistedEntityAnchor.getOwner(requester: owner)
+                    guard persistedOwner.uuid == owner.uuid,
+                          persistedOwner.signingPublicKeyFingerprint == owner.signingPublicKeyFingerprint else {
+                        throw AgentCellRuntimeHostError.entityAnchorRecoveryFailed(
+                            "the persisted Cell owner does not match the active agent identity"
+                        )
+                    }
+                    _ = try await resolver.restoreIdentityNamedCellsFillingGaps(
+                        [owner.uuid: [entityAnchorName: persistedCell.uuid]],
+                        requester: owner,
+                        authorization: CellResolverRecoveryAuthorization()
+                    )
+                    expectedRecoveredEntityAnchorUUID = persistedCell.uuid
+                case .missing:
+                    break
+                case .unavailable:
+                    throw AgentCellRuntimeHostError.entityAnchorRecoveryFailed(
+                        "the persisted Cell exists but could not be decoded or decrypted"
+                    )
+                }
+            }
+
+            let resolvedEntityAnchor: EntityAnchorCell
+            do {
+                guard let existing = try await resolver.cellAtEndpoint(
+                    endpoint: "cell:///\(entityAnchorName)",
+                    requester: owner
+                ) as? EntityAnchorCell else {
+                    throw CellBaseError.noTargetCell
+                }
+                resolvedEntityAnchor = existing
+            } catch let initialResolutionError {
+                throw initialResolutionError
+            }
+            if let expectedRecoveredEntityAnchorUUID,
+               resolvedEntityAnchor.uuid != expectedRecoveredEntityAnchorUUID {
+                throw AgentCellRuntimeHostError.entityAnchorRecoveryFailed(
+                    "the resolver returned a different Cell than the validated runtime manifest"
+                )
+            }
+            entityAnchorBox = EntityAnchorCellBox(cell: resolvedEntityAnchor, owner: owner)
+
             var registrations: [ActiveCellRegistration] = []
-            for descriptor in AgentCellRegistry.concreteDescriptors {
+            for descriptor in AgentCellRegistry.hostedRuntimeDescriptors {
+                if descriptor.kind == .entityAnchor {
+                    registrations.append(
+                        ActiveCellRegistration(
+                            descriptor: descriptor,
+                            cell: resolvedEntityAnchor
+                        )
+                    )
+                    continue
+                }
                 let cell = try await AgentCellRegistry.instantiate(kind: descriptor.kind, owner: owner)
                 let registrationName = Self.registrationName(for: descriptor.endpoint)
                 try await resolver.registerNamedEmitCell(
@@ -225,6 +370,36 @@ public actor AgentCellRuntimeHost {
             }
 
             activeRegistrations = registrations
+            if let localModelCell = registrations
+                .first(where: { $0.descriptor.kind == .localModel })?.cell as? AgentLocalModelCell {
+                let box = LocalModelCellBox(cell: localModelCell, owner: owner)
+                await AgentRuntimeBridge.shared.update(
+                    localModelProviderID: AgentLocalModelCell.backendConfigFactory().providerID
+                )
+                await AgentRuntimeBridge.shared.update(localModelReverseIntentHandler: { request in
+                    let backend = AgentLocalModelCell.backendConfigFactory()
+                    guard request.providerID == backend.providerID else {
+                        return .object([
+                            "status": .string("providerUnavailable"),
+                            "requestedProviderID": .string(request.providerID),
+                            "providerID": .string(backend.providerID),
+                            "error": .string("The requested provider is not served by this AgentD runtime.")
+                        ])
+                    }
+                    do {
+                        return try await box.cell.set(
+                            keypath: "llm.generate",
+                            value: request.cellValue,
+                            requester: box.owner
+                        ) ?? .object(["status": .string("emptyResponse")])
+                    } catch {
+                        return .object([
+                            "status": .string("failed"),
+                            "error": .string(error.localizedDescription)
+                        ])
+                    }
+                })
+            }
             await startNetworkSentinel(registrations: registrations, config: networkSentinel ?? NetworkSentinelConfig())
             let controlBridgeStatus: LocalControlBridgeStatus?
             if let configuration {
@@ -299,17 +474,23 @@ public actor AgentCellRuntimeHost {
         }
         networkSentinelService = nil
         await AgentRuntimeBridge.shared.update(networkSentinelControl: nil)
+        await AgentRuntimeBridge.shared.update(localModelReverseIntentHandler: nil)
+        await AgentRuntimeBridge.shared.update(localModelProviderID: nil)
 
         let instanceName = currentSnapshot?.instanceName ?? "unknown"
         let ownerUUID = currentSnapshot?.ownerUUID ?? "unknown"
         let ownerDisplayName = currentSnapshot?.ownerDisplayName ?? "unknown"
         let ownerPublicKeyBase64URL = currentSnapshot?.ownerPublicKeyBase64URL ?? ""
         let ownerDidKey = currentSnapshot?.ownerDidKey ?? ownerUUID
+        let persistedCellManifest = currentSnapshot?.cells.filter {
+            $0.endpoint == "cell:///EntityAnchor"
+        } ?? []
 
         for registration in activeRegistrations {
             await resolver.unregisterEmitCell(uuid: registration.cell.uuid)
         }
         activeRegistrations.removeAll()
+        entityAnchorBox = nil
         await controlBridgeServer.stop()
         await AgentRuntimeBridge.shared.update(localControlBridgeStatus: await controlBridgeServer.snapshot())
         await AgentRuntimeBridge.shared.update(agentIdentityDescriptor: nil)
@@ -319,6 +500,9 @@ public actor AgentCellRuntimeHost {
             CellBase.defaultIdentityVault = installedGlobals.defaultIdentityVault
             CellBase.defaultCellResolver = installedGlobals.defaultCellResolver
             CellBase.documentRootPath = installedGlobals.documentRootPath
+            CellBase.typedCellUtility = installedGlobals.typedCellUtility
+            resolver.tcUtility = installedGlobals.resolverTypedCellUtility
+            CellBase.persistedCellMasterKey = installedGlobals.persistedCellMasterKey
             self.installedGlobals = nil
         }
 
@@ -332,7 +516,7 @@ public actor AgentCellRuntimeHost {
             documentRootPath: paths.cellDocumentDirectory.path,
             recordedAt: Self.iso8601String(Date()),
             controlBridge: await controlBridgeServer.snapshot(),
-            cells: []
+            cells: persistedCellManifest
         )
         currentSnapshot = stoppedSnapshot
         try? await snapshotStore.write(stoppedSnapshot)
@@ -345,6 +529,69 @@ public actor AgentCellRuntimeHost {
 
     public func snapshot() -> AgentCellRuntimeSnapshot? {
         currentSnapshot
+    }
+
+    public func persistValidatedContact(
+        _ input: AgentValidatedContactStoreInput
+    ) async throws -> AgentValidatedContactStoreReceipt {
+        guard let entityAnchorBox else {
+            throw AgentValidatedContactStoreError.runtimeUnavailable
+        }
+        return try await Task.detached {
+            let record = input.recordValue()
+            let receipt = try await EntityValidatedContactPersistence.persist(
+                entityAnchor: entityAnchorBox.cell,
+                identity: entityAnchorBox.owner,
+                relationID: input.relationID,
+                record: record,
+                sourceUUID: "haven-agentd:\(entityAnchorBox.owner.uuid)"
+            )
+            return AgentValidatedContactStoreReceipt(
+                relationID: input.relationID,
+                keypath: EntityValidatedContactRecordV1.keypath(relationID: input.relationID),
+                partitionID: receipt.partitionID,
+                epoch: receipt.epoch,
+                revision: receipt.revision,
+                entryHash: receipt.entryHash,
+                payloadHash: receipt.payloadHash,
+                authorityCellUUID: receipt.authorityCellUUID,
+                authorityIdentityUUID: receipt.authorityIdentityUUID,
+                committedAtEpochMilliseconds: receipt.committedAtEpochMilliseconds,
+                durabilityLevel: receipt.durabilityLevel,
+                replicationState: receipt.replicationState,
+                quorumSatisfied: receipt.quorumSatisfied,
+                distributedCommit: receipt.distributedCommit,
+                storageAuthorized: true,
+                disclosureAuthorized: false,
+                readAfterReloadVerified: true
+            )
+        }.value
+    }
+
+    public func verifyValidatedContact(
+        _ input: AgentValidatedContactStoreInput
+    ) async throws -> AgentValidatedContactVerification {
+        guard let entityAnchorBox else {
+            throw AgentValidatedContactStoreError.runtimeUnavailable
+        }
+        let matches = try await Task.detached {
+            let stored = try await entityAnchorBox.cell.get(
+                keypath: EntityValidatedContactRecordV1.keypath(relationID: input.relationID),
+                requester: entityAnchorBox.owner
+            )
+            return ExploreContractValidator.deepEqual(stored, input.recordValue())
+        }.value
+        return AgentValidatedContactVerification(
+            relationID: input.relationID,
+            keypath: EntityValidatedContactRecordV1.keypath(relationID: input.relationID),
+            matchesAuthorizedRecord: matches,
+            storageAuthorized: true,
+            disclosureAuthorized: false
+        )
+    }
+
+    func validatedContactMatches(_ input: AgentValidatedContactStoreInput) async throws -> Bool {
+        try await verifyValidatedContact(input).matchesAuthorizedRecord
     }
 
     private func writeSnapshot(

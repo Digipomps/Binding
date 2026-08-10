@@ -80,6 +80,18 @@ public enum AgentCellRegistry {
         )
     ]
 
+    /// Cells hosted by AgentCellRuntimeHost. EntityAnchor is resolver-managed
+    /// because it has a persistent identity-unique lifecycle and therefore is
+    /// intentionally not part of `instantiateDefaultCells`.
+    public static let hostedRuntimeDescriptors: [AgentCellDescriptor] = concreteDescriptors + [
+        AgentCellDescriptor(
+            kind: .entityAnchor,
+            endpoint: "cell:///EntityAnchor",
+            typeName: "EntityAnchorCell",
+            sideEffectBoundary: "Persists owner-approved private Entity data through signed CellProtocol Flow commits; no disclosure side effect."
+        )
+    ]
+
     public static func instantiate(kind: AgentCellKind, owner: Identity) async throws -> GeneralCell {
         switch kind {
         case .agentSupervisor:

@@ -1,4 +1,5 @@
 import Foundation
+@preconcurrency import CellBase
 
 public struct QueuedRemoteIntent: Codable, Equatable, Sendable {
     public var id: String
@@ -57,6 +58,8 @@ public actor AgentRuntimeBridge {
     private var pairedOperatorIdentity: PairedOperatorIdentity?
     private var pairingArtifactLastError: String?
     private var networkHealth: NetworkHealthSnapshot?
+    private var localModelReverseIntentHandler: AgentLocalModelReverseIntentHandler?
+    private var localModelProviderID: String?
 
     public init() {}
 
@@ -66,6 +69,30 @@ public actor AgentRuntimeBridge {
 
     public func networkHealthSnapshot() -> NetworkHealthSnapshot? {
         networkHealth
+    }
+
+    public func update(localModelReverseIntentHandler: AgentLocalModelReverseIntentHandler?) {
+        self.localModelReverseIntentHandler = localModelReverseIntentHandler
+    }
+
+    public func update(localModelProviderID: String?) {
+        self.localModelProviderID = localModelProviderID
+    }
+
+    public func localModelProviderIDSnapshot() -> String? {
+        localModelProviderID
+    }
+
+    public func invokeLocalModelReverseIntent(
+        _ request: AgentLocalModelReverseIntentContract.Request
+    ) async -> ValueType {
+        guard let localModelReverseIntentHandler else {
+            return .object([
+                "status": .string("agentUnavailable"),
+                "error": .string("The local model runtime is not available.")
+            ])
+        }
+        return await localModelReverseIntentHandler(request)
     }
 
     private var networkSentinelControl: NetworkSentinelControlling?

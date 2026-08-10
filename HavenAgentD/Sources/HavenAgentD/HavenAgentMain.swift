@@ -17,6 +17,8 @@ enum HavenAgentCommand {
     case validateConfig(configPath: String?, rootPath: String?)
     case bootstrapProbe(configPath: String?, rootPath: String?, runBootstrap: Bool)
     case refreshStarterAuth(configPath: String?, rootPath: String?, ttlSeconds: Int)
+    case storeValidatedContact(configPath: String?, rootPath: String?)
+    case verifyValidatedContact(configPath: String?, rootPath: String?)
     case onboard(configPath: String?, rootPath: String?, openBrowser: Bool, bridgePort: Int?)
     case run(configPath: String?, once: Bool, rootPath: String?)
     case scheduleWorker(configPath: String?, rootPath: String?)
@@ -187,6 +189,71 @@ struct HavenAgentMain {
                     ttlSeconds: ttlSeconds
                 )
                 try printJSON(summary)
+
+            case .storeValidatedContact(let configPath, let rootPath):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let config = try AgentConfig.load(from: configURL)
+                let inputData = FileHandle.standardInput.readDataToEndOfFile()
+                guard inputData.isEmpty == false else {
+                    throw AgentValidatedContactStoreError.emptyStandardInput
+                }
+                guard inputData.count <= 64 * 1024 else {
+                    throw UsageError.invalidArguments(
+                        "store-validated-contact input exceeds 64 KiB."
+                    )
+                }
+                let input = try JSONDecoder().decode(
+                    AgentValidatedContactStoreInput.self,
+                    from: inputData
+                )
+                let host = AgentCellRuntimeHost(paths: paths)
+                do {
+                    _ = try await host.start(
+                        instanceName: config.instanceName,
+                        configURL: configURL
+                    )
+                    let receipt = try await host.persistValidatedContact(input)
+                    await host.stop()
+                    try printJSON(receipt)
+                } catch {
+                    await host.stop()
+                    throw error
+                }
+
+            case .verifyValidatedContact(let configPath, let rootPath):
+                let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
+                let configURL = resolveConfigURL(configPath, paths: paths)
+                let config = try AgentConfig.load(from: configURL)
+                let inputData = FileHandle.standardInput.readDataToEndOfFile()
+                guard inputData.isEmpty == false else {
+                    throw AgentValidatedContactStoreError.emptyStandardInput
+                }
+                guard inputData.count <= 64 * 1024 else {
+                    throw UsageError.invalidArguments(
+                        "verify-validated-contact input exceeds 64 KiB."
+                    )
+                }
+                let input = try JSONDecoder().decode(
+                    AgentValidatedContactStoreInput.self,
+                    from: inputData
+                )
+                let host = AgentCellRuntimeHost(paths: paths)
+                do {
+                    _ = try await host.start(
+                        instanceName: config.instanceName,
+                        configURL: configURL
+                    )
+                    let verification = try await host.verifyValidatedContact(input)
+                    guard verification.matchesAuthorizedRecord else {
+                        throw AgentValidatedContactStoreError.verificationMismatch
+                    }
+                    await host.stop()
+                    try printJSON(verification)
+                } catch {
+                    await host.stop()
+                    throw error
+                }
 
             case .onboard(let configPath, let rootPath, let openBrowser, let bridgePort):
                 let paths = try resolvePaths(rootPath: rootPath, configPath: configPath)
@@ -523,6 +590,18 @@ struct HavenAgentMain {
                 configPath: argumentValue(for: "--config", in: remaining),
                 rootPath: argumentValue(for: "--root", in: remaining),
                 ttlSeconds: intArgumentValue(for: "--ttl-seconds", in: remaining) ?? 900
+            )
+        case "store-validated-contact":
+            let remaining = Array(arguments.dropFirst())
+            return .storeValidatedContact(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
+            )
+        case "verify-validated-contact":
+            let remaining = Array(arguments.dropFirst())
+            return .verifyValidatedContact(
+                configPath: argumentValue(for: "--config", in: remaining),
+                rootPath: argumentValue(for: "--root", in: remaining)
             )
         case "onboard":
             let remaining = Array(arguments.dropFirst())
@@ -864,6 +943,8 @@ struct HavenAgentMain {
           haven-agentd validate-config [--config /path/to/config.json] [--root /path/to/dev-root]
           haven-agentd bootstrap-probe [--config /path/to/config.json] [--root /path/to/dev-root] [--run-bootstrap]
           haven-agentd refresh-starter-auth [--config /path/to/config.json] [--root /path/to/dev-root] [--ttl-seconds N]
+          haven-agentd store-validated-contact [--config /path/to/config.json] [--root /path/to/dev-root] < contact.json
+          haven-agentd verify-validated-contact [--config /path/to/config.json] [--root /path/to/dev-root] < contact.json
           haven-agentd onboard [--config /path/to/config.json] [--root /path/to/dev-root] [--bridge-port N] [--open]
           haven-agentd run [--config /path/to/config.json] [--once] [--root /path/to/dev-root]
           haven-agentd schedule-worker [--config /path/to/config.json] [--root /path/to/dev-root]
