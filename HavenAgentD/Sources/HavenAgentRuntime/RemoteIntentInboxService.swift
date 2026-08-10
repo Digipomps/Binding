@@ -13,6 +13,15 @@ public enum RemoteIntentInboxService {
             throw RemoteIntentVerificationError.replayDetected(intent.id)
         }
 
+        // Reverse model calls are automatic only after the normal signed-intent
+        // admission consumed the nonce. PortholeIngressSession performs the
+        // local invocation and returns the correlated response on that same
+        // outbound native bridge; these intents are never placed in the manual
+        // automation queue.
+        if intent.actionID == AgentLocalModelReverseIntentContract.actionID {
+            return intent
+        }
+
         if let scheduleService = await AgentRuntimeBridge.shared.personalButlerScheduleServiceSnapshot() {
             guard let currentPolicy = await AgentRuntimeBridge.shared.remoteIntentPolicySnapshot() else {
                 throw RemoteIntentVerificationError.policyUnavailable

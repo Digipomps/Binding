@@ -1,5 +1,5 @@
 import Foundation
-@preconcurrency import CellBase
+@_spi(Testing) @preconcurrency import CellBase
 import CryptoKit
 import Darwin
 import SproutCrypto
@@ -11,6 +11,86 @@ import Testing
 
 @Suite(.serialized)
 struct AgentCellRuntimeHostTests {
+    private func makeIsolatedHost(paths: RuntimePaths) -> AgentCellRuntimeHost {
+        AgentCellRuntimeHost(
+            paths: paths,
+            resolver: CellResolver.makeIsolatedForTesting()
+        )
+    }
+
+    @Test
+    func hostedAgentIdentityProvesRemoteBridgeControl() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HavenAgentDRemoteBridgeIdentityTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let host = makeIsolatedHost(paths: paths)
+        _ = try await host.start(instanceName: "remote-bridge-agent")
+        defer { Task { await host.stop() } }
+
+        guard let descriptor = await AgentRuntimeBridge.shared.agentIdentityDescriptorSnapshot(),
+              let vault = CellBase.defaultIdentityVault else {
+            Issue.record("Expected hosted agent identity and vault.")
+            return
+        }
+        let requester = try await PortholeIngressSession.makeRequesterIdentity(
+            publicKeyBase64URL: descriptor.publicKeyBase64URL,
+            descriptor: descriptor,
+            vault: vault
+        )
+        let provesControl = await PortholeIngressSession.provesResolverRemoteBridgeAuthority(
+            requester: requester,
+            logicalEndpoint: "wss://staging.haven.digipomps.org/v1/resolver/native-porthole/Porthole"
+        )
+
+        #expect(provesControl)
+        #expect(await vault.identityExistInVault(requester))
+        #expect(requester.homeVaultReference?.isEmpty == false)
+    }
+
+    @Test
+    func hostedEntityAnchorPersistsValidatedContactAcrossRestart() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HavenAgentDValidatedContactTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = RuntimePaths.rooted(at: root)
+        let relationID = "synthetic-contact-1"
+        let input = AgentValidatedContactStoreInput(
+            relationID: relationID,
+            displayName: "Synthetic Contact",
+            email: "synthetic@example.test",
+            phoneE164: "+4712345678",
+            sourceKind: "user-supplied",
+            sourceLabel: "synthetic-test-fixture",
+            observedAt: "2026-08-10T07:00:00Z",
+            purposeRefs: [
+                "purpose://access.audit.privacy",
+                "purpose://contact.communication",
+                "purpose://contact.introduction"
+            ]
+        )
+
+        let resolver = CellResolver.makeIsolatedForTesting()
+        let firstHost = AgentCellRuntimeHost(paths: paths, resolver: resolver)
+        _ = try await firstHost.start(instanceName: "validated-contact-agent")
+        let receipt = try await firstHost.persistValidatedContact(input)
+        #expect(receipt.relationID == relationID)
+        #expect(receipt.storageAuthorized)
+        #expect(receipt.disclosureAuthorized == false)
+        #expect(receipt.readAfterReloadVerified)
+        #expect(receipt.revision == 1)
+        await firstHost.stop()
+
+        let restartedHost = AgentCellRuntimeHost(paths: paths, resolver: resolver)
+        _ = try await restartedHost.start(instanceName: "validated-contact-agent")
+        #expect(try await restartedHost.validatedContactMatches(input))
+        await restartedHost.stop()
+    }
+
     @Test
     func hostRegistersConcreteCellsIntoResolverAndWritesSnapshot() async throws {
         let root = FileManager.default.temporaryDirectory
@@ -35,24 +115,25 @@ struct AgentCellRuntimeHostTests {
             pairingArtifactFile: root.appendingPathComponent("Library/Application Support/HAVENAgent/Out/agent-enrollment-pairing.json")
         )
 
-        let host = AgentCellRuntimeHost(paths: paths)
+        let resolver = CellResolver.makeIsolatedForTesting()
+        let host = AgentCellRuntimeHost(paths: paths, resolver: resolver)
         let snapshot = try await host.start(instanceName: "agent")
 
         #expect(snapshot.status == "running")
-        #expect(snapshot.cells.count == AgentCellRegistry.concreteDescriptors.count)
-        #expect(snapshot.cells.map(\.endpoint) == AgentCellRegistry.concreteDescriptors.map(\.endpoint))
+        #expect(snapshot.cells.count == AgentCellRegistry.hostedRuntimeDescriptors.count)
+        #expect(snapshot.cells.map(\.endpoint) == AgentCellRegistry.hostedRuntimeDescriptors.map(\.endpoint))
         #expect(FileManager.default.fileExists(atPath: paths.cellRuntimeFile.path))
         #expect(CellBase.documentRootPath == paths.cellDocumentDirectory.path)
-        #expect(CellResolver.sharedInstance.registeredTransportSchemesSnapshot().contains("ws"))
-        #expect(CellResolver.sharedInstance.registeredTransportSchemesSnapshot().contains("wss"))
+        #expect(resolver.registeredTransportSchemesSnapshot().contains("ws"))
+        #expect(resolver.registeredTransportSchemesSnapshot().contains("wss"))
 
         let requester = Identity(snapshot.ownerUUID, displayName: snapshot.ownerDisplayName, identityVault: CellBase.defaultIdentityVault)
-        let cell = try await CellResolver.sharedInstance.cellAtEndpoint(
+        let cell = try await resolver.cellAtEndpoint(
             endpoint: "cell:///agent/supervisor",
             requester: requester
         )
         #expect(cell is AgentSupervisorCell)
-        let localModelCell = try await CellResolver.sharedInstance.cellAtEndpoint(
+        let localModelCell = try await resolver.cellAtEndpoint(
             endpoint: "cell:///agent/local-model",
             requester: requester
         )
@@ -61,7 +142,7 @@ struct AgentCellRuntimeHostTests {
         await host.stop()
         let stoppedSnapshot = await host.snapshot()
         #expect(stoppedSnapshot?.status == "stopped")
-        #expect(stoppedSnapshot?.cells.isEmpty == true)
+        #expect(stoppedSnapshot?.cells.map(\.endpoint) == ["cell:///EntityAnchor"])
     }
 
     @Test
@@ -72,7 +153,7 @@ struct AgentCellRuntimeHostTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let paths = RuntimePaths.rooted(at: root)
-        let host = AgentCellRuntimeHost(paths: paths)
+        let host = makeIsolatedHost(paths: paths)
         let bridgePort = try Self.allocateLoopbackPort()
         let bridgeConfiguration = LocalControlBridgeConfig(
             host: "127.0.0.1",
@@ -139,7 +220,7 @@ struct AgentCellRuntimeHostTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let paths = RuntimePaths.rooted(at: root)
-        let host = AgentCellRuntimeHost(paths: paths)
+        let host = makeIsolatedHost(paths: paths)
         let bridgePort = try Self.allocateLoopbackPort()
         let bridgeConfiguration = LocalControlBridgeConfig(
             host: "127.0.0.1",
@@ -197,7 +278,7 @@ struct AgentCellRuntimeHostTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let paths = RuntimePaths.rooted(at: root)
-        let host = AgentCellRuntimeHost(paths: paths)
+        let host = makeIsolatedHost(paths: paths)
         let bridgePort = try Self.allocateLoopbackPort()
         let bridgeConfiguration = LocalControlBridgeConfig(
             host: "127.0.0.1",
@@ -248,7 +329,7 @@ struct AgentCellRuntimeHostTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let paths = RuntimePaths.rooted(at: root)
-        let host = AgentCellRuntimeHost(paths: paths)
+        let host = makeIsolatedHost(paths: paths)
         let snapshot = try await host.start(
             instanceName: "agent",
             controlBridge: LocalControlBridgeConfig(host: "0.0.0.0", port: 43110, accessToken: "loopback-test-token")

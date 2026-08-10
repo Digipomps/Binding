@@ -10,6 +10,55 @@ import Crypto
 
 struct RemoteIntentVerifierTests {
     @Test
+    func rejectsUnsignedOrExpiredLocalModelReverseIntent() throws {
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let issuer = TrustedRemoteIntentIssuer(
+            issuerID: "staging-resolver",
+            publicSigningKeyBase64: privateKey.publicKey.rawRepresentation.base64EncodedString(),
+            allowedTopics: [AgentLocalModelReverseIntentContract.topic],
+            allowedActionIDs: [AgentLocalModelReverseIntentContract.actionID]
+        )
+        let policy = RemoteIntentPolicy(
+            issuers: [issuer],
+            requireExpiry: true,
+            maxClockSkewSeconds: 0,
+            maxArgumentCount: 16
+        )
+        let payload = SignedRemoteIntentPayload(
+            issuerID: issuer.issuerID,
+            nonce: "local-model-security-test",
+            topic: AgentLocalModelReverseIntentContract.topic,
+            origin: "staging",
+            actionID: AgentLocalModelReverseIntentContract.actionID,
+            arguments: ["requestID": "local-model-security-test"],
+            issuedAt: "2026-08-09T10:00:00Z",
+            expiresAt: "2026-08-09T10:00:30Z"
+        )
+        let validSignature = try privateKey.signature(for: RemoteIntentVerifier.canonicalPayloadData(payload))
+
+        #expect(throws: RemoteIntentVerificationError.invalidSignature) {
+            _ = try RemoteIntentVerifier.verify(
+                envelope: SignedRemoteIntentEnvelope(
+                    payload: payload,
+                    signatureBase64: Data(repeating: 0, count: validSignature.count).base64EncodedString()
+                ),
+                policy: policy,
+                now: ISO8601DateFormatter().date(from: "2026-08-09T10:00:10Z")!
+            )
+        }
+        #expect(throws: RemoteIntentVerificationError.envelopeExpired) {
+            _ = try RemoteIntentVerifier.verify(
+                envelope: SignedRemoteIntentEnvelope(
+                    payload: payload,
+                    signatureBase64: validSignature.base64EncodedString()
+                ),
+                policy: policy,
+                now: ISO8601DateFormatter().date(from: "2026-08-09T10:00:31Z")!
+            )
+        }
+    }
+
+    @Test
     func verifiesSignedEnvelopeAgainstTrustedIssuer() throws {
         let privateKey = Curve25519.Signing.PrivateKey()
         let payload = SignedRemoteIntentPayload(

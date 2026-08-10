@@ -15,6 +15,6 @@ mkdir -p "$MODULE_CACHE_DIR"
 export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR"
 
 cd "$PACKAGE_DIR"
-swift test
+swift test --no-parallel
 swift build --product haven-agentd
 "$PACKAGE_DIR/.build/debug/haven-agentd" smoke-test --root "$RUNTIME_ROOT"
