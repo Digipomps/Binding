@@ -33,17 +33,20 @@ struct DeviceIngressRegistrationClientTests {
             buildProvenance: buildProvenance
         )
 
-        let receipt = try await client.register(
+        let completed = try await client.register(
             protectedBody: body,
+            entityLinkAuthorization: fixture.entityLinkAuthorization,
             consentEvidence: consent,
             now: now
         )
+        let receipt = completed.receipt
 
         #expect(receipt.state == .activeConsented)
         #expect(receipt.deviceIdentityUUID == fixture.subject.uuid)
         #expect(await transport.sawPersistedExpectationBeforeSubmit())
         #expect(try await store.pendingExpectation() == nil)
         #expect(try await store.verifiedEvidence() != nil)
+        #expect(fixture.entityLinkAuthorization.retainsEnvelopeForTesting() == false)
 
         let restartedStore = FileDeviceIngressRegistrationEvidenceStore(
             directoryURL: fixture.evidenceDirectory
@@ -64,6 +67,21 @@ struct DeviceIngressRegistrationClientTests {
         let persistedText = try persistedEvidenceText(in: fixture.evidenceDirectory)
         #expect(!persistedText.contains("test-apns-token"))
         #expect(!persistedText.contains("pushToken"))
+    }
+
+    @Test
+    func oneShotProviderConsumesWithoutPersistenceOrImplicitReuse() async throws {
+        let provider = DeviceIngressOneShotCompletionEnvelopeProvider()
+        let canonicalEnvelope = Data(#"{"schema":"fixture"}"#.utf8)
+        try await provider.stage(canonicalCompletionEnvelope: canonicalEnvelope)
+        #expect(await provider.hasStagedEnvelopeForTesting())
+        #expect(try await provider.takeCanonicalCompletionEnvelope() == canonicalEnvelope)
+        #expect(await provider.hasStagedEnvelopeForTesting() == false)
+        await #expect(
+            throws: DeviceIngressRegistrationClientError.completionEnvelopeUnavailable
+        ) {
+            try await provider.takeCanonicalCompletionEnvelope()
+        }
     }
 
     @Test
@@ -92,6 +110,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: DeviceIngressResponseValidationError.nonCanonicalResponse) {
             try await client.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: consent,
                 now: now
             )
@@ -103,6 +122,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: DeviceIngressRegistrationClientError.pendingRegistrationExists) {
             try await client.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: consent,
                 now: now
             )
@@ -129,6 +149,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: DeviceIngressRegistrationClientError.notificationIdentityUnavailable) {
             try await client.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: try makeConsentEvidence(),
                 now: now
             )
@@ -169,6 +190,7 @@ struct DeviceIngressRegistrationClientTests {
         ) {
             try await client.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: presentedConsent,
                 now: now
             )
@@ -207,6 +229,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: TestDurabilityError.file) {
             try await client.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: consent,
                 now: now
             )
@@ -244,6 +267,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: TestDurabilityError.directory) {
             try await client.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: consent,
                 now: now
             )
@@ -256,6 +280,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: DeviceIngressRegistrationClientError.invalidEvidenceJournal) {
             try await client.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: consent,
                 now: now
             )
@@ -300,6 +325,7 @@ struct DeviceIngressRegistrationClientTests {
         let firstRegistration = Task {
             try await firstClient.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: consent,
                 now: now
             )
@@ -309,6 +335,7 @@ struct DeviceIngressRegistrationClientTests {
         await #expect(throws: DeviceIngressRegistrationClientError.pendingRegistrationExists) {
             try await secondClient.register(
                 protectedBody: body,
+                entityLinkAuthorization: fixture.entityLinkAuthorization,
                 consentEvidence: consent,
                 now: now
             )
@@ -316,7 +343,7 @@ struct DeviceIngressRegistrationClientTests {
         await transport.releaseSubmit()
         let receipt = try await firstRegistration.value
 
-        #expect(receipt.state == .activeConsented)
+        #expect(receipt.receipt.state == .activeConsented)
         #expect(await underlyingTransport.submitCount() == 1)
     }
 
@@ -384,6 +411,7 @@ struct DeviceIngressRegistrationClientTests {
         )
         _ = try await registeringClient.register(
             protectedBody: body,
+            entityLinkAuthorization: fixture.entityLinkAuthorization,
             consentEvidence: consent,
             now: now
         )
@@ -440,6 +468,7 @@ struct DeviceIngressRegistrationClientTests {
         )
         _ = try await registeringClient.register(
             protectedBody: body,
+            entityLinkAuthorization: fixture.entityLinkAuthorization,
             consentEvidence: consent,
             now: now
         )
@@ -955,6 +984,7 @@ struct DeviceIngressRegistrationClientTests {
         let protectedBody = try BindingDeviceIngressRegistrationComposition
             .identityBoundRegistrationBody(
                 callerBody,
+                participantID: "entity-pairwise:test-binding",
                 deviceIdentityUUID: "device-identity",
                 consentEvidence: consent
             )
@@ -963,7 +993,7 @@ struct DeviceIngressRegistrationClientTests {
             from: protectedBody
         )
 
-        #expect(payload["participantId"] == .string("device-identity"))
+        #expect(payload["participantId"] == .string("entity-pairwise:test-binding"))
         #expect(payload["deviceId"] == .string("device-identity"))
         #expect(payload["termsAccepted"] == nil)
         #expect(payload["termsConsentState"] == .string("accepted"))
@@ -1102,7 +1132,10 @@ struct DeviceIngressRegistrationClientTests {
             DeviceIngressIdentityDescriptor.publicDescriptor(for: fixture.subject)
         )
 
-        #expect(try await transport.fetchRegisterChallenge(subject: subject) == challengeResponse)
+        #expect(try await transport.fetchRegisterChallenge(
+            subject: subject,
+            canonicalEntityLink: Data("entity-link".utf8)
+        ) == challengeResponse)
         #expect(try await transport.submitRegister(
             canonicalChallengeData: Data("challenge".utf8),
             canonicalRequestData: Data("request".utf8),
@@ -1121,8 +1154,10 @@ struct DeviceIngressRegistrationClientTests {
         let challengeJSON = try #require(
             try JSONSerialization.jsonObject(with: requests[0].body) as? [String: Any]
         )
-        #expect(challengeJSON["schema"] as? String == "haven.device-ingress.challenge-request.v1")
+        #expect(challengeJSON["schema"] as? String == "haven.device-ingress.challenge-request.v2")
         #expect(challengeJSON["operation"] as? String == "register")
+        #expect(challengeJSON["canonicalEntityLink"] as? String
+            == Data("entity-link".utf8).base64EncodedString())
 
         let registerJSON = try #require(
             try JSONSerialization.jsonObject(with: requests[1].body) as? [String: Any]
@@ -1158,7 +1193,10 @@ struct DeviceIngressRegistrationClientTests {
         )
 
         await #expect(throws: DeviceIngressRegistrationClientError.transportRejected) {
-            try await transport.fetchRegisterChallenge(subject: subject)
+            try await transport.fetchRegisterChallenge(
+                subject: subject,
+                canonicalEntityLink: Data("entity-link".utf8)
+            )
         }
     }
 
@@ -1381,6 +1419,7 @@ struct DeviceIngressRegistrationClientTests {
         let targetOwner: Identity
         let challengeData: Data
         let trust: DeviceIngressRegistrationTrustConfiguration
+        let entityLinkAuthorization: DeviceIngressVerifiedEntityLinkAuthorization
         let evidenceDirectory: URL
     }
 
@@ -1459,18 +1498,128 @@ struct DeviceIngressRegistrationClientTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try createPrivateDirectory(evidenceAnchor)
 
+        let trust = DeviceIngressRegistrationTrustConfiguration(
+            expectedAudience: audience,
+            expectedChallengeIssuer: issuerDescriptor
+        )
+        let entityLinkAuthorization = try await makeEntityLinkAuthorization(
+            subject: subject,
+            issuer: issuer,
+            trust: trust
+        )
+
         return Fixture(
             subjectVault: subjectVault,
             subject: subject,
             targetOwner: targetOwner,
             challengeData: challengeData,
-            trust: DeviceIngressRegistrationTrustConfiguration(
-                expectedAudience: audience,
-                expectedChallengeIssuer: issuerDescriptor
-            ),
+            trust: trust,
+            entityLinkAuthorization: entityLinkAuthorization,
             evidenceDirectory: evidenceAnchor
                 .appendingPathComponent("evidence", isDirectory: true)
         )
+    }
+
+    private func makeEntityLinkAuthorization(
+        subject: Identity,
+        issuer: Identity,
+        trust: DeviceIngressRegistrationTrustConfiguration
+    ) async throws -> DeviceIngressVerifiedEntityLinkAuthorization {
+        let subjectDescriptor = try IdentityLinkProtocolService.descriptor(for: subject)
+        let issuerDescriptor = try IdentityLinkProtocolService.descriptor(for: issuer)
+        let bindingID = try pairwiseBindingID(
+            entity: issuerDescriptor,
+            audience: trust.expectedAudience
+        )
+        var request = IdentityEnrollmentRequest(
+            requestID: "device-ingress-fixture-\(UUID().uuidString)",
+            purpose: "link_identity",
+            entityBinding: EntityBindingDescriptor(
+                mode: .pairwise,
+                entityAnchorReference: nil,
+                bindingID: bindingID,
+                audience: trust.expectedAudience
+            ),
+            newIdentity: subjectDescriptor,
+            requestedDomains: [DeviceIngressEnvelope.identityDomain],
+            requestedIdentityContexts: ["ios", "device-ingress"],
+            requestedScopes: ["device-ingress.register"],
+            audience: trust.expectedAudience,
+            origin: "https://\(trust.expectedAudience)",
+            createdAt: IdentityLinkProtocolService.iso8601(now),
+            expiresAt: IdentityLinkProtocolService.iso8601(
+                now.addingTimeInterval(600)
+            ),
+            nonce: Data((0..<32).map(UInt8.init)),
+            platform: "iOS",
+            deviceLabel: "Binding fixture"
+        )
+        let payload = try request.canonicalPayloadData()
+        request.proof = IdentityEnrollmentRequestProof(
+            byIdentityUUID: subject.uuid,
+            algorithm: subjectDescriptor.algorithm,
+            curveType: subjectDescriptor.curveType,
+            signature: try #require(try await subject.sign(data: payload))
+        )
+        let approval = try await IdentityLinkProtocolService.approveEnrollmentRequest(
+            request,
+            issuerIdentity: issuer,
+            issuerType: .existingDevice,
+            createdAt: now,
+            expiresAt: now.addingTimeInterval(300),
+            jti: "device-ingress-fixture-approval-\(UUID().uuidString)",
+            freshAuthRequired: true,
+            freshAuthPerformedAt: now
+        )
+        let credential = try await IdentityLinkProtocolService.issueSameEntityCredential(
+            request: request,
+            approval: approval,
+            issuerIdentity: issuer,
+            validUntil: now.addingTimeInterval(600),
+            revocationReference: "cell:///EntityAnchor/device-ingress/fixture"
+        )
+        let presentation = try await IdentityLinkProtocolService.makeVerifierBoundPresentation(
+            credential: credential,
+            holderIdentity: subject,
+            challenge: request.nonce,
+            domain: DeviceIngressEnvelope.identityDomain
+        )
+        let envelope = IdentityLinkCompletionEnvelope(
+            request: request,
+            approval: approval,
+            sameEntityCredential: credential,
+            presentation: presentation,
+            issuerIdentity: issuerDescriptor,
+            expectedAudience: trust.expectedAudience,
+            expectedOrigin: "https://\(trust.expectedAudience)",
+            expectedPresentationChallenge: request.nonce,
+            expectedPresentationDomain: DeviceIngressEnvelope.identityDomain
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try await DeviceIngressEntityLinkAuthorizationVerifier.verify(
+            canonicalCompletionEnvelope: encoder.encode(envelope),
+            subject: subjectDescriptor,
+            trust: trust,
+            now: now
+        )
+    }
+
+    private func pairwiseBindingID(
+        entity: IdentityPublicKeyDescriptor,
+        audience: String
+    ) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        var material = Data("haven.entity-pairwise.v1".utf8)
+        material.append(0)
+        material.append(try encoder.encode(entity))
+        material.append(0)
+        material.append(Data(audience.utf8))
+        let digest = DeviceIngressCanonicalWire.base64URL(
+            DeviceIngressCanonicalWire.sha256(material)
+        )
+        return "entity-pairwise:\(digest)"
     }
 
     private func makeExpectation(
@@ -1774,8 +1923,14 @@ private actor GatedRegistrationTransport: DeviceIngressRegistrationTransport {
         self.underlying = underlying
     }
 
-    func fetchRegisterChallenge(subject: IdentityPublicKeyDescriptor) async throws -> Data {
-        try await underlying.fetchRegisterChallenge(subject: subject)
+    func fetchRegisterChallenge(
+        subject: IdentityPublicKeyDescriptor,
+        canonicalEntityLink: Data
+    ) async throws -> Data {
+        try await underlying.fetchRegisterChallenge(
+            subject: subject,
+            canonicalEntityLink: canonicalEntityLink
+        )
     }
 
     func submitRegister(
@@ -1815,7 +1970,11 @@ private actor GatedRegistrationTransport: DeviceIngressRegistrationTransport {
 private actor CountingInertTransport: DeviceIngressRegistrationTransport {
     private var fetches = 0
 
-    func fetchRegisterChallenge(subject: IdentityPublicKeyDescriptor) throws -> Data {
+    func fetchRegisterChallenge(
+        subject: IdentityPublicKeyDescriptor,
+        canonicalEntityLink: Data
+    ) throws -> Data {
+        _ = canonicalEntityLink
         fetches += 1
         throw DeviceIngressRegistrationClientError.operationalCompositionUnavailable
     }
@@ -1856,8 +2015,12 @@ private actor FixtureTransport: DeviceIngressRegistrationTransport {
         self.responseMode = responseMode
     }
 
-    func fetchRegisterChallenge(subject: IdentityPublicKeyDescriptor) -> Data {
-        challengeData
+    func fetchRegisterChallenge(
+        subject: IdentityPublicKeyDescriptor,
+        canonicalEntityLink: Data
+    ) -> Data {
+        _ = canonicalEntityLink
+        return challengeData
     }
 
     func submitRegister(

@@ -437,18 +437,19 @@ final class NotificationEnrollmentManager: ObservableObject {
                 buildProvenance: buildProvenance
             )
             let protectedBody = try Self.registrationProtectedBody(payload)
-            let receipt = try await BindingDeviceIngressRegistrationComposition.register(
+            let completed = try await BindingDeviceIngressRegistrationComposition.register(
                 protectedBody: protectedBody,
                 consentEvidence: consent,
                 buildProvenance: buildProvenance
             )
+            let receipt = completed.receipt
             guard receipt.state == .activeConsented else {
                 throw DeviceIngressRegistrationClientError.registrationWasNotActiveAndConsented
             }
-            self.participantID = receipt.deviceIdentityUUID
-            self.deviceID = receipt.deviceIdentityUUID
-            defaults.set(receipt.deviceIdentityUUID, forKey: participantIDKey)
-            defaults.set(receipt.deviceIdentityUUID, forKey: deviceIDKey)
+            self.participantID = completed.participantID
+            self.deviceID = completed.deviceID
+            defaults.set(completed.participantID, forKey: participantIDKey)
+            defaults.set(completed.deviceID, forKey: deviceIDKey)
             configureRemoteBridgePresenceProvider()
             // A register mutation receipt is durable historical evidence, not
             // current status. The register-only v3 candidate has no canonical
