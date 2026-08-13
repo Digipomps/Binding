@@ -1,23 +1,24 @@
 # Binding DeviceIngress v3 register candidate
 
-Status: source-integrated review candidate in Binding PR #9. It is not wired
-to an operational DeviceIngress service, does not send APNS, and is not an
-operational device-registration release. The current App Store catalog policy
-keeps notification enrollment disabled, and the challenge-issuer setting is
-deliberately empty so an accidentally opened registration path fails before
-network access.
+Status: PR #9 is integrated. This follow-up, based on Binding main
+`b63ee3bcb8f7c06e75fee0ec150139be0b0e3c24`, makes enrollment depend on an
+explicit `disabled|staging|production` rollout environment rather than any
+demo or App Store catalog flag. Both checked-in build configurations remain
+`disabled`, and the challenge-issuer setting remains empty. A physical build
+therefore stays inert unless its release invocation explicitly selects the
+environment and injects the exact reviewed issuer descriptor.
 
 ## Exact source boundary
 
-- Original PR #9 head: `16af4e85e21c15d5f0fa430fd5c045d85f16312b`
-- Binding main integrated by this candidate:
-  `2d326349643e4b8448a00bae4ce16087209a2586`
+- PR #9 final head: `3dab9b083ebaf06bf912458b58a4f961a75c77ab`
+- PR #9 merge: `01bd6422778d26d9af156fc21ce105196c96ab0d`
+- Binding main baseline for this follow-up:
+  `b63ee3bcb8f7c06e75fee0ec150139be0b0e3c24`
 - CellProtocol exact revision: `1632ed65d5e4aaf663b26cee1cdddfdcdd5e4412`
-- CellScaffold main observed during integration:
-  `57b500455a2df668b29a10445f476e07d7aa99dc`
-- Candidate state: PR #9 integration pending independent review. The exact
-  final Git revision is supplied by Git and the generated build provenance,
-  rather than a self-referential hard-coded source constant.
+- CellScaffold source audited for the register-only server boundary:
+  `b96896eea284aed60d5fb307f56c99cd1457e44c`
+- The exact final Git revision is supplied by Git and the generated build
+  provenance, rather than a self-referential hard-coded source constant.
 
 The CellScaffold revision above is an observation boundary, not operational
 proof. The earlier DeviceIngress server prototype branches are not treated as
@@ -141,32 +142,61 @@ registration can be claimed. The v3 register-only dependency has no such
 operation yet.
 
 The register transport implementation is present, but the shipped/default
-composition remains inert: the App Store catalog gate disables enrollment and
-the empty issuer descriptor makes runtime configuration unavailable before
-network access. Resolve and submit also throw before network access; unsigned
-push payloads are not staged as a fallback. No owner identity, Agreement,
-revocation state, audience, issuer or transport framing is auto-provisioned or
-inferred.
+composition remains inert: `HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT` is
+`disabled` and the issuer descriptor is empty. An enabled build must select
+exactly `staging` or `production`; the client then requires the corresponding
+canonical origin and audience and rejects cross-environment substitution.
+The build must also inject the exact public issuer descriptor published by
+the ready server pilot metadata. A missing, malformed or substituted
+descriptor fails before challenge admission. Resolve and submit also throw
+before network access; unsigned push payloads are not staged as a fallback.
+No owner identity, Agreement, revocation state, audience, issuer or transport
+framing is auto-provisioned or inferred.
+
+For staging, the release operator must first observe
+`/conference-mvp/api/device/pilot/metadata` with `enabled=true` and
+`ready=true`, independently verify its descriptor SHA-256, and supply its
+exact `issuerDescriptorBase64` together with these build settings:
+
+```text
+HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT=staging
+HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN=https://staging.haven.digipomps.org
+HAVEN_DEVICE_INGRESS_AUDIENCE=staging.haven.digipomps.org
+HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64=<exact reviewed descriptor>
+```
+
+Production uses `production`, `https://haven.digipomps.org`, and the exact
+production issuer descriptor. A staging descriptor or endpoint cannot be used
+by a production rollout. The descriptor is public trust material, not a
+secret, but its provenance and digest are release evidence.
 
 ## Remaining operational gates
 
-Neither current CellScaffold main nor the earlier server prototype branches
-establish a deployed challenge issuer, durable admission/replay, or operational
-authority for this candidate. Binding remains unavailable until a reviewed
-composition root supplies all of the following:
+CellScaffold main observed on 2026-08-13 contains canonical v3 registration,
+but its active HTTP composition is deliberately register-only:
+`DeviceCallbackRegisterAdmissionCompositionRoot` installs
+`RegisterOnlyDeviceCallbackAdmissionService`, and `VaporDeviceCallback`
+rejects every protected operation except `.register`. The only challenge
+issuer API is `issueRegisterChallenge`. There is therefore no reviewed server
+contract from which Binding can safely implement callback `resolve`, callback
+`submit`, or an acknowledgement/read-back. Those client operations remain
+fail-closed; inventing paths, bearer authorization, or locally trusted push
+payloads is prohibited.
 
-- persistent challenge issuer and client-pinned issuer descriptor;
-- owner-pinned target Cell and exact signed Contract/Agreement;
-- durable authority and revocation generations;
-- atomic admission/replay ledger and same-Cell signed response persistence;
-- a shared, reviewed transport package so Binding does not copy or guess HTTP
-  framing;
-- readiness that is red when any dependency is unavailable;
-- an explicit custodian/owner provisioning flow for the physical device;
-- a canonical signed status/read-back and typed signed revoke/deregister
-  operation with durable local tombstone/retry reconciliation;
-- reviewed iOS build/signing attestation, or an explicit decision that scoped
-  build provenance is non-authoritative metadata only.
+Registration can be tested independently once the exact staging pilot is
+ready and the physical build pins its descriptor. Promotion still requires:
+
+- public readiness and pilot metadata bound to the same app revision;
+- explicit signed physical-device build provenance and the exact rollout
+  settings above;
+- explicit notification consent, APNS token delivery, canonical challenge,
+  canonical register, and a verified `active_consented` mutation receipt;
+- controlled app/server restart with the historical receipt still verifiable;
+- server authority cells and challenge issuance for `.resolve` and `.submit`;
+- a canonical callback acknowledgement/status operation, or an explicit
+  reviewed protocol extension, before claiming APNS callback/ack success;
+- a typed signed revoke/deregister and fresh status/read-back before the UI may
+  claim current registration.
 
 Additional review work remains for crash-window/ambiguous-pending
 adjudication and the `F_FULLFSYNC` support matrix. Legacy split evidence files
@@ -176,8 +206,8 @@ OS Keychain item remains device-local and unavailable to a filesystem-only
 journal rewriter; loss, deletion or mismatch of that item requires explicit
 recovery and never recreates acceptance or registration authority.
 
-Only after those gates are deployed in one coordinated window may the physical
-iPad acceptance test begin. That later test must separately prove consented
-registration, provider acceptance, visible device receipt, callback receipt,
-restart continuity and exact build provenance. This candidate proves none of
-those live outcomes.
+The physical registration acceptance test may begin once the register-only
+staging pilot is ready and the exact signed build pins it. Full callback
+acceptance must wait for the callback server gates above. The two gates must be
+reported separately: a verified register receipt is not APNS callback/ack
+proof. This source candidate proves none of those live outcomes.

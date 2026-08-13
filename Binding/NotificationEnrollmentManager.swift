@@ -119,8 +119,8 @@ final class NotificationEnrollmentManager: ObservableObject {
             ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"]
                 ?? "v1"
         },
-        appStoreCatalogGateEnabled: Bool =
-            BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled,
+        enrollmentEnabled: Bool =
+            BindingDeviceIngressRolloutPolicy.currentEnabled,
         authenticatedRuntimePreparer: @escaping
             @MainActor @Sendable () async throws -> Void = {
                 await BindingRuntimeBootstrap.ensureBaseline()
@@ -130,7 +130,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         self.defaults = defaults
         self.evidenceInspectorFactory = evidenceInspectorFactory
         self.termsVersionProvider = termsVersionProvider
-        enrollmentEnabled = appStoreCatalogGateEnabled == false
+        self.enrollmentEnabled = enrollmentEnabled
         self.authenticatedRuntimePreparer = authenticatedRuntimePreparer
         guard enrollmentEnabled else { return }
         bootstrapIfNeeded()
@@ -141,6 +141,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         defaults: UserDefaults,
         evidenceInspector: any DeviceIngressRegistrationEvidenceStoring,
         requiredTermsVersion: String = "v1",
+        enrollmentEnabled: Bool = true,
         authenticatedRuntimePreparer: @escaping
             @MainActor @Sendable () async throws -> Void = {}
     ) -> NotificationEnrollmentManager {
@@ -148,7 +149,7 @@ final class NotificationEnrollmentManager: ObservableObject {
             defaults: defaults,
             evidenceInspectorFactory: { evidenceInspector },
             termsVersionProvider: { requiredTermsVersion },
-            appStoreCatalogGateEnabled: false,
+            enrollmentEnabled: enrollmentEnabled,
             authenticatedRuntimePreparer: authenticatedRuntimePreparer
         )
     }
@@ -220,6 +221,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func acceptTermsAndEnableNotifications() async {
+        guard enrollmentEnabled else { return }
         lastRegistrationError = nil
         do {
             // This is an explicit user action, so it may open CellApple's
@@ -282,6 +284,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func retryDeviceRegistration() async {
+        guard enrollmentEnabled else { return }
         lastRegistrationError = nil
         do {
             try await authenticatedRuntimePreparer()
@@ -307,6 +310,7 @@ final class NotificationEnrollmentManager: ObservableObject {
 
     #if os(iOS)
     func refreshDeviceRegistrationOnActivation() async {
+        guard enrollmentEnabled else { return }
         if participantID == nil || deviceID == nil {
             bootstrapIfNeeded()
         }
@@ -340,6 +344,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     /// API fails closed and preserves consent state.
     @discardableResult
     func declineTermsBeforeRegistration() async -> Bool {
+        guard enrollmentEnabled else { return false }
         lastRegistrationError = nil
         do {
             let evidenceInspector = try evidenceInspectorFactory()
@@ -374,6 +379,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func updateAPNSToken(_ token: String) async {
+        guard enrollmentEnabled else { return }
         let normalizedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedToken.isEmpty else { return }
         pendingAPNSToken = normalizedToken
@@ -383,12 +389,14 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func recordAPNSRegistrationFailure(_ error: Error) {
+        guard enrollmentEnabled else { return }
         pushPermissionGranted = false
         isDeviceRegistered = false
         lastRegistrationError = "APNS registration failed: \(error.localizedDescription)"
     }
 
     func registerCurrentDeviceIfReady() async {
+        guard enrollmentEnabled else { return }
         pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
         let consentSnapshot: NotificationTermsConsentSnapshot
         do {

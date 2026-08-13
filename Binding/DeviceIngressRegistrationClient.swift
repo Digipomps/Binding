@@ -72,7 +72,7 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
         case .registrationWasNotActiveAndConsented:
             return "The signed registration receipt did not confirm active consent."
         case .invalidTransportConfiguration:
-            return "DeviceIngress HTTPS origin, audience, or pinned challenge issuer is missing or invalid."
+            return "DeviceIngress rollout environment, HTTPS origin, audience, or pinned challenge issuer is missing, mismatched, or invalid."
         case .transportRejected:
             return "The DeviceIngress HTTPS carrier rejected the request or returned invalid bytes."
         }
@@ -294,6 +294,10 @@ nonisolated struct BindingDeviceIngressRuntimeConfiguration:
             ) as? String,
             issuerBase64Text: bundle.object(
                   forInfoDictionaryKey: issuerKey
+            ) as? String,
+            rolloutEnvironmentText: bundle.object(
+                forInfoDictionaryKey:
+                    BindingDeviceIngressRolloutPolicy.environmentKey
             ) as? String
         )
     }
@@ -301,11 +305,19 @@ nonisolated struct BindingDeviceIngressRuntimeConfiguration:
     static func validated(
         originText: String?,
         audienceText: String?,
-        issuerBase64Text: String?
+        issuerBase64Text: String?,
+        rolloutEnvironmentText: String?
     ) throws -> Self {
         guard let originText = normalized(originText),
               let audience = normalized(audienceText),
               let issuerBase64 = normalized(issuerBase64Text),
+              let rolloutEnvironment =
+                BindingDeviceIngressRolloutPolicy.environment(
+                    from: rolloutEnvironmentText
+                ),
+              rolloutEnvironment != .disabled,
+              originText == rolloutEnvironment.expectedOrigin,
+              audience == rolloutEnvironment.expectedAudience,
               let origin = URL(string: originText),
               origin.scheme?.lowercased() == "https",
               origin.user == nil,
