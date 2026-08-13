@@ -978,7 +978,8 @@ struct DeviceIngressRegistrationClientTests {
         let configuration = try BindingDeviceIngressRuntimeConfiguration.validated(
             originText: "https://staging.haven.digipomps.org",
             audienceText: "staging.haven.digipomps.org",
-            issuerBase64Text: "eyJhbGdvcml0aG0iOiJFZERTQSIsImN1cnZlVHlwZSI6IkN1cnZlMjU1MTkiLCJwdWJsaWNLZXkiOiJPb0tqN3Q4L2dXajVKRFhwbjVuZmdUcFZoMTAxbWtGcFNIeG9JOWtoOEdJPSIsInV1aWQiOiI2N0YxMjU2Ny1BMUFBLTQ0NjUtQUNBRi1GRkQ5RUE0RUQzOTIifQ=="
+            issuerBase64Text: "eyJhbGdvcml0aG0iOiJFZERTQSIsImN1cnZlVHlwZSI6IkN1cnZlMjU1MTkiLCJwdWJsaWNLZXkiOiJPb0tqN3Q4L2dXajVKRFhwbjVuZmdUcFZoMTAxbWtGcFNIeG9JOWtoOEdJPSIsInV1aWQiOiI2N0YxMjU2Ny1BMUFBLTQ0NjUtQUNBRi1GRkQ5RUE0RUQzOTIifQ==",
+            rolloutEnvironmentText: "staging"
         )
 
         #expect(configuration.origin.absoluteString == "https://staging.haven.digipomps.org")
@@ -1001,14 +1002,73 @@ struct DeviceIngressRegistrationClientTests {
             try BindingDeviceIngressRuntimeConfiguration.validated(
                 originText: "https://staging.haven.digipomps.org",
                 audienceText: "attacker.example",
-                issuerBase64Text: issuer
+                issuerBase64Text: issuer,
+                rolloutEnvironmentText: "staging"
             )
         }
         #expect(throws: DeviceIngressRegistrationClientError.invalidTransportConfiguration) {
             try BindingDeviceIngressRuntimeConfiguration.validated(
                 originText: "https://staging.haven.digipomps.org",
                 audienceText: "staging.haven.digipomps.org",
-                issuerBase64Text: "not-a-public-identity"
+                issuerBase64Text: "not-a-public-identity",
+                rolloutEnvironmentText: "staging"
+            )
+        }
+    }
+
+    @Test
+    func rolloutRequiresExplicitEnvironmentAndExactEndpointBinding() {
+        #expect(BindingDeviceIngressRolloutPolicy.isEnrollmentEnabled(
+            environmentText: "staging",
+            platformIsIOS: true,
+            configurationIsValid: true
+        ))
+        #expect(BindingDeviceIngressRolloutPolicy.isEnrollmentEnabled(
+            environmentText: "production",
+            platformIsIOS: true,
+            configurationIsValid: true
+        ))
+        #expect(!BindingDeviceIngressRolloutPolicy.isEnrollmentEnabled(
+            environmentText: "disabled",
+            platformIsIOS: true,
+            configurationIsValid: true
+        ))
+        #expect(!BindingDeviceIngressRolloutPolicy.isEnrollmentEnabled(
+            environmentText: nil,
+            platformIsIOS: true,
+            configurationIsValid: true
+        ))
+        #expect(!BindingDeviceIngressRolloutPolicy.isEnrollmentEnabled(
+            environmentText: "$(HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT)",
+            platformIsIOS: true,
+            configurationIsValid: true
+        ))
+        #expect(!BindingDeviceIngressRolloutPolicy.isEnrollmentEnabled(
+            environmentText: "staging",
+            platformIsIOS: false,
+            configurationIsValid: true
+        ))
+        #expect(!BindingDeviceIngressRolloutPolicy.isEnrollmentEnabled(
+            environmentText: "staging",
+            platformIsIOS: true,
+            configurationIsValid: false
+        ))
+
+        let issuer = "eyJhbGdvcml0aG0iOiJFZERTQSIsImN1cnZlVHlwZSI6IkN1cnZlMjU1MTkiLCJwdWJsaWNLZXkiOiJPb0tqN3Q4L2dXajVKRFhwbjVuZmdUcFZoMTAxbWtGcFNIeG9JOWtoOEdJPSIsInV1aWQiOiI2N0YxMjU2Ny1BMUFBLTQ0NjUtQUNBRi1GRkQ5RUE0RUQzOTIifQ=="
+        #expect(throws: DeviceIngressRegistrationClientError.invalidTransportConfiguration) {
+            try BindingDeviceIngressRuntimeConfiguration.validated(
+                originText: "https://haven.digipomps.org",
+                audienceText: "haven.digipomps.org",
+                issuerBase64Text: issuer,
+                rolloutEnvironmentText: "staging"
+            )
+        }
+        #expect(throws: DeviceIngressRegistrationClientError.invalidTransportConfiguration) {
+            try BindingDeviceIngressRuntimeConfiguration.validated(
+                originText: "https://staging.haven.digipomps.org",
+                audienceText: "staging.haven.digipomps.org",
+                issuerBase64Text: issuer,
+                rolloutEnvironmentText: "disabled"
             )
         }
     }

@@ -63,7 +63,7 @@ struct RootView: View {
 #endif
 
                 await MainActor.run {
-                    if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+                    if BindingDeviceIngressRolloutPolicy.currentEnabled {
                         NotificationEnrollmentManager.shared.bootstrapIfNeeded()
                     }
                     PendingActionInboxViewModel.shared.reloadPersistedActions()
@@ -136,7 +136,7 @@ struct RootView: View {
         if initialized {
             ContentView(incomingURLSceneID: incomingURLSceneID)
                 .overlay(alignment: .top) {
-                    if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+                    if BindingDeviceIngressRolloutPolicy.currentEnabled {
                         NotificationConsentBanner()
                     }
                 }

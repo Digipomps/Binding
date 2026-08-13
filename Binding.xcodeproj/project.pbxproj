@@ -519,6 +519,7 @@
 				HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;
 				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
 				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://staging.haven.digipomps.org";
+				HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = disabled;
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -594,6 +595,7 @@
 				HAVEN_DEVICE_INGRESS_AUDIENCE = haven.digipomps.org;
 				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
 				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://haven.digipomps.org";
+				HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = disabled;
 				INFOPLIST_FILE = Binding/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;

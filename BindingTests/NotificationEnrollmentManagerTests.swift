@@ -7,6 +7,38 @@ import Foundation
 @Suite(.serialized)
 struct NotificationEnrollmentManagerTests {
 
+    @Test func disabledRolloutCannotPrepareIdentityOrRetainAPNSToken() async throws {
+        let suiteName = "NotificationEnrollmentManagerTests.disabled.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let evidence = EnrollmentEvidenceStore(containsEvidence: false)
+        var authenticatedRuntimePreparationCount = 0
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: evidence,
+            enrollmentEnabled: false,
+            authenticatedRuntimePreparer: {
+                authenticatedRuntimePreparationCount += 1
+            }
+        )
+
+        await manager.acceptTermsAndEnableNotifications()
+        await manager.updateAPNSToken("must-not-be-retained")
+        await manager.registerCurrentDeviceIfReady()
+
+        #expect(authenticatedRuntimePreparationCount == 0)
+        #expect(manager.currentParticipantID() == nil)
+        #expect(manager.currentDeviceID() == nil)
+        #expect(manager.termsConsentState == .unknown)
+        #expect(manager.needsTermsAcceptance)
+        #expect(manager.lastRegistrationError == nil)
+        #expect(try evidence.termsConsentSnapshot().state == .unknown)
+        #expect(defaults.object(forKey: "binding.notifications.participantId") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.deviceId") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.termsVersion") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.termsAcceptedAt") == nil)
+    }
+
     @Test func registrationPayloadCarriesWorkflowSubscriptions() throws {
         let consent = try #require(NotificationTermsConsentEvidence(
             termsVersion: "v1",
