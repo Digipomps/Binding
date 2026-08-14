@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+import CryptoKit
 import CellBase
 import CellApple
 @testable import Binding
@@ -2507,6 +2508,95 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             requester: holderIdentity
         )
         XCTAssertNotEqual(replayMarker, .null)
+    }
+
+    func testDeviceIngressApprovalPackageBuildsLocalPresentationAndStagesOneShotEnvelope() async throws {
+        let store = ConferenceIdentityLinkInboxStore.shared
+        await store.clear()
+        let provider = BindingDeviceIngressRegistrationComposition.completionEnvelopeProvider
+        _ = try? await provider.takeCanonicalCompletionEnvelope()
+
+        let identityVault = await BindingStartupIdentityVault.shared.initialize()
+        let holderCandidate = await identityVault.identity(
+            for: DeviceIngressEnvelope.identityDomain,
+            makeNewIfNotFound: true
+        )
+        let holder = try XCTUnwrap(holderCandidate)
+        let issuerCandidate = await identityVault.identity(
+            for: "device-ingress-issuer-\(UUID().uuidString)",
+            makeNewIfNotFound: true
+        )
+        let issuer = try XCTUnwrap(issuerCandidate)
+        let audience = "staging.haven.digipomps.org"
+        let issuerDescriptor = try IdentityLinkProtocolService.descriptor(for: issuer)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        var pairwiseMaterial = Data("haven.entity-pairwise.v1".utf8)
+        pairwiseMaterial.append(0)
+        pairwiseMaterial.append(try encoder.encode(issuerDescriptor))
+        pairwiseMaterial.append(0)
+        pairwiseMaterial.append(Data(audience.utf8))
+        let bindingID = "entity-pairwise:" + Data(SHA256.hash(data: pairwiseMaterial))
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        let nonce = Data((0..<32).map { UInt8($0 + 1) })
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        let expiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(600))
+        let challenge = #"{"audience":"staging.haven.digipomps.org","entityBinding":{"audience":"staging.haven.digipomps.org","bindingID":"\#(bindingID)","mode":"pairwise"},"expiresAt":"\#(expiry)","nonce":"\#(nonce)","origin":"https://staging.haven.digipomps.org","purpose":"link_identity","requestId":"device-ingress-approval-fixture","requestedDomains":["domain:device:notification-callback"],"requestedIdentityContexts":["ios","device-ingress"],"requestedScopes":["device-ingress.register"]}"#
+        await store.setDraftInput(challenge)
+        let didImport = await store.importDraft()
+        XCTAssertTrue(didImport)
+        await store.confirmLocalReview(with: holder)
+        let signedState = await store.stateObject()
+        guard case let .object(review)? = signedState["review"],
+              case let .string(requestJSON)? = review["enrollmentRequestJSON"] else {
+            XCTFail("Expected canonical DeviceIngress request")
+            return
+        }
+        let request = try JSONDecoder().decode(
+            IdentityEnrollmentRequest.self,
+            from: Data(requestJSON.utf8)
+        )
+        let package = try await IdentityLinkProtocolService.approveEnrollment(
+            IdentityLinkApprovalEnvelope(
+                request: request,
+                approvedDomains: request.requestedDomains,
+                approvedIdentityContexts: request.requestedIdentityContexts,
+                approvedScopes: request.requestedScopes,
+                expiresAt: request.expiresAt,
+                freshAuthRequired: true,
+                freshAuthPerformedAt: request.createdAt
+            ),
+            issuerIdentity: issuer
+        )
+        await store.setCompletionPackageInput(
+            String(decoding: try encoder.encode(package), as: UTF8.self)
+        )
+        await store.completeApprovedLink(with: holder)
+        let completedState = await store.stateObject()
+        guard case let .object(completion)? = completedState["completion"] else {
+            XCTFail("Expected completion state")
+            return
+        }
+        XCTAssertEqual(
+            completion["status"],
+            .string("Identity-link completion er verifisert og lagret i EntityAnchor.")
+        )
+        let hasStagedEnvelope = await provider.hasStagedEnvelopeForTesting()
+        XCTAssertTrue(hasStagedEnvelope)
+        let staged = try await provider.takeCanonicalCompletionEnvelope()
+        let envelope = try JSONDecoder().decode(
+            IdentityLinkCompletionEnvelope.self,
+            from: staged
+        )
+        XCTAssertEqual(envelope.request.entityBinding?.bindingID, bindingID)
+        XCTAssertEqual(envelope.expectedPresentationDomain, DeviceIngressEnvelope.identityDomain)
+        XCTAssertEqual(envelope.request.newIdentity.uuid, holder.uuid)
     }
 
     func testConferenceIdentityLinkRejectsWeakNonceBeforeSigning() async throws {

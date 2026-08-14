@@ -86,9 +86,12 @@ struct DeviceIngressRegistrationClientTests {
 
     @Test
     func identityLinkIntakeSelectsNotificationIdentityOnlyForExactDeviceIngressPurpose() throws {
-        let exact = #"{"audience":"staging.haven.digipomps.org","origin":"https://staging.haven.digipomps.org","purpose":"device-ingress-register","requestedDomains":["domain:device:notification-callback"],"requestedIdentityContexts":["ios","device-ingress"],"requestedScopes":["device-ingress.register"]}"#
+        let exact = #"{"audience":"staging.haven.digipomps.org","entityBinding":{"audience":"staging.haven.digipomps.org","bindingID":"entity-pairwise:fixture","mode":"pairwise"},"origin":"https://staging.haven.digipomps.org","purpose":"link_identity","requestedDomains":["domain:device:notification-callback"],"requestedIdentityContexts":["ios","device-ingress"],"requestedScopes":["device-ingress.register"]}"#
         let parsed = try #require(ConferenceIdentityLinkSupport.parse(raw: exact))
         #expect(parsed.requestsDeviceIngressRegistrationIdentity)
+        #expect(parsed.entityBindingMode == "pairwise")
+        #expect(parsed.entityBindingID == "entity-pairwise:fixture")
+        #expect(parsed.entityBindingAudience == audience)
 
         let extraScope = exact.replacingOccurrences(
             of: #""device-ingress.register"]"#,
@@ -98,6 +101,45 @@ struct DeviceIngressRegistrationClientTests {
             ConferenceIdentityLinkSupport.parse(raw: extraScope)
         )
         #expect(rejected.requestsDeviceIngressRegistrationIdentity == false)
+    }
+
+    @Test
+    func exactDeviceIngressChallengeKeepsIssuerPairwiseBindingWhenPhoneSigns() async throws {
+        let store = ConferenceIdentityLinkInboxStore.shared
+        await store.clear()
+        let vault = await BindingStartupIdentityVault.shared.initialize()
+        let identity = try #require(await vault.identity(
+            for: DeviceIngressEnvelope.identityDomain,
+            makeNewIfNotFound: true
+        ))
+        let expiresAt = ISO8601DateFormatter().string(
+            from: Date().addingTimeInterval(600)
+        )
+        let nonce = Data((0..<32).map(UInt8.init))
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        let challenge = #"{"audience":"staging.haven.digipomps.org","entityBinding":{"audience":"staging.haven.digipomps.org","bindingID":"entity-pairwise:fixture","mode":"pairwise"},"expiresAt":"\#(expiresAt)","nonce":"\#(nonce)","origin":"https://staging.haven.digipomps.org","purpose":"link_identity","requestId":"device-ingress-fixture","requestedDomains":["domain:device:notification-callback"],"requestedIdentityContexts":["ios","device-ingress"],"requestedScopes":["device-ingress.register"]}"#
+        await store.setDraftInput(challenge)
+        #expect(await store.importDraft())
+        await store.confirmLocalReview(with: identity)
+        let state = await store.stateObject()
+        guard case let .object(review)? = state["review"],
+              case let .string(canonicalJSON)? = review["enrollmentRequestJSON"] else {
+            Issue.record("Expected canonical signed enrollment request JSON")
+            return
+        }
+        let request = try JSONDecoder().decode(
+            IdentityEnrollmentRequest.self,
+            from: Data(canonicalJSON.utf8)
+        )
+        #expect(request.entityBinding?.mode == .pairwise)
+        #expect(request.entityBinding?.bindingID == "entity-pairwise:fixture")
+        #expect(request.entityBinding?.audience == audience)
+        #expect(request.newIdentity.uuid == identity.uuid)
+        #expect(request.platform == "ios")
+        #expect(request.proof != nil)
     }
 
     @Test

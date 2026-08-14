@@ -12516,6 +12516,13 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                     bindingConferencePortalKeyText("identityLink.state.review.confirmationStatus", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 4),
                     bindingConferencePortalKeyText("identityLink.state.review.localProofSummary", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 4),
                     bindingConferencePortalKeyText("identityLink.state.review.enrollmentRequestPreview", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 5),
+                    bindingConferencePortalTextArea(
+                        sourceKeypath: "identityLink.state.review.enrollmentRequestJSON",
+                        targetKeypath: "identityLink.setDraftInput",
+                        placeholder: "Den kanoniske, lokalt signerte requesten vises her etter review",
+                        minLines: 6,
+                        maxLines: 12
+                    ),
                     bindingConferencePortalKeyText("identityLink.state.review.limitationSummary", fontSize: 12, foregroundColor: "#88A2B1", lineLimit: 4),
                     bindingConferencePortalKeyText("identityLink.state.review.nextStepSummary", fontSize: 12, foregroundColor: "#D7E7F2", lineLimit: 4),
                     .HStack(
@@ -12538,7 +12545,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 "Complete same-Entity link",
                 content: [
                     bindingConferencePortalStaticText(
-                        "Lim inn completion envelope fra staging etter approval. HAVEN sender payloaden direkte til `identity.identityLinks.completeEnrollment`; ingen lokal mock, ingen antatt godkjenning.",
+                        "Lim inn issuerens IdentityLinkApprovalPackage fra staging. HAVEN lager verifier-bound presentation lokalt, verifiserer completion og sender den til `identity.identityLinks.completeEnrollment`; ingen lokal mock eller antatt godkjenning.",
                         fontSize: 12,
                         foregroundColor: "#D7E7F2",
                         lineLimit: 5
@@ -12548,7 +12555,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                     bindingConferencePortalTextArea(
                         sourceKeypath: "identityLink.state.completion.packageInput",
                         targetKeypath: "identityLink.setCompletionPackageInput",
-                        placeholder: "Lim inn IdentityLinkCompletionEnvelope JSON fra staging",
+                        placeholder: "Lim inn IdentityLinkApprovalPackage eller komplett IdentityLinkCompletionEnvelope fra staging",
                         minLines: 5,
                         maxLines: 12
                     ),
