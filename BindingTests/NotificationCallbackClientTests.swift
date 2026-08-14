@@ -6,22 +6,56 @@ import Foundation
 @MainActor
 struct NotificationCallbackClientTests {
     @Test
-    func resolveAndSubmitRemainFailClosed() async {
+    func disabledRolloutRejectsBeforeCallbackComposition() async {
+        let callbackOperator = RecordingCallbackOperator()
+        let client = NotificationCallbackClient.testing(
+            rolloutEnabled: false,
+            callbackOperator: callbackOperator
+        )
         await #expect(throws: NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable) {
-            try await NotificationCallbackClient.shared.resolveTicket(
+            try await client.resolveTicket(
                 participantId: "participant-1",
                 deviceId: "device-1",
                 ticketId: "ticket-1"
             )
         }
         await #expect(throws: NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable) {
-            try await NotificationCallbackClient.shared.submitTicketResult(
+            try await client.submitTicketResult(
                 participantId: "participant-1",
                 deviceId: "device-1",
                 ticketId: "ticket-1",
                 result: [:]
             )
         }
+        #expect(await callbackOperator.operations().isEmpty)
+    }
+
+    @Test
+    func enabledRolloutForwardsResolveAndSubmitToV3Operator() async throws {
+        let callbackOperator = RecordingCallbackOperator()
+        let client = NotificationCallbackClient.testing(
+            rolloutEnabled: true,
+            callbackOperator: callbackOperator
+        )
+
+        let resolved = try await client.resolveTicket(
+            participantId: "entity-pairwise:participant-1",
+            deviceId: "device-1",
+            ticketId: "ticket-1"
+        )
+        let submitted = try await client.submitTicketResult(
+            participantId: "entity-pairwise:participant-1",
+            deviceId: "device-1",
+            ticketId: "ticket-1",
+            result: ["decision": .string("approved")]
+        )
+
+        #expect(resolved == ["operation": .string("resolve")])
+        #expect(submitted == ["operation": .string("submit")])
+        #expect(await callbackOperator.operations() == [
+            "resolve:entity-pairwise:participant-1:device-1:ticket-1",
+            "submit:entity-pairwise:participant-1:device-1:ticket-1:approved"
+        ])
     }
 
     @Test
@@ -295,6 +329,45 @@ struct NotificationCallbackClientTests {
         #expect(payload?["message"] == .string("Fallback JSON payload"))
         #expect(NotificationCallbackClient.notificationTicketID(from: userInfo) == "json-ticket-1")
     }
+}
+
+private actor RecordingCallbackOperator: DeviceIngressCallbackOperating {
+    private var recordedOperations: [String] = []
+
+    func resolve(
+        participantID: String,
+        deviceID: String,
+        ticketID: String,
+        now: Date
+    ) -> [String: JSONValue] {
+        _ = now
+        recordedOperations.append(
+            "resolve:\(participantID):\(deviceID):\(ticketID)"
+        )
+        return ["operation": .string("resolve")]
+    }
+
+    func submit(
+        participantID: String,
+        deviceID: String,
+        ticketID: String,
+        result: [String: JSONValue],
+        now: Date
+    ) -> [String: JSONValue] {
+        _ = now
+        let decision: String
+        if case let .string(value)? = result["decision"] {
+            decision = value
+        } else {
+            decision = "missing"
+        }
+        recordedOperations.append(
+            "submit:\(participantID):\(deviceID):\(ticketID):\(decision)"
+        )
+        return ["operation": .string("submit")]
+    }
+
+    func operations() -> [String] { recordedOperations }
 }
 
 private actor CountingCallbackTransport: DeviceIngressCallbackTransport {

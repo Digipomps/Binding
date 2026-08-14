@@ -55,11 +55,22 @@ struct AppStoreMetadataTests {
                 .appendingPathComponent("project.pbxproj"),
             encoding: .utf8
         )
-        #expect(
-            project.components(
-                separatedBy: "HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = disabled;"
-            ).count - 1 == 2
-        )
+        #expect(project.components(
+            separatedBy: "HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = staging;"
+        ).count - 1 == 1)
+        #expect(project.components(
+            separatedBy: "HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = disabled;"
+        ).count - 1 == 1)
+        #expect(project.contains(
+            "HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;"
+        ))
+        #expect(project.contains(
+            "HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = \"https://staging.haven.digipomps.org\";"
+        ))
+        #expect(!project.contains(
+            "HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = \"\";\n"
+                + "\t\t\t\tHAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = \"https://staging.haven.digipomps.org\";"
+        ))
 
         for relativePath in [
             "Binding/BindingAppNotifications.swift",
