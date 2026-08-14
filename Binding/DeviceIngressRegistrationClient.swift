@@ -26,6 +26,9 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
     case invalidEvidenceJournal
     case responseWasNotRegistration
     case registrationWasNotActiveAndConsented
+    case completionEnvelopeUnavailable
+    case completionEnvelopeAlreadyStaged
+    case invalidCompletionEnvelope
     case invalidTransportConfiguration
     case transportRejected
 
@@ -71,6 +74,12 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
             return "The signed DeviceIngress response was not a registration receipt."
         case .registrationWasNotActiveAndConsented:
             return "The signed registration receipt did not confirm active consent."
+        case .completionEnvelopeUnavailable:
+            return "A one-shot DeviceIngress identity-link completion envelope is required for this enrollment."
+        case .completionEnvelopeAlreadyStaged:
+            return "A one-shot DeviceIngress identity-link completion envelope is already staged."
+        case .invalidCompletionEnvelope:
+            return "The DeviceIngress identity-link completion envelope is non-canonical, expired, or not bound to this device, audience, origin, and purpose."
         case .invalidTransportConfiguration:
             return "DeviceIngress rollout environment, HTTPS origin, audience, or pinned challenge issuer is missing, mismatched, or invalid."
         case .transportRejected:
@@ -84,11 +93,199 @@ nonisolated struct DeviceIngressRegistrationTrustConfiguration: Sendable {
     let expectedChallengeIssuer: IdentityPublicKeyDescriptor
 }
 
+nonisolated protocol DeviceIngressCompletionEnvelopeProviding: Sendable {
+    func takeCanonicalCompletionEnvelope() async throws -> Data
+}
+
+/// A single-purpose, process-memory-only hand-off. Taking the envelope clears
+/// the provider before any network call, so it cannot be replayed, persisted,
+/// exported, logged, or used by an automatic re-registration path.
+actor DeviceIngressOneShotCompletionEnvelopeProvider:
+    DeviceIngressCompletionEnvelopeProviding
+{
+    static let shared = DeviceIngressOneShotCompletionEnvelopeProvider()
+    static let maximumEnvelopeBytes = 128 * 1_024
+
+    private var stagedEnvelope: Data?
+
+    func stage(canonicalCompletionEnvelope: Data) throws {
+        guard stagedEnvelope == nil else {
+            throw DeviceIngressRegistrationClientError.completionEnvelopeAlreadyStaged
+        }
+        guard canonicalCompletionEnvelope.isEmpty == false,
+              canonicalCompletionEnvelope.count <= Self.maximumEnvelopeBytes else {
+            throw DeviceIngressRegistrationClientError.invalidCompletionEnvelope
+        }
+        stagedEnvelope = canonicalCompletionEnvelope
+    }
+
+    func takeCanonicalCompletionEnvelope() throws -> Data {
+        guard let envelope = stagedEnvelope else {
+            throw DeviceIngressRegistrationClientError.completionEnvelopeUnavailable
+        }
+        stagedEnvelope = nil
+        return envelope
+    }
+
+    #if DEBUG
+    func hasStagedEnvelopeForTesting() -> Bool { stagedEnvelope != nil }
+    #endif
+}
+
+nonisolated final class DeviceIngressVerifiedEntityLinkAuthorization:
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var canonicalCompletionEnvelope: Data?
+    let entityBindingID: String
+    fileprivate let subjectIdentityUUID: String
+    fileprivate let subjectSigningKeyFingerprint: String
+    fileprivate let expectedAudience: String
+    fileprivate let expectedOrigin: String
+
+    fileprivate init(
+        canonicalCompletionEnvelope: Data,
+        entityBindingID: String,
+        subjectIdentityUUID: String,
+        subjectSigningKeyFingerprint: String,
+        expectedAudience: String,
+        expectedOrigin: String
+    ) {
+        self.canonicalCompletionEnvelope = canonicalCompletionEnvelope
+        self.entityBindingID = entityBindingID
+        self.subjectIdentityUUID = subjectIdentityUUID
+        self.subjectSigningKeyFingerprint = subjectSigningKeyFingerprint
+        self.expectedAudience = expectedAudience
+        self.expectedOrigin = expectedOrigin
+    }
+
+    fileprivate func envelopeForSingleAttempt() throws -> Data {
+        try lock.withLock {
+            guard let canonicalCompletionEnvelope else {
+                throw DeviceIngressRegistrationClientError.completionEnvelopeUnavailable
+            }
+            return canonicalCompletionEnvelope
+        }
+    }
+
+    fileprivate func eraseAfterVerifiedReceipt() {
+        lock.withLock {
+            let envelopeByteCount = canonicalCompletionEnvelope?.count ?? 0
+            canonicalCompletionEnvelope?.resetBytes(
+                in: 0..<envelopeByteCount
+            )
+            canonicalCompletionEnvelope = nil
+        }
+    }
+
+    #if DEBUG
+    func retainsEnvelopeForTesting() -> Bool {
+        lock.withLock { canonicalCompletionEnvelope != nil }
+    }
+    #endif
+}
+
+nonisolated enum DeviceIngressEntityLinkAuthorizationVerifier {
+    static func verify(
+        canonicalCompletionEnvelope: Data,
+        subject: IdentityPublicKeyDescriptor,
+        trust: DeviceIngressRegistrationTrustConfiguration,
+        now: Date = Date()
+    ) async throws -> DeviceIngressVerifiedEntityLinkAuthorization {
+        let decoder = JSONDecoder()
+        guard canonicalCompletionEnvelope.isEmpty == false,
+              canonicalCompletionEnvelope.count
+                <= DeviceIngressOneShotCompletionEnvelopeProvider.maximumEnvelopeBytes,
+              let envelope = try? decoder.decode(
+                  IdentityLinkCompletionEnvelope.self,
+                  from: canonicalCompletionEnvelope
+              ),
+              (try? encoded(envelope)) == canonicalCompletionEnvelope,
+              envelope.expectedAudience == trust.expectedAudience,
+              envelope.expectedOrigin == "https://\(trust.expectedAudience)",
+              envelope.expectedPresentationChallenge == envelope.request.nonce,
+              envelope.expectedPresentationDomain == DeviceIngressEnvelope.identityDomain,
+              envelope.request.audience == trust.expectedAudience,
+              envelope.request.origin == "https://\(trust.expectedAudience)",
+              envelope.request.requestedDomains == [DeviceIngressEnvelope.identityDomain],
+              envelope.request.requestedIdentityContexts == ["ios", "device-ingress"],
+              envelope.request.requestedScopes == ["device-ingress.register"],
+              envelope.request.entityBinding?.mode == .pairwise,
+              envelope.request.entityBinding?.audience == trust.expectedAudience,
+              let bindingID = envelope.request.entityBinding?.bindingID,
+              bindingID.isEmpty == false,
+              bindingID.utf8.count <= 512,
+              bindingID == (try? pairwiseBindingID(
+                  entity: envelope.issuerIdentity,
+                  audience: trust.expectedAudience
+              )),
+              sameDescriptor(envelope.request.newIdentity, subject),
+              envelope.issuerIdentity.uuid != subject.uuid,
+              let result = try? await IdentityLinkProtocolService.verifyCompletion(
+                  envelope,
+                  now: now
+              ),
+              result.record.status == .active,
+              result.record.entityBinding == envelope.request.entityBinding,
+              result.record.entityBinding.bindingID == bindingID,
+              sameDescriptor(result.record.linkedIdentity, subject),
+              result.record.approvedDomains == [DeviceIngressEnvelope.identityDomain],
+              result.record.approvedIdentityContexts == ["ios", "device-ingress"],
+              result.record.approvedScopes == ["device-ingress.register"],
+              result.record.issuerIdentityUUID == envelope.issuerIdentity.uuid,
+              let subjectFingerprint = IdentityLinkProtocolService.identity(from: subject)
+                .signingPublicKeyFingerprint else {
+            throw DeviceIngressRegistrationClientError.invalidCompletionEnvelope
+        }
+        return DeviceIngressVerifiedEntityLinkAuthorization(
+            canonicalCompletionEnvelope: canonicalCompletionEnvelope,
+            entityBindingID: bindingID,
+            subjectIdentityUUID: subject.uuid,
+            subjectSigningKeyFingerprint: subjectFingerprint,
+            expectedAudience: trust.expectedAudience,
+            expectedOrigin: envelope.expectedOrigin
+        )
+    }
+
+    private static func pairwiseBindingID(
+        entity: IdentityPublicKeyDescriptor,
+        audience: String
+    ) throws -> String {
+        var material = Data("haven.entity-pairwise.v1".utf8)
+        material.append(0)
+        material.append(try encoded(entity))
+        material.append(0)
+        material.append(Data(audience.utf8))
+        let digest = DeviceIngressCanonicalWire.base64URL(
+            DeviceIngressCanonicalWire.sha256(material)
+        )
+        return "entity-pairwise:\(digest)"
+    }
+
+    private static func sameDescriptor(
+        _ lhs: IdentityPublicKeyDescriptor,
+        _ rhs: IdentityPublicKeyDescriptor
+    ) -> Bool {
+        lhs.uuid == rhs.uuid
+            && lhs.algorithm == rhs.algorithm
+            && lhs.curveType == rhs.curveType
+            && lhs.publicKey == rhs.publicKey
+            && lhs.displayName == rhs.displayName
+    }
+
+    private static func encoded<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+}
+
 nonisolated protocol DeviceIngressRegistrationTransport: Sendable {
     /// Retrieves exact canonical challenge bytes. Transport framing is outside
     /// this protocol and must come from a separately reviewed composition.
     func fetchRegisterChallenge(
-        subject: IdentityPublicKeyDescriptor
+        subject: IdentityPublicKeyDescriptor,
+        canonicalEntityLink: Data
     ) async throws -> Data
 
     /// Carries the three byte strings without decoding, re-encoding or making
@@ -102,7 +299,8 @@ nonisolated protocol DeviceIngressRegistrationTransport: Sendable {
 
 nonisolated struct InertDeviceIngressRegistrationTransport: DeviceIngressRegistrationTransport {
     func fetchRegisterChallenge(
-        subject: IdentityPublicKeyDescriptor
+        subject: IdentityPublicKeyDescriptor,
+        canonicalEntityLink: Data
     ) async throws -> Data {
         throw DeviceIngressRegistrationClientError.operationalCompositionUnavailable
     }
@@ -120,16 +318,18 @@ nonisolated private struct DeviceIngressRegisterChallengeTransportRequest:
     Codable,
     Sendable
 {
-    static let currentSchema = "haven.device-ingress.challenge-request.v1"
+    static let currentSchema = "haven.device-ingress.challenge-request.v2"
 
     let schema: String
     let operation: DeviceIngressOperation
     let subject: IdentityPublicKeyDescriptor
+    let canonicalEntityLink: Data
 
-    init(subject: IdentityPublicKeyDescriptor) {
+    init(subject: IdentityPublicKeyDescriptor, canonicalEntityLink: Data) {
         schema = Self.currentSchema
         operation = .register
         self.subject = subject
+        self.canonicalEntityLink = canonicalEntityLink
     }
 }
 
@@ -208,12 +408,16 @@ nonisolated struct URLSessionDeviceIngressRegistrationTransport:
     }
 
     func fetchRegisterChallenge(
-        subject: IdentityPublicKeyDescriptor
+        subject: IdentityPublicKeyDescriptor,
+        canonicalEntityLink: Data
     ) async throws -> Data {
         try await post(
             path: "/conference-mvp/api/device/challenge",
             body: try Self.encoded(
-                DeviceIngressRegisterChallengeTransportRequest(subject: subject)
+                DeviceIngressRegisterChallengeTransportRequest(
+                    subject: subject,
+                    canonicalEntityLink: canonicalEntityLink
+                )
             ),
             maximumResponseBytes: DeviceIngressEnvelope.maximumEncodedBytes
         )
@@ -2146,7 +2350,7 @@ nonisolated final class FileDeviceIngressRegistrationEvidenceStore:
 }
 
 nonisolated struct DeviceIngressAuthenticatedVaultHandle: Sendable {
-    fileprivate let identityVault: any IdentityVaultProtocol
+    let identityVault: any IdentityVaultProtocol
 
     @MainActor
     static func current() async throws -> Self {
@@ -2200,9 +2404,10 @@ nonisolated actor DeviceIngressRegistrationClient {
 
     func register(
         protectedBody: Data,
+        entityLinkAuthorization: DeviceIngressVerifiedEntityLinkAuthorization,
         consentEvidence: NotificationTermsConsentEvidence,
         now: Date = Date()
-    ) async throws -> DeviceIngressRegistrationReceipt {
+    ) async throws -> DeviceIngressCompletedRegistration {
         guard protectedBody.isEmpty == false,
               protectedBody.count <= DeviceIngressEnvelope.maximumBodyBytes else {
             throw DeviceIngressRegistrationClientError.invalidProtectedBody
@@ -2211,13 +2416,24 @@ nonisolated actor DeviceIngressRegistrationClient {
         let requester = requesterContext.identity
         let binding = requesterContext.binding
         let subject = requesterContext.descriptor
+        guard entityLinkAuthorization.subjectIdentityUUID == subject.uuid,
+              entityLinkAuthorization.subjectSigningKeyFingerprint
+                == binding.signingKeyFingerprint,
+              entityLinkAuthorization.expectedAudience == trust.expectedAudience,
+              entityLinkAuthorization.expectedOrigin == "https://\(trust.expectedAudience)" else {
+            throw DeviceIngressRegistrationClientError.invalidCompletionEnvelope
+        }
         let persistedVaultBinding = try DeviceIngressPersistedVaultBinding(
             binding: binding,
             identity: requester,
             descriptor: subject
         )
 
-        let challengeData = try await transport.fetchRegisterChallenge(subject: subject)
+        let canonicalEntityLink = try entityLinkAuthorization.envelopeForSingleAttempt()
+        let challengeData = try await transport.fetchRegisterChallenge(
+            subject: subject,
+            canonicalEntityLink: canonicalEntityLink
+        )
         let prepared = try await DeviceIngressRequestFactory.prepare(
             canonicalChallengeData: challengeData,
             protectedBody: protectedBody,
@@ -2267,7 +2483,12 @@ nonisolated actor DeviceIngressRegistrationClient {
             buildProvenance: buildProvenance,
             vaultBinding: persistedVaultBinding
         )
-        return receipt
+        entityLinkAuthorization.eraseAfterVerifiedReceipt()
+        return DeviceIngressCompletedRegistration(
+            receipt: receipt,
+            participantID: entityLinkAuthorization.entityBindingID,
+            deviceID: subject.uuid
+        )
     }
 
     func restoreHistoricalRegistrationEvidence() async throws
@@ -2356,13 +2577,26 @@ nonisolated actor DeviceIngressRegistrationClient {
     }
 }
 
+nonisolated struct DeviceIngressCompletedRegistration: Sendable {
+    let receipt: DeviceIngressRegistrationReceipt
+    let participantID: String
+    let deviceID: String
+}
+
 @MainActor
 enum BindingDeviceIngressRegistrationComposition {
+    static let completionEnvelopeProvider =
+        DeviceIngressOneShotCompletionEnvelopeProvider.shared
+
+    static func stageOneShotCompletionEnvelope(_ canonicalData: Data) async throws {
+        try await completionEnvelopeProvider.stage(canonicalCompletionEnvelope: canonicalData)
+    }
+
     static func register(
         protectedBody: Data,
         consentEvidence: NotificationTermsConsentEvidence,
         buildProvenance: BindingBuildProvenance
-    ) async throws -> DeviceIngressRegistrationReceipt {
+    ) async throws -> DeviceIngressCompletedRegistration {
         let vaultHandle = try await DeviceIngressAuthenticatedVaultHandle.current()
         guard let notificationIdentity = await vaultHandle.identityVault.identity(
             for: DeviceIngressEnvelope.identityDomain,
@@ -2373,12 +2607,21 @@ enum BindingDeviceIngressRegistrationComposition {
               ) else {
             throw DeviceIngressRegistrationClientError.notificationIdentityUnavailable
         }
+        let configuration = try BindingDeviceIngressRuntimeConfiguration.current()
+        let canonicalCompletionEnvelope = try await completionEnvelopeProvider
+            .takeCanonicalCompletionEnvelope()
+        let entityLinkAuthorization = try await
+            DeviceIngressEntityLinkAuthorizationVerifier.verify(
+                canonicalCompletionEnvelope: canonicalCompletionEnvelope,
+                subject: descriptor,
+                trust: configuration.trust
+            )
         let identityBoundBody = try identityBoundRegistrationBody(
             protectedBody,
+            participantID: entityLinkAuthorization.entityBindingID,
             deviceIdentityUUID: descriptor.uuid,
             consentEvidence: consentEvidence
         )
-        let configuration = try BindingDeviceIngressRuntimeConfiguration.current()
         let evidenceStore = try FileDeviceIngressRegistrationEvidenceStore
             .applicationSupport()
         let transport = try URLSessionDeviceIngressRegistrationTransport(
@@ -2393,12 +2636,14 @@ enum BindingDeviceIngressRegistrationComposition {
         )
         return try await client.register(
             protectedBody: identityBoundBody,
+            entityLinkAuthorization: entityLinkAuthorization,
             consentEvidence: consentEvidence
         )
     }
 
     nonisolated static func identityBoundRegistrationBody(
         _ data: Data,
+        participantID: String,
         deviceIdentityUUID: String,
         consentEvidence: NotificationTermsConsentEvidence
     ) throws -> Data {
@@ -2411,7 +2656,11 @@ enum BindingDeviceIngressRegistrationComposition {
               consentEvidence.state == .accepted else {
             throw DeviceIngressRegistrationClientError.invalidProtectedBody
         }
-        payload["participantId"] = .string(deviceIdentityUUID)
+        guard participantID.isEmpty == false,
+              participantID.utf8.count <= 512 else {
+            throw DeviceIngressRegistrationClientError.invalidCompletionEnvelope
+        }
+        payload["participantId"] = .string(participantID)
         payload["deviceId"] = .string(deviceIdentityUUID)
         payload["termsConsentState"] = .string(consentEvidence.state.rawValue)
         payload["termsAcceptanceEvidence"] = .object(
