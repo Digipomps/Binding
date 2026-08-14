@@ -2514,7 +2514,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         let store = ConferenceIdentityLinkInboxStore.shared
         await store.clear()
         let provider = BindingDeviceIngressRegistrationComposition.completionEnvelopeProvider
-        _ = try? await provider.takeCanonicalCompletionEnvelope()
+        if let staleLease = try? await provider.acquireCanonicalCompletionEnvelope() {
+            try? await provider.consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
+                staleLease
+            )
+        }
 
         let identityVault = await BindingStartupIdentityVault.shared.initialize()
         let holderCandidate = await identityVault.identity(
@@ -2589,7 +2593,8 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
         let hasStagedEnvelope = await provider.hasStagedEnvelopeForTesting()
         XCTAssertTrue(hasStagedEnvelope)
-        let staged = try await provider.takeCanonicalCompletionEnvelope()
+        let stagedLease = try await provider.acquireCanonicalCompletionEnvelope()
+        let staged = stagedLease.canonicalCompletionEnvelope
         let envelope = try JSONDecoder().decode(
             IdentityLinkCompletionEnvelope.self,
             from: staged
@@ -2597,6 +2602,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertEqual(envelope.request.entityBinding?.bindingID, bindingID)
         XCTAssertEqual(envelope.expectedPresentationDomain, DeviceIngressEnvelope.identityDomain)
         XCTAssertEqual(envelope.request.newIdentity.uuid, holder.uuid)
+        try await provider.consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
+            stagedLease
+        )
     }
 
     func testConferenceIdentityLinkRejectsWeakNonceBeforeSigning() async throws {
