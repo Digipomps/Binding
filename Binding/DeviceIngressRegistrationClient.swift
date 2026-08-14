@@ -30,7 +30,7 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
     case completionEnvelopeAlreadyStaged
     case invalidCompletionEnvelope
     case invalidTransportConfiguration
-    case transportRejected
+    case completionEnvelopeLeaseMismatch
 
     var errorDescription: String? {
         switch self {
@@ -82,8 +82,8 @@ nonisolated enum DeviceIngressRegistrationClientError: LocalizedError, Equatable
             return "The DeviceIngress identity-link completion envelope is non-canonical, expired, or not bound to this device, audience, origin, and purpose."
         case .invalidTransportConfiguration:
             return "DeviceIngress rollout environment, HTTPS origin, audience, or pinned challenge issuer is missing, mismatched, or invalid."
-        case .transportRejected:
-            return "The DeviceIngress HTTPS carrier rejected the request or returned invalid bytes."
+        case .completionEnvelopeLeaseMismatch:
+            return "The transient DeviceIngress enrollment authorization changed during registration."
         }
     }
 }
@@ -93,43 +93,126 @@ nonisolated struct DeviceIngressRegistrationTrustConfiguration: Sendable {
     let expectedChallengeIssuer: IdentityPublicKeyDescriptor
 }
 
-nonisolated protocol DeviceIngressCompletionEnvelopeProviding: Sendable {
-    func takeCanonicalCompletionEnvelope() async throws -> Data
+nonisolated struct DeviceIngressCompletionEnvelopeLease: Sendable {
+    fileprivate let id: UUID
+    let canonicalCompletionEnvelope: Data
 }
 
-/// A single-purpose, process-memory-only hand-off. Taking the envelope clears
-/// the provider before any network call, so it cannot be replayed, persisted,
-/// exported, logged, or used by an automatic re-registration path.
+nonisolated protocol DeviceIngressCompletionEnvelopeProviding: Sendable {
+    func acquireCanonicalCompletionEnvelope() async throws
+        -> DeviceIngressCompletionEnvelopeLease
+    func releaseCanonicalCompletionEnvelope(
+        _ lease: DeviceIngressCompletionEnvelopeLease
+    ) async throws
+    func consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
+        _ lease: DeviceIngressCompletionEnvelopeLease
+    ) async throws
+}
+
+/// A single-purpose, process-memory-only hand-off. Registration acquires an
+/// exclusive lease so concurrent triggers cannot reuse it. A failed attempt
+/// releases the same bytes back to the explicit enrollment session; only a
+/// cryptographically verified signed registration receipt consumes them.
+/// Nothing is persisted, exported, logged, or used by automatic re-registration.
 actor DeviceIngressOneShotCompletionEnvelopeProvider:
     DeviceIngressCompletionEnvelopeProviding
 {
     static let shared = DeviceIngressOneShotCompletionEnvelopeProvider()
     static let maximumEnvelopeBytes = 128 * 1_024
 
-    private var stagedEnvelope: Data?
+    private enum State {
+        case empty
+        case staged(Data)
+        case leased(id: UUID, envelope: Data)
+    }
+
+    private var state: State = .empty
 
     func stage(canonicalCompletionEnvelope: Data) throws {
-        guard stagedEnvelope == nil else {
+        guard case .empty = state else {
             throw DeviceIngressRegistrationClientError.completionEnvelopeAlreadyStaged
         }
         guard canonicalCompletionEnvelope.isEmpty == false,
               canonicalCompletionEnvelope.count <= Self.maximumEnvelopeBytes else {
             throw DeviceIngressRegistrationClientError.invalidCompletionEnvelope
         }
-        stagedEnvelope = canonicalCompletionEnvelope
+        state = .staged(canonicalCompletionEnvelope)
     }
 
-    func takeCanonicalCompletionEnvelope() throws -> Data {
-        guard let envelope = stagedEnvelope else {
+    func acquireCanonicalCompletionEnvelope() throws
+        -> DeviceIngressCompletionEnvelopeLease
+    {
+        guard case let .staged(envelope) = state else {
             throw DeviceIngressRegistrationClientError.completionEnvelopeUnavailable
         }
-        stagedEnvelope = nil
-        return envelope
+        let lease = DeviceIngressCompletionEnvelopeLease(
+            id: UUID(),
+            canonicalCompletionEnvelope: envelope
+        )
+        state = .leased(id: lease.id, envelope: envelope)
+        return lease
+    }
+
+    func releaseCanonicalCompletionEnvelope(
+        _ lease: DeviceIngressCompletionEnvelopeLease
+    ) throws {
+        guard case let .leased(id, envelope) = state,
+              id == lease.id else {
+            throw DeviceIngressRegistrationClientError
+                .completionEnvelopeLeaseMismatch
+        }
+        state = .staged(envelope)
+    }
+
+    func consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
+        _ lease: DeviceIngressCompletionEnvelopeLease
+    ) throws {
+        guard case let .leased(id, envelope) = state,
+              id == lease.id else {
+            throw DeviceIngressRegistrationClientError
+                .completionEnvelopeLeaseMismatch
+        }
+        var erasedEnvelope = envelope
+        erasedEnvelope.resetBytes(in: 0..<erasedEnvelope.count)
+        state = .empty
     }
 
     #if DEBUG
-    func hasStagedEnvelopeForTesting() -> Bool { stagedEnvelope != nil }
+    func hasStagedEnvelopeForTesting() -> Bool {
+        if case .staged = state { return true }
+        return false
+    }
+
+    func hasLeasedEnvelopeForTesting() -> Bool {
+        if case .leased = state { return true }
+        return false
+    }
     #endif
+}
+
+nonisolated enum DeviceIngressTransportStage: String, Sendable {
+    case challenge
+    case register
+}
+
+nonisolated struct DeviceIngressTransportFailure:
+    Error,
+    Equatable,
+    LocalizedError,
+    Sendable
+{
+    let stage: DeviceIngressTransportStage
+    let httpStatus: Int?
+    let serverCode: String?
+    let urlErrorCode: Int?
+
+    var errorDescription: String? {
+        var evidence = ["stage=\(stage.rawValue)"]
+        if let httpStatus { evidence.append("http=\(httpStatus)") }
+        if let serverCode { evidence.append("server=\(serverCode)") }
+        if let urlErrorCode { evidence.append("url=\(urlErrorCode)") }
+        return "DeviceIngress transport failed (\(evidence.joined(separator: ", ")))."
+    }
 }
 
 nonisolated final class DeviceIngressVerifiedEntityLinkAuthorization:
@@ -412,6 +495,7 @@ nonisolated struct URLSessionDeviceIngressRegistrationTransport:
         canonicalEntityLink: Data
     ) async throws -> Data {
         try await post(
+            stage: .challenge,
             path: "/conference-mvp/api/device/challenge",
             body: try Self.encoded(
                 DeviceIngressRegisterChallengeTransportRequest(
@@ -429,6 +513,7 @@ nonisolated struct URLSessionDeviceIngressRegistrationTransport:
         protectedBody: Data
     ) async throws -> Data {
         try await post(
+            stage: .register,
             path: "/conference-mvp/api/device/register",
             body: try Self.encoded(DeviceIngressRegisterTransportEnvelope(
                 canonicalChallenge: canonicalChallengeData,
@@ -440,6 +525,7 @@ nonisolated struct URLSessionDeviceIngressRegistrationTransport:
     }
 
     private func post(
+        stage: DeviceIngressTransportStage,
         path: String,
         body: Data,
         maximumResponseBytes: Int
@@ -458,17 +544,67 @@ nonisolated struct URLSessionDeviceIngressRegistrationTransport:
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (responseData, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              http.statusCode == 200,
+        let responseData: Data
+        let response: URLResponse
+        do {
+            (responseData, response) = try await session.data(for: request)
+        } catch {
+            let nsError = error as NSError
+            throw DeviceIngressTransportFailure(
+                stage: stage,
+                httpStatus: nil,
+                serverCode: nil,
+                urlErrorCode: nsError.domain == NSURLErrorDomain
+                    ? nsError.code
+                    : nil
+            )
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw DeviceIngressTransportFailure(
+                stage: stage,
+                httpStatus: nil,
+                serverCode: nil,
+                urlErrorCode: nil
+            )
+        }
+        guard http.statusCode == 200 else {
+            throw DeviceIngressTransportFailure(
+                stage: stage,
+                httpStatus: http.statusCode,
+                serverCode: Self.safeServerCode(from: responseData),
+                urlErrorCode: nil
+            )
+        }
+        guard
               responseData.isEmpty == false,
               responseData.count <= maximumResponseBytes,
               http.url?.scheme == origin.scheme,
               http.url?.host == origin.host,
               http.url?.port == origin.port else {
-            throw DeviceIngressRegistrationClientError.transportRejected
+            throw DeviceIngressTransportFailure(
+                stage: stage,
+                httpStatus: http.statusCode,
+                serverCode: nil,
+                urlErrorCode: nil
+            )
         }
         return responseData
+    }
+
+    private static func safeServerCode(from data: Data) -> String? {
+        guard data.count <= 4 * 1_024,
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let dictionary = object as? [String: Any],
+              let code = dictionary["code"] as? String,
+              code.utf8.count <= 80,
+              code.unicodeScalars.allSatisfy({ scalar in
+                  (scalar.value >= 97 && scalar.value <= 122)
+                      || (scalar.value >= 48 && scalar.value <= 57)
+                      || scalar.value == 45
+              }) else {
+            return nil
+        }
+        return code
     }
 
     private static func encoded<T: Encodable>(_ value: T) throws -> Data {
@@ -2608,37 +2744,46 @@ enum BindingDeviceIngressRegistrationComposition {
             throw DeviceIngressRegistrationClientError.notificationIdentityUnavailable
         }
         let configuration = try BindingDeviceIngressRuntimeConfiguration.current()
-        let canonicalCompletionEnvelope = try await completionEnvelopeProvider
-            .takeCanonicalCompletionEnvelope()
-        let entityLinkAuthorization = try await
-            DeviceIngressEntityLinkAuthorizationVerifier.verify(
-                canonicalCompletionEnvelope: canonicalCompletionEnvelope,
-                subject: descriptor,
-                trust: configuration.trust
+        let lease = try await completionEnvelopeProvider
+            .acquireCanonicalCompletionEnvelope()
+        do {
+            let entityLinkAuthorization = try await
+                DeviceIngressEntityLinkAuthorizationVerifier.verify(
+                    canonicalCompletionEnvelope: lease.canonicalCompletionEnvelope,
+                    subject: descriptor,
+                    trust: configuration.trust
+                )
+            let identityBoundBody = try identityBoundRegistrationBody(
+                protectedBody,
+                participantID: entityLinkAuthorization.entityBindingID,
+                deviceIdentityUUID: descriptor.uuid,
+                consentEvidence: consentEvidence
             )
-        let identityBoundBody = try identityBoundRegistrationBody(
-            protectedBody,
-            participantID: entityLinkAuthorization.entityBindingID,
-            deviceIdentityUUID: descriptor.uuid,
-            consentEvidence: consentEvidence
-        )
-        let evidenceStore = try FileDeviceIngressRegistrationEvidenceStore
-            .applicationSupport()
-        let transport = try URLSessionDeviceIngressRegistrationTransport(
-            origin: configuration.origin
-        )
-        let client = DeviceIngressRegistrationClient(
-            authenticatedVault: vaultHandle,
-            transport: transport,
-            evidenceStore: evidenceStore,
-            trust: configuration.trust,
-            buildProvenance: buildProvenance
-        )
-        return try await client.register(
-            protectedBody: identityBoundBody,
-            entityLinkAuthorization: entityLinkAuthorization,
-            consentEvidence: consentEvidence
-        )
+            let evidenceStore = try FileDeviceIngressRegistrationEvidenceStore
+                .applicationSupport()
+            let transport = try URLSessionDeviceIngressRegistrationTransport(
+                origin: configuration.origin
+            )
+            let client = DeviceIngressRegistrationClient(
+                authenticatedVault: vaultHandle,
+                transport: transport,
+                evidenceStore: evidenceStore,
+                trust: configuration.trust,
+                buildProvenance: buildProvenance
+            )
+            let completed = try await client.register(
+                protectedBody: identityBoundBody,
+                entityLinkAuthorization: entityLinkAuthorization,
+                consentEvidence: consentEvidence
+            )
+            try await completionEnvelopeProvider
+                .consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(lease)
+            return completed
+        } catch {
+            try await completionEnvelopeProvider
+                .releaseCanonicalCompletionEnvelope(lease)
+            throw error
+        }
     }
 
     nonisolated static func identityBoundRegistrationBody(

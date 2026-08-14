@@ -70,17 +70,36 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test
-    func oneShotProviderConsumesWithoutPersistenceOrImplicitReuse() async throws {
+    func oneShotProviderRetainsFailureAndConsumesOnlyAfterVerifiedReceipt() async throws {
         let provider = DeviceIngressOneShotCompletionEnvelopeProvider()
         let canonicalEnvelope = Data(#"{"schema":"fixture"}"#.utf8)
         try await provider.stage(canonicalCompletionEnvelope: canonicalEnvelope)
         #expect(await provider.hasStagedEnvelopeForTesting())
-        #expect(try await provider.takeCanonicalCompletionEnvelope() == canonicalEnvelope)
+        let firstLease = try await provider.acquireCanonicalCompletionEnvelope()
+        #expect(firstLease.canonicalCompletionEnvelope == canonicalEnvelope)
         #expect(await provider.hasStagedEnvelopeForTesting() == false)
+        #expect(await provider.hasLeasedEnvelopeForTesting())
         await #expect(
             throws: DeviceIngressRegistrationClientError.completionEnvelopeUnavailable
         ) {
-            try await provider.takeCanonicalCompletionEnvelope()
+            try await provider.acquireCanonicalCompletionEnvelope()
+        }
+
+        try await provider.releaseCanonicalCompletionEnvelope(firstLease)
+        #expect(await provider.hasStagedEnvelopeForTesting())
+        #expect(await provider.hasLeasedEnvelopeForTesting() == false)
+
+        let retryLease = try await provider.acquireCanonicalCompletionEnvelope()
+        #expect(retryLease.canonicalCompletionEnvelope == canonicalEnvelope)
+        try await provider.consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
+            retryLease
+        )
+        #expect(await provider.hasStagedEnvelopeForTesting() == false)
+        #expect(await provider.hasLeasedEnvelopeForTesting() == false)
+        await #expect(
+            throws: DeviceIngressRegistrationClientError.completionEnvelopeUnavailable
+        ) {
+            try await provider.acquireCanonicalCompletionEnvelope()
         }
     }
 
@@ -1238,7 +1257,12 @@ struct DeviceIngressRegistrationClientTests {
         }
 
         let fixture = try await makeFixture()
-        DeviceIngressFixtureURLProtocol.install { _ in (503, Data("unavailable".utf8)) }
+        DeviceIngressFixtureURLProtocol.install { _ in
+            (
+                503,
+                Data(#"{"code":"device-callback-admission-unavailable","error":true}"#.utf8)
+            )
+        }
         defer { DeviceIngressFixtureURLProtocol.reset() }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [DeviceIngressFixtureURLProtocol.self]
@@ -1250,11 +1274,20 @@ struct DeviceIngressRegistrationClientTests {
             DeviceIngressIdentityDescriptor.publicDescriptor(for: fixture.subject)
         )
 
-        await #expect(throws: DeviceIngressRegistrationClientError.transportRejected) {
+        do {
             try await transport.fetchRegisterChallenge(
                 subject: subject,
                 canonicalEntityLink: Data("entity-link".utf8)
             )
+            Issue.record("Expected safe DeviceIngress transport failure")
+        } catch let failure as DeviceIngressTransportFailure {
+            #expect(failure.stage == .challenge)
+            #expect(failure.httpStatus == 503)
+            #expect(failure.serverCode == "device-callback-admission-unavailable")
+            #expect(failure.urlErrorCode == nil)
+            #expect(failure.localizedDescription.contains("entity-link") == false)
+        } catch {
+            Issue.record("Unexpected transport error: \(type(of: error))")
         }
     }
 
