@@ -421,10 +421,77 @@ nonisolated actor DeviceIngressCallbackClient {
     }
 }
 
+nonisolated protocol DeviceIngressCallbackOperating: Sendable {
+    func resolve(
+        participantID: String,
+        deviceID: String,
+        ticketID: String,
+        now: Date
+    ) async throws -> [String: JSONValue]
+
+    func submit(
+        participantID: String,
+        deviceID: String,
+        ticketID: String,
+        result: [String: JSONValue],
+        now: Date
+    ) async throws -> [String: JSONValue]
+}
+
+extension DeviceIngressCallbackClient: DeviceIngressCallbackOperating {}
+
+@MainActor
+private enum BindingDeviceIngressCallbackComposition {
+    static func makeClient() async throws -> any DeviceIngressCallbackOperating {
+        guard BindingDeviceIngressRolloutPolicy.currentEnabled else {
+            throw NotificationCallbackOperationError
+                .deviceIngressV3CompositionUnavailable
+        }
+        let configuration = try BindingDeviceIngressRuntimeConfiguration.current()
+        let vaultHandle = try await DeviceIngressAuthenticatedVaultHandle.current()
+        let transport = try URLSessionDeviceIngressCallbackTransport(
+            origin: configuration.origin
+        )
+        return DeviceIngressCallbackClient(
+            authenticatedVault: vaultHandle,
+            transport: transport,
+            trust: configuration.trust
+        )
+    }
+}
+
 final class NotificationCallbackClient {
     static let shared = NotificationCallbackClient()
 
-    private init() {}
+    private typealias CallbackClientProvider = @MainActor @Sendable () async throws
+        -> any DeviceIngressCallbackOperating
+
+    private let rolloutEnabled: @Sendable () -> Bool
+    private let callbackClientProvider: CallbackClientProvider
+
+    private init(
+        rolloutEnabled: @escaping @Sendable () -> Bool = {
+            BindingDeviceIngressRolloutPolicy.currentEnabled
+        },
+        callbackClientProvider: @escaping CallbackClientProvider = {
+            try await BindingDeviceIngressCallbackComposition.makeClient()
+        }
+    ) {
+        self.rolloutEnabled = rolloutEnabled
+        self.callbackClientProvider = callbackClientProvider
+    }
+
+    #if DEBUG
+    static func testing(
+        rolloutEnabled: Bool,
+        callbackOperator: any DeviceIngressCallbackOperating
+    ) -> NotificationCallbackClient {
+        NotificationCallbackClient(
+            rolloutEnabled: { rolloutEnabled },
+            callbackClientProvider: { callbackOperator }
+        )
+    }
+    #endif
 
     #if os(iOS)
     func handleRemoteNotification(userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
@@ -466,14 +533,33 @@ final class NotificationCallbackClient {
 
     @discardableResult
     func resolveTicket(participantId: String, deviceId: String, ticketId: String) async throws -> [String: JSONValue] {
-        _ = (participantId, deviceId, ticketId)
-        throw NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable
+        guard rolloutEnabled() else {
+            throw NotificationCallbackOperationError
+                .deviceIngressV3CompositionUnavailable
+        }
+        let client = try await callbackClientProvider()
+        return try await client.resolve(
+            participantID: participantId,
+            deviceID: deviceId,
+            ticketID: ticketId,
+            now: Date()
+        )
     }
 
     @discardableResult
     func submitTicketResult(participantId: String, deviceId: String, ticketId: String, result: [String: JSONValue]) async throws -> [String: JSONValue] {
-        _ = (participantId, deviceId, ticketId, result)
-        throw NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable
+        guard rolloutEnabled() else {
+            throw NotificationCallbackOperationError
+                .deviceIngressV3CompositionUnavailable
+        }
+        let client = try await callbackClientProvider()
+        return try await client.submit(
+            participantID: participantId,
+            deviceID: deviceId,
+            ticketID: ticketId,
+            result: result,
+            now: Date()
+        )
     }
 
     nonisolated static func callbackSubmitPayload(
