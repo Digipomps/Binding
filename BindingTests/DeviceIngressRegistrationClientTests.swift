@@ -85,6 +85,22 @@ struct DeviceIngressRegistrationClientTests {
     }
 
     @Test
+    func identityLinkIntakeSelectsNotificationIdentityOnlyForExactDeviceIngressPurpose() throws {
+        let exact = #"{"audience":"staging.haven.digipomps.org","origin":"https://staging.haven.digipomps.org","purpose":"device-ingress-register","requestedDomains":["domain:device:notification-callback"],"requestedIdentityContexts":["ios","device-ingress"],"requestedScopes":["device-ingress.register"]}"#
+        let parsed = try #require(ConferenceIdentityLinkSupport.parse(raw: exact))
+        #expect(parsed.requestsDeviceIngressRegistrationIdentity)
+
+        let extraScope = exact.replacingOccurrences(
+            of: #""device-ingress.register"]"#,
+            with: #""device-ingress.register","device-ingress.admin"]"#
+        )
+        let rejected = try #require(
+            ConferenceIdentityLinkSupport.parse(raw: extraScope)
+        )
+        #expect(rejected.requestsDeviceIngressRegistrationIdentity == false)
+    }
+
+    @Test
     func tamperedResponseNeverBecomesVerifiedAndLeavesPendingEvidence() async throws {
         let fixture = try await makeFixture()
         let buildProvenance = try makeBuildProvenance()

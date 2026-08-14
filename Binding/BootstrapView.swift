@@ -9919,6 +9919,12 @@ struct ConferenceIdentityLinkParsedChallenge {
     var proofSummary: String
     var rawPreview: String
     var admission: BindingAdmissionChallengeSnapshot?
+
+    var requestsDeviceIngressRegistrationIdentity: Bool {
+        requestedDomains == [DeviceIngressEnvelope.identityDomain]
+            && requestedIdentityContexts == ["ios", "device-ingress"]
+            && requestedScopes == ["device-ingress.register"]
+    }
 }
 
 nonisolated enum ConferenceIdentityLinkSupport {
@@ -10183,6 +10189,17 @@ nonisolated enum ConferenceIdentityLinkSupport {
 actor ConferenceIdentityLinkInboxStore {
     static let shared = ConferenceIdentityLinkInboxStore()
 
+    func requestsDeviceIngressRegistrationIdentity() -> Bool {
+        guard let challenge = incomingChallenge,
+              challenge.requestsDeviceIngressRegistrationIdentity,
+              let configuration = try? BindingDeviceIngressRuntimeConfiguration
+                .current() else {
+            return false
+        }
+        return challenge.audience == configuration.trust.expectedAudience
+            && challenge.origin == configuration.origin.absoluteString
+    }
+
     private var draftInput = ""
     private var incomingChallenge: ConferenceIdentityLinkParsedChallenge?
     private var localIdentitySummary = "Ingen lokal HAVEN-identitet er bekreftet i denne flaten ennå."
@@ -10300,6 +10317,7 @@ actor ConferenceIdentityLinkInboxStore {
     }
 
     func completeApprovedLink(with identity: Identity?) async {
+        let isDeviceIngressRegistration = requestsDeviceIngressRegistrationIdentity()
         guard let identity else {
             completionStatus = "HAVEN fant ingen lokal private-identitet å fullføre mot."
             completionSummary = "Completion ble ikke sendt til EntityAnchor fordi lokal key-possession mangler."
@@ -10351,11 +10369,33 @@ actor ConferenceIdentityLinkInboxStore {
                 completionSummary = Self.responseSummary(from: response)
                 return
             }
+
+            if isDeviceIngressRegistration {
+                do {
+                    let canonicalCompletionEnvelope = try Self.canonicalData(
+                        for: payload.envelope
+                    )
+                    try await BindingDeviceIngressRegistrationComposition
+                        .stageOneShotCompletionEnvelope(canonicalCompletionEnvelope)
+                    completionPackageInput = ""
+                } catch {
+                    completionStatus = "Identity-link er aktiv, men DeviceIngress-handoff feilet."
+                    completionSummary = "EntityAnchor-verifiseringen er fullført, men completion envelope ble ikke lagt i transient registreringsminne: \(error.localizedDescription)"
+                    completionRecordPreview = Self.recordPreview(from: response)
+                    actionSummary = "Identity-link ble lagret, men ingen DeviceIngress-registrering ble startet."
+                    nextStepSummary = "Start appen på nytt og gjennomfør en ny eksplisitt DeviceIngress enrollment; envelopen blir ikke overskrevet eller gjenbrukt."
+                    return
+                }
+            }
             completionStatus = "Identity-link completion er verifisert og lagret i EntityAnchor."
-            completionSummary = "Approval JTI er markert brukt, SameEntityIdentityLinkCredential/VP er verifisert, og replay vil avvises av identityLinks-store."
+            completionSummary = isDeviceIngressRegistration
+                ? "Approval JTI er markert brukt, og completion envelope er lagt i transient minne for ett eksplisitt DeviceIngress-registerforsøk. Den er ikke lagret eller logget av handoffen."
+                : "Approval JTI er markert brukt, SameEntityIdentityLinkCredential/VP er verifisert, og replay vil avvises av identityLinks-store."
             completionRecordPreview = Self.recordPreview(from: response)
             actionSummary = "EntityAnchor skrev en active IdentityLinkRecord fra ekte completion envelope."
-            nextStepSummary = "Identity-link er aktiv. Du kan nå bruke identityLinks-recorden som bevis på at HAVEN-identiteten hører til samme Entity."
+            nextStepSummary = isDeviceIngressRegistration
+                ? "Identity-link er aktiv. Godkjenn varsler for å bruke den transiente envelopen i ett signert DeviceIngress-registerforsøk."
+                : "Identity-link er aktiv. Du kan nå bruke identityLinks-recorden som bevis på at HAVEN-identiteten hører til samme Entity."
         } catch {
             completionStatus = "identityLinks.completeEnrollment feilet: \(error)"
             completionSummary = "Completion ble avvist av CellProtocol/EntityAnchor. Ingen record ble skrevet."
@@ -10651,6 +10691,12 @@ actor ConferenceIdentityLinkInboxStore {
         return CompletionEnvelopePayload(envelope: envelope, value: nested)
     }
 
+    private static func canonicalData<T: Encodable>(for value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+
     private static func statusString(from response: ValueType?) -> String? {
         guard case let .object(object)? = response,
               case let .string(status)? = object["status"] else {
@@ -10796,14 +10842,18 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
             ])
         case "identityLink.confirmLocalReview":
-            let localIdentity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) ?? requester
+            let localIdentity = await identityForCurrentIdentityLinkAction(
+                requester: requester
+            )
             await ConferenceIdentityLinkInboxStore.shared.confirmLocalReview(with: localIdentity)
             return .object([
                 "status": .string("ok"),
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
             ])
         case "identityLink.completeApprovedLink":
-            let localIdentity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) ?? requester
+            let localIdentity = await identityForCurrentIdentityLinkAction(
+                requester: requester
+            )
             await ConferenceIdentityLinkInboxStore.shared.completeApprovedLink(with: localIdentity)
             return .object([
                 "status": .string("ok"),
@@ -10839,6 +10889,26 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
             ])
         }
+    }
+
+    private func identityForCurrentIdentityLinkAction(
+        requester: Identity
+    ) async -> Identity? {
+        if await ConferenceIdentityLinkInboxStore.shared
+            .requestsDeviceIngressRegistrationIdentity() {
+            guard let vaultHandle = try? await DeviceIngressAuthenticatedVaultHandle
+                .current() else {
+                return nil
+            }
+            return await vaultHandle.identityVault.identity(
+                for: DeviceIngressEnvelope.identityDomain,
+                makeNewIfNotFound: true
+            )
+        }
+        return await BindingStartupIdentityVault.shared.identity(
+            for: "private",
+            makeNewIfNotFound: true
+        ) ?? requester
     }
 
     private static func string(from value: ValueType) -> String {
