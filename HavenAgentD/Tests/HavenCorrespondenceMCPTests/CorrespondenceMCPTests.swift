@@ -12,6 +12,37 @@ import Testing
 @Suite("HAVEN Assistant Correspondence MCP")
 struct CorrespondenceMCPTests {
   @Test
+  func identityOutputIncludesTheApprovalFingerprint() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let profile = CorrespondenceProfile(
+      version: 1,
+      profile: "vegar",
+      baseURL: "https://staging.haven.digipomps.org/",
+      principalID: "vegar-local-agent",
+      entityRef: "entity:vegar",
+      deviceID: "vegar-device-1",
+      displayName: "HAVEN-agent hos Vegar",
+      identityUUID: "identity-vegar-1",
+      publicKeyBase64URL: CorrespondenceCanonicalCoding.base64URL(
+        key.publicKey.rawRepresentation),
+      enrolledAt: "2026-08-16T00:00:00.000Z",
+      accessRequestID: "access-request-vegar-1",
+      accessCredential: nil
+    )
+
+    let output = try HavenCorrespondenceMCPMain.publicProfileObject(profile)
+
+    #expect(
+      output["publicKeyFingerprint"] as? String
+        == "sha256:\(CorrespondenceCanonicalCoding.base64URL(Data(SHA256.hash(data: key.publicKey.rawRepresentation))))"
+    )
+    #expect(output["entityRef"] as? String == "entity:vegar")
+    #expect(output["deviceID"] as? String == "vegar-device-1")
+    #expect(output["identityUUID"] as? String == "identity-vegar-1")
+    #expect(output["accessRequestID"] as? String == "access-request-vegar-1")
+  }
+
+  @Test
   func enrollmentPersistsPublicProfileAndKeepsInviteSecretOut() async throws {
     let root = temporaryRoot()
     defer { try? FileManager.default.removeItem(at: root) }

@@ -188,6 +188,67 @@ struct NotificationCallbackClientTests {
     }
 
     @Test
+    func authenticatedResolvedTicketStagesCompleteCorrespondenceInspection() throws {
+        let fingerprint = "sha256:\(String(repeating: "A", count: 43))"
+        let resolved: [String: JSONValue] = [
+            "schema": .string("cellscaffold.device-ingress.resolved-payload.v1"),
+            "ticketId": .string("ticket-correspondence-1"),
+            "triggerEvent": .string("haven.assistant-correspondence.access.requested"),
+            "requiredActionKey": .string(CorrespondenceApprovalInspection.actionKey),
+            "payload": .object([
+                "schema": .string(
+                    "cellscaffold.device-ingress.callback-payload.correspondence-approval.v1"),
+                "title": .string("Utsted adgangsbevis"),
+                "message": .string("Kontroller forespørselen."),
+                "approvalInspection": .object([
+                    "schema": .string(CorrespondenceApprovalInspection.schema),
+                    "accessRequestID": .string("access-request-1"),
+                    "displayName": .string("HAVEN-agent hos Vegar"),
+                    "entityRef": .string("entity:vegar"),
+                    "principalID": .string("vegar-local-agent"),
+                    "requesterDeviceID": .string("vegar-device-1"),
+                    "requesterIdentityUUID": .string("identity-vegar-1"),
+                    "publicKeyFingerprint": .string(fingerprint),
+                    "resourceRefs": .array([.string(CorrespondenceApprovalInspection.endpoint)]),
+                    "allowedPeerIDs": .array([.string("kjetil-vegar-codex")]),
+                    "allowedOperations": .array(
+                        CorrespondenceApprovalInspection.operations.sorted().map(JSONValue.string)
+                    ),
+                    "allowedPurposeRefs": .array(
+                        CorrespondenceApprovalInspection.purposeRefs.sorted().map(JSONValue.string)
+                    ),
+                    "requestExpiresAt": .string("2026-08-22T23:42:22.563Z"),
+                    "grantExpiresAt": .string("2026-09-14T23:42:22.564Z"),
+                    "executionAuthority": .bool(false)
+                ])
+            ])
+        ]
+
+        let action = try #require(NotificationCallbackClient.pendingDeviceAction(
+            participantId: "entity-pairwise:kjetil",
+            deviceId: "kjetil-iphone-1",
+            expectedTicketId: "ticket-correspondence-1",
+            resolvedTicket: resolved,
+            receivedAt: Date(timeIntervalSince1970: 1_780_000_000)
+        ))
+
+        #expect(action.ticketId == "ticket-correspondence-1")
+        #expect(action.requiredActionKey == CorrespondenceApprovalInspection.actionKey)
+        guard case let .object(inspection)? = action.payload["approvalInspection"] else {
+            Issue.record("Expected staged approval inspection")
+            return
+        }
+        #expect(inspection["publicKeyFingerprint"] == .string(fingerprint))
+
+        #expect(NotificationCallbackClient.pendingDeviceAction(
+            participantId: "entity-pairwise:kjetil",
+            deviceId: "kjetil-iphone-1",
+            expectedTicketId: "another-ticket",
+            resolvedTicket: resolved
+        ) == nil)
+    }
+
+    @Test
     func ticketDecisionResultPreservesContactEndpointRoutingHints() {
         let action = PendingDeviceAction(
             id: "notification-ticket-1",
