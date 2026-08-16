@@ -202,10 +202,49 @@ nonisolated private struct DeviceIngressCallbackSubmitBody: Codable {
 }
 
 nonisolated private struct DeviceIngressResolvedCallbackPayload: Codable {
+    struct CorrespondenceApprovalInspection: Codable {
+        let schema: String
+        let accessRequestID: String
+        let displayName: String
+        let entityRef: String
+        let principalID: String
+        let requesterDeviceID: String
+        let requesterIdentityUUID: String
+        let publicKeyFingerprint: String
+        let resourceRefs: [String]
+        let allowedPeerIDs: [String]
+        let allowedOperations: [String]
+        let allowedPurposeRefs: [String]
+        let requestExpiresAt: String
+        let grantExpiresAt: String
+        let executionAuthority: Bool
+
+        var jsonValue: JSONValue {
+            .object([
+                "schema": .string(schema),
+                "accessRequestID": .string(accessRequestID),
+                "displayName": .string(displayName),
+                "entityRef": .string(entityRef),
+                "principalID": .string(principalID),
+                "requesterDeviceID": .string(requesterDeviceID),
+                "requesterIdentityUUID": .string(requesterIdentityUUID),
+                "publicKeyFingerprint": .string(publicKeyFingerprint),
+                "resourceRefs": .array(resourceRefs.map(JSONValue.string)),
+                "allowedPeerIDs": .array(allowedPeerIDs.map(JSONValue.string)),
+                "allowedOperations": .array(allowedOperations.map(JSONValue.string)),
+                "allowedPurposeRefs": .array(allowedPurposeRefs.map(JSONValue.string)),
+                "requestExpiresAt": .string(requestExpiresAt),
+                "grantExpiresAt": .string(grantExpiresAt),
+                "executionAuthority": .bool(executionAuthority)
+            ])
+        }
+    }
+
     struct Content: Codable {
         let schema: String
         let title: String
         let message: String
+        let approvalInspection: CorrespondenceApprovalInspection?
     }
 
     let schema: String
@@ -266,19 +305,23 @@ nonisolated actor DeviceIngressCallbackClient {
               (try? Self.encoded(payload)) == ticket.canonicalPayload,
               payload.schema == "cellscaffold.device-ingress.resolved-payload.v1",
               payload.ticketID == ticketID,
-              payload.payload.schema == "cellscaffold.device-ingress.callback-payload.v1" else {
+              Self.validResolvedPayloadContract(payload) else {
             throw NotificationCallbackOperationError.invalidResponse
+        }
+        var content: [String: JSONValue] = [
+            "schema": .string(payload.payload.schema),
+            "title": .string(payload.payload.title),
+            "message": .string(payload.payload.message)
+        ]
+        if let approvalInspection = payload.payload.approvalInspection {
+            content["approvalInspection"] = approvalInspection.jsonValue
         }
         return [
             "schema": .string(payload.schema),
             "ticketId": .string(payload.ticketID),
             "triggerEvent": .string(payload.triggerEvent),
             "requiredActionKey": .string(payload.requiredActionKey),
-            "payload": .object([
-                "schema": .string(payload.payload.schema),
-                "title": .string(payload.payload.title),
-                "message": .string(payload.payload.message)
-            ])
+            "payload": .object(content)
         ]
     }
 
@@ -412,6 +455,21 @@ nonisolated actor DeviceIngressCallbackClient {
                     || (scalar.value >= 0x61 && scalar.value <= 0x7A)
                     || scalar == "." || scalar == "_" || scalar == ":" || scalar == "-"
             }
+    }
+
+    private static func validResolvedPayloadContract(
+        _ payload: DeviceIngressResolvedCallbackPayload
+    ) -> Bool {
+        let correspondenceAction =
+            "haven.assistant-correspondence.issue-access-proof"
+        if payload.requiredActionKey == correspondenceAction {
+            return payload.payload.schema
+                == "cellscaffold.device-ingress.callback-payload.correspondence-approval.v1"
+                && payload.payload.approvalInspection?.schema
+                    == "haven.assistant-correspondence.approval-inspection.v1"
+        }
+        return payload.payload.schema == "cellscaffold.device-ingress.callback-payload.v1"
+            && payload.payload.approvalInspection == nil
     }
 
     private static func encoded<T: Encodable>(_ value: T) throws -> Data {
@@ -652,12 +710,53 @@ final class NotificationCallbackClient {
         }
 
         do {
-            _ = try await resolveTicket(participantId: participantId, deviceId: deviceId, ticketId: ticketId)
+            let resolved = try await resolveTicket(
+                participantId: participantId,
+                deviceId: deviceId,
+                ticketId: ticketId
+            )
+            guard let action = Self.pendingDeviceAction(
+                participantId: participantId,
+                deviceId: deviceId,
+                expectedTicketId: ticketId,
+                resolvedTicket: resolved
+            ) else {
+                return .failed
+            }
+            await MainActor.run {
+                PendingActionInboxViewModel.shared.upsert(action)
+            }
             return .resolved
         } catch {
             print("Notification callback resolve failed: \(error)")
             return .failed
         }
+    }
+
+    nonisolated static func pendingDeviceAction(
+        participantId: String,
+        deviceId: String,
+        expectedTicketId: String,
+        resolvedTicket: [String: JSONValue],
+        receivedAt: Date = Date()
+    ) -> PendingDeviceAction? {
+        guard stringValue(resolvedTicket["schema"])
+                == "cellscaffold.device-ingress.resolved-payload.v1",
+              let ticketId = stringValue(resolvedTicket["ticketId"]),
+              ticketId == expectedTicketId,
+              let requiredActionKey = stringValue(resolvedTicket["requiredActionKey"]),
+              case let .object(payload)? = resolvedTicket["payload"] else {
+            return nil
+        }
+        return PendingDeviceAction(
+            id: ticketId,
+            participantId: participantId,
+            deviceId: deviceId,
+            ticketId: ticketId,
+            requiredActionKey: requiredActionKey,
+            payload: payload,
+            receivedAt: receivedAt
+        )
     }
 
     nonisolated static func notificationTicketID(from userInfo: [AnyHashable: Any]) -> String? {

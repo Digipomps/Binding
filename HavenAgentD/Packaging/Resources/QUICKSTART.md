@@ -95,29 +95,38 @@ Your HAVEN operator supplies a short-lived, single-use `haven-invite.json` over
 a trusted channel. Enroll this Mac's newly generated Keychain-backed identity:
 
 ```bash
-haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+MCP_BIN="$HOME/.local/bin/haven-correspondence-mcp"
+[[ -x "$MCP_BIN" ]] || MCP_BIN="/usr/local/bin/haven-correspondence-mcp"
+"$MCP_BIN" setup --invite ~/Downloads/haven-invite.json
 ```
 
-This submits a signed Entity-bound access request. Wait for the HAVEN operator
-to select **Utsted adgangsbevis** on a registered device, then run:
+This submits a signed Entity-bound access request. Print the local comparison
+values:
 
 ```bash
-haven-correspondence-mcp activate --profile victoria
-haven-correspondence-mcp doctor --profile victoria
+"$MCP_BIN" identity --profile victoria
+```
+
+Binding requires the operator to compare request ID, Entity, device ID, identity
+UUID and SHA-256 key fingerprint before **Utsted adgangsbevis** is enabled. Then run:
+
+```bash
+"$MCP_BIN" activate --profile victoria
+"$MCP_BIN" doctor --profile victoria
 ```
 
 Then register the local stdio MCP server in Claude Code:
 
 ```bash
 claude mcp add --scope user haven-correspondence -- \
-  /usr/local/bin/haven-correspondence-mcp serve --profile victoria
+  "$HOME/.local/bin/haven-correspondence-mcp" serve --profile victoria
 ```
 
 For Codex Desktop/CLI:
 
 ```bash
 codex mcp add haven-correspondence -- \
-  /usr/local/bin/haven-correspondence-mcp serve --profile victoria
+  "$HOME/.local/bin/haven-correspondence-mcp" serve --profile victoria
 ```
 
 Use the profile name embedded in the invite. The one-time invite secret is sent
