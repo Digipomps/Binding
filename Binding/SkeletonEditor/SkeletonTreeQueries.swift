@@ -37,6 +37,7 @@ enum SkeletonTreeQueries {
         case .Toggle(let toggle): return toggle.modifiers
         case .Picker(let picker): return picker.modifiers
         case .Tabs(let tabs): return tabs.modifiers
+        case .NavigationBar(let navigationBar): return navigationBar.modifiers
         case .Visualization(let visualization): return visualization.modifiers
         case .Unsupported(let unsupported): return unsupported.modifiers
         }
@@ -71,6 +72,7 @@ enum SkeletonTreeQueries {
         case .Toggle: return "Toggle"
         case .Picker: return "Picker"
         case .Tabs: return "Tabs"
+        case .NavigationBar: return "NavigationBar"
         case .Visualization: return "Visualization"
         case .Unsupported(let unsupported):
             return "Unsupported(\(unsupported.elementType))"

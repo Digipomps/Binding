@@ -481,6 +481,20 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                     inspectSkeleton(child, path: path + ["tab:\(panel.id)", "content[\(index)]"], report: &report)
                 }
             }
+        case .NavigationBar(let navigationBar):
+            if navigationBar.items.isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(
+                    severity: .error,
+                    detail: "\(pathString(path)) navigation bar has no items"
+                ))
+            }
+            for (index, item) in navigationBar.items.enumerated() {
+                inspectSkeleton(
+                    .Button(item.asSkeletonButton()),
+                    path: path + ["navigationItem[\(index)]"],
+                    report: &report
+                )
+            }
         case .Grid(let grid):
             for (index, child) in grid.elements.enumerated() {
                 inspectSkeleton(child, path: path + ["grid[\(index)]"], report: &report)

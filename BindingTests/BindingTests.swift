@@ -9446,6 +9446,9 @@ struct BindingTests {
                 append(panel.modifiers)
                 panel.content.forEach { roles.append(contentsOf: child($0)) }
             }
+        case .NavigationBar(let navigationBar):
+            append(navigationBar.modifiers)
+            navigationBar.items.forEach { append($0.modifiers) }
         }
 
         return roles
