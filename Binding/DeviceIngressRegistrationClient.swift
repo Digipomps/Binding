@@ -98,10 +98,40 @@ nonisolated struct DeviceIngressCompletionEnvelopeLease: Sendable {
     let canonicalCompletionEnvelope: Data
 }
 
+nonisolated enum DeviceIngressCompletionEnvelopeAvailability: Equatable, Sendable {
+    case unavailable
+    case staged
+    case leased
+}
+
+nonisolated enum DeviceIngressIdentityLinkHandshakeContract {
+    static let schema = "haven.device-ingress.identity-link-handshake.v1"
+    static let purpose = "link_identity"
+    static let requestedDomains = [DeviceIngressEnvelope.identityDomain]
+    static let requestedIdentityContexts = ["ios", "device-ingress"]
+    static let requestedScopes = ["device-ingress.register"]
+
+    static func origin(for audience: String) -> String {
+        "https://\(audience)"
+    }
+}
+
+nonisolated enum BindingDeviceIngressIdentityLinkPhase: String, Equatable, Sendable {
+    case completionRequired = "completion_required"
+    case completionStaged = "completion_staged"
+    case registering
+    case retryable
+    case receiptVerified = "receipt_verified"
+    case statusReadbackRequired = "status_readback_required"
+}
+
 nonisolated protocol DeviceIngressCompletionEnvelopeProviding: Sendable {
     func acquireCanonicalCompletionEnvelope() async throws
         -> DeviceIngressCompletionEnvelopeLease
     func releaseCanonicalCompletionEnvelope(
+        _ lease: DeviceIngressCompletionEnvelopeLease
+    ) async throws
+    func invalidateCanonicalCompletionEnvelope(
         _ lease: DeviceIngressCompletionEnvelopeLease
     ) async throws
     func consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
@@ -111,9 +141,11 @@ nonisolated protocol DeviceIngressCompletionEnvelopeProviding: Sendable {
 
 /// A single-purpose, process-memory-only hand-off. Registration acquires an
 /// exclusive lease so concurrent triggers cannot reuse it. A failed attempt
-/// releases the same bytes back to the explicit enrollment session; only a
-/// cryptographically verified signed registration receipt consumes them.
-/// Nothing is persisted, exported, logged, or used by automatic re-registration.
+/// releases the same bytes back to the explicit enrollment session when retry
+/// remains valid. A locally invalid or expired envelope is invalidated so a
+/// fresh handshake can replace it; only a cryptographically verified signed
+/// registration receipt consumes a valid envelope. Nothing is persisted,
+/// exported, logged, or used by automatic re-registration.
 actor DeviceIngressOneShotCompletionEnvelopeProvider:
     DeviceIngressCompletionEnvelopeProviding
 {
@@ -127,6 +159,17 @@ actor DeviceIngressOneShotCompletionEnvelopeProvider:
     }
 
     private var state: State = .empty
+
+    func availability() -> DeviceIngressCompletionEnvelopeAvailability {
+        switch state {
+        case .empty:
+            return .unavailable
+        case .staged:
+            return .staged
+        case .leased:
+            return .leased
+        }
+    }
 
     func stage(canonicalCompletionEnvelope: Data) throws {
         guard case .empty = state else {
@@ -174,6 +217,17 @@ actor DeviceIngressOneShotCompletionEnvelopeProvider:
         }
         var erasedEnvelope = envelope
         erasedEnvelope.resetBytes(in: 0..<erasedEnvelope.count)
+        state = .empty
+    }
+
+    func invalidateCanonicalCompletionEnvelope(
+        _ lease: DeviceIngressCompletionEnvelopeLease
+    ) throws {
+        guard case let .leased(id, envelope) = state,
+              id == lease.id else {
+            throw DeviceIngressRegistrationClientError
+                .completionEnvelopeLeaseMismatch
+        }
         state = .empty
     }
 
@@ -285,14 +339,21 @@ nonisolated enum DeviceIngressEntityLinkAuthorizationVerifier {
               ),
               (try? encoded(envelope)) == canonicalCompletionEnvelope,
               envelope.expectedAudience == trust.expectedAudience,
-              envelope.expectedOrigin == "https://\(trust.expectedAudience)",
+              envelope.expectedOrigin == DeviceIngressIdentityLinkHandshakeContract
+                .origin(for: trust.expectedAudience),
               envelope.expectedPresentationChallenge == envelope.request.nonce,
               envelope.expectedPresentationDomain == DeviceIngressEnvelope.identityDomain,
               envelope.request.audience == trust.expectedAudience,
-              envelope.request.origin == "https://\(trust.expectedAudience)",
-              envelope.request.requestedDomains == [DeviceIngressEnvelope.identityDomain],
-              envelope.request.requestedIdentityContexts == ["ios", "device-ingress"],
-              envelope.request.requestedScopes == ["device-ingress.register"],
+              envelope.request.origin == DeviceIngressIdentityLinkHandshakeContract
+                .origin(for: trust.expectedAudience),
+              envelope.request.purpose
+                == DeviceIngressIdentityLinkHandshakeContract.purpose,
+              envelope.request.requestedDomains
+                == DeviceIngressIdentityLinkHandshakeContract.requestedDomains,
+              envelope.request.requestedIdentityContexts
+                == DeviceIngressIdentityLinkHandshakeContract.requestedIdentityContexts,
+              envelope.request.requestedScopes
+                == DeviceIngressIdentityLinkHandshakeContract.requestedScopes,
               envelope.request.entityBinding?.mode == .pairwise,
               envelope.request.entityBinding?.audience == trust.expectedAudience,
               let bindingID = envelope.request.entityBinding?.bindingID,
@@ -2770,6 +2831,12 @@ enum BindingDeviceIngressRegistrationComposition {
         try await completionEnvelopeProvider.stage(canonicalCompletionEnvelope: canonicalData)
     }
 
+    static func completionEnvelopeAvailability() async
+        -> DeviceIngressCompletionEnvelopeAvailability
+    {
+        await completionEnvelopeProvider.availability()
+    }
+
     static func register(
         protectedBody: Data,
         consentEvidence: NotificationTermsConsentEvidence,
@@ -2821,6 +2888,10 @@ enum BindingDeviceIngressRegistrationComposition {
             try await completionEnvelopeProvider
                 .consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(lease)
             return completed
+        } catch DeviceIngressRegistrationClientError.invalidCompletionEnvelope {
+            try await completionEnvelopeProvider
+                .invalidateCanonicalCompletionEnvelope(lease)
+            throw DeviceIngressRegistrationClientError.invalidCompletionEnvelope
         } catch {
             try await completionEnvelopeProvider
                 .releaseCanonicalCompletionEnvelope(lease)
