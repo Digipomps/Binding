@@ -522,10 +522,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;
 				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = eyJhbGdvcml0aG0iOiJFZERTQSIsImN1cnZlVHlwZSI6IkN1cnZlMjU1MTkiLCJwdWJsaWNLZXkiOiJtNGY3S21aeVwvMmxMa1NkeFwvTzR2RGg3M1YyQWNzekNsVU5PTEE2dUUzTUU9IiwidXVpZCI6Ijk0NzIwOUM3LTZENTEtNEFDMC04Qzc3LThDQjAxNDk5MTgzOSJ9;
+				HAVEN_DISPLAY_NAME = "HAVEN Staging";
 				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://staging.haven.digipomps.org";
 				HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = staging;
 				INFOPLIST_FILE = Binding/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
+				INFOPLIST_KEY_CFBundleDisplayName = "HAVEN Staging";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
@@ -598,6 +599,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HAVEN_DEVICE_INGRESS_AUDIENCE = haven.digipomps.org;
 				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
+				HAVEN_DISPLAY_NAME = HAVEN;
 				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://haven.digipomps.org";
 				HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = disabled;
 				INFOPLIST_FILE = Binding/Info.plist;
