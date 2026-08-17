@@ -1031,6 +1031,45 @@ struct DeviceIngressRegistrationClientTests {
         ) {
             try await DeviceIngressAuthenticatedVaultHandle.current()
         }
+        await #expect(
+            throws: DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
+        ) {
+            try await DeviceIngressAuthenticatedVaultHandle
+                .prepareCurrentForExplicitEnrollment()
+        }
+    }
+
+    @Test
+    func explicitEnrollmentProvisioningCreatesOnlyTheRequiredPrivateBinding() async throws {
+        let emptyVault = EphemeralIdentityVault()
+        #expect(await emptyVault.identity(
+            for: "private",
+            makeNewIfNotFound: false
+        ) == nil)
+
+        await #expect(
+            throws: DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
+        ) {
+            try await DeviceIngressAuthenticatedVaultHandle.testingValidated(
+                emptyVault,
+                provisionPrivateIdentityIfMissing: false
+            )
+        }
+
+        _ = try await DeviceIngressAuthenticatedVaultHandle.testingValidated(
+            emptyVault,
+            provisionPrivateIdentityIfMissing: true
+        )
+        let privateIdentity = try #require(await emptyVault.identity(
+            for: "private",
+            makeNewIfNotFound: false
+        ))
+        let binding = try #require(await emptyVault.identityDomainBinding(
+            for: privateIdentity
+        ))
+        #expect(binding.domain == "private")
+        #expect(binding.matches(identity: privateIdentity))
+        #expect(binding.grantsAuthority == false)
     }
 
     @Test @MainActor

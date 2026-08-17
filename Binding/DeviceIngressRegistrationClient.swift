@@ -2490,14 +2490,46 @@ nonisolated struct DeviceIngressAuthenticatedVaultHandle: Sendable {
 
     @MainActor
     static func current() async throws -> Self {
+        let identityVault = try currentPersistentIdentityVault()
+        return try await validated(
+            identityVault: identityVault,
+            provisionPrivateIdentityIfMissing: false
+        )
+    }
+
+    /// Called only from the user's explicit accept/retry action after
+    /// CellApple device-owner authentication. A fresh persistent vault does
+    /// not yet contain the private-domain identity used to bind the runtime,
+    /// so that one transition may provision it. Background registration paths
+    /// continue to use `current()` and therefore cannot mint an identity.
+    @MainActor
+    static func prepareCurrentForExplicitEnrollment() async throws -> Self {
+        let identityVault = try currentPersistentIdentityVault()
+        return try await validated(
+            identityVault: identityVault,
+            provisionPrivateIdentityIfMissing: true
+        )
+    }
+
+    @MainActor
+    private static func currentPersistentIdentityVault() throws
+        -> any IdentityVaultProtocol
+    {
         guard BindingRuntimeBootstrap.authenticatedRuntimeIsReady,
               let identityVault = CellBase.defaultIdentityVault,
               identityVault is IdentityVault else {
             throw DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
         }
+        return identityVault
+    }
+
+    private static func validated(
+        identityVault: any IdentityVaultProtocol,
+        provisionPrivateIdentityIfMissing: Bool
+    ) async throws -> Self {
         guard let privateIdentity = await identityVault.identity(
             for: "private",
-            makeNewIfNotFound: false
+            makeNewIfNotFound: provisionPrivateIdentityIfMissing
         ),
               let privateBinding = await identityVault.identityDomainBinding(
                 for: privateIdentity
@@ -2513,6 +2545,16 @@ nonisolated struct DeviceIngressAuthenticatedVaultHandle: Sendable {
     #if DEBUG
     static func testing(_ identityVault: any IdentityVaultProtocol) -> Self {
         Self(identityVault: identityVault)
+    }
+
+    static func testingValidated(
+        _ identityVault: any IdentityVaultProtocol,
+        provisionPrivateIdentityIfMissing: Bool
+    ) async throws -> Self {
+        try await validated(
+            identityVault: identityVault,
+            provisionPrivateIdentityIfMissing: provisionPrivateIdentityIfMissing
+        )
     }
     #endif
 }

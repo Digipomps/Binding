@@ -124,7 +124,8 @@ final class NotificationEnrollmentManager: ObservableObject {
         authenticatedRuntimePreparer: @escaping
             @MainActor @Sendable () async throws -> Void = {
                 await BindingRuntimeBootstrap.ensureBaseline()
-                _ = try await DeviceIngressAuthenticatedVaultHandle.current()
+                _ = try await DeviceIngressAuthenticatedVaultHandle
+                    .prepareCurrentForExplicitEnrollment()
         }
     ) {
         self.defaults = defaults
