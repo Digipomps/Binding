@@ -38,6 +38,23 @@ private final class RuntimeSurfaceLaunchEventRecorder: @unchecked Sendable {
     }
 }
 
+private final class ConfigurationConstructionRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedCount = 0
+
+    func record() {
+        lock.lock()
+        storedCount += 1
+        lock.unlock()
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedCount
+    }
+}
+
 private actor AgreementOrderingBridgeTransportScript {
     static let shared = AgreementOrderingBridgeTransportScript()
 
@@ -1419,6 +1436,23 @@ struct BindingTests {
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Invite Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Butterpop Studio") == .butterpopStudio)
+    }
+
+    @Test func releaseNavigationDoesNotConstructHiddenAppleIntelligenceConfiguration() {
+#if DEBUG
+        let recorder = ConfigurationConstructionRecorder()
+
+        let visibleDestinations = BindingConfigurationConstructionProbe
+            .$appleIntelligencePersonalCopilotFactoryDidStart
+            .withValue({ recorder.record() }) {
+                BindingPersonalCopilotDestination.visibleDestinations(
+                    appStoreCatalogGateEnabled: true
+                )
+            }
+
+        #expect(visibleDestinations == [.inviteChat, .vaultIdeas])
+        #expect(recorder.count == 0)
+#endif
     }
 
     @Test func personalCopilotStyleRolesStayWithinAllowlist() {
