@@ -291,6 +291,82 @@ final class SkeletonRendererParityTests: XCTestCase {
         XCTAssertNil(buttons.first?.payload?["static"])
     }
 
+    func testNavigationBarSchemaActionAndVisibilityParity() throws {
+        let crossConfigurationItem = SkeletonNavigationBarItem(
+            keypath: "",
+            label: "Co-Pilot",
+            url: "/porthole?configurationName=Co-Pilot%20Chat",
+            activeConfigurationName: "Co-Pilot Chat"
+        )
+        let inPageItem = SkeletonNavigationBarItem(
+            keypath: "chat.setActiveTab",
+            label: "Vault",
+            payload: .string("vault"),
+            activeValue: "vault"
+        )
+        let element = SkeletonElement.NavigationBar(SkeletonNavigationBar(
+            activeStateKeypath: "chat.activeTab",
+            items: [crossConfigurationItem, inPageItem]
+        ))
+
+        let encoded = try JSONEncoder().encode(element)
+        let decoded = try JSONDecoder().decode(SkeletonElement.self, from: encoded)
+        guard case let .NavigationBar(navigationBar) = decoded else {
+            return XCTFail("Expected NavigationBar to survive the Binding schema boundary")
+        }
+
+        XCTAssertEqual(navigationBar.activeStateKeypath, "chat.activeTab")
+        XCTAssertEqual(navigationBar.items.map(\.label), ["Co-Pilot", "Vault"])
+        XCTAssertTrue(SkeletonButtonNavigation.isNavigationButton(navigationBar.items[0].asSkeletonButton()))
+        XCTAssertFalse(SkeletonButtonNavigation.isNavigationButton(navigationBar.items[1].asSkeletonButton()))
+        XCTAssertEqual(navigationBar.items[0].activeConfigurationName, "Co-Pilot Chat")
+        XCTAssertEqual(navigationBar.items[1].activeValue, "vault")
+        XCTAssertEqual(SkeletonTreeQueries.displayName(for: decoded), "NavigationBar")
+        XCTAssertFalse(SkeletonTreeQueries.canContainChildren(decoded))
+        XCTAssertEqual(SkeletonTreeQueries.childCount(in: decoded), 0)
+        XCTAssertTrue(SkeletonElementParameterCatalog.supportedKeys(for: decoded).isEmpty)
+        var previewConfiguration = CellConfiguration(name: "NavigationBar parity")
+        previewConfiguration.skeleton = decoded
+        let preview = try XCTUnwrap(
+            LibraryPreviewSkeletonSupport.preparePreview(for: previewConfiguration)
+        )
+        guard case .NavigationBar = preview.element else {
+            return XCTFail("Expected NavigationBar to survive the static library preview boundary")
+        }
+        XCTAssertTrue(preview.usesPlaceholders, "Navigation bindings and actions are disabled in library preview")
+
+        let hiddenElement = try XCTUnwrap(SkeletonTreeMutations.updateModifier(
+            in: decoded,
+            at: .root,
+            mutate: { $0.hidden = true }
+        ))
+        XCTAssertEqual(SkeletonTreeQueries.modifiers(on: hiddenElement)?.hidden, true)
+        let extraction = BindingSkeletonPresentationSupport.extract(
+            from: hiddenElement,
+            context: .root(nil)
+        )
+        XCTAssertNil(extraction.baseElement, "Binding must honor NavigationBar visibility modifiers")
+        XCTAssertTrue(extraction.nodes.isEmpty)
+
+        let presentedElement = try XCTUnwrap(SkeletonTreeMutations.updateModifier(
+            in: decoded,
+            at: .root,
+            mutate: {
+                $0.presentation = SkeletonPresentation(kind: .sheet, placement: .bottom)
+            }
+        ))
+        let presentedExtraction = BindingSkeletonPresentationSupport.extract(
+            from: presentedElement,
+            context: .root(nil)
+        )
+        XCTAssertNil(presentedExtraction.baseElement)
+        let presentedNode = try XCTUnwrap(presentedExtraction.nodes.first)
+        guard case let .NavigationBar(presentedNavigationBar) = presentedNode.element else {
+            return XCTFail("Expected NavigationBar in the Binding presentation overlay")
+        }
+        XCTAssertNil(presentedNavigationBar.modifiers?.presentation)
+    }
+
     private func textValues(in element: SkeletonElement?) -> [String] {
         guard let element else {
             return []

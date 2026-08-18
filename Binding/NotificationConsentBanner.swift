@@ -10,7 +10,7 @@ struct NotificationConsentBanner: View {
             }
         } else if manager.pushPermissionGranted && !manager.isDeviceRegistered {
             banner {
-                registrationRetryContent
+                enrollmentContent
             }
         } else if let error = manager.lastRegistrationError, !error.isEmpty {
             banner {
@@ -36,6 +36,73 @@ struct NotificationConsentBanner: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
+            registrationErrorText
+        }
+    }
+
+    @ViewBuilder
+    private var enrollmentContent: some View {
+        switch manager.enrollmentPhase {
+        case .completionRequired:
+            identityLinkRequiredContent
+        case .completionStaged, .registering:
+            registrationInProgressContent
+        case .statusReadbackRequired:
+            statusReadbackContent
+        case .retryable:
+            registrationRetryContent
+        case .apnsTokenPending:
+            apnsTokenPendingContent
+        case .termsRequired, .pushPermissionRequired:
+            registrationRetryContent
+        }
+    }
+
+    private var identityLinkRequiredContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sikker enhetskobling kreves")
+                .font(.headline)
+            Text("Før telefonen kan registreres hos staging må HAVEN fullføre den samme kortlivede Identity Link-handshaken som Scaffold Setup utsteder.")
+                .font(.subheadline)
+            Button("Åpne Identity Link") {
+                BindingPortholeLoadBridge.post(
+                    configuration: ConfigurationCatalogCell
+                        .conferenceIdentityLinkWorkbenchConfiguration()
+                )
+            }
+            .buttonStyle(.borderedProminent)
+            registrationErrorText
+        }
+    }
+
+    private var registrationInProgressContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Registrerer enheten sikkert")
+                .font(.headline)
+            Text("Identity Link er verifisert. HAVEN bruker engangskonvolutten i ett signert registreringsforsøk.")
+                .font(.subheadline)
+            ProgressView()
+            registrationErrorText
+        }
+    }
+
+    private var apnsTokenPendingContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Venter på varslingstoken")
+                .font(.headline)
+            Text("HAVEN har tillatelse og fortsetter når iOS har levert et ferskt APNs-token.")
+                .font(.subheadline)
+            ProgressView()
+            registrationErrorText
+        }
+    }
+
+    private var statusReadbackContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Registreringskvittering verifisert")
+                .font(.headline)
+            Text("HAVEN venter på en fersk, signert statuslesing før enheten kan vises som aktivt registrert.")
+                .font(.subheadline)
             registrationErrorText
         }
     }

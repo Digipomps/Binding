@@ -112,10 +112,10 @@ logical_compiler_path() {
 manifest_dir="$(/usr/bin/dirname "$output_manifest")"
 plist_dir="$(/usr/bin/dirname "$output_plist")"
 /bin/mkdir -p "$manifest_dir" "$plist_dir"
-temporary_manifest="${output_manifest}.tmp.$$"
-temporary_unsorted="${output_manifest}.unsorted.$$"
-temporary_config="${output_manifest}.config.$$"
-temporary_plist="${output_plist}.tmp.$$"
+temporary_manifest="${output_manifest}.tmp"
+temporary_unsorted="${output_manifest}.unsorted"
+temporary_config="${output_manifest}.config"
+temporary_plist="${output_plist}.tmp"
 trap '/bin/rm -f "$temporary_manifest" "$temporary_unsorted" "$temporary_config" "$temporary_plist"' EXIT
 
 : > "$temporary_unsorted"

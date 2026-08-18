@@ -50,6 +50,14 @@ enum BindingPortholeLoadBridge {
     }
 }
 
+#if DEBUG
+enum BindingConfigurationConstructionProbe {
+    @TaskLocal
+    nonisolated static var appleIntelligencePersonalCopilotFactoryDidStart:
+        (@Sendable () -> Void)?
+}
+#endif
+
 enum BindingPersonalCopilotV1Policy {
     nonisolated static let appStoreScope = "personal-copilot-v1"
     nonisolated static let arendalsukaConfigurationName = "Arendalsuka Participant Program"
@@ -8638,7 +8646,11 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     }
 
     nonisolated static func appleIntelligenceLandingForPersonalCopilotConfiguration() -> CellConfiguration {
-        withPersonalCopilotMetadata(
+#if DEBUG
+        BindingConfigurationConstructionProbe
+            .appleIntelligencePersonalCopilotFactoryDidStart?()
+#endif
+        return withPersonalCopilotMetadata(
             appleIntelligenceLandingConfiguration(),
             sourceCellEndpoint: "cell:///ConfigurationCatalog",
             sourceCellName: "ConfigurationCatalogCell",

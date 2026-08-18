@@ -2,6 +2,12 @@ import Darwin
 import Foundation
 import HavenAgentRuntime
 
+#if canImport(CryptoKit)
+  import CryptoKit
+#else
+  import Crypto
+#endif
+
 @main
 struct HavenCorrespondenceMCPMain {
   static func main() async {
@@ -82,9 +88,14 @@ struct HavenCorrespondenceMCPMain {
     try json(try publicProfileObject(profile))
   }
 
-  private static func publicProfileObject(_ profile: CorrespondenceProfile) throws
+  static func publicProfileObject(_ profile: CorrespondenceProfile) throws
     -> MCPJSONObject
   {
+    guard let publicKey = CorrespondenceCanonicalCoding.data(
+      base64URL: profile.publicKeyBase64URL)
+    else {
+      throw CorrespondenceClientError.profileIdentityMismatch
+    }
     var object: MCPJSONObject = [
       "status": profile.accessCredential == nil ? "pending_approval" : "active",
       "profile": profile.profile,
@@ -93,6 +104,8 @@ struct HavenCorrespondenceMCPMain {
       "displayName": profile.displayName,
       "identityUUID": profile.identityUUID,
       "publicKeyBase64URL": profile.publicKeyBase64URL,
+      "publicKeyFingerprint":
+        "sha256:\(CorrespondenceCanonicalCoding.base64URL(Data(SHA256.hash(data: publicKey))))",
       "baseURL": profile.baseURL,
       "executionAuthority": false,
     ]

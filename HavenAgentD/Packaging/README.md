@@ -77,6 +77,23 @@ Produces under `dist/`:
 - `release-manifest.json` — version, architectures, package hash, signing and
   per-artifact hashes
 
+## Messages-only internal pilot archive
+
+Build the separate, user-scoped correspondence archive without the daemon or
+Sprout payload:
+
+```bash
+cd HavenAgentD
+VERSION=0.3.1-internal.2 ARCHS=arm64 \
+  ./Packaging/build_correspondence_pilot.sh
+```
+
+Use `ARCHS="arm64 x86_64"` for a universal2 archive. Its `install.sh` writes
+only below the current user's Library and `$HOME/.local/bin`; it does not use
+sudo, enroll an identity, contact staging, or modify Claude/Codex settings.
+`CORRESPONDENCE_PREBUILT=/absolute/path` packages an already tested executable
+after verifying that it contains every requested architecture.
+
 Override defaults via env: `VERSION`, `DIST_DIR`, `ARCHS`, `BUILD_ROOT`,
 `MACOS_DEPLOYMENT_TARGET`, `SPROUT_SRC_DIR`, `AGENTD_PREBUILT`,
 `CORRESPONDENCE_PREBUILT`, `SPROUT_BIN`, `APP_IDENTITY`,

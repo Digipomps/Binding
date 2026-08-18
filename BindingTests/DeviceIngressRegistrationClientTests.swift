@@ -73,9 +73,12 @@ struct DeviceIngressRegistrationClientTests {
     func oneShotProviderRetainsFailureAndConsumesOnlyAfterVerifiedReceipt() async throws {
         let provider = DeviceIngressOneShotCompletionEnvelopeProvider()
         let canonicalEnvelope = Data(#"{"schema":"fixture"}"#.utf8)
+        #expect(await provider.availability() == .unavailable)
         try await provider.stage(canonicalCompletionEnvelope: canonicalEnvelope)
+        #expect(await provider.availability() == .staged)
         #expect(await provider.hasStagedEnvelopeForTesting())
         let firstLease = try await provider.acquireCanonicalCompletionEnvelope()
+        #expect(await provider.availability() == .leased)
         #expect(firstLease.canonicalCompletionEnvelope == canonicalEnvelope)
         #expect(await provider.hasStagedEnvelopeForTesting() == false)
         #expect(await provider.hasLeasedEnvelopeForTesting())
@@ -86,6 +89,7 @@ struct DeviceIngressRegistrationClientTests {
         }
 
         try await provider.releaseCanonicalCompletionEnvelope(firstLease)
+        #expect(await provider.availability() == .staged)
         #expect(await provider.hasStagedEnvelopeForTesting())
         #expect(await provider.hasLeasedEnvelopeForTesting() == false)
 
@@ -94,6 +98,7 @@ struct DeviceIngressRegistrationClientTests {
         try await provider.consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
             retryLease
         )
+        #expect(await provider.availability() == .unavailable)
         #expect(await provider.hasStagedEnvelopeForTesting() == false)
         #expect(await provider.hasLeasedEnvelopeForTesting() == false)
         await #expect(
@@ -101,6 +106,26 @@ struct DeviceIngressRegistrationClientTests {
         ) {
             try await provider.acquireCanonicalCompletionEnvelope()
         }
+    }
+
+    @Test
+    func invalidOneShotEnvelopeIsInvalidatedAndCanBeReplacedByFreshHandshake() async throws {
+        let provider = DeviceIngressOneShotCompletionEnvelopeProvider()
+        try await provider.stage(
+            canonicalCompletionEnvelope: Data(#"{"schema":"expired"}"#.utf8)
+        )
+        let invalidLease = try await provider.acquireCanonicalCompletionEnvelope()
+        try await provider.invalidateCanonicalCompletionEnvelope(invalidLease)
+        #expect(await provider.availability() == .unavailable)
+
+        let freshEnvelope = Data(#"{"schema":"fresh"}"#.utf8)
+        try await provider.stage(canonicalCompletionEnvelope: freshEnvelope)
+        let freshLease = try await provider.acquireCanonicalCompletionEnvelope()
+        #expect(freshLease.canonicalCompletionEnvelope == freshEnvelope)
+        try await provider.consumeCanonicalCompletionEnvelopeAfterVerifiedReceipt(
+            freshLease
+        )
+        #expect(await provider.availability() == .unavailable)
     }
 
     @Test
@@ -1031,6 +1056,45 @@ struct DeviceIngressRegistrationClientTests {
         ) {
             try await DeviceIngressAuthenticatedVaultHandle.current()
         }
+        await #expect(
+            throws: DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
+        ) {
+            try await DeviceIngressAuthenticatedVaultHandle
+                .prepareCurrentForExplicitEnrollment()
+        }
+    }
+
+    @Test
+    func explicitEnrollmentProvisioningCreatesOnlyTheRequiredPrivateBinding() async throws {
+        let emptyVault = EphemeralIdentityVault()
+        #expect(await emptyVault.identity(
+            for: "private",
+            makeNewIfNotFound: false
+        ) == nil)
+
+        await #expect(
+            throws: DeviceIngressRegistrationClientError.authenticatedIdentityVaultUnavailable
+        ) {
+            try await DeviceIngressAuthenticatedVaultHandle.testingValidated(
+                emptyVault,
+                provisionPrivateIdentityIfMissing: false
+            )
+        }
+
+        _ = try await DeviceIngressAuthenticatedVaultHandle.testingValidated(
+            emptyVault,
+            provisionPrivateIdentityIfMissing: true
+        )
+        let privateIdentity = try #require(await emptyVault.identity(
+            for: "private",
+            makeNewIfNotFound: false
+        ))
+        let binding = try #require(await emptyVault.identityDomainBinding(
+            for: privateIdentity
+        ))
+        #expect(binding.domain == "private")
+        #expect(binding.matches(identity: privateIdentity))
+        #expect(binding.grantsAuthority == false)
     }
 
     @Test @MainActor

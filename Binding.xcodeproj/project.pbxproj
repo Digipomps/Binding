@@ -329,6 +329,10 @@
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingBuildProvenance.plist",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingCompilerInputManifest.txt",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingBuildProvenance.plist.tmp",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingCompilerInputManifest.txt.tmp",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingCompilerInputManifest.txt.unsorted",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BindingCompilerInputManifest.txt.config",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -518,10 +522,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HAVEN_DEVICE_INGRESS_AUDIENCE = staging.haven.digipomps.org;
 				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = eyJhbGdvcml0aG0iOiJFZERTQSIsImN1cnZlVHlwZSI6IkN1cnZlMjU1MTkiLCJwdWJsaWNLZXkiOiJtNGY3S21aeVwvMmxMa1NkeFwvTzR2RGg3M1YyQWNzekNsVU5PTEE2dUUzTUU9IiwidXVpZCI6Ijk0NzIwOUM3LTZENTEtNEFDMC04Qzc3LThDQjAxNDk5MTgzOSJ9;
+				HAVEN_DISPLAY_NAME = "HAVEN Staging";
 				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://staging.haven.digipomps.org";
 				HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = staging;
 				INFOPLIST_FILE = Binding/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = HAVEN;
+				INFOPLIST_KEY_CFBundleDisplayName = "HAVEN Staging";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
@@ -594,6 +599,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HAVEN_DEVICE_INGRESS_AUDIENCE = haven.digipomps.org;
 				HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64 = "";
+				HAVEN_DISPLAY_NAME = HAVEN;
 				HAVEN_DEVICE_INGRESS_PUBLIC_ORIGIN = "https://haven.digipomps.org";
 				HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT = disabled;
 				INFOPLIST_FILE = Binding/Info.plist;
@@ -794,7 +800,7 @@
 			repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
 			requirement = {
 				kind = revision;
-				revision = 1632ed65d5e4aaf663b26cee1cdddfdcdd5e4412;
+				revision = 135d3c003c3932ee190cc1ec0fc0ae21ec766f21;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

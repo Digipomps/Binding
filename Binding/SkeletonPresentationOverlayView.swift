@@ -191,6 +191,8 @@ enum BindingSkeletonPresentationSupport {
             return value.modifiers
         case .Tabs(let value):
             return value.modifiers
+        case .NavigationBar(let value):
+            return value.modifiers
         case .ZStack(let value):
             return value.modifiers
         case .Grid(let value):
@@ -683,6 +685,9 @@ enum BindingSkeletonPresentationSupport {
         case .Tabs(var value):
             value.modifiers = modifiers
             return .Tabs(value)
+        case .NavigationBar(var value):
+            value.modifiers = modifiers
+            return .NavigationBar(value)
         case .ZStack(var value):
             value.modifiers = modifiers
             return .ZStack(value)

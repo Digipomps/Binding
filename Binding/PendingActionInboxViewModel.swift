@@ -62,22 +62,48 @@ enum JSONValue: Codable, Equatable {
 final class PendingActionInboxViewModel: ObservableObject {
     static let shared = PendingActionInboxViewModel()
     static let defaultStorageKey = "binding.pendingDeviceActions.v1"
+#if DEBUG
+    static let correspondenceApprovalUITestLaunchArgument =
+        "--binding-correspondence-approval-ui-test"
+#endif
 
     @Published private(set) var actions: [PendingDeviceAction]
 
     private let defaults: UserDefaults
     private let storageKey: String
+#if DEBUG
+    private let debugFixtureActions: [PendingDeviceAction]?
+#endif
 
     init(
         defaults: UserDefaults = .standard,
-        storageKey: String = PendingActionInboxViewModel.defaultStorageKey
+        storageKey: String = PendingActionInboxViewModel.defaultStorageKey,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments
     ) {
         self.defaults = defaults
         self.storageKey = storageKey
+#if DEBUG
+        if launchArguments.contains(Self.correspondenceApprovalUITestLaunchArgument) {
+            let normalizedFixture = Self.normalized([Self.correspondenceApprovalUITestFixture()])
+            self.debugFixtureActions = normalizedFixture
+            self.actions = normalizedFixture
+        } else {
+            self.debugFixtureActions = nil
+            self.actions = Self.loadActions(defaults: defaults, storageKey: storageKey)
+        }
+#else
+        _ = launchArguments
         self.actions = Self.loadActions(defaults: defaults, storageKey: storageKey)
+#endif
     }
 
     func reloadPersistedActions() {
+#if DEBUG
+        if let debugFixtureActions {
+            actions = debugFixtureActions
+            return
+        }
+#endif
         actions = Self.normalized(Self.loadActions(defaults: defaults, storageKey: storageKey))
     }
 
@@ -142,4 +168,47 @@ final class PendingActionInboxViewModel: ObservableObject {
         }
         return actionsByTicketID.values.sorted { $0.receivedAt > $1.receivedAt }
     }
+
+#if DEBUG
+    private static func correspondenceApprovalUITestFixture() -> PendingDeviceAction {
+        PendingDeviceAction(
+            id: "notification-ticket-vegar-ui",
+            participantId: "entity-pairwise:kjetil",
+            deviceId: "kjetil-mac-ui",
+            ticketId: "notification-ticket-vegar-ui",
+            requiredActionKey: CorrespondenceApprovalInspection.actionKey,
+            payload: [
+                "schema": .string(
+                    "cellscaffold.device-ingress.callback-payload.correspondence-approval.v1"),
+                "title": .string("Utsted adgangsbevis til HAVEN-agent hos Vegar"),
+                "message": .string("entity:vegar ber om avgrenset meldingsadgang."),
+                "approvalInspection": .object([
+                    "schema": .string(CorrespondenceApprovalInspection.schema),
+                    "accessRequestID": .string("access-request-vegar-ui"),
+                    "displayName": .string("HAVEN-agent hos Vegar"),
+                    "entityRef": .string("entity:vegar"),
+                    "principalID": .string("vegar-local-agent"),
+                    "requesterDeviceID": .string("vegar-device-ui"),
+                    "requesterIdentityUUID": .string("identity-vegar-ui"),
+                    "publicKeyFingerprint": .string(
+                        "sha256:\(String(repeating: "A", count: 43))"),
+                    "resourceRefs": .array([
+                        .string(CorrespondenceApprovalInspection.endpoint)
+                    ]),
+                    "allowedPeerIDs": .array([.string("kjetil-vegar-codex")]),
+                    "allowedOperations": .array(
+                        CorrespondenceApprovalInspection.operations.sorted().map(JSONValue.string)
+                    ),
+                    "allowedPurposeRefs": .array(
+                        CorrespondenceApprovalInspection.purposeRefs.sorted().map(JSONValue.string)
+                    ),
+                    "requestExpiresAt": .string("2099-08-22T23:42:22.563Z"),
+                    "grantExpiresAt": .string("2099-09-14T23:42:22.564Z"),
+                    "executionAuthority": .bool(false)
+                ])
+            ],
+            receivedAt: Date()
+        )
+    }
+#endif
 }

@@ -18,8 +18,12 @@ email, approve agent actions or infer new authority from message text.
 Each Mac generates its own Ed25519 identity. The private key is held in the
 macOS Keychain. An invitation only permits that identity to request access; it
 does not grant use of the collaboration Cell. HAVEN notifies Kjetil on the most
-recently active relevant registered device. If he selects **Utsted
-adgangsbevis**, the Cell issues an Ed25519-signed proof bound to the requesting
+recently active relevant registered device. Binding fetches the approval details
+through its device-signed callback channel; the push provider receives only an
+opaque ticket reference. Before **Utsted adgangsbevis** becomes available, the
+card requires Kjetil to compare request ID, Entity, device ID, identity UUID and
+SHA-256 signing-key fingerprint with the requesting Mac's `identity` output.
+The Cell then issues an Ed25519-signed proof bound to the requesting
 Entity, identity key, device, resource, purposes, four operations, expiry,
 approval receipt and revocation reference. Every message request must present
 that proof and a fresh, short-lived device signature. Invitations are single-use
@@ -38,20 +42,32 @@ asleep.
 ## Enroll
 
 Obtain the per-device JSON invite from the HAVEN operator through a trusted
-channel, then run:
+channel. The user-scoped internal pilot installs the command at
+`$HOME/.local/bin/haven-correspondence-mcp`; the full signed package also makes
+it available at `/usr/local/bin/haven-correspondence-mcp`. Verify the installed
+path, then run:
 
 ```bash
-haven-correspondence-mcp setup --invite ~/Downloads/haven-invite.json
+MCP_BIN="$HOME/.local/bin/haven-correspondence-mcp"
+[[ -x "$MCP_BIN" ]] || MCP_BIN="/usr/local/bin/haven-correspondence-mcp"
+"$MCP_BIN" setup --invite ~/Downloads/haven-invite.json
 ```
 
 `setup` prints `pending_approval` after the signed request has been accepted.
 Delete the consumed invite; it is never stored in the correspondence profile.
-After Kjetil approves the request on his registered device, fetch and verify the
-proof:
+On the requesting Mac, print the comparison values:
 
 ```bash
-haven-correspondence-mcp activate --profile <profile-from-invite>
-haven-correspondence-mcp doctor --profile <profile-from-invite>
+"$MCP_BIN" identity --profile <profile-from-invite>
+```
+
+Kjetil must compare `accessRequestID`, `entityRef`, `deviceID`, `identityUUID`
+and `publicKeyFingerprint` with Binding. An incomplete or broadened request keeps
+the approval button disabled. After approval, fetch and verify the proof:
+
+```bash
+"$MCP_BIN" activate --profile <profile-from-invite>
+"$MCP_BIN" doctor --profile <profile-from-invite>
 ```
 
 `doctor` also checks for a newly issued proof when the local profile is pending.
@@ -61,7 +77,7 @@ Neither MCP serving nor message operations start without a valid proof.
 
 ```bash
 claude mcp add --scope user haven-correspondence -- \
-  /usr/local/bin/haven-correspondence-mcp serve --profile <profile>
+  "$HOME/.local/bin/haven-correspondence-mcp" serve --profile <profile>
 ```
 
 ## Add to Claude Desktop
@@ -74,7 +90,7 @@ removing existing servers:
 {
   "mcpServers": {
     "haven-correspondence": {
-      "command": "/usr/local/bin/haven-correspondence-mcp",
+      "command": "/Users/YOUR_MACOS_USER/.local/bin/haven-correspondence-mcp",
       "args": ["serve", "--profile", "<profile>"]
     }
   }
@@ -89,7 +105,7 @@ device identity.
 
 ```bash
 codex mcp add haven-correspondence -- \
-  /usr/local/bin/haven-correspondence-mcp serve --profile <profile>
+  "$HOME/.local/bin/haven-correspondence-mcp" serve --profile <profile>
 ```
 
 Restart the client if it does not discover the newly registered server.
