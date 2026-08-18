@@ -19,14 +19,14 @@ It covers:
 This runbook assumes the current workspace root is:
 
 ```bash
-/Users/kjetil/Build/Digipomps/HAVEN/Binding
+/path/to/Binding
 ```
 
 It also assumes the related repos exist at:
 
 ```bash
-/Users/kjetil/Build/Digipomps/HAVEN/sprout
-/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold
+/path/to/sprout
+/path/to/CellScaffold
 ```
 
 ## What The Flow Does
@@ -70,7 +70,7 @@ The important files under that root are:
 Run these commands from the `Binding` repo root:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd.sh
 ./Scripts/build_binding.sh
 ./Scripts/test_binding.sh -only-testing:BindingTests
@@ -89,7 +89,7 @@ Do not continue until both commands succeed.
 Build the app if you have not already:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/build_binding.sh
 ```
 
@@ -139,7 +139,7 @@ plutil -p ~/Library/Application\ Support/HAVENAgent/Out/agent-operator-entity-li
 This verifies that local artifacts are internally consistent before any real scaffold join is attempted.
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd bootstrap-probe --config ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
@@ -159,7 +159,7 @@ If this command fails, do not touch staging yet. Fix the local pairing/config fl
 From the `Binding` repo root:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd_bootstrap.sh ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
@@ -173,7 +173,7 @@ This script:
 You can also run the underlying command directly:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd bootstrap-probe \
   --config ~/Library/Application\ Support/HAVENAgent/config.json \
   --run-bootstrap
@@ -225,7 +225,7 @@ Important:
 Run this from the `sprout` repo:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/sprout
+cd /path/to/sprout
 swift run sprout-admin entity-anchor accept-entity-link \
   --snapshot /path/to/current-entity-anchor-snapshot.json \
   --entity-link ~/Library/Application\ Support/HAVENAgent/Out/agent-operator-entity-link.json \
@@ -248,7 +248,7 @@ What this command does:
 If you already know the target entity ID, you can make the operation stricter:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/sprout
+cd /path/to/sprout
 swift run sprout-admin entity-anchor accept-entity-link \
   --snapshot /path/to/current-entity-anchor-snapshot.json \
   --entity-link ~/Library/Application\ Support/HAVENAgent/Out/agent-operator-entity-link.json \
@@ -276,7 +276,7 @@ The relevant scaffold side variable is the anchor snapshot path used by the reso
 After deploying the updated snapshot:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd_bootstrap.sh ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
@@ -307,7 +307,7 @@ plutil -p ~/Library/Application\ Support/HAVENAgent/config.json | rg "resolverBa
 Inspect the local review state through the CLI:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd review-state --config ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
@@ -320,7 +320,7 @@ Only do this after the bootstrap probe succeeds.
 The provisioning workbench can do this for you, but the manual terminal sequence is:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift build --product haven-agentd
 mkdir -p ~/Library/Application\ Support/HAVENAgent/bin
 cp .build/debug/haven-agentd ~/Library/Application\ Support/HAVENAgent/bin/haven-agentd
@@ -337,7 +337,7 @@ chmod 755 ~/Library/Application\ Support/HAVENAgent/bin/haven-agentd
 ### 7.2 Generate The LaunchAgent Plist
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 mkdir -p ~/Library/Application\ Support/HAVENAgent/Launchd
 swift run haven-agentd print-launch-agent > ~/Library/Application\ Support/HAVENAgent/Launchd/io.digipomps.haven.agentd.plist
 ```
@@ -372,21 +372,21 @@ Use an isolated root when you want to test runtime behavior without touching you
 Validate once:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd run --config /tmp/haven-dev/HAVENAgent/config.json --once --root /tmp/haven-dev
 ```
 
 Run full agent:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd run --config /tmp/haven-dev/HAVENAgent/config.json --root /tmp/haven-dev
 ```
 
 Run smoke test:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd.sh
 ```
 
@@ -424,7 +424,7 @@ If the launch agent loads but the agent does not stay healthy:
 If you already know the UI pairing step has been completed in `Binding`, this is the shortest terminal path:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd.sh
 ./Scripts/build_binding.sh
 ./Scripts/test_haven_agentd_bootstrap.sh ~/Library/Application\ Support/HAVENAgent/config.json
@@ -433,7 +433,7 @@ cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
 If the last command fails with `identity not found in accepted anchor snapshot`, run:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/sprout
+cd /path/to/sprout
 swift run sprout-admin entity-anchor accept-entity-link \
   --snapshot /path/to/current-entity-anchor-snapshot.json \
   --entity-link ~/Library/Application\ Support/HAVENAgent/Out/agent-operator-entity-link.json \
@@ -446,6 +446,6 @@ swift run sprout-admin entity-anchor accept-entity-link \
 Deploy the updated snapshot, then rerun:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd_bootstrap.sh ~/Library/Application\ Support/HAVENAgent/config.json
 ```

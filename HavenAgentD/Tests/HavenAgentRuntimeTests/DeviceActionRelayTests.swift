@@ -581,7 +581,7 @@ struct DeviceActionRelayTests {
               "enabled": true,
               "notificationOutboxEndpoint": "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action",
               "defaultParticipantID": "binding-participant",
-              "agentRelayTokenPath": "/Users/kjetil/Library/Application Support/HAVENAgent/Secrets/agent-relay-token"
+              "agentRelayTokenPath": "/Users/example/Library/Application Support/HAVENAgent/Secrets/agent-relay-token"
             }
             """.utf8
         )
@@ -591,7 +591,7 @@ struct DeviceActionRelayTests {
         #expect(config.enabled)
         #expect(config.notificationOutboxEndpoint == "https://staging.haven.digipomps.org/conference-mvp/api/agent/device-action")
         #expect(config.defaultParticipantID == "binding-participant")
-        #expect(config.agentRelayTokenPath == "/Users/kjetil/Library/Application Support/HAVENAgent/Secrets/agent-relay-token")
+        #expect(config.agentRelayTokenPath == "/Users/example/Library/Application Support/HAVENAgent/Secrets/agent-relay-token")
     }
 
     @Test

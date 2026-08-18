@@ -41,7 +41,7 @@ Per-user runtime state stays where it always has:
      --team-id "5UT5HQTCV9" \
      --password "<app-specific-password>"
    ```
-3. A Sprout source checkout at `../../sprout`, or explicitly supplied prebuilt
+3. A sibling Sprout source checkout at `../sprout`, or explicitly supplied prebuilt
    binaries containing every requested architecture.
 
 ## Build + sign

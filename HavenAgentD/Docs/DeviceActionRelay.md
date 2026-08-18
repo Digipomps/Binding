@@ -69,7 +69,7 @@ participant/platform-match.
     "defaultParticipantID": "binding-participant",
     "defaultTTLSeconds": 900,
     "conversationEndpoint": "cell://staging.haven.digipomps.org/AgentConversationInbox",
-    "agentRelayTokenPath": "/Users/kjetil/Library/Application Support/HAVENAgent/Secrets/agent-relay-token"
+    "agentRelayTokenPath": "/Users/example/Library/Application Support/HAVENAgent/Secrets/agent-relay-token"
   }
 }
 ```
@@ -96,6 +96,6 @@ Viktigste APNS-plasseringer:
 - lokal kilde: `/Users/Shared/Apple Connect/AuthKey_ZPJC567ND5.p8`
 - staging host: `/home/ops/CellScaffold/.secrets/AuthKey_ZPJC567ND5.p8`
 - container runtime path: `/run/secrets/apns-auth-key.p8`
-- lokal relay-token secret: `/Users/kjetil/Library/Application Support/HAVENAgent/Secrets/agent-relay-token`
+- lokal relay-token secret: `/Users/example/Library/Application Support/HAVENAgent/Secrets/agent-relay-token`
 
 Ikke logg eller commit innholdet i `.p8`-filen eller relay-tokenet.

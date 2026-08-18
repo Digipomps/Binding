@@ -2,7 +2,13 @@
 
 `HavenAgentD` is a headless macOS agent package intended to sit between a HAVEN entity in the cloud and local macOS automation boundaries.
 
-Binding is now treated as a standalone app product, so agent-specific operator/admin documentation lives under [Docs/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/README.md) instead of the main Binding documentation surface.
+This is the canonical agent repository. Binding is a separate app product and
+consumes released executables and the versioned contracts under
+[`Contracts/`](Contracts/README.md); it does not own the agent source tree.
+
+For local multi-repository development, check out `HavenAgentD`,
+`CellProtocol`, `sprout`, and optionally `Binding` as siblings. The package also
+supports pinned remote dependencies when the sibling checkouts are absent.
 
 ## What this package does now
 
@@ -61,22 +67,24 @@ Those boundaries are intentional. This package gives a safe executable skeleton 
 - `Sources/HavenAgentCells`: concrete supervisor/inbox cells, a default cell registry, plus blueprint catalog for the next cells
 - `Sources/HavenAgentCellRuntime`: local identity vault, `CellBase` host installation, resolver registration, runtime snapshotting
 - `Sources/HavenAgentCellRuntime/AgentControlBridgeServer.swift`: loopback-only websocket bridge that exposes allowlisted operator cells over CellProtocol
+- `Contracts`: machine-readable contracts consumed by Binding and other clients
+- `Scripts`: repository-local tests and bootstrap probes
 - `Docs/SecurityModel.md`: security constraints and follow-up requirements
 
 ## Docs
 
-- [Docs/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/README.md): agent doc index
-- [Docs/OperatorRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/OperatorRunbook.md): step-by-step operator guide for setup, install, bootstrap, review, and launchd
-- [Docs/BindingBoundary.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/BindingBoundary.md): current Binding vs agent boundary
-- [Docs/SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md): security model
-- [Docs/LocalModels.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/LocalModels.md): local model cell contract and phone/iPad access path
-- [Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md): provisioning pack format and the request/import round trip
-- [Docs/IdentitySignatures.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/IdentitySignatures.md): detached signed-statement contract for sending verifiable data to another entity
-- [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md): signed + notarized .pkg build and install
-- [Docs/HavenAgentDMCPServerSurface.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/HavenAgentDMCPServerSurface.md): proposed MCP adapter surface for local AI hosts
-- [../Documentation/HavenAgentPhoneApprovalLoopRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/HavenAgentPhoneApprovalLoopRunbook.md): physical iPhone install + notification approval loop runbook with current verification state
-- [Docs/Legacy/BindingProvisioningRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md): archived Binding-embedded provisioning flow
-- [Docs/Legacy/AgentSetupWorkbench_UI_Review.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/AgentSetupWorkbench_UI_Review.md): archived workbench UX review
+- [Docs/README.md](Docs/README.md): agent doc index
+- [Docs/OperatorRunbook.md](Docs/OperatorRunbook.md): step-by-step operator guide for setup, install, bootstrap, review, and launchd
+- [Docs/BindingBoundary.md](Docs/BindingBoundary.md): Binding vs agent repository and runtime boundary
+- [Docs/SecurityModel.md](Docs/SecurityModel.md): security model
+- [Docs/LocalModels.md](Docs/LocalModels.md): local model cell contract and phone/iPad access path
+- [Docs/ProvisioningPack.md](Docs/ProvisioningPack.md): provisioning pack format and the request/import round trip
+- [Docs/IdentitySignatures.md](Docs/IdentitySignatures.md): detached signed-statement contract for sending verifiable data to another entity
+- [Packaging/README.md](Packaging/README.md): signed + notarized `.pkg` build and install
+- [Docs/HavenAgentDMCPServerSurface.md](Docs/HavenAgentDMCPServerSurface.md): MCP adapter surface for local AI hosts
+- [Binding phone approval runbook](https://github.com/Digipomps/Binding/blob/main/Documentation/HavenAgentPhoneApprovalLoopRunbook.md): cross-product iPhone approval loop
+- [Docs/Legacy/BindingProvisioningRunbook.md](Docs/Legacy/BindingProvisioningRunbook.md): archived Binding-embedded provisioning flow
+- [Docs/Legacy/AgentSetupWorkbench_UI_Review.md](Docs/Legacy/AgentSetupWorkbench_UI_Review.md): archived workbench UX review
 
 ## Security model
 
@@ -115,7 +123,7 @@ When `haven-agentd run` starts, it now installs a narrow local `CellBase` host b
 
 One-shot operator setup (creates the runtime tree, writes `config.json` with a
 generated loopback token, installs the per-user LaunchAgent). This is the
-recommended path for a pkg-installed agent; see [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md):
+recommended path for a pkg-installed agent; see [Packaging/README.md](Packaging/README.md):
 
 ```bash
 haven-agentd setup --domain staging.haven.digipomps.org \
@@ -130,7 +138,7 @@ agent is local-only or fully provisioned; it refuses to load an unprovisioned
 scaffold-bound startup so `KeepAlive` cannot crashloop it.
 
 Install scaffold-join evidence with a provisioning pack (format and round trip
-in [Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md)):
+in [Docs/ProvisioningPack.md](Docs/ProvisioningPack.md)):
 
 ```bash
 haven-agentd provisioning-request                 # emit agent identity for the operator
@@ -143,7 +151,7 @@ every artifact before writing anything, and reports `readyForBootstrap`.
 Print example config:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd print-example-config
 ```
 
@@ -234,14 +242,14 @@ swift run haven-agentd print-launch-agent
 Run the package test suite plus a local retry/renewal smoke test from the `Binding` workspace root:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd.sh
 ```
 
 Run the package build plus a real bootstrap probe from the `Binding` workspace root after Binding has already paired and provisioned the agent:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd_bootstrap.sh ~/Library/Application\\ Support/HAVENAgent/config.json
 ```
 
@@ -261,7 +269,7 @@ The bootstrap probe is the staging/dev-facing complement to that smoke test. It 
 If the probe still fails with resolver output like `identity not found in accepted anchor snapshot`, the remaining step is now an explicit admin action rather than a local code gap. `sprout-admin` can update an existing signed entity-anchor snapshot to accept the paired contract ID:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/sprout
+cd /path/to/sprout
 swift run sprout-admin entity-anchor accept-entity-link \
   --snapshot /path/to/current-entity-anchor-snapshot.json \
   --entity-link ~/Library/Application\ Support/HAVENAgent/Out/agent-operator-entity-link.json \

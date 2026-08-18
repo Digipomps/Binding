@@ -104,8 +104,8 @@ What now works:
 - `ConfigurationCatalog` no longer exposes `Agent Setup Workbench`
 - the legacy `agentSetupWorkbenchConfiguration()` builder has been removed from `ConfigurationCatalogCell`
 - tests now verify the standalone contract instead of agent integration
-- agent-specific docs have been moved out of `Documentation/` into `HavenAgentD/Docs`
-- the repo now records the explicit decision that agent admin belongs in `HavenAgentD` docs, not in the main HAVEN app surface
+- agent-specific docs were first moved out of `Documentation/` into `HavenAgentD/Docs` and are now maintained in the separate `Digipomps/HavenAgentD` repository
+- the repo records the explicit decision that agent admin belongs in the HavenAgentD repository, not in the main HAVEN app surface
 - a repo sweep finds no active HAVEN runtime/catalog/menu references to `AgentProvisioning`, `AgentEnrollment`, or `Agent Setup Workbench`
 
 ## Remaining follow-up

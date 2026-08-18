@@ -9,9 +9,9 @@ Legacy note:
 Denne noten beskriver hva `Agent Setup Workbench` i `Binding` faktisk inneholder per i dag, hva hvert tekstfelt og hver knapp gjør, og hva som bør strammes inn UX-messig.
 
 Kildene for vurderingen er:
-- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/ConfigurationCatalogCell.swift`
-- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/AgentProvisioningCell.swift`
-- `/Users/kjetil/Build/Digipomps/HAVEN/Binding/Cells/AgentEnrollmentCell.swift`
+- `/path/to/Binding/Cells/ConfigurationCatalogCell.swift`
+- `/path/to/Binding/Cells/AgentProvisioningCell.swift`
+- `/path/to/Binding/Cells/AgentEnrollmentCell.swift`
 
 ## Overordnet vurdering
 

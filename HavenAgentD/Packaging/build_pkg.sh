@@ -18,7 +18,7 @@
 #   DIST_DIR       output directory          (default <pkg>/dist)
 #   ARCHS          space/comma-separated architectures (default: current host)
 #   BUILD_ROOT     base for toolchain-isolated SwiftPM scratch roots
-#   SPROUT_SRC_DIR Sprout source checkout    (default ../../sprout)
+#   SPROUT_SRC_DIR Sprout source checkout    (default ../sprout)
 #   AGENTD_PREBUILT / CORRESPONDENCE_PREBUILT optional prebuilt thin/universal binaries
 #   SPROUT_BIN     optional prebuilt thin/universal sprout binary
 #   APP_IDENTITY / INSTALLER_IDENTITY  signing identity strings
@@ -44,7 +44,7 @@ STRIP="${STRIP:-1}"
 APP_IDENTITY="${APP_IDENTITY:-Developer ID Application: Stiftelsen Digipomps (5UT5HQTCV9)}"
 INSTALLER_IDENTITY="${INSTALLER_IDENTITY:-Developer ID Installer: Stiftelsen Digipomps (5UT5HQTCV9)}"
 
-SPROUT_SRC_DIR="${SPROUT_SRC_DIR:-$PKG_DIR/../../sprout}"
+SPROUT_SRC_DIR="${SPROUT_SRC_DIR:-$PKG_DIR/../sprout}"
 AGENTD_PREBUILT="${AGENTD_PREBUILT:-}"
 CORRESPONDENCE_PREBUILT="${CORRESPONDENCE_PREBUILT:-}"
 SPROUT_BIN="${SPROUT_BIN:-}"

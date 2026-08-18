@@ -3,16 +3,47 @@ import Foundation
 import PackageDescription
 
 let packageDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-let localCellProtocolPath = packageDirectory
-    .appendingPathComponent("../../CellProtocol")
-    .standardizedFileURL.path
-let cellProtocolDependency: Package.Dependency = FileManager.default.fileExists(
-    atPath: "\(localCellProtocolPath)/Package.swift"
-) ? .package(path: localCellProtocolPath)
-  : .package(
+let environment = ProcessInfo.processInfo.environment
+
+func firstLocalPackagePath(environmentKey: String, relativeCandidates: [String]) -> String? {
+    var candidates: [String] = []
+    if let override = environment[environmentKey] {
+        candidates.append(override)
+    }
+    candidates.append(contentsOf: relativeCandidates.map {
+        packageDirectory.appendingPathComponent($0).standardizedFileURL.path
+    })
+    return candidates
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { path in
+            path.isEmpty == false
+                && FileManager.default.fileExists(atPath: "\(path)/Package.swift")
+        }
+}
+
+let cellProtocolDependency: Package.Dependency = if let localPath = firstLocalPackagePath(
+    environmentKey: "HAVEN_CELL_PROTOCOL_PATH",
+    relativeCandidates: ["../CellProtocol"]
+) {
+    .package(path: localPath)
+} else {
+    .package(
       url: "https://github.com/Digipomps/CellProtocol.git",
       revision: "33bc79fbead935c982a42a888673b5602c33b0d1"
-  )
+    )
+}
+
+let sproutDependency: Package.Dependency = if let localPath = firstLocalPackagePath(
+    environmentKey: "HAVEN_SPROUT_PATH",
+    relativeCandidates: ["../sprout"]
+) {
+    .package(path: localPath)
+} else {
+    .package(
+        url: "https://github.com/Digipomps/Sprout.git",
+        revision: "d53d2d18f5cadd4bd0e73e449101a3b766f65af7"
+    )
+}
 
 let package = Package(
     name: "HavenAgentD",
@@ -31,7 +62,7 @@ let package = Package(
     ],
     dependencies: [
         cellProtocolDependency,
-        .package(url: "https://github.com/Digipomps/Sprout.git", revision: "d53d2d18f5cadd4bd0e73e449101a3b766f65af7"),
+        sproutDependency,
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.1")
     ],
     targets: [

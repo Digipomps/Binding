@@ -1,8 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PACKAGE_DIR="$ROOT_DIR/HavenAgentD"
+PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RUNTIME_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/haven-agentd-smoke.XXXXXX")"
 MODULE_CACHE_DIR="$PACKAGE_DIR/.tmp-clang-module-cache"
 

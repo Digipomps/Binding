@@ -95,7 +95,7 @@ haven-agentd bootstrap-probe --run-bootstrap   # real scaffold admission test
 
 If the resolver reports `identity not found in accepted anchor snapshot`, the
 remaining step is scaffold-side admission of the paired contract via
-`sprout-admin entity-anchor accept-entity-link` (see [../README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/README.md)).
+`sprout-admin entity-anchor accept-entity-link` (see [../README.md](../README.md)).
 
 ## Not yet automated
 
@@ -103,5 +103,5 @@ Minting the pack (signing pairing approval, issuing starter-auth, building the
 mutually signed entity-link, and updating the scaffold entity-anchor snapshot)
 is **operator-side tooling**, not part of `haven-agentd`. This document defines
 the format that tooling must produce. See
-[OperatorRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/OperatorRunbook.md)
-and [SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md).
+[OperatorRunbook.md](OperatorRunbook.md)
+and [SecurityModel.md](SecurityModel.md).

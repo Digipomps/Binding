@@ -77,6 +77,29 @@ import Testing
         #expect(observation.bridgeEndpoint == nil)
     }
 
+    @Test func encodedObservationMatchesPublishedV1Example() throws {
+        let observation = AgentStatusRegistrationObservation(
+            status: "registered",
+            availableActionIDs: ["mac.finder.close-all-windows"],
+            bridgeEndpoint: "ws://127.0.0.1:43110/bridgehead",
+            observedAt: "2026-07-13T09:00:00Z"
+        )
+        let encodedObject = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(observation)) as? NSDictionary
+        )
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = packageRoot
+            .appendingPathComponent("Contracts/registration-observation-v1.example.json")
+        let fixtureObject = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? NSDictionary
+        )
+
+        #expect(encodedObject == fixtureObject)
+    }
+
     private func bridge(listening: Bool) -> AgentStatusControlBridgeReport {
         AgentStatusControlBridgeReport(
             configured: true,

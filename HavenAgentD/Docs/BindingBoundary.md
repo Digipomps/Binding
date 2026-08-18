@@ -1,6 +1,8 @@
 # Binding Boundary
 
-`HavenAgentD` is the standalone macOS agent project in this workspace. After the Binding standalone split, agent-specific operator/admin concerns belong here, not in the main Binding app surface.
+`HavenAgentD` is the standalone macOS agent repository. Binding is a separate
+app repository and integrates with the agent only through released executables,
+loopback runtime surfaces, CellProtocol flows, and versioned contracts.
 
 ## Current boundary
 
@@ -8,6 +10,7 @@
 - `Binding` may connect to remote `CellScaffold`.
 - `Binding` must not build, install, launch, or expose `haven-agentd` setup UX as part of normal app behavior.
 - `HavenAgentD` owns agent runtime, local automation policy, `launchd` integration, bootstrap tooling, and operator/admin documentation.
+- The repositories may be sibling checkouts for development; neither repository assumes that HavenAgentD is nested inside Binding.
 
 ## Why the split matters
 
@@ -28,7 +31,20 @@ Keeping those concerns in `HavenAgentD` prevents Binding from regressing back in
 - local automation bridges under `Sources/HavenMacAutomation`
 - agent-specific `GeneralCell` implementations under `Sources/HavenAgentCells`
 - local CellProtocol runtime hosting under `Sources/HavenAgentCellRuntime`
-- security and trust-boundary docs under [README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/README.md) and [SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md)
+- machine-readable cross-repository contracts under [`../Contracts`](../Contracts/README.md)
+- security and trust-boundary docs under [README.md](../README.md) and [SecurityModel.md](SecurityModel.md)
+
+## Versioned Binding contract
+
+Binding currently consumes `haven.agentd-registration-observation.v1` from the
+token-gated loopback onboarding status endpoint. The JSON Schema and a valid
+example live under [`Contracts/`](../Contracts/README.md). The observation is
+redacted runtime evidence and never an authorization grant.
+
+Binding may use `BINDING_HAVEN_AGENTD_BINARY` and
+`BINDING_HAVEN_AGENTD_MCP_BINARY` as explicit development overrides. Normal
+operation resolves installed executables; it does not inspect `.build` inside
+this repository.
 
 ## Operator/admin decision
 
@@ -42,4 +58,4 @@ That means:
 
 ## Legacy note
 
-Earlier Binding-embedded agent setup material is preserved only as historical context under [Legacy](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy).
+Earlier Binding-embedded agent setup material is preserved only as historical context under [Legacy](Legacy).

@@ -208,6 +208,26 @@ private actor RecordingStatusRequest {
         #expect(decoded.status == "installed_not_running")
     }
 
+    @Test func acceptsPublishedHavenAgentDContractExample() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = repositoryRoot.appendingPathComponent(
+            "Documentation/TestData/HavenAgentD/registration-observation-v1.example.json"
+        )
+        let observation = try BindingHavenAgentDRegistrationAdapter.observation(
+            from: JSONSerialization.data(withJSONObject: [
+                "registrationObservation": JSONSerialization.jsonObject(
+                    with: Data(contentsOf: fixtureURL)
+                )
+            ])
+        )
+
+        #expect(observation.status == "registered")
+        #expect(observation.availableActionIDs == ["mac.finder.close-all-windows"])
+        #expect(observation.bridgeEndpoint == "ws://127.0.0.1:43110/bridgehead")
+    }
+
     private func makeStatusJSON(
         observation: [String: Any],
         topLevelExtras: [String: Any] = [:]

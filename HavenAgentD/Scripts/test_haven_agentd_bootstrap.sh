@@ -1,8 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PACKAGE_DIR="$ROOT_DIR/HavenAgentD"
+PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_PATH="${1:-$HOME/Library/Application Support/HAVENAgent/config.json}"
 MODULE_CACHE_DIR="$PACKAGE_DIR/.tmp-clang-module-cache"
 

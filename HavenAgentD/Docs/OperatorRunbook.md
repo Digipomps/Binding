@@ -24,8 +24,8 @@ The recommended path folds what used to be separate runbook phases (create confi
 
 Cross-references:
 
-- **Building/signing the pkg:** [/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md)
-- **Provisioning pack format + round trip:** [/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md)
+- **Building/signing the pkg:** [../Packaging/README.md](../Packaging/README.md)
+- **Provisioning pack format + round trip:** [ProvisioningPack.md](ProvisioningPack.md)
 
 ## Scope
 
@@ -65,13 +65,13 @@ What still depends on external operator material:
   - the mutually signed entity-link contract
 - a real executable `sproutBinaryPath`
 
-`haven-agentd` imports and verifies the pack, but **minting** it (signing pairing approval, issuing starter-auth, building the mutually signed entity-link, updating the scaffold entity-anchor snapshot) is operator-side tooling and is **not** part of `haven-agentd`. See [ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md) for the format that tooling must produce.
+`haven-agentd` imports and verifies the pack, but **minting** it (signing pairing approval, issuing starter-auth, building the mutually signed entity-link, updating the scaffold entity-anchor snapshot) is operator-side tooling and is **not** part of `haven-agentd`. See [ProvisioningPack.md](ProvisioningPack.md) for the format that tooling must produce.
 
 ## Prerequisites
 
 For the **recommended (pkg)** path:
 
-- an operator/build machine with the Developer ID certs and a notarytool keychain profile (see [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md))
+- an operator/build machine with the Developer ID certs and a notarytool keychain profile (see [../Packaging/README.md](../Packaging/README.md))
 - a built `sprout` release binary matching the target arch
 - the target Mac: macOS with a logged-in user session
 - for real bootstrap: a signed provisioning pack for that exact agent identity
@@ -87,7 +87,7 @@ For the **dev-only** path:
 Workspace root used below:
 
 ```bash
-/Users/kjetil/Build/Digipomps/HAVEN/Binding
+/path/to/Binding
 ```
 
 ## Important paths
@@ -155,7 +155,7 @@ Disposable development root:
 Before producing an installer, confirm the package is healthy. From the workspace root:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+cd /path/to/Binding
 ./Scripts/test_haven_agentd.sh
 ```
 
@@ -169,10 +169,10 @@ Do not continue to packaging until this passes.
 
 ## Phase 2: Build, sign, and notarize the pkg
 
-This produces the first-install artifact for a clean Mac. Full prerequisites, env overrides, and the architecture note live in [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md); the short form:
+This produces the first-install artifact for a clean Mac. Full prerequisites, env overrides, and the architecture note live in [../Packaging/README.md](../Packaging/README.md); the short form:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 
 # Build + sign universal2 (produces pkg + package/payload checksums + manifest)
 ARCHS="arm64 x86_64" VERSION=0.3.1 ./Packaging/build_pkg.sh
@@ -232,7 +232,7 @@ Config OK: ...
 
 ## Phase 5: Provision the agent (`provisioning-request` / `provisioning-import`)
 
-This replaces the old "operator tooling drops files into `Out/`" step. The agent prints its own identity, the operator mints a pack bound to that exact key, and the agent imports it. The full format, binding rules, and what import verifies are in [ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md).
+This replaces the old "operator tooling drops files into `Out/`" step. The agent prints its own identity, the operator mints a pack bound to that exact key, and the agent imports it. The full format, binding rules, and what import verifies are in [ProvisioningPack.md](ProvisioningPack.md).
 
 1. Print the request and send it to the operator:
 
@@ -294,7 +294,7 @@ Interpretation:
 - `readyForBootstrap = true` and bootstrap succeeds — agent admission and native contract bootstrap succeeded.
 - `readyForBootstrap = true` and bootstrap fails — local evidence is valid, but scaffold admission or resolver-side state still blocks the agent.
 
-If the resolver reports `identity not found in accepted anchor snapshot`, the remaining action is scaffold-side admission of the paired contract (e.g. `sprout-admin entity-anchor accept-entity-link`; see [README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/README.md)).
+If the resolver reports `identity not found in accepted anchor snapshot`, the remaining action is scaffold-side admission of the paired contract (e.g. `sprout-admin entity-anchor accept-entity-link`; see [../README.md](../README.md)).
 
 ## Phase 7: Activate at login
 
@@ -335,7 +335,7 @@ Grant Automation / Accessibility consent in the logged-in user session the first
 ```bash
 rm -rf /tmp/haven-dev
 mkdir -p /tmp/haven-dev/HAVENAgent
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd print-example-config > /tmp/haven-dev/HAVENAgent/config.json
 ```
 
@@ -343,7 +343,7 @@ swift run haven-agentd print-example-config > /tmp/haven-dev/HAVENAgent/config.j
 
 ```bash
 mkdir -p ~/Library/Application\ Support/HAVENAgent
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd print-example-config > ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
@@ -370,7 +370,7 @@ Important notes:
 Validate after editing:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd validate-config --config ~/Library/Application\ Support/HAVENAgent/config.json
 # disposable root:
 swift run haven-agentd validate-config --config /tmp/haven-dev/HAVENAgent/config.json
@@ -385,7 +385,7 @@ Config OK: ...
 ## D3: Build and install the binary (replaces the pkg)
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift build --product haven-agentd
 
 mkdir -p ~/Library/Application\ Support/HAVENAgent
@@ -399,7 +399,7 @@ test -x ~/Library/Application\ Support/HAVENAgent/haven-agentd
 ### Disposable root validation (safest first run)
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd run --config /tmp/haven-dev/HAVENAgent/config.json --root /tmp/haven-dev --once
 ```
 
@@ -412,7 +412,7 @@ Expected result:
 ### Real local root validation
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd run --config ~/Library/Application\ Support/HAVENAgent/config.json --once
 ```
 
@@ -421,7 +421,7 @@ Expected result: `State/agent-state.json`, `State/cell-runtime.json`, `State/age
 ## D5: Render and install the LaunchAgent (replaces `setup` LaunchAgent install)
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
+cd /path/to/HavenAgentD
 swift run haven-agentd print-launch-agent > /tmp/io.digipomps.haven.agentd.plist
 ```
 
@@ -552,11 +552,11 @@ Before calling the operator flow healthy, require all of these:
 
 ## Related docs
 
-- [README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/README.md)
-- [Packaging/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Packaging/README.md)
-- [Docs/ProvisioningPack.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/ProvisioningPack.md)
-- [SecurityModel.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/SecurityModel.md)
-- [BindingBoundary.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/BindingBoundary.md)
-- [Legacy/BindingProvisioningRunbook.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md)
+- [README.md](../README.md)
+- [Packaging/README.md](../Packaging/README.md)
+- [ProvisioningPack.md](ProvisioningPack.md)
+- [SecurityModel.md](SecurityModel.md)
+- [BindingBoundary.md](BindingBoundary.md)
+- [Legacy/BindingProvisioningRunbook.md](Legacy/BindingProvisioningRunbook.md)
 </content>
 </invoke>

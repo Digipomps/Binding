@@ -18,7 +18,7 @@ Use this skill when a HAVEN Swift workspace fails in Xcode with symptoms like:
 
 Treat these errors as Xcode workspace/package-graph state until proven otherwise. Binding, CellScaffold, and other HAVEN workspaces often point at the same local sibling package:
 
-- `/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol`
+- `/path/to/CellProtocol`
 
 When Xcode has multiple workspaces open that resolve the same local package, it can keep a stale graph where CellProtocol products disappear even though the package exists and command-line builds can resolve it.
 
@@ -27,9 +27,11 @@ When Xcode has multiple workspaces open that resolve the same local package, it 
 Prefer the structured HAVENAgentD command over raw `osascript`:
 
 ```bash
-swift run --package-path /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD haven-agentd xcode-ensure-workspace \
-  --workspace /Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/CellScaffold.xcworkspace \
-  --exclusive-package /Users/kjetil/Build/Digipomps/HAVEN/CellProtocol \
+HAVEN_AGENTD_REPO="${HAVEN_AGENTD_REPO:-/path/to/HavenAgentD}"
+BINDING_WORKSPACE="${BINDING_WORKSPACE:-/path/to/Binding/Binding.xcworkspace}"
+swift run --package-path "$HAVEN_AGENTD_REPO" haven-agentd xcode-ensure-workspace \
+  --workspace /path/to/CellScaffold/CellScaffold.xcworkspace \
+  --exclusive-package /path/to/CellProtocol \
   --scheme Run \
   --destination-name "My Mac (arm64)" \
   --destination-platform macosx \
@@ -40,9 +42,9 @@ swift run --package-path /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD
 For Binding:
 
 ```bash
-swift run --package-path /Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD haven-agentd xcode-ensure-workspace \
-  --workspace /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcworkspace \
-  --exclusive-package /Users/kjetil/Build/Digipomps/HAVEN/CellProtocol \
+swift run --package-path "$HAVEN_AGENTD_REPO" haven-agentd xcode-ensure-workspace \
+  --workspace "$BINDING_WORKSPACE" \
+  --exclusive-package /path/to/CellProtocol \
   --scheme HAVEN \
   --destination-name "My Mac (arm64)" \
   --destination-platform macosx \
@@ -62,8 +64,8 @@ Typical arguments:
 
 ```json
 {
-  "workspacePath": "/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/CellScaffold.xcworkspace",
-  "exclusiveLocalPackagePath": "/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol",
+  "workspacePath": "/path/to/CellScaffold/CellScaffold.xcworkspace",
+  "exclusiveLocalPackagePath": "/path/to/CellProtocol",
   "scheme": "Run",
   "destinationName": "My Mac (arm64)",
   "destinationPlatform": "macosx",

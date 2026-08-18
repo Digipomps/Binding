@@ -353,28 +353,28 @@ The surface should show only the relevant next step:
 - run real bootstrap when evidence is ready.
 - connect/start launch agent.
 
-Preferred easiest path inside Binding:
+Preferred product path:
 
-1. Open `Agent Setup Workbench`.
-2. Install `haven-agentd`.
+1. Install a signed HavenAgentD release from its repository.
+2. Run the HavenAgentD setup and provisioning flow.
 3. Start `haven-agentd`.
-4. Connect with current purpose.
-5. Run review/bootstrap checks.
+4. Connect with the current purpose.
+5. Run review/bootstrap checks from the agent operator tooling.
 
 CLI fallback:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
-swift build --package-path HavenAgentD --product haven-agentd
-swift build --package-path HavenAgentD --product haven-agentd-mcp
-HavenAgentD/.build/debug/haven-agentd validate-config --config ~/Library/Application\ Support/HAVENAgent/config.json
-HavenAgentD/.build/debug/haven-agentd bootstrap-probe --config ~/Library/Application\ Support/HAVENAgent/config.json
+HAVEN_AGENTD_REPO="${HAVEN_AGENTD_REPO:-../HavenAgentD}"
+swift build --package-path "$HAVEN_AGENTD_REPO" --product haven-agentd
+swift build --package-path "$HAVEN_AGENTD_REPO" --product haven-agentd-mcp
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" validate-config --config ~/Library/Application\ Support/HAVENAgent/config.json
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" bootstrap-probe --config ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
 When evidence is ready:
 
 ```bash
-HavenAgentD/.build/debug/haven-agentd bootstrap-probe \
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" bootstrap-probe \
   --config ~/Library/Application\ Support/HAVENAgent/config.json \
   --run-bootstrap
 ```
@@ -396,7 +396,7 @@ Example MCP server config shape:
 {
   "mcpServers": {
     "haven-agentd": {
-      "command": "/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/.build/debug/haven-agentd-mcp",
+      "command": "/path/to/HavenAgentD/.build/debug/haven-agentd-mcp",
       "args": [
         "--config",
         "/Users/kjetil/Library/Application Support/HAVENAgent/config.json"
@@ -521,15 +521,15 @@ Given the 2026-05-12 live config check, the shortest route to a usable approval 
 3. Run:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
-HavenAgentD/.build/debug/haven-agentd validate-config --config ~/Library/Application\ Support/HAVENAgent/config.json
-HavenAgentD/.build/debug/haven-agentd bootstrap-probe --config ~/Library/Application\ Support/HAVENAgent/config.json
+HAVEN_AGENTD_REPO="${HAVEN_AGENTD_REPO:-../HavenAgentD}"
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" validate-config --config ~/Library/Application\ Support/HAVENAgent/config.json
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" bootstrap-probe --config ~/Library/Application\ Support/HAVENAgent/config.json
 ```
 
 4. When the probe says `readyForBootstrap = true`, run:
 
 ```bash
-HavenAgentD/.build/debug/haven-agentd bootstrap-probe \
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" bootstrap-probe \
   --config ~/Library/Application\ Support/HAVENAgent/config.json \
   --run-bootstrap
 ```
@@ -542,8 +542,8 @@ Only after that should we test the phone-originated Codex queue.
 
 ## References
 
-- Local agent runbook: `HavenAgentD/Docs/OperatorRunbook.md`
-- MCP server surface: `HavenAgentD/Docs/HavenAgentDMCPServerSurface.md`
+- Local agent runbook: https://github.com/Digipomps/HavenAgentD/blob/main/Docs/OperatorRunbook.md
+- MCP server surface: https://github.com/Digipomps/HavenAgentD/blob/main/Docs/HavenAgentDMCPServerSurface.md
 - Phone approval loop: `Documentation/HavenAgentPhoneApprovalLoopRunbook.md`
 - Official MCP intro: https://modelcontextprotocol.io/docs/getting-started/intro
 - Official MCP transports: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
