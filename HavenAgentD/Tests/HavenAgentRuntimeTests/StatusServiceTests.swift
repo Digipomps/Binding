@@ -69,6 +69,8 @@ private func makeStatusTempRoot() -> URL {
         #expect(report.config.valid)
         #expect(report.config.scaffoldDomain == "staging.haven.digipomps.org")
         #expect(report.config.startupMode == "disabled")
+        #expect(report.config.scaffoldConnections?.map(\.id) == ["default"])
+        #expect(report.config.scaffoldConnections?.first?.scaffoldDomain == "staging.haven.digipomps.org")
         #expect(report.identity.present == false)
         #expect(report.launchAgent.installed == false)
         #expect(report.controlBridge.host == "127.0.0.1")

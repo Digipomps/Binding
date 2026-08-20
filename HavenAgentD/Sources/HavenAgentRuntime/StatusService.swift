@@ -41,6 +41,7 @@ public struct AgentStatusConfigReport: Codable, Equatable, Sendable {
     public var valid: Bool
     public var scaffoldDomain: String?
     public var startupMode: String?
+    public var scaffoldConnections: [ScaffoldConnectionTarget]?
     public var error: String?
 }
 
@@ -206,6 +207,7 @@ public actor StatusService {
             valid: load.config != nil,
             scaffoldDomain: load.config?.scaffold.domain,
             startupMode: load.config?.scaffold.startupMode.rawValue,
+            scaffoldConnections: load.config?.effectiveScaffoldConnections,
             error: present ? load.error : nil
         )
     }

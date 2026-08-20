@@ -135,6 +135,66 @@ public struct ScaffoldConnectionConfig: Codable, Equatable, Sendable {
     }
 }
 
+public struct ScaffoldConnectionTarget: Codable, Equatable, Sendable {
+    public var id: String
+    public var scaffoldDomain: String
+    public var resolverBaseURL: String
+    public var sproutBinaryPath: String
+    public var startupMode: SproutStartupMode
+    public var enabled: Bool
+    public var label: String?
+
+    public init(
+        id: String,
+        scaffoldDomain: String,
+        resolverBaseURL: String,
+        sproutBinaryPath: String,
+        startupMode: SproutStartupMode,
+        enabled: Bool = true,
+        label: String? = nil
+    ) {
+        self.id = id
+        self.scaffoldDomain = scaffoldDomain
+        self.resolverBaseURL = resolverBaseURL
+        self.sproutBinaryPath = sproutBinaryPath
+        self.startupMode = startupMode
+        self.enabled = enabled
+        self.label = label
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, scaffoldDomain, resolverBaseURL, sproutBinaryPath, startupMode, enabled, label
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.scaffoldDomain = try container.decode(String.self, forKey: .scaffoldDomain)
+        self.resolverBaseURL = try container.decode(String.self, forKey: .resolverBaseURL)
+        self.sproutBinaryPath = try container.decode(String.self, forKey: .sproutBinaryPath)
+        self.startupMode = try container.decode(SproutStartupMode.self, forKey: .startupMode)
+        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        self.label = try container.decodeIfPresent(String.self, forKey: .label)
+    }
+}
+
+public enum AgentConfigValidationError: Error, LocalizedError, Equatable, Sendable {
+    case duplicateScaffoldConnectionID(String)
+    case emptyScaffoldDomain(String)
+    case invalidResolverBaseURL(id: String, value: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .duplicateScaffoldConnectionID(let id):
+            return "Duplicate scaffold connection id: \(id)"
+        case .emptyScaffoldDomain(let id):
+            return "Scaffold connection \(id) has an empty scaffoldDomain."
+        case .invalidResolverBaseURL(let id, let value):
+            return "Scaffold connection \(id) must use an https resolverBaseURL; got \(value)."
+        }
+    }
+}
+
 public struct LocalControlBridgeRoute: Codable, Equatable, Sendable {
     public var name: String
     public var targetCellReference: String
@@ -388,6 +448,7 @@ public struct AgentConfig: Codable, Equatable, Sendable {
     public var remoteIntentPolicy: RemoteIntentPolicy
     public var networkSentinel: NetworkSentinelConfig?
     public var scheduledEvents: [ScheduledEventDefinition]?
+    public var scaffoldConnections: [ScaffoldConnectionTarget]?
 
     public init(
         instanceName: String,
@@ -399,7 +460,8 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         automationPolicy: AutomationPolicy,
         remoteIntentPolicy: RemoteIntentPolicy = .init(),
         networkSentinel: NetworkSentinelConfig? = NetworkSentinelConfig(),
-        scheduledEvents: [ScheduledEventDefinition]? = nil
+        scheduledEvents: [ScheduledEventDefinition]? = nil,
+        scaffoldConnections: [ScaffoldConnectionTarget]? = nil
     ) {
         self.instanceName = instanceName
         self.heartbeatIntervalSeconds = heartbeatIntervalSeconds
@@ -411,14 +473,55 @@ public struct AgentConfig: Codable, Equatable, Sendable {
         self.remoteIntentPolicy = remoteIntentPolicy
         self.networkSentinel = networkSentinel
         self.scheduledEvents = scheduledEvents
+        self.scaffoldConnections = scaffoldConnections
+    }
+
+    public var effectiveScaffoldConnections: [ScaffoldConnectionTarget] {
+        if let scaffoldConnections {
+            return scaffoldConnections
+        }
+        return [
+            ScaffoldConnectionTarget(
+                id: "default",
+                scaffoldDomain: scaffold.domain,
+                resolverBaseURL: scaffold.resolverBaseURL ?? "",
+                sproutBinaryPath: scaffold.sproutBinaryPath,
+                startupMode: scaffold.startupMode
+            )
+        ]
+    }
+
+    public func validate() throws {
+        guard let scaffoldConnections else { return }
+
+        var connectionIDs = Set<String>()
+        for connection in scaffoldConnections {
+            guard connectionIDs.insert(connection.id).inserted else {
+                throw AgentConfigValidationError.duplicateScaffoldConnectionID(connection.id)
+            }
+            guard !connection.scaffoldDomain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw AgentConfigValidationError.emptyScaffoldDomain(connection.id)
+            }
+            guard let components = URLComponents(string: connection.resolverBaseURL),
+                  components.scheme?.lowercased() == "https",
+                  components.host?.isEmpty == false else {
+                throw AgentConfigValidationError.invalidResolverBaseURL(
+                    id: connection.id,
+                    value: connection.resolverBaseURL
+                )
+            }
+        }
     }
 
     public static func load(from fileURL: URL) throws -> AgentConfig {
         let data = try Data(contentsOf: fileURL)
-        return try JSONDecoder().decode(AgentConfig.self, from: data)
+        let config = try JSONDecoder().decode(AgentConfig.self, from: data)
+        try config.validate()
+        return config
     }
 
     public func write(to fileURL: URL) throws {
+        try validate()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(self)

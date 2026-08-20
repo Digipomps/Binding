@@ -42,6 +42,117 @@ struct AgentConfigTests {
         #expect(config.remoteIntentPolicy.issuers.first?.allowedActionIDs.contains(AgentMailDraftAutomation.actionID) == true)
         #expect(config.remoteIntentPolicy.issuers.first?.allowedActionIDs.contains(PersonalButlerScheduleService.remoteWakeActionID) == true)
         #expect(config.remoteIntentPolicy.issuers.first?.allowedTopics.contains(PersonalButlerScheduleService.remoteWakeTopic) == true)
+        #expect(config.scaffoldConnections == nil)
+        #expect(config.effectiveScaffoldConnections == [
+            ScaffoldConnectionTarget(
+                id: "default",
+                scaffoldDomain: config.scaffold.domain,
+                resolverBaseURL: config.scaffold.resolverBaseURL ?? "",
+                sproutBinaryPath: config.scaffold.sproutBinaryPath,
+                startupMode: config.scaffold.startupMode
+            )
+        ])
+    }
+
+    @Test
+    func legacyConfigLoadsWithoutScaffoldConnections() throws {
+        let fileURL = temporaryConfigURL()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+        let legacyConfig = AgentConfig.example(paths: testPaths())
+
+        try legacyConfig.write(to: fileURL)
+        let json = try String(contentsOf: fileURL, encoding: .utf8)
+        #expect(!json.contains("scaffoldConnections"))
+
+        let loaded = try AgentConfig.load(from: fileURL)
+        #expect(loaded == legacyConfig)
+        #expect(loaded.effectiveScaffoldConnections.count == 1)
+        #expect(loaded.effectiveScaffoldConnections.first?.id == "default")
+        #expect(loaded.effectiveScaffoldConnections.first?.scaffoldDomain == legacyConfig.scaffold.domain)
+    }
+
+    @Test
+    func twoScaffoldConnectionsValidateAndRoundTrip() throws {
+        let fileURL = temporaryConfigURL()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+        var config = AgentConfig.example(paths: testPaths())
+        config.scaffoldConnections = [
+            ScaffoldConnectionTarget(
+                id: "staging",
+                scaffoldDomain: "staging.haven.example",
+                resolverBaseURL: "https://staging.haven.example",
+                sproutBinaryPath: "/opt/haven/staging/sprout",
+                startupMode: .join,
+                label: "Staging"
+            ),
+            ScaffoldConnectionTarget(
+                id: "production",
+                scaffoldDomain: "haven.example",
+                resolverBaseURL: "https://haven.example",
+                sproutBinaryPath: "/opt/haven/production/sprout",
+                startupMode: .plan,
+                enabled: false,
+                label: "Production"
+            )
+        ]
+
+        try config.validate()
+        try config.write(to: fileURL)
+        let loaded = try AgentConfig.load(from: fileURL)
+
+        #expect(loaded == config)
+        #expect(loaded.effectiveScaffoldConnections == config.scaffoldConnections)
+    }
+
+    @Test
+    func scaffoldConnectionEnabledDefaultsToTrue() throws {
+        let data = Data(#"{"id":"staging","scaffoldDomain":"staging.haven.example","resolverBaseURL":"https://staging.haven.example","sproutBinaryPath":"/opt/haven/sprout","startupMode":"join"}"#.utf8)
+        let target = try JSONDecoder().decode(ScaffoldConnectionTarget.self, from: data)
+        #expect(target.enabled)
+    }
+
+    @Test
+    func duplicateScaffoldConnectionIDsAreRejected() throws {
+        let fileURL = temporaryConfigURL()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+        var config = AgentConfig.example(paths: testPaths())
+        let target = ScaffoldConnectionTarget(
+            id: "duplicate",
+            scaffoldDomain: "staging.haven.example",
+            resolverBaseURL: "https://staging.haven.example",
+            sproutBinaryPath: "/opt/haven/sprout",
+            startupMode: .join
+        )
+        config.scaffoldConnections = [target, target]
+        try writeWithoutValidation(config, to: fileURL)
+
+        #expect(throws: AgentConfigValidationError.duplicateScaffoldConnectionID("duplicate")) {
+            try AgentConfig.load(from: fileURL)
+        }
+    }
+
+    @Test
+    func nonHTTPSScaffoldConnectionIsRejected() throws {
+        let fileURL = temporaryConfigURL()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+        var config = AgentConfig.example(paths: testPaths())
+        config.scaffoldConnections = [
+            ScaffoldConnectionTarget(
+                id: "insecure",
+                scaffoldDomain: "staging.haven.example",
+                resolverBaseURL: "http://staging.haven.example",
+                sproutBinaryPath: "/opt/haven/sprout",
+                startupMode: .join
+            )
+        ]
+        try writeWithoutValidation(config, to: fileURL)
+
+        #expect(throws: AgentConfigValidationError.invalidResolverBaseURL(
+            id: "insecure",
+            value: "http://staging.haven.example"
+        )) {
+            try AgentConfig.load(from: fileURL)
+        }
     }
 
     @Test
@@ -78,5 +189,26 @@ struct AgentConfigTests {
         #expect(plan.requestedPortholeKind == "native")
         #expect(plan.renewalLeadTimeSeconds == 600)
         #expect(plan.entityLinkPath == "/tmp/entity-link.json")
+    }
+
+    private func testPaths() -> RuntimePaths {
+        RuntimePaths.rooted(at: URL(fileURLWithPath: "/Users/tester"))
+    }
+
+    private func temporaryConfigURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("haven-agent-config-tests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("config.json")
+    }
+
+    private func writeWithoutValidation(_ config: AgentConfig, to fileURL: URL) throws {
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(config).write(to: fileURL, options: [.atomic])
     }
 }
