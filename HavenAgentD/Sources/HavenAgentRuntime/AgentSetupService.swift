@@ -69,6 +69,10 @@ public struct LaunchAgentStatus: Codable, Equatable, Sendable {
     public var loaded: Bool
     public var executablePath: String
     public var loadDetail: String?
+    public var plistFound: Bool?
+    public var launchdLoaded: Bool?
+    public var launchdPlistPath: String?
+    public var launchdExecutablePath: String?
 
     public init(
         label: String,
@@ -76,7 +80,11 @@ public struct LaunchAgentStatus: Codable, Equatable, Sendable {
         installed: Bool,
         loaded: Bool,
         executablePath: String,
-        loadDetail: String? = nil
+        loadDetail: String? = nil,
+        plistFound: Bool? = nil,
+        launchdLoaded: Bool? = nil,
+        launchdPlistPath: String? = nil,
+        launchdExecutablePath: String? = nil
     ) {
         self.label = label
         self.plistPath = plistPath
@@ -84,6 +92,10 @@ public struct LaunchAgentStatus: Codable, Equatable, Sendable {
         self.loaded = loaded
         self.executablePath = executablePath
         self.loadDetail = loadDetail
+        self.plistFound = plistFound ?? installed
+        self.launchdLoaded = launchdLoaded ?? loaded
+        self.launchdPlistPath = launchdPlistPath
+        self.launchdExecutablePath = launchdExecutablePath
     }
 }
 

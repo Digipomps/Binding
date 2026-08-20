@@ -33,6 +33,14 @@ private final class StatusLaunchctlRunner: ProcessRunning, @unchecked Sendable {
     }
 }
 
+private struct StubLaunchdStatusProvider: LaunchdStatusProviding {
+    let observation: LaunchdServiceObservation
+
+    func status(label: String, userID: uid_t) async -> LaunchdServiceObservation {
+        observation
+    }
+}
+
 private func makeStatusTempRoot() -> URL {
     let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("haven-status-service-tests", isDirectory: true)
@@ -58,7 +66,13 @@ private func makeStatusTempRoot() -> URL {
         config.localControlBridge.port = 1
         try config.write(to: paths.configFile)
 
-        let report = await StatusService(paths: paths, configURL: paths.configFile).report(
+        let report = await StatusService(
+            paths: paths,
+            configURL: paths.configFile,
+            launchdStatusProvider: StubLaunchdStatusProvider(
+                observation: LaunchdServiceObservation(loaded: false)
+            )
+        ).report(
             options: AgentStatusOptions(
                 executablePath: "/usr/local/libexec/havenagent/haven-agentd",
                 rootPathArgument: root.path
@@ -73,6 +87,8 @@ private func makeStatusTempRoot() -> URL {
         #expect(report.config.scaffoldConnections?.first?.scaffoldDomain == "staging.haven.digipomps.org")
         #expect(report.identity.present == false)
         #expect(report.launchAgent.installed == false)
+        #expect(report.launchAgent.plistFound == false)
+        #expect(report.launchAgent.launchdLoaded == false)
         #expect(report.controlBridge.host == "127.0.0.1")
         #expect(report.controlBridge.port == 1)
         #expect(report.controlBridge.listening == false)
@@ -137,8 +153,78 @@ private func makeStatusTempRoot() -> URL {
         #expect(report.sprout.executable)
         #expect(report.launchAgent.installed)
         #expect(report.launchAgent.loaded)
+        #expect(report.launchAgent.plistFound == true)
+        #expect(report.launchAgent.launchdLoaded == true)
         #expect(report.launchAgent.executablePath == executablePath)
         #expect(runner.invocations.contains { $0.contains("print") })
         #expect(report.nextStep.command == nil)
+    }
+
+    @Test func reportsLoadedLaunchdJobWithoutExpectedPlist() async throws {
+        let root = makeStatusTempRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = RuntimePaths.rooted(at: root)
+        let actualExecutablePath = root
+            .appendingPathComponent("Library/Application Support/HAVENAgent/bin/haven-agentd")
+            .path
+
+        var config = AgentConfig.example(paths: paths)
+        config.scaffold.startupMode = .disabled
+        config.localControlBridge.port = 1
+        try config.write(to: paths.configFile)
+
+        let report = await StatusService(
+            paths: paths,
+            configURL: paths.configFile,
+            launchdStatusProvider: StubLaunchdStatusProvider(
+                observation: LaunchdServiceObservation(
+                    loaded: true,
+                    executablePath: actualExecutablePath
+                )
+            )
+        ).report(
+            options: AgentStatusOptions(
+                executablePath: actualExecutablePath,
+                rootPathArgument: root.path
+            )
+        )
+
+        #expect(report.launchAgent.installed)
+        #expect(report.launchAgent.loaded)
+        #expect(report.launchAgent.plistFound == false)
+        #expect(report.launchAgent.launchdLoaded == true)
+        #expect(report.launchAgent.launchdExecutablePath == actualExecutablePath)
+        #expect(report.launchAgent.executablePath == actualExecutablePath)
+        #expect(report.nextStep.command == nil)
+    }
+
+    @Test func launchctlProviderParsesActualPaths() async {
+        let plistPath = "/Users/tester/Library/LaunchAgents/io.digipomps.haven.agentd.plist"
+        let executablePath = "/Users/tester/Library/Application Support/HAVENAgent/bin/haven-agentd"
+        let runner = StatusLaunchctlRunner(
+            standardOutput: """
+            gui/501/io.digipomps.haven.agentd = {
+                path = \(plistPath)
+                state = running
+                program = \(executablePath)
+                arguments = {
+                    \(executablePath)
+                    run
+                }
+            }
+            """
+        )
+
+        let observation = await LaunchctlStatusProvider(processRunner: runner)
+            .status(label: AgentSetupService.launchAgentLabel, userID: 501)
+
+        #expect(observation.loaded)
+        #expect(observation.plistPath == plistPath)
+        #expect(observation.executablePath == executablePath)
+        #expect(runner.invocations == [[
+            "/bin/launchctl",
+            "print",
+            "gui/501/io.digipomps.haven.agentd"
+        ]])
     }
 }

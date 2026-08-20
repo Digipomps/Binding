@@ -103,24 +103,118 @@ public struct AgentStatusReport: Codable, Equatable, Sendable {
     public var nextStep: AgentStatusNextStep
 }
 
+public struct LaunchdServiceObservation: Equatable, Sendable {
+    public var loaded: Bool
+    public var plistPath: String?
+    public var executablePath: String?
+    public var detail: String?
+
+    public init(
+        loaded: Bool,
+        plistPath: String? = nil,
+        executablePath: String? = nil,
+        detail: String? = nil
+    ) {
+        self.loaded = loaded
+        self.plistPath = plistPath
+        self.executablePath = executablePath
+        self.detail = detail
+    }
+}
+
+public protocol LaunchdStatusProviding: Sendable {
+    func status(label: String, userID: uid_t) async -> LaunchdServiceObservation
+}
+
+public struct LaunchctlStatusProvider: LaunchdStatusProviding {
+    private let processRunner: any ProcessRunning
+
+    public init(processRunner: any ProcessRunning = FoundationProcessRunner()) {
+        self.processRunner = processRunner
+    }
+
+    public func status(label: String, userID: uid_t) async -> LaunchdServiceObservation {
+        let launchctl = URL(fileURLWithPath: "/bin/launchctl")
+        let target = "gui/\(userID)/\(label)"
+        do {
+            let result = try await processRunner.run(executableURL: launchctl, arguments: ["print", target])
+            guard result.terminationStatus == 0 else {
+                let detail = [result.standardError, result.standardOutput]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .first { !$0.isEmpty }
+                return LaunchdServiceObservation(
+                    loaded: false,
+                    detail: detail.map { "launchctl print exit \(result.terminationStatus): \($0)" }
+                )
+            }
+
+            return LaunchdServiceObservation(
+                loaded: true,
+                plistPath: Self.field("path", in: result.standardOutput),
+                executablePath: Self.field("program", in: result.standardOutput)
+                    ?? Self.firstProgramArgument(in: result.standardOutput)
+            )
+        } catch {
+            return LaunchdServiceObservation(loaded: false, detail: error.localizedDescription)
+        }
+    }
+
+    private static func field(_ name: String, in output: String) -> String? {
+        let prefix = "\(name) ="
+        for line in output.split(whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix(prefix) else { continue }
+            return normalizedValue(String(trimmed.dropFirst(prefix.count)))
+        }
+        return nil
+    }
+
+    private static func firstProgramArgument(in output: String) -> String? {
+        var insideArguments = false
+        for line in output.split(whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed == "arguments = {" {
+                insideArguments = true
+                continue
+            }
+            guard insideArguments else { continue }
+            if trimmed == "}" { return nil }
+            if let value = normalizedValue(trimmed) { return value }
+        }
+        return nil
+    }
+
+    private static func normalizedValue(_ rawValue: String) -> String? {
+        var value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        if value.hasPrefix("\"") && value.hasSuffix("\"") && value.count >= 2 {
+            value.removeFirst()
+            value.removeLast()
+        }
+        return value.isEmpty ? nil : value
+    }
+}
+
 public actor StatusService {
     private static let pathShimPath = "/usr/local/bin/haven-agentd"
 
     private let paths: RuntimePaths
     private let configURL: URL
     private let fileManager: FileManager
-    private let processRunner: any ProcessRunning
+    private let launchdStatusProvider: any LaunchdStatusProviding
 
     public init(
         paths: RuntimePaths,
         configURL: URL,
         fileManager: FileManager = .default,
-        processRunner: any ProcessRunning = FoundationProcessRunner()
+        processRunner: any ProcessRunning = FoundationProcessRunner(),
+        launchdStatusProvider: (any LaunchdStatusProviding)? = nil
     ) {
         self.paths = paths
         self.configURL = configURL.standardizedFileURL
         self.fileManager = fileManager
-        self.processRunner = processRunner
+        self.launchdStatusProvider = launchdStatusProvider
+            ?? LaunchctlStatusProvider(processRunner: processRunner)
     }
 
     public func report(options: AgentStatusOptions) async -> AgentStatusReport {
@@ -274,25 +368,36 @@ public actor StatusService {
     }
 
     private func launchAgentReport(options: AgentStatusOptions) async -> LaunchAgentStatus {
-        let launchAgentsDirectory = options.launchAgentsDirectory
+        let expectedLaunchAgentsDirectory = options.launchAgentsDirectory
             ?? paths.homeDirectory
                 .appendingPathComponent("Library", isDirectory: true)
                 .appendingPathComponent("LaunchAgents", isDirectory: true)
-        let plistURL = launchAgentsDirectory
+        let expectedPlistURL = expectedLaunchAgentsDirectory
             .appendingPathComponent("\(AgentSetupService.launchAgentLabel).plist")
-        let installed = fileManager.fileExists(atPath: plistURL.path)
-        let executablePath = installed
-            ? launchAgentExecutablePath(plistURL: plistURL) ?? ""
-            : ""
-        let loadStatus = installed ? await launchAgentLoadedStatus() : (loaded: false, detail: nil)
+        let launchd = await launchdStatusProvider.status(
+            label: AgentSetupService.launchAgentLabel,
+            userID: getuid()
+        )
+        let launchdPlistURL = launchd.plistPath.map { URL(fileURLWithPath: $0).standardizedFileURL }
+        let expectedPlistFound = fileManager.fileExists(atPath: expectedPlistURL.path)
+        let launchdPlistFound = launchdPlistURL.map { fileManager.fileExists(atPath: $0.path) } ?? false
+        let plistFound = expectedPlistFound || launchdPlistFound
+        let plistURL = launchdPlistFound ? launchdPlistURL! : expectedPlistURL
+        let plistExecutablePath = plistFound ? launchAgentExecutablePath(plistURL: plistURL) : nil
+        let executablePath = launchd.executablePath ?? plistExecutablePath ?? ""
+        let installed = plistFound || launchd.loaded
 
         return LaunchAgentStatus(
             label: AgentSetupService.launchAgentLabel,
             plistPath: plistURL.path,
             installed: installed,
-            loaded: loadStatus.loaded,
+            loaded: launchd.loaded,
             executablePath: executablePath,
-            loadDetail: loadStatus.detail
+            loadDetail: launchd.detail,
+            plistFound: plistFound,
+            launchdLoaded: launchd.loaded,
+            launchdPlistPath: launchd.plistPath,
+            launchdExecutablePath: launchd.executablePath
         )
     }
 
@@ -306,23 +411,6 @@ public actor StatusService {
             return nil
         }
         return executablePath
-    }
-
-    private func launchAgentLoadedStatus() async -> (loaded: Bool, detail: String?) {
-        let launchctl = URL(fileURLWithPath: "/bin/launchctl")
-        let target = "gui/\(getuid())/\(AgentSetupService.launchAgentLabel)"
-        do {
-            let result = try await processRunner.run(executableURL: launchctl, arguments: ["print", target])
-            if result.terminationStatus == 0 {
-                return (true, nil)
-            }
-            let detail = [result.standardError, result.standardOutput]
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .first { !$0.isEmpty }
-            return (false, detail.map { "launchctl print exit \(result.terminationStatus): \($0)" })
-        } catch {
-            return (false, error.localizedDescription)
-        }
     }
 
     private func controlBridgeReport(config: AgentConfig?) -> AgentStatusControlBridgeReport {
@@ -618,14 +706,16 @@ public enum AgentStatusTextRenderer {
     }
 
     private static func launchAgentLine(_ launchAgent: LaunchAgentStatus) -> String {
-        guard launchAgent.installed else {
-            return "not installed at \(launchAgent.plistPath)"
-        }
-        var line = "installed at \(launchAgent.plistPath); \(launchAgent.loaded ? "loaded" : "not loaded")"
+        var parts = [
+            launchAgent.plistFound == true
+                ? "plist found at \(launchAgent.plistPath)"
+                : "plist not found at \(launchAgent.plistPath)",
+            launchAgent.launchdLoaded == true ? "launchd loaded" : "launchd not loaded"
+        ]
         if !launchAgent.executablePath.isEmpty {
-            line += "; executable \(launchAgent.executablePath)"
+            parts.append("executable \(launchAgent.executablePath)")
         }
-        return line
+        return parts.joined(separator: "; ")
     }
 
     private static func controlBridgeLine(_ bridge: AgentStatusControlBridgeReport) -> String {
