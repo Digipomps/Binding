@@ -574,6 +574,61 @@ struct DeviceActionRelayTests {
     }
 
     @Test
+    func codexPromptRequestDecodesExistingPayloadWithoutAssistantNeutralFields() throws {
+        let data = Data(
+            """
+            {
+              "id": "codex-request-existing",
+              "conversationId": "conversation-existing",
+              "prompt": "Run the next safe test.",
+              "interests": ["codex", "automation"],
+              "source": "agent-conversation-inbox",
+              "status": "queued",
+              "createdAt": "2026-08-18T10:00:00Z",
+              "updatedAt": "2026-08-18T10:00:00Z"
+            }
+            """.utf8
+        )
+
+        let request = try JSONDecoder().decode(CodexPromptRequest.self, from: data)
+
+        #expect(request.id == "codex-request-existing")
+        #expect(request.assistantRequirements == nil)
+        #expect(request.handoffNodeRef == nil)
+    }
+
+    @Test
+    func codexPromptRequestRoundTripsAssistantNeutralFields() throws {
+        let request = CodexPromptRequest(
+            id: "handoff-request-1",
+            conversationId: "conversation-handoff-1",
+            prompt: "Continue the bounded implementation.",
+            interests: ["dev-tooling"],
+            workspacePath: "/tmp/haven",
+            assistantRequirements: AssistantRequirements(
+                minContextTokens: 64_000,
+                requiredTools: ["git", "swift"],
+                localOnly: true,
+                competences: ["swift", "testing"]
+            ),
+            handoffNodeRef: "hbf_01K3QW7YB4M2N8ZXR5TDVJ6P0A",
+            source: "test",
+            createdAt: "2026-08-19T10:00:00Z",
+            updatedAt: "2026-08-19T10:00:00Z"
+        )
+
+        let encoded = try JSONEncoder().encode(request)
+        let decoded = try JSONDecoder().decode(CodexPromptRequest.self, from: encoded)
+
+        #expect(decoded == request)
+        #expect(decoded.assistantRequirements?.minContextTokens == 64_000)
+        #expect(decoded.assistantRequirements?.requiredTools == ["git", "swift"])
+        #expect(decoded.assistantRequirements?.localOnly == true)
+        #expect(decoded.assistantRequirements?.competences == ["swift", "testing"])
+        #expect(decoded.handoffNodeRef == "hbf_01K3QW7YB4M2N8ZXR5TDVJ6P0A")
+    }
+
+    @Test
     func relayConfigDecodesAgentRelayTokenPath() throws {
         let data = Data(
             """

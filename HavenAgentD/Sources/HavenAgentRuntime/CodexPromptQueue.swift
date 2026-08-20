@@ -18,6 +18,25 @@ public enum CodexPromptRequestStatus: String, Codable, Equatable, Sendable {
     case failed
 }
 
+public struct AssistantRequirements: Codable, Equatable, Sendable {
+    public var minContextTokens: Int?
+    public var requiredTools: [String]?
+    public var localOnly: Bool?
+    public var competences: [String]?
+
+    public init(
+        minContextTokens: Int? = nil,
+        requiredTools: [String]? = nil,
+        localOnly: Bool? = nil,
+        competences: [String]? = nil
+    ) {
+        self.minContextTokens = minContextTokens
+        self.requiredTools = requiredTools
+        self.localOnly = localOnly
+        self.competences = competences
+    }
+}
+
 public struct CodexPromptRequest: Codable, Equatable, Sendable, Identifiable {
     public var id: String
     public var requestId: String?
@@ -34,6 +53,8 @@ public struct CodexPromptRequest: Codable, Equatable, Sendable, Identifiable {
     public var interests: [String]
     public var workspacePath: String?
     public var preferredAssistant: String?
+    public var assistantRequirements: AssistantRequirements?
+    public var handoffNodeRef: String?
     public var areaContext: String?
     public var timeOfDayLabel: String?
     public var source: String
@@ -64,6 +85,8 @@ public struct CodexPromptRequest: Codable, Equatable, Sendable, Identifiable {
         interests: [String] = [],
         workspacePath: String? = nil,
         preferredAssistant: String? = nil,
+        assistantRequirements: AssistantRequirements? = nil,
+        handoffNodeRef: String? = nil,
         areaContext: String? = nil,
         timeOfDayLabel: String? = nil,
         source: String = "manual",
@@ -93,6 +116,8 @@ public struct CodexPromptRequest: Codable, Equatable, Sendable, Identifiable {
         self.interests = interests
         self.workspacePath = workspacePath
         self.preferredAssistant = preferredAssistant
+        self.assistantRequirements = assistantRequirements
+        self.handoffNodeRef = handoffNodeRef
         self.areaContext = areaContext
         self.timeOfDayLabel = timeOfDayLabel
         self.source = source
