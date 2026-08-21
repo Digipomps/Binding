@@ -24,10 +24,11 @@ HAVEN is now being separated into a standalone app boundary:
 
 - HAVEN must run without a local HAVEN agent.
 - HAVEN may connect to a remote `CellScaffold` instance.
-- `HavenAgentD` is treated as an optional external tool, not part of the main app product.
+- [`HavenAgentD`](https://github.com/Digipomps/HavenAgentD) is an optional external product with its own repository and release lifecycle.
 
 Current separation docs:
 
 - [BindingStandaloneSeparationPlan-2026-04-16.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneSeparationPlan-2026-04-16.md)
 - [BindingStandaloneStatus.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneStatus.md)
-- [HavenAgentD docs](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/README.md)
+- [HavenAgentD docs](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/README.md)
+- [HavenAgentD repository separation decision](Documentation/HavenAgentDRepositorySeparation_2026-08-18.md)

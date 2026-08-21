@@ -493,15 +493,21 @@ enum BindingHavenAgentDStatusProvider {
         now: Date = Date()
     ) -> BindingHavenAgentDStatusSnapshot {
         let home = environment["HOME"] ?? defaultHomeDirectoryPath(fileManager: fileManager)
-        let repoRoot = environment["BINDING_REPO_ROOT"]
-            ?? "/Users/kjetil/Build/Digipomps/HAVEN/Binding"
-        let agentBinaryPath = normalizedPath(
-            environment["BINDING_HAVEN_AGENTD_BINARY"]
-                ?? "\(repoRoot)/HavenAgentD/.build/debug/haven-agentd"
+        let agentBinaryPath = resolvedExecutablePath(
+            override: environment["BINDING_HAVEN_AGENTD_BINARY"],
+            candidates: [
+                "/usr/local/bin/haven-agentd",
+                "/usr/local/libexec/havenagent/haven-agentd"
+            ],
+            fileManager: fileManager
         )
-        let mcpBinaryPath = normalizedPath(
-            environment["BINDING_HAVEN_AGENTD_MCP_BINARY"]
-                ?? "\(repoRoot)/HavenAgentD/.build/debug/haven-agentd-mcp"
+        let mcpBinaryPath = resolvedExecutablePath(
+            override: environment["BINDING_HAVEN_AGENTD_MCP_BINARY"],
+            candidates: [
+                "/usr/local/bin/haven-agentd-mcp",
+                "/usr/local/libexec/havenagent/haven-agentd-mcp"
+            ],
+            fileManager: fileManager
         )
         let configPath = normalizedPath(
             environment["BINDING_HAVEN_AGENTD_CONFIG"]
@@ -532,7 +538,7 @@ enum BindingHavenAgentDStatusProvider {
             status = "missing_binaries"
             nextStep = "build_haven_agentd_binaries"
             instructions = [
-                "Bygg haven-agentd og haven-agentd-mcp fra Binding/HavenAgentD.",
+                "Installer en versjonert HavenAgentD-release, eller sett eksplisitte BINDING_HAVEN_AGENTD_*_BINARY-stier for utvikling.",
                 "Deretter valider aktiv agent-config før chatten foreslår telefon/Codex-flyt."
             ]
         } else if !configExists {
@@ -597,6 +603,20 @@ enum BindingHavenAgentDStatusProvider {
 
     nonisolated private static func normalizedPath(_ path: String) -> String {
         (path as NSString).expandingTildeInPath
+    }
+
+    nonisolated private static func resolvedExecutablePath(
+        override: String?,
+        candidates: [String],
+        fileManager: FileManager
+    ) -> String {
+        if let override, override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return normalizedPath(override)
+        }
+        let normalizedCandidates = candidates.map(normalizedPath)
+        return normalizedCandidates.first {
+            fileManager.fileExists(atPath: $0) && fileManager.isExecutableFile(atPath: $0)
+        } ?? normalizedCandidates[0]
     }
 
     nonisolated private static func isExecutableFile(at path: String, fileManager: FileManager) -> Bool {

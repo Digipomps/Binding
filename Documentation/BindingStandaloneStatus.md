@@ -1,6 +1,6 @@
 # HAVEN Standalone Status
 
-Updated: April 17, 2026
+Updated: August 18, 2026
 
 `HAVEN` is now being treated as a standalone app product.
 
@@ -16,7 +16,7 @@ Implemented in the current repo state:
 - HAVEN bootstrap no longer registers the agent cells
 - the configuration catalog no longer publishes `Agent Setup Workbench`
 - curated menus no longer seed an agent setup entry
-- agent-specific docs now live under [HavenAgentD/Docs/README.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/HavenAgentD/Docs/README.md) instead of the main HAVEN docs index
+- agent source, tests, packaging, contracts, and operator docs live in the separate [`Digipomps/HavenAgentD`](https://github.com/Digipomps/HavenAgentD) repository
 
 Verified in this change set:
 
@@ -27,7 +27,7 @@ Verified in this change set:
 - `BindingTests/BindingTests.swift` now verifies that local bootstrap does not resolve `AgentProvisioning` or `AgentEnrollment`
 - the old dead `agentSetupWorkbenchConfiguration()` builder has been removed from `ConfigurationCatalogCell`
 - the HAVEN docs index no longer presents the old agent workbench/runbook docs as active HAVEN documentation
-- a repo sweep now finds agent references only in the legacy agent source files, `HavenAgentD`, and negative standalone assertions
+- Binding keeps only versioned contract fixtures, consumer adapters, integration tests, and cross-product runbooks
 
 Known verification gap:
 
@@ -48,4 +48,6 @@ What is intentionally no longer part of HAVEN:
 - LaunchAgent management from inside the app
 - agent pairing/setup workbench as a first-class HAVEN surface
 
-Agent-specific code still exists in the repo for now, but the docs and product boundary now place that material on the `HavenAgentD` side instead of inside main HAVEN documentation.
+The agent implementation no longer lives in this repository. The repository
+boundary and migration order are recorded in
+[HavenAgentDRepositorySeparation_2026-08-18.md](HavenAgentDRepositorySeparation_2026-08-18.md).

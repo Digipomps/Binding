@@ -80,9 +80,9 @@ HAVEN briefly carried a local agent provisioning surface during early `HavenAgen
 
 That material is now archived out of the main HAVEN docs surface:
 
-- agent boundary note: [../HavenAgentD/Docs/BindingBoundary.md](../HavenAgentD/Docs/BindingBoundary.md)
-- legacy provisioning runbook: [../HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md](../HavenAgentD/Docs/Legacy/BindingProvisioningRunbook.md)
-- legacy workbench review: [../HavenAgentD/Docs/Legacy/AgentSetupWorkbench_UI_Review.md](../HavenAgentD/Docs/Legacy/AgentSetupWorkbench_UI_Review.md)
+- agent boundary note: [HavenAgentD Binding boundary](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/BindingBoundary.md)
+- legacy provisioning runbook: [HavenAgentD legacy provisioning](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/Legacy/BindingProvisioningRunbook.md)
+- legacy workbench review: [HavenAgentD legacy workbench review](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/Legacy/AgentSetupWorkbench_UI_Review.md)
 
 ## Latest successful changes (March 22, 2026)
 - `CellProtocol` now models explicit signing vs key-agreement roles through `IdentityKeyRoleProviderProtocol` in [IdentityKeyRoleProviderProtocol.swift](/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/Sources/CellBase/Crypto/IdentityKeyRoleProviderProtocol.swift).
@@ -367,7 +367,7 @@ Projects importing CellProtocol must include:
 - Chat crypto recipient side: [Documentation/ChatCryptoRecipientSide.md](Documentation/ChatCryptoRecipientSide.md)
 - Next step prompt: [Documentation/NextStepPrompt.md](Documentation/NextStepPrompt.md)
 - Component drag/drop plan: [Documentation/ComponentDragDropPlan.md](Documentation/ComponentDragDropPlan.md)
-- HavenAgentD docs index: [../HavenAgentD/Docs/README.md](../HavenAgentD/Docs/README.md)
+- HavenAgentD docs index: [HavenAgentD repository](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/README.md)
 - How to create a Cell: [Documentation/HowTo_CreateCell.md](Documentation/HowTo_CreateCell.md)
 - Perspective runtime matching (canonical): [CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md](../../CellProtocolDocuments/Book/14_Perspective_Runtime_Matching.md)
 - Perspective local stubs: [Documentation/PerspectiveCell_WeightedMatching_Proposal.md](Documentation/PerspectiveCell_WeightedMatching_Proposal.md), [Documentation/Perspective_Signal_Network_Implementation.md](Documentation/Perspective_Signal_Network_Implementation.md)

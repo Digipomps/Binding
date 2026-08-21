@@ -8,8 +8,10 @@ AUTOMATION_MENU="Conference Automation"
 MODULE_CACHE_DIR="${BINDING_MODULE_CACHE_DIR:-$OUT_DIR/clang-module-cache}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="${BINDING_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-AGENT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_BINARY:-$REPO_ROOT/HavenAgentD/.build/debug/haven-agentd}"
-AGENT_ALT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_ALT_BINARY:-$REPO_ROOT/HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd}"
+AGENT_REPO_ROOT="${HAVEN_AGENTD_REPO:-$REPO_ROOT/../HavenAgentD}"
+AGENT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_BINARY:-$AGENT_REPO_ROOT/.build/debug/haven-agentd}"
+AGENT_ALT_BUILD_BINARY="${BINDING_HAVEN_AGENTD_ALT_BINARY:-$AGENT_REPO_ROOT/.build/arm64-apple-macosx/debug/haven-agentd}"
+AGENT_SYSTEM_BINARY="${BINDING_HAVEN_AGENTD_SYSTEM_BINARY:-/usr/local/libexec/havenagent/haven-agentd}"
 AGENT_STAGING_DIR="${BINDING_AGENT_STAGING_DIR:-$HOME/Library/Application Support/HAVENAgent/Staging}"
 AGENT_ROOT="${BINDING_AGENT_ROOT:-$HOME/Library/Application Support/HAVENAgent}"
 AGENT_CONFIG_FILE="$AGENT_ROOT/config.json"
@@ -295,6 +297,8 @@ refresh_starter_auth_if_possible() {
   local refresh_binary=""
   if [[ -x "$AGENT_INSTALLED_BINARY" ]]; then
     refresh_binary="$AGENT_INSTALLED_BINARY"
+  elif [[ -x "$AGENT_SYSTEM_BINARY" ]]; then
+    refresh_binary="$AGENT_SYSTEM_BINARY"
   elif [[ -x "$AGENT_STAGING_BINARY" ]]; then
     refresh_binary="$AGENT_STAGING_BINARY"
   fi
@@ -330,6 +334,8 @@ stage_agent_binary() {
     source_binary="$AGENT_BUILD_BINARY"
   elif [[ -x "$AGENT_ALT_BUILD_BINARY" ]]; then
     source_binary="$AGENT_ALT_BUILD_BINARY"
+  elif [[ -x "$AGENT_SYSTEM_BINARY" ]]; then
+    source_binary="$AGENT_SYSTEM_BINARY"
   fi
 
   if [[ -n "$source_binary" ]]; then
