@@ -1,6 +1,0 @@
-.build/
-.build-package/
-.tmp-clang-module-cache/
-dist/
-.DS_Store
-*.profraw

@@ -2,6 +2,8 @@
 
 Date: 2026-08-18
 
+Completed: 2026-08-21
+
 ## Decision
 
 `HavenAgentD` is a separate product and repository. Binding remains an app-side
@@ -15,6 +17,10 @@ Canonical repositories:
 
 The repositories may be checked out as siblings for local development. Binding
 must continue to start and run without a HavenAgentD checkout or installation.
+
+The extracted agent history is published on `main` at commit
+`f3a9f94b021fa4013a7a2045187d759ec126bcaf`. The canonical local development
+layout is `Binding/` and `HavenAgentD/` as sibling checkouts.
 
 ## Integration boundary
 
@@ -34,7 +40,7 @@ The current registration observation contract is
 JSON Schema under `Documentation/TestData/HavenAgentD` so cross-repository
 compatibility can be verified without source-tree coupling.
 
-## Migration order
+## Completed migration order
 
 1. Make both Swift packages resolve sibling checkouts or pinned remote
    dependencies.

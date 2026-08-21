@@ -2,6 +2,10 @@
 
 Status date: 2026-05-17
 
+Repository relocation: since 2026-08-21 the canonical source repository is
+`https://github.com/Digipomps/HavenAgentD`. Paths beginning with
+`HavenAgentD/` below are relative to that repository, not to Binding.
+
 This note captures the current `HAVENAgentD` status and the plan for making chat propose and use the local agent when a user's purpose is better served by the agent runtime than by ordinary chat.
 
 ## Current Status
@@ -22,7 +26,8 @@ This note captures the current `HAVENAgentD` status and the plan for making chat
 Verification run on 2026-05-11:
 
 ```bash
-cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+git clone git@github.com:Digipomps/HavenAgentD.git
+cd HavenAgentD
 ./Scripts/test_haven_agentd.sh
 ```
 
@@ -468,7 +473,8 @@ Add tests that prove:
 - phone-originated prompt is queued without launching arbitrary processes.
 - Codex host can consume a queued phone prompt over MCP.
 - consumed prompt is not returned as new again.
-- `./Scripts/test_haven_agentd.sh` stays green.
+- `HavenAgentD/Scripts/test_haven_agentd.sh` stays green in the standalone
+  agent checkout.
 
 End-to-end acceptance:
 
