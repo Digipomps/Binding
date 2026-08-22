@@ -58,6 +58,10 @@ final class BindingInvitationCell: GeneralCell {
         var state: HavenInviteState
         var published: Bool
         var statusKey: String?
+        /// Which host actually holds this ticket. Status reads, revocation and
+        /// the short link all have to go back to the same one — the fallback
+        /// means it is not always the configured default.
+        var landingBase: String?
         var preparedAt: Date
         var sentAt: Date?
         var openedAt: Date?
@@ -68,7 +72,15 @@ final class BindingInvitationCell: GeneralCell {
     }
 
     private struct Settings: Codable, Equatable {
-        var landingBase: String = ""
+        /// Production first. An invitation is worthless if the person who gets
+        /// it cannot open it, so the default has to be the host that is
+        /// actually serving, not an empty string that silently degrades every
+        /// link to `haven://` and turns SMS off.
+        var landingBase: String = "https://haven.digipomps.org"
+        /// Tried when production cannot register the ticket. Staging running a
+        /// newer build than production is the normal state of this project, and
+        /// a demo should not die because the deploy order was inconvenient.
+        var fallbackLandingBase: String = "https://staging.haven.digipomps.org"
         var issuerDisplayName: String = ""
         var issuerEntityRef: String?
         /// The `ContactEndpoint` id the invitee may reply to. Without one the
@@ -80,6 +92,15 @@ final class BindingInvitationCell: GeneralCell {
         /// is how a domain earns a spam reputation in one evening.
         var dailyLimit: Int = 25
         var autoPublish: Bool = true
+
+        /// In order, deduplicated, empties dropped. Publication walks this and
+        /// keeps the first host that accepts the ticket.
+        var landingBaseCandidates: [String] {
+            var seen = Set<String>()
+            return [landingBase, fallbackLandingBase]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+        }
 
         static let `default` = Settings()
     }
@@ -273,6 +294,15 @@ final class BindingInvitationCell: GeneralCell {
                     problems.append("«\(base)» ser ikke ut som en https-adresse, så jeg lot landingssiden stå.")
                 }
             }
+            if let base = HavenValue.string(payload["fallbackLandingBase"]) {
+                if base.isEmpty {
+                    settings.fallbackLandingBase = ""
+                } else if let normalized = HavenRelationNormalizer.normalizeURL(base) {
+                    settings.fallbackLandingBase = normalized
+                } else {
+                    problems.append("«\(base)» ser ikke ut som en https-adresse, så jeg lot reserveadressen stå.")
+                }
+            }
             if let name = HavenValue.string(payload["issuerDisplayName"]) { settings.issuerDisplayName = name }
             if payload["issuerEntityRef"] != nil { settings.issuerEntityRef = HavenValue.string(payload["issuerEntityRef"]) }
             if payload["contactEndpointID"] != nil { settings.contactEndpointID = HavenValue.string(payload["contactEndpointID"]) }
@@ -292,10 +322,11 @@ final class BindingInvitationCell: GeneralCell {
 
     private func settingsObject() -> Object {
         let current = stateQueue.sync { settings }
-        let hasScaffold = !current.landingBase.isEmpty
+        let hasScaffold = !current.landingBaseCandidates.isEmpty
         let canReply = current.contactEndpointID?.isEmpty == false
         return [
             "landingBase": .string(current.landingBase),
+            "fallbackLandingBase": .string(current.fallbackLandingBase),
             "issuerDisplayName": .string(current.issuerDisplayName),
             "issuerEntityRef": .string(current.issuerEntityRef ?? ""),
             "contactEndpointID": .string(current.contactEndpointID ?? ""),
@@ -382,7 +413,7 @@ final class BindingInvitationCell: GeneralCell {
 
         let current = stateQueue.sync { settings }
 
-        if channel == "sms" && !(current.autoPublish && !current.landingBase.isEmpty) {
+        if channel == "sms" && !(current.autoPublish && !current.landingBaseCandidates.isEmpty) {
             // A self-contained ticket is well over a thousand characters. In an
             // SMS with Norwegian letters that is twenty-odd segments. Refusing
             // is kinder than sending something that arrives as garbage.
@@ -442,13 +473,45 @@ final class BindingInvitationCell: GeneralCell {
             signature: signature
         )
 
-        let selfContained: String? = current.landingBase.isEmpty
-            ? nil
-            : (try? HavenInviteLink.universalLink(for: ticket, landingBase: current.landingBase)) ?? nil
+        // Publish before the links are built, not after. Which host ends up
+        // holding the ticket decides what the link has to point at, and with a
+        // fallback that is not known until the publication has actually landed.
         let appLink: String? = try? HavenInviteLink.appLink(for: ticket)
-        let short = current.landingBase.isEmpty
+        var publicationNote: String?
+        var publishedStatusKey: String?
+        var effectiveBase: String? = current.landingBaseCandidates.first
+
+        if current.autoPublish && !current.landingBaseCandidates.isEmpty {
+            let outcome = await Self.publishTicket(
+                ticket,
+                landingBases: current.landingBaseCandidates,
+                identity: storedOwnerIdentity,
+                descriptor: descriptor
+            )
+            switch outcome {
+            case .success(let publication):
+                publishedStatusKey = publication.statusKey
+                effectiveBase = publication.landingBase
+                if publication.landingBase != current.landingBase {
+                    publicationNote = "Registrert hos \(publication.landingBase) — den primære landingssiden svarte ikke."
+                }
+            case .failure(let error):
+                publicationNote = error.userMessage
+                if channel == "sms" {
+                    return fail(HavenValue.error(
+                        code: "publish_failed",
+                        message: "SMS krever kort lenke, og registreringen hos scaffoldet feilet: \(error.userMessage)"
+                    ))
+                }
+            }
+        }
+
+        let selfContained: String? = effectiveBase.flatMap {
+            (try? HavenInviteLink.universalLink(for: ticket, landingBase: $0)) ?? nil
+        }
+        let short: String? = publishedStatusKey == nil
             ? nil
-            : HavenInviteLink.shortLink(for: ticket, landingBase: current.landingBase)
+            : effectiveBase.flatMap { HavenInviteLink.shortLink(for: ticket, landingBase: $0) }
 
         var entry = OutboxEntry(
             ticket: ticket,
@@ -464,40 +527,37 @@ final class BindingInvitationCell: GeneralCell {
             body: "",
             handoffURL: nil,
             state: .prepared,
-            published: false,
-            statusKey: nil,
+            published: publishedStatusKey != nil,
+            statusKey: publishedStatusKey,
+            landingBase: publishedStatusKey == nil ? nil : effectiveBase,
             preparedAt: now,
             openCount: 0,
             contactRequestCount: 0
         )
 
-        var publicationNote: String?
-        if current.autoPublish && !current.landingBase.isEmpty {
-            let outcome = await Self.publishTicket(
-                ticket,
-                landingBase: current.landingBase,
-                identity: storedOwnerIdentity,
-                descriptor: descriptor
-            )
-            switch outcome {
-            case .success(let statusKey):
-                entry.published = true
-                entry.statusKey = statusKey
-            case .failure(let error):
-                publicationNote = error.userMessage
-                if channel == "sms" {
-                    return fail(HavenValue.error(
-                        code: "publish_failed",
-                        message: "SMS krever kort lenke, og registreringen hos scaffoldet feilet: \(error.userMessage)"
-                    ))
-                }
-            }
-        }
-
         // Short link only when the scaffold actually has the ticket. Otherwise
         // it resolves to nothing and the invitee sees an error page.
-        let preferredLink = entry.published ? (short ?? selfContained ?? appLink) : (selfContained ?? appLink)
+        //
+        // And when no host would take the ticket at all, do not hand out a web
+        // link either. Publication and the landing page are the same route on
+        // the same host, so a refused publication means /i/<token> is not being
+        // served — a self-bearing https link would look real and answer 404.
+        // The haven:// link is honest about needing the app.
+        let attemptedPublication = current.autoPublish && !current.landingBaseCandidates.isEmpty
+        let webLinkIsServed = entry.published || !attemptedPublication
+        let preferredLink: String?
+        if entry.published {
+            preferredLink = short ?? selfContained ?? appLink
+        } else if webLinkIsServed {
+            preferredLink = selfContained ?? appLink
+        } else {
+            preferredLink = appLink ?? selfContained
+        }
         entry.link = preferredLink
+        if !webLinkIsServed {
+            let reason = publicationNote.map { " (\($0))" } ?? ""
+            publicationNote = "Ingen landingsside svarte\(reason), så invitasjonen fikk en haven://-lenke som bare virker der HAVEN allerede er installert."
+        }
 
         let message = HavenInviteCopy.compose(
             ticket: ticket,
@@ -631,13 +691,21 @@ final class BindingInvitationCell: GeneralCell {
 
     // MARK: - Publication
 
+    struct PublicationOutcome {
+        let statusKey: String
+        let landingBase: String
+    }
+
+    /// Tries each host in order and keeps the first that accepts the ticket.
+    /// The signature is minted once and reused: it covers the publication, not
+    /// the host, so a fallback does not require re-signing.
     private static func publishTicket(
         _ ticket: HavenInviteTicket,
-        landingBase: String,
+        landingBases: [String],
         identity: Identity,
         descriptor: IdentityPublicKeyDescriptor
-    ) async -> Result<String, HavenInviteTransportFailure> {
-        guard !landingBase.isEmpty, let token = try? HavenInviteLink.encode(ticket) else {
+    ) async -> Result<PublicationOutcome, HavenInviteTransportFailure> {
+        guard !landingBases.isEmpty, let token = try? HavenInviteLink.encode(ticket) else {
             return .failure(.notConfigured)
         }
         let statusKey = HavenInvitePublication.makeStatusKey()
@@ -662,16 +730,20 @@ final class BindingInvitationCell: GeneralCell {
             signature: signature
         )
 
-        switch await BindingInviteScaffoldClient.post(
-            path: "/i/api/publish",
-            landingBase: landingBase,
-            body: publication
-        ) {
-        case .success:
-            return .success(statusKey)
-        case .failure(let failure):
-            return .failure(failure)
+        var lastFailure: HavenInviteTransportFailure = .notConfigured
+        for base in landingBases {
+            switch await BindingInviteScaffoldClient.post(
+                path: "/i/api/publish",
+                landingBase: base,
+                body: publication
+            ) {
+            case .success:
+                return .success(PublicationOutcome(statusKey: statusKey, landingBase: base))
+            case .failure(let failure):
+                lastFailure = failure
+            }
         }
+        return .failure(lastFailure)
     }
 
     private func publish(_ value: ValueType) async -> Object {
@@ -690,18 +762,19 @@ final class BindingInvitationCell: GeneralCell {
 
         switch await Self.publishTicket(
             entry.ticket,
-            landingBase: current.landingBase,
+            landingBases: current.landingBaseCandidates,
             identity: storedOwnerIdentity,
             descriptor: descriptor
         ) {
         case .failure(let failure):
             return fail(HavenValue.error(code: "publish_failed", message: failure.userMessage))
-        case .success(let statusKey):
-            let short = HavenInviteLink.shortLink(for: entry.ticket, landingBase: current.landingBase)
+        case .success(let publication):
+            let short = HavenInviteLink.shortLink(for: entry.ticket, landingBase: publication.landingBase)
             stateQueue.sync {
                 guard let index = outbox.firstIndex(where: { $0.ticket.ticketID == ticketID }) else { return }
                 outbox[index].published = true
-                outbox[index].statusKey = statusKey
+                outbox[index].statusKey = publication.statusKey
+                outbox[index].landingBase = publication.landingBase
                 outbox[index].shortLink = short
                 if let short { outbox[index].link = short }
             }
@@ -778,7 +851,7 @@ final class BindingInvitationCell: GeneralCell {
         for entry in candidates {
             guard let statusKey = entry.statusKey else { continue }
             guard case let .success(report) = await BindingInviteScaffoldClient.status(
-                landingBase: current.landingBase,
+                landingBase: entry.landingBase ?? current.landingBase,
                 ticketID: entry.ticket.ticketID,
                 statusKey: statusKey
             ) else { continue }
@@ -856,7 +929,7 @@ final class BindingInvitationCell: GeneralCell {
         for entry in candidates {
             guard let statusKey = entry.statusKey else { continue }
             guard case let .success(requests) = await BindingInviteScaffoldClient.contactRequests(
-                landingBase: current.landingBase,
+                landingBase: entry.landingBase ?? current.landingBase,
                 ticketID: entry.ticket.ticketID,
                 statusKey: statusKey
             ) else { continue }
@@ -1080,7 +1153,7 @@ final class BindingInvitationCell: GeneralCell {
                 )
                 switch await BindingInviteScaffoldClient.post(
                     path: "/i/api/revoke",
-                    landingBase: current.landingBase,
+                    landingBase: entry.landingBase ?? current.landingBase,
                     body: notice
                 ) {
                 case .success:

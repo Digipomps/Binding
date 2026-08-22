@@ -167,7 +167,14 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             // Co-Pilot is the primary surface and was previously untested here.
             // Its `perspective.perspective.*` bindings regressed unnoticed because
             // of that gap; keep it in this list.
-            ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
+            // The relation, contact-import and invitation surface, and the two
+            // entity-governance surfaces. These are the ones a person actually
+            // touches when they invite somebody, so they belong in the same
+            // guarantee as the rest of Personal Co-Pilot.
+            HavenRelationsWorkbench.configuration(),
+            BindingEntityResidencyCell.menuConfiguration(),
+            BindingEntityScaffoldExtensionCell.menuConfiguration()
         ] {
             let localConfiguration = CellConfigurationEndpointRetargeting
                 .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
