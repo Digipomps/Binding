@@ -1637,6 +1637,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         agreementTemplate.addGrant("rw--", for: "query")
         agreementTemplate.addGrant("rw--", for: "facetCounts")
         agreementTemplate.addGrant("r---", for: "query.state")
+        agreementTemplate.addGrant("r---", for: "matching")
         agreementTemplate.addGrant("r---", for: "matching.state")
         agreementTemplate.addGrant("r---", for: "matching.promptText")
         agreementTemplate.addGrant("rw--", for: "matching.promptText")
@@ -1824,6 +1825,26 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             guard let self = self else { return .null }
             guard await self.validateAccess("r---", at: "query.state", for: requester) else { return .string("denied") }
             return self.stateQueue.sync { self.lastQueryState }
+        }
+
+        // The root read. Apple Intelligence references this cell under the label
+        // `catalog` and binds `catalog.matching.state.suggestionCount` and
+        // friends. `GeneralCell` resolves nested reads by walking down from the
+        // root, so `matching` itself has to answer or the whole subtree reads
+        // back `notFound` — every leaf below being registered is not enough.
+        await registerGet(key: "matching", owner: owner) { [weak self] requester in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching", for: requester) else { return .string("denied") }
+            return .object([
+                "state": self.matchingStateValue(),
+                "promptText": self.matchingPromptTextValue(),
+                "suggestions": self.matchingSuggestionsValue(),
+                "selectedSuggestion": self.matchingSelectedSuggestionValue(),
+                "selectedIndex": self.matchingSelectedIndexValue(),
+                "bookmarks": self.matchingBookmarksValue(),
+                "purposeStats": self.matchingPurposeStatsValue(),
+                "entityPurposePublications": self.matchingEntityPurposePublicationsValue()
+            ])
         }
 
         await registerGet(key: "matching.state", owner: owner) { [weak self] requester in
@@ -5268,6 +5289,22 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         pushFlowElement(flowElement, requester: requester)
     }
 
+#if DEBUG
+    /// Every configuration the catalog currently offers as loadable, in the same
+    /// order and under the same gating the running app uses. Verification must run
+    /// against this list rather than a hand-maintained one, so a newly offered
+    /// surface can never ship without being checked.
+    nonisolated static func offeredCatalogConfigurationsForVerification() async -> [(name: String, endpoint: String, configuration: CellConfiguration)] {
+        await scaffoldPurposeTemplates().map { template in
+            (
+                name: template.displayName ?? template.purpose,
+                endpoint: template.sourceCellEndpoint,
+                configuration: template.configuration
+            )
+        }
+    }
+#endif
+
     private static func scaffoldPurposeTemplates() async -> [ScaffoldPurposeTemplate] {
         let chatEndpoint = "cell://staging.haven.digipomps.org/Chat"
         let chatConfig = scaffoldChatWorkbenchConfiguration(
@@ -7125,6 +7162,18 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             return personalInviteChatMenuConfiguration()
         case "cell://staging.haven.digipomps.org/personalchathub":
             return personalInviteChatMenuConfiguration(chatHubEndpoint: descriptor.sourceCellEndpoint)
+        case "cell:///relations":
+            return BindingRelationsCell.menuConfiguration()
+        case "cell:///addressbook":
+            return BindingAddressBookCell.menuConfiguration()
+        case "cell:///contactimport":
+            return BindingContactImportCell.menuConfiguration()
+        case "cell:///invitation":
+            return BindingInvitationCell.menuConfiguration()
+        case "cell:///entityresidency":
+            return BindingEntityResidencyCell.menuConfiguration()
+        case "cell:///entityscaffoldextension":
+            return BindingEntityScaffoldExtensionCell.menuConfiguration()
         case "cell:///personalagendacontext":
             return personalAgendaContextMenuConfiguration()
         case "cell:///calendarstore":
@@ -7820,6 +7869,12 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             butterpopStudioMenuConfiguration(),
             personalMatchesMenuConfiguration(),
             personalInviteChatMenuConfiguration(),
+            // Relations, contacts, import and invitation are one task, so they
+            // are one entry. Four near-synonymous labels in a scrolling menu is
+            // noise, not discoverability.
+            HavenRelationsWorkbench.configuration(),
+            BindingEntityResidencyCell.menuConfiguration(),
+            BindingEntityScaffoldExtensionCell.menuConfiguration(),
             personalAgendaContextMenuConfiguration(),
             personalCalendarStoreMenuConfiguration(),
             personalVaultIdeasMenuConfiguration(),

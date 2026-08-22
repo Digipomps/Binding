@@ -162,7 +162,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
             ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
             ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration(),
-            ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration()
+            ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration(),
+            // Co-Pilot is the primary surface and was previously untested here.
+            // Its `perspective.perspective.*` bindings regressed unnoticed because
+            // of that gap; keep it in this list.
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         ] {
             let localConfiguration = CellConfigurationEndpointRetargeting
                 .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
@@ -197,6 +201,105 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 )
             }
         }
+    }
+
+    /// Guarantees that everything the catalog presents as loadable actually renders.
+    /// The list comes from the catalog itself, not from a hand-maintained array, so a
+    /// newly offered surface cannot ship unverified. Failures are collected and reported
+    /// together rather than fail-fast, so one broken surface does not hide the others.
+    func testEveryOfferedCatalogConfigurationHasReadableRoots() async throws {
+        let offered = await ConfigurationCatalogCell.offeredCatalogConfigurationsForVerification()
+        XCTAssertFalse(offered.isEmpty, "Catalog offered no configurations to verify.")
+
+        var failures: [String] = []
+        var unverifiedRemote: [String] = []
+        var verifiedCount = 0
+
+        for entry in offered {
+            let localConfiguration = CellConfigurationEndpointRetargeting
+                .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: entry.configuration)
+
+            let report: CellConfigurationVerifier.ContractReport
+            do {
+                report = try await CellConfigurationVerifier.contractReport(
+                    for: localConfiguration,
+                    buttonsToExecute: [],
+                    identityMode: .startup
+                )
+            } catch {
+                // A surface hosted on a remote scaffold cannot be verified when
+                // that scaffold is unreachable, and staging being down is not a
+                // defect in the surface. Only transport errors against a remote
+                // endpoint are excused — anything else is still a failure, so a
+                // genuinely broken surface cannot hide behind this.
+                if Self.isRemoteEndpoint(entry.endpoint), Self.isTransportError(error) {
+                    unverifiedRemote.append("\(entry.name) [\(entry.endpoint)]: \(Self.transportSummary(error))")
+                    continue
+                }
+                failures.append("\(entry.name) [\(entry.endpoint)]: threw \(error)")
+                continue
+            }
+
+            verifiedCount += 1
+            if report.validation.errorCount != 0 {
+                failures.append("\(entry.name): validation \(report.validation.issues)")
+            }
+            if !report.unresolvedReferences.isEmpty {
+                failures.append("\(entry.name): unresolved references \(report.unresolvedReferences)")
+            }
+            if !report.unreadableRootProbes.isEmpty {
+                failures.append("\(entry.name): unreadable roots \(report.unreadableRootProbes)")
+                // Print every probe on a surface that has a bad one. A lone
+                // failing root tells you nothing about whether the reference
+                // resolved at all; the neighbours do.
+                let allProbes = report.rootProbeResolutions
+                    .map { "    \($0.probe.label).\($0.probe.rootKeypath) -> \($0.outcome)" }
+                    .sorted()
+                    .joined(separator: "\n")
+                print("Root probes for \(entry.name):\n\(allProbes)")
+            }
+        }
+
+        if !unverifiedRemote.isEmpty {
+            // Printed, never silent: a reader of the log must be able to see
+            // exactly which surfaces this run did not actually cover.
+            print("Not verified — remote scaffold unreachable:\n" + unverifiedRemote.joined(separator: "\n"))
+        }
+
+        XCTAssertTrue(
+            failures.isEmpty,
+            "\(failures.count) of \(offered.count) offered configurations are not fully loadable "
+                + "(verified \(verifiedCount), \(unverifiedRemote.count) skipped as unreachable):\n"
+                + failures.joined(separator: "\n")
+        )
+    }
+
+    /// A `cell://host/...` endpoint points at someone else's scaffold. A bare
+    /// `cell:///...` is local and always has to work.
+    private static func isRemoteEndpoint(_ endpoint: String) -> Bool {
+        guard let host = URLComponents(string: endpoint)?.host?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+        return !host.isEmpty && host.lowercased() != "localhost"
+    }
+
+    /// Network weather, not a binding defect: the socket never carried a usable
+    /// answer. Deliberately narrow — a decoding or contract error is not a
+    /// transport error and must still fail the test.
+    private static func isTransportError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain { return true }
+        if nsError.domain == NSPOSIXErrorDomain { return true }
+        let text = String(describing: error).lowercased()
+        return text.contains("bad response from the server")
+            || text.contains("notconnected")
+            || text.contains("could not connect")
+            || text.contains("network connection was lost")
+    }
+
+    private static func transportSummary(_ error: Error) -> String {
+        let nsError = error as NSError
+        return "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription)"
     }
 
     private func personalCopilotButtonsToExecute(for configuration: CellConfiguration) -> Set<String> {
@@ -470,6 +573,26 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             for panel in tabs.panels {
                 for (index, child) in panel.content.enumerated() {
                     inspectSkeleton(child, path: path + ["tab:\(panel.id)", "content[\(index)]"], report: &report)
+                }
+            }
+        case .NavigationBar(let navigationBar):
+            // Same contract as a button row: every item is tappable, so every
+            // item needs something to say and somewhere to go.
+            if navigationBar.items.isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) navigation bar has no items"))
+            }
+            for (index, item) in navigationBar.items.enumerated() {
+                report.buttonCount += 1
+                let itemPath = path + ["navigationBar", "item[\(index)]"]
+                inspectVisibleText(item.label, at: itemPath, report: &report)
+                if item.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   item.labelKeypath == nil {
+                    report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(itemPath)) navigation item has empty label"))
+                }
+                if item.keypath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   item.keypathKeypath == nil,
+                   item.url == nil {
+                    report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(itemPath)) navigation item has neither keypath nor url"))
                 }
             }
         case .Grid(let grid):

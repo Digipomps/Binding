@@ -793,12 +793,17 @@ struct BindingTests {
             "Personal Co-Pilot Catalog",
             "Apple Intelligence Purpose Matcher",
             "Entity Scanner",
-            "Workflow Studio"
+            "Workflow Studio",
+            // Relations, contact import and invitation share one surface; the
+            // two entity-governance surfaces stand on their own.
+            "Relasjoner",
+            "Datalokasjon",
+            "Utvid entiteten"
         ] {
             #expect(names.contains(requiredName))
         }
 
-        #expect(configurations.count == 16)
+        #expect(configurations.count == 19)
         #expect(configurations.allSatisfy(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1))
 
         let visibleText = configurations.flatMap { configuration in
@@ -9454,6 +9459,8 @@ struct BindingTests {
                 append(panel.modifiers)
                 panel.content.forEach { roles.append(contentsOf: child($0)) }
             }
+        case .NavigationBar(let navigationBar):
+            append(navigationBar.modifiers)
         }
 
         return roles
