@@ -132,10 +132,13 @@ struct RootView: View {
     @ViewBuilder
     private var rootContent: some View {
         if initialized {
+            // The notification consent banner is deliberately not mounted. It
+            // covers the top of every surface with a request — or, worse, with
+            // a registration error from staging — before the person has been
+            // given a reason to care about notifications. `NotificationConsentBanner`
+            // still exists; put it back behind a settings action rather than
+            // over the first screen.
             ContentView(incomingURLSceneID: incomingURLSceneID)
-                .overlay(alignment: .top) {
-                    NotificationConsentBanner()
-                }
                 .overlay(alignment: .bottom) {
                     PendingAgentActionOverlay()
                 }

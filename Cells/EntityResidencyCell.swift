@@ -105,9 +105,23 @@ final class BindingEntityResidencyCell: GeneralCell {
         }
     }
 
+    /// Every read is served under both names. A skeleton that references this
+    /// cell under the label `residency` binds `residency.criteria`, which asks
+    /// this cell for the bare key `criteria` — the label supplies the first
+    /// segment. The prefixed form stays for callers that address the cell
+    /// directly. `state` was already served both ways; the rest were not, which
+    /// is why the criteria list read back notFound.
     private var readableKeys: [String] {
         [
             "state",
+            "locations",
+            "placements",
+            "preferences",
+            "criteria",
+            "recommendations",
+            "receipts",
+            "lastPlan",
+            "lastResult",
             "residency.state",
             "residency.locations",
             "residency.placements",
@@ -142,13 +156,13 @@ final class BindingEntityResidencyCell: GeneralCell {
         switch key {
         case "state", "residency.state":
             return .object(stateObject())
-        case "residency.locations":
+        case "locations", "residency.locations":
             return .list(locationRows().map(ValueType.object))
-        case "residency.placements":
+        case "placements", "residency.placements":
             return .list(placementRows().map(ValueType.object))
-        case "residency.preferences":
+        case "preferences", "residency.preferences":
             return .object(preferencesObject())
-        case "residency.criteria":
+        case "criteria", "residency.criteria":
             return .list(HavenResidencyCriterion.allCases.map { criterion in
                 .object([
                     "id": .string(criterion.rawValue),
@@ -157,13 +171,13 @@ final class BindingEntityResidencyCell: GeneralCell {
                     "weight": .float(stateQueue.sync { preferences.weight(criterion) })
                 ])
             })
-        case "residency.recommendations":
+        case "recommendations", "residency.recommendations":
             return .list(recommendationRows().map(ValueType.object))
-        case "residency.receipts":
+        case "receipts", "residency.receipts":
             return .list(receiptRows().map(ValueType.object))
-        case "residency.lastPlan":
+        case "lastPlan", "residency.lastPlan":
             return .object(stateQueue.sync { lastPlan })
-        case "residency.lastResult":
+        case "lastResult", "residency.lastResult":
             return .object(stateQueue.sync { lastResult })
         case "providerDescriptor":
             return .object(providerDescriptor())
