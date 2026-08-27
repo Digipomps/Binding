@@ -28,6 +28,11 @@ nonisolated public enum HavenContactField: String, Codable, CaseIterable, Sendab
     case phone
     case organization
     case jobTitle
+    /// What the person does *in this particular list* — «Oppgave i nettverket»,
+    /// «verv», «rolle i prosjektet». Distinct from `jobTitle`, which is what
+    /// they do for a living. A project roster usually carries both, and
+    /// conflating them loses the thing you actually sort on when inviting.
+    case projectRole
     case url
     case handle
     case notes
@@ -65,6 +70,7 @@ nonisolated public enum HavenContactField: String, Codable, CaseIterable, Sendab
         case .phone: return "Telefon"
         case .organization: return "Organisasjon"
         case .jobTitle: return "Rolle/tittel"
+        case .projectRole: return "Oppgave i prosjektet"
         case .url: return "Nettadresse"
         case .handle: return "Brukernavn"
         case .notes: return "Notat"
@@ -150,6 +156,7 @@ nonisolated public enum HavenContactColumnInference {
         .phone: ["telefon", "telefonnummer", "mobil", "mobilnummer", "mobile", "phone", "phone number", "tlf", "tel", "cell", "cellphone", "mobiltelefon", "nummer", "msisdn", "sms"],
         .organization: ["organisasjon", "organization", "organisation", "firma", "selskap", "bedrift", "company", "employer", "arbeidsgiver", "virksomhet", "org", "kunde", "account"],
         .jobTitle: ["tittel", "title", "stilling", "rolle", "role", "job title", "jobbtittel", "position", "funksjon"],
+        .projectRole: ["oppgave", "oppgave i nettverket", "oppgave i prosjektet", "rolle i nettverket", "rolle i prosjektet", "verv", "ansvar", "bidrag", "deltakerrolle", "prosjektrolle", "network role", "project role", "assignment", "responsibility"],
         .url: ["nettside", "nettadresse", "url", "website", "web", "hjemmeside", "link", "lenke", "linkedin", "profil", "profile"],
         .handle: ["brukernavn", "username", "handle", "alias", "konto", "account name", "social", "instagram", "x", "mastodon", "signal"],
         .notes: ["notat", "notater", "note", "notes", "kommentar", "comment", "comments", "merknad", "beskrivelse", "description", "bakgrunn", "context", "kontekst"],
@@ -213,7 +220,7 @@ nonisolated public enum HavenContactColumnInference {
             } * 0.5
         case .entityRef:
             return fraction { $0.hasPrefix("cell://") || $0.hasPrefix("haven://") }
-        case .organization, .jobTitle, .purpose, .city, .ignore:
+        case .organization, .jobTitle, .projectRole, .purpose, .city, .ignore:
             return 0
         }
     }
@@ -483,7 +490,15 @@ nonisolated public enum HavenContactColumnInference {
             if let city = first(.city) { tags.append(city) }
             if let country = first(.country) { tags.append(country) }
 
+            // The role in the project is the thing you sort on when deciding
+            // who to invite, so it goes in the tags, not only the note.
+            let projectRoles = values(.projectRole).flatMap { splitMultiValue($0) }
+            tags.append(contentsOf: projectRoles)
+
             var noteParts = values(.notes)
+            if let projectRole = projectRoles.first {
+                noteParts.insert(projectRole, at: 0)
+            }
             if let jobTitle = first(.jobTitle), let organization {
                 noteParts.insert("\(jobTitle), \(organization)", at: 0)
             }

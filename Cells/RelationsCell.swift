@@ -1076,15 +1076,29 @@ final class BindingRelationsCell: GeneralCell {
         return min(1.0, weight)
     }
 
+    /// Marks a tag the importer inferred rather than read. A working group the
+    /// person chose is evidence; a guess from their job title is a hypothesis,
+    /// and the graph should not weigh them the same.
+    static let inferredTagPrefix = "antatt:"
+
     /// Tags become interests, which is the whole reason to project at all.
     /// An entity with no interests matches nothing, so a projection of bare
     /// names would make the graph bigger without making it smarter.
+    ///
+    /// Declared interests come first and heavier, inferred ones after and
+    /// lighter. Order matters because the list is capped: without sorting, an
+    /// arbitrary insertion order decided which interests survived the cut.
     static func interestWeights(for record: HavenRelationRecord) -> [ValueType] {
-        record.contextTags.prefix(8).map { tag in
+        let declared = record.contextTags.filter { !$0.hasPrefix(inferredTagPrefix) }
+        let inferred = record.contextTags.filter { $0.hasPrefix(inferredTagPrefix) }
+        let ordered = declared.map { (name: $0, weight: 0.75) }
+            + inferred.map { (name: String($0.dropFirst(inferredTagPrefix.count)), weight: 0.35) }
+
+        return ordered.prefix(12).map { entry in
             .object([
-                "weight": .float(0.5),
+                "weight": .float(entry.weight),
                 "value": .object([
-                    "name": .string(tag),
+                    "name": .string(entry.name),
                     "types": .list([]),
                     "subTypes": .list([]),
                     "parts": .list([]),
