@@ -32,6 +32,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_haven-radar._tcp</string>
+		<string>_haven-radar._udp</string>
 	</array>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>HAVEN bruker Bluetooth bare når du starter Nearby Scanner, for å oppdage nærliggende HAVEN-enheter og etablere kontakt med eksplisitt samtykke.</string>
