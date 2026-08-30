@@ -683,3 +683,118 @@ import CellBase
         #expect(HavenContactDocumentDetector.detect(filename: nil, mimeType: nil, data: data) == .csv)
     }
 }
+
+// MARK: - Project roles and inferred interests
+
+/// A participant roster carries two different things that both look like a
+/// role: what the person does for a living, and what they signed up to do in
+/// this particular project. Conflating them loses the one you sort on.
+@Suite struct HavenProjectRoleTests {
+
+    @Test func theAssignmentInTheProjectIsNotTheJobTitle() throws {
+        let document = HavenTabularDocument(
+            headers: ["Navn", "Firma", "Stilling", "Oppgave i nettverket"],
+            rows: [["Sjur Dagestad", "Innoco", "Professor emeritus", "Prosjektleder og redaktør"]]
+        )
+        let (mapping, _) = HavenContactColumnInference.infer(document: document)
+        #expect(mapping.columns(for: .organization) == [1])
+        #expect(mapping.columns(for: .jobTitle) == [2])
+        #expect(mapping.columns(for: .projectRole) == [3])
+    }
+
+    /// The role is what you filter on when deciding who to invite, so it has
+    /// to be a tag. Burying it in the note would make it unsearchable.
+    @Test func theProjectRoleBecomesATagAndNotOnlyANote() throws {
+        let document = HavenTabularDocument(
+            headers: ["Navn", "Oppgave i nettverket"],
+            rows: [["Sjur Dagestad", "Prosjektleder og redaktør"]]
+        )
+        var mapping = HavenColumnMapping()
+        mapping.assignments = [0: .fullName, 1: .projectRole]
+        let result = HavenContactColumnInference.buildRecords(
+            document: document,
+            mapping: mapping,
+            source: HavenRelationSource(kind: .fileImport, label: "deltakere.xlsx", batchID: "b")
+        )
+        let record = try #require(result.records.first)
+        #expect(record.contextTags.contains("Prosjektleder og redaktør"))
+        #expect(record.notes?.contains("Prosjektleder og redaktør") == true)
+    }
+
+    @Test func severalAssignmentsInOneCellBecomeSeveralTags() throws {
+        let document = HavenTabularDocument(
+            headers: ["Navn", "Oppgave i nettverket"],
+            rows: [["Kari Nordmann", "Redaktør; Gruppeleder"]]
+        )
+        var mapping = HavenColumnMapping()
+        mapping.assignments = [0: .fullName, 1: .projectRole]
+        let result = HavenContactColumnInference.buildRecords(
+            document: document,
+            mapping: mapping,
+            source: HavenRelationSource(kind: .fileImport, label: "t.xlsx", batchID: "b")
+        )
+        let record = try #require(result.records.first)
+        #expect(record.contextTags.contains("Redaktør"))
+        #expect(record.contextTags.contains("Gruppeleder"))
+    }
+}
+
+/// A working group the person chose is evidence. A guess read off their job
+/// title is a hypothesis. The graph must not weigh them the same.
+@Suite struct HavenInferredInterestWeightTests {
+
+    private func record(tags: String) throws -> HavenRelationRecord {
+        let document = HavenTabularDocument(
+            headers: ["Navn", "Interesser"],
+            rows: [["Kari Nordmann", tags]]
+        )
+        var mapping = HavenColumnMapping()
+        mapping.assignments = [0: .fullName, 1: .tags]
+        let result = HavenContactColumnInference.buildRecords(
+            document: document,
+            mapping: mapping,
+            source: HavenRelationSource(kind: .fileImport, label: "t.xlsx", batchID: "b")
+        )
+        return try #require(result.records.first)
+    }
+
+    private func weights(_ values: [ValueType]) -> [(name: String, weight: Double)] {
+        values.compactMap { value in
+            guard case .object(let entry) = value,
+                  case .float(let weight)? = entry["weight"],
+                  case .object(let inner)? = entry["value"],
+                  case .string(let name)? = inner["name"] else { return nil }
+            return (name: name, weight: Double(weight))
+        }
+    }
+
+    @Test func aDeclaredInterestWeighsMoreThanAnInferredOne() throws {
+        let record = try record(tags: "KI og tillit; antatt:ledelse og forretningsutvikling")
+        let interests = weights(BindingRelationsCell.interestWeights(for: record))
+
+        let declared = try #require(interests.first { $0.name == "KI og tillit" })
+        let inferred = try #require(interests.first { $0.name == "ledelse og forretningsutvikling" })
+        #expect(declared.weight > inferred.weight)
+    }
+
+    /// The prefix is bookkeeping for the importer, not something a person
+    /// should ever read back out of their own graph.
+    @Test func theInferredMarkerDoesNotLeakIntoTheInterestName() throws {
+        let record = try record(tags: "antatt:forskning og akademia")
+        let interests = weights(BindingRelationsCell.interestWeights(for: record))
+        #expect(interests.map(\.name) == ["forskning og akademia"])
+    }
+
+    /// The list is capped. Before, insertion order decided who survived the
+    /// cut, so a guess could push out a fact the person had actually stated.
+    @Test func aGuessNeverDisplacesAFactWhenTheListIsCapped() throws {
+        let guesses = (1...11).map { "antatt:gjetning \($0)" }
+        let facts = (1...3).map { "faktum \($0)" }
+        let record = try record(tags: (guesses + facts).joined(separator: "; "))
+
+        let interests = weights(BindingRelationsCell.interestWeights(for: record))
+        for fact in facts {
+            #expect(interests.contains { $0.name == fact }, "\(fact) ble kastet ut av en gjetning")
+        }
+    }
+}
