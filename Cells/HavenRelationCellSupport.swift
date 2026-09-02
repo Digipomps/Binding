@@ -195,6 +195,17 @@ nonisolated enum HavenRelationPresenter {
             }),
             "contextTags": .list(record.contextTags.map(ValueType.string)),
             "tagSummary": .string(record.contextTags.prefix(4).joined(separator: " · ")),
+            "roles": .list(record.roles.map { role in
+                .object([
+                    "context": .string(role.context),
+                    "role": .string(role.role ?? ""),
+                    "group": .string(role.group ?? "")
+                ])
+            }),
+            "roleSummary": .string(record.roles.compactMap { role -> String? in
+                let parts = [role.role, role.group].compactMap { $0 }
+                return parts.isEmpty ? nil : parts.joined(separator: ", ")
+            }.joined(separator: " · ")),
             "notes": .string(record.notes ?? ""),
             "sourceSummary": .string(sourceSummary(for: record)),
             "inviteState": .string(record.inviteState.rawValue),

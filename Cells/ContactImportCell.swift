@@ -399,7 +399,8 @@ final class BindingContactImportCell: GeneralCell {
             return HavenContactColumnInference.buildRecords(
                 document: table,
                 mapping: snapshot.2,
-                source: source
+                source: source,
+                context: HavenValue.string(snapshot.3["context"])
             )
         }
         if let cards = snapshot.1 {
@@ -556,6 +557,13 @@ final class BindingContactImportCell: GeneralCell {
 
     private func commit(_ value: ValueType, requester: Identity) async -> Object {
         let payload = HavenValue.object(value) ?? [:]
+        // The owner can name the context the roles belong to («Bok:
+        // Rammebetingelser for innovasjon») at the moment of commit. Without
+        // it, the file name is the context.
+        if let context = HavenValue.string(payload["context"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !context.isEmpty {
+            stateQueue.sync { previewMeta["context"] = .string(context) }
+        }
         guard let build = buildResult() else {
             return HavenValue.error(code: "no_pending", message: "Ingenting å legge inn — send en fil først.")
         }

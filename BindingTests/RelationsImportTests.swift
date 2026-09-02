@@ -798,3 +798,166 @@ import CellBase
         }
     }
 }
+
+// MARK: - The relation in my entity
+
+/// The device record becomes an entity record that can travel: roles per
+/// context, declared and inferred interests apart, channels as tokens, and
+/// the entity's own memory — evidence, interactions, verification — intact.
+@Suite struct HavenRelationEntityMapperTests {
+
+    private func vegar() throws -> HavenRelationRecord {
+        let document = HavenTabularDocument(
+            headers: ["Navn", "Firma", "Stilling", "Gruppe", "Oppgave i nettverket", "Interesser", "E-post"],
+            rows: [["Vegar Hansen", "Kommunen", "Rådgiver", "KI og tillit", "Gruppeleder",
+                    "Bok: Rammebetingelser for innovasjon; antatt:ledelse", "vegar@kommunen.no"]]
+        )
+        let (mapping, _) = HavenContactColumnInference.infer(document: document)
+        let result = HavenContactColumnInference.buildRecords(
+            document: document,
+            mapping: mapping,
+            source: HavenRelationSource(kind: .fileImport, label: "deltakere.xlsx", batchID: "b-bok"),
+            context: "Bok: Rammebetingelser for innovasjon"
+        )
+        return try #require(result.records.first)
+    }
+
+    @Test func aGroupColumnBecomesARoleInTheNamedContext() throws {
+        let record = try vegar()
+        let role = try #require(record.roles.first)
+        #expect(role.context == "Bok: Rammebetingelser for innovasjon")
+        #expect(role.group == "KI og tillit")
+        #expect(role.role == "Gruppeleder")
+        #expect(record.contextTags.contains("KI og tillit"), "the group is also a declared interest")
+    }
+
+    @Test func theEntityRecordSplitsDeclaredFromInferredAndKeepsTheAddressOut() throws {
+        let record = try vegar()
+        let entity = HavenRelationEntityMapper.entityRecord(from: record, existing: nil, perspectiveRef: "e-abc")
+
+        #expect(entity.relationID == record.id)
+        #expect(entity.interests.declared.contains("KI og tillit"))
+        #expect(entity.interests.declared.contains("Bok: Rammebetingelser for innovasjon"))
+        #expect(entity.interests.inferred == ["ledelse"])
+        #expect(entity.origin.kind == .fileImport)
+        #expect(entity.origin.sourceLabel == "deltakere.xlsx")
+        #expect(entity.origin.context == "Bok: Rammebetingelser for innovasjon")
+        #expect(entity.subject.perspectiveRef == "e-abc")
+
+        let email = try #require(entity.channels.first { $0.kind == .email })
+        #expect(!email.ref.contains("@"))
+        #expect(email.ref == record.endpoints.first?.disclosureToken)
+        #expect(throws: Never.self) { try EntityRelationRecordV1.validate(entity) }
+    }
+
+    @Test func aResyncKeepsWhatOnlyTheEntityKnows() throws {
+        let record = try vegar()
+        var first = HavenRelationEntityMapper.entityRecord(from: record, existing: nil, perspectiveRef: nil)
+        first.channels.append(EntityRelationChannel(kind: .havenCorrespondence, ref: "peer-vegar", confirmed: true))
+        first.evidence.append(EntityRelationEvidence(
+            id: "ev-vc-1", kind: .vcPresented, direction: .inbound, at: Date(), ref: "vc-123", verified: true
+        ))
+        first.standing.trust = .verified
+        first.interactions.count = 3
+
+        let second = HavenRelationEntityMapper.entityRecord(from: record, existing: first, perspectiveRef: nil)
+        #expect(second.channels.contains { $0.kind == .havenCorrespondence && $0.confirmed })
+        #expect(second.evidence.count == 1)
+        #expect(second.standing.trust == .verified)
+        #expect(second.interactions.count == 3)
+        #expect(second.revision == first.revision + 1)
+        #expect(second.createdAt == first.createdAt)
+    }
+
+    @Test func blockingOnTheDeviceOutranksVerificationInTheEntity() throws {
+        var record = try vegar()
+        var existing = HavenRelationEntityMapper.entityRecord(from: record, existing: nil, perspectiveRef: nil)
+        existing.standing.trust = .verified
+        record.inviteState = .blocked
+        #expect(HavenRelationEntityMapper.entityRecord(from: record, existing: existing, perspectiveRef: nil).standing.trust == .blocked)
+
+        record.inviteState = .sent
+        #expect(HavenRelationEntityMapper.entityRecord(from: record, existing: nil, perspectiveRef: nil).standing.trust == .invited)
+        record.inviteState = .joined
+        #expect(HavenRelationEntityMapper.entityRecord(from: record, existing: nil, perspectiveRef: nil).standing.trust == .joined)
+    }
+
+    @Test func someoneWithAnEntityGetsAChatChannelThePlannerPrefers() throws {
+        var record = try vegar()
+        record.entityRef = "entity-vegar"
+        let entity = HavenRelationEntityMapper.entityRecord(from: record, existing: nil, perspectiveRef: nil)
+        #expect(entity.channels.contains { $0.kind == .havenChat && $0.ref == "entity-vegar" })
+        #expect(EntityRelationReachPlanner.plan(for: entity).recommended?.action == .openChat)
+    }
+}
+
+@Suite struct HavenButlerInviteTargetTests {
+
+    @Test func theNameSurvivesAndTheVerbDoesNot() {
+        #expect(BindingPersonalChatHubCell.inviteTargetName(in: "Inviter Vegar") == "Vegar")
+        #expect(BindingPersonalChatHubCell.inviteTargetName(in: "Kan du invitere Vegar Hansen inn i chatten?") == "Vegar Hansen")
+        #expect(BindingPersonalChatHubCell.inviteTargetName(in: "invite Victoria to the chat, please") == "Victoria")
+        #expect(BindingPersonalChatHubCell.inviteTargetName(in: "inviter") == "")
+    }
+}
+
+// MARK: - The book project, end to end
+
+/// Runs the real participant list through the same inference and record
+/// assembly the app uses. The file holds 189 real people and is gitignored,
+/// so the test looks for it on this machine and steps aside when it is not
+/// there. It is the proof that «få inn alle medlemmene i bokprosjektet»
+/// produces relations you can sort by working group and role.
+@Suite struct HavenBookProjectImportTests {
+
+    private static var fileURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // BindingTests
+            .deletingLastPathComponent()  // repo root
+            .appendingPathComponent(".sprout/import/HAVEN_import_bokprosjekt.xlsx")
+    }
+
+    @Test func everyParticipantBecomesARelationWithGroupAndRole() throws {
+        guard let data = try? Data(contentsOf: Self.fileURL) else {
+            // Not on this machine. Nothing to prove, nothing to fail.
+            return
+        }
+        let document = try HavenXLSXReader.read(data: data)
+        let (mapping, _) = HavenContactColumnInference.infer(document: document)
+        #expect(mapping.columns(for: .fullName).isEmpty == false)
+        #expect(mapping.columns(for: .group).isEmpty == false, "«Gruppe» must map to the group field, not to tags")
+        #expect(mapping.columns(for: .projectRole).isEmpty == false)
+        #expect(mapping.columns(for: .tags).isEmpty == false, "«Interesser» stays a tag column")
+        #expect(mapping.columns(for: .email).isEmpty == false)
+
+        let context = "Bok: Rammebetingelser for innovasjon"
+        let result = HavenContactColumnInference.buildRecords(
+            document: document,
+            mapping: mapping,
+            source: HavenRelationSource(kind: .fileImport, label: "HAVEN_import_bokprosjekt.xlsx", batchID: "bok-2026"),
+            context: context
+        )
+        #expect(result.records.count == 189, "problems: \(result.problems.prefix(5))")
+        #expect(result.skippedRows == 0)
+
+        let withGroup = result.records.filter { $0.roles.contains { $0.group != nil } }
+        #expect(withGroup.count == 181)
+        #expect(result.records.allSatisfy { $0.roles.isEmpty || $0.roles[0].context == context })
+
+        let editor = try #require(result.records.first { $0.displayName == "Sjur Dagestad" })
+        #expect(editor.roles.first?.role == "Prosjektleder og redaktør")
+        #expect(editor.contextTags.contains("Prosjektleder og redaktør"))
+        #expect(editor.contextTags.contains(context))
+        #expect(editor.contextTags.contains { $0.hasPrefix("antatt:") })
+
+        // Every one of them can be looked up by working group in the entity.
+        let entities = result.records.map { HavenRelationEntityMapper.entityRecord(from: $0, existing: nil, perspectiveRef: nil) }
+        let byGroup = Dictionary(grouping: entities.flatMap { entity in entity.roles.compactMap(\.group).map { ($0, entity) } }, by: \.0)
+        #expect(byGroup["KI og tillit"]?.count == 20)
+        #expect(byGroup["Bærekraft"]?.count == 13)
+        for entity in entities {
+            #expect(throws: Never.self) { try EntityRelationRecordV1.validate(entity) }
+            #expect(!entity.channels.contains { $0.ref.contains("@") }, "no address may reach the entity record")
+        }
+    }
+}
