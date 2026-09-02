@@ -395,7 +395,8 @@ enum BindingPersonalChatChronicle {
         return collapsed.isEmpty ? UUID().uuidString.lowercased() : collapsed
     }
 
-    private static func entityAnchor(requester: Identity) async throws -> Emit {
+    /// Shared with the relation store: same anchor, same authority path.
+    static func entityAnchor(requester: Identity) async throws -> Emit {
         guard let resolver = CellBase.defaultCellResolver else {
             throw BindingPersonalChatChronicleError.noResolver
         }
@@ -409,7 +410,7 @@ enum BindingPersonalChatChronicle {
         }
     }
 
-    private static func persist(
+    static func persist(
         envelope: EntityBatchPersistEnvelope,
         mutationID: String,
         purposeRef: String,
@@ -633,7 +634,7 @@ enum BindingPersonalChatChronicle {
     }
 }
 
-private struct BindingEntityAuthorityPersistResult {
+struct BindingEntityAuthorityPersistResult {
     var persistedPaths: [String]
     var receipt: EntityAuthorityCommitReceipt
     var idempotentReplay: Bool

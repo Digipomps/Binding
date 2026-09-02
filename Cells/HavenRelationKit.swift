@@ -155,6 +155,21 @@ nonisolated public enum HavenInviteState: String, Codable, Sendable {
     }
 }
 
+/// What the person does in one of *my* contexts — the book project, a
+/// conference, a network. One person, many contexts, each with its own role
+/// and sub-group. This is what you sort on when deciding whom to invite.
+nonisolated public struct HavenRelationContextRole: Codable, Equatable, Sendable {
+    public var context: String
+    public var role: String?
+    public var group: String?
+
+    public init(context: String, role: String? = nil, group: String? = nil) {
+        self.context = context
+        self.role = role
+        self.group = group
+    }
+}
+
 // MARK: - The record
 
 nonisolated public struct HavenRelationRecord: Codable, Equatable, Sendable {
@@ -172,6 +187,9 @@ nonisolated public struct HavenRelationRecord: Codable, Equatable, Sendable {
     public var purposeRefs: [String]
     public var notes: String?
     public var sources: [HavenRelationSource]
+    /// Roles per context. Optional only so state persisted before the field
+    /// existed still decodes; read it through `roles`.
+    public var contextRoles: [HavenRelationContextRole]?
     /// Set once this person exists in HAVEN.
     public var entityRef: String?
     /// Pointer into our own EntityRepresentation graph.
@@ -200,6 +218,7 @@ nonisolated public struct HavenRelationRecord: Codable, Equatable, Sendable {
         purposeRefs: [String] = [],
         notes: String? = nil,
         sources: [HavenRelationSource] = [],
+        contextRoles: [HavenRelationContextRole]? = nil,
         entityRef: String? = nil,
         representationKeypath: String? = nil,
         inviteState: HavenInviteState = .none,
@@ -222,6 +241,7 @@ nonisolated public struct HavenRelationRecord: Codable, Equatable, Sendable {
         self.purposeRefs = purposeRefs
         self.notes = notes
         self.sources = sources
+        self.contextRoles = contextRoles
         self.entityRef = entityRef
         self.representationKeypath = representationKeypath
         self.inviteState = inviteState
@@ -232,6 +252,11 @@ nonisolated public struct HavenRelationRecord: Codable, Equatable, Sendable {
         self.possibleDuplicateIDs = possibleDuplicateIDs
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    public var roles: [HavenRelationContextRole] {
+        get { contextRoles ?? [] }
+        set { contextRoles = newValue.isEmpty ? nil : newValue }
     }
 
     /// Already represented in HAVEN — nothing to invite.
@@ -626,6 +651,18 @@ nonisolated public enum HavenRelationMerger {
         merged.endpoints = order.compactMap { byKey[$0] }
 
         merged.contextTags = dedupePreservingOrder(merged.contextTags + incoming.contextTags)
+        // Roles merge per context: a newer file can add a role or a group, but
+        // never silently drop one the owner already knew about.
+        var roles = merged.roles
+        for role in incoming.roles {
+            if let index = roles.firstIndex(where: { $0.context == role.context }) {
+                roles[index].role = role.role ?? roles[index].role
+                roles[index].group = role.group ?? roles[index].group
+            } else {
+                roles.append(role)
+            }
+        }
+        merged.roles = roles
         merged.purposeRefs = dedupePreservingOrder(merged.purposeRefs + incoming.purposeRefs)
 
         if let incomingNotes = incoming.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !incomingNotes.isEmpty {

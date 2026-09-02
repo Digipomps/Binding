@@ -33,6 +33,9 @@ nonisolated public enum HavenContactField: String, Codable, CaseIterable, Sendab
     /// they do for a living. A project roster usually carries both, and
     /// conflating them loses the thing you actually sort on when inviting.
     case projectRole
+    /// The sub-community inside the list — a working group, a track, a table.
+    /// Becomes a declared interest *and* the group on the person's role.
+    case group
     case url
     case handle
     case notes
@@ -71,6 +74,7 @@ nonisolated public enum HavenContactField: String, Codable, CaseIterable, Sendab
         case .organization: return "Organisasjon"
         case .jobTitle: return "Rolle/tittel"
         case .projectRole: return "Oppgave i prosjektet"
+        case .group: return "Gruppe"
         case .url: return "Nettadresse"
         case .handle: return "Brukernavn"
         case .notes: return "Notat"
@@ -156,11 +160,12 @@ nonisolated public enum HavenContactColumnInference {
         .phone: ["telefon", "telefonnummer", "mobil", "mobilnummer", "mobile", "phone", "phone number", "tlf", "tel", "cell", "cellphone", "mobiltelefon", "nummer", "msisdn", "sms"],
         .organization: ["organisasjon", "organization", "organisation", "firma", "selskap", "bedrift", "company", "employer", "arbeidsgiver", "virksomhet", "org", "kunde", "account"],
         .jobTitle: ["tittel", "title", "stilling", "rolle", "role", "job title", "jobbtittel", "position", "funksjon"],
+        .group: ["gruppe", "arbeidsgruppe", "group", "working group", "team", "track", "spor", "workshop", "bord", "table", "undergruppe"],
         .projectRole: ["oppgave", "oppgave i nettverket", "oppgave i prosjektet", "rolle i nettverket", "rolle i prosjektet", "verv", "ansvar", "bidrag", "deltakerrolle", "prosjektrolle", "network role", "project role", "assignment", "responsibility"],
         .url: ["nettside", "nettadresse", "url", "website", "web", "hjemmeside", "link", "lenke", "linkedin", "profil", "profile"],
         .handle: ["brukernavn", "username", "handle", "alias", "konto", "account name", "social", "instagram", "x", "mastodon", "signal"],
         .notes: ["notat", "notater", "note", "notes", "kommentar", "comment", "comments", "merknad", "beskrivelse", "description", "bakgrunn", "context", "kontekst"],
-        .tags: ["merkelapp", "merkelapper", "tag", "tags", "kategori", "kategorier", "category", "categories", "gruppe", "group", "liste", "list", "segment", "interesser", "interests", "stikkord", "emneord", "labels"],
+        .tags: ["merkelapp", "merkelapper", "tag", "tags", "kategori", "kategorier", "category", "categories", "liste", "list", "segment", "interesser", "interests", "stikkord", "emneord", "labels"],
         .purpose: ["formal", "formaal", "purpose", "hensikt", "hvorfor", "anledning", "onske", "behov", "mal", "goal"],
         .city: ["sted", "by", "city", "poststed", "town", "lokasjon", "location", "kommune"],
         .country: ["land", "country", "nasjon", "nation"],
@@ -220,7 +225,7 @@ nonisolated public enum HavenContactColumnInference {
             } * 0.5
         case .entityRef:
             return fraction { $0.hasPrefix("cell://") || $0.hasPrefix("haven://") }
-        case .organization, .jobTitle, .projectRole, .purpose, .city, .ignore:
+        case .organization, .jobTitle, .projectRole, .group, .purpose, .city, .ignore:
             return 0
         }
     }
@@ -410,8 +415,13 @@ nonisolated public enum HavenContactColumnInference {
         document: HavenTabularDocument,
         mapping: HavenColumnMapping,
         source: HavenRelationSource,
+        context: String? = nil,
         now: Date = Date()
     ) -> BuildResult {
+        // The context a role belongs to is the list itself unless the owner
+        // named it. «deltakere.xlsx» is a poor context name, but an honest one.
+        let trimmedContext = context?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let roleContext = trimmedContext.isEmpty ? source.label : trimmedContext
         var records: [HavenRelationRecord] = []
         var problems: [String] = []
         var skipped = 0
@@ -494,6 +504,19 @@ nonisolated public enum HavenContactColumnInference {
             // who to invite, so it goes in the tags, not only the note.
             let projectRoles = values(.projectRole).flatMap { splitMultiValue($0) }
             tags.append(contentsOf: projectRoles)
+            let groups = values(.group).flatMap { splitMultiValue($0) }
+            tags.append(contentsOf: groups)
+
+            // One role per context; the first role and the first group of the
+            // row. Extra values are still in the tags, nothing is lost.
+            var contextRoles: [HavenRelationContextRole] = []
+            if projectRoles.first != nil || groups.first != nil {
+                contextRoles.append(HavenRelationContextRole(
+                    context: roleContext,
+                    role: projectRoles.first,
+                    group: groups.first
+                ))
+            }
 
             var noteParts = values(.notes)
             if let projectRole = projectRoles.first {
@@ -527,6 +550,7 @@ nonisolated public enum HavenContactColumnInference {
                         importedAt: source.importedAt
                     )
                 ],
+                contextRoles: contextRoles.isEmpty ? nil : contextRoles,
                 entityRef: first(.entityRef),
                 confidence: confidence(hasName: hasName, endpoints: endpoints),
                 createdAt: now,

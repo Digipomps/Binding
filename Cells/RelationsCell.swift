@@ -53,6 +53,13 @@ final class BindingRelationsCell: GeneralCell {
     /// names and interests leave this cell for a graph built to be matched.
     private nonisolated(unsafe) var projectionEnabled: Bool = false
 
+    /// Entity sync bookkeeping — in memory on purpose. On a fresh process the
+    /// first mutation resyncs everything, which is the honest thing to do
+    /// when we cannot know what the entity already has.
+    private nonisolated(unsafe) var lastEntitySync: Object = [:]
+    private nonisolated(unsafe) var entitySyncedIDs: Set<String> = []
+    private nonisolated(unsafe) var entitySyncTask: Task<Void, Never>?
+
     required init(owner: Identity) async {
         await super.init(owner: owner)
         stateQueue.sync {
@@ -126,6 +133,7 @@ final class BindingRelationsCell: GeneralCell {
             "relations.lastSearch",
             "relations.lastMutation",
             "relations.snapshot",
+            "relations.entitySync",
             "providerDescriptor",
             "purposeGoal",
             "skeletonConfiguration"
@@ -148,9 +156,22 @@ final class BindingRelationsCell: GeneralCell {
             "relations.restoreSnapshot",
             "relations.publishPurposeSignals",
             "relations.setProjectionEnabled",
-            "relations.projectToPerspective"
+            "relations.projectToPerspective",
+            "relations.reach",
+            "relations.recordInteraction",
+            "relations.interactions",
+            "relations.syncToEntity",
+            "relations.setInteractionPolicy",
+            "relations.interactionPolicy"
         ]
     }
+
+    /// Mutations that change what the entity should hold.
+    private static let entityAffectingKeys: Set<String> = [
+        "relations.upsert", "relations.setInviteState", "relations.setEntityRef",
+        "relations.block", "relations.unblock", "relations.remove", "relations.forgetBatch",
+        "relations.mergeManually", "relations.clear", "relations.restoreSnapshot"
+    ]
 
     private func readValue(for key: String) -> ValueType {
         switch key {
@@ -172,6 +193,8 @@ final class BindingRelationsCell: GeneralCell {
             return .object(stateQueue.sync { lastMutation })
         case "relations.snapshot":
             return .object(snapshot())
+        case "relations.entitySync":
+            return .object(stateQueue.sync { lastEntitySync })
         case "providerDescriptor":
             return .object(providerDescriptor())
         case "purposeGoal":
@@ -184,6 +207,63 @@ final class BindingRelationsCell: GeneralCell {
     }
 
     private func writeValue(for key: String, value: ValueType, requester: Identity) async -> ValueType {
+        let result = await performWrite(for: key, value: value, requester: requester)
+        if Self.entityAffectingKeys.contains(key),
+           case let .object(object) = result,
+           HavenValue.bool(object["sideEffect"]) != false,
+           HavenValue.string(object["status"]) != "error" {
+            scheduleEntitySync(requester: requester)
+        }
+        // An invitation changing state *is* an interaction. Log it as one, so
+        // «når snakket vi sist» is answered by the same record as everything else.
+        if key == "relations.setInviteState",
+           case let .object(object) = result,
+           HavenValue.string(object["status"]) == "ok",
+           let id = HavenValue.string(object["id"]),
+           let state = HavenValue.string(object["state"]).flatMap(HavenInviteState.init(rawValue:)),
+           let kind = Self.interactionKind(forInviteState: state) {
+            let payload = HavenValue.object(value) ?? [:]
+            let channel = HavenValue.string(payload["channel"]).flatMap(Self.channelKind(forInviteChannel:))
+            let outbound = state == .sent || state == .prepared
+            let ticket = HavenValue.string(payload["ticketID"]) ?? ""
+            let channelValue: ValueType = channel.map { ValueType.string($0.rawValue) } ?? .null
+            let eventPayload: Object = [
+                "id": .string(id),
+                "kind": .string(kind.rawValue),
+                "channel": channelValue,
+                "direction": .string(outbound ? "outbound" : "inbound"),
+                "eventID": .string("invite-\(state.rawValue)-" + (ticket.isEmpty ? HavenValue.iso(Date()) : ticket)),
+                "sourceCell": .string(Self.sourceCellName)
+            ]
+            Task { [weak self] in
+                guard let self else { return }
+                _ = await self.recordInteraction(.object(eventPayload), requester: requester)
+            }
+        }
+        return result
+    }
+
+    private static func interactionKind(forInviteState state: HavenInviteState) -> EntityRelationInteractionKind? {
+        switch state {
+        case .prepared: return .invitePrepared
+        case .sent: return .inviteSent
+        case .opened: return .inviteOpened
+        case .joined: return .inviteJoined
+        case .none, .declined, .blocked: return nil
+        }
+    }
+
+    private static func channelKind(forInviteChannel channel: String) -> EntityRelationChannelKind? {
+        switch channel.lowercased() {
+        case "email", "mail", "mailto", "e-post": return .email
+        case "sms", "phone", "tel", "telefon": return .sms
+        case "nearby", "radar": return .nearby
+        case "haven", "chat", "haven-chat": return .havenChat
+        default: return EntityRelationChannelKind(rawValue: channel.lowercased())
+        }
+    }
+
+    private func performWrite(for key: String, value: ValueType, requester: Identity) async -> ValueType {
         switch key {
         case "relations.upsert":
             return .object(upsert(value))
@@ -215,6 +295,19 @@ final class BindingRelationsCell: GeneralCell {
             return .object(await setProjectionEnabled(value, requester: requester))
         case "relations.projectToPerspective":
             return .object(await projectToPerspective(requester: requester))
+        case "relations.reach":
+            return .object(await reach(value, requester: requester))
+        case "relations.recordInteraction":
+            return .object(await recordInteraction(value, requester: requester))
+        case "relations.interactions":
+            return .object(await interactions(value, requester: requester))
+        case "relations.syncToEntity":
+            return .object(await syncToEntity(requester: requester, force: true))
+        case "relations.setInteractionPolicy":
+            return .object(await setInteractionPolicy(value, requester: requester))
+        case "relations.interactionPolicy":
+            let mode = await BindingRelationEntityStore.interactionPolicy(requester: requester)
+            return .object(["mode": .string(mode.rawValue), "default": .string(EntityRelationRecordV1.defaultInteractionPolicy.rawValue)])
         default:
             return .object(HavenValue.error(code: "unsupported_keypath", message: "Ukjent relasjons-handling."))
         }
@@ -373,6 +466,7 @@ final class BindingRelationsCell: GeneralCell {
             "batches": .list(batches().map(ValueType.object)),
             "lastSearch": .object(stateQueue.sync { lastSearch }),
             "lastMutation": .object(stateQueue.sync { lastMutation }),
+            "entitySync": .object(stateQueue.sync { lastEntitySync }),
             "privacyBoundary": .string("owner_entity_local_no_network"),
             "updatedAt": .string(HavenValue.iso(Date()))
         ]
@@ -1127,6 +1221,273 @@ final class BindingRelationsCell: GeneralCell {
                 projectionSalt = Data(bytes).base64EncodedString()
             }
             return projectionSalt
+        }
+    }
+
+    // MARK: - The entity: where a relation lives
+
+    /// Coalesces bursts of mutations into one authority commit.
+    private func scheduleEntitySync(requester: Identity) {
+        entitySyncTask?.cancel()
+        entitySyncTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled, let self else { return }
+            _ = await self.syncToEntity(requester: requester, force: false)
+        }
+    }
+
+    /// Writes every record the entity does not have in this form, and forgets
+    /// the ones that are gone. One commit for the records, one for the
+    /// removals, both idempotent on content.
+    private func syncToEntity(requester: Identity, force: Bool) async -> Object {
+        let (current, salt, alreadySynced) = stateQueue.sync { (records, projectionSalt, entitySyncedIDs) }
+        let existing: [String: EntityRelationRecord]
+        do {
+            existing = try await BindingRelationEntityStore.loadRecords(requester: requester)
+        } catch {
+            let result = HavenValue.error(code: "entity_unavailable", message: "Entiteten er ikke tilgjengelig: \(error.localizedDescription)")
+            stateQueue.sync { lastEntitySync = result }
+            return result
+        }
+
+        var toWrite: [EntityRelationRecord] = []
+        for record in current {
+            let previous = existing[record.id]
+            let mapped = HavenRelationEntityMapper.entityRecord(
+                from: record,
+                existing: previous,
+                perspectiveRef: salt.isEmpty ? nil : Self.opaqueReference(for: record, salt: salt)
+            )
+            if force || previous == nil || Self.entityRecordDiffers(previous, mapped) {
+                toWrite.append(mapped)
+            }
+        }
+        let currentIDs = Set(current.map(\.id))
+        let toForget = existing.keys.filter { !currentIDs.contains($0) && (alreadySynced.contains($0) || force) }
+
+        var written = 0
+        var forgotten = 0
+        do {
+            if !toWrite.isEmpty {
+                let result = try await BindingRelationEntityStore.persist(records: toWrite, requester: requester, sourceUUID: uuid)
+                written = result.idempotentReplay ? 0 : toWrite.count
+            }
+            if !toForget.isEmpty {
+                try await BindingRelationEntityStore.remove(relationIDs: toForget, requester: requester, sourceUUID: uuid)
+                forgotten = toForget.count
+            }
+        } catch {
+            let result = HavenValue.error(code: "entity_write_failed", message: "Kunne ikke skrive relasjonene til entiteten: \(error.localizedDescription)")
+            stateQueue.sync { lastEntitySync = result }
+            return result
+        }
+
+        let result = HavenValue.ok(
+            written == 0 && forgotten == 0
+                ? "Entiteten hadde alt fra før."
+                : "\(written) relasjoner skrevet til entiteten" + (forgotten > 0 ? ", \(forgotten) glemt." : "."),
+            sideEffect: written > 0 || forgotten > 0,
+            extra: [
+                "written": .integer(written),
+                "forgotten": .integer(forgotten),
+                "inEntity": .integer(existing.count - toForget.count + toWrite.filter { existing[$0.relationID] == nil }.count),
+                "syncedAt": .string(HavenValue.iso(Date()))
+            ]
+        )
+        stateQueue.sync {
+            lastEntitySync = result
+            entitySyncedIDs = currentIDs
+        }
+        return result
+    }
+
+    /// Everything but the bookkeeping the mapper bumps on every call.
+    private static func entityRecordDiffers(_ lhs: EntityRelationRecord?, _ rhs: EntityRelationRecord) -> Bool {
+        guard var lhs else { return true }
+        var rhs = rhs
+        lhs.updatedAt = rhs.updatedAt
+        lhs.revision = rhs.revision
+        return lhs != rhs
+    }
+
+    /// «Hvordan når jeg Vegar?» — search, then plan from the entity record,
+    /// or from the device record mapped on the fly when the entity has none
+    /// yet. Ambiguity is returned as a question, never resolved by guessing.
+    private func reach(_ value: ValueType, requester: Identity) async -> Object {
+        let payload = HavenValue.object(value) ?? [:]
+        let explicitID = HavenValue.string(payload["id"]) ?? HavenValue.string(payload["relationID"])
+
+        let record: HavenRelationRecord?
+        if let explicitID {
+            record = stateQueue.sync { records.first { $0.id == explicitID } }
+            guard record != nil else {
+                return HavenValue.error(code: "not_found", message: "Fant ingen relasjon med id \(explicitID).")
+            }
+        } else {
+            let found = search(value)
+            let status = HavenValue.string(found["status"]) ?? "noMatch"
+            guard status == "matched", let bestID = HavenValue.string(found["bestMatchID"]) else {
+                var result = found
+                result["schema"] = .string("haven.relations.reach.v1")
+                result["reach"] = .null
+                return result
+            }
+            record = stateQueue.sync { records.first { $0.id == bestID } }
+        }
+        guard let record else {
+            return HavenValue.error(code: "not_found", message: "Relasjonen forsvant under oppslaget.")
+        }
+
+        let salt = stateQueue.sync { projectionSalt }
+        let entityRecord = (try? await BindingRelationEntityStore.loadRecord(relationID: record.id, requester: requester))
+            ?? HavenRelationEntityMapper.entityRecord(
+                from: record,
+                existing: nil,
+                perspectiveRef: salt.isEmpty ? nil : Self.opaqueReference(for: record, salt: salt)
+            )
+        let plan = EntityRelationReachPlanner.plan(for: entityRecord)
+        let readiness = record.inviteReadiness
+
+        var row = HavenRelationPresenter.row(for: record)
+        row["roles"] = HavenValue.value(record.roles)
+        let lastContact: ValueType = plan.lastContact.map { ValueType.string(HavenValue.iso($0)) } ?? .null
+        let lastContactKind: ValueType = plan.lastContactKind.map { ValueType.string($0) } ?? .null
+        return [
+            "schema": .string("haven.relations.reach.v1"),
+            "status": .string(plan.canReach ? "reachable" : "unreachable"),
+            "relation": .object(row),
+            "reach": HavenValue.value(plan),
+            "summaryText": .string(plan.recommended?.reason ?? plan.blockers.joined(separator: " ")),
+            "inviteReadiness": .object([
+                "canInvite": .bool(readiness.canInvite),
+                "reason": .string(readiness.reason)
+            ]),
+            "lastContact": lastContact,
+            "lastContactKind": lastContactKind,
+            "sideEffect": .bool(false),
+            "updatedAt": .string(HavenValue.iso(Date()))
+        ]
+    }
+
+    /// Something happened with a relation. Goes to the chronicle and moves
+    /// the relation's summary, under the owner's interaction policy.
+    private func recordInteraction(_ value: ValueType, requester: Identity) async -> Object {
+        let payload = HavenValue.object(value) ?? [:]
+        guard let id = HavenValue.string(payload["id"]) ?? HavenValue.string(payload["relationID"]) else {
+            return HavenValue.error(code: "missing_id", message: "Mangler `id`.")
+        }
+        guard let kindText = HavenValue.string(payload["kind"]),
+              let kind = EntityRelationInteractionKind(rawValue: kindText) else {
+            return HavenValue.error(
+                code: "bad_kind",
+                message: "Ukjent hendelsestype. Gyldige: " + EntityRelationInteractionKind.allCases.map(\.rawValue).joined(separator: ", ")
+            )
+        }
+        let matched: HavenRelationRecord? = stateQueue.sync { records.first { $0.id == id } }
+        guard let record = matched else {
+            return HavenValue.error(code: "not_found", message: "Fant ingen relasjon med id \(id).")
+        }
+        let channel = HavenValue.string(payload["channel"]).flatMap(EntityRelationChannelKind.init(rawValue:))
+        let direction = HavenValue.string(payload["direction"]).flatMap(EntityRelationDirection.init(rawValue:))
+        let summary = HavenValue.string(payload["summary"])
+        let event = EntityRelationInteractionEvent(
+            id: BindingPersonalChatChronicle.safeIdentifier(HavenValue.string(payload["eventID"])),
+            relationID: id,
+            kind: kind,
+            at: HavenValue.date(payload["at"]) ?? Date(),
+            channel: channel,
+            direction: direction,
+            contentMode: summary == nil ? .metadata : .full,
+            summary: summary,
+            evidenceID: HavenValue.string(payload["evidenceID"]),
+            sourceCell: HavenValue.string(payload["sourceCell"]) ?? Self.sourceCellName
+        )
+        let salt = stateQueue.sync { projectionSalt }
+        let fallback = HavenRelationEntityMapper.entityRecord(
+            from: record, existing: nil,
+            perspectiveRef: salt.isEmpty ? nil : Self.opaqueReference(for: record, salt: salt)
+        )
+        do {
+            let outcome = try await BindingRelationEntityStore.recordInteraction(
+                event, fallbackRecord: fallback, requester: requester, sourceUUID: uuid
+            )
+            let chronicleRef: ValueType = outcome.chronicleRef.map { ValueType.string($0) } ?? .null
+            let interactions: ValueType = outcome.record.map { HavenValue.value($0.interactions) } ?? .null
+            let trust: ValueType = outcome.record.map { ValueType.string($0.standing.trust.rawValue) } ?? .null
+            var extra: Object = [
+                "status": .string(outcome.status),
+                "id": .string(id),
+                "eventID": .string(event.id)
+            ]
+            extra["chronicleRef"] = chronicleRef
+            extra["interactions"] = interactions
+            extra["trust"] = trust
+            let result = HavenValue.ok(outcome.message, sideEffect: outcome.status == "recorded", extra: extra)
+            stateQueue.sync { lastMutation = result }
+            return result
+        } catch {
+            return HavenValue.error(code: "interaction_failed", message: error.localizedDescription)
+        }
+    }
+
+    /// The events behind a relation's summary, newest first.
+    private func interactions(_ value: ValueType, requester: Identity) async -> Object {
+        let payload = HavenValue.object(value) ?? [:]
+        guard let id = HavenValue.string(payload["id"]) ?? HavenValue.string(payload["relationID"]) else {
+            return HavenValue.error(code: "missing_id", message: "Mangler `id`.")
+        }
+        let limit = HavenValue.int(payload["limit"]) ?? 20
+        guard let anchor = try? await BindingPersonalChatChronicle.entityAnchor(requester: requester),
+              let meddle = anchor as? Meddle else {
+            return HavenValue.error(code: "entity_unavailable", message: "Entiteten er ikke tilgjengelig.")
+        }
+        let chronicle = (try? await meddle.get(keypath: "chronicle", requester: requester)) ?? .null
+        let entries: [ValueType]
+        switch chronicle {
+        case let .list(list): entries = list
+        case let .object(object): entries = Array(object.values)
+        default: entries = []
+        }
+        let prefix = EntityRelationRecordV1.chronicleID(relationID: id, eventID: "")
+        let events = entries
+            .compactMap { EntityRelationCodec.decode(EntityRelationInteractionEvent.self, from: $0) }
+            .filter { $0.relationID == id }
+            .sorted { $0.at > $1.at }
+            .prefix(limit)
+        return [
+            "schema": .string("haven.relations.interactions.v1"),
+            "id": .string(id),
+            "count": .integer(events.count),
+            "events": .list(events.map { HavenValue.value($0) }),
+            "chronicleIDPrefix": .string(prefix),
+            "sideEffect": .bool(false)
+        ]
+    }
+
+    private func setInteractionPolicy(_ value: ValueType, requester: Identity) async -> Object {
+        let payload = HavenValue.object(value) ?? [:]
+        guard let modeText = HavenValue.string(payload["mode"]) ?? HavenValue.string(value),
+              let mode = EntityRelationInteractionPolicyMode(rawValue: modeText) else {
+            return HavenValue.error(code: "bad_mode", message: "Gyldige valg: off, metadata, full.")
+        }
+        let accepted = HavenValue.bool(payload["fullContentWarningAccepted"]) ?? false
+        if mode == .full, !accepted {
+            return HavenValue.error(
+                code: "consent_required",
+                message: "`full` lagrer sammendrag av det som ble sagt. Send `fullContentWarningAccepted: true` for å bekrefte."
+            )
+        }
+        do {
+            try await BindingRelationEntityStore.setInteractionPolicy(mode, fullContentAccepted: accepted, requester: requester, sourceUUID: uuid)
+            return HavenValue.ok(
+                mode == .off ? "Interaksjoner logges ikke lenger." :
+                mode == .full ? "Interaksjoner logges med sammendrag." :
+                "Interaksjoner logges som metadata — at, når og hvordan.",
+                sideEffect: true,
+                extra: ["mode": .string(mode.rawValue)]
+            )
+        } catch {
+            return HavenValue.error(code: "policy_failed", message: error.localizedDescription)
         }
     }
 
