@@ -5698,13 +5698,27 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             suggestion: suggestion,
             resourceMatches: resourceMatches
         )
+        var generatedAnswer: Object? = nil
+        if promptTurnID != nil {
+            generatedAnswer = await generateAssistantAnswer(
+                draft: draft,
+                suggestion: suggestion,
+                resourceMatches: resourceMatches,
+                perspective: perspective,
+                requester: requester
+            )
+        }
         appendPromptMessage(
             draft: draft,
             suggestion: suggestion,
             groundedActionPlan: groundedActionPlan,
             resourceMatches: resourceMatches,
-            turnID: promptTurnID
+            turnID: promptTurnID,
+            generatedAnswer: generatedAnswer
         )
+        if let generatedAnswer {
+            BindingChatValue.set(.object(generatedAnswer), for: "assistant.lastGeneratedAnswer", in: &cachedState)
+        }
         updateButlerSupportAfterAnalysis(suggestion)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
@@ -5919,7 +5933,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         suggestion: BindingChatIntentClassification,
         groundedActionPlan: Object,
         resourceMatches: [Object],
-        turnID: String? = nil
+        turnID: String? = nil,
+        generatedAnswer: Object? = nil
     ) {
         guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
@@ -5945,13 +5960,23 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "threadID": .string(threadID),
             "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-user"].map(ValueType.string))
         ]
-        let assistantMessage: Object = [
+        let deterministicBody = "\(suggestion.explanation)\(resourceSummary)"
+        let generatedBody = generatedAnswer
+            .flatMap { BindingChatValue.string($0["answer"]) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+        let answerReceipt = generatedAnswer.flatMap { BindingChatValue.string($0["receipt"]) }
+        let answerModel = generatedAnswer.flatMap { BindingChatValue.string($0["model"]) }
+        let resolvedStatusText = generatedBody == nil
+            ? assistantStatus
+            : (answerModel.map { "\(assistantStatus) · \($0)" } ?? assistantStatus)
+        var assistantMessage: Object = [
             "id": .string("\(effectiveTurnID)-assistant"),
             "turnID": .string(effectiveTurnID),
             "role": .string("assistant"),
             "speaker": .string(butlerName),
-            "body": .string("\(suggestion.explanation)\(resourceSummary)"),
-            "statusText": .string(assistantStatus),
+            "body": .string(generatedBody ?? deterministicBody),
+            "statusText": .string(resolvedStatusText),
             "kind": .string("assistant_suggestion"),
             "helperID": .string(suggestion.helperID),
             "canOpenSuggestion": .bool(suggestion.shouldSuggest),
@@ -5961,6 +5986,18 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "sideEffect": .bool(false),
             "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-assistant"].map(ValueType.string))
         ]
+        assistantMessage["answerSource"] = .string(generatedBody == nil ? "deterministic" : "language_model")
+        assistantMessage["deterministicBody"] = .string(deterministicBody)
+        if let answerReceipt {
+            assistantMessage["answerReceipt"] = .string(answerReceipt)
+        }
+        if let answerModel {
+            assistantMessage["answerModel"] = .string(answerModel)
+        }
+        if let generatedAnswer, BindingChatValue.bool(generatedAnswer["ok"]) == false,
+           let message = BindingChatValue.string(generatedAnswer["message"]) {
+            assistantMessage["answerFallbackReason"] = .string(message)
+        }
         messages.append(.object(userMessage))
         messages.append(.object(assistantMessage))
         BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
@@ -6011,7 +6048,76 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
            let localLLM = BindingChatProviderRouter.descriptor(from: localState, defaultKind: "local_llm") {
             providers.append(localLLM)
         }
+        if let remoteState = await providerState(endpoint: "cell:///RemoteLLM", keypath: "state", requester: requester),
+           let remoteLLM = BindingChatProviderRouter.descriptor(from: remoteState, defaultKind: "remote_llm") {
+            providers.append(remoteLLM)
+        }
         return deduplicatedProviders(providers)
+    }
+
+    /// Ask the remote-model provider to formulate the butler's answer.
+    ///
+    /// Returns `nil` when no remote provider is configured, so the caller keeps
+    /// the deterministic explanation. A configured-but-failing provider returns
+    /// its failure object instead, so the surface can say what went wrong.
+    private func generateAssistantAnswer(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object],
+        perspective: Object,
+        requester: Identity
+    ) async -> Object? {
+        guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return nil }
+        guard let state = await providerState(endpoint: "cell:///RemoteLLM", keypath: "state", requester: requester),
+              let stateObject = BindingChatValue.object(state),
+              BindingChatValue.string(stateObject["status"]) == "ready"
+        else {
+            return nil
+        }
+
+        var groundingLines: [String] = []
+        let resourceTitles = resourceMatches.compactMap { BindingChatValue.string($0["title"]) }
+        if resourceTitles.isEmpty == false {
+            groundingLines.append("Ressurser HAVEN fant: " + resourceTitles.prefix(5).joined(separator: ", "))
+        }
+        if suggestion.shouldSuggest {
+            groundingLines.append("Deterministisk tolkning: \(suggestion.intentKind) (\(suggestion.purposeRef)).")
+        }
+        if let purposes = BindingChatValue.list(BindingChatValue.nested("activePurposes", in: perspective)) {
+            let names = purposes.compactMap { BindingChatValue.string(BindingChatValue.object($0)?["title"]) }
+            if names.isEmpty == false {
+                groundingLines.append("Aktive formål: " + names.prefix(5).joined(separator: ", "))
+            }
+        }
+
+        var payload: Object = ["prompt": .string(draft)]
+        if groundingLines.isEmpty == false {
+            payload["grounding"] = .string(groundingLines.joined(separator: "\n"))
+        }
+
+        guard let result = await invokeProviderAction(
+            endpoint: "cell:///RemoteLLM",
+            keypath: "llm.generate",
+            value: .object(payload),
+            requester: requester
+        ) else {
+            return nil
+        }
+        return BindingChatValue.object(result)
+    }
+
+    private func invokeProviderAction(
+        endpoint: String,
+        keypath: String,
+        value: ValueType,
+        requester: Identity
+    ) async -> ValueType? {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let meddle = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle
+        else {
+            return nil
+        }
+        return try? await meddle.set(keypath: keypath, value: value, requester: requester)
     }
 
     private func providerState(endpoint: String, keypath: String, requester: Identity) async -> ValueType? {
