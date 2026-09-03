@@ -122,6 +122,7 @@ final class BindingContactImportCell: GeneralCell {
             "import.ingest",
             "import.setMapping",
             "import.setRegion",
+            "import.setContext",
             "import.commit",
             "import.discard"
         ]
@@ -166,6 +167,8 @@ final class BindingContactImportCell: GeneralCell {
             return .object(setMapping(value))
         case "import.setRegion":
             return .object(setRegion(value))
+        case "import.setContext":
+            return .object(setContext(value))
         case "import.commit":
             return .object(await commit(value, requester: requester))
         case "import.discard":
@@ -458,6 +461,16 @@ final class BindingContactImportCell: GeneralCell {
         object["uncertainSummary"] = .string(uncertainSummary())
         object["canCommit"] = .bool(usable && !build.records.isEmpty)
         object["summaryText"] = .string(previewSummary(build: build, usable: usable, meta: snapshot.3))
+        // What the roles will be filed under, so the field can say it before
+        // the owner commits rather than after.
+        let declaredContext = HavenValue.string(snapshot.3["context"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let filename = HavenValue.string(snapshot.3["filename"]) ?? "Filimport"
+        object["context"] = .string(declaredContext)
+        object["contextHint"] = .string(
+            declaredContext.isEmpty
+                ? "Roller legges under «\(filename)». Skriv hva dette er, så blir de lettere å finne igjen."
+                : "Roller legges under «\(declaredContext)»."
+        )
         object["consentLine"] = .string(
             "Dette er andres kontaktopplysninger. De blir liggende i din egen entitet på denne enheten, og ingenting sendes noe sted før du selv trykker send på en invitasjon."
         )
@@ -554,6 +567,30 @@ final class BindingContactImportCell: GeneralCell {
     }
 
     // MARK: - Commit
+
+    /// What the owner calls the thing these people belong to — «Bok:
+    /// Rammebetingelser for innovasjon». Roles are recorded per context, so
+    /// this is what makes «hvem er gruppeleder i boka» answerable later.
+    /// Without it the file name stands in: honest, but a poor name.
+    private func setContext(_ value: ValueType) -> Object {
+        let text = (HavenValue.string(HavenValue.object(value)?["context"])
+            ?? HavenValue.string(value)
+            ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        stateQueue.sync {
+            if text.isEmpty {
+                previewMeta.removeValue(forKey: "context")
+            } else {
+                previewMeta["context"] = .string(text)
+            }
+        }
+        return HavenValue.ok(
+            text.isEmpty
+                ? "Uten en sammenheng bruker jeg filnavnet."
+                : "Rollene legges under «\(text)».",
+            sideEffect: false,
+            extra: ["context": .string(text)]
+        )
+    }
 
     private func commit(_ value: ValueType, requester: Identity) async -> Object {
         let payload = HavenValue.object(value) ?? [:]
