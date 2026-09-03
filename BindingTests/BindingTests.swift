@@ -1440,6 +1440,12 @@ struct BindingTests {
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Invite Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Butterpop Studio") == .butterpopStudio)
+        // Every configuration the menu offers must be reachable from a sidebar
+        // section — a surface in the list but in no section is invisible.
+        let sidebar = Set(BindingPersonalCopilotDestination.sidebarSections.flatMap(\.destinations))
+        #expect(sidebar == Set(BindingPersonalCopilotDestination.allCases))
+        #expect(BindingPersonalCopilotDestination.matching(configurationName: "Relasjoner") == .relations)
+        #expect(BindingPersonalCopilotDestination.relations.configuration.name == HavenRelationsWorkbench.configuration().name)
     }
 
     @Test func releaseNavigationDoesNotConstructHiddenAppleIntelligenceConfiguration() {

@@ -396,9 +396,15 @@ actor BindingLocalCellRegistration {
             type: FolderWatchCell.self,
             resolver: resolver
         )
+        // Identity-unique like Porthole and Perspective, not scaffold-unique:
+        // a scaffold-unique instance belongs to whichever identity created it,
+        // and every other identity — the verifier's, the authenticated vault's
+        // after Face ID — was denied `matching` and the surfaces built on it
+        // reported «kunne ikke valideres». The catalog's learned purpose
+        // weights are the owner's anyway.
         await register(
             name: "ConfigurationCatalog",
-            cellScope: .scaffoldUnique,
+            cellScope: .identityUnique,
             persistency: .persistant,
             identityDomain: "private",
             type: ConfigurationCatalogCell.self,

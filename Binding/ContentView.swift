@@ -288,6 +288,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case publicProfileDirectory = "Public Profile Directory"
     case matches = "Matches"
     case inviteChat = "Co-Pilot"
+    case relations = "Relasjoner"
+    case extendEntity = "Utvid entiteten"
     case agendaContext = "Agenda Context"
     case butterpopStudio = "Butterpop Studio"
     case vaultIdeas = "Vault / Ideas"
@@ -316,10 +318,12 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         switch self {
         case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
             return .home
-        case .publicProfileDirectory, .matches:
+        case .publicProfileDirectory, .matches, .relations:
             return .matches
         case .inviteChat:
             return .chat
+        case .extendEntity:
+            return .profile
         case .vaultIdeas, .personalCopilotCatalog:
             return .vault
         case .myProfile, .publishPublicProfile, .privacyAudit:
@@ -329,9 +333,9 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     var sidebarSectionTitle: String {
         switch self {
-        case .personalHome, .myProfile, .publishPublicProfile, .privacyAudit:
+        case .personalHome, .myProfile, .publishPublicProfile, .privacyAudit, .extendEntity:
             return "Personal"
-        case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent:
+        case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent, .relations:
             return "Network"
         case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
             return "Workspace"
@@ -359,6 +363,10 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
                 return ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
             }
             return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        case .relations:
+            return HavenRelationsWorkbench.configuration()
+        case .extendEntity:
+            return BindingEntityScaffoldExtensionCell.menuConfiguration()
         case .agendaContext:
             return ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
         case .butterpopStudio:
@@ -388,8 +396,11 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     static var sidebarSections: [(title: String, destinations: [BindingPersonalCopilotDestination])] {
         let sections: [(title: String, destinations: [BindingPersonalCopilotDestination])] = [
-            ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit]),
-            ("Network", [.matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
+            ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit, .extendEntity]),
+            // Relations sits where the people are. It was in the menu
+            // configuration list for ten days and in no sidebar — a surface
+            // nobody can open is a surface that does not exist.
+            ("Network", [.relations, .matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
             ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
         ]
         return sections.compactMap { section in
@@ -426,6 +437,9 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
         let normalized = configurationName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if normalized == "invite chat" || normalized == "co-pilot chat" {
             return .inviteChat
+        }
+        if normalized == "relations" || normalized == "relasjoner" || normalized == "relations workbench" {
+            return .relations
         }
         return allCases.first { $0.rawValue.lowercased() == normalized }
     }

@@ -35,7 +35,7 @@ final class CatalogAbsorbXCTest: XCTestCase {
         )
         try? await resolver.addCellResolve(
             name: "ConfigurationCatalog",
-            cellScope: .scaffoldUnique,
+            cellScope: .identityUnique,
             persistency: .persistant,
             identityDomain: "private",
             type: ConfigurationCatalogCell.self

@@ -282,6 +282,150 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         )
     }
 
+    /// The budget a local surface gets from «open» to «bindings readable».
+    /// Kjetil's number, not a measured convenience: a surface that takes
+    /// longer is a surface people stop opening.
+    static let localSurfaceLoadBudgetMilliseconds = 100.0
+
+    /// Surfaces known to miss the budget, each with a ceiling of its own so
+    /// it cannot quietly get worse while it waits to be fixed. An entry here
+    /// is a debt with a number on it, not a pass: remove the entry, don't
+    /// raise the ceiling. Tracked as work-binding-copilot-surface-load-budget.
+    static let knownSlowSurfaces: [String: Double] = [
+        // 332 ms measured 2026-09-02. Twelve references and eighteen root
+        // probes on one surface; the fix is fewer probes or a leaner
+        // reference set, not a bigger number.
+        "Co-Pilot": 400.0,
+        "Butler Chat": 400.0
+    ]
+
+    /// Every local surface, three ways: it loads inside the budget on a warm
+    /// runtime, its description passes the audit, and the butler finds it by
+    /// that description alone. The table is printed on every run so the slow
+    /// and the vague are named, not just counted.
+    func testEveryLocalSurfaceLoadsFastIsDescribedAndFindable() async throws {
+        let offered = await ConfigurationCatalogCell.offeredCatalogConfigurationsForVerification()
+            .filter { !Self.isRemoteEndpoint($0.endpoint) }
+        XCTAssertFalse(offered.isEmpty, "No local surfaces offered.")
+
+        // Warm the runtime once: the first load of anything creates cells and
+        // persistence and says nothing about rendering.
+        for entry in offered.prefix(3) {
+            _ = try? await CellConfigurationVerifier.contractReport(for: entry.configuration, buttonsToExecute: [], identityMode: .startup)
+        }
+
+        var timings: [(name: String, ms: Double)] = []
+        var slow: [String] = []
+        var knownSlow: [String] = []
+        var broken: [String] = []
+        let clock = ContinuousClock()
+        for entry in offered {
+            _ = try? await CellConfigurationVerifier.contractReport(for: entry.configuration, buttonsToExecute: [], identityMode: .startup)
+            let start = clock.now
+            do {
+                let report = try await CellConfigurationVerifier.contractReport(for: entry.configuration, buttonsToExecute: [], identityMode: .startup)
+                let elapsed = clock.now - start
+                let ms = Double(elapsed.components.seconds) * 1_000 + Double(elapsed.components.attoseconds) / 1e15
+                timings.append((entry.name, ms))
+                if let ceiling = Self.knownSlowSurfaces[entry.name] {
+                    // Known debt: still measured, still printed, and still
+                    // failing if it gets worse than the ceiling it was
+                    // admitted with.
+                    if ms > ceiling {
+                        slow.append(String(
+                            format: "%@: %.0f ms — over its own %.0f ms ceiling as a known-slow surface. It got worse; fix it or say why.",
+                            entry.name, ms, ceiling
+                        ))
+                    } else {
+                        knownSlow.append(String(format: "%@: %.0f ms (budget %.0f, ceiling %.0f)", entry.name, ms, Self.localSurfaceLoadBudgetMilliseconds, ceiling))
+                    }
+                } else if ms > Self.localSurfaceLoadBudgetMilliseconds {
+                    // Name the phase, not just the total: references, probes, load.
+                    let references = report.referenceResolutions
+                        .sorted { $0.durationMilliseconds > $1.durationMilliseconds }
+                        .prefix(4)
+                        .map { String(format: "%@ %.0f ms", $0.endpoint, $0.durationMilliseconds) }
+                        .joined(separator: ", ")
+                    let probes = report.rootProbeResolutions
+                        .sorted { $0.durationMilliseconds > $1.durationMilliseconds }
+                        .prefix(4)
+                        .map { String(format: "%@.%@ %.0f ms", $0.probe.label, $0.probe.rootKeypath, $0.durationMilliseconds) }
+                        .joined(separator: ", ")
+                    slow.append(String(
+                        format: "%@: %.0f ms (load %.0f ms, verifier total %.0f ms; references: %@; probes: %@)",
+                        entry.name, ms, report.loadMilliseconds, report.totalMilliseconds, references, probes
+                    ))
+                }
+                if report.validation.errorCount != 0 || !report.unresolvedReferences.isEmpty || !report.unreadableRootProbes.isEmpty {
+                    broken.append("\(entry.name): validation \(report.validation.errorCount), unresolved \(report.unresolvedReferences), unreadable \(report.unreadableRootProbes)")
+                }
+            } catch {
+                broken.append("\(entry.name): threw \(error)")
+            }
+        }
+        let table = timings.sorted { $0.ms > $1.ms }
+            .map { String(format: "  %6.1f ms  %@%@", $0.ms, $0.name, Self.knownSlowSurfaces[$0.name] != nil ? "  [known slow]" : "") }
+            .joined(separator: "\n")
+        print("Local surface load times (warm, startup identity):\n\(table)")
+        if !knownSlow.isEmpty {
+            print("Known slow, tracked as debt (work-binding-copilot-surface-load-budget):\n  " + knownSlow.joined(separator: "\n  "))
+        }
+
+        // Descriptions, from the real catalog so seeded entries count too.
+        let owner = await makeStaticCatalogAuditOwnerIdentity()
+        let catalog = await ConfigurationCatalogCell(owner: owner)
+        _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
+        guard case let .list(items) = try await catalog.get(keypath: "catalogEntries", requester: owner) else {
+            XCTFail("catalogEntries did not return a list")
+            return
+        }
+        let descriptors: [HavenSurfaceDescriptor] = items.compactMap { item in
+            guard case let .object(object) = item,
+                  case let .cellConfiguration(configuration)? = object["configuration"],
+                  case let .string(endpoint)? = object["sourceCellEndpoint"],
+                  !Self.isRemoteEndpoint(endpoint),
+                  case let .string(purpose)? = object["purpose"] else { return nil }
+            func text(_ key: String) -> String? { if case let .string(value)? = object[key] { return value } else { return nil } }
+            func list(_ key: String) -> [String] {
+                guard case let .list(values)? = object[key] else { return [] }
+                return values.compactMap { if case let .string(value) = $0 { return value } else { return nil } }
+            }
+            return HavenSurfaceDescriptor(
+                name: configuration.name,
+                displayName: text("displayName"),
+                purpose: purpose,
+                purposeDescription: text("purposeDescription") ?? configuration.description,
+                summary: text("summary"),
+                tags: list("tags"),
+                interests: list("interests"),
+                sourceCellEndpoint: endpoint
+            )
+        }
+        XCTAssertGreaterThanOrEqual(descriptors.count, 8, "expected the seeded local catalog")
+
+        var vague: [String] = []
+        var unfindable: [String] = []
+        for descriptor in descriptors {
+            let issues = HavenSurfaceRelevance.audit(descriptor)
+            if !issues.isEmpty {
+                vague.append(issues.map(\.description).joined(separator: "; "))
+                continue
+            }
+            let probe = HavenSurfaceRelevance.findabilityProbe(for: descriptor)
+            let top = HavenSurfaceRelevance.rank(prompt: probe, descriptors: descriptors, limit: 3)
+            if !top.contains(where: { $0.descriptor.name == descriptor.name }) {
+                unfindable.append("\(descriptor.shownName): «\(probe)» finner \(top.map(\.descriptor.shownName)) i stedet")
+            }
+        }
+
+        var failures: [String] = []
+        if !broken.isEmpty { failures.append("Broken (\(broken.count)):\n" + broken.joined(separator: "\n")) }
+        if !slow.isEmpty { failures.append("Over \(Int(Self.localSurfaceLoadBudgetMilliseconds)) ms (\(slow.count) of \(timings.count)):\n" + slow.joined(separator: "\n")) }
+        if !vague.isEmpty { failures.append("Described too poorly to be found (\(vague.count) of \(descriptors.count)):\n" + vague.joined(separator: "\n")) }
+        if !unfindable.isEmpty { failures.append("Not found by own description (\(unfindable.count)):\n" + unfindable.joined(separator: "\n")) }
+        XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n\n"))
+    }
+
     /// A `cell://host/...` endpoint points at someone else's scaffold. A bare
     /// `cell:///...` is local and always has to work.
     private static func isRemoteEndpoint(_ endpoint: String) -> Bool {
