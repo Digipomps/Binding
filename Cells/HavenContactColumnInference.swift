@@ -560,7 +560,39 @@ nonisolated public enum HavenContactColumnInference {
             records.append(record)
         }
 
+        problems.append(contentsOf: sharedEndpointProblems(in: records))
         return BuildResult(records: records, problems: problems, skippedRows: skipped)
+    }
+
+    /// Rows that share a phone number but disagree on who they are. HAVEN
+    /// keeps them apart — a shared line is not the same person — but the
+    /// owner should hear about it, because in a hand-maintained list it
+    /// almost always means one of the two numbers was typed into the wrong
+    /// row. Reported against the file, where it can still be corrected.
+    static func sharedEndpointProblems(in records: [HavenRelationRecord]) -> [String] {
+        var byPhone: [String: [HavenRelationRecord]] = [:]
+        for record in records {
+            for endpoint in record.endpoints where endpoint.kind == .phone {
+                byPhone[endpoint.normalized, default: []].append(record)
+            }
+        }
+        var problems: [String] = []
+        for (number, sharing) in byPhone.sorted(by: { $0.key < $1.key }) where sharing.count > 1 {
+            var distinct: [HavenRelationRecord] = []
+            for record in sharing where !distinct.contains(where: { HavenRelationMerger.looksLikeSamePerson($0, record) }) {
+                distinct.append(record)
+            }
+            guard distinct.count > 1 else { continue }
+            let names = distinct.map { record -> String in
+                let organization = record.organization?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return organization.isEmpty ? record.displayName : "\(record.displayName) (\(organization))"
+            }
+            problems.append(
+                "\(names.joined(separator: " og ")) står med samme telefonnummer \(number). "
+                    + "Jeg legger dem inn som forskjellige personer — sjekk om ett av numrene skal være et annet."
+            )
+        }
+        return problems
     }
 
     /// vCard has richer structure than a table, so it gets its own path rather
