@@ -961,3 +961,30 @@ import CellBase
         }
     }
 }
+
+// MARK: - Naming the context at the moment of import
+
+@Suite struct HavenImportContextTests {
+
+    /// Roles are recorded per context. If the owner does not say what the
+    /// list is, the file name stands in — honest, but a poor name to sort
+    /// 189 people by later.
+    @Test func theOwnersNameForTheListBecomesTheRoleContext() throws {
+        let document = HavenTabularDocument(
+            headers: ["Navn", "Gruppe", "Oppgave i nettverket", "E-post"],
+            rows: [["Vegar Hansen", "KI og tillit", "Gruppeleder", "vegar@kommunen.no"]]
+        )
+        let (mapping, _) = HavenContactColumnInference.infer(document: document)
+        let source = HavenRelationSource(kind: .fileImport, label: "HAVEN_import_bokprosjekt.xlsx", batchID: "b1")
+
+        let unnamed = HavenContactColumnInference.buildRecords(document: document, mapping: mapping, source: source)
+        #expect(unnamed.records.first?.roles.first?.context == "HAVEN_import_bokprosjekt.xlsx")
+
+        let named = HavenContactColumnInference.buildRecords(
+            document: document, mapping: mapping, source: source,
+            context: "  Bok: Rammebetingelser for innovasjon  "
+        )
+        #expect(named.records.first?.roles.first?.context == "Bok: Rammebetingelser for innovasjon")
+        #expect(named.records.first?.roles.first?.group == "KI og tillit")
+    }
+}

@@ -193,6 +193,13 @@ nonisolated enum HavenRelationsWorkbench {
             .Text(subtle(keypath: "contactImport.state.preview.consentLine")),
             .Text(uncertain),
             .List(SkeletonList(topic: nil, keypath: "contactImport.state.preview.reviewColumns", flowElementSkeleton: columnRow)),
+            .TextField(SkeletonTextField(
+                text: nil,
+                sourceKeypath: "contactImport.state.preview.context",
+                targetKeypath: "contactImport.import.setContext",
+                placeholder: "Hva er dette? F.eks. «Bok: Rammebetingelser for innovasjon»"
+            )),
+            .Text(subtle(keypath: "contactImport.state.preview.contextHint")),
             .Text(sectionTitle("Slik blir de seende ut")),
             .List(SkeletonList(topic: nil, keypath: "contactImport.state.preview.rows", flowElementSkeleton: personRow)),
             .HStack(SkeletonHStack(elements: [
