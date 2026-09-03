@@ -16325,6 +16325,16 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         heroStack.modifiers = heroCard
         root.append(.VStack(heroStack))
 
+        // The radar. Reads the scanner's own picture (`radar`), polls while on
+        // screen, and a tap on a blip selects that entity in the cell.
+        var radar = SkeletonVisualization(
+            kind: "radar",
+            keypath: "scanner.radar",
+            actionKeypath: "scanner.select"
+        )
+        radar.modifiers = modifier { $0.padding = 0 }
+        root.append(.Visualization(radar))
+
         if !checklist.isEmpty {
             var checklistContent = SkeletonElementList()
             for item in checklist {
