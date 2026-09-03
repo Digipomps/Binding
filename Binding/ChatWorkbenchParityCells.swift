@@ -5555,7 +5555,15 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             perspectiveContext: perspectiveContext
         )
         let providers = await scopedProviders(requester: requester)
-        let resourceMatches = BindingChatIntentClassifier.resourceMatches(prompt: draft)
+        var resourceMatches = BindingChatIntentClassifier.resourceMatches(prompt: draft)
+        // The hardcoded matches above know a handful of surfaces. The catalog
+        // knows all of them, by their own words. Ask it — this is how a surface
+        // nobody wrote a keyword rule for is still found.
+        resourceMatches.append(contentsOf: await catalogSurfaceMatches(
+            prompt: draft,
+            excluding: resourceMatches,
+            requester: requester
+        ))
         let agentStatus = BindingHavenAgentDStatusProvider.snapshot()
         let recommendation = BindingChatProviderRouter.recommend(
             prompt: draft,
@@ -8575,6 +8583,61 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     /// async analysis fills them in.
     private func candidateRows(for suggestion: BindingChatIntentClassification) -> [ValueType] {
         []
+    }
+
+    /// Surfaces from `cell:///ConfigurationCatalog` whose purpose description
+    /// answers the prompt, shaped like the static `cell_configuration` matches
+    /// so the rest of the butler treats them identically.
+    private func catalogSurfaceMatches(
+        prompt: String,
+        excluding existing: [Object],
+        requester: Identity
+    ) async -> [Object] {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 3,
+              let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let catalog = try? await resolver.cellAtEndpoint(endpoint: "cell:///ConfigurationCatalog", requester: requester) as? Meddle,
+              let response = try? await catalog.set(
+                keypath: "matching.query",
+                value: .object(["prompt": .string(trimmed), "limit": .integer(3)]),
+                requester: requester
+              ),
+              let result = BindingChatValue.object(response),
+              let matches = BindingChatValue.list(result["matches"]) else {
+            return []
+        }
+        let knownTitles = Set(existing.compactMap { BindingChatValue.string($0["configurationName"]) ?? BindingChatValue.string($0["title"]) }.map { $0.lowercased() })
+        return matches.compactMap { item -> Object? in
+            guard let match = BindingChatValue.object(item),
+                  let name = BindingChatValue.string(match["name"]),
+                  !knownTitles.contains(name.lowercased()) else { return nil }
+            let displayName = BindingChatValue.string(match["displayName"]) ?? name
+            let score = BindingChatValue.double(match["score"]) ?? 0
+            let terms = BindingChatValue.stringList(match["matchedTerms"])
+            let purposeRefs = BindingChatValue.stringList(match["purposeRefs"])
+            return [
+                "kind": .string("cell_configuration"),
+                "id": .string("configuration:" + name.lowercased().replacingOccurrences(of: " ", with: "-")),
+                "title": .string(displayName),
+                "summary": .string(BindingChatValue.string(match["summary"]).flatMap { $0.isEmpty ? nil : $0 }
+                    ?? BindingChatValue.string(match["purposeDescription"]) ?? ""),
+                "purposeRef": .string(purposeRefs.first ?? "personal.chat.assist.resource-router"),
+                "purposeRefs": .list(Array(Set(purposeRefs + ["personal.chat.assist.resource-router"])).sorted().map(ValueType.string)),
+                "interests": match["interests"] ?? .list([]),
+                "score": .float(min(1.0, score / 3.0)),
+                "availability": .string("visible_configuration"),
+                "reason": .string("Katalogen matchet på: " + terms.joined(separator: ", ") + "."),
+                "sourceCellEndpoint": match["sourceCellEndpoint"] ?? .null,
+                "sourceCellName": match["sourceCellName"] ?? .null,
+                "configurationName": .string(name),
+                "actionKeypath": .null,
+                "readKeypaths": .list(["configuration", "discovery"].map(ValueType.string)),
+                "writeKeypaths": .list([]),
+                "requiresGrant": .bool(true),
+                "requiresUserApproval": .bool(true),
+                "catalogMatch": .bool(true)
+            ]
+        }
     }
 
     private struct RelationCandidateLookup {

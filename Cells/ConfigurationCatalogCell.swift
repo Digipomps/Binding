@@ -900,6 +900,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             if let displayName, !displayName.isEmpty {
                 object["displayName"] = .string(displayName)
             }
+            if let purposeDescription, !purposeDescription.isEmpty {
+                object["purposeDescription"] = .string(purposeDescription)
+            }
             if let summary, !summary.isEmpty {
                 object["summary"] = .string(summary)
             }
@@ -1728,6 +1731,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         agreementTemplate.addGrant("rw--", for: "matching.runPrompt")
         agreementTemplate.addGrant("r---", for: "matching.runPromptInput")
         agreementTemplate.addGrant("rw--", for: "matching.runPromptInput")
+        agreementTemplate.addGrant("r---", for: "matching.query")
+        agreementTemplate.addGrant("rw--", for: "matching.query")
         agreementTemplate.addGrant("rw--", for: "matching.select")
         agreementTemplate.addGrant("rw--", for: "matching.selectIndex")
         agreementTemplate.addGrant("rw--", for: "matching.loadSelectedToPorthole")
@@ -2037,6 +2042,13 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             guard let self = self else { return .null }
             guard await self.validateAccess("rw--", at: "matching.runPrompt", for: requester) else { return .string("denied") }
             return await self.runMatchingPrompt(payload, requester: requester)
+        }
+        // Read-only relevance lookup for the butler: which surfaces answer this
+        // sentence. Nothing in the catalog moves — no suggestion list, no flow.
+        await registerSet(key: "matching.query", owner: owner) { [weak self] requester, payload in
+            guard let self = self else { return .null }
+            guard await self.validateAccess("r---", at: "matching.query", for: requester) else { return .string("denied") }
+            return self.queryMatchingSurfaces(payload)
         }
 
         await registerGet(key: "matching.runPromptInput", owner: owner) { [weak self] requester in
@@ -4528,6 +4540,56 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         pushFlowElement(selectedFlow, requester: requester)
     }
 
+    /// `{prompt, limit?}` → the surfaces whose own words match the prompt,
+    /// ranked by `HavenSurfaceRelevance`. Pure with respect to catalog state.
+    private func queryMatchingSurfaces(_ payload: ValueType) -> ValueType {
+        let prompt = extractMatchingPrompt(from: payload) ?? ""
+        let limit: Int = {
+            if case let .object(object) = payload, case let .integer(value)? = object["limit"] { return max(1, min(value, 20)) }
+            return 5
+        }()
+        let descriptors = sortedEntries().map { entry in
+            (entry, HavenSurfaceDescriptor(
+                name: entry.configuration.name,
+                displayName: entry.displayName,
+                purpose: entry.purpose,
+                purposeDescription: entry.purposeDescription ?? entry.configuration.description,
+                summary: entry.summary,
+                tags: entry.tags ?? [],
+                interests: entry.interests,
+                sourceCellEndpoint: entry.sourceCellEndpoint
+            ))
+        }
+        let ranked = HavenSurfaceRelevance.rank(prompt: prompt, descriptors: descriptors.map(\.1), limit: limit)
+        let matches: [ValueType] = ranked.compactMap { match in
+            guard let entry = descriptors.first(where: { $0.1 == match.descriptor })?.0 else { return nil }
+            return .object([
+                "id": .string(entry.id),
+                "name": .string(entry.configuration.name),
+                "displayName": .string(match.descriptor.shownName),
+                "purpose": .string(entry.purpose),
+                "purposeDescription": .string(match.descriptor.purposeDescription ?? ""),
+                "summary": .string(entry.summary ?? ""),
+                "sourceCellEndpoint": .string(entry.sourceCellEndpoint),
+                "sourceCellName": .string(entry.sourceCellName),
+                "interests": .list(entry.interests.map(ValueType.string)),
+                "tags": .list((entry.tags ?? []).map(ValueType.string)),
+                "purposeRefs": .list((entry.purposeRefs ?? []).map(ValueType.string)),
+                "hasSkeleton": .bool(entry.configuration.skeleton != nil),
+                "authRequired": .bool(entry.authRequired ?? false),
+                "score": .float(match.score),
+                "matchedTerms": .list(match.matchedTerms.map(ValueType.string))
+            ])
+        }
+        return .object([
+            "status": .string(matches.isEmpty ? "noMatch" : "matched"),
+            "prompt": .string(prompt),
+            "matchCount": .integer(matches.count),
+            "matches": .list(matches),
+            "sideEffect": .bool(false)
+        ])
+    }
+
     private func runMatchingPrompt(_ payload: ValueType, requester: Identity) async -> ValueType {
         let explicitPrompt = extractMatchingPrompt(from: payload)
         let browseAll = matchingBrowseAllRequested(from: payload)
@@ -5392,7 +5454,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             endpoint: "cell:///EntityScanner",
             label: "scanner",
             title: "Entity Scanner",
-            subtitle: "Oppdag andre enheter, be om kontakt, signer motet og eksporter bevis som JSON.",
+            subtitle: "Oppdag andre enheter, be om kontakt, signer møtet og eksporter bevis som JSON.",
             chip: "LOCAL",
             borderColor: "#0891B2",
             startKey: "start"
@@ -5423,7 +5485,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellEndpoint: chatEndpoint,
                 sourceCellName: "ChatCell",
                 purpose: "Kommunikasjon og samarbeid",
-                purposeDescription: "Faa delt meldinger i sanntid mellom deltakere.",
+                purposeDescription: "Få delt meldinger i sanntid mellom deltakere.",
                 interests: ["chat", "communication", "collaboration"],
                 menuSlots: [.upperLeft],
                 goal: chatConfig,
@@ -5567,7 +5629,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             ),
             entityScannerTemplate(
                 purpose: "Entity discovery og sikker kontaktetablering",
-                purposeDescription: "Oppdag andre i naerheten, send kontaktforespoersel, signer motet og eksporter encounter som bevis.",
+                purposeDescription: "Oppdag andre i nærheten, send kontaktforespørsel, signer møtet og eksporter encounter som bevis.",
                 interests: ["scanner", "nearby", "identity", "conference", "peer"],
                 menuSlots: [.lowerLeft],
                 goal: entityScannerGoal,
@@ -5981,7 +6043,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "PersonalProfilePublisherCell",
                 displayName: "Publish Public Profile",
                 purpose: "Publisering av offentlig profil",
-                purposeDescription: "Mottar eksplisitt publiserte profiler og stoetter unpublish/delete.",
+                purposeDescription: "Mottar eksplisitt publiserte profiler og støtter unpublish/delete.",
                 interests: scopedInterests(["profile", "publish", "unpublish", "delete", "consent"], policyCategory: "profile-publish"),
                 summary: "Publiser, avpubliser eller slett offentlig profil etter tydelig samtykke.",
                 categoryPath: ["personal-copilot", "profile", "publishing"],
@@ -6035,7 +6097,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "PersonalMatchmakingCell",
                 displayName: "Matches",
                 purpose: "Samtykkebasert matching",
-                purposeDescription: "Returnerer match-forslag uten aa starte chat for begge parter samtykker.",
+                purposeDescription: "Returnerer match-forslag uten å starte chat for begge parter samtykker.",
                 interests: scopedInterests(["matching", "consent", "profile", "invite-only-chat"], policyCategory: "matching"),
                 summary: "Forslag til personer og samarbeid uten automatisk chat-start.",
                 categoryPath: ["personal-copilot", "matching"],
@@ -6054,7 +6116,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "PersonalChatHubCell",
                 displayName: "Co-Pilot",
                 purpose: "Central purpose-driven co-pilot chat",
-                purposeDescription: "Kompakt chat-first arbeidsflate som matcher naturlig sprak mot formaal, interesser, CellConfigurations, RAG-cases og trygge agent-action metadata. Alle sideeffekter krever klikk.",
+                purposeDescription: "Kompakt chat-first arbeidsflate som matcher naturlig språk mot formål, interesser, CellConfigurations, RAG-cases og trygge agent-action metadata. Alle sideeffekter krever klikk.",
                 interests: scopedInterests([
                     "chat",
                     "invite-only",
@@ -6158,7 +6220,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "VaultCell",
                 displayName: "Vault / Ideas",
                 purpose: "Personlig vault for ideer og prosjekter",
-                purposeDescription: "Lokal Obsidian-lignende vault. Remote konfigurasjoner faar ikke vault-tilgang uten eksplisitt brukerhandling.",
+                purposeDescription: "Lokal Obsidian-lignende vault. Remote konfigurasjoner får ikke vault-tilgang uten eksplisitt brukerhandling.",
                 interests: scopedInterests(["vault", "ideas", "projects", "notes", "markdown"], policyCategory: "local-vault"),
                 summary: "Organiser ideer, prosjekter og notater lokalt.",
                 categoryPath: ["personal-copilot", "vault"],
@@ -6175,7 +6237,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "PersonalMeetingCoordinatorCell",
                 displayName: "Meeting Intent",
                 purpose: "Trygg koordinering av moteintensjon",
-                purposeDescription: "Foreslar motetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
+                purposeDescription: "Foreslår møtetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
                 interests: scopedInterests(["meeting", "coordination", "intent", "scheduling", "jitsi-ready"], policyCategory: "meeting-intent"),
                 summary: "Koordinerer moteintensjoner som data, ikke native permissions.",
                 categoryPath: ["personal-copilot", "meetings"],
@@ -6317,7 +6379,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
                 displayName: "Conference Claude Design Reference",
                 purpose: "Conference Claude design reference",
-                purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de naavaerende konferanseflatene som matcher hver rolle best.",
+                purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de nåværende konferanseflatene som matcher hver rolle best.",
                 interests: ["conference", "claude", "design", "reference", "visual-direction", "binding"],
                 summary: "Claude-designreferanse i HAVEN med tydelig mapping til dagens kjørbare conference-flater.",
                 categoryPath: ["experiences", "conference", "design"],
@@ -6445,9 +6507,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "TodoCell",
                 displayName: "Todo MVP",
                 purpose: "Personlig oppgaveflyt",
-                purposeDescription: "Opprett, prioriter og foelg opp personlige oppgaver.",
+                purposeDescription: "Opprett, prioriter og følg opp personlige oppgaver.",
                 interests: ["todo", "tasks", "planning", "productivity"],
-                summary: "Personlig oppgaveliste med prioriteter og oppfoelging.",
+                summary: "Personlig oppgaveliste med prioriteter og oppfølging.",
                 categoryPath: ["productivity", "tasks"],
                 tags: ["todo", "tasks", "planning", "productivity"],
                 menuSlots: [.lowerMid],
@@ -6477,7 +6539,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "LeadVaultCell",
                 displayName: "Lead Vault",
                 purpose: "Lead capture og oppfoelging",
-                purposeDescription: "Haandter leads, consent og tilgangsstyring i konferanse- og salgsflyt.",
+                purposeDescription: "Håndter leads, consent og tilgangsstyring i konferanse- og salgsflyt.",
                 interests: ["leads", "consent", "conference", "sales-ops", "crm"],
                 summary: "Conference leads, consent og tilgangsstyring.",
                 categoryPath: ["sales", "lead-management"],
@@ -6492,7 +6554,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "ConsentReceiptCell",
                 displayName: "Consent Receipt",
                 purpose: "Samtykkebevis og logg",
-                purposeDescription: "Vis og etterproev samtykkelogg og mottatte kvitteringer.",
+                purposeDescription: "Vis og etterprøv samtykkelogg og mottatte kvitteringer.",
                 interests: ["consent", "receipts", "compliance", "audit"],
                 summary: "Samtykkelogg og kvitteringer fra consent-flyten.",
                 categoryPath: ["compliance", "consent"],
@@ -6511,7 +6573,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "OrchestratorCell",
                 displayName: "Porthole Control Surface",
                 purpose: "Laste og rendere CellConfigurations",
-                purposeDescription: "Hovedflate for aa laste, rendere og orkestrere kontroll-konfigurasjoner.",
+                purposeDescription: "Hovedflate for å laste, rendere og orkestrere kontroll-konfigurasjoner.",
                 interests: ["porthole", "rendering", "workspace", "orchestration"],
                 summary: "Kontrollflate for lasting og rendering av valgte CellConfigurations.",
                 categoryPath: ["runtime", "orchestration"],
@@ -6529,7 +6591,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "PerspectiveCell",
                 displayName: "Perspective Context",
                 purpose: "Lokal kontekst og preferanser",
-                purposeDescription: "Holder aktiv purpose-state, interesser og kontekst som paavirker anbefalinger.",
+                purposeDescription: "Holder aktiv purpose-state, interesser og kontekst som påvirker anbefalinger.",
                 interests: ["perspective", "purpose", "interests", "context"],
                 summary: "Lokal context-store for purpose, interests og vektede preferanser.",
                 categoryPath: ["identity", "context"],
@@ -6642,9 +6704,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "FolderWatchCell",
                 displayName: "Folder Watch Automation",
                 purpose: "Observere lokale mapper",
-                purposeDescription: "Overvaak mapper og trigge arbeidsflyt naar filer endrer seg.",
+                purposeDescription: "Overvåk mapper og trigge arbeidsflyt når filer endrer seg.",
                 interests: ["files", "watch", "automation", "folder"],
-                summary: "Overvaak mapper og trigge flyt ved filendringer.",
+                summary: "Overvåk mapper og trigge flyt ved filendringer.",
                 categoryPath: ["automation", "files"],
                 tags: ["files", "watch", "automation", "folder"],
                 chip: "LOCAL",
@@ -6661,7 +6723,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 purpose: "Lokale signaler og test-events",
                 purposeDescription: "Emit og observer lokale signaler i runtime.",
                 interests: ["events", "signals", "testing", "flow"],
-                summary: "Verktoy for aa emitte og observere lokale signaler.",
+                summary: "Verktøy for å emitte og observere lokale signaler.",
                 categoryPath: ["testing", "signals"],
                 tags: ["events", "signals", "testing", "flow"],
                 chip: "LOCAL",
@@ -6779,7 +6841,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "AppleIntelligenceCell",
                 displayName: "Apple Intelligence Cell",
                 purpose: "Semantiske assistentoperasjoner",
-                purposeDescription: "Den underliggende AppleIntelligence-cellen som stoetter semantiske arbeidsflyter.",
+                purposeDescription: "Den underliggende AppleIntelligence-cellen som støtter semantiske arbeidsflyter.",
                 interests: ["assistant", "semantics", "matching", "ai"],
                 summary: "Den underliggende AI-cellen for semantiske arbeidsflyter.",
                 categoryPath: ["assistant", "runtime"],
@@ -6798,7 +6860,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "AdminEntryCell",
                 displayName: "Admin Entry",
                 purpose: "Admin-startpunkt",
-                purposeDescription: "Inngang til admin- og driftsflyt paa staging.",
+                purposeDescription: "Inngang til admin- og driftsflyt på staging.",
                 interests: ["admin", "operations", "entry"],
                 summary: "Startpunkt for admin-relaterte verktøy.",
                 categoryPath: ["operations", "admin"],
@@ -6876,9 +6938,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "AdminHostMetricsCell",
                 displayName: "Admin Host Metrics",
                 purpose: "Host-metrikker",
-                purposeDescription: "Host- og nodemetrikker for driftsovervaaking.",
+                purposeDescription: "Host- og nodemetrikker for driftsovervåking.",
                 interests: ["admin", "host", "metrics", "operations"],
-                summary: "Host- og nodemetrikker for driftsovervaaking.",
+                summary: "Host- og nodemetrikker for driftsovervåking.",
                 categoryPath: ["operations", "admin"],
                 tags: ["admin", "host", "metrics"],
                 chip: "ADMIN",
@@ -6889,7 +6951,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "AdminProcessesCell",
                 displayName: "Admin Processes",
                 purpose: "Prosessovervaaking",
-                purposeDescription: "Overvaak og inspiser prosesser i drift.",
+                purposeDescription: "Overvåk og inspiser prosesser i drift.",
                 interests: ["admin", "processes", "operations", "runtime"],
                 summary: "Innsikt i prosesser og runtime-tilstand.",
                 categoryPath: ["operations", "admin"],
@@ -6902,7 +6964,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "AdminRoleEnrollmentCell",
                 displayName: "Admin Role Enrollment",
                 purpose: "Rolleopptak og tildeling",
-                purposeDescription: "Haandter rolleopptak og tilgangstildeling.",
+                purposeDescription: "Håndter rolleopptak og tilgangstildeling.",
                 interests: ["admin", "roles", "access", "identity"],
                 summary: "Rolleopptak og tilgangstildeling.",
                 categoryPath: ["operations", "admin"],
@@ -6928,7 +6990,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "ExhibitorAccessCell",
                 displayName: "Exhibitor Access",
                 purpose: "Utstilleradgang",
-                purposeDescription: "Haandter utstiller- og messeadgang.",
+                purposeDescription: "Håndter utstiller- og messeadgang.",
                 interests: ["conference", "exhibitor", "access", "events"],
                 summary: "Utstiller- og messeadgang.",
                 categoryPath: ["events", "access"],
@@ -6954,7 +7016,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "NotificationOutboxCell",
                 displayName: "Notification Outbox",
                 purpose: "Utgaaende varsler",
-                purposeDescription: "Koordiner utgaaende varsler og meldingslevering.",
+                purposeDescription: "Koordiner utgående varsler og meldingslevering.",
                 interests: ["notifications", "outbox", "messaging", "delivery"],
                 summary: "Utgaaende varsler og leveringskoe.",
                 categoryPath: ["communication", "notifications"],
@@ -7151,7 +7213,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
                 displayName: "Conference Claude Design Reference",
                 purpose: "Conference Claude design reference",
-                purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de naavaerende konferanseflatene som matcher hver rolle best.",
+                purposeDescription: "Loadbar designreferanse som oppsummerer den repo-lokale Claude-guiden og peker til de nåværende konferanseflatene som matcher hver rolle best.",
                 interests: ["conference", "claude", "design", "reference", "visual-direction", "binding"],
                 summary: "Claude-designreferanse i HAVEN med tydelig mapping til dagens kjørbare conference-flater.",
                 categoryPath: ["experiences", "conference", "design"],
@@ -7887,7 +7949,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     nonisolated static func perspectiveWorkbenchMenuConfiguration() -> CellConfiguration {
         var configuration = perspectiveWorkbenchConfiguration()
         configuration.name = "Perspective"
-        configuration.description = "Lokal kontekst for formaal, interesser og menyvalg."
+        configuration.description = "Lokal kontekst for formål, interesser og menyvalg."
         return configuration
     }
 
@@ -8228,7 +8290,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             sourceCellEndpoint: "cell:///ConferenceConfigurationNavigator",
             sourceCellName: "ConferenceConfigurationNavigatorLocalCell",
             purpose: "Conference Claude design reference",
-            purposeDescription: "Oppsummerer den repo-lokale Claude-designretningen for public, participant, organizer, sponsor og nearby, og lar brukeren aapne den naavaerende live-flaten for hver rolle.",
+            purposeDescription: "Oppsummerer den repo-lokale Claude-designretningen for public, participant, organizer, sponsor og nearby, og lar brukeren åpne den nåværende live-flaten for hver rolle.",
             interests: ["conference", "claude", "design", "reference", "visual-direction", "public", "participant", "organizer", "sponsor", "nearby"],
             menuSlots: ["upperRight", "lowerRight"]
         )
@@ -8605,12 +8667,12 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             endpoint: "cell://staging.haven.digipomps.org/PersonalMeetingCoordinator",
             label: "meetingCoordinator",
             title: "Meeting Intent",
-            subtitle: "Foresla motetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
+            subtitle: "Foreslå møtetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
             chip: "HYBRID",
             borderColor: "#0D9488",
             sourceCellName: "PersonalMeetingCoordinatorCell",
             purpose: "Coordinate meeting intent safely",
-            purposeDescription: "Foreslaa motetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
+            purposeDescription: "Foreslå møtetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
             interests: ["meeting", "coordination", "intent", "scheduling", "jitsi-ready"],
             menuSlots: [.upperRight, .lowerRight],
             policyCategory: "meeting-intent",
@@ -8664,7 +8726,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             borderColor: "#334155",
             sourceCellName: "PersonalPrivacyAuditCell",
             purpose: "Lokal personvernlogg",
-            purposeDescription: "Gir brukeren en aarlig oversikt over viktige samtykker og capability-gater i Personal Co-Pilot.",
+            purposeDescription: "Gir brukeren en årlig oversikt over viktige samtykker og capability-gater i Personal Co-Pilot.",
             interests: ["privacy", "audit", "consent", "permissions", "remote-config"],
             menuSlots: [.lowerLeft],
             policyCategory: "privacy-audit"
@@ -8704,7 +8766,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             sourceCellEndpoint: "cell:///ConfigurationCatalog",
             sourceCellName: "ConfigurationCatalogCell",
             purpose: "Apple Intelligence for personlig co-pilot",
-            purposeDescription: "Lokal semantisk matching mot ConfigurationCatalog for aa finne CellConfigurations som kan hjelpe brukerens formulerte intensjon.",
+            purposeDescription: "Lokal semantisk matching mot ConfigurationCatalog for å finne CellConfigurations som kan hjelpe brukerens formulerte intensjon.",
             interests: ["assistant", "apple-intelligence", "semantic-matching", "configuration-catalog"],
             menuSlots: [.upperMid],
             policyCategory: "apple-intelligence",
@@ -8732,7 +8794,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             sourceCellEndpoint: "cell:///WorkflowStudio",
             sourceCellName: "WorkflowStudioCell",
             purpose: "Workflow Studio for personlig co-pilot",
-            purposeDescription: "Bygg og test personlige arbeidsflyter uten aa eksponere skjulte remote features.",
+            purposeDescription: "Bygg og test personlige arbeidsflyter uten å eksponere skjulte remote features.",
             interests: ["workflow", "automation", "studio", "personal-productivity"],
             menuSlots: [.upperMid, .lowerMid],
             policyCategory: "workflow-studio"
@@ -8827,7 +8889,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             sourceCellEndpoint: chatHubEndpoint,
             sourceCellName: "PersonalChatHubCell",
             purpose: "Central purpose-driven co-pilot chat",
-            purposeDescription: "Kompakt chat-first arbeidsflate som matcher naturlig sprak mot synlige formaal, interesser, CellConfigurations, tilgjengelige RAG-cases og trygge agent-action metadata. Alle sideeffekter krever klikk og scope-godkjenning.",
+            purposeDescription: "Kompakt chat-first arbeidsflate som matcher naturlig språk mot synlige formål, interesser, CellConfigurations, tilgjengelige RAG-cases og trygge agent-action metadata. Alle sideeffekter krever klikk og scope-godkjenning.",
             interests: [
                 "chat",
                 "invite-only",
@@ -10286,7 +10348,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
 
         return personalSurfacePage(
             title: "Public Profile Directory",
-            subtitle: "Sok i profiler brukere har publisert. Report, hide og block virker paa valgt eller forste synlige resultat.",
+            subtitle: "Søk i profiler brukere har publisert. Report, hide og block virker på valgt eller første synlige resultat.",
             chip: "SAFE DIRECTORY",
             content: [
                 personalSection(
@@ -10536,7 +10598,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
 
         return personalSurfacePage(
             title: "Vault / Ideas",
-            subtitle: "Opprett lokale ideer, prosjektnotater og en Obsidian-lignende graf. Remote flater faar ikke vault-innhold uten eksplisitt eksport eller deling.",
+            subtitle: "Opprett lokale ideer, prosjektnotater og en Obsidian-lignende graf. Remote flater får ikke vault-innhold uten eksplisitt eksport eller deling.",
             chip: "LOCAL VAULT",
             content: [
                 personalSection(
@@ -16946,7 +17008,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
 
     nonisolated private static func perspectiveWorkbenchConfiguration() -> CellConfiguration {
         var configuration = CellConfiguration(name: "Perspective Context")
-        configuration.description = "Kontrollflate for lokale formaal, interesser og kontekst som styrer menyer og semantisk matching."
+        configuration.description = "Kontrollflate for lokale formål, interesser og kontekst som styrer menyer og semantisk matching."
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
 
         let card = conferenceCardModifier(
