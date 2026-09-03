@@ -593,11 +593,39 @@ nonisolated public enum HavenRelationMerger {
     /// Two records are the same person only when they share a strong
     /// identifier. Name collisions are recorded as *possible* duplicates and
     /// left for the user, because "Anne Hansen" is not an identifier.
+    /// Endpoints that name one person by construction: an address or a handle
+    /// is issued to somebody. A phone number is issued to a line, and lines
+    /// are shared — a couple, an office switchboard, or a colleague's number
+    /// typed into the wrong row of a spreadsheet.
+    public static let personIdentifyingKinds: Set<HavenEndpointKind> = [.email, .handle]
+
+    /// Whether two records are the same person on the evidence of their
+    /// endpoints alone.
+    ///
+    /// A shared address or handle settles it. A shared phone number does not:
+    /// it settles it only when the names agree too. Merging two people
+    /// because they share a line makes one of them disappear — name,
+    /// organisation, role and all — and the owner is never told. Keeping two
+    /// records that turn out to be one person costs a merge the owner can
+    /// make themselves, from a flagged pair they can see.
     public static func sharesStrongIdentifier(_ lhs: HavenRelationRecord, _ rhs: HavenRelationRecord) -> Bool {
-        let strongKinds: Set<HavenEndpointKind> = [.email, .phone, .handle]
-        let left = Set(lhs.endpoints.filter { strongKinds.contains($0.kind) }.map { "\($0.kind.rawValue)|\($0.normalized)" })
+        if sharesEndpoint(lhs, rhs, kinds: personIdentifyingKinds) {
+            return true
+        }
+        guard sharesEndpoint(lhs, rhs, kinds: [.phone]) else { return false }
+        return looksLikeSamePerson(lhs, rhs)
+    }
+
+    /// True when the two records hold the same normalized endpoint of one of
+    /// the given kinds.
+    public static func sharesEndpoint(
+        _ lhs: HavenRelationRecord,
+        _ rhs: HavenRelationRecord,
+        kinds: Set<HavenEndpointKind>
+    ) -> Bool {
+        let left = Set(lhs.endpoints.filter { kinds.contains($0.kind) }.map { "\($0.kind.rawValue)|\($0.normalized)" })
         guard !left.isEmpty else { return false }
-        for endpoint in rhs.endpoints where strongKinds.contains(endpoint.kind) {
+        for endpoint in rhs.endpoints where kinds.contains(endpoint.kind) {
             if left.contains("\(endpoint.kind.rawValue)|\(endpoint.normalized)") { return true }
         }
         return false

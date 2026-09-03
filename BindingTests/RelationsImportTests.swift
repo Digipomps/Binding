@@ -988,3 +988,54 @@ import CellBase
         #expect(named.records.first?.roles.first?.group == "KI og tillit")
     }
 }
+
+// MARK: - A shared phone line is not a shared identity
+
+@Suite struct HavenSharedEndpointTests {
+
+    private func record(_ name: String, organization: String? = nil, email: String? = nil, phone: String? = nil) -> HavenRelationRecord {
+        var endpoints: [HavenRelationEndpoint] = []
+        if let email, let made = HavenRelationNormalizer.endpoint(from: email, preferredKind: .email) { endpoints.append(made) }
+        if let phone, let made = HavenRelationNormalizer.endpoint(from: phone, preferredKind: .phone) { endpoints.append(made) }
+        return HavenRelationRecord(
+            id: HavenRelationNormalizer.recordID(endpoints: endpoints, displayName: name, organization: organization),
+            displayName: name,
+            organization: organization,
+            endpoints: endpoints
+        )
+    }
+
+    /// The real case from the book project: two people, two companies, two
+    /// addresses, one phone number typed into both rows. Merging them made
+    /// one of them vanish with his name, his firm and his working group.
+    @Test func twoPeopleSharingALineStayTwoPeople() {
+        let yngvar = record("Yngvar Ugland", organization: "DNB New Tech Lab", email: "yngvar.ugland@dnb.no", phone: "+4795898520")
+        let bertil = record("Bertil Johansen", organization: "Norconsult", email: "bertil.johansen@norconsult.com", phone: "+4795898520")
+        #expect(!HavenRelationMerger.sharesStrongIdentifier(yngvar, bertil))
+        #expect(!HavenRelationMerger.looksLikeSamePerson(yngvar, bertil))
+    }
+
+    @Test func theSameAddressStillSettlesIt() {
+        let a = record("Vegar Hansen", organization: "Kommunen", email: "vegar@kommunen.no")
+        let b = record("V. Hansen", organization: "Kommunen KF", email: "VEGAR@Kommunen.no")
+        #expect(HavenRelationMerger.sharesStrongIdentifier(a, b), "an address is issued to a person")
+    }
+
+    @Test func theSameNumberSettlesItWhenTheNameAgrees() {
+        let a = record("Vegar Hansen", phone: "+4791234567")
+        let b = record("Vegar Hansen", email: "vegar@privat.no", phone: "+4791234567")
+        #expect(HavenRelationMerger.sharesStrongIdentifier(a, b))
+    }
+
+    @Test func theFileIsToldWhenTwoRowsShareANumber() {
+        let problems = HavenContactColumnInference.sharedEndpointProblems(in: [
+            record("Yngvar Ugland", organization: "DNB", phone: "+4795898520"),
+            record("Bertil Johansen", organization: "Norconsult", phone: "+4795898520"),
+            record("Vegar Hansen", phone: "+4791234567")
+        ])
+        #expect(problems.count == 1)
+        #expect(problems[0].contains("Yngvar Ugland (DNB)"))
+        #expect(problems[0].contains("Bertil Johansen (Norconsult)"))
+        #expect(problems[0].contains("+4795898520"))
+    }
+}
