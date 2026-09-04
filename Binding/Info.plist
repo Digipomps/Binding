@@ -12,6 +12,8 @@
 	<string>$(HAVEN_DEVICE_INGRESS_AUDIENCE)</string>
 	<key>HAVENDeviceIngressChallengeIssuerBase64</key>
 	<string>$(HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>HAVEN bruker kameraet til å skanne koden som kobler denne telefonen til entiteten din.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
