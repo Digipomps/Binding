@@ -12,6 +12,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 import CellBase
 #if canImport(VisionKit) && os(iOS)
 import VisionKit

@@ -86,7 +86,8 @@ final class IdentityLinkFlowTests: XCTestCase {
         XCTAssertEqual(record.linkedIdentity.uuid, phone.uuid)
         XCTAssertEqual(ownerDisplayName, ticket.ownerDisplayName)
         XCTAssertEqual(doneOrigin, origin)
-        XCTAssertTrue(await transport.completedEnvelopeWasVerifiable)
+        let verifiable = await transport.completedEnvelopeWasVerifiable
+        XCTAssertTrue(verifiable)
         // test.binding.completion-persisted
         let stored = IdentityLinkCompletionStore.entry(forOrigin: origin)
         XCTAssertEqual(stored?.record.linkID, record.linkID)
@@ -111,7 +112,8 @@ final class IdentityLinkFlowTests: XCTestCase {
         await coordinator.start(deepLink: try deepLink(ticket))
         await fulfillment(of: [failed], timeout: 15)
         await coordinator.stopObserving(observer)
-        XCTAssertFalse(await transport.completeWasCalled, "ingenting skal sendes når pakken ikke passer")
+        let completeWasCalled = await transport.completeWasCalled
+        XCTAssertFalse(completeWasCalled, "ingenting skal sendes når pakken ikke passer")
     }
 
     // MARK: Hjelpere
