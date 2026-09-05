@@ -9897,6 +9897,9 @@ struct ConferenceIdentityLinkParsedChallenge {
     var audience: String?
     var origin: String?
     var entityAnchorReference: String?
+    var entityBindingMode: String?
+    var entityBindingID: String?
+    var entityBindingAudience: String?
     var deviceLabel: String?
     var identityLabel: String?
     var requestedDomains: [String]
@@ -9919,6 +9922,16 @@ struct ConferenceIdentityLinkParsedChallenge {
     var proofSummary: String
     var rawPreview: String
     var admission: BindingAdmissionChallengeSnapshot?
+
+    var requestsDeviceIngressRegistrationIdentity: Bool {
+        purpose == DeviceIngressIdentityLinkHandshakeContract.purpose
+            && requestedDomains
+                == DeviceIngressIdentityLinkHandshakeContract.requestedDomains
+            && requestedIdentityContexts
+                == DeviceIngressIdentityLinkHandshakeContract.requestedIdentityContexts
+            && requestedScopes
+                == DeviceIngressIdentityLinkHandshakeContract.requestedScopes
+    }
 }
 
 nonisolated enum ConferenceIdentityLinkSupport {
@@ -9970,6 +9983,9 @@ nonisolated enum ConferenceIdentityLinkSupport {
             audience: queryMap["audience"],
             origin: queryMap["origin"] ?? "haven://identity-link",
             entityAnchorReference: queryMap["entityanchorreference"] ?? queryMap["entity"],
+            entityBindingMode: queryMap["entitybindingmode"],
+            entityBindingID: queryMap["entitybindingid"],
+            entityBindingAudience: queryMap["entitybindingaudience"],
             deviceLabel: queryMap["devicelabel"] ?? queryMap["device"],
             identityLabel: queryMap["displayname"] ?? queryMap["identity"],
             requestedDomains: splitCSV(queryMap["domains"]),
@@ -10016,6 +10032,10 @@ nonisolated enum ConferenceIdentityLinkSupport {
             audience: string(in: json, path: ["audience"]),
             origin: string(in: json, path: ["origin"]),
             entityAnchorReference: string(in: json, path: ["entityAnchorReference"]),
+            entityBindingMode: string(in: json, path: ["entityBinding", "mode"]),
+            entityBindingID: string(in: json, path: ["entityBinding", "bindingID"])
+                ?? string(in: json, path: ["entityBinding", "bindingId"]),
+            entityBindingAudience: string(in: json, path: ["entityBinding", "audience"]),
             deviceLabel: string(in: json, path: ["device", "label"]),
             identityLabel: string(in: json, path: ["newIdentity", "displayName"]),
             requestedDomains: strings(in: json, path: ["requestedDomains"]),
@@ -10036,6 +10056,9 @@ nonisolated enum ConferenceIdentityLinkSupport {
         audience: String?,
         origin: String?,
         entityAnchorReference: String?,
+        entityBindingMode: String?,
+        entityBindingID: String?,
+        entityBindingAudience: String?,
         deviceLabel: String?,
         identityLabel: String?,
         requestedDomains: [String],
@@ -10086,6 +10109,9 @@ nonisolated enum ConferenceIdentityLinkSupport {
             audience: effectiveAudience,
             origin: effectiveOrigin,
             entityAnchorReference: effectiveEntity,
+            entityBindingMode: entityBindingMode?.trimmingCharacters(in: .whitespacesAndNewlines),
+            entityBindingID: entityBindingID?.trimmingCharacters(in: .whitespacesAndNewlines),
+            entityBindingAudience: entityBindingAudience?.trimmingCharacters(in: .whitespacesAndNewlines),
             deviceLabel: effectiveDeviceLabel,
             identityLabel: effectiveIdentityLabel,
             requestedDomains: requestedDomains,
@@ -10183,6 +10209,17 @@ nonisolated enum ConferenceIdentityLinkSupport {
 actor ConferenceIdentityLinkInboxStore {
     static let shared = ConferenceIdentityLinkInboxStore()
 
+    func requestsDeviceIngressRegistrationIdentity() -> Bool {
+        guard let challenge = incomingChallenge,
+              challenge.requestsDeviceIngressRegistrationIdentity,
+              let configuration = try? BindingDeviceIngressRuntimeConfiguration
+                .current() else {
+            return false
+        }
+        return challenge.audience == configuration.trust.expectedAudience
+            && challenge.origin == configuration.origin.absoluteString
+    }
+
     private var draftInput = ""
     private var incomingChallenge: ConferenceIdentityLinkParsedChallenge?
     private var localIdentitySummary = "Ingen lokal HAVEN-identitet er bekreftet i denne flaten ennå."
@@ -10192,6 +10229,8 @@ actor ConferenceIdentityLinkInboxStore {
     private var localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
     private var enrollmentRequestPreview = "Ingen enrollment request klar ennå."
     private var enrollmentRequestValue: ValueType = .null
+    private var enrollmentRequestJSON = ""
+    private var signedEnrollmentRequest: IdentityEnrollmentRequest?
     private var signedEnrollmentRequestHash: String?
     private var completionPackageInput = ""
     private var completionStatus = "Ingen completion package er importert ennå."
@@ -10259,6 +10298,8 @@ actor ConferenceIdentityLinkInboxStore {
         localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
         enrollmentRequestPreview = "Ingen enrollment request klar ennå."
         enrollmentRequestValue = .null
+        enrollmentRequestJSON = ""
+        signedEnrollmentRequest = nil
         signedEnrollmentRequestHash = nil
         completionPackageInput = ""
         completionStatus = "Ingen completion package er importert ennå."
@@ -10293,6 +10334,8 @@ actor ConferenceIdentityLinkInboxStore {
         localProofSummary = "Request hash \(signedRequest.requestHashBase64URL) · \(signedRequest.algorithmSummary) · signature \(signedRequest.signaturePreview)"
         enrollmentRequestPreview = signedRequest.preview
         enrollmentRequestValue = signedRequest.value
+        enrollmentRequestJSON = signedRequest.canonicalJSON
+        signedEnrollmentRequest = signedRequest.request
         signedEnrollmentRequestHash = signedRequest.requestHashBase64URL
         completionSummary = "Requesten er klar for staging approval. Completion krever en envelope med approval, SameEntityIdentityLinkCredential, verifier-bound VP, issuerIdentity og expected verifier binding."
         actionSummary = "Lokal HAVEN-identitet har signert requesten. Fullfør approval i staging, og lim inn completion envelope under."
@@ -10300,14 +10343,26 @@ actor ConferenceIdentityLinkInboxStore {
     }
 
     func completeApprovedLink(with identity: Identity?) async {
+        let isDeviceIngressRegistration = requestsDeviceIngressRegistrationIdentity()
         guard let identity else {
             completionStatus = "HAVEN fant ingen lokal private-identitet å fullføre mot."
             completionSummary = "Completion ble ikke sendt til EntityAnchor fordi lokal key-possession mangler."
             return
         }
-        guard let payload = Self.decodeCompletionEnvelope(from: completionPackageInput) else {
-            completionStatus = "Klarte ikke å lese completion package som CellProtocol IdentityLinkCompletionEnvelope."
-            completionSummary = "Lim inn rå JSON eller base64url-enkodet JSON fra staging-kontrakten. HAVEN lager ikke syntetisk approval eller VP."
+        let payload: CompletionEnvelopePayload
+        do {
+            guard let resolved = try await completionEnvelopePayload(
+                from: completionPackageInput,
+                identity: identity
+            ) else {
+                completionStatus = "Klarte ikke å lese completion- eller approval-pakken."
+                completionSummary = "Lim inn kanonisk IdentityLinkApprovalPackage fra staging eller en komplett IdentityLinkCompletionEnvelope. HAVEN lager aldri syntetisk issuer-approval."
+                return
+            }
+            payload = resolved
+        } catch {
+            completionStatus = "Approval-pakken kunne ikke bindes til den lokalt signerte DeviceIngress-requesten."
+            completionSummary = "HAVEN avviste issuer-pakken før EntityAnchor: \(error.localizedDescription)"
             return
         }
         guard payload.envelope.request.newIdentity.uuid == identity.uuid else {
@@ -10351,11 +10406,35 @@ actor ConferenceIdentityLinkInboxStore {
                 completionSummary = Self.responseSummary(from: response)
                 return
             }
+
+            if isDeviceIngressRegistration {
+                do {
+                    let canonicalCompletionEnvelope = try Self.canonicalData(
+                        for: payload.envelope
+                    )
+                    try await BindingDeviceIngressRegistrationComposition
+                        .stageOneShotCompletionEnvelope(canonicalCompletionEnvelope)
+                    completionPackageInput = ""
+                    await NotificationEnrollmentManager.shared
+                        .identityLinkCompletionDidStage()
+                } catch {
+                    completionStatus = "Identity-link er aktiv, men DeviceIngress-handoff feilet."
+                    completionSummary = "EntityAnchor-verifiseringen er fullført, men completion envelope ble ikke lagt i transient registreringsminne: \(error.localizedDescription)"
+                    completionRecordPreview = Self.recordPreview(from: response)
+                    actionSummary = "Identity-link ble lagret, men ingen DeviceIngress-registrering ble startet."
+                    nextStepSummary = "Start appen på nytt og gjennomfør en ny eksplisitt DeviceIngress enrollment; envelopen blir ikke overskrevet eller gjenbrukt."
+                    return
+                }
+            }
             completionStatus = "Identity-link completion er verifisert og lagret i EntityAnchor."
-            completionSummary = "Approval JTI er markert brukt, SameEntityIdentityLinkCredential/VP er verifisert, og replay vil avvises av identityLinks-store."
+            completionSummary = isDeviceIngressRegistration
+                ? "Approval JTI er markert brukt, og completion envelope er lagt i transient minne for ett eksplisitt DeviceIngress-registerforsøk. Den er ikke lagret eller logget av handoffen."
+                : "Approval JTI er markert brukt, SameEntityIdentityLinkCredential/VP er verifisert, og replay vil avvises av identityLinks-store."
             completionRecordPreview = Self.recordPreview(from: response)
             actionSummary = "EntityAnchor skrev en active IdentityLinkRecord fra ekte completion envelope."
-            nextStepSummary = "Identity-link er aktiv. Du kan nå bruke identityLinks-recorden som bevis på at HAVEN-identiteten hører til samme Entity."
+            nextStepSummary = isDeviceIngressRegistration
+                ? "Identity-link er aktiv. Godkjenn varsler for å bruke den transiente envelopen i ett signert DeviceIngress-registerforsøk."
+                : "Identity-link er aktiv. Du kan nå bruke identityLinks-recorden som bevis på at HAVEN-identiteten hører til samme Entity."
         } catch {
             completionStatus = "identityLinks.completeEnrollment feilet: \(error)"
             completionSummary = "Completion ble avvist av CellProtocol/EntityAnchor. Ingen record ble skrevet."
@@ -10392,6 +10471,7 @@ actor ConferenceIdentityLinkInboxStore {
                 "localProofSummary": .string(localProofSummary),
                 "enrollmentRequestPreview": .string(enrollmentRequestPreview),
                 "enrollmentRequest": enrollmentRequestValue,
+                "enrollmentRequestJSON": .string(enrollmentRequestJSON),
                 "actionSummary": .string(actionSummary),
                 "limitationSummary": .string(limitationSummary),
                 "nextStepSummary": .string(nextStepSummary)
@@ -10407,7 +10487,9 @@ actor ConferenceIdentityLinkInboxStore {
     }
 
     private struct SignedEnrollmentRequestState {
+        var request: IdentityEnrollmentRequest
         var value: ValueType
+        var canonicalJSON: String
         var requestHashBase64URL: String
         var algorithmSummary: String
         var signaturePreview: String
@@ -10499,11 +10581,29 @@ actor ConferenceIdentityLinkInboxStore {
             algorithm: publicSecureKey.algorithm,
             curveType: publicSecureKey.curveType
         )
-        let entityBinding = EntityBindingDescriptor(
-            mode: .localEntityAnchor,
-            entityAnchorReference: challenge.entityAnchorReference ?? identity.entityAnchorReference,
-            audience: audience
-        )
+        let entityBinding: EntityBindingDescriptor
+        if challenge.requestsDeviceIngressRegistrationIdentity {
+            guard challenge.entityBindingMode == EntityBindingMode.pairwise.rawValue,
+                  let bindingID = challenge.entityBindingID,
+                  bindingID.hasPrefix("entity-pairwise:"),
+                  bindingID.utf8.count <= 512,
+                  challenge.entityBindingAudience == audience else {
+                confirmationStatus = "DeviceIngress challenge mangler eksakt pairwise Entity-binding."
+                actionSummary = "HAVEN nekter å signere en DeviceIngress-request uten issuer-bundet pairwise binding."
+                return nil
+            }
+            entityBinding = EntityBindingDescriptor(
+                mode: .pairwise,
+                bindingID: bindingID,
+                audience: audience
+            )
+        } else {
+            entityBinding = EntityBindingDescriptor(
+                mode: .localEntityAnchor,
+                entityAnchorReference: challenge.entityAnchorReference ?? identity.entityAnchorReference,
+                audience: audience
+            )
+        }
 
         var request = IdentityEnrollmentRequest(
             requestID: challenge.requestID ?? UUID().uuidString,
@@ -10518,7 +10618,7 @@ actor ConferenceIdentityLinkInboxStore {
             createdAt: createdAt,
             expiresAt: expiresAt,
             nonce: nonceData,
-            platform: "macOS",
+            platform: challenge.requestsDeviceIngressRegistrationIdentity ? "ios" : "macOS",
             deviceLabel: challenge.deviceLabel ?? displayName
         )
 
@@ -10540,7 +10640,9 @@ actor ConferenceIdentityLinkInboxStore {
             let signatureBase64URL = Self.base64URL(signature)
             let preview = "IdentityEnrollmentRequest \(request.requestID) · audience \(request.audience) · scopes \(request.requestedScopes.joined(separator: ", ")) · hash \(requestHash)"
             return SignedEnrollmentRequestState(
+                request: request,
                 value: value,
+                canonicalJSON: String(decoding: try Self.canonicalData(for: request), as: UTF8.self),
                 requestHashBase64URL: requestHash,
                 algorithmSummary: "\(publicSecureKey.algorithm.rawValue)/\(publicSecureKey.curveType.rawValue)",
                 signaturePreview: String(signatureBase64URL.prefix(18)) + "...",
@@ -10578,7 +10680,7 @@ actor ConferenceIdentityLinkInboxStore {
         }
         if scheme == "https" {
             return (host == "staging.haven.digipomps.org" || host == "haven.digipomps.org")
-                && (path == "identity-link" || path == "binding/add-device")
+                && (path.isEmpty || path == "identity-link" || path == "binding/add-device")
         }
         return false
     }
@@ -10589,6 +10691,8 @@ actor ConferenceIdentityLinkInboxStore {
         localProofSummary = "Ingen signert IdentityEnrollmentRequest er laget ennå."
         enrollmentRequestPreview = "Ingen enrollment request klar ennå."
         enrollmentRequestValue = .null
+        enrollmentRequestJSON = ""
+        signedEnrollmentRequest = nil
         signedEnrollmentRequestHash = nil
         completionPackageInput = ""
         completionStatus = "Ingen completion package er importert ennå."
@@ -10631,6 +10735,69 @@ actor ConferenceIdentityLinkInboxStore {
         return nil
     }
 
+    private func completionEnvelopePayload(
+        from input: String,
+        identity: Identity
+    ) async throws -> CompletionEnvelopePayload? {
+        if let complete = Self.decodeCompletionEnvelope(from: input) {
+            return complete
+        }
+        guard let request = signedEnrollmentRequest,
+              request.purpose == DeviceIngressIdentityLinkHandshakeContract.purpose,
+              request.requestedDomains
+                == DeviceIngressIdentityLinkHandshakeContract.requestedDomains,
+              request.requestedIdentityContexts
+                == DeviceIngressIdentityLinkHandshakeContract.requestedIdentityContexts,
+              request.requestedScopes
+                == DeviceIngressIdentityLinkHandshakeContract.requestedScopes,
+              let package = Self.decodeApprovalPackage(from: input) else {
+            return nil
+        }
+        let presentation = try await IdentityLinkProtocolService
+            .makeVerifierBoundPresentation(
+                credential: package.sameEntityCredential,
+                holderIdentity: identity,
+                challenge: request.nonce,
+                domain: DeviceIngressEnvelope.identityDomain
+            )
+        let envelope = IdentityLinkCompletionEnvelope(
+            request: request,
+            approval: package.approval,
+            sameEntityCredential: package.sameEntityCredential,
+            presentation: presentation,
+            issuerIdentity: package.issuerIdentity,
+            expectedAudience: request.audience,
+            expectedOrigin: request.origin,
+            expectedPresentationChallenge: request.nonce,
+            expectedPresentationDomain: DeviceIngressEnvelope.identityDomain
+        )
+        _ = try await IdentityLinkProtocolService.verifyCompletion(envelope)
+        let canonical = try Self.canonicalData(for: envelope)
+        let value = try JSONDecoder().decode(ValueType.self, from: canonical)
+        return CompletionEnvelopePayload(envelope: envelope, value: value)
+    }
+
+    private static func decodeApprovalPackage(from input: String) -> IdentityLinkApprovalPackage? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        var candidates = [Data(trimmed.utf8)]
+        if let decoded = decodeBase64URL(trimmed) {
+            candidates.append(decoded)
+        }
+        let decoder = JSONDecoder()
+        for data in candidates {
+            guard let package = try? decoder.decode(
+                IdentityLinkApprovalPackage.self,
+                from: data
+            ),
+                  (try? canonicalData(for: package)) == data else {
+                continue
+            }
+            return package
+        }
+        return nil
+    }
+
     private static func decodeCompletionEnvelopeData(_ data: Data) -> CompletionEnvelopePayload? {
         let decoder = JSONDecoder()
         if let envelope = try? decoder.decode(IdentityLinkCompletionEnvelope.self, from: data),
@@ -10649,6 +10816,12 @@ actor ConferenceIdentityLinkInboxStore {
             return nil
         }
         return CompletionEnvelopePayload(envelope: envelope, value: nested)
+    }
+
+    private static func canonicalData<T: Encodable>(for value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
     }
 
     private static func statusString(from response: ValueType?) -> String? {
@@ -10796,14 +10969,18 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
             ])
         case "identityLink.confirmLocalReview":
-            let localIdentity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) ?? requester
+            let localIdentity = await identityForCurrentIdentityLinkAction(
+                requester: requester
+            )
             await ConferenceIdentityLinkInboxStore.shared.confirmLocalReview(with: localIdentity)
             return .object([
                 "status": .string("ok"),
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
             ])
         case "identityLink.completeApprovedLink":
-            let localIdentity = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true) ?? requester
+            let localIdentity = await identityForCurrentIdentityLinkAction(
+                requester: requester
+            )
             await ConferenceIdentityLinkInboxStore.shared.completeApprovedLink(with: localIdentity)
             return .object([
                 "status": .string("ok"),
@@ -10839,6 +11016,26 @@ private final class ConferenceIdentityLinkIntakeCell: GeneralCell {
                 "state": .object(await ConferenceIdentityLinkInboxStore.shared.stateObject())
             ])
         }
+    }
+
+    private func identityForCurrentIdentityLinkAction(
+        requester: Identity
+    ) async -> Identity? {
+        if await ConferenceIdentityLinkInboxStore.shared
+            .requestsDeviceIngressRegistrationIdentity() {
+            guard let vaultHandle = try? await DeviceIngressAuthenticatedVaultHandle
+                .current() else {
+                return nil
+            }
+            return await vaultHandle.identityVault.identity(
+                for: DeviceIngressEnvelope.identityDomain,
+                makeNewIfNotFound: true
+            )
+        }
+        return await BindingStartupIdentityVault.shared.identity(
+            for: "private",
+            makeNewIfNotFound: true
+        ) ?? requester
     }
 
     private static func string(from value: ValueType) -> String {

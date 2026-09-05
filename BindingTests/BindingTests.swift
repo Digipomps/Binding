@@ -38,6 +38,23 @@ private final class RuntimeSurfaceLaunchEventRecorder: @unchecked Sendable {
     }
 }
 
+private final class ConfigurationConstructionRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedCount = 0
+
+    func record() {
+        lock.lock()
+        storedCount += 1
+        lock.unlock()
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedCount
+    }
+}
+
 private actor AgreementOrderingBridgeTransportScript {
     static let shared = AgreementOrderingBridgeTransportScript()
 
@@ -699,7 +716,10 @@ struct BindingTests {
         CellBase.typedCellUtility = nil
         CellBase.documentRootPath = ""
 
-        await BindingRuntimeBootstrap.ensureBaseline()
+        // This test verifies deterministic defaults only. The authenticated
+        // baseline may invoke LocalAuthentication/keychain services and is an
+        // integration concern, not a unit-test prerequisite.
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
 
         #expect(CellBase.defaultIdentityVault != nil)
         #expect(CellBase.defaultCellResolver is CellResolver)
@@ -1416,6 +1436,23 @@ struct BindingTests {
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Co-Pilot Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Invite Chat") == .inviteChat)
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Butterpop Studio") == .butterpopStudio)
+    }
+
+    @Test func releaseNavigationDoesNotConstructHiddenAppleIntelligenceConfiguration() {
+#if DEBUG
+        let recorder = ConfigurationConstructionRecorder()
+
+        let visibleDestinations = BindingConfigurationConstructionProbe
+            .$appleIntelligencePersonalCopilotFactoryDidStart
+            .withValue({ recorder.record() }) {
+                BindingPersonalCopilotDestination.visibleDestinations(
+                    appStoreCatalogGateEnabled: true
+                )
+            }
+
+        #expect(visibleDestinations == [.inviteChat, .vaultIdeas])
+        #expect(recorder.count == 0)
+#endif
     }
 
     @Test func personalCopilotStyleRolesStayWithinAllowlist() {
@@ -4785,7 +4822,7 @@ struct BindingTests {
         }
     }
 
-    @Test func bindingStartupVaultRetainsPreviewIdentityAcrossAuthenticatedBootstrap() async {
+    @Test func bindingStartupVaultRetainsPreviewIdentityAcrossVaultTransition() async {
         CellBase.defaultIdentityVault = nil
         CellBase.defaultCellResolver = nil
         CellBase.typedCellUtility = nil
@@ -4793,11 +4830,12 @@ struct BindingTests {
         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
         let startupIdentityBefore = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
 
-        await BindingRuntimeBootstrap.ensureBaseline()
+        let authenticatedVault = EphemeralIdentityVault()
+        await BindingRuntimeBootstrap.ensureBaseline(authenticatedIdentityVault: authenticatedVault)
         let startupIdentityAfter = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
 
         #expect(startupIdentityBefore?.uuid == startupIdentityAfter?.uuid)
-        #expect(CellBase.defaultIdentityVault != nil)
+        #expect(CellBase.defaultIdentityVault is EphemeralIdentityVault)
     }
 
     @Test func cellConfigurationVerifierDefaultsToStartupIdentityMode() {
@@ -5326,18 +5364,12 @@ struct BindingTests {
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceParticipantAgendaSnapshotReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-agenda-readable")
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let snapshot = try await resolver.cellAtEndpoint(
@@ -5365,18 +5397,12 @@ struct BindingTests {
     }
 
     @Test func conferenceParticipantAgendaSnapshotSupportsInlineSelectionAndActions() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-agenda-inline-actions")
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let snapshot = try await resolver.cellAtEndpoint(
@@ -5444,18 +5470,12 @@ struct BindingTests {
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceDiscoverySnapshotReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-discovery-readable")
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let discoverySnapshot = try await resolver.cellAtEndpoint(
@@ -5484,18 +5504,12 @@ struct BindingTests {
     }
 
     @Test func conferenceParticipantDiscoverySnapshotSupportsInlineSelectionAndActions() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-discovery-inline-actions")
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let snapshot = try await resolver.cellAtEndpoint(
@@ -5613,18 +5627,12 @@ struct BindingTests {
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceMatchmakingSnapshotReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-matchmaking-readable")
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let snapshot = try await resolver.cellAtEndpoint(
@@ -5650,18 +5658,12 @@ struct BindingTests {
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceChatSnapshotReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-chat-readable")
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let preview = try await resolver.cellAtEndpoint(
@@ -5722,18 +5724,12 @@ struct BindingTests {
     }
 
     @Test func bindingLocalCellRegistrationMakesConferenceNearbyRadarReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-nearby-readable")
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let radar = try await resolver.cellAtEndpoint(
@@ -5763,18 +5759,12 @@ struct BindingTests {
     }
 
     @Test func bindingLaunchWarmupMakesConferenceNearbyRadarReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-nearby-warmup")
 
         await BindingLaunchWarmup.preloadLocalRuntime()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after launch warmup")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let radar = try await resolver.cellAtEndpoint(
@@ -5799,18 +5789,12 @@ struct BindingTests {
     }
 
     @Test func bindingLaunchWarmupMakesConferenceParticipantPreviewAndChatReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-preview-chat-warmup")
 
         await BindingLaunchWarmup.preloadLocalRuntime()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after launch warmup")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let preview = try await resolver.cellAtEndpoint(
@@ -5847,9 +5831,7 @@ struct BindingTests {
     }
 
     @Test func bindingLaunchWarmupMakesConferenceParticipantSurfacesReadable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-surfaces-warmup")
 
         await BindingLaunchWarmup.preloadLocalRuntime()
 
@@ -5857,11 +5839,6 @@ struct BindingTests {
             Issue.record("Expected shared CellResolver after launch warmup")
             return
         }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
-            return
-        }
-
         let expectedRootKeys: [(String, [String])] = [
             ("cell:///ConferenceParticipantAgendaSnapshot", ["viewSummary", "trackSummary", "actionSummary"]),
             ("cell:///ConferenceParticipantDiscoverySnapshot", ["status", "sourceSummary", "actionSummary"]),
@@ -5891,17 +5868,11 @@ struct BindingTests {
     }
 
     @Test func conferenceNearbyRadarDispatchActionReturnsSnapshotObject() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeIsolatedRuntimeIdentity("conference-nearby-dispatch")
         await BindingLaunchWarmup.preloadLocalRuntime()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after launch warmup")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let radar = try await resolver.cellAtEndpoint(
@@ -7669,9 +7640,7 @@ struct BindingTests {
     }
 
     @Test func bindingLocalCellRegistrationMakesConfigurationCatalogResolvable() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeOwnerIdentity()
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
@@ -7679,28 +7648,17 @@ struct BindingTests {
             Issue.record("Expected shared CellResolver after app initialization")
             return
         }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
-            return
-        }
-
         let emit = try await resolver.cellAtEndpoint(endpoint: "cell:///ConfigurationCatalog", requester: identity)
         #expect(emit is ConfigurationCatalogCell)
     }
 
     @Test func bindingLocalConfigurationCatalogServesEntriesAndQueryResults() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
+        let identity = await makeOwnerIdentity()
         await AppInitializer.initialize()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
             Issue.record("Expected shared CellResolver after app initialization")
-            return
-        }
-        guard let identity = await identityVault.identity(for: "private", makeNewIfNotFound: true) else {
-            Issue.record("Missing private identity")
             return
         }
         guard let catalog = try await resolver.cellAtEndpoint(
@@ -7740,10 +7698,18 @@ struct BindingTests {
     }
 
     @Test func fullLibraryRefreshCompletesAndYieldsResults() async throws {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
-        CellBase.defaultIdentityVault = identityVault
-        await AppInitializer.initialize()
+        let environmentKey = "BINDING_VERIFIER_IDENTITY_MODE"
+        let previousValue = ProcessInfo.processInfo.environment[environmentKey]
+        setenv(environmentKey, "test", 1)
+        defer {
+            if let previousValue {
+                setenv(environmentKey, previousValue, 1)
+            } else {
+                unsetenv(environmentKey)
+            }
+        }
+
+        _ = await makeIsolatedPortholeRuntime()
         await BindingLocalCellRegistration.shared.ensureRegistered()
 
         let model = await MainActor.run {
@@ -8449,8 +8415,7 @@ struct BindingTests {
     }
 
     private func makeIsolatedRuntimeIdentity(_ contextPrefix: String) async -> Identity {
-        let identityVault = IdentityVault.shared
-        _ = await identityVault.initialize()
+        let identityVault = Self.testIdentityVault
         CellBase.defaultIdentityVault = identityVault
         return await identityVault.identity(
             for: "\(contextPrefix)-\(UUID().uuidString)",
@@ -9481,6 +9446,9 @@ struct BindingTests {
                 append(panel.modifiers)
                 panel.content.forEach { roles.append(contentsOf: child($0)) }
             }
+        case .NavigationBar(let navigationBar):
+            append(navigationBar.modifiers)
+            navigationBar.items.forEach { append($0.modifiers) }
         }
 
         return roles

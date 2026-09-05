@@ -73,9 +73,9 @@ Alle er owner-scoped gjennom CellProtocol-avtaler og `validateAccess`. Analyseen
 
 Lokale forskningsgrunnlag:
 
-- `../CellProtocolDocuments/Deliverables/Small_Model_Purpose_Decomposition_Research_2026-07-11.md`
-- `../CellProtocolDocuments/Deliverables/Codex_Handoff_E3b_Norwegian_LoRA_Adapter_2026-07-13.md`
-- `../CellProtocolDocuments/Tools/PurposeKnowledge/e3_apple_microtask.swift`
+- `../../CellProtocolDocuments/Deliverables/Small_Model_Purpose_Decomposition_Research_2026-07-11.md`
+- `../../CellProtocolDocuments/Deliverables/Codex_Handoff_E3b_Norwegian_LoRA_Adapter_2026-07-13.md`
+- `../../CellProtocolDocuments/Tools/PurposeKnowledge/e3_apple_microtask.swift`
 
 ## Verifikasjon
 

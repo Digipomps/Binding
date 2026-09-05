@@ -1,26 +1,167 @@
 import Testing
 import Foundation
+@_spi(HAVENRuntime) import CellBase
 @testable import Binding
 
 @MainActor
 struct NotificationCallbackClientTests {
     @Test
-    func resolveAndSubmitRemainFailClosed() async {
+    func disabledRolloutRejectsBeforeCallbackComposition() async {
+        let callbackOperator = RecordingCallbackOperator()
+        let client = NotificationCallbackClient.testing(
+            rolloutEnabled: false,
+            callbackOperator: callbackOperator
+        )
         await #expect(throws: NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable) {
-            try await NotificationCallbackClient.shared.resolveTicket(
+            try await client.resolveTicket(
                 participantId: "participant-1",
                 deviceId: "device-1",
                 ticketId: "ticket-1"
             )
         }
         await #expect(throws: NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable) {
-            try await NotificationCallbackClient.shared.submitTicketResult(
+            try await client.submitTicketResult(
                 participantId: "participant-1",
                 deviceId: "device-1",
                 ticketId: "ticket-1",
                 result: [:]
             )
         }
+        #expect(await callbackOperator.operations().isEmpty)
+    }
+
+    @Test
+    func enabledRolloutForwardsResolveAndSubmitToV3Operator() async throws {
+        let callbackOperator = RecordingCallbackOperator()
+        let client = NotificationCallbackClient.testing(
+            rolloutEnabled: true,
+            callbackOperator: callbackOperator
+        )
+
+        let resolved = try await client.resolveTicket(
+            participantId: "entity-pairwise:participant-1",
+            deviceId: "device-1",
+            ticketId: "ticket-1"
+        )
+        let submitted = try await client.submitTicketResult(
+            participantId: "entity-pairwise:participant-1",
+            deviceId: "device-1",
+            ticketId: "ticket-1",
+            result: ["decision": .string("approved")]
+        )
+
+        #expect(resolved == ["operation": .string("resolve")])
+        #expect(submitted == ["operation": .string("submit")])
+        #expect(await callbackOperator.operations() == [
+            "resolve:entity-pairwise:participant-1:device-1:ticket-1",
+            "submit:entity-pairwise:participant-1:device-1:ticket-1:approved"
+        ])
+    }
+
+    @Test
+    func dormantCallbackClientRejectsUnsupportedResultBeforeTransport() async throws {
+        let vault = EphemeralIdentityVault()
+        var identity = Identity(
+            "22222222-2222-4222-8222-222222222222",
+            displayName: DeviceIngressEnvelope.identityDomain,
+            identityVault: vault
+        )
+        await vault.addIdentity(identity: &identity, for: DeviceIngressEnvelope.identityDomain)
+        let descriptor = try #require(
+            DeviceIngressIdentityDescriptor.publicDescriptor(for: identity)
+        )
+        let transport = CountingCallbackTransport()
+        let client = DeviceIngressCallbackClient(
+            authenticatedVault: .testing(vault),
+            transport: transport,
+            trust: DeviceIngressRegistrationTrustConfiguration(
+                expectedAudience: "staging.haven.digipomps.org",
+                expectedChallengeIssuer: descriptor
+            )
+        )
+
+        await #expect(throws: NotificationCallbackOperationError.invalidResult) {
+            try await client.submit(
+                participantID: "entity-pairwise:fixture",
+                deviceID: identity.uuid,
+                ticketID: "ticket-1",
+                result: ["prompt": .string("not in the server allowlist")]
+            )
+        }
+        #expect(await transport.requestCount() == 0)
+    }
+
+    @Test
+    func callbackHTTPSCarrierUsesOnlyCanonicalV3PathsAndWrapper() async throws {
+        CallbackFixtureURLProtocol.install { request in
+            switch request.url?.path {
+            case "/conference-mvp/api/device/challenge":
+                return (200, Data("challenge".utf8))
+            case "/conference-mvp/api/device/callback/resolve":
+                return (200, Data("resolve".utf8))
+            case "/conference-mvp/api/device/callback/submit":
+                return (200, Data("submit".utf8))
+            default:
+                return (404, Data())
+            }
+        }
+        defer { CallbackFixtureURLProtocol.reset() }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CallbackFixtureURLProtocol.self]
+        let transport = try URLSessionDeviceIngressCallbackTransport(
+            origin: try #require(URL(string: "https://staging.haven.digipomps.org")),
+            session: URLSession(configuration: configuration)
+        )
+        let vault = EphemeralIdentityVault()
+        var identity = Identity(
+            "33333333-3333-4333-8333-333333333333",
+            displayName: DeviceIngressEnvelope.identityDomain,
+            identityVault: vault
+        )
+        await vault.addIdentity(identity: &identity, for: DeviceIngressEnvelope.identityDomain)
+        let subject = try #require(
+            DeviceIngressIdentityDescriptor.publicDescriptor(for: identity)
+        )
+
+        #expect(try await transport.fetchChallenge(
+            operation: .resolve,
+            subject: subject
+        ) == Data("challenge".utf8))
+        #expect(try await transport.submit(
+            operation: .resolve,
+            canonicalChallengeData: Data("c".utf8),
+            canonicalRequestData: Data("r".utf8),
+            protectedBody: Data("b".utf8)
+        ) == Data("resolve".utf8))
+        #expect(try await transport.submit(
+            operation: .submit,
+            canonicalChallengeData: Data("c2".utf8),
+            canonicalRequestData: Data("r2".utf8),
+            protectedBody: Data("b2".utf8)
+        ) == Data("submit".utf8))
+
+        let requests = CallbackFixtureURLProtocol.capturedRequests()
+        #expect(requests.map(\.path) == [
+            "/conference-mvp/api/device/challenge",
+            "/conference-mvp/api/device/callback/resolve",
+            "/conference-mvp/api/device/callback/submit"
+        ])
+        let challenge = try #require(
+            try JSONSerialization.jsonObject(with: requests[0].body) as? [String: Any]
+        )
+        #expect(challenge["schema"] as? String
+            == "haven.device-ingress.callback-challenge-request.v1")
+        #expect(challenge["operation"] as? String == "resolve")
+        let wrapper = try #require(
+            try JSONSerialization.jsonObject(with: requests[1].body) as? [String: Any]
+        )
+        #expect(wrapper["schema"] as? String == "haven.device-callback.transport.v3")
+        #expect(wrapper["canonicalChallenge"] as? String
+            == Data("c".utf8).base64EncodedString())
+        #expect(wrapper["canonicalRequest"] as? String
+            == Data("r".utf8).base64EncodedString())
+        #expect(wrapper["protectedBody"] as? String
+            == Data("b".utf8).base64EncodedString())
     }
 
     @Test
@@ -44,6 +185,67 @@ struct NotificationCallbackClientTests {
         #expect(result["responseKind"] == .string("decision"))
         #expect(result["decision"] == .string("approved"))
         #expect(result["prompt"] == .string("Approved"))
+    }
+
+    @Test
+    func authenticatedResolvedTicketStagesCompleteCorrespondenceInspection() throws {
+        let fingerprint = "sha256:\(String(repeating: "A", count: 43))"
+        let resolved: [String: JSONValue] = [
+            "schema": .string("cellscaffold.device-ingress.resolved-payload.v1"),
+            "ticketId": .string("ticket-correspondence-1"),
+            "triggerEvent": .string("haven.assistant-correspondence.access.requested"),
+            "requiredActionKey": .string(CorrespondenceApprovalInspection.actionKey),
+            "payload": .object([
+                "schema": .string(
+                    "cellscaffold.device-ingress.callback-payload.correspondence-approval.v1"),
+                "title": .string("Utsted adgangsbevis"),
+                "message": .string("Kontroller forespørselen."),
+                "approvalInspection": .object([
+                    "schema": .string(CorrespondenceApprovalInspection.schema),
+                    "accessRequestID": .string("access-request-1"),
+                    "displayName": .string("HAVEN-agent hos Vegar"),
+                    "entityRef": .string("entity:vegar"),
+                    "principalID": .string("vegar-local-agent"),
+                    "requesterDeviceID": .string("vegar-device-1"),
+                    "requesterIdentityUUID": .string("identity-vegar-1"),
+                    "publicKeyFingerprint": .string(fingerprint),
+                    "resourceRefs": .array([.string(CorrespondenceApprovalInspection.endpoint)]),
+                    "allowedPeerIDs": .array([.string("kjetil-vegar-codex")]),
+                    "allowedOperations": .array(
+                        CorrespondenceApprovalInspection.operations.sorted().map(JSONValue.string)
+                    ),
+                    "allowedPurposeRefs": .array(
+                        CorrespondenceApprovalInspection.purposeRefs.sorted().map(JSONValue.string)
+                    ),
+                    "requestExpiresAt": .string("2026-08-22T23:42:22.563Z"),
+                    "grantExpiresAt": .string("2026-09-14T23:42:22.564Z"),
+                    "executionAuthority": .bool(false)
+                ])
+            ])
+        ]
+
+        let action = try #require(NotificationCallbackClient.pendingDeviceAction(
+            participantId: "entity-pairwise:kjetil",
+            deviceId: "kjetil-iphone-1",
+            expectedTicketId: "ticket-correspondence-1",
+            resolvedTicket: resolved,
+            receivedAt: Date(timeIntervalSince1970: 1_780_000_000)
+        ))
+
+        #expect(action.ticketId == "ticket-correspondence-1")
+        #expect(action.requiredActionKey == CorrespondenceApprovalInspection.actionKey)
+        guard case let .object(inspection)? = action.payload["approvalInspection"] else {
+            Issue.record("Expected staged approval inspection")
+            return
+        }
+        #expect(inspection["publicKeyFingerprint"] == .string(fingerprint))
+
+        #expect(NotificationCallbackClient.pendingDeviceAction(
+            participantId: "entity-pairwise:kjetil",
+            deviceId: "kjetil-iphone-1",
+            expectedTicketId: "another-ticket",
+            resolvedTicket: resolved
+        ) == nil)
     }
 
     @Test
@@ -187,5 +389,144 @@ struct NotificationCallbackClientTests {
         #expect(payload?["ticketId"] == .string("json-ticket-1"))
         #expect(payload?["message"] == .string("Fallback JSON payload"))
         #expect(NotificationCallbackClient.notificationTicketID(from: userInfo) == "json-ticket-1")
+    }
+}
+
+private actor RecordingCallbackOperator: DeviceIngressCallbackOperating {
+    private var recordedOperations: [String] = []
+
+    func resolve(
+        participantID: String,
+        deviceID: String,
+        ticketID: String,
+        now: Date
+    ) -> [String: JSONValue] {
+        _ = now
+        recordedOperations.append(
+            "resolve:\(participantID):\(deviceID):\(ticketID)"
+        )
+        return ["operation": .string("resolve")]
+    }
+
+    func submit(
+        participantID: String,
+        deviceID: String,
+        ticketID: String,
+        result: [String: JSONValue],
+        now: Date
+    ) -> [String: JSONValue] {
+        _ = now
+        let decision: String
+        if case let .string(value)? = result["decision"] {
+            decision = value
+        } else {
+            decision = "missing"
+        }
+        recordedOperations.append(
+            "submit:\(participantID):\(deviceID):\(ticketID):\(decision)"
+        )
+        return ["operation": .string("submit")]
+    }
+
+    func operations() -> [String] { recordedOperations }
+}
+
+private actor CountingCallbackTransport: DeviceIngressCallbackTransport {
+    private var requests = 0
+
+    func fetchChallenge(
+        operation: DeviceIngressOperation,
+        subject: IdentityPublicKeyDescriptor
+    ) throws -> Data {
+        requests += 1
+        throw NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable
+    }
+
+    func submit(
+        operation: DeviceIngressOperation,
+        canonicalChallengeData: Data,
+        canonicalRequestData: Data,
+        protectedBody: Data
+    ) throws -> Data {
+        requests += 1
+        throw NotificationCallbackOperationError.deviceIngressV3CompositionUnavailable
+    }
+
+    func requestCount() -> Int { requests }
+}
+
+private final class CallbackFixtureURLProtocol: URLProtocol, @unchecked Sendable {
+    struct CapturedRequest: Sendable {
+        let path: String
+        let body: Data
+    }
+
+    typealias Handler = @Sendable (URLRequest) -> (status: Int, body: Data)
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var handler: Handler?
+    nonisolated(unsafe) private static var requests: [CapturedRequest] = []
+
+    static func install(_ handler: @escaping Handler) {
+        lock.withLock {
+            self.handler = handler
+            requests = []
+        }
+    }
+
+    static func reset() {
+        lock.withLock {
+            handler = nil
+            requests = []
+        }
+    }
+
+    static func capturedRequests() -> [CapturedRequest] {
+        lock.withLock { requests }
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url,
+              let handler = Self.lock.withLock({ Self.handler }) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        let body = Self.requestBody(request)
+        Self.lock.withLock {
+            Self.requests.append(CapturedRequest(path: url.path, body: body))
+        }
+        let result = handler(request)
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: result.status,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: result.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+
+    private static func requestBody(_ request: URLRequest) -> Data {
+        if let body = request.httpBody {
+            return body
+        }
+        guard let stream = request.httpBodyStream else {
+            return Data()
+        }
+        stream.open()
+        defer { stream.close() }
+        var body = Data()
+        var buffer = [UInt8](repeating: 0, count: 4_096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            body.append(buffer, count: count)
+        }
+        return body
     }
 }

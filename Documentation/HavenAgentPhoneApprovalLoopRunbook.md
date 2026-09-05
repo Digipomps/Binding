@@ -6,9 +6,9 @@ It is intentionally explicit about what is verified, what is inferred, and what 
 
 Related docs:
 
-- [../HavenAgentD/Docs/HavenAgentDMCPServerSurface.md](../HavenAgentD/Docs/HavenAgentDMCPServerSurface.md)
-- [../HavenAgentD/Docs/DeviceActionRelay.md](../HavenAgentD/Docs/DeviceActionRelay.md)
-- [../HavenAgentD/Docs/OperatorRunbook.md](../HavenAgentD/Docs/OperatorRunbook.md)
+- [HavenAgentD MCP server surface](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/HavenAgentDMCPServerSurface.md)
+- [HavenAgentD device action relay](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/DeviceActionRelay.md)
+- [HavenAgentD operator runbook](https://github.com/Digipomps/HavenAgentD/blob/main/Docs/OperatorRunbook.md)
 - [StagingResourceLocations.md](StagingResourceLocations.md)
 
 ## Goal
@@ -41,12 +41,12 @@ flowchart TD
 
 The flow currently spans these implementation points:
 
-- MCP adapter tools in `HavenAgentD/Sources/HavenAgentDMCP/HavenAgentMCPService.swift`
+- MCP adapter tools in `Digipomps/HavenAgentD: Sources/HavenAgentDMCP/HavenAgentMCPService.swift`
   - `agent.operator.request`
   - `agent.operator.wait_for_reply`
   - `agent.operator.request_and_wait`
-- relay request/reply plumbing in `HavenAgentD/Sources/HavenAgentRuntime/DeviceActionRelay.swift`
-- reply correlation and `requestId` propagation in `HavenAgentD/Sources/HavenAgentRuntime/AgentConversationFlowSubscriber.swift`
+- relay request/reply plumbing in `Digipomps/HavenAgentD: Sources/HavenAgentRuntime/DeviceActionRelay.swift`
+- reply correlation and `requestId` propagation in `Digipomps/HavenAgentD: Sources/HavenAgentRuntime/AgentConversationFlowSubscriber.swift`
 - iPhone-side reply posting in `Binding/AgentConversationClient.swift`
 - iPhone-side APNs registration and callback handling in:
   - `Binding/BindingAppNotifications.swift`
@@ -99,7 +99,7 @@ Interpretation:
 
 Related CellProtocolDocuments/CellScaffold work checked on 2026-05-14:
 
-- `CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md` documents `ContactEndpointCell` as the protocol-native contact surface for other entity endpoints.
+- `../../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md` documents `ContactEndpointCell` as the protocol-native contact surface for other entity endpoints.
 - `ContactEndpointCell` and `ContactRegistryCell` are implemented in CellScaffold.
 - `swift test --package-path ../CellScaffold --filter ContactEndpointCellTests` passed 13 tests.
 - `swift test --package-path ../CellScaffold --filter ContactRegistryCellTests` passed 5 tests.
@@ -306,7 +306,8 @@ with:
 The config validated with:
 
 ```bash
-HavenAgentD/.build/debug/haven-agentd validate-config \
+HAVEN_AGENTD_REPO="${HAVEN_AGENTD_REPO:-../HavenAgentD}"
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" validate-config \
   --config /tmp/haven-phone-smoke-config.json
 ```
 
@@ -436,7 +437,8 @@ jq '. + {
 Foreground run:
 
 ```bash
-HavenAgentD/.build/debug/haven-agentd run \
+HAVEN_AGENTD_REPO="${HAVEN_AGENTD_REPO:-../HavenAgentD}"
+"$HAVEN_AGENTD_REPO/.build/debug/haven-agentd" run \
   --config /tmp/haven-phone-smoke-config.json \
   --root /tmp/haven-phone-smoke
 ```

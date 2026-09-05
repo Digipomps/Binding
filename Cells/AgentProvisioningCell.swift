@@ -286,6 +286,18 @@ final class AgentProvisioningCell: GeneralCell {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
     }()
+    nonisolated private static let defaultAgentSourceRoot: URL = {
+        if let override = ProcessInfo.processInfo.environment["HAVEN_AGENTD_REPO"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           override.isEmpty == false {
+            return URL(fileURLWithPath: NSString(string: override).expandingTildeInPath, isDirectory: true)
+                .standardizedFileURL
+        }
+        return repositoryRoot
+            .deletingLastPathComponent()
+            .appendingPathComponent("HavenAgentD", isDirectory: true)
+            .standardizedFileURL
+    }()
     nonisolated private static var supportsLocalAgentRuntime: Bool {
 #if os(macOS)
         true
@@ -324,8 +336,8 @@ final class AgentProvisioningCell: GeneralCell {
     }
 
     nonisolated private static func makeDefaultState() -> MutableState {
-        let sourceRoot = repositoryRoot.path
-        let sproutPath = defaultSproutBinaryPath(sourceRoot: repositoryRoot)
+        let sourceRoot = defaultAgentSourceRoot.path
+        let sproutPath = defaultSproutBinaryPath(sourceRoot: defaultAgentSourceRoot)
         let defaultControlBridgeEndpoint = "ws://127.0.0.1:43110/bridgehead"
 
         return MutableState(
@@ -1132,12 +1144,12 @@ final class AgentProvisioningCell: GeneralCell {
 
         return AgentPaths(
             sourceRoot: sourceRoot,
-            packageDirectory: sourceRoot.appendingPathComponent("HavenAgentD", isDirectory: true),
+            packageDirectory: sourceRoot,
             stagingDirectory: stagingDirectory,
             stagedBinary: stagingDirectory.appendingPathComponent("haven-agentd"),
             stagedSproutBinary: stagedSproutBinary,
-            buildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/debug/haven-agentd"),
-            alternateBuildBinary: sourceRoot.appendingPathComponent("HavenAgentD/.build/arm64-apple-macosx/debug/haven-agentd"),
+            buildBinary: sourceRoot.appendingPathComponent(".build/debug/haven-agentd"),
+            alternateBuildBinary: sourceRoot.appendingPathComponent(".build/arm64-apple-macosx/debug/haven-agentd"),
             bundledBinary: bundledBinary,
             runtimeAccessDirectory: applicationSupportDirectory,
             applicationSupportDirectory: applicationSupportDirectory,

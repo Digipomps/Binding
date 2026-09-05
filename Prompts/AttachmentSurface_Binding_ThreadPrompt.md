@@ -1,6 +1,6 @@
 # Attachment Surface Thread Prompt (Binding)
 
-Use this prompt when implementing Binding-side rendering for the shared attachment surface contract defined in `CellProtocolDocuments/Prompts/AttachmentSurface_ThreadPrompt.md`.
+Use this prompt when implementing Binding-side rendering for the shared attachment surface contract defined in `../../CellProtocolDocuments/Prompts/AttachmentSurface_ThreadPrompt.md`.
 
 ## Goal
 

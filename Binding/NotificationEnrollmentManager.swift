@@ -77,6 +77,17 @@ nonisolated enum NotificationEnrollmentStateError: LocalizedError, Equatable {
     }
 }
 
+nonisolated enum NotificationEnrollmentPhase: String, Equatable, Sendable {
+    case termsRequired = "terms_required"
+    case pushPermissionRequired = "push_permission_required"
+    case apnsTokenPending = "apns_token_pending"
+    case completionRequired = "completion_required"
+    case completionStaged = "completion_staged"
+    case registering
+    case retryable
+    case statusReadbackRequired = "status_readback_required"
+}
+
 @MainActor
 final class NotificationEnrollmentManager: ObservableObject {
     static let shared = NotificationEnrollmentManager()
@@ -86,6 +97,9 @@ final class NotificationEnrollmentManager: ObservableObject {
     @Published private(set) var pushPermissionGranted: Bool = false
     @Published private(set) var lastRegistrationError: String?
     @Published private(set) var isDeviceRegistered: Bool = false
+    @Published private(set) var enrollmentPhase: NotificationEnrollmentPhase = .termsRequired
+    @Published private(set) var identityLinkPhase:
+        BindingDeviceIngressIdentityLinkPhase = .completionRequired
 
     private let defaults: UserDefaults
     private let evidenceInspectorFactory:
@@ -94,6 +108,16 @@ final class NotificationEnrollmentManager: ObservableObject {
     private let enrollmentEnabled: Bool
     private let authenticatedRuntimePreparer:
         @MainActor @Sendable () async throws -> Void
+    private let completionEnvelopeAvailabilityProvider:
+        @MainActor @Sendable () async -> DeviceIngressCompletionEnvelopeAvailability
+    private let buildProvenanceProvider:
+        @MainActor @Sendable () throws -> BindingBuildProvenance
+    private let deviceRegistrar:
+        @MainActor @Sendable (
+            Data,
+            NotificationTermsConsentEvidence,
+            BindingBuildProvenance
+        ) async throws -> DeviceIngressCompletedRegistration
 
     private let deviceIDKey = "binding.notifications.deviceId"
     private let termsVersionKey = "binding.notifications.termsVersion"
@@ -108,6 +132,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     private var deviceID: String?
     private var pendingAPNSToken: String?
     private var lastTokenRefreshRequestedAt: Date?
+    private var registrationAttemptInFlight = false
 
     private init(
         defaults: UserDefaults = .standard,
@@ -119,19 +144,48 @@ final class NotificationEnrollmentManager: ObservableObject {
             ProcessInfo.processInfo.environment["BINDING_NOTIFICATION_TERMS_VERSION"]
                 ?? "v1"
         },
-        appStoreCatalogGateEnabled: Bool =
-            BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled,
+        enrollmentEnabled: Bool =
+            BindingDeviceIngressRolloutPolicy.currentEnabled,
         authenticatedRuntimePreparer: @escaping
             @MainActor @Sendable () async throws -> Void = {
                 await BindingRuntimeBootstrap.ensureBaseline()
-                _ = try await DeviceIngressAuthenticatedVaultHandle.current()
+                _ = try await DeviceIngressAuthenticatedVaultHandle
+                    .prepareCurrentForExplicitEnrollment()
+        },
+        completionEnvelopeAvailabilityProvider: @escaping
+            @MainActor @Sendable () async -> DeviceIngressCompletionEnvelopeAvailability = {
+                await BindingDeviceIngressRegistrationComposition
+                    .completionEnvelopeAvailability()
+        },
+        buildProvenanceProvider: @escaping
+            @MainActor @Sendable () throws -> BindingBuildProvenance = {
+                try BindingBuildProvenance.current()
+        },
+        deviceRegistrar: @escaping
+            @MainActor @Sendable (
+                Data,
+                NotificationTermsConsentEvidence,
+                BindingBuildProvenance
+            ) async throws -> DeviceIngressCompletedRegistration = {
+                protectedBody,
+                consentEvidence,
+                buildProvenance in
+                try await BindingDeviceIngressRegistrationComposition.register(
+                    protectedBody: protectedBody,
+                    consentEvidence: consentEvidence,
+                    buildProvenance: buildProvenance
+                )
         }
     ) {
         self.defaults = defaults
         self.evidenceInspectorFactory = evidenceInspectorFactory
         self.termsVersionProvider = termsVersionProvider
-        enrollmentEnabled = appStoreCatalogGateEnabled == false
+        self.enrollmentEnabled = enrollmentEnabled
         self.authenticatedRuntimePreparer = authenticatedRuntimePreparer
+        self.completionEnvelopeAvailabilityProvider =
+            completionEnvelopeAvailabilityProvider
+        self.buildProvenanceProvider = buildProvenanceProvider
+        self.deviceRegistrar = deviceRegistrar
         guard enrollmentEnabled else { return }
         bootstrapIfNeeded()
     }
@@ -141,16 +195,44 @@ final class NotificationEnrollmentManager: ObservableObject {
         defaults: UserDefaults,
         evidenceInspector: any DeviceIngressRegistrationEvidenceStoring,
         requiredTermsVersion: String = "v1",
+        enrollmentEnabled: Bool = true,
         authenticatedRuntimePreparer: @escaping
-            @MainActor @Sendable () async throws -> Void = {}
+            @MainActor @Sendable () async throws -> Void = {},
+        completionEnvelopeAvailabilityProvider: @escaping
+            @MainActor @Sendable () async -> DeviceIngressCompletionEnvelopeAvailability = {
+                .unavailable
+        },
+        buildProvenanceProvider: @escaping
+            @MainActor @Sendable () throws -> BindingBuildProvenance = {
+                try BindingBuildProvenance.current()
+        },
+        deviceRegistrar: @escaping
+            @MainActor @Sendable (
+                Data,
+                NotificationTermsConsentEvidence,
+                BindingBuildProvenance
+            ) async throws -> DeviceIngressCompletedRegistration = {
+                _, _, _ in
+                throw DeviceIngressRegistrationClientError
+                    .operationalCompositionUnavailable
+            }
     ) -> NotificationEnrollmentManager {
         NotificationEnrollmentManager(
             defaults: defaults,
             evidenceInspectorFactory: { evidenceInspector },
             termsVersionProvider: { requiredTermsVersion },
-            appStoreCatalogGateEnabled: false,
-            authenticatedRuntimePreparer: authenticatedRuntimePreparer
+            enrollmentEnabled: enrollmentEnabled,
+            authenticatedRuntimePreparer: authenticatedRuntimePreparer,
+            completionEnvelopeAvailabilityProvider:
+                completionEnvelopeAvailabilityProvider,
+            buildProvenanceProvider: buildProvenanceProvider,
+            deviceRegistrar: deviceRegistrar
         )
+    }
+
+    func setPushPermissionGrantedForTesting(_ granted: Bool) {
+        pushPermissionGranted = granted
+        updatePhaseForLocalPrerequisites()
     }
     #endif
 
@@ -197,6 +279,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         defaults.removeObject(forKey: currentAPNSTokenKey)
         defaults.removeObject(forKey: registrationSucceededAtKey)
         isDeviceRegistered = false
+        updatePhaseForLocalPrerequisites()
 
         Task { @MainActor in
             #if os(iOS)
@@ -220,6 +303,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func acceptTermsAndEnableNotifications() async {
+        guard enrollmentEnabled else { return }
         lastRegistrationError = nil
         do {
             // This is an explicit user action, so it may open CellApple's
@@ -282,6 +366,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func retryDeviceRegistration() async {
+        guard enrollmentEnabled else { return }
         lastRegistrationError = nil
         do {
             try await authenticatedRuntimePreparer()
@@ -305,8 +390,28 @@ final class NotificationEnrollmentManager: ObservableObject {
         await registerCurrentDeviceIfReady()
     }
 
+    /// Called only after the Identity Link surface has verified and committed
+    /// the exact completion envelope, then staged its canonical bytes in the
+    /// process-memory one-shot provider. This is the transition that makes one
+    /// DeviceIngress registration attempt eligible; ordinary app activation
+    /// never manufactures or substitutes the envelope.
+    func identityLinkCompletionDidStage() async {
+        guard enrollmentEnabled else { return }
+        lastRegistrationError = nil
+        enrollmentPhase = .completionStaged
+        identityLinkPhase = .completionStaged
+        #if os(iOS)
+        await refreshPushAuthorizationStatus()
+        if pushPermissionGranted {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+        #endif
+        await registerCurrentDeviceIfReady()
+    }
+
     #if os(iOS)
     func refreshDeviceRegistrationOnActivation() async {
+        guard enrollmentEnabled else { return }
         if participantID == nil || deviceID == nil {
             bootstrapIfNeeded()
         }
@@ -340,6 +445,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     /// API fails closed and preserves consent state.
     @discardableResult
     func declineTermsBeforeRegistration() async -> Bool {
+        guard enrollmentEnabled else { return false }
         lastRegistrationError = nil
         do {
             let evidenceInspector = try evidenceInspectorFactory()
@@ -356,6 +462,7 @@ final class NotificationEnrollmentManager: ObservableObject {
                     acceptedEvidence: nil
                 ))
                 isDeviceRegistered = false
+                enrollmentPhase = .termsRequired
             }
             return true
         } catch {
@@ -374,6 +481,7 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func updateAPNSToken(_ token: String) async {
+        guard enrollmentEnabled else { return }
         let normalizedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedToken.isEmpty else { return }
         pendingAPNSToken = normalizedToken
@@ -383,12 +491,15 @@ final class NotificationEnrollmentManager: ObservableObject {
     }
 
     func recordAPNSRegistrationFailure(_ error: Error) {
+        guard enrollmentEnabled else { return }
         pushPermissionGranted = false
         isDeviceRegistered = false
+        enrollmentPhase = .pushPermissionRequired
         lastRegistrationError = "APNS registration failed: \(error.localizedDescription)"
     }
 
     func registerCurrentDeviceIfReady() async {
+        guard enrollmentEnabled else { return }
         pendingAPNSToken = Self.normalizedAPNSToken(pendingAPNSToken)
         let consentSnapshot: NotificationTermsConsentSnapshot
         do {
@@ -405,18 +516,56 @@ final class NotificationEnrollmentManager: ObservableObject {
         }
         guard consentSnapshot.state == .accepted,
               let consent = consentSnapshot.acceptedEvidence,
-              consent.termsVersion == termsVersion(),
-              let participantID,
-              let deviceID,
-              let token = pendingAPNSToken,
-              !token.isEmpty
-        else {
+              consent.termsVersion == termsVersion() else {
             isDeviceRegistered = false
+            enrollmentPhase = .termsRequired
             return
         }
+        guard pushPermissionGranted else {
+            isDeviceRegistered = false
+            enrollmentPhase = .pushPermissionRequired
+            return
+        }
+        guard let participantID,
+              let deviceID,
+              let token = pendingAPNSToken,
+              !token.isEmpty else {
+            isDeviceRegistered = false
+            enrollmentPhase = .apnsTokenPending
+            return
+        }
+        guard registrationAttemptInFlight == false else {
+            enrollmentPhase = .registering
+            return
+        }
+        registrationAttemptInFlight = true
+        defer { registrationAttemptInFlight = false }
 
+        switch await completionEnvelopeAvailabilityProvider() {
+        case .unavailable:
+            isDeviceRegistered = false
+            enrollmentPhase = .completionRequired
+            identityLinkPhase = .completionRequired
+            if lastRegistrationError?.contains(
+                "one-shot DeviceIngress identity-link completion envelope"
+            ) == true {
+                lastRegistrationError = nil
+            }
+            return
+        case .leased:
+            isDeviceRegistered = false
+            enrollmentPhase = .registering
+            identityLinkPhase = .registering
+            return
+        case .staged:
+            enrollmentPhase = .completionStaged
+            identityLinkPhase = .completionStaged
+        }
+
+        enrollmentPhase = .registering
+        identityLinkPhase = .registering
         do {
-            let buildProvenance = try BindingBuildProvenance.current()
+            let buildProvenance = try buildProvenanceProvider()
             let payload = Self.registrationPayload(
                 participantID: participantID,
                 deviceID: deviceID,
@@ -429,18 +578,19 @@ final class NotificationEnrollmentManager: ObservableObject {
                 buildProvenance: buildProvenance
             )
             let protectedBody = try Self.registrationProtectedBody(payload)
-            let receipt = try await BindingDeviceIngressRegistrationComposition.register(
-                protectedBody: protectedBody,
-                consentEvidence: consent,
-                buildProvenance: buildProvenance
+            let completed = try await deviceRegistrar(
+                protectedBody,
+                consent,
+                buildProvenance
             )
+            let receipt = completed.receipt
             guard receipt.state == .activeConsented else {
                 throw DeviceIngressRegistrationClientError.registrationWasNotActiveAndConsented
             }
-            self.participantID = receipt.deviceIdentityUUID
-            self.deviceID = receipt.deviceIdentityUUID
-            defaults.set(receipt.deviceIdentityUUID, forKey: participantIDKey)
-            defaults.set(receipt.deviceIdentityUUID, forKey: deviceIDKey)
+            self.participantID = completed.participantID
+            self.deviceID = completed.deviceID
+            defaults.set(completed.participantID, forKey: participantIDKey)
+            defaults.set(completed.deviceID, forKey: deviceIDKey)
             configureRemoteBridgePresenceProvider()
             // A register mutation receipt is durable historical evidence, not
             // current status. The register-only v3 candidate has no canonical
@@ -448,11 +598,33 @@ final class NotificationEnrollmentManager: ObservableObject {
             // registration even immediately after this response.
             pendingAPNSToken = nil
             isDeviceRegistered = false
+            identityLinkPhase = .receiptVerified
+            enrollmentPhase = .statusReadbackRequired
+            identityLinkPhase = .statusReadbackRequired
             lastRegistrationError = "Registration evidence was verified, but a fresh signed status read-back is required before this device can be shown as registered."
         } catch {
             lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
             isDeviceRegistered = false
+            if let registrationError = error as? DeviceIngressRegistrationClientError,
+               registrationError == .completionEnvelopeUnavailable
+                || registrationError == .invalidCompletionEnvelope {
+                enrollmentPhase = .completionRequired
+                identityLinkPhase = .completionRequired
+            } else {
+                enrollmentPhase = .retryable
+                identityLinkPhase = .retryable
+            }
             print("HAVEN notification device registration failed: \(error)")
+        }
+    }
+
+    private func updatePhaseForLocalPrerequisites() {
+        if needsTermsAcceptance {
+            enrollmentPhase = .termsRequired
+        } else if pushPermissionGranted == false {
+            enrollmentPhase = .pushPermissionRequired
+        } else if pendingAPNSToken == nil {
+            enrollmentPhase = .apnsTokenPending
         }
     }
 

@@ -583,7 +583,9 @@ enum BindingRuntimeBootstrap {
     }
 
     @MainActor
-    static func ensureBaseline() async {
+    static func ensureBaseline(
+        authenticatedIdentityVault: (any IdentityVaultProtocol)? = nil
+    ) async {
         if shouldUseLocalRuntimeOnlyForVerifier() {
             await ensureInfrastructureBaseline()
             return
@@ -591,7 +593,7 @@ enum BindingRuntimeBootstrap {
 
         await ensureInfrastructureBaseline()
 
-        let identityVault = IdentityVault.shared
+        let identityVault: any IdentityVaultProtocol = authenticatedIdentityVault ?? IdentityVault.shared
         _ = await identityVault.initialize()
         CellBase.defaultIdentityVault = identityVault
         await CellResolver.sharedInstance.refreshNamedResolveOwnersFromCurrentVault()
@@ -707,7 +709,7 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
             await BindingLaunchWarmup.preloadLocalRuntime()
         }
         Task { @MainActor in
-            if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            if BindingDeviceIngressRolloutPolicy.currentEnabled {
                 NotificationEnrollmentManager.shared.bootstrapIfNeeded()
             }
             PendingActionInboxViewModel.shared.reloadPersistedActions()
@@ -718,7 +720,7 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
     func applicationDidBecomeActive(_ application: UIApplication) {
         Task { @MainActor in
             PendingActionInboxViewModel.shared.reloadPersistedActions()
-            if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            if BindingDeviceIngressRolloutPolicy.currentEnabled {
                 await NotificationEnrollmentManager.shared.refreshDeviceRegistrationOnActivation()
             }
         }
@@ -726,7 +728,7 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
 
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return }
+        guard BindingDeviceIngressRolloutPolicy.currentEnabled else { return }
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         Task { @MainActor in
             await NotificationEnrollmentManager.shared.updateAPNSToken(token)
@@ -735,7 +737,7 @@ final class BindingAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificat
 
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return }
+        guard BindingDeviceIngressRolloutPolicy.currentEnabled else { return }
         Task { @MainActor in
             NotificationEnrollmentManager.shared.recordAPNSRegistrationFailure(error)
         }

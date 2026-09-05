@@ -301,6 +301,17 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String { rawValue }
 
+    private var releaseConfigurationName: String? {
+        switch self {
+        case .inviteChat:
+            return BindingPersonalCopilotV1Policy.arendalsukaConfigurationName
+        case .vaultIdeas:
+            return rawValue
+        default:
+            return nil
+        }
+    }
+
     var phoneTab: BindingPersonalCopilotPhoneTab {
         switch self {
         case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
@@ -388,10 +399,24 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     }
 
     static var visibleDestinations: [BindingPersonalCopilotDestination] {
-        guard BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled else { return allCases }
+        visibleDestinations(
+            appStoreCatalogGateEnabled:
+                BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled
+        )
+    }
+
+    static func visibleDestinations(
+        appStoreCatalogGateEnabled: Bool
+    ) -> [BindingPersonalCopilotDestination] {
+        guard appStoreCatalogGateEnabled else { return allCases }
         return allCases.filter { destination in
-            BindingPersonalCopilotV1Policy.releaseAllowedConfigurationNames.contains(
-                destination.configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard let releaseConfigurationName = destination.releaseConfigurationName else {
+                return false
+            }
+            return BindingPersonalCopilotV1Policy.releaseAllowedConfigurationNames.contains(
+                releaseConfigurationName
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
             )
         }
     }

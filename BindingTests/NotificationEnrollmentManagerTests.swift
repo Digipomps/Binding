@@ -7,6 +7,38 @@ import Foundation
 @Suite(.serialized)
 struct NotificationEnrollmentManagerTests {
 
+    @Test func disabledRolloutCannotPrepareIdentityOrRetainAPNSToken() async throws {
+        let suiteName = "NotificationEnrollmentManagerTests.disabled.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let evidence = EnrollmentEvidenceStore(containsEvidence: false)
+        var authenticatedRuntimePreparationCount = 0
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: evidence,
+            enrollmentEnabled: false,
+            authenticatedRuntimePreparer: {
+                authenticatedRuntimePreparationCount += 1
+            }
+        )
+
+        await manager.acceptTermsAndEnableNotifications()
+        await manager.updateAPNSToken("must-not-be-retained")
+        await manager.registerCurrentDeviceIfReady()
+
+        #expect(authenticatedRuntimePreparationCount == 0)
+        #expect(manager.currentParticipantID() == nil)
+        #expect(manager.currentDeviceID() == nil)
+        #expect(manager.termsConsentState == .unknown)
+        #expect(manager.needsTermsAcceptance)
+        #expect(manager.lastRegistrationError == nil)
+        #expect(try evidence.termsConsentSnapshot().state == .unknown)
+        #expect(defaults.object(forKey: "binding.notifications.participantId") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.deviceId") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.termsVersion") == nil)
+        #expect(defaults.object(forKey: "binding.notifications.termsAcceptedAt") == nil)
+    }
+
     @Test func registrationPayloadCarriesWorkflowSubscriptions() throws {
         let consent = try #require(NotificationTermsConsentEvidence(
             termsVersion: "v1",
@@ -103,6 +135,108 @@ struct NotificationEnrollmentManagerTests {
         #expect(NotificationEnrollmentManager.normalizedAPNSToken(" pending-token ") == "pending-token")
         #expect(NotificationEnrollmentManager.normalizedAPNSToken(" ") == nil)
         #expect(NotificationEnrollmentManager.normalizedAPNSToken(nil) == nil)
+    }
+
+    @Test func missingCompletionIsAHandshakeStateAndNeverCallsRegistrar() async throws {
+        let suiteName = "Binding.NotificationEnrollmentManagerTests.handshake-missing.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let evidence = EnrollmentEvidenceStore(containsEvidence: false)
+        try evidence.persistTermsAcceptance(try #require(
+            NotificationTermsConsentEvidence(
+                termsVersion: "v1",
+                acceptedAt: 1_784_454_400,
+                acceptanceID: "handshake-missing"
+            )
+        ))
+        var registrarCalls = 0
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: evidence,
+            completionEnvelopeAvailabilityProvider: { .unavailable },
+            deviceRegistrar: { _, _, _ in
+                registrarCalls += 1
+                throw DeviceIngressRegistrationClientError
+                    .operationalCompositionUnavailable
+            }
+        )
+        await Task.yield()
+        manager.setPushPermissionGrantedForTesting(true)
+
+        await manager.updateAPNSToken("test-apns-token")
+
+        #expect(registrarCalls == 0)
+        #expect(manager.enrollmentPhase == .completionRequired)
+        #expect(manager.identityLinkPhase == .completionRequired)
+        #expect(manager.lastRegistrationError == nil)
+    }
+
+    @Test func stagedCompletionPermitsAtMostOneConcurrentRegistrationAttempt() async throws {
+        let suiteName = "Binding.NotificationEnrollmentManagerTests.handshake-staged.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let evidence = EnrollmentEvidenceStore(containsEvidence: false)
+        try evidence.persistTermsAcceptance(try #require(
+            NotificationTermsConsentEvidence(
+                termsVersion: "v1",
+                acceptedAt: 1_784_454_400,
+                acceptanceID: "handshake-staged"
+            )
+        ))
+        var registrarCalls = 0
+        var availabilityChecks = 0
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: evidence,
+            completionEnvelopeAvailabilityProvider: {
+                availabilityChecks += 1
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                return .staged
+            },
+            buildProvenanceProvider: { try makeBuildProvenance() },
+            deviceRegistrar: { _, _, _ in
+                registrarCalls += 1
+                try await Task.sleep(nanoseconds: 100_000_000)
+                throw DeviceIngressRegistrationClientError
+                    .operationalCompositionUnavailable
+            }
+        )
+        await Task.yield()
+        manager.setPushPermissionGrantedForTesting(true)
+
+        async let tokenUpdate: Void = manager.updateAPNSToken("test-apns-token")
+        async let overlappingAttempt: Void = manager.registerCurrentDeviceIfReady()
+        _ = await (tokenUpdate, overlappingAttempt)
+
+        #expect(registrarCalls == 1)
+        #expect(availabilityChecks == 1)
+        #expect(manager.enrollmentPhase == .retryable)
+        #expect(manager.identityLinkPhase == .retryable)
+    }
+
+    @Test func handshakeContractUsesTheCellScaffoldWireValues() {
+        #expect(
+            DeviceIngressIdentityLinkHandshakeContract.schema
+                == "haven.device-ingress.identity-link-handshake.v1"
+        )
+        #expect(DeviceIngressIdentityLinkHandshakeContract.purpose == "link_identity")
+        #expect(
+            DeviceIngressIdentityLinkHandshakeContract.requestedDomains
+                == ["domain:device:notification-callback"]
+        )
+        #expect(
+            DeviceIngressIdentityLinkHandshakeContract.requestedIdentityContexts
+                == ["ios", "device-ingress"]
+        )
+        #expect(
+            DeviceIngressIdentityLinkHandshakeContract.requestedScopes
+                == ["device-ingress.register"]
+        )
+        #expect(
+            DeviceIngressIdentityLinkHandshakeContract.origin(
+                for: "staging.haven.digipomps.org"
+            ) == "https://staging.haven.digipomps.org"
+        )
     }
 
     @Test func declinedTermsRemainClosedAndCannotReachRegistrationComposition() async throws {

@@ -7,9 +7,9 @@ Primær kilde: CellScaffold
 `Documentation/PersonalCopilotV1_ChatAssistant.md` og
 `PersonalCopilotConfigurationFactory.chatHubSkeleton()`.
 
-Relatert protokollkilde: `../CellProtocolDocuments/Book/19_Chat_Workbench_Central_Interface.md`
-og `../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md`. Den lokale
-repoen heter `CellProtocolDocuments`; jeg fant ikke et separat
+Relatert protokollkilde: `../../CellProtocolDocuments/Book/19_Chat_Workbench_Central_Interface.md`
+og `../../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md`. Søskenrepoet
+heter `CellProtocolDocuments`; jeg fant ikke et separat
 `CellProtocolDocumentation`-repo under `HAVEN`.
 
 ## Contract

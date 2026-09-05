@@ -32,6 +32,40 @@ final class BindingUITests: XCTestCase {
     }
 
     @MainActor
+    func testCorrespondenceApprovalRequiresVisibleIdentityComparison() throws {
+        let app = XCUIApplication()
+        let fingerprint = "sha256:\(String(repeating: "A", count: 43))"
+        app.launchArguments.append("--binding-correspondence-approval-ui-test")
+        app.launchEnvironment["BINDING_VERIFIER_IDENTITY_MODE"] = "local"
+        app.launch()
+
+        let approval = app.buttons["correspondence-approval-approve"]
+        XCTAssertTrue(
+            approval.waitForExistence(timeout: 20),
+            "Korrespondanse-godkjenningen ble ikke rendret innen 20 sekunder"
+        )
+        XCTAssertFalse(approval.isEnabled, "Utstedelsesknappen var åpen før identitetskontroll")
+        XCTAssertTrue(app.staticTexts["entity:vegar"].exists)
+        XCTAssertTrue(app.staticTexts["vegar-device-ui"].exists)
+        XCTAssertTrue(app.staticTexts["identity-vegar-ui"].exists)
+        XCTAssertTrue(app.staticTexts[fingerprint].exists)
+
+        let confirmation = app.checkBoxes[
+            "correspondence-approval-identity-confirmation"
+        ]
+        XCTAssertTrue(confirmation.exists, "Sammenligningsbekreftelsen mangler")
+        XCTAssertTrue(confirmation.isEnabled, "Komplett kontrollgrunnlag ble avvist")
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Correspondence approval identity inspection"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        confirmation.click()
+        XCTAssertTrue(approval.isEnabled, "Utstedelsesknappen forble sperret etter bekreftelse")
+    }
+
+    @MainActor
     func testButterpopStudioLaunchesFromHAVEN() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CELL_SCAFFOLD_PUBLIC_BASE_URL"] = "http://127.0.0.1:9097"
