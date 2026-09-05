@@ -426,6 +426,62 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n\n"))
     }
 
+    /// A surface may not hide its own ways in.
+    ///
+    /// This is the check that was missing when the Relations workbench
+    /// shipped: every root-level section was gated on `relations.state…`,
+    /// the renderer passes no value at root, so every gate evaluated false
+    /// and the surface rendered a title over nothing. Every other test was
+    /// green, because every other test reads through `porthole.get` — the
+    /// path the renderer does not use for this decision.
+    func testNoLocalSurfaceHidesItsOwnWaysIn() async throws {
+        // The corpus is what the owner can actually open, not what the
+        // verification helper happens to offer. Those were two different
+        // lists, and Relations was only ever in the second one — which is a
+        // large part of why nothing pointed at it for two weeks.
+        var corpus: [(name: String, configuration: CellConfiguration)] = []
+        for entry in await ConfigurationCatalogCell.offeredCatalogConfigurationsForVerification()
+        where !Self.isRemoteEndpoint(entry.endpoint) {
+            corpus.append((entry.name, entry.configuration))
+        }
+        for configuration in ConfigurationCatalogCell.personalCopilotV1MenuConfigurations() {
+            corpus.append((configuration.name, configuration))
+        }
+        for destination in BindingPersonalCopilotDestination.allCases {
+            corpus.append((destination.title, destination.configuration))
+        }
+        var seenNames = Set<String>()
+        corpus = corpus.filter { seenNames.insert($0.name).inserted }
+        XCTAssertGreaterThan(corpus.count, 15, "The audited corpus is smaller than the app's own menu.")
+
+        var report: [String] = []
+        var deadSurfaces = 0
+        var auditedWithSkeleton = 0
+
+        for entry in corpus.sorted(by: { $0.name < $1.name }) {
+            guard let skeleton = entry.configuration.skeleton else { continue }
+            auditedWithSkeleton += 1
+            let findings = SkeletonReachabilityAudit.audit(skeleton)
+            guard !findings.isEmpty else { continue }
+            deadSurfaces += 1
+            let reachable = SkeletonReachabilityAudit.reachableActionKeypaths(skeleton)
+            let lost = Set(findings.flatMap(\.lostActionKeypaths)).subtracting(reachable).sorted()
+            report.append("\(entry.name): \(findings.count) unreachable element(s)")
+            for finding in findings {
+                report.append("    [\(finding.kind.rawValue)] \(finding.path) — \(finding.detail)")
+            }
+            if !lost.isEmpty {
+                report.append("    the owner cannot reach: \(lost.joined(separator: ", "))")
+            }
+        }
+
+        print("Reachability audit: \(auditedWithSkeleton) surfaces with a skeleton, \(deadSurfaces) with unreachable elements.")
+        XCTAssertTrue(
+            report.isEmpty,
+            "\(deadSurfaces) of \(auditedWithSkeleton) surfaces hide part of themselves:\n" + report.joined(separator: "\n")
+        )
+    }
+
     /// A `cell://host/...` endpoint points at someone else's scaffold. A bare
     /// `cell:///...` is local and always has to work.
     private static func isRemoteEndpoint(_ endpoint: String) -> Bool {
