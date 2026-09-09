@@ -74,6 +74,11 @@ struct RootView: View {
         }
 #if os(iOS)
         .onOpenURL { url in
+            // En lenkebillett (haven://identity-link?t=…) går rett til den native flyten,
+            // ikke gjennom flate-broen: den er ikke en CellConfiguration.
+            if IdentityLinkFlowPresenter.shared.handle(url: url) {
+                return
+            }
             BindingIncomingURLBridge.submit(
                 url: url,
                 targetSceneID: incomingURLSceneID
@@ -101,11 +106,21 @@ struct RootView: View {
             }
             incomingURLDeliveryFailed = true
         }
+        .sheet(isPresented: identityLinkPresented) {
+            IdentityLinkFlowView()
+        }
         .alert("Kunne ikke åpne lenken", isPresented: $incomingURLDeliveryFailed) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("HAVEN var opptatt med andre lenker. Prøv igjen når den pågående åpningen er ferdig.")
         }
+    }
+
+    private var identityLinkPresented: Binding<Bool> {
+        Binding(
+            get: { IdentityLinkFlowPresenter.shared.isPresented },
+            set: { presented in if !presented { IdentityLinkFlowPresenter.shared.dismiss() } }
+        )
     }
 
     nonisolated static func matchesDeliveryFailureTarget(
