@@ -9361,11 +9361,8 @@ struct BindingTests {
     }
 
     private func skeletonStyleRoles(in element: SkeletonElement, depth: Int = 0) -> [String] {
-        guard depth < 64 else {
-            return []
-        }
-
         var roles: [String] = []
+        var pending: [(SkeletonElement, Int)] = [(element, depth)]
 
         func append(_ modifiers: SkeletonModifiers?) {
             guard let role = modifiers?.styleRole?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -9375,82 +9372,82 @@ struct BindingTests {
             roles.append(role)
         }
 
-        func child(_ element: SkeletonElement) -> [String] {
-            skeletonStyleRoles(in: element, depth: depth + 1)
+        while let (element, depth) = pending.popLast() {
+            guard depth < 64 else { continue }
+            var children: [SkeletonElement] = []
+            switch element {
+            case .Text(let text):
+                append(text.modifiers)
+            case .AttachmentField(let attachmentField):
+                append(attachmentField.modifiers)
+            case .FileUpload(let fileUpload):
+                append(fileUpload.modifiers)
+            case .TextField(let textField):
+                append(textField.modifiers)
+            case .TextArea(let textArea):
+                append(textArea.modifiers)
+            case .Image(let image):
+                append(image.modifiers)
+            case .Spacer(let spacer):
+                append(spacer.modifiers)
+            case .VStack(let stack):
+                append(stack.modifiers)
+                stack.elements.forEach { children.append($0) }
+            case .HStack(let stack):
+                append(stack.modifiers)
+                stack.elements.forEach { children.append($0) }
+            case .ZStack(let stack):
+                append(stack.modifiers)
+                stack.elements.forEach { children.append($0) }
+            case .ScrollView(let scroll):
+                append(scroll.modifiers)
+                scroll.elements.forEach { children.append($0) }
+            case .Section(let section):
+                append(section.modifiers)
+                if let header = section.header {
+                    children.append(header)
+                }
+                section.content.forEach { children.append($0) }
+                if let footer = section.footer {
+                    children.append(footer)
+                }
+            case .List(let list):
+                append(list.modifiers)
+            case .Reference(let reference):
+                append(reference.modifiers)
+            case .Grid(let grid):
+                append(grid.modifiers)
+                if let itemSkeleton = grid.itemSkeleton {
+                    children.append(itemSkeleton)
+                }
+                grid.elements.forEach { children.append($0) }
+            case .Button(let button):
+                append(button.modifiers)
+            case .Divider(let divider):
+                append(divider.modifiers)
+            case .Toggle(let toggle):
+                append(toggle.modifiers)
+            case .Picker(let picker):
+                append(picker.modifiers)
+            case .Visualization(let visualization):
+                append(visualization.modifiers)
+            case .Unsupported(let unsupported):
+                append(unsupported.modifiers)
+            case .Object(let object):
+                append(object.modifiers)
+                object.elements.values.forEach { children.append($0) }
+            case .Tabs(let tabs):
+                append(tabs.modifiers)
+                tabs.panels.forEach { panel in
+                    append(panel.modifiers)
+                    panel.content.forEach { children.append($0) }
+                }
+            case .NavigationBar(let navigationBar):
+                append(navigationBar.modifiers)
+                navigationBar.items.forEach { append($0.modifiers) }
+            }
+            pending.append(contentsOf: children.reversed().map { ($0, depth + 1) })
         }
-
-        switch element {
-        case .Text(let text):
-            append(text.modifiers)
-        case .AttachmentField(let attachmentField):
-            append(attachmentField.modifiers)
-        case .FileUpload(let fileUpload):
-            append(fileUpload.modifiers)
-        case .TextField(let textField):
-            append(textField.modifiers)
-        case .TextArea(let textArea):
-            append(textArea.modifiers)
-        case .Image(let image):
-            append(image.modifiers)
-        case .Spacer(let spacer):
-            append(spacer.modifiers)
-        case .VStack(let stack):
-            append(stack.modifiers)
-            stack.elements.forEach { roles.append(contentsOf: child($0)) }
-        case .HStack(let stack):
-            append(stack.modifiers)
-            stack.elements.forEach { roles.append(contentsOf: child($0)) }
-        case .ZStack(let stack):
-            append(stack.modifiers)
-            stack.elements.forEach { roles.append(contentsOf: child($0)) }
-        case .ScrollView(let scroll):
-            append(scroll.modifiers)
-            scroll.elements.forEach { roles.append(contentsOf: child($0)) }
-        case .Section(let section):
-            append(section.modifiers)
-            if let header = section.header {
-                roles.append(contentsOf: child(header))
-            }
-            section.content.forEach { roles.append(contentsOf: child($0)) }
-            if let footer = section.footer {
-                roles.append(contentsOf: child(footer))
-            }
-        case .List(let list):
-            append(list.modifiers)
-        case .Reference(let reference):
-            append(reference.modifiers)
-        case .Grid(let grid):
-            append(grid.modifiers)
-            if let itemSkeleton = grid.itemSkeleton {
-                roles.append(contentsOf: child(itemSkeleton))
-            }
-            grid.elements.forEach { roles.append(contentsOf: child($0)) }
-        case .Button(let button):
-            append(button.modifiers)
-        case .Divider(let divider):
-            append(divider.modifiers)
-        case .Toggle(let toggle):
-            append(toggle.modifiers)
-        case .Picker(let picker):
-            append(picker.modifiers)
-        case .Visualization(let visualization):
-            append(visualization.modifiers)
-        case .Unsupported(let unsupported):
-            append(unsupported.modifiers)
-        case .Object(let object):
-            append(object.modifiers)
-            object.elements.values.forEach { roles.append(contentsOf: child($0)) }
-        case .Tabs(let tabs):
-            append(tabs.modifiers)
-            tabs.panels.forEach { panel in
-                append(panel.modifiers)
-                panel.content.forEach { roles.append(contentsOf: child($0)) }
-            }
-        case .NavigationBar(let navigationBar):
-            append(navigationBar.modifiers)
-            navigationBar.items.forEach { append($0.modifiers) }
-        }
-
         return roles
     }
 
