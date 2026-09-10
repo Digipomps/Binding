@@ -540,6 +540,10 @@ final class BindingRuntimeBootstrapXCTest: XCTestCase {
 
     @MainActor
     func testCleanLocalRegistrationIncludesEntityScanner() async throws {
+        // App-host discovery can already have started the shared registration
+        // task. Drain it before resetting the resolver, so an older task cannot
+        // finish halfway through the clean-registration fixture.
+        await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
         let previousVault = CellBase.defaultIdentityVault
         let previousResolver = CellBase.defaultCellResolver
         let previousTypedUtility = CellBase.typedCellUtility
