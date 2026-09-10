@@ -33,7 +33,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Digipomps/CellProtocol.git",
       "state" : {
-        "revision" : "ced03d403704f206dcdf83567989959812e49164"
+        "revision" : "e03923cb2f1d5a339eaf62585ddc9dddf7750cec"
       }
     },
     {
