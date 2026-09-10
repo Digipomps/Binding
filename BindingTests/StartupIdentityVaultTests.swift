@@ -76,4 +76,55 @@ import CellBase
         #expect(BindingStartupIdentityVault.shouldPersistAcrossLaunches(
             environment: [:], launchArguments: []))
     }
+
+    @Test func anUnreadableStoreDoesNotCreateAReplacementIdentity() async {
+        let store = FailingStartupIdentityStore(failReads: true)
+        let vault = BindingStartupIdentityVault(durable: true, store: store)
+        #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+        var offered = Identity()
+        await vault.addIdentity(identity: &offered, for: "private")
+        #expect(!(await vault.identityExistInVault(offered)))
+        #expect(store.writeCount == 0)
+    }
+
+    @Test func aFailedWriteDoesNotAdvertiseADurableIdentity() async {
+        let store = FailingStartupIdentityStore(failReads: false)
+        let vault = BindingStartupIdentityVault(durable: true, store: store)
+        #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+        #expect(await vault.identity(for: "private", makeNewIfNotFound: false) == nil)
+        #expect(store.writeCount == 1)
+    }
+
+    @Test func aCorruptRecordIsPreservedWithoutMintingNewKeys() async {
+        let store = BindingInMemoryStartupIdentityStore()
+        let corrupt = Data("invalid stored identity".utf8)
+        store.write(account: "private", data: corrupt)
+        let vault = BindingStartupIdentityVault(durable: true, store: store)
+        #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+        #expect(store.read(account: "private") == corrupt)
+    }
+}
+
+private final class FailingStartupIdentityStore: BindingStartupIdentityStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var writes = 0
+    let failReads: Bool
+
+    init(failReads: Bool) { self.failReads = failReads }
+
+    var writeCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return writes
+    }
+
+    func read(account: String) throws -> Data? {
+        if failReads { throw BindingStartupIdentityStoreError.invalidData }
+        return nil
+    }
+
+    func write(account: String, data: Data) throws {
+        lock.lock(); defer { lock.unlock() }
+        writes += 1
+        throw BindingStartupIdentityStoreError.invalidData
+    }
 }

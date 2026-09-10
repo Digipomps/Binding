@@ -542,6 +542,7 @@ enum BindingRuntimeBootstrap {
     @MainActor
     static func ensureInfrastructureBaseline() async {
         CellBase.sendDataAsText = true
+        enableRuntimeDiagnosticsIfRequested()
 
         if CellBase.defaultIdentityVault == nil {
             CellBase.defaultIdentityVault = BindingStartupIdentityVault.shared
@@ -579,6 +580,25 @@ enum BindingRuntimeBootstrap {
                 CellBase.hostname,
                 route: RemoteCellHostRoute(websocketEndpoint: "bridgehead", schemePreference: .automatic)
             )
+        }
+    }
+
+    nonisolated static func enableRuntimeDiagnosticsIfRequested(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
+        let requested = launchArguments.contains("--haven-runtime-diagnostics")
+            || ["1", "true", "yes"].contains(
+                (environment["HAVEN_RUNTIME_DIAGNOSTICS"] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+            )
+        guard requested else { return }
+        CellBase.enabledDiagnosticLogDomains.formUnion([.resolver, .identity, .agreement, .flow, .skeleton])
+        if CellBase.diagnosticLogHandler == nil {
+            CellBase.diagnosticLogHandler = { domain, message in
+                print("[CellBase][\(domain.rawValue)] \(message)")
+            }
         }
     }
 

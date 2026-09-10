@@ -358,7 +358,7 @@ final class NotificationEnrollmentManager: ObservableObject {
             }
         } catch {
             isDeviceRegistered = false
-            lastRegistrationError = "Permission request failed: \(error.localizedDescription)"
+            lastRegistrationError = "Kunne ikke spørre om varseltillatelse akkurat nå. Du kan prøve igjen senere."
         }
         #endif
 
@@ -495,7 +495,7 @@ final class NotificationEnrollmentManager: ObservableObject {
         pushPermissionGranted = false
         isDeviceRegistered = false
         enrollmentPhase = .pushPermissionRequired
-        lastRegistrationError = "APNS registration failed: \(error.localizedDescription)"
+        lastRegistrationError = "Varsler er ikke slått på ennå. Du kan prøve igjen senere — HAVEN virker som normalt uten dem."
     }
 
     func registerCurrentDeviceIfReady() async {
@@ -603,7 +603,7 @@ final class NotificationEnrollmentManager: ObservableObject {
             identityLinkPhase = .statusReadbackRequired
             lastRegistrationError = "Registration evidence was verified, but a fresh signed status read-back is required before this device can be shown as registered."
         } catch {
-            lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
+            lastRegistrationError = "Enheten ble ikke registrert for varsler. HAVEN virker som normalt uten dem."
             isDeviceRegistered = false
             if let registrationError = error as? DeviceIngressRegistrationClientError,
                registrationError == .completionEnvelopeUnavailable

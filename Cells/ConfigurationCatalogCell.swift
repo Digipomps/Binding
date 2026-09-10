@@ -226,7 +226,7 @@ enum BindingPersonalCopilotV1Policy {
 
     nonisolated static func metadataHints(
         policyCategory: String,
-        ageRatingHint: String = "12+",
+        ageRatingHint: String = "13+",
         requiresLogin: Bool,
         requiresUserGeneratedContentModeration: Bool,
         nativePermissionRequests: [String] = [],
@@ -2043,6 +2043,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             guard await self.validateAccess("rw--", at: "matching.runPrompt", for: requester) else { return .string("denied") }
             return await self.runMatchingPrompt(payload, requester: requester)
         }
+
         // Read-only relevance lookup for the butler: which surfaces answer this
         // sentence. Nothing in the catalog moves — no suggestion list, no flow.
         await registerSet(key: "matching.query", owner: owner) { [weak self] requester, payload in
@@ -7058,6 +7059,21 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     ) -> [StaticCatalogDescriptor] {
         var descriptors: [StaticCatalogDescriptor] = [
             StaticCatalogDescriptor(
+                sourceCellEndpoint: palazzoConciergeEndpoint,
+                sourceCellName: "PalazzoConciergeKnowledgeCell",
+                displayName: "Palazzo Concierge",
+                purpose: "Palazzo concierge",
+                purposeDescription: "Concierge surface from the Palazzo staging service.",
+                interests: ["staging", "remote-surface", "palazzo", "concierge"],
+                summary: "Palazzo questions and source-grounded answers.",
+                categoryPath: ["staging", "palazzo"],
+                tags: ["staging", "palazzo", "concierge"],
+                chip: "STAGING",
+                borderColor: "#2563EB",
+                flowDriven: true,
+                recommendedContexts: ["staging-test"]
+            ),
+            StaticCatalogDescriptor(
                 sourceCellEndpoint: "cell://staging.haven.digipomps.org/ArendalsukaParticipantProgram",
                 sourceCellName: "ArendalsukaParticipantProgramCell",
                 displayName: "Arendalsuka Participant Program",
@@ -7292,6 +7308,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     }
 
     nonisolated private static func specializedWorkbenchConfiguration(for descriptor: StaticCatalogDescriptor) -> CellConfiguration? {
+        if descriptor.sourceCellEndpoint == palazzoConciergeEndpoint {
+            return palazzoConciergeMenuConfiguration()
+        }
         switch descriptor.sourceCellEndpoint.lowercased() {
         case "cell:///personalidentity":
             return personalHomeMenuConfiguration()
@@ -8880,7 +8899,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     nonisolated static func personalInviteChatMenuConfiguration(
         chatHubEndpoint: String = "cell:///PersonalChatHub"
     ) -> CellConfiguration {
-        var configuration = CellConfiguration(name: "Co-Pilot")
+        var configuration = CellConfiguration(name: "Butler Chat")
         configuration.description = "Chat-first arbeidsflate. Skriv naturlig hva du vil oppnaa, finn forslag, og apne bare de hjelperne du ber om. Alle sideeffekter krever eget trykk."
         configuration.addReference(CellReference(endpoint: chatHubEndpoint, label: "chatHub"))
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", subscribeFeed: false, label: "perspective"))
@@ -11810,6 +11829,25 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         )
         configuration.addReference(chatSnapshotReference)
 
+        var beaconConsentToggle = SkeletonToggle(
+            label: "Jeg forstår at tokenene kan gjettes og ikke er kryptert",
+            keypath: "nearbyRadar.beaconConsentAcknowledged",
+            isOn: false
+        )
+        beaconConsentToggle.modifiers = modifier {
+            $0.foregroundColor = "#F4D58D"
+            $0.padding = 8
+        }
+        var beaconCandidateRows = SkeletonList(
+            topic: nil,
+            keypath: "nearbyRadar.state.beaconConsentCandidates",
+            flowElementSkeleton: SkeletonVStack(elements: [bindingConferencePortalActionConnectionCardSkeleton()])
+        )
+        beaconCandidateRows.modifiers = modifier {
+            $0.maxWidthInfinity = true
+            $0.wrap = true
+        }
+
         var root = SkeletonVStack(elements: [
             bindingConferencePortalCardSection(
                 "Conference Nearby Radar",
@@ -11897,6 +11935,26 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                             bindingConferencePortalBadgeKeyText("nearbyRadar.state.precisionBadge"),
                             bindingConferencePortalBadgeKeyText("nearbyRadar.state.statusBadge")
                         ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Beacon-samtykke",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Beacon er av som standard. Velg hvert aktivt formål eller hver interesse eksplisitt. Det som sendes er korte, usaltede hash-token som kan brute-forces fra et offentlig vokabular: obfuskering mot tilfeldig sniffing, ikke konfidensialitet eller kryptering.",
+                        fontSize: 12,
+                        foregroundColor: "#F4D58D",
+                        lineLimit: 7
+                    ),
+                    bindingConferencePortalKeyText("nearbyRadar.state.disclosurePolicySummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.beaconConsentSummary", fontSize: 11, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    .Toggle(beaconConsentToggle),
+                    .List(beaconCandidateRows),
+                    bindingConferencePortalActionButton(
+                        "nearbyRadar",
+                        actionKeypath: "approveBeacon",
+                        label: "Godkjenn valgt beacon i 8 timer"
                     )
                 ]
             ),
@@ -14159,6 +14217,10 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         var section = SkeletonSection(content: [
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
+            bindingConferencePortalKeyText("entityKindLabel", fontSize: 11, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+            bindingConferencePortalKeyText("beaconOverlapBadge", fontSize: 11, fontWeight: "bold", foregroundColor: "#F4D58D", lineLimit: 1),
+            bindingConferencePortalKeyText("matchVerificationLabel", fontSize: 10, fontWeight: "bold", foregroundColor: "#88A2B1", lineLimit: 1),
+            bindingConferencePortalBeaconTokenList(),
             bindingConferencePortalKeyText("distanceText", fontSize: 12, fontWeight: "bold", foregroundColor: "#D5E4ED", lineLimit: 1),
             bindingConferencePortalKeyText("directionConfidence", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 1),
             bindingConferencePortalKeyText("relevanceBadge", fontSize: 11, fontWeight: "bold", foregroundColor: "#B9FBC0", lineLimit: 1),
@@ -14174,9 +14236,35 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#244457"
-            $0.height = 260
+            $0.height = 340
         }
         return .Section(section)
+    }
+
+    nonisolated private static func bindingConferencePortalBeaconTokenList() -> SkeletonElement {
+        var chip = SkeletonSection(content: [
+            bindingConferencePortalKeyText("token", fontSize: 10, fontWeight: "semibold", foregroundColor: "#F4D58D", lineLimit: 1)
+        ])
+        chip.modifiers = modifier {
+            $0.padding = 5
+            $0.background = "#2B2517"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#6F5A2A"
+        }
+        var item = SkeletonVStack(elements: [.Section(chip)])
+        item.modifiers = modifier { $0.padding = 2 }
+        var list = SkeletonList(
+            topic: nil,
+            keypath: "overlapTokens",
+            flowElementSkeleton: item
+        )
+        list.modifiers = modifier {
+            $0.wrap = true
+            $0.maxWidthInfinity = true
+            $0.hAlignment = "leading"
+        }
+        return .List(list)
     }
 
     nonisolated private static func bindingConferencePortalNearbyFocusPanelSection(scannerReferenceLabel: String) -> SkeletonElement {
@@ -15952,7 +16040,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         scannerReference.addKeyAndValue(KeyValue(key: "start", value: .bool(true)))
         configuration.addReference(scannerReference)
         var nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", label: "nearbyRadar")
-        nearbyRadarReference.addKeyAndValue(KeyValue(key: "start"))
+        nearbyRadarReference.addKeyAndValue(KeyValue(key: "state"))
         configuration.addReference(nearbyRadarReference)
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
         configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
