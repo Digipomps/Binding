@@ -87,4 +87,33 @@ struct AppStoreMetadataTests {
             #expect(source.contains("BindingDeviceIngressRolloutPolicy"))
         }
     }
+
+    @Test func stagingBuildIsVisiblyDistinctWhileReleaseKeepsTheProductName() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let infoPlistURL = repositoryRoot
+            .appendingPathComponent("Binding", isDirectory: true)
+            .appendingPathComponent("Info.plist")
+        let infoData = try Data(contentsOf: infoPlistURL)
+        let propertyList = try PropertyListSerialization.propertyList(
+            from: infoData,
+            format: nil
+        )
+        let info = try #require(propertyList as? [String: Any])
+        #expect(info["CFBundleDisplayName"] as? String == "$(HAVEN_DISPLAY_NAME)")
+
+        let project = try String(
+            contentsOf: repositoryRoot
+                .appendingPathComponent("Binding.xcodeproj", isDirectory: true)
+                .appendingPathComponent("project.pbxproj"),
+            encoding: .utf8
+        )
+        #expect(project.components(
+            separatedBy: "HAVEN_DISPLAY_NAME = \"HAVEN Staging\";"
+        ).count - 1 == 1)
+        #expect(project.components(
+            separatedBy: "HAVEN_DISPLAY_NAME = HAVEN;"
+        ).count - 1 == 1)
+    }
 }

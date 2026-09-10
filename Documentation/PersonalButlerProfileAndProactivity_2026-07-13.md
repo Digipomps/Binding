@@ -170,11 +170,11 @@ approval and scoped-provider policy.
   Personal Butler test passed, including the 72-hour default, all three trigger
   kinds, stable schedule slots, signed two-device approval, allowlisted import,
   replay rejection and the fixed daemon wake URL parser.
-- `swift test --package-path HavenAgentD --filter PersonalButler` passed six
+- `swift test --package-path ../HavenAgentD --filter PersonalButler` passed six
   tests across three suites. The daemon scheduler, owner-authorized Cell and
   signed remote wake path are covered.
-- `swift test --package-path HavenAgentD --filter AgentConfigTests` passed two
-  tests, and `swift test --package-path HavenAgentD --filter AgentCellsTests`
+- `swift test --package-path ../HavenAgentD --filter AgentConfigTests` passed two
+  tests, and `swift test --package-path ../HavenAgentD --filter AgentCellsTests`
   passed 20 tests across three suites.
 - `Scripts/test_binding.sh -only-testing:BindingTests/CellConfigurationVerifierXCTest/testPersonalCopilotLocalSurfacesLoadWithoutReferenceFailures`
   passed with one test and zero failures against the real sandboxed Binding

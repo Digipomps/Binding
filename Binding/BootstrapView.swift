@@ -9924,9 +9924,13 @@ struct ConferenceIdentityLinkParsedChallenge {
     var admission: BindingAdmissionChallengeSnapshot?
 
     var requestsDeviceIngressRegistrationIdentity: Bool {
-        requestedDomains == [DeviceIngressEnvelope.identityDomain]
-            && requestedIdentityContexts == ["ios", "device-ingress"]
-            && requestedScopes == ["device-ingress.register"]
+        purpose == DeviceIngressIdentityLinkHandshakeContract.purpose
+            && requestedDomains
+                == DeviceIngressIdentityLinkHandshakeContract.requestedDomains
+            && requestedIdentityContexts
+                == DeviceIngressIdentityLinkHandshakeContract.requestedIdentityContexts
+            && requestedScopes
+                == DeviceIngressIdentityLinkHandshakeContract.requestedScopes
     }
 }
 
@@ -10411,6 +10415,8 @@ actor ConferenceIdentityLinkInboxStore {
                     try await BindingDeviceIngressRegistrationComposition
                         .stageOneShotCompletionEnvelope(canonicalCompletionEnvelope)
                     completionPackageInput = ""
+                    await NotificationEnrollmentManager.shared
+                        .identityLinkCompletionDidStage()
                 } catch {
                     completionStatus = "Identity-link er aktiv, men DeviceIngress-handoff feilet."
                     completionSummary = "EntityAnchor-verifiseringen er fullført, men completion envelope ble ikke lagt i transient registreringsminne: \(error.localizedDescription)"
@@ -10737,9 +10743,13 @@ actor ConferenceIdentityLinkInboxStore {
             return complete
         }
         guard let request = signedEnrollmentRequest,
-              request.requestedDomains == [DeviceIngressEnvelope.identityDomain],
-              request.requestedIdentityContexts == ["ios", "device-ingress"],
-              request.requestedScopes == ["device-ingress.register"],
+              request.purpose == DeviceIngressIdentityLinkHandshakeContract.purpose,
+              request.requestedDomains
+                == DeviceIngressIdentityLinkHandshakeContract.requestedDomains,
+              request.requestedIdentityContexts
+                == DeviceIngressIdentityLinkHandshakeContract.requestedIdentityContexts,
+              request.requestedScopes
+                == DeviceIngressIdentityLinkHandshakeContract.requestedScopes,
               let package = Self.decodeApprovalPackage(from: input) else {
             return nil
         }

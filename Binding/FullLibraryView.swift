@@ -268,6 +268,20 @@ nonisolated enum LibraryPreviewSkeletonSupport {
                     tabs.selectionActionKeypath != nil
             )
 
+        case .NavigationBar(let navigationBar):
+            return PreparedPreview(
+                element: .NavigationBar(navigationBar),
+                usesPlaceholders:
+                    navigationBar.activeStateKeypath != nil ||
+                    navigationBar.items.contains { item in
+                        item.keypath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
+                        item.url != nil ||
+                        item.keypathKeypath != nil ||
+                        item.labelKeypath != nil ||
+                        item.payloadKeypath != nil
+                    }
+            )
+
         case .Visualization(let visualization):
             return placeholderCollection(
                 title: "Preview \(visualization.kind)",

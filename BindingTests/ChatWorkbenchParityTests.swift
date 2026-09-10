@@ -1468,6 +1468,15 @@ struct ChatWorkbenchParityTests {
         #expect(status.recommendedNextStep == "configure_codex_mcp_host")
     }
 
+    @Test func havenAgentStatusDefaultsDoNotDependOnBindingSourceTree() {
+        let status = BindingHavenAgentDStatusProvider.snapshot(
+            environment: ["HOME": "/tmp/haven-agentd-status-default-test"]
+        )
+
+        #expect(status.agentBinaryPath.contains("/Binding/HavenAgentD/") == false)
+        #expect(status.mcpBinaryPath.contains("/Binding/HavenAgentD/") == false)
+    }
+
     @Test func analyzeDraftSurfacesHavenAgentDDecisionForPhoneCodexPrompt() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true

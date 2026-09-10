@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>HAVEN</string>
+	<string>$(HAVEN_DISPLAY_NAME)</string>
 	<key>CFBundleName</key>
 	<string>HAVEN</string>
 	<key>HAVENDeviceIngressPublicOrigin</key>
@@ -14,6 +14,8 @@
 	<string>$(HAVEN_DEVICE_INGRESS_CHALLENGE_ISSUER_BASE64)</string>
 	<key>HAVENDeviceIngressRolloutEnvironment</key>
 	<string>$(HAVEN_DEVICE_INGRESS_ROLLOUT_ENVIRONMENT)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>HAVEN bruker kameraet til å skanne koden som kobler denne telefonen til entiteten din.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
