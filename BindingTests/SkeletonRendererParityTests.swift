@@ -65,6 +65,10 @@ final class SkeletonRendererParityTests: XCTestCase {
             backing: .buffered,
             defer: false
         )
+        // Swift owns this temporary window. AppKit must not release it again
+        // on close or leave a transform animation alive into the next test.
+        window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
         window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
         defer { window.close() }
