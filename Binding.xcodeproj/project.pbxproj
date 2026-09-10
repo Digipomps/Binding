@@ -531,6 +531,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "HAVEN leser kontakter kun etter at du selv har valgt hvem, eller gitt full tilgang, for aa foresla hvem du kan invitere. Kontaktene blir liggende paa enheten din.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";
@@ -608,6 +609,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "HAVEN leser kontakter kun etter at du selv har valgt hvem, eller gitt full tilgang, for aa foresla hvem du kan invitere. Kontaktene blir liggende paa enheten din.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";

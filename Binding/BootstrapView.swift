@@ -110,6 +110,7 @@ actor BindingLocalCellRegistration {
             // An ephemeral first registration cannot later be upgraded safely.
             await Self.registerChatWorkbenchParityCells(on: resolver)
             await Self.registerVaultGraphLocalCells(on: resolver)
+            await Self.registerRelationsAndInviteCells(on: resolver)
             // Keep the launch path free of eager Porthole setup, owner-access
             // checks, LocalAuthentication and keychain prompts. Binding owns
             // local startup registration explicitly; AppInitializer.prepareLocalRuntime()
@@ -270,6 +271,7 @@ actor BindingLocalCellRegistration {
             await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
             await Self.registerChatWorkbenchParityCells(on: resolver)
             await Self.registerVaultGraphLocalCells(on: resolver)
+            await Self.registerRelationsAndInviteCells(on: resolver)
             await AppInitializer.initialize()
             await Self.registerAll(on: resolver)
             return await ensureLocallyRegistered()
@@ -419,6 +421,7 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await registerVaultGraphLocalCells(on: resolver)
+        await registerRelationsAndInviteCells(on: resolver)
         await register(
             name: "PersonalAgendaContext",
             cellScope: .identityUnique,
@@ -830,6 +833,63 @@ actor BindingLocalCellRegistration {
             persistency: .persistant,
             identityDomain: "private",
             type: BindingGraphIndexCell.self,
+            resolver: resolver
+        )
+    }
+
+    /// Relations, contact import, the address book bridge, invitations,
+    /// residency and entity extension.
+    ///
+    /// All `.identityUnique` and `.persistant`: these belong to the entity, not
+    /// to the device, and they have to survive a restart or the whole point of
+    /// "my relations live in my entity" collapses.
+    private static func registerRelationsAndInviteCells(on resolver: CellResolver) async {
+        await register(
+            name: "Relations",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingRelationsCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "ContactImport",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingContactImportCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "AddressBook",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingAddressBookCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "Invitation",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingInvitationCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "EntityResidency",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingEntityResidencyCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "EntityScaffoldExtension",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingEntityScaffoldExtensionCell.self,
             resolver: resolver
         )
     }
