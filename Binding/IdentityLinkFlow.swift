@@ -13,9 +13,12 @@
 import Foundation
 import SwiftUI
 import Combine
+import CellNearby
 import CellBase
 #if canImport(VisionKit) && os(iOS)
 import VisionKit
+import Vision
+import AVFoundation
 #endif
 
 // MARK: - Billett (speil av scaffoldets IdentityLinkTicket)
@@ -39,7 +42,10 @@ nonisolated struct IdentityLinkTicket: Codable, Equatable, Sendable {
     enum DecodeError: Error, Equatable { case notATicket, wrongSchema, untrustedOrigin, expired }
 
     static func decode(deepLink: String, now: Date = Date()) throws -> IdentityLinkTicket {
-        guard let components = URLComponents(string: deepLink.trimmingCharacters(in: .whitespacesAndNewlines)),
+        guard deepLink.utf8.count <= 32 * 1024,
+              let components = URLComponents(string: deepLink.trimmingCharacters(in: .whitespacesAndNewlines)),
+              components.user == nil, components.password == nil, components.fragment == nil, components.path.isEmpty,
+              components.queryItems?.count == 1,
               components.scheme?.lowercased() == "haven",
               components.host?.lowercased() == "identity-link",
               let raw = components.queryItems?.first(where: { $0.name == "t" })?.value,
@@ -50,13 +56,18 @@ nonisolated struct IdentityLinkTicket: Codable, Equatable, Sendable {
         guard ticket.schema == currentSchema else { throw DecodeError.wrongSchema }
         guard IdentityLinkTrust.isTrustedOrigin(ticket.origin),
               IdentityLinkTrust.isTrustedAudience(ticket.audience, origin: ticket.origin),
-              ticket.rendezvousURL.hasPrefix(ticket.origin) else {
+              Self.validRendezvous(ticket.rendezvousURL, origin: ticket.origin),
+              ticket.presentationDomain == ticket.origin else {
             throw DecodeError.untrustedOrigin
         }
         guard let expiry = ISO8601DateFormatter().date(from: ticket.expiresAt), expiry > now else {
             throw DecodeError.expired
         }
         return ticket
+    }
+
+    static func validRendezvous(_ value: String, origin: String) -> Bool {
+        IdentityLinkTrust.isTrustedEndpoint(value, origin: origin) && URLComponents(string: value)?.path == "/link/api"
     }
 
     var expiryDate: Date? { ISO8601DateFormatter().date(from: expiresAt) }
@@ -71,13 +82,24 @@ nonisolated enum IdentityLinkTrust {
     static func isTrustedOrigin(_ value: String) -> Bool {
         guard let components = URLComponents(string: value),
               components.query == nil, components.fragment == nil,
-              components.path.isEmpty || components.path == "/",
+              components.user == nil, components.password == nil,
+              components.path.isEmpty,
               let host = components.host?.lowercased() else { return false }
-        if components.scheme?.lowercased() == "https", trustedHosts.contains(host) { return true }
+        if components.scheme == "https", components.port == nil, value == "https://" + host, trustedHosts.contains(host) { return true }
         #if DEBUG
-        if developmentHosts.contains(host) { return true }
+        if components.scheme == "http", developmentHosts.contains(host) { return true }
         #endif
         return false
+    }
+
+    static var trustedOrigins: Set<String> { Set(trustedHosts.map { "https://" + $0 }) }
+
+    static func isTrustedEndpoint(_ value: String, origin: String) -> Bool {
+        guard isTrustedOrigin(origin), let base = URLComponents(string: origin),
+              let target = URLComponents(string: value), target.user == nil, target.password == nil,
+              target.fragment == nil, target.scheme == base.scheme, target.host == base.host,
+              target.port == base.port, target.query == nil else { return false }
+        return target.path.hasPrefix("/link/api/") || target.path == "/link/api"
     }
 
     static func isTrustedAudience(_ audience: String, origin: String) -> Bool {
@@ -153,7 +175,8 @@ nonisolated struct URLSessionIdentityLinkTransport: IdentityLinkTransport {
             let configuration = URLSessionConfiguration.ephemeral
             configuration.timeoutIntervalForRequest = 20
             configuration.waitsForConnectivity = true
-            self.session = URLSession(configuration: configuration)
+            configuration.httpShouldSetCookies = false
+            self.session = URLSession(configuration: configuration, delegate: IdentityLinkNoRedirectDelegate(), delegateQueue: nil)
         }
     }
 
@@ -169,6 +192,7 @@ nonisolated struct URLSessionIdentityLinkTransport: IdentityLinkTransport {
         var request = URLRequest(url: target)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
+        guard response.url == target, data.count <= 256 * 1024 else { throw IdentityLinkTransportError.decode("response boundary") }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         if status == 202 { return nil }
         guard status == 200 else { throw IdentityLinkTransportError.http(status, String(decoding: data, as: UTF8.self)) }
@@ -189,6 +213,7 @@ nonisolated struct URLSessionIdentityLinkTransport: IdentityLinkTransport {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try IdentityLinkWire.encoder.encode(body)
         let (data, response) = try await session.data(for: request)
+        guard response.url == target, data.count <= 256 * 1024 else { throw IdentityLinkTransportError.decode("response boundary") }
         return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
     }
 
@@ -203,15 +228,18 @@ nonisolated struct URLSessionIdentityLinkTransport: IdentityLinkTransport {
 nonisolated enum IdentityLinkFlowState: Equatable, @unchecked Sendable {
     case idle
     case scanning
+    case reviewing(ticket: IdentityLinkTicket)
     case preparing(ticket: IdentityLinkTicket)
     case awaitingApproval(ticket: IdentityLinkTicket, sas: [String], requestHash: String)
     case completing(ticket: IdentityLinkTicket)
-    case done(record: IdentityLinkRecord, ownerDisplayName: String, origin: String)
+    case recovery(ticket: IdentityLinkTicket, message: String, canRetry: Bool)
+    case done(record: IdentityLinkRecord, ownerDisplayName: String, origin: String, localConfirmed: Bool)
     case failed(message: String)
 }
 
 nonisolated enum IdentityLinkFlowError: Error, Equatable {
     case noLocalIdentity
+    case presentationFixtureOnly
     case noSigningKey
     case signingFailed
     case ticketExpired
@@ -221,28 +249,46 @@ nonisolated enum IdentityLinkFlowError: Error, Equatable {
 
 /// Kjører hele telefonsiden. Én aktiv billett om gangen.
 actor IdentityLinkFlowCoordinator {
-    static let shared = IdentityLinkFlowCoordinator()
+    static let shared: IdentityLinkFlowCoordinator = {
+        #if DEBUG && os(macOS)
+        if IdentityLinkUIFixture.enabled {
+            return IdentityLinkFlowCoordinator(outbox: IdentityLinkUIFixtureOutbox(), identityProvider: { nil },
+                completionSaver: { _, _, _, _ in throw IdentityLinkOutboxError.invalidFile }, localRuntimeAvailable: { false })
+        }
+        #endif
+        return IdentityLinkFlowCoordinator()
+    }()
 
     private let transport: IdentityLinkTransport
+    private let outbox: any IdentityLinkOutbox
+    private var completionInFlight = false
     private let identityProvider: @Sendable () async -> Identity?
     private(set) var state: IdentityLinkFlowState = .idle
     private var pollTask: Task<Void, Never>?
+    private var generation = UUID()
     private var stateObservers: [UUID: @Sendable (IdentityLinkFlowState) -> Void] = [:]
 
+    private let completionSaver: @Sendable (IdentityLinkCompletionEnvelope, IdentityLinkRecord, String, String?) async throws -> Void
     private let localRuntimeAvailable: @Sendable () async -> Bool
 
     init(
         transport: IdentityLinkTransport = URLSessionIdentityLinkTransport(),
+        outbox: any IdentityLinkOutbox = EncryptedIdentityLinkOutbox.shared,
         identityProvider: @escaping @Sendable () async -> Identity? = {
             await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
+        },
+        completionSaver: @escaping @Sendable (IdentityLinkCompletionEnvelope, IdentityLinkRecord, String, String?) async throws -> Void = { envelope, record, origin, reference in
+            try IdentityLinkCompletionStore.save(envelope: envelope, record: record, origin: origin, personEvidenceReference: reference)
         },
         localRuntimeAvailable: @escaping @Sendable () async -> Bool = {
             await BindingLocalCellRegistration.shared.ensureLocallyRegistered()
         }
     ) {
         self.transport = transport
+        self.outbox = outbox
         self.identityProvider = identityProvider
         self.localRuntimeAvailable = localRuntimeAvailable
+        self.completionSaver = completionSaver
     }
 
     func observe(_ observer: @escaping @Sendable (IdentityLinkFlowState) -> Void) -> UUID {
@@ -260,15 +306,104 @@ actor IdentityLinkFlowCoordinator {
     }
 
     func reset() {
+        generation = UUID()
         pollTask?.cancel(); pollTask = nil
         set(.idle)
     }
 
-    func beginScanning() { set(.scanning) }
+    func beginScanning() async {
+        reset()
+        if await showPendingCompletion(token: generation) { return }
+        set(.scanning)
+    }
+
+    /// Opening the flow discovers a saved package without contacting a server.
+    private func showPendingCompletion(token: UUID) async -> Bool {
+        do {
+            let pending = try await outbox.load()
+            try requireCurrent(token)
+            if let pending {
+                set(.recovery(ticket: pending.ticket,
+                    message: "En godkjent pakke er lagret kryptert her. Serverens siste resultat er ikke bekreftet. Gjenoppta for å kontrollere status og fullføre.", canRetry: true))
+                return true
+            }
+            return false
+        } catch is CancellationError {
+            return true
+        } catch {
+            guard generation == token, !Task.isCancelled else { return true }
+            set(.failed(message: "Den ventende koblingen kunne ikke leses sikkert. Lås opp enheten og prøv igjen. Ingen ny forespørsel er sendt."))
+            return true
+        }
+    }
+
+    func resumePendingCompletion() async {
+        guard !completionInFlight else { return }
+        reset()
+        let token = generation
+        do {
+            let pending = try await outbox.load()
+            try requireCurrent(token)
+            guard let pending else { set(.scanning); return }
+            guard let identity = await identityProvider() else { throw IdentityLinkFlowError.noLocalIdentity }
+            try requireCurrent(token)
+            try await completePending(pending, identity: identity, token: token)
+        } catch is CancellationError { return }
+        catch {
+            guard generation == token else { return }
+            if !(await showPendingCompletion(token: token)) { set(.failed(message: Self.message(for: error))) }
+        }
+    }
+
+    /// Discards only the local retry. It cannot revoke a remotely completed link.
+    func discardPendingCompletion() async {
+        guard !completionInFlight else { return }
+        reset()
+        let token = generation
+        do {
+            let pending = try await outbox.load()
+            try requireCurrent(token)
+            if let pending {
+                try await outbox.remove(requestID: pending.requestID)
+                try requireCurrent(token)
+            }
+            set(.scanning)
+        } catch is CancellationError { return }
+        catch {
+            guard generation == token, !Task.isCancelled else { return }
+            set(.failed(message: "Den ventende koblingen kunne ikke fjernes. Ingen ny forespørsel er sendt."))
+        }
+    }
+
+    /// A nearby result or QR is an invitation to review, never permission to sign.
+    func review(deepLink: String) async {
+        guard !completionInFlight else { return }
+        reset()
+        if await showPendingCompletion(token: generation) { return }
+        do { set(.reviewing(ticket: try IdentityLinkTicket.decode(deepLink: deepLink))) }
+        catch { set(.failed(message: "Invitasjonen er ugyldig, utløpt eller fra et ukjent sted.")) }
+    }
+
+    func confirmReviewedEntity() async {
+        guard case let .reviewing(ticket) = state,
+              let data = try? IdentityLinkWire.encoder.encode(ticket) else { return }
+        await start(deepLink: "haven://identity-link?t=" + IdentityLinkWire.base64URL(data))
+    }
+
+    private func requireCurrent(_ token: UUID) throws {
+        guard generation == token, !Task.isCancelled else { throw CancellationError() }
+    }
 
     /// Steg 1–3: signer forespørselen, send den, vis koden. Kalles ved deep-link eller skann.
     func start(deepLink: String, now: Date = Date()) async {
-        pollTask?.cancel(); pollTask = nil
+        guard !completionInFlight else { return }
+        if IdentityLinkUIFixture.enabled {
+            set(.failed(message: Self.message(for: IdentityLinkFlowError.presentationFixtureOnly)))
+            return
+        }
+        reset()
+        let token = generation
+        if await showPendingCompletion(token: token) { return }
         let ticket: IdentityLinkTicket
         do {
             ticket = try IdentityLinkTicket.decode(deepLink: deepLink, now: now)
@@ -285,8 +420,15 @@ actor IdentityLinkFlowCoordinator {
         set(.preparing(ticket: ticket))
         do {
             guard let identity = await identityProvider() else { throw IdentityLinkFlowError.noLocalIdentity }
+            try requireCurrent(token)
             let request = try await Self.makeSignedRequest(ticket: ticket, identity: identity, now: now)
+            try requireCurrent(token)
             let response = try await transport.submitRequest(ticketID: ticket.ticketID, request: request, to: ticket.rendezvousURL)
+            try requireCurrent(token)
+            guard IdentityLinkTrust.isTrustedEndpoint(response.completionURL, origin: ticket.origin),
+                  URLComponents(string: response.completionURL)?.path == "/link/api/completion/" + response.requestHash else {
+                throw IdentityLinkFlowError.packageMismatch("svaret peker på en annen møteplass")
+            }
             // Regn koden ut selv — den fra serveren er bare bekvemmelighet.
             let localHash = try IdentityLinkProtocolService.requestHash(for: request)
             let localWords = IdentityLinkSAS.words(requestHash: localHash)
@@ -295,26 +437,34 @@ actor IdentityLinkFlowCoordinator {
             }
             set(.awaitingApproval(ticket: ticket, sas: localWords, requestHash: response.requestHash))
             startPolling(ticket: ticket, request: request, identity: identity, completionURL: response.completionURL)
+        } catch is CancellationError {
+            return
         } catch let error as IdentityLinkFlowError {
+            guard generation == token else { return }
             set(.failed(message: Self.message(for: error)))
         } catch let error as IdentityLinkTransportError {
+            guard generation == token else { return }
             set(.failed(message: Self.message(for: error)))
         } catch {
+            guard generation == token else { return }
             set(.failed(message: "Kunne ikke sende forespørselen: \(error)"))
         }
     }
 
     /// Steg 4–6: hent pakken, verifiser lokalt, fullfør hos scaffoldet og i egen EntityAnchor.
     private func startPolling(ticket: IdentityLinkTicket, request: IdentityEnrollmentRequest, identity: Identity, completionURL: String) {
+        let token = generation
         pollTask = Task { [transport] in
             let deadline = ticket.expiryDate ?? Date().addingTimeInterval(600)
             while !Task.isCancelled, Date() < deadline {
                 do {
                     if let package = try await transport.fetchCompletion(url: completionURL) {
-                        await self.finish(package: package, ticket: ticket, request: request, identity: identity)
+                        try self.requireCurrent(token)
+                        await self.finish(package: package, ticket: ticket, request: request, identity: identity, token: token)
                         return
                     }
                 } catch {
+                    guard self.generation == token, !Task.isCancelled else { return }
                     await self.set(.failed(message: Self.message(for: error)))
                     return
                 }
@@ -326,13 +476,16 @@ actor IdentityLinkFlowCoordinator {
         }
     }
 
-    private func finish(package: IdentityLinkCompletionPackage, ticket: IdentityLinkTicket, request: IdentityEnrollmentRequest, identity: Identity) async {
+    private func finish(package: IdentityLinkCompletionPackage, ticket: IdentityLinkTicket, request: IdentityEnrollmentRequest, identity: Identity, token: UUID) async {
         set(.completing(ticket: ticket))
         do {
             let requestHash = try IdentityLinkProtocolService.requestHash(for: request)
             guard package.requestHash == IdentityLinkWire.base64URL(requestHash),
                   package.approval.requestHash == requestHash,
                   package.presentationChallenge == ticket.presentationChallenge,
+                  package.presentationDomain == ticket.presentationDomain,
+                  IdentityLinkTrust.isTrustedEndpoint(package.completeURL, origin: ticket.origin),
+                  URLComponents(string: package.completeURL)?.path == "/link/api/complete",
                   package.audience == ticket.audience, package.origin == ticket.origin else {
                 throw IdentityLinkFlowError.packageMismatch("pakken gjelder ikke denne forespørselen")
             }
@@ -342,6 +495,7 @@ actor IdentityLinkFlowCoordinator {
                 challenge: package.presentationChallenge,
                 domain: package.presentationDomain
             )
+            try requireCurrent(token)
             let envelope = IdentityLinkCompletionEnvelope(
                 request: request,
                 approval: package.approval,
@@ -360,27 +514,85 @@ actor IdentityLinkFlowCoordinator {
             } catch {
                 throw IdentityLinkFlowError.localVerificationFailed(String(describing: error))
             }
-            // Scaffoldet: EntityAnchor der (håndhever passkey-beviset) → registeret resolveren spør.
-            let remote = try await transport.complete(envelope: envelope, url: package.completeURL)
-            guard Self.status(from: remote) == "completed" else {
-                throw IdentityLinkFlowError.packageMismatch("scaffoldet fullførte ikke lenken")
-            }
-            // Konvolutten er telefonens bevis; den lagres før noe annet kan feile.
-            try IdentityLinkCompletionStore.save(envelope: envelope, record: local.record, origin: package.origin)
-            // Egen EntityAnchor: samme record lokalt, så telefonens celler ser lenken. Best effort —
-            // scaffoldet er allerede autoritativt.
-            if await localRuntimeAvailable() {
-                _ = try? await identity.set(
-                    keypath: "identity.identityLinks.completeEnrollment",
-                    value: try IdentityLinkProtocolService.value(from: envelope),
-                    requester: identity
-                )
-            }
-            set(.done(record: local.record, ownerDisplayName: ticket.ownerDisplayName, origin: package.origin))
+            try requireCurrent(token)
+            // Persist the exact already verified envelope BEFORE the first remote
+            // mutation. On restart it is retried unchanged, without a new signature.
+            let pending = IdentityLinkPendingCompletion(ticket: ticket, envelope: envelope,
+                verifiedAt: Date(), completeURL: package.completeURL)
+            _ = local
+            try await outbox.save(pending)
+            try requireCurrent(token)
+            try await completePending(pending, identity: identity, token: token)
+        } catch is CancellationError {
+            return
         } catch let error as IdentityLinkFlowError {
+            guard generation == token else { return }
             set(.failed(message: Self.message(for: error)))
         } catch {
+            guard generation == token, !Task.isCancelled else { return }
             set(.failed(message: Self.message(for: error)))
+        }
+    }
+
+    private func completePending(_ pending: IdentityLinkPendingCompletion, identity: Identity, token: UUID) async throws {
+        guard !completionInFlight else { return }
+        completionInFlight = true
+        defer { completionInFlight = false }
+        set(.completing(ticket: pending.ticket))
+        do {
+            let envelope = pending.envelope
+            guard IdentityLinkTrust.isTrustedOrigin(pending.ticket.origin),
+                  IdentityLinkTrust.isTrustedEndpoint(pending.completeURL, origin: pending.ticket.origin),
+                  URLComponents(string: pending.completeURL)?.path == "/link/api/complete",
+                  envelope.expectedOrigin == pending.ticket.origin,
+                  envelope.expectedAudience == pending.ticket.audience,
+                  envelope.expectedPresentationChallenge == pending.ticket.presentationChallenge,
+                  envelope.expectedPresentationDomain == pending.ticket.origin,
+                  envelope.request.newIdentity.uuid == identity.uuid,
+                  envelope.request.newIdentity.publicKey == identity.publicSecureKey?.compressedKey,
+                  pending.verifiedAt <= Date().addingTimeInterval(5) else {
+                throw IdentityLinkFlowError.packageMismatch("den lagrede pakken passer ikke til denne entiteten og stedet")
+            }
+            // Historical local validation only. The server independently checks
+            // current revocation and exact durable ceremony evidence on retry.
+            let verified = try await IdentityLinkProtocolService.verifyCompletion(envelope, now: pending.verifiedAt)
+            try requireCurrent(token)
+            let remote = try await transport.complete(envelope: envelope, url: pending.completeURL)
+            guard Self.status(from: remote) == "completed" else {
+                throw IdentityLinkFlowError.packageMismatch("stedet bekreftet ikke koblingen")
+            }
+            let reference: String?
+            if case let .object(object) = remote, case let .string(value)? = object["evidenceReference"] {
+                guard value.count == 64, value.allSatisfy({ "0123456789abcdef".contains($0) }),
+                      case .string(verified.record.linkID)? = object["linkID"] else {
+                    throw IdentityLinkFlowError.packageMismatch("kvitteringen gjelder ikke denne koblingen")
+                }
+                reference = value
+            } else { reference = nil }
+            try await completionSaver(envelope, verified.record, pending.ticket.origin, reference)
+            // Keep exact retry until the completion receipt is durably saved.
+            try await outbox.remove(requestID: pending.requestID)
+            var localConfirmed = false
+            if generation == token, !Task.isCancelled, await localRuntimeAvailable() {
+                let outcome = try? await identity.set(keypath: "identity.identityLinks.completeEnrollment",
+                    value: try IdentityLinkProtocolService.value(from: envelope), requester: identity)
+                if let outcome { localConfirmed = Self.status(from: outcome) == "completed" }
+            }
+            try requireCurrent(token)
+            set(.done(record: verified.record, ownerDisplayName: pending.ticket.ownerDisplayName,
+                origin: pending.ticket.origin, localConfirmed: localConfirmed))
+        } catch is CancellationError { throw CancellationError() }
+        catch {
+            guard generation == token, !Task.isCancelled else { return }
+            let terminal: Bool
+            if case let IdentityLinkTransportError.http(status, _) = error {
+                terminal = [400, 401, 403, 404, 409, 410, 422].contains(status)
+            } else { terminal = error is IdentityLinkFlowError }
+            set(.recovery(ticket: pending.ticket,
+                message: terminal
+                    ? "Stedet eller den lokale kontrollen avviste pakken. Ingen lokal tilgang er aktivert. Kontroller koblingen på det andre stedet før du lager en ny invitasjon."
+                    : "Resultatet er ikke bekreftet. Pakken er lagret kryptert, og kan gjenopptas uten å signere på nytt.",
+                canRetry: !terminal))
         }
     }
 
@@ -451,9 +663,10 @@ actor IdentityLinkFlowCoordinator {
 
     static func message(for error: Error) -> String {
         switch error {
-        case IdentityLinkFlowError.noLocalIdentity: return "HAVEN har ingen egen identitet på denne telefonen ennå."
-        case IdentityLinkFlowError.noSigningKey: return "Telefonens identitet mangler signeringsnøkkel."
-        case IdentityLinkFlowError.signingFailed: return "Telefonen kunne ikke signere forespørselen."
+        case IdentityLinkFlowError.presentationFixtureOnly: return "Dette er HAVEN UI-test. Dette bygget kan ikke koble enheter. Åpne det vanlige HAVEN-bygget for å koble til."
+        case IdentityLinkFlowError.noLocalIdentity: return "HAVEN har ingen egen identitet på denne enheten ennå."
+        case IdentityLinkFlowError.noSigningKey: return "Enhetens identitet mangler signeringsnøkkel."
+        case IdentityLinkFlowError.signingFailed: return "Enheten kunne ikke signere forespørselen."
         case IdentityLinkFlowError.ticketExpired: return "Koden er utløpt. Lag en ny."
         case let IdentityLinkFlowError.packageMismatch(detail): return "Avbrutt: \(detail)."
         case let IdentityLinkFlowError.localVerificationFailed(detail): return "Godkjenningen besto ikke telefonens egen kontroll (\(detail)). Ingenting ble lagret."
@@ -477,6 +690,7 @@ nonisolated enum IdentityLinkCompletionStore {
         var record: IdentityLinkRecord
         var envelope: IdentityLinkCompletionEnvelope
         var storedAt: String
+        var personEvidenceReference: String? = nil
     }
 
     static var directory: URL {
@@ -485,12 +699,17 @@ nonisolated enum IdentityLinkCompletionStore {
         return base.appendingPathComponent("HAVEN/IdentityLinks", isDirectory: true)
     }
 
-    static func save(envelope: IdentityLinkCompletionEnvelope, record: IdentityLinkRecord, origin: String) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let entry = Entry(origin: origin, record: record, envelope: envelope, storedAt: ISO8601DateFormatter().string(from: Date()))
+    static func save(envelope: IdentityLinkCompletionEnvelope, record: IdentityLinkRecord, origin: String, personEvidenceReference: String? = nil) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let entry = Entry(origin: origin, record: record, envelope: envelope, storedAt: ISO8601DateFormatter().string(from: Date()), personEvidenceReference: personEvidenceReference)
         let data = try IdentityLinkWire.encoder.encode(entry)
         let url = directory.appendingPathComponent(safeName(record.linkID) + ".json")
+        #if os(iOS)
         try data.write(to: url, options: [.atomic, .completeFileProtection])
+        #else
+        try data.write(to: url, options: [.atomic])
+        #endif
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     static func entries() -> [Entry] {
@@ -532,9 +751,21 @@ final class IdentityLinkFlowPresenter: ObservableObject {
     @discardableResult
     func handle(url: URL) -> Bool {
         let deepLink = url.absoluteString
+        if url.scheme == "haven", url.host == "nearby-link" {
+            isPresented = true
+            state = .scanning
+            Task { await IdentityLinkFlowCoordinator.shared.beginScanning() }
+            IdentityLinkNearbyModel.shared.reviewPublication(url)
+            return true
+        }
+        if url.scheme == "haven", url.host == "link-devices", url.query == nil {
+            presentScanner()
+            return true
+        }
         guard (try? IdentityLinkTicket.decode(deepLink: deepLink)) != nil || Self.looksLikeTicket(deepLink) else { return false }
         isPresented = true
-        Task { await IdentityLinkFlowCoordinator.shared.start(deepLink: deepLink) }
+        IdentityLinkNearbyModel.shared.stop()
+        Task { await IdentityLinkFlowCoordinator.shared.review(deepLink: deepLink) }
         return true
     }
 
@@ -545,6 +776,7 @@ final class IdentityLinkFlowPresenter: ObservableObject {
 
     func dismiss() {
         isPresented = false
+        IdentityLinkNearbyModel.shared.stop()
         Task { await IdentityLinkFlowCoordinator.shared.reset() }
     }
 
@@ -559,10 +791,34 @@ final class IdentityLinkFlowPresenter: ObservableObject {
 struct IdentityLinkFlowView: View {
     @ObservedObject private var presenter = IdentityLinkFlowPresenter.shared
     @State private var pasted = ""
+    @State private var cameraRequested = false
+    @State private var cameraDenied = false
+    @ObservedObject private var nearby = IdentityLinkNearbyModel.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
-            content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if IdentityLinkUIFixture.enabled {
+                        Text("HAVEN UI-test – kan ikke koble enheter")
+                            .font(.headline)
+                    }
+                    if nearby.publication != nil || nearby.state == .advertising {
+                        IdentityLinkNearbyPanel(model: nearby)
+                    } else {
+                        if case .scanning = presenter.state { IdentityLinkNearbyPanel(model: nearby) }
+                        if case .idle = presenter.state { IdentityLinkNearbyPanel(model: nearby) }
+                        content
+                    }
+                }
+            }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .background { nearby.stop(); cameraRequested = false }
+                }
+                .onChange(of: nearby.state) { _, state in
+                    if state != .stopped { cameraRequested = false }
+                }
                 .padding(20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .background(Color(red: 0.953, green: 0.965, blue: 0.945).ignoresSafeArea())
@@ -572,6 +828,9 @@ struct IdentityLinkFlowView: View {
                     }
                 }
         }
+        #if os(macOS)
+        .frame(minWidth: 440, idealWidth: 520, minHeight: 620, idealHeight: 720)
+        #endif
     }
 
     private var cancelTitle: String {
@@ -584,14 +843,48 @@ struct IdentityLinkFlowView: View {
         switch presenter.state {
         case .idle, .scanning:
             scanning
+        case let .reviewing(ticket):
+            VStack(alignment: .leading, spacing: 16) {
+                header("Utvid min entitet hit", "Koble entiteten din her til den du allerede bruker et annet sted.")
+                card {
+                    keyValue("Her", "Min entitet i denne HAVEN-appen")
+                    keyValue("Der", ticket.ownerDisplayName)
+                    keyValue("Sted", URLComponents(string: ticket.origin)?.host ?? ticket.origin)
+                }
+                Text("Når du har bevist kontroll over begge, kan de handle som samme entitet. Data flyttes ikke av denne koblingen.")
+                Text("Kontroller navn og sted. Du bekrefter også kontrollordene og godkjenner der den andre entiteten er.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Button("Dette er mine entiteter — fortsett") {
+                    Task { await IdentityLinkFlowCoordinator.shared.confirmReviewedEntity() }
+                }.buttonStyle(.borderedProminent)
+                Spacer()
+            }
         case let .preparing(ticket):
             waiting(title: "Forbereder …", subtitle: "Telefonen signerer forespørselen til \(ticket.ownerDisplayName) sin entitet med sin egen nøkkel.")
         case let .awaitingApproval(ticket, sas, _):
             code(ticket: ticket, sas: sas)
         case let .completing(ticket):
             waiting(title: "Fullfører …", subtitle: "Godkjenningen fra \(ticket.approverLabel) kontrolleres på telefonen før den lagres.")
-        case let .done(record, ownerDisplayName, origin):
-            done(record: record, ownerDisplayName: ownerDisplayName, origin: origin)
+        case let .recovery(ticket, message, canRetry):
+            VStack(alignment: .leading, spacing: 16) {
+                header("Kobling venter på bekreftelse", message)
+                card {
+                    keyValue("Entitet", ticket.ownerDisplayName)
+                    keyValue("Sted", URLComponents(string: ticket.origin)?.host ?? ticket.origin)
+                }
+                if canRetry {
+                    Button("Gjenoppta godkjent kobling") {
+                        Task { await IdentityLinkFlowCoordinator.shared.resumePendingCompletion() }
+                    }.buttonStyle(.borderedProminent)
+                }
+                Text("Å forkaste pakken her fjerner ikke en kobling som allerede ble godkjent der. Fjern den fra entitetens koblingsside om du vil trekke tilgangen tilbake.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Button("Forkast lokal ventende pakke") {
+                    Task { await IdentityLinkFlowCoordinator.shared.discardPendingCompletion() }
+                }.buttonStyle(.bordered)
+            }
+        case let .done(record, ownerDisplayName, origin, localConfirmed):
+            done(record: record, ownerDisplayName: ownerDisplayName, origin: origin, localConfirmed: localConfirmed)
         case let .failed(message):
             failed(message)
         }
@@ -600,19 +893,29 @@ struct IdentityLinkFlowView: View {
     // L2a — images/app-skann-v1.png
     private var scanning: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("Koble til min entitet", "Skann koden på skjermen der entiteten din allerede bor.")
+            header("Utvid min entitet", "Finn eller skann invitasjonen fra en av dine entiteter.")
             #if canImport(VisionKit) && os(iOS)
-            if IdentityLinkScannerView.isAvailable {
+            if cameraRequested, IdentityLinkScannerView.isAvailable {
                 IdentityLinkScannerView { payload in
-                    Task { await IdentityLinkFlowCoordinator.shared.start(deepLink: payload) }
+                    nearby.stop()
+                    Task { await IdentityLinkFlowCoordinator.shared.review(deepLink: payload) }
                 }
                 .frame(maxWidth: .infinity, minHeight: 380)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             } else {
-                unavailableScanner
+                Button("Skann QR-kode") {
+                    nearby.stop()
+                    Task {
+                        let allowed = await AVCaptureDevice.requestAccess(for: .video)
+                        cameraRequested = allowed
+                        cameraDenied = !allowed || !IdentityLinkScannerView.isAvailable
+                    }
+                }.buttonStyle(.borderedProminent)
+                if cameraDenied { unavailableScanner }
             }
             #else
-            unavailableScanner
+            Text("Bruk nærhetssøk, eller lim inn invitasjonen fra den andre entiteten din.")
+                .font(.footnote).foregroundStyle(.secondary)
             #endif
             Spacer(minLength: 0)
             VStack(spacing: 10) {
@@ -620,7 +923,8 @@ struct IdentityLinkFlowView: View {
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                 Button("Bruk innlimt lenke") {
-                    Task { await IdentityLinkFlowCoordinator.shared.start(deepLink: pasted) }
+                    nearby.stop()
+                    Task { await IdentityLinkFlowCoordinator.shared.review(deepLink: pasted) }
                 }
                 .buttonStyle(.bordered)
                 .disabled(pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -646,7 +950,7 @@ struct IdentityLinkFlowView: View {
             }
             card {
                 keyValue("Entitet", ticket.ownerDisplayName)
-                keyValue("Scaffold", URLComponents(string: ticket.origin)?.host ?? ticket.origin)
+                keyValue("Sted", URLComponents(string: ticket.origin)?.host ?? ticket.origin)
                 keyValue("Godkjennes fra", ticket.approverLabel)
             }
             Text("Telefonen har signert forespørselen med sin egen nøkkel. Ingen hemmelighet sendes. Godkjenn på skjermen — telefonen fullfører selv.")
@@ -657,20 +961,22 @@ struct IdentityLinkFlowView: View {
     }
 
     // L2c — images/app-ferdig-v1.png
-    private func done(record: IdentityLinkRecord, ownerDisplayName: String, origin: String) -> some View {
+    private func done(record: IdentityLinkRecord, ownerDisplayName: String, origin: String, localConfirmed: Bool) -> some View {
         VStack(spacing: 16) {
             Spacer(minLength: 24)
             ZStack {
                 Circle().fill(Color(red: 0.863, green: 0.922, blue: 0.894)).frame(width: 72, height: 72)
                 Image(systemName: "checkmark").font(.system(size: 30, weight: .semibold)).foregroundStyle(Color(red: 0.141, green: 0.361, blue: 0.306))
             }
-            Text("Du er deg selv her også").font(.system(.title, design: .serif))
-            Text("Denne telefonen handler nå som \(ownerDisplayName) sin entitet på \(URLComponents(string: origin)?.host ?? origin).")
+            Text(localConfirmed ? "Koblingen er godkjent" : "Godkjent — lokal aktivering gjenstår").font(.system(.title, design: .serif))
+            Text(localConfirmed
+                ? "Koblingen til \(ownerDisplayName) sin entitet på \(URLComponents(string: origin)?.host ?? origin) er godkjent der, og registreringen er lagret lokalt."
+                : "Koblingen til \(ownerDisplayName) på \(URLComponents(string: origin)?.host ?? origin) er godkjent der og beviset er lagret her. Lokal tilgang er ikke bekreftet ennå.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
             card {
                 keyValue("Lenket", Self.displayDate(record.linkedAt))
                 keyValue("Omfang", "samme entitet")
-                keyValue("Fjern", "når som helst, fra ethvert apparat")
+                keyValue("Fjern", "fra koblingssiden der du godkjente")
             }
             Spacer()
             Button("Fortsett") { presenter.dismiss() }
@@ -772,6 +1078,10 @@ struct IdentityLinkScannerView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {}
+
+    static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) {
+        uiViewController.stopScanning()
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(onPayload: onPayload) }
 

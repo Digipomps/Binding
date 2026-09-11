@@ -12,6 +12,7 @@ import DiMyCellProtocolCells
 #endif
 
 struct RootView: View {
+    @ObservedObject private var identityLinkPresenter = IdentityLinkFlowPresenter.shared
     @State private var initialized = false
     @State private var initializationFailure: String?
     @State private var initializationAttemptID = UUID()
@@ -118,7 +119,7 @@ struct RootView: View {
 
     private var identityLinkPresented: Binding<Bool> {
         Binding(
-            get: { IdentityLinkFlowPresenter.shared.isPresented },
+            get: { identityLinkPresenter.isPresented },
             set: { presented in if !presented { IdentityLinkFlowPresenter.shared.dismiss() } }
         )
     }

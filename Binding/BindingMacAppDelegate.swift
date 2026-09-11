@@ -5,6 +5,7 @@ import AppKit
 
 final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
+        guard !IdentityLinkUIFixture.enabled else { return }
         let defaults = UserDefaults.standard
         defaults.set(false, forKey: "NSQuitAlwaysKeepsWindows")
         clearLegacyWindowFrames(from: defaults)
@@ -12,6 +13,7 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if IdentityLinkUIFixture.enabled { scheduleEnsureMainWindowPresent(); return }
         Task(priority: .userInitiated) {
             await BindingLaunchWarmup.preloadLocalRuntime()
         }
@@ -41,6 +43,7 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         let targetWindowNumber = automationTargetWindowNumber(in: application)
         urls.forEach { url in
+            if IdentityLinkFlowPresenter.shared.handle(url: url) { return }
             BindingIncomingURLBridge.submit(url: url, targetWindowNumber: targetWindowNumber)
         }
     }
