@@ -13,9 +13,9 @@ Den native appen viser «Her» og «Der» før den ber om signering. Personen sa
 | Repo | Kandidat | Review |
 | --- | --- | --- |
 | CellProtocol | `436b6a77d42da1317e71f3024dfc0d3e18de796f` | [PR38](https://github.com/Digipomps/CellProtocol/pull/38) |
-| CellScaffold | `5ee51e68d9d29768140e9f6b6c864ff1f994b4bc` + avgrenset oppstartsretting `e3de5c24` | [PR241](https://github.com/Digipomps/CellScaffold/pull/241) |
-| Binding | `codex/entity-continuity-20260911` | Lokal kandidat; endelig commit/teststatus føres under |
-| sprout | `d2dcfa2` | [PR2](https://github.com/Digipomps/Sprout/pull/2) |
+| CellScaffold | `746e66ee` (personidentitet-recovery, avventet policyinstallasjon og HTTP-testrettinger) | [PR241](https://github.com/Digipomps/CellScaffold/pull/241) |
+| Binding | `3a41745f` | [PR32](https://github.com/Digipomps/Binding/pull/32) |
+| sprout | `4a5b3ef` | [PR2](https://github.com/Digipomps/Sprout/pull/2) |
 | HavenAgentD | `022661a` | [PR15](https://github.com/Digipomps/HavenAgentD/pull/15) |
 
 Kildene ligger under `Implementation/EntityContinuity-20260911/` i Binding-arbeidsmappen. Disse er lokale kloner, ikke de opprinnelige søsterrepoene. Endringer i de opprinnelige, urene trærne er bevart.
@@ -42,6 +42,10 @@ sprout entity connect --place app
 ```
 
 Pakket distribusjon må legge `haven-nearby` ved siden av sprout, eller konfigurere den eksplisitte banen. I native sprout og menyhjelperen brukes «Utvid min entitet …». Inngangene forutsetter en installert HAVEN-app som håndterer `haven://link-devices`.
+
+## Ferdig telefonkandidat
+
+Signert IPA: `Implementation/EntityContinuity-20260911/Artifacts/HAVEN-PersonEntityLink-3a41745f.ipa`. Appen ligger også under `/private/tmp/haven-xcode-derived/Binding-EntityContinuity/Build/Products/Debug-iphoneos/HAVEN.app`. Dette er et utviklerbygg for allerede registrerte enheter, ikke TestFlight/App Store. Det bruker den vanlige app-ID-en `org.digipomps.haven`; installasjon vil derfor oppdatere den eksisterende HAVEN-appen. Bygget er klargjort, men er ikke installert på telefonen.
 
 ## Telefon mot personentitet i staging
 
@@ -85,12 +89,16 @@ Bonjour-feltene inneholder versjon, HTTPS-origin, tilfeldig 256-bit offer-ID og 
 
 - CellNearby: 3 tester og faktisk lokal toprosess-oppdagelse/utløp bestått. CellProtocol PR38 sine tre CI-gater bestått.
 - Binding: macOS-bygg og 11 målrettede koblingstester bestått. Tester bruker syntetiske identiteter og eget kryptert testlager, aldri brukerens kvitteringer eller Keychain. Den fysiske Keychain-/Face ID-/telefonbanen gjenstår.
-- iOS: første generiske fullbygg bestått; sluttbygg etter outbox føres under. Ingen fysisk installasjon, TestFlight eller passkey-seremoni er utført.
-- Sprout: CLI og macOS-app bygger, 3 supporttester og reell kort nærhetslesing bestått. Menyhjelperens faktiske produkt bygger.
-- Server: første kandidat bygde og besto Swift-, Admin- og torsdagens P0-nettlesergater i CI. Samme kjøring feilet i separat dokumentprøve: et bilde nådde ikke den andre økten. Ny evidensintegrasjon er til CI-verifikasjon; ingen grønn prod-godkjenning er gitt.
+- iOS: fullt generisk bygg etter outbox bestått. Signert utviklerbygg `3a41745f` med prosjektets eksisterende «HAVEN iOS Development 2026»-profil er ferdig og signaturen er verifisert. Innebygd proveniens viser samme rene Binding-commit og CellProtocol436b6a7. En fysisk iPhone 17 Pro er tilgjengelig med utviklermodus; ingen profilfornyelse var nødvendig. Ingen fysisk installasjon, TestFlight eller passkey-seremoni er utført.
+- Native UI: faktisk appflate kontrollert med CUA: visning av begge syntetiske personentiteter og sted, testbyggets signeringssperre og Avbryt bestått; skjermbilde inspisert. XCUITest-kilden kompilerte, men automatisert løper stoppet før teststart. CUA-prøven bruker egen test-ID og endrer ingen personautoritet.
+- Sprout: CLI og macOS-app bygger, 3 supporttester og reell kort nærhetslesing bestått. CI på Linux/macOS bestått for `d2dcfa2`. En reell installasjonsprøve avdekket at PATH-start ikke fant naboprogrammet; retting `4a5b3ef` bruker faktisk eksekverbar fil og følger symlinker. Ny CLI-bygging og fem prosessprøver bestått lokalt. CI34630426281 for rettingen pågår. Menyhjelperens faktiske produkt og CI bestått.
+- Server: evidensintegrasjon `5ee51e68` besto hele CI34619634244, inkludert faktisk P-256/WebAuthn-callback, Swift-, Admin-, torsdagens P0- og dokumentprøve. Første invitasjonskandidat hadde en separat dokumentfeil; ingen blind omkjøring ble gjort. Sikkerhetsoppfølgingen omfatter avventet policyinstallasjon og fire flere kontroller av eksisterende personidentitet / faktisk HTTP completion / eksakt retry / tilbakekalling. CI34626716816 stoppet i kompileringen av to negative HTTP-tester: Vapor krevde en Content-type. Testene bruker nå eksplisitt JSON-body, og prøvedata lagres med eksisterende batch-API. Assertions er beholdt. Korrigert kandidat `746e66ee` testes i CI34629774748; siste kandidat er ikke erklært grønn før kjøringen er ferdig.
 - Lokal full serverbygging er sperret av repoets eksplisitte krav om 10 prosent ledig disk etter reserve. Kravet er ikke omgått og ingen cache-/datarydding er utført.
 
 Det er ikke bevist at personens eksisterende app-, agent-, meny-, staging- og prodrepresentasjoner allerede er samme entitet. Den nye flyten gjør korrekt bevisføring testbar; den erstatter ikke menneskets faktiske godkjenning eller en funksjonell lesetest.
+
+
+Den separate Mac-fixturen kan bygges med `Scripts/build_person_link_ui_fixture.sh`. Skriptet bruker en fast test-ID, en egen produktmappe under `/private/tmp`, ingen personautoritet og ingen URL-handlere. Det gir fixturen navnet «HAVEN UI-test» slik at den ikke kan overta vanlige `haven://`-lenker. Dette er bare en presentasjonsprøve; telefonkandidaten over er et separat, normalt signert HAVEN-bygg.
 
 ## Network, eldre OS og friksjon
 
@@ -106,4 +114,6 @@ Implementert som additiv draft: en liten separat `CellNearby`-pakke med invitasj
 
 Foreslått neste kontraktarbeid, ikke vedtatt her: retningsbestemte personbevis for begge dataretninger, opprinnelig forfattersignatur adskilt fra stabil lagringsmyndighet, egne eksplisitte lagrings-/replikeringsrettigheter, tilbakekalling ved commit og indeks-/eksportgrenser per datafamilie. To nøkkelbevis alene gir ikke rett til å slå sammen alle avtaler og innhold.
 
-Den bestilte Astra-oppgaven «Entitetsdata på tvers av scaffolds» eier forskning, querygateway, lesing/skriving/indeksering, robusthetstester og videre promotering mot deploy. Oppgave-ID: `01a090e0-cced-7351-a2b1-f82408848442`, data-PR240. Den har fått presiseringen om menneskets entitet og den konkrete koblingsintegrasjonen. Handoff: `Entity_Fabric_Astra_Handoff_2026-09-11.md`.
+Konkrete leveransegap er fortsatt åpne: en autentisert personrute med avgrensede bridge-scopes for Binding, og terminal-initiert person-/device-godkjenning for Linux-sprout uten cookie- eller QR-innliming. Inngangsknappene leverer ikke disse kontraktene. Det finnes ingen verifisert produksjonsrute som kan rapporteres som ferdig for all persondataadgang.
+
+Den bestilte Astra-oppgaven «Entitetsdata på tvers av scaffolds» eier forskning, querygateway, lesing/skriving/indeksering, personlig HTTPS-rute/scopes-descriptor og tilsvarende Binding-klient i separat arbeidstre, robusthetstester og videre promotering mot deploy. Oppgave-ID: `01a090e0-cced-7351-a2b1-f82408848442`, data-PR240. Den har fått presiseringen om menneskets entitet og den konkrete koblingsintegrasjonen. Handoff: `Entity_Fabric_Astra_Handoff_2026-09-11.md`.
