@@ -6,7 +6,8 @@ CellProtocol pin 436b6a77d42da1317e71f3024dfc0d3e18de796f. Work is isolated in
 checkout, ceremony/scanner/outbox and signed pilot have not been modified.
 The source task's cancellation fix and UI-fixture isolation were fast-forwarded
 from b12b0414 before adding this client's checkpoint; source reports its 12/12
-identity-link tests passed. The old 3a41745f IPA is not a final device candidate.
+identity-link tests passed. The old 3a41745f IPA is not a final device candidate. The later runbook-only
+checkpoint 24faaff0 is merged without changing the client code baseline.
 
 The new client is not connected to a UI or enabled against production. Its
 server counterpart is local work after CellScaffold 195c5f01, not a deployed
