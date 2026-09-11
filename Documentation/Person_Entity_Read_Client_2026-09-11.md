@@ -38,6 +38,12 @@ reply if close/reconnect or expiry occurred while awaiting it. This source-
 grounded guard is syntax-checked only; client concurrency/runtime proof remains
 part of the unexecuted integration requirements below.
 
+The local connection deadline starts before socket setup; time spent fetching
+the remote description cannot extend it. A close observed after signing but
+before route discovery also prevents starting that HTTP request. An already
+sent metadata request can still finish under its short HTTP timeout, but its
+result cannot activate a cancelled/replaced connection.
+
 AppleBridgeTransport cannot safely supply this header merely by injecting a
 connection: setup replaces the connection and sets private local-vault state,
 while skipping setup omits that state. The new app transport therefore uses

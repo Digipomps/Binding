@@ -61,6 +61,7 @@ actor PersonEntityReadClient {
             origin: entry.origin, action: C.discoveryAction,
             resource: C.discoveryResource(reference: reference, linkID: recorded.linkID))
         try Task.checkCancellation()
+        guard connectionAttempt == attempt else { throw CancellationError() }
         let descriptor = try await Self.discover(discovery, origin: entry.origin)
         try C.validateDescriptor(descriptor, proof: discovery, identity: identity, origin: entry.origin,
             approvedDomains: recorded.approvedDomains, now: Date())
@@ -83,13 +84,15 @@ actor PersonEntityReadClient {
             guard connectionAttempt == attempt else { throw CancellationError() }
             pendingTransport = transport
             try await bridge.setTransport(transport, connection: .outbound)
+            let connectionExpiry = Date().addingTimeInterval(C.connectionLifetime)
             try await transport.setup(url, identity: identity)
             try Task.checkCancellation()
             try await bridge.retrieveProxyRepresentation(for: identity)
             guard connectionAttempt == attempt else { throw CancellationError() }
+            guard Date() < connectionExpiry else { throw C.Failure.expired }
             self.bridge = bridge; self.transport = transport; linked = identity
             self.descriptor = descriptor
-            expiresAt = Date().addingTimeInterval(C.connectionLifetime)
+            expiresAt = connectionExpiry
         } catch {
             bridge.close(requester: identity)
             await transport.close()
