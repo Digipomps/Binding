@@ -8,6 +8,7 @@ nonisolated enum IdentityLinkUIFixture {
     static var enabled: Bool {
         #if DEBUG && os(macOS)
         ProcessInfo.processInfo.arguments.contains("--binding-person-link-ui-test")
+            || Bundle.main.bundleIdentifier == "org.digipomps.haven.person-link-ui-test"
         #else
         false
         #endif
