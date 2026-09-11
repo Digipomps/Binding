@@ -18,6 +18,7 @@ actor PersonEntityReadClient {
     private var expiresAt: Date?
     private var connectionAttempt: UUID?
     private var pendingTransport: BindingPersonEntityReadTransport?
+    private var queryAttempt: UUID?
 
     init(resolveIdentity: @escaping ExistingIdentityResolver = { uuid in
         await BindingStartupIdentityVault.shared.identity(forUUID: uuid)
@@ -26,6 +27,7 @@ actor PersonEntityReadClient {
     /// The caller supplies the explicitly selected saved receipt. Merely
     /// loading all receipts must never start network activity or sign proofs.
     func connect(entry: IdentityLinkCompletionStore.Entry) async throws {
+        try Task.checkCancellation()
         guard bridge == nil, connectionAttempt == nil else { throw C.Failure.capacity }
         let attempt = UUID()
         connectionAttempt = attempt
@@ -53,13 +55,16 @@ actor PersonEntityReadClient {
               let vault = identity.identityVault,
               let home = identity.homeVaultReference, home == (await vault.identityVaultReference()),
               await vault.identityExistInVault(identity) else { throw C.Failure.denied }
+        try Task.checkCancellation()
         guard connectionAttempt == attempt else { throw CancellationError() }
         let discovery = try await Self.proof(identity: identity, reference: reference, linkID: recorded.linkID,
             origin: entry.origin, action: C.discoveryAction,
             resource: C.discoveryResource(reference: reference, linkID: recorded.linkID))
+        try Task.checkCancellation()
         let descriptor = try await Self.discover(discovery, origin: entry.origin)
         try C.validateDescriptor(descriptor, proof: discovery, identity: identity, origin: entry.origin,
             approvedDomains: recorded.approvedDomains, now: Date())
+        try Task.checkCancellation()
         guard connectionAttempt == attempt else { throw CancellationError() }
         let opening = try await Self.proof(identity: identity, reference: reference, linkID: recorded.linkID,
             origin: entry.origin, action: C.openAction, resource: C.openResource(descriptor: descriptor))
@@ -93,9 +98,16 @@ actor PersonEntityReadClient {
     }
 
     func read(keypaths: [String]) async throws -> ValueType {
+        try Task.checkCancellation()
+        // The pinned BridgeBase correlates SET replies by keypath. Concurrent
+        // entityData.query calls on one bridge would overwrite its callback.
+        guard queryAttempt == nil else { throw C.Failure.capacity }
         guard let bridge, let linked, let descriptor, let expiresAt, Date() < expiresAt,
               !keypaths.isEmpty, keypaths.count <= 16,
               keypaths.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 1024 }) else { throw C.Failure.unavailable }
+        let attempt = UUID()
+        queryAttempt = attempt
+        defer { if queryAttempt == attempt { queryAttempt = nil } }
         let requests: [ValueType] = keypaths.enumerated().map { index, keypath in
             .object(["requestID": .string(String(index)), "keypath": .string(keypath)])
         }
@@ -107,6 +119,8 @@ actor PersonEntityReadClient {
         guard let result = try await bridge.set(keypath: "entityData.query", value: payload, requester: linked) else {
             throw C.Failure.unavailable
         }
+        try Task.checkCancellation()
+        guard queryAttempt == attempt, self.bridge === bridge, Date() < expiresAt else { throw C.Failure.unavailable }
         return result
     }
 
@@ -114,7 +128,7 @@ actor PersonEntityReadClient {
         if let bridge, let linked { bridge.close(requester: linked) }
         let closing = transport
         let pending = pendingTransport
-        connectionAttempt = nil; pendingTransport = nil
+        connectionAttempt = nil; pendingTransport = nil; queryAttempt = nil
         bridge = nil; transport = nil; linked = nil; descriptor = nil; expiresAt = nil
         await closing?.close()
         await pending?.close()

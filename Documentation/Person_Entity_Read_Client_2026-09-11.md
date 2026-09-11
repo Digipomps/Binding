@@ -31,6 +31,13 @@ requests, responses and connection lifetime are bounded. Concurrent or cancelled
 connect attempts cannot silently replace an active connection. Closing resets
 core bridge proof scopes and releases transport registrations.
 
+The actual pinned BridgeBase correlates SET responses by keypath, so the
+client permits only one in-flight entityData.query per connection. It rejects
+an overlapping call as busy, checks cancellation before work and discards a
+reply if close/reconnect or expiry occurred while awaiting it. This source-
+grounded guard is syntax-checked only; client concurrency/runtime proof remains
+part of the unexecuted integration requirements below.
+
 AppleBridgeTransport cannot safely supply this header merely by injecting a
 connection: setup replaces the connection and sets private local-vault state,
 while skipping setup omits that state. The new app transport therefore uses
