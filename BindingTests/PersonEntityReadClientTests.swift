@@ -9,6 +9,90 @@ import XCTest
 final class PersonEntityReadClientTests: XCTestCase {
     private typealias C = BindingPersonEntityReadRouteContract
 
+    func testPartialReplyPreservesNullValueAndExactOriginWithoutInventingUnavailableData() throws {
+        let fixture = replyFixture()
+        let result = try PersonEntityReadResult.decode(.object(fixture), keypaths: replyPaths,
+            origin: replyOrigin, anchorUUID: replyAnchor)
+        XCTAssertEqual(result.status, .partial)
+        XCTAssertEqual(result.fragments.count, 2)
+        XCTAssertEqual(result.fragments[0].value, .null, "a returned JSON null is a value, not a missing fragment")
+        XCTAssertEqual(result.fragments[0].sourceOrigin, replyOrigin)
+        XCTAssertEqual(result.fragments[0].sourceReference, "cell:///" + replyAnchor)
+        XCTAssertNil(result.fragments[1].value)
+        XCTAssertNil(result.fragments[1].sourceOrigin)
+        XCTAssertNil(result.fragments[1].sourceReference)
+    }
+
+    func testReplyRejectsChangedSourceRequestCompletenessAndHiddenDeniedValues() throws {
+        let original = replyFixture()
+        let topChanges: [(String, ValueType)] = [
+            ("status", .string("complete")), ("schema", .string("future-schema")),
+            ("revisionVerified", .bool(true)), ("retained", .bool(true)),
+            ("consistency", .string("coherent-snapshot")), ("hidden", .string("unexpected"))
+        ]
+        for (key, value) in topChanges {
+            var changed = original; changed[key] = value
+            assertInvalidReply(changed)
+        }
+        guard case let .list(rows)? = original["fragments"], case let .object(first) = rows[0],
+              case let .object(second) = rows[1] else { return XCTFail("invalid synthetic reply") }
+        let rowChanges: [(String, ValueType)] = [
+            ("sourceOrigin", .string("https://other.example")),
+            ("sourceReference", .string("cell:///" + UUID().uuidString)),
+            ("requestID", .string("1")), ("keypath", .string("another.path")),
+            ("revision", .integer(1)), ("status", .string("denied")),
+            ("value", .float(.infinity)), ("value", .string(String(repeating: "x", count: 65_536)))
+        ]
+        for (key, value) in rowChanges {
+            var changed = original, row = first; row[key] = value
+            changed["fragments"] = .list([.object(row), .object(second)])
+            assertInvalidReply(changed)
+        }
+        var deniedWithValue = second
+        deniedWithValue["value"] = .string("must not be disclosed")
+        var changed = original
+        changed["fragments"] = .list([.object(first), .object(deniedWithValue)])
+        assertInvalidReply(changed)
+        changed["fragments"] = .list([.object(first)])
+        assertInvalidReply(changed)
+        changed["fragments"] = .list([.object(first), .object(first)])
+        assertInvalidReply(changed)
+    }
+
+    func testWholeQueryDenialCarriesNoValuesOrServerErrorText() throws {
+        let value: ValueType = .object(["status": .string("denied"),
+            "error": .object(["code": .string("person-entity-link-required"),
+                              "message": .string("synthetic-backend-detail-not-for-display")])])
+        let result = try PersonEntityReadResult.decode(value, keypaths: replyPaths,
+            origin: replyOrigin, anchorUUID: replyAnchor)
+        XCTAssertEqual(result.status, .denied)
+        XCTAssertTrue(result.fragments.isEmpty)
+        XCTAssertFalse(String(describing: result).contains("synthetic-backend-detail"))
+    }
+
+    private var replyOrigin: String { "https://synthetic-person.example" }
+    private var replyAnchor: String { "CD31755A-8B1C-43AB-A4C4-73BC80EC0ACF" }
+    private var replyPaths: [String] { ["entityRepresentation.name", "relations.people"] }
+    private func replyFixture() -> Object {
+        let first: ValueType = .object([
+            "requestID": .string("0"), "keypath": .string(replyPaths[0]), "status": .string("available"),
+            "sourceOrigin": .string(replyOrigin), "sourceReference": .string("cell:///" + replyAnchor),
+            "revision": .null, "value": .null
+        ])
+        let second: ValueType = .object([
+            "requestID": .string("1"), "keypath": .string(replyPaths[1]), "status": .string("unavailable"),
+            "sourceOrigin": .null, "sourceReference": .null, "revision": .null,
+            "error": .object(["code": .string("entity-data-read-failed"), "message": .string("This requested fragment is not available.")])
+        ])
+        return ["schema": .string("haven.entity-data-query-result.v1"), "status": .string("partial"),
+                "consistency": .string("independent-reads"), "revisionVerified": .bool(false),
+                "retained": .bool(false), "fragments": .list([first, second])]
+    }
+    private func assertInvalidReply(_ object: Object, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertThrowsError(try PersonEntityReadResult.decode(.object(object), keypaths: replyPaths,
+            origin: replyOrigin, anchorUUID: replyAnchor), file: file, line: line)
+    }
+
     func testMissingExactKeyAfterRelaunchDeniesWithoutProvisioning() async throws {
         let (entry, phone) = try await fixture()
         let lookup = expectation(description: "existing UUID lookup")

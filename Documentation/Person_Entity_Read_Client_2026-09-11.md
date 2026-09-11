@@ -69,3 +69,14 @@ context. The wire contract now requires private, matching actual Cells rather
 than inferring an access domain from a registration argument. The descriptor
 negative test rejects scaffold-only approval. Neither server core semantics nor
 existing identities are changed. This correction remains unbuilt here.
+
+The client now returns PersonEntityReadResult after validating the query reply:
+exact requested IDs/keypaths, expected origin and anchor UUID, value-free denied
+or unavailable fragments, actual complete/partial status, independent-read
+semantics and no claimed revision. The existing server's pure byte/node/depth
+value-budget algorithm is mirrored exactly. Server error text is discarded.
+Three additional synthetic reply regressions cover changed provenance, hidden
+values on denied/unavailable rows, false completeness, missing/duplicate rows,
+non-finite/oversized values and a real JSON null. Seven native tests are now
+present, still unexecuted; syntax parsing alone passes. This is not signed data
+provenance or permission to retain/index the returned data.

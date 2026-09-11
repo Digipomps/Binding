@@ -100,7 +100,7 @@ actor PersonEntityReadClient {
         }
     }
 
-    func read(keypaths: [String]) async throws -> ValueType {
+    func read(keypaths: [String]) async throws -> PersonEntityReadResult {
         try Task.checkCancellation()
         // The pinned BridgeBase correlates SET replies by keypath. Concurrent
         // entityData.query calls on one bridge would overwrite its callback.
@@ -124,7 +124,9 @@ actor PersonEntityReadClient {
         }
         try Task.checkCancellation()
         guard queryAttempt == attempt, self.bridge === bridge, Date() < expiresAt else { throw C.Failure.unavailable }
-        return result
+        guard let anchor = descriptor.scopes.first(where: { $0.role == .anchor }) else { throw C.Failure.malformed }
+        return try PersonEntityReadResult.decode(result, keypaths: keypaths,
+            origin: descriptor.origin, anchorUUID: anchor.cellUUID)
     }
 
     func close() async {
