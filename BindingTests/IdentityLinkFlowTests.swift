@@ -194,6 +194,35 @@ final class IdentityLinkFlowTests: XCTestCase {
         XCTAssertEqual(state, .idle)
     }
 
+    func testResetDuringOutboxReadCannotRestartAnyEntryPoint() async throws {
+        let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        let link = try deepLink(ticket)
+        for fails in [false, true] {
+            for entry in 0..<5 {
+                let entered = expectation(description: "outbox read suspended")
+                let outbox = SuspendedIdentityLinkOutbox(entered: entered, fails: fails)
+                let coordinator = IdentityLinkFlowCoordinator(outbox: outbox,
+                    identityProvider: { XCTFail("Cancelled outbox read reached signing identity"); return nil },
+                    completionSaver: { _, _, _, _ in XCTFail("Cancelled flow persisted authority") })
+                let pending = Task {
+                    switch entry {
+                    case 0: await coordinator.start(deepLink: link)
+                    case 1: await coordinator.review(deepLink: link)
+                    case 2: await coordinator.beginScanning()
+                    case 3: await coordinator.resumePendingCompletion()
+                    default: await coordinator.discardPendingCompletion()
+                    }
+                }
+                await fulfillment(of: [entered], timeout: 5)
+                await coordinator.reset()
+                await outbox.release()
+                await pending.value
+                let state = await coordinator.state
+                XCTAssertEqual(state, .idle, "entry \(entry), failing read \(fails)")
+            }
+        }
+    }
+
     func testEncryptedExactCompletionSurvivesRestartAndLostResponse() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -410,4 +439,29 @@ private actor MemoryIdentityLinkOutbox: IdentityLinkOutbox {
         guard entry?.requestID == requestID else { throw IdentityLinkOutboxError.occupied }
         entry = nil
     }
+}
+
+private actor SuspendedIdentityLinkOutbox: IdentityLinkOutbox {
+    private let entered: XCTestExpectation
+    private let fails: Bool
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+    init(entered: XCTestExpectation, fails: Bool) { self.entered = entered; self.fails = fails }
+    func load() async throws -> IdentityLinkPendingCompletion? {
+        if !released {
+            await withCheckedContinuation {
+                continuation = $0
+                entered.fulfill()
+            }
+        }
+        if fails { throw IdentityLinkOutboxError.invalidFile }
+        return nil
+    }
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
+    }
+    func save(_ entry: IdentityLinkPendingCompletion) { XCTFail("Cancelled flow saved a package") }
+    func remove(requestID: String) { XCTFail("Cancelled flow discarded a package") }
 }

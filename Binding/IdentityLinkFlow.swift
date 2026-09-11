@@ -313,20 +313,25 @@ actor IdentityLinkFlowCoordinator {
 
     func beginScanning() async {
         reset()
-        if await showPendingCompletion() { return }
+        if await showPendingCompletion(token: generation) { return }
         set(.scanning)
     }
 
     /// Opening the flow discovers a saved package without contacting a server.
-    private func showPendingCompletion() async -> Bool {
+    private func showPendingCompletion(token: UUID) async -> Bool {
         do {
-            if let pending = try await outbox.load() {
+            let pending = try await outbox.load()
+            try requireCurrent(token)
+            if let pending {
                 set(.recovery(ticket: pending.ticket,
                     message: "En godkjent pakke er lagret kryptert her. Serverens siste resultat er ikke bekreftet. Gjenoppta for å kontrollere status og fullføre.", canRetry: true))
                 return true
             }
             return false
+        } catch is CancellationError {
+            return true
         } catch {
+            guard generation == token, !Task.isCancelled else { return true }
             set(.failed(message: "Den ventende koblingen kunne ikke leses sikkert. Lås opp enheten og prøv igjen. Ingen ny forespørsel er sendt."))
             return true
         }
@@ -337,14 +342,16 @@ actor IdentityLinkFlowCoordinator {
         reset()
         let token = generation
         do {
-            guard let pending = try await outbox.load() else { set(.scanning); return }
+            let pending = try await outbox.load()
+            try requireCurrent(token)
+            guard let pending else { set(.scanning); return }
             guard let identity = await identityProvider() else { throw IdentityLinkFlowError.noLocalIdentity }
             try requireCurrent(token)
             try await completePending(pending, identity: identity, token: token)
         } catch is CancellationError { return }
         catch {
             guard generation == token else { return }
-            if !(await showPendingCompletion()) { set(.failed(message: Self.message(for: error))) }
+            if !(await showPendingCompletion(token: token)) { set(.failed(message: Self.message(for: error))) }
         }
     }
 
@@ -352,17 +359,27 @@ actor IdentityLinkFlowCoordinator {
     func discardPendingCompletion() async {
         guard !completionInFlight else { return }
         reset()
+        let token = generation
         do {
-            if let pending = try await outbox.load() { try await outbox.remove(requestID: pending.requestID) }
+            let pending = try await outbox.load()
+            try requireCurrent(token)
+            if let pending {
+                try await outbox.remove(requestID: pending.requestID)
+                try requireCurrent(token)
+            }
             set(.scanning)
-        } catch { set(.failed(message: "Den ventende koblingen kunne ikke fjernes. Ingen ny forespørsel er sendt.")) }
+        } catch is CancellationError { return }
+        catch {
+            guard generation == token, !Task.isCancelled else { return }
+            set(.failed(message: "Den ventende koblingen kunne ikke fjernes. Ingen ny forespørsel er sendt."))
+        }
     }
 
     /// A nearby result or QR is an invitation to review, never permission to sign.
     func review(deepLink: String) async {
         guard !completionInFlight else { return }
         reset()
-        if await showPendingCompletion() { return }
+        if await showPendingCompletion(token: generation) { return }
         do { set(.reviewing(ticket: try IdentityLinkTicket.decode(deepLink: deepLink))) }
         catch { set(.failed(message: "Invitasjonen er ugyldig, utløpt eller fra et ukjent sted.")) }
     }
@@ -385,8 +402,8 @@ actor IdentityLinkFlowCoordinator {
             return
         }
         reset()
-        if await showPendingCompletion() { return }
         let token = generation
+        if await showPendingCompletion(token: token) { return }
         let ticket: IdentityLinkTicket
         do {
             ticket = try IdentityLinkTicket.decode(deepLink: deepLink, now: now)
