@@ -1,6 +1,6 @@
 # Personens entitet på flere steder — praktisk pilot
 
-Dato: 11. september 2026. Kandidatene er isolerte fra de opprinnelige arbeidsgrenene. Ingen av brukerens faktiske entiteter er koblet, slått sammen eller flyttet i dette arbeidet. Staging og produksjon er ikke oppdatert av denne oppgaven.
+Dato: 11. september 2026. Telefonpakken er klar; serveren har fortsatt åpne testgater før utrulling. Kandidatene er isolerte fra de opprinnelige arbeidsgrenene. Ingen av brukerens faktiske entiteter er koblet, slått sammen eller flyttet i dette arbeidet. Staging og produksjon er ikke oppdatert av denne oppgaven.
 
 ## Hva brukeren skal oppleve
 
@@ -13,8 +13,8 @@ Den native appen viser «Her» og «Der» før den ber om signering. Personen sa
 | Repo | Kandidat | Review |
 | --- | --- | --- |
 | CellProtocol | `436b6a77d42da1317e71f3024dfc0d3e18de796f` | [PR38](https://github.com/Digipomps/CellProtocol/pull/38) |
-| CellScaffold | `746e66ee` (personidentitet-recovery, avventet policyinstallasjon og HTTP-testrettinger) | [PR241](https://github.com/Digipomps/CellScaffold/pull/241) |
-| Binding | `3a41745f` | [PR32](https://github.com/Digipomps/Binding/pull/32) |
+| CellScaffold | `746e66ee` + lokal testretting `ac2531f2` | [PR241](https://github.com/Digipomps/CellScaffold/pull/241) |
+| Binding | `b12b0414` | [PR32](https://github.com/Digipomps/Binding/pull/32) |
 | sprout | `4a5b3ef` | [PR2](https://github.com/Digipomps/Sprout/pull/2) |
 | HavenAgentD | `022661a` | [PR15](https://github.com/Digipomps/HavenAgentD/pull/15) |
 
@@ -29,7 +29,7 @@ swift test -j 2 --disable-automatic-resolution
 python3 Scripts/smoke_nearby.py
 ```
 
-Røykprøven bruker en tilfeldig, syntetisk invitasjon som ikke finnes på serveren. To virkelige prosesser annonserer og finner den med Network/Bonjour. Den kontrollerer også utløp. Dette er radio-/oppdagelsesbevis, ikke eierskapsbevis.
+Røykprøven bruker en tilfeldig, syntetisk invitasjon som ikke finnes på serveren. To virkelige prosesser annonserer og finner den med Network/Bonjour. Den kontrollerer også utløp. Dette beviser Bonjour-oppdagelse mellom to prosesser på én Mac. Det er ikke en fysisk radio-/to-enhetsprøve eller et eierskapsbevis.
 
 For to maskiner: bruk `haven-nearby --help` for `advertise --offer-file` på den ene og `browse --seconds 120` på den andre. Bruk samme syntetiske offerformat fra røykprøven. Enhetene må tillate lokalt nettverk. Test både samme Wi-Fi og direkte nærhet; sistnevnte er ikke fysisk verifisert her. Ikke kopier ekte QR-, passkey- eller koblingspakker inn i logger eller Git.
 
@@ -43,9 +43,9 @@ sprout entity connect --place app
 
 Pakket distribusjon må legge `haven-nearby` ved siden av sprout, eller konfigurere den eksplisitte banen. I native sprout og menyhjelperen brukes «Utvid min entitet …». Inngangene forutsetter en installert HAVEN-app som håndterer `haven://link-devices`.
 
-## Ferdig telefonkandidat
+## Signert telefonkandidat
 
-Signert IPA: `Implementation/EntityContinuity-20260911/Artifacts/HAVEN-PersonEntityLink-3a41745f.ipa`. Appen ligger også under `/private/tmp/haven-xcode-derived/Binding-EntityContinuity/Build/Products/Debug-iphoneos/HAVEN.app`. Dette er et utviklerbygg for allerede registrerte enheter, ikke TestFlight/App Store. Det bruker den vanlige app-ID-en `org.digipomps.haven`; installasjon vil derfor oppdatere den eksisterende HAVEN-appen. Bygget er klargjort, men er ikke installert på telefonen.
+Signert IPA: `Implementation/EntityContinuity-20260911/Artifacts/HAVEN-PersonEntityLink-b12b0414.ipa`. Appen ligger også under `/private/tmp/haven-xcode-derived/Binding-EntityContinuity/Build/Products/Debug-iphoneos/HAVEN.app`. Dette er et utviklerbygg for allerede registrerte enheter, ikke TestFlight/App Store. Det bruker den vanlige app-ID-en `org.digipomps.haven`; installasjon vil derfor oppdatere den eksisterende HAVEN-appen. Bygget er klargjort og signaturverifisert, men er ikke installert på telefonen. Det erstatter den tidligere `3a41745f`-pakken. SHA256 og kildeproveniens ligger ved i `Artifacts/Verification.json` og `BindingBuildProvenance-b12b0414.json`.
 
 ## Telefon mot personentitet i staging
 
@@ -88,11 +88,11 @@ Bonjour-feltene inneholder versjon, HTTPS-origin, tilfeldig 256-bit offer-ID og 
 ## Verifikasjon og åpne grenser
 
 - CellNearby: 3 tester og faktisk lokal toprosess-oppdagelse/utløp bestått. CellProtocol PR38 sine tre CI-gater bestått.
-- Binding: macOS-bygg og 11 målrettede koblingstester bestått. Tester bruker syntetiske identiteter og eget kryptert testlager, aldri brukerens kvitteringer eller Keychain. Den fysiske Keychain-/Face ID-/telefonbanen gjenstår.
-- iOS: fullt generisk bygg etter outbox bestått. Signert utviklerbygg `3a41745f` med prosjektets eksisterende «HAVEN iOS Development 2026»-profil er ferdig og signaturen er verifisert. Innebygd proveniens viser samme rene Binding-commit og CellProtocol436b6a7. En fysisk iPhone 17 Pro er tilgjengelig med utviklermodus; ingen profilfornyelse var nødvendig. Ingen fysisk installasjon, TestFlight eller passkey-seremoni er utført.
-- Native UI: faktisk appflate kontrollert med CUA: visning av begge syntetiske personentiteter og sted, testbyggets signeringssperre og Avbryt bestått; skjermbilde inspisert. XCUITest-kilden kompilerte, men automatisert løper stoppet før teststart. CUA-prøven bruker egen test-ID og endrer ingen personautoritet.
-- Sprout: CLI og macOS-app bygger, 3 supporttester og reell kort nærhetslesing bestått. CI på Linux/macOS bestått for `d2dcfa2`. En reell installasjonsprøve avdekket at PATH-start ikke fant naboprogrammet; retting `4a5b3ef` bruker faktisk eksekverbar fil og følger symlinker. Ny CLI-bygging og fem prosessprøver bestått lokalt. CI34630426281 for rettingen pågår. Menyhjelperens faktiske produkt og CI bestått.
-- Server: evidensintegrasjon `5ee51e68` besto hele CI34619634244, inkludert faktisk P-256/WebAuthn-callback, Swift-, Admin-, torsdagens P0- og dokumentprøve. Første invitasjonskandidat hadde en separat dokumentfeil; ingen blind omkjøring ble gjort. Sikkerhetsoppfølgingen omfatter avventet policyinstallasjon og fire flere kontroller av eksisterende personidentitet / faktisk HTTP completion / eksakt retry / tilbakekalling. CI34626716816 stoppet i kompileringen av to negative HTTP-tester: Vapor krevde en Content-type. Testene bruker nå eksplisitt JSON-body, og prøvedata lagres med eksisterende batch-API. Assertions er beholdt. Korrigert kandidat `746e66ee` testes i CI34629774748; siste kandidat er ikke erklært grønn før kjøringen er ferdig.
+- Binding: macOS-bygg og 12 målrettede koblingstester bestått. En ny regresjon reproduserte at Avbryt under langsom outbox-lesing kunne etterfølges av identitetsoppslag; alle fem innganger med både vellykket og feilet lesing stopper nå korrekt. Tester bruker syntetiske identiteter og eget kryptert testlager, aldri brukerens kvitteringer eller Keychain. Den fysiske Keychain-/Face ID-/telefonbanen gjenstår.
+- iOS: fullt generisk bygg etter outbox bestått. Signert utviklerbygg `b12b0414` med prosjektets eksisterende «HAVEN iOS Development 2026»-profil er ferdig og signaturen er verifisert. Innebygd proveniens viser samme rene Binding-commit og CellProtocol436b6a7. En fysisk iPhone 17 Pro er tilgjengelig med utviklermodus; ingen profilfornyelse var nødvendig. Ingen fysisk installasjon, TestFlight eller passkey-seremoni er utført.
+- Native UI: faktisk appflate fra klientrevisjon `3a41745f` kontrollert med CUA: visning av begge syntetiske personentiteter og sted, testbyggets signeringssperre og Avbryt bestått; skjermbilde inspisert. XCUITest-kilden kompilerte, men automatisert løper stoppet før teststart. CUA-prøven bruker egen test-ID og endrer ingen personautoritet.
+- Sprout: CLI og macOS-app bygger, 3 supporttester og reell kort nærhetslesing bestått. CI på Linux/macOS bestått for `d2dcfa2`. En reell installasjonsprøve avdekket at PATH-start ikke fant naboprogrammet; retting `4a5b3ef` bruker faktisk eksekverbar fil og følger symlinker. Ny CLI-bygging og fem prosessprøver bestått lokalt. CI34630426281 for rettingen besto både Linux og macOS, inkludert den nye installasjonsprøven. Menyhjelperens faktiske produkt og CI bestått.
+- Server: `746e66ee` bygget alle mål i CI34629774748. Swift-bolk 1–24 besto; bolk 25 hadde 16 av 17 tester bestått. Den eneste feilen var sammenligning av hele `ValueType.object`-svar, som eksisterende CellProtocol alltid sammenligner som ulike. Fullføring, eksakt retry, UV-avvisning, manglende personbinding og tombstone-avvisning ble kjørt; alle øvrige assertions besto. Lokal testretting `ac2531f2` sammenligner hele responsens JSON med sorterte objektnøkler og bevarer alle sikkerhetskrav. Den er tatt inn i dataoppgavens neste samlede verifikasjon, men er ikke kjørt i ny CI her. Admin og torsdagens P0 besto. Dokumentprøven feilet ved `rich-document-live.spec.js:23`: lagret-status uteble før bildefasen. Denne uavklarte gaten og videre serverpromotering eies av dataoppgaven. Tidligere `5ee51e68` besto hele CI34619634244; det er historisk evidens, ikke grønt resultat for siste kandidat.
 - Lokal full serverbygging er sperret av repoets eksplisitte krav om 10 prosent ledig disk etter reserve. Kravet er ikke omgått og ingen cache-/datarydding er utført.
 
 Det er ikke bevist at personens eksisterende app-, agent-, meny-, staging- og prodrepresentasjoner allerede er samme entitet. Den nye flyten gjør korrekt bevisføring testbar; den erstatter ikke menneskets faktiske godkjenning eller en funksjonell lesetest.
@@ -105,6 +105,17 @@ Den separate Mac-fixturen kan bygges med `Scripts/build_person_link_ui_fixture.s
 Ny kode bruker NWBrowser/NWListener med Bonjour, ikke Wi-Fi Aware. NWBrowser finnes fra macOS 10.15/iOS 13, som er eldre enn de berørte appenes støttede minima. Vi trenger derfor ikke en Multipeer-gren bare for de støttede OS-versjonene. Eksisterende Multipeer-scanner beholdes for eldre HAVEN-peers; dens wireprotokoll er ikke kompatibel med Network-adapteren.
 
 Apple anbefaler Network for ny kode i [TN3213](https://developer.apple.com/documentation/technotes/tn3213-moving-from-multipeer-connectivity-to-network-framework). Se også [Wi-Fi API-oversikten](https://developer.apple.com/documentation/technotes/tn3111-ios-wifi-api-overview) og [lokalt nettverk og personvern](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy). Kamera-/DataScanner-støtte varierer; QR via systemkamera eller innlimt lenke er fortsatt tilgjengelig. Apples [filbeskyttelse for iOS](https://developer.apple.com/documentation/uikit/encrypting-your-app-s-files) supplerer outboxens egen AES-kryptering.
+
+Kontrollerte plattformgrenser i kandidatene:
+
+| Del | Deklarert minimum | Konsekvens |
+| --- | --- | --- |
+| HAVEN / Binding-appen | iOS 18.0, macOS 26.1 | Disse eksisterende appkravene er beholdt; å bytte transport senker ikke resten av appens krav. |
+| Separat CellNearby / haven-nearby | iOS 16, macOS 13 | Den lille Apple-adapteren krever ingen Multipeer-reserve for disse målene. |
+| Sprout og menyhjelper | macOS 13 for Mac-produktene | Nærhetsprogrammet kan brukes separat; åpning av HAVEN krever fortsatt en kompatibel HAVEN-app. QR på innlogget webside er tilgjengelig uten lokal HAVEN-publisering. |
+| Linux-sprout | Ingen Apple Network-radio | Personinngangen skriver en URL; full terminal-initiert persongodkjenning er eget gjenstående arbeid. |
+
+Apple beskriver peer-to-peer Wi-Fi som tilgjengelig på Apple-enheter også før Wi-Fi Aware. Det er derfor ikke funnet et eldre maskinvarekrav som i seg selv tvinger fram Multipeer i den nye koden. Dette er API-/kildestøtte; direkte oppdagelse mellom to fysiske enheter og faktisk drift på minste OS-versjoner er ikke testet her. Lokalt nettverk og iOS-forgrunnslivssyklus gjelder fortsatt.
 
 Nærhet kan spare kamera og sikting, men første publisering trenger en native app og lokalt-nettverkstillatelse. For en fjernserver kan QR ha færre steg. Prøv begge i byttet rekkefølge, med og uten tidligere gitte tillatelser; mål tid, feil person/sted, avbrudd og behov for hjelp før nærhet velges som standard.
 
