@@ -11,7 +11,9 @@ import Foundation
 nonisolated enum BindingPersonEntityReadRouteContract {
     static let proofSchema = "haven.person-entity-read-route-proof.v1"
     static let descriptorSchema = "haven.person-entity-read-route.v1"
-    static let domain = "scaffold"
+    // Current GeneralCell operation domain. CellResolve's registration domain
+    // selects a service owner and does not change this access-control domain.
+    static let domain = "private"
     static let discoveryAction = "person-entity-read-route.discover.v1"
     static let openAction = "person-entity-read-route.open.v1"
     static let discoveryPath = "/entity-data/read/route"

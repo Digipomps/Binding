@@ -17,7 +17,7 @@ server source after only module and namespace substitutions.
 
 `PersonEntityReadClient.connect(entry:)` requires an explicitly selected saved
 receipt, trusted HTTPS origin, matching historical request/approval/VC/VP
-signatures, same_entity scope, scaffold domain and the exact existing local
+signatures, same_entity scope, private operation domain and the exact existing local
 UUID/signing key/vault. Historical validation is not current server permission.
 The default existing-key resolver uses BindingStartupIdentityVault without
 provisioning. That vault is in memory: after relaunch a missing original key
@@ -62,3 +62,10 @@ staging journey are required before any release claim.
 
 This is one-direction reading only. It provides no person-authorized journalled
 write, reciprocal identity, retained index, storage grant or migration authority.
+
+Server CI 34641566081 observed that configured Cells retain GeneralCell's
+private operation domain; scaffold is the separate CellResolve service-owner
+context. The wire contract now requires private, matching actual Cells rather
+than inferring an access domain from a registration argument. The descriptor
+negative test rejects scaffold-only approval. Neither server core semantics nor
+existing identities are changed. This correction remains unbuilt here.

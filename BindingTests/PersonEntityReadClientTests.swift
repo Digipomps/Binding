@@ -77,7 +77,7 @@ final class PersonEntityReadClientTests: XCTestCase {
                 origin: entry.origin, approvedDomains: entry.record.approvedDomains, now: now), key)
         }
         XCTAssertThrowsError(try C.validateDescriptor(descriptor, proof: proof, identity: phone,
-            origin: entry.origin, approvedDomains: ["private"], now: now))
+            origin: entry.origin, approvedDomains: ["scaffold"], now: now))
     }
 
     /// Real local request/approval/VC/VP signatures. This fixture does not
