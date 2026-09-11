@@ -116,6 +116,18 @@ final class PersonEntityReadClientTests: XCTestCase {
         do { try await client.connect(entry: entry); XCTFail("different key must not connect") }
         catch { XCTAssertEqual(error as? C.Failure, .denied) }
         await client.close()
+        let disconnected = BindingPersonEntityReadTransport()
+        let fallback = await disconnected.identityVault(for: other)
+        let fallbackIdentity = await fallback.identity(for: "private", makeNewIfNotFound: true)
+        XCTAssertNil(fallbackIdentity, "a disconnected transport must never provision an app key")
+        let nonce = await otherVault.randomBytes64()
+        let challenge = try IdentitySigningChallenge.signingData(for: other, trustedIdentity: other,
+            domain: C.domain, resource: "synthetic-disconnected-resource", action: C.discoveryAction,
+            audience: "https://synthetic-person.example", nonce: try XCTUnwrap(nonce))
+        do {
+            _ = try await fallback.signMessageForIdentity(messageData: challenge, identity: other)
+            XCTFail("the disconnected fallback has no signing authority")
+        } catch { XCTAssertTrue(error is IdentityVaultError) }
     }
 
     func testChangedEvidenceReferenceIsRejectedBeforeKeyLookup() async throws {

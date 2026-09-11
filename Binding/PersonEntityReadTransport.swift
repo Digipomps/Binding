@@ -89,7 +89,10 @@ nonisolated final class BindingPersonEntityReadTransport: NSObject, BridgeTransp
             return vault
         }
         if let bridge = locked({ delegate as? any BridgeProtocol }) { return BridgeIdentityVault(cloudBridge: bridge) }
-        return DIDIdentityVault()
+        // The public core adapter with no bridge has no local identities and
+        // cannot sign. DIDIdentityVault is internal to CellBase; never fall
+        // back to the app's key-bearing vault for an unknown/closed principal.
+        return BridgeIdentityVault()
     }
 
     func close() async { await finish() }
