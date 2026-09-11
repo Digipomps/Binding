@@ -52,8 +52,8 @@ the existing BridgeInboundPayloadValidator, BridgeBase, BridgeCommand and
 BridgeIdentityVault with the exact local signing key's real vault. It neither
 reimplements resolver policy nor broadens signing authorization.
 
-Four unexecuted client tests cover a missing post-relaunch key, another key,
-changed evidence reference and descriptor binding failures. Required remaining
+Seven unexecuted client tests cover a missing post-relaunch key, another key,
+changed evidence reference, descriptor binding failures and query replies. Required remaining
 proofs include an actual production-route process handshake, client signing
 over that connection, repeat reads/revoke/close/reconnect, bounds and shutdown,
 actual Binding builds/tests and UI integration with source origin and honest
@@ -80,3 +80,10 @@ values on denied/unavailable rows, false completeness, missing/duplicate rows,
 non-finite/oversized values and a real JSON null. Seven native tests are now
 present, still unexecuted; syntax parsing alone passes. This is not signed data
 provenance or permission to retain/index the returned data.
+
+The transport uses the public disconnected BridgeIdentityVault fallback when
+unbound or closed. A closed transport cannot return its former local signer;
+the closed-state check also runs after awaited vault membership validation.
+The existing wrong-key test covers both empty and formerly bound transports,
+including failed identity provisioning and signing. No extra test class or
+broader test selection is required.

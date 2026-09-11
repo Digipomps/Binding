@@ -128,6 +128,15 @@ final class PersonEntityReadClientTests: XCTestCase {
             _ = try await fallback.signMessageForIdentity(messageData: challenge, identity: other)
             XCTFail("the disconnected fallback has no signing authority")
         } catch { XCTAssertTrue(error is IdentityVaultError) }
+        let bound = BindingPersonEntityReadTransport(identity: other)
+        await bound.close()
+        let closedVault = await bound.identityVault(for: other)
+        let closedIdentity = await closedVault.identity(for: "private", makeNewIfNotFound: true)
+        XCTAssertNil(closedIdentity, "closing a bound transport must hide its former local signer")
+        do {
+            _ = try await closedVault.signMessageForIdentity(messageData: challenge, identity: other)
+            XCTFail("a closed transport must not return its former signing vault")
+        } catch { XCTAssertTrue(error is IdentityVaultError) }
     }
 
     func testChangedEvidenceReferenceIsRejectedBeforeKeyLookup() async throws {
