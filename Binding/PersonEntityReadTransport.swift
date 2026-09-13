@@ -45,7 +45,7 @@ nonisolated final class BindingPersonEntityReadTransport: NSObject, BridgeTransp
                         let socket = session.webSocketTask(with: request)
                         socket.maximumMessageSize = C.maximumOutboundFrameBytes
                         self.session = session; self.socket = socket; opening = continuation
-                        deadline = Task<Void, Never> { [weak self] in
+                        self.deadline = Task<Void, Never> { [weak self] in
                             do { try await Task.sleep(nanoseconds: 10_000_000_000) } catch { return }
                             await self?.finish()
                         }
