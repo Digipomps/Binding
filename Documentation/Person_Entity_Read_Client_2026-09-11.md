@@ -9,11 +9,13 @@ from b12b0414 before adding this client's checkpoint; source reports its 12/12
 identity-link tests passed. The old 3a41745f IPA is not a final device candidate. The later runbook-only
 checkpoint 24faaff0 is merged without changing the client code baseline.
 
-The new client is not connected to a UI or enabled against production. Its
-server counterpart is local work after CellScaffold 195c5f01, not a deployed
-route. No build, typecheck, real handshake or device data journey is claimed.
-Swift parser/diff checks pass, and the mirrored wire contract matches the
-server source after only module and namespace substitutions.
+The client at6159733c93ab2933d485b739d8d4dc6575b019bb built and passed all
+seven native tests in CellScaffold CI34780399412 on13 September. The Xcode26.3
+job also passed actual compiler/source provenance and unchanged package-pin
+checks. Server44f77397 passed all server gates in CI34650846164, including
+signed discovery/read/revocation in separate synthetic processes. The route
+is still unregistered and the client has no UI entry. Actual native TLS/socket
+and physical-device journeys are not proven by these results.
 
 `PersonEntityReadClient.connect(entry:)` requires an explicitly selected saved
 receipt, trusted HTTPS origin, matching historical request/approval/VC/VP
@@ -36,7 +38,7 @@ The actual pinned BridgeBase correlates SET responses by keypath, so the
 client permits only one in-flight entityData.query per connection. It rejects
 an overlapping call as busy, checks cancellation before work and discards a
 reply if close/reconnect or expiry occurred while awaiting it. This source-
-grounded guard is syntax-checked only; client concurrency/runtime proof remains
+grounded guard compiles; client concurrency/runtime proof remains
 part of the unexecuted integration requirements below.
 
 The local connection deadline starts before socket setup; time spent fetching
@@ -52,11 +54,11 @@ the existing BridgeInboundPayloadValidator, BridgeBase, BridgeCommand and
 BridgeIdentityVault with the exact local signing key's real vault. It neither
 reimplements resolver policy nor broadens signing authorization.
 
-Seven unexecuted client tests cover a missing post-relaunch key, another key,
+Seven passing client tests cover a missing post-relaunch key, another key,
 changed evidence reference, descriptor binding failures and query replies. Required remaining
 proofs include an actual production-route process handshake, client signing
 over that connection, repeat reads/revoke/close/reconnect, bounds and shutdown,
-actual Binding builds/tests and UI integration with source origin and honest
+UI integration with source origin and honest
 partial/unavailable/denied status. A current signed device ceremony and exact
 staging journey are required before any release claim.
 
@@ -68,7 +70,8 @@ private operation domain; scaffold is the separate CellResolve service-owner
 context. The wire contract now requires private, matching actual Cells rather
 than inferring an access domain from a registration argument. The descriptor
 negative test rejects scaffold-only approval. Neither server core semantics nor
-existing identities are changed. This correction remains unbuilt here.
+existing identities are changed. This correction built and its negative test
+passed in CI34780399412.
 
 The client now returns PersonEntityReadResult after validating the query reply:
 exact requested IDs/keypaths, expected origin and anchor UUID, value-free denied
@@ -77,8 +80,8 @@ semantics and no claimed revision. The existing server's pure byte/node/depth
 value-budget algorithm is mirrored exactly. Server error text is discarded.
 Three additional synthetic reply regressions cover changed provenance, hidden
 values on denied/unavailable rows, false completeness, missing/duplicate rows,
-non-finite/oversized values and a real JSON null. Seven native tests are now
-present, still unexecuted; syntax parsing alone passes. This is not signed data
+non-finite/oversized values and a real JSON null. All seven native tests passed,
+with zero failures/skips, in0.063s. This is not signed data
 provenance or permission to retain/index the returned data.
 
 The transport uses the public disconnected BridgeIdentityVault fallback when
@@ -87,3 +90,27 @@ the closed-state check also runs after awaited vault membership validation.
 The existing wrong-key test covers both empty and formerly bound transports,
 including failed identity provisioning and signing. No extra test class or
 broader test selection is required.
+
+Native workflow/wrapper source: CellScaffold a5737b9e6ce9b08f9b2214cd913e087deea7faaf.
+It passes literal TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR) as an Xcode build setting
+because the runner otherwise selects its Metal toolchain for the existing
+provenance script's swiftc lookup. The script and its sandbox/inputmanifest are
+unchanged. CI matches both resolved toolchain settings, the actual app/test
+compiler invocations and the attested compiler hash, and requires clean exact
+Binding/CellProtocol source provenance. Project CP436b6a77 and outer workspace
+CPe03923cb remain intentionally different; both retain FileUtils-c26f365ca.
+The total native verification round used16m23s, with no signing key or deploy.
+
+Evidence: https://github.com/Digipomps/CellScaffold/actions/runs/34780399412
+and https://github.com/Digipomps/CellScaffold/actions/runs/34650846164 .
+
+The subsequent PersonEntityReadTLSIntegrationTests file is a prepared macOS-only
+integration fixture, not part of the green615 unit-test revision. It uses the
+unchanged production client against the actual server route in another process,
+with a disposable CI-only CA/loopback mapping, repeated reads, current-socket
+revocation, fresh discovery denial and wrong-hostname TLS rejection. It refuses
+local/non-CI execution, a different or symlinked fixture root, invalid setup
+markers, non-loopback resolution and active proxies before any request. The
+linked private key remains native; only a new synthetic server-owner key goes
+to the peer. The WebAuthn callback remains explicitly synthetic. Swift syntax
+parses; no executed TLS or physical-device result is claimed for this addition.
