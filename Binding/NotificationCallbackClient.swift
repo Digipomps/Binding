@@ -254,7 +254,7 @@ nonisolated private struct DeviceIngressResolvedCallbackPayload: Codable {
     let payload: Content
 }
 
-nonisolated actor DeviceIngressCallbackClient {
+actor DeviceIngressCallbackClient {
     private let identityVault: any IdentityVaultProtocol
     private let transport: any DeviceIngressCallbackTransport
     private let trust: DeviceIngressRegistrationTrustConfiguration

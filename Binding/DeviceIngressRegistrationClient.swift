@@ -2620,7 +2620,7 @@ nonisolated struct DeviceIngressAuthenticatedVaultHandle: Sendable {
     #endif
 }
 
-nonisolated actor DeviceIngressRegistrationClient {
+actor DeviceIngressRegistrationClient {
     private let identityVault: any IdentityVaultProtocol
     private let transport: any DeviceIngressRegistrationTransport
     private let evidenceStore: any DeviceIngressRegistrationEvidenceStoring
