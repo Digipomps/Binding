@@ -287,7 +287,9 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case publishPublicProfile = "Publish Public Profile"
     case publicProfileDirectory = "Public Profile Directory"
     case matches = "Matches"
-    case inviteChat = "Co-Pilot"
+    case inviteChat = "Butler Chat"
+    case relations = "Relasjoner"
+    case extendEntity = "Utvid entiteten"
     case agendaContext = "Agenda Context"
     case butterpopStudio = "Butterpop Studio"
     case vaultIdeas = "Vault / Ideas"
@@ -297,6 +299,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case appleIntelligence = "Apple Intelligence"
     case entityScanner = "Entity Scanner"
     case workflowStudio = "Workflow Studio"
+    case palazzoConcierge = "Palazzo Concierge"
 
     var id: String { rawValue }
     var title: String { rawValue }
@@ -314,12 +317,14 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     var phoneTab: BindingPersonalCopilotPhoneTab {
         switch self {
-        case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge:
             return .home
-        case .publicProfileDirectory, .matches:
+        case .publicProfileDirectory, .matches, .relations:
             return .matches
         case .inviteChat:
             return .chat
+        case .extendEntity:
+            return .profile
         case .vaultIdeas, .personalCopilotCatalog:
             return .vault
         case .myProfile, .publishPublicProfile, .privacyAudit:
@@ -329,11 +334,11 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     var sidebarSectionTitle: String {
         switch self {
-        case .personalHome, .myProfile, .publishPublicProfile, .privacyAudit:
+        case .personalHome, .myProfile, .publishPublicProfile, .privacyAudit, .extendEntity:
             return "Personal"
-        case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent:
+        case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent, .relations:
             return "Network"
-        case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge:
             return "Workspace"
         }
     }
@@ -359,6 +364,10 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
                 return ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
             }
             return ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
+        case .relations:
+            return HavenRelationsWorkbench.configuration()
+        case .extendEntity:
+            return BindingEntityScaffoldExtensionCell.menuConfiguration()
         case .agendaContext:
             return ConfigurationCatalogCell.personalAgendaContextMenuConfiguration()
         case .butterpopStudio:
@@ -377,6 +386,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
         case .workflowStudio:
             return ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
+        case .palazzoConcierge:
+            return ConfigurationCatalogCell.palazzoConciergeMenuConfiguration()
         }
     }
 
@@ -388,9 +399,12 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     static var sidebarSections: [(title: String, destinations: [BindingPersonalCopilotDestination])] {
         let sections: [(title: String, destinations: [BindingPersonalCopilotDestination])] = [
-            ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit]),
-            ("Network", [.matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
-            ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
+            ("Personal", [.personalHome, .myProfile, .publishPublicProfile, .privacyAudit, .extendEntity]),
+            // Relations sits where the people are. It was in the menu
+            // configuration list for ten days and in no sidebar — a surface
+            // nobody can open is a surface that does not exist.
+            ("Network", [.relations, .matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
+            ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge])
         ]
         return sections.compactMap { section in
             let destinations = section.destinations.filter(visibleDestinations.contains)
@@ -424,8 +438,11 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     static func matching(configurationName: String?) -> BindingPersonalCopilotDestination? {
         guard let configurationName else { return nil }
         let normalized = configurationName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalized == "invite chat" || normalized == "co-pilot chat" {
+        if ["invite chat", "co-pilot chat", "co-pilot", "copilot", "butler chat"].contains(normalized) {
             return .inviteChat
+        }
+        if normalized == "relations" || normalized == "relasjoner" || normalized == "relations workbench" {
+            return .relations
         }
         return allCases.first { $0.rawValue.lowercased() == normalized }
     }
@@ -567,7 +584,6 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "bridgehead"
-    private static let stagingRemoteWebSocketPath = "bridgehead"
     private static let portholeEndpoint = "cell:///Porthole"
     private static let defaultConferenceSponsorOrganizationID = "sponsor-ai-digital-independence"
     private static let defaultConferenceParticipantPreviewID = "preview-demo"
@@ -736,16 +752,6 @@ struct ContentView: View {
     @State private var personalCopilotDestination: BindingPersonalCopilotDestination = .personalHome
     @State private var personalCopilotPhoneTab: BindingPersonalCopilotPhoneTab = .home
 
-    private static let defaultRemoteRoute = RemoteCellHostRoute(
-        websocketEndpoint: Self.defaultRemoteWebSocketPath,
-        schemePreference: .automatic
-    )
-    private static let stagingRemoteRoute = RemoteCellHostRoute(
-        websocketEndpoint: Self.stagingRemoteWebSocketPath,
-        schemePreference: .wss,
-        pathLayout: .endpointThenPublisherUUID
-    )
-
     var body: some View {
         shellRoot
         .gesture(rotationHideShowGesture)
@@ -911,6 +917,10 @@ struct ContentView: View {
         }
         .onChange(of: activeConfiguration?.uuid) { _, _ in
             refreshDiagnosticsValidation()
+            if let activeConfiguration { legacyPortholeViewModel.configureLocalization(for: activeConfiguration) }
+        }
+        .onChange(of: activeConfiguration?.localization) { _, _ in
+            if let activeConfiguration { legacyPortholeViewModel.configureLocalization(for: activeConfiguration) }
         }
         .onChange(of: activeConfiguration?.name) { _, nextName in
             guard let destination = BindingPersonalCopilotDestination.matching(configurationName: nextName) else {
@@ -2407,18 +2417,21 @@ struct ContentView: View {
                 host: host,
                 port: components.port,
                 route: route,
-                websocketScheme: CellBase.allowsInsecureWebSockets ? "ws" : "wss",
+                websocketScheme: RemoteEndpointAccessSupport.websocketScheme(forHost: host),
                 useDirectWebSocketForLocalReferences: false
             )
         case "ws", "wss":
             let routePath = inferredWebsocketRoutePath(fromCatalogEndpointPath: components.path)
-            let schemePreference: RemoteCellHostRoute.SchemePreference = scheme == "ws" ? .ws : .wss
+            // Cleartext is honoured only for loopback; a public host is upgraded rather
+            // than left to fail as an ATS violation at connect time.
+            let honoursCleartext = scheme == "ws" && RemoteEndpointAccessSupport.isLoopbackHost(host)
+            let schemePreference: RemoteCellHostRoute.SchemePreference = honoursCleartext ? .ws : .wss
             let route = RemoteCellHostRoute(websocketEndpoint: routePath, schemePreference: schemePreference)
             return CatalogOrigin(
                 host: host,
                 port: components.port,
                 route: route,
-                websocketScheme: scheme,
+                websocketScheme: honoursCleartext ? "ws" : "wss",
                 useDirectWebSocketForLocalReferences: host.lowercased() == "localhost"
             )
         default:
@@ -4216,6 +4229,7 @@ struct ContentView: View {
     @MainActor
     private func rebuildLegacyPortholeViewModel(reason: String) {
         legacyPortholeViewModel = PortholeViewModel()
+        if let activeConfiguration { legacyPortholeViewModel.configureLocalization(for: activeConfiguration) }
         diagnosticsStore.record(
             domain: "binding.porthole",
             message: "Kobler opp legacy Porthole-binder på nytt etter \(reason)."
@@ -4250,19 +4264,30 @@ struct ContentView: View {
         return storedConfiguration
     }
 
+    /// Endepunktet er flatens identitet. Visningsnavnet er det ikke.
+    ///
+    /// Denne flaten har allerede hett "Co-Pilot", "Co-Pilot Chat" og
+    /// "Butler Chat". Da oppfriskningen var noeklet paa navnet, sluttet den
+    /// aa virke ved omdoepingen - uten at noe feilet. Ingen unntak, ingen
+    /// logg: lagrede oppsett ble bare aldri mer friskmeldt til gjeldende
+    /// factory-skjelett, som er hele grunnen til at mekanismen finnes.
+    /// Neste omdoeping skal ikke kunne gjoere det igjen.
+    static let personalCopilotChatHubEndpoint = "cell:///PersonalChatHub"
+
+    private static func isPersonalCopilotSurface(_ configuration: CellConfiguration) -> Bool {
+        configuration.cellReferences?.contains {
+            $0.label == "chatHub" && $0.endpoint == personalCopilotChatHubEndpoint
+        } ?? false
+    }
+
     static func shouldRefreshStoredDemoStartConfiguration(
         _ storedConfiguration: CellConfiguration,
         defaultConfiguration: CellConfiguration = defaultDemoStartConfiguration()
     ) -> Bool {
-        let storedName = storedConfiguration.name
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let defaultName = defaultConfiguration.name
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        guard storedName == defaultName else { return false }
-        return defaultName == "co-pilot" || defaultName == "co-pilot chat"
+        // Gjelder bare naar produktmodus faktisk serverer co-pilot-flaten.
+        // Conference-launcheren har ingen chatHub-referanse og skal ikke roeres.
+        guard isPersonalCopilotSurface(defaultConfiguration) else { return false }
+        return isPersonalCopilotSurface(storedConfiguration)
     }
 
     @MainActor
@@ -5964,6 +5989,7 @@ struct ContentView: View {
 
         await MainActor.run {
             legacyPortholeViewModel.rememberRequesterIdentity(loadRequester)
+            legacyPortholeViewModel.configureLocalization(for: configuration)
         }
         viewModel.cellReferences = configuration.cellReferences ?? []
         viewModel.currentSkeleton = loadingPlaceholderSkeleton(for: configuration)
@@ -6096,6 +6122,10 @@ struct ContentView: View {
                 )
             }
             let failureSummary = summarizeBindingFailuresForUser(failures)
+            CellBase.diagnosticLog(
+                "Root binding probe failed for \(configuration.name): \(summarizeBindingFailures(failures))",
+                domain: .skeleton
+            )
             let message = "Kunne ikke laste støttede data for \(configuration.name). \(failureSummary)"
             diagnosticsStore.record(
                 severity: .error,
@@ -6746,10 +6776,7 @@ struct ContentView: View {
     }
 
     private func remoteRoute(forHost host: String) -> RemoteCellHostRoute {
-        if host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == Self.stagingHost {
-            return Self.stagingRemoteRoute
-        }
-        return Self.defaultRemoteRoute
+        RemoteEndpointAccessSupport.route(forHost: host)
     }
 
     func preferredRequesterDescriptor(for configuration: CellConfiguration) -> RemoteRequesterDescriptor? {
@@ -7564,12 +7591,7 @@ struct ContentView: View {
             return false
         }
 
-        let canonicalRoute = RemoteCellHostRoute(
-            websocketEndpoint: Self.stagingRemoteWebSocketPath,
-            schemePreference: .wss,
-            pathLayout: .endpointThenPublisherUUID
-        )
-        registerRemoteHostIfNeeded(host, route: canonicalRoute, resolver: resolver)
+        registerRemoteHostIfNeeded(host, route: RemoteEndpointAccessSupport.route(forHost: host), resolver: resolver)
         do {
             _ = try await probeRemoteEndpoint(
                 endpoint: endpoint,

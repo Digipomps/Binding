@@ -542,6 +542,7 @@ enum BindingRuntimeBootstrap {
     @MainActor
     static func ensureInfrastructureBaseline() async {
         CellBase.sendDataAsText = true
+        enableRuntimeDiagnosticsIfRequested()
 
         if CellBase.defaultIdentityVault == nil {
             CellBase.defaultIdentityVault = BindingStartupIdentityVault.shared
@@ -582,6 +583,25 @@ enum BindingRuntimeBootstrap {
         }
     }
 
+    nonisolated static func enableRuntimeDiagnosticsIfRequested(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
+        let requested = launchArguments.contains("--haven-runtime-diagnostics")
+            || ["1", "true", "yes"].contains(
+                (environment["HAVEN_RUNTIME_DIAGNOSTICS"] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+            )
+        guard requested else { return }
+        CellBase.enabledDiagnosticLogDomains.formUnion([.resolver, .identity, .agreement, .flow, .skeleton])
+        if CellBase.diagnosticLogHandler == nil {
+            CellBase.diagnosticLogHandler = { domain, message in
+                print("[CellBase][\(domain.rawValue)] \(message)")
+            }
+        }
+    }
+
     @MainActor
     static func ensureBaseline(
         authenticatedIdentityVault: (any IdentityVaultProtocol)? = nil
@@ -595,6 +615,19 @@ enum BindingRuntimeBootstrap {
 
         let identityVault: any IdentityVaultProtocol = authenticatedIdentityVault ?? IdentityVault.shared
         _ = await identityVault.initialize()
+        // A cancelled or failed Face ID sheet returns from initialize() like a
+        // successful one. Swapping the vault in regardless used to hand every
+        // cell a "private" identity that had no key material — the local
+        // surfaces then failed owner validation and the app said, truthfully
+        // but unhelpfully, that it could not validate them. Stay on the
+        // startup vault until the owner has actually authenticated.
+        guard await identityVault.isAuthenticated else {
+            CellBase.diagnosticLog(
+                "Owner authentication not completed; keeping the startup identity vault active.",
+                domain: .identity
+            )
+            return
+        }
         CellBase.defaultIdentityVault = identityVault
         await CellResolver.sharedInstance.refreshNamedResolveOwnersFromCurrentVault()
     }
@@ -607,6 +640,16 @@ enum BindingRuntimeBootstrap {
         }
 
         return CellBase.defaultIdentityVault is IdentityVault
+            && CellBase.defaultCellResolver is CellResolver
+    }
+
+    /// The startup vault is a real, persistent identity since 659e18a8. A
+    /// surface built only from local cells can open under it without waiting
+    /// for the owner to authenticate; authentication is what unlocks the
+    /// authenticated vault's secrets, not what makes local cells exist.
+    @MainActor
+    static var localRuntimeIsReady: Bool {
+        CellBase.defaultIdentityVault != nil
             && CellBase.defaultCellResolver is CellResolver
     }
 

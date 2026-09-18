@@ -5549,13 +5549,21 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let perspective = await perspectiveSummary(requester: requester)
         let perspectiveContext = BindingChatPurposeContext
             .from(value: .object(perspective), source: "Binding.PerspectiveCell.summary")
-        let suggestion = BindingChatIntentClassifier.classify(
+        var suggestion = BindingChatIntentClassifier.classify(
             prompt: draft,
             capabilityDiscoveryEnabled: capabilityDiscoveryEnabled,
             perspectiveContext: perspectiveContext
         )
         let providers = await scopedProviders(requester: requester)
-        let resourceMatches = BindingChatIntentClassifier.resourceMatches(prompt: draft)
+        var resourceMatches = BindingChatIntentClassifier.resourceMatches(prompt: draft)
+        // The hardcoded matches above know a handful of surfaces. The catalog
+        // knows all of them, by their own words. Ask it — this is how a surface
+        // nobody wrote a keyword rule for is still found.
+        resourceMatches.append(contentsOf: await catalogSurfaceMatches(
+            prompt: draft,
+            excluding: resourceMatches,
+            requester: requester
+        ))
         let agentStatus = BindingHavenAgentDStatusProvider.snapshot()
         let recommendation = BindingChatProviderRouter.recommend(
             prompt: draft,
@@ -5632,10 +5640,20 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 .string("other_threads")
             ])
         ]
-        let candidates = candidateRows(for: suggestion)
+        let lookup = await relationCandidates(for: suggestion, draft: draft, requester: requester)
+        let candidates = lookup.rows
+        if suggestion.helperID == "invite" {
+            // The real relations decide whether the choice is ambiguous — not
+            // a word in the prompt.
+            suggestion.status = lookup.status
+            if let reason = lookup.reason { suggestion.reason = reason }
+        }
         var suggestionObject = suggestion.objectValue()
         suggestionObject["candidates"] = .list(candidates)
-        suggestionObject["selectedCandidateProfileID"] = candidates.first.flatMap { BindingChatValue.string(BindingChatValue.object($0)?["id"]) }.map(ValueType.string) ?? .null
+        suggestionObject["candidateSource"] = .string(lookup.source)
+        suggestionObject["selectedCandidateProfileID"] = candidates.count == 1
+            ? (candidates.first.flatMap { BindingChatValue.string(BindingChatValue.object($0)?["id"]) }.map(ValueType.string) ?? .null)
+            : .null
 
         let providerObjects = providers.map { ValueType.object($0.objectValue()) }
         let resourceObjects = resourceMatches.map(ValueType.object)
@@ -5698,13 +5716,27 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             suggestion: suggestion,
             resourceMatches: resourceMatches
         )
+        var generatedAnswer: Object? = nil
+        if promptTurnID != nil {
+            generatedAnswer = await generateAssistantAnswer(
+                draft: draft,
+                suggestion: suggestion,
+                resourceMatches: resourceMatches,
+                perspective: perspective,
+                requester: requester
+            )
+        }
         appendPromptMessage(
             draft: draft,
             suggestion: suggestion,
             groundedActionPlan: groundedActionPlan,
             resourceMatches: resourceMatches,
-            turnID: promptTurnID
+            turnID: promptTurnID,
+            generatedAnswer: generatedAnswer
         )
+        if let generatedAnswer {
+            BindingChatValue.set(.object(generatedAnswer), for: "assistant.lastGeneratedAnswer", in: &cachedState)
+        }
         updateButlerSupportAfterAnalysis(suggestion)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
@@ -5919,7 +5951,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         suggestion: BindingChatIntentClassification,
         groundedActionPlan: Object,
         resourceMatches: [Object],
-        turnID: String? = nil
+        turnID: String? = nil,
+        generatedAnswer: Object? = nil
     ) {
         guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
@@ -5945,13 +5978,23 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "threadID": .string(threadID),
             "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-user"].map(ValueType.string))
         ]
-        let assistantMessage: Object = [
+        let deterministicBody = "\(suggestion.explanation)\(resourceSummary)"
+        let generatedBody = generatedAnswer
+            .flatMap { BindingChatValue.string($0["answer"]) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+        let answerReceipt = generatedAnswer.flatMap { BindingChatValue.string($0["receipt"]) }
+        let answerModel = generatedAnswer.flatMap { BindingChatValue.string($0["model"]) }
+        let resolvedStatusText = generatedBody == nil
+            ? assistantStatus
+            : (answerModel.map { "\(assistantStatus) · \($0)" } ?? assistantStatus)
+        var assistantMessage: Object = [
             "id": .string("\(effectiveTurnID)-assistant"),
             "turnID": .string(effectiveTurnID),
             "role": .string("assistant"),
             "speaker": .string(butlerName),
-            "body": .string("\(suggestion.explanation)\(resourceSummary)"),
-            "statusText": .string(assistantStatus),
+            "body": .string(generatedBody ?? deterministicBody),
+            "statusText": .string(resolvedStatusText),
             "kind": .string("assistant_suggestion"),
             "helperID": .string(suggestion.helperID),
             "canOpenSuggestion": .bool(suggestion.shouldSuggest),
@@ -5961,6 +6004,18 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "sideEffect": .bool(false),
             "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-assistant"].map(ValueType.string))
         ]
+        assistantMessage["answerSource"] = .string(generatedBody == nil ? "deterministic" : "language_model")
+        assistantMessage["deterministicBody"] = .string(deterministicBody)
+        if let answerReceipt {
+            assistantMessage["answerReceipt"] = .string(answerReceipt)
+        }
+        if let answerModel {
+            assistantMessage["answerModel"] = .string(answerModel)
+        }
+        if let generatedAnswer, BindingChatValue.bool(generatedAnswer["ok"]) == false,
+           let message = BindingChatValue.string(generatedAnswer["message"]) {
+            assistantMessage["answerFallbackReason"] = .string(message)
+        }
         messages.append(.object(userMessage))
         messages.append(.object(assistantMessage))
         BindingChatValue.set(.list(Array(messages.suffix(40))), for: "ui.promptMessages", in: &cachedState)
@@ -6011,7 +6066,76 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
            let localLLM = BindingChatProviderRouter.descriptor(from: localState, defaultKind: "local_llm") {
             providers.append(localLLM)
         }
+        if let remoteState = await providerState(endpoint: "cell:///RemoteLLM", keypath: "state", requester: requester),
+           let remoteLLM = BindingChatProviderRouter.descriptor(from: remoteState, defaultKind: "remote_llm") {
+            providers.append(remoteLLM)
+        }
         return deduplicatedProviders(providers)
+    }
+
+    /// Ask the remote-model provider to formulate the butler's answer.
+    ///
+    /// Returns `nil` when no remote provider is configured, so the caller keeps
+    /// the deterministic explanation. A configured-but-failing provider returns
+    /// its failure object instead, so the surface can say what went wrong.
+    private func generateAssistantAnswer(
+        draft: String,
+        suggestion: BindingChatIntentClassification,
+        resourceMatches: [Object],
+        perspective: Object,
+        requester: Identity
+    ) async -> Object? {
+        guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return nil }
+        guard let state = await providerState(endpoint: "cell:///RemoteLLM", keypath: "state", requester: requester),
+              let stateObject = BindingChatValue.object(state),
+              BindingChatValue.string(stateObject["status"]) == "ready"
+        else {
+            return nil
+        }
+
+        var groundingLines: [String] = []
+        let resourceTitles = resourceMatches.compactMap { BindingChatValue.string($0["title"]) }
+        if resourceTitles.isEmpty == false {
+            groundingLines.append("Ressurser HAVEN fant: " + resourceTitles.prefix(5).joined(separator: ", "))
+        }
+        if suggestion.shouldSuggest {
+            groundingLines.append("Deterministisk tolkning: \(suggestion.intentKind) (\(suggestion.purposeRef)).")
+        }
+        if let purposes = BindingChatValue.list(BindingChatValue.nested("activePurposes", in: perspective)) {
+            let names = purposes.compactMap { BindingChatValue.string(BindingChatValue.object($0)?["title"]) }
+            if names.isEmpty == false {
+                groundingLines.append("Aktive formål: " + names.prefix(5).joined(separator: ", "))
+            }
+        }
+
+        var payload: Object = ["prompt": .string(draft)]
+        if groundingLines.isEmpty == false {
+            payload["grounding"] = .string(groundingLines.joined(separator: "\n"))
+        }
+
+        guard let result = await invokeProviderAction(
+            endpoint: "cell:///RemoteLLM",
+            keypath: "llm.generate",
+            value: .object(payload),
+            requester: requester
+        ) else {
+            return nil
+        }
+        return BindingChatValue.object(result)
+    }
+
+    private func invokeProviderAction(
+        endpoint: String,
+        keypath: String,
+        value: ValueType,
+        requester: Identity
+    ) async -> ValueType? {
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let meddle = try? await resolver.cellAtEndpoint(endpoint: endpoint, requester: requester) as? Meddle
+        else {
+            return nil
+        }
+        return try? await meddle.set(keypath: keypath, value: value, requester: requester)
     }
 
     private func providerState(endpoint: String, keypath: String, requester: Identity) async -> ValueType? {
@@ -7182,7 +7306,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
 
         switch helper {
         case "invite":
-            return await createInvite(value: .object([:]), requester: requester)
+            return await acceptInviteSuggestion(suggestion, requester: requester)
         case "poll":
             return createPoll()
         default:
@@ -7716,6 +7840,86 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "meetingBridge": .object(bridge),
             "sideEffect": .bool(false)
         ])
+    }
+
+    /// Accepting «inviter Vegar» does what HAVEN recommended for Vegar: open a
+    /// chat if he has an entity, otherwise hand the invitation cell his
+    /// relation so it prepares a link on the channel we hold. Either way the
+    /// relation's chronicle learns that something started.
+    private func acceptInviteSuggestion(_ suggestion: Object, requester: Identity) async -> ValueType {
+        let candidates = (BindingChatValue.list(suggestion["candidates"]) ?? []).compactMap { BindingChatValue.object($0) }
+        let selectedID = BindingChatValue.string(suggestion["selectedCandidateProfileID"])
+        let chosen = candidates.first { BindingChatValue.string($0["id"]) == selectedID }
+            ?? (candidates.count == 1 ? candidates.first : nil)
+
+        guard let chosen, let relationID = BindingChatValue.string(chosen["relationID"]) else {
+            if candidates.count > 1 {
+                return response(status: "blocked", message: "Flere passer — velg hvem du mener først.")
+            }
+            // No relation behind the suggestion: the old contact-endpoint flow.
+            return await createInvite(value: .object([:]), requester: requester)
+        }
+
+        let displayName = BindingChatValue.string(chosen["displayName"]) ?? relationID
+        let action = BindingChatValue.string(chosen["reachAction"]) ?? ""
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            return response(status: "blocked", message: "Ingen resolver tilgjengelig.")
+        }
+
+        if action == "open-chat",
+           let entityRef = BindingChatValue.string(chosen["entityRef"]), !entityRef.isEmpty {
+            let result = await createInvite(
+                value: .object(["title": .string("Chat med \(displayName)"), "profileID": .string(relationID), "userUUID": .string(entityRef)]),
+                requester: requester
+            )
+            await recordRelationInteraction(
+                relationID: relationID, kind: "chat.started", channel: "haven-chat",
+                resolver: resolver, requester: requester
+            )
+            return result
+        }
+
+        guard let invitation = try? await resolver.cellAtEndpoint(endpoint: "cell:///Invitation", requester: requester) as? Meddle,
+              let prepared = try? await invitation.set(
+                keypath: "invite.prepare",
+                value: .object(["relationID": .string(relationID)]),
+                requester: requester
+              ),
+              let preparedObject = BindingChatValue.object(prepared) else {
+            return response(status: "blocked", message: "Kunne ikke forberede invitasjonen til \(displayName).")
+        }
+        BindingChatValue.set(prepared, for: "assistant.lastPreparedInvite", in: &cachedState)
+        let message = BindingChatValue.string(preparedObject["message"])
+            ?? BindingChatValue.string(preparedObject["summaryText"])
+            ?? "Invitasjonen til \(displayName) er klar — du trykker send."
+        var reply = response(status: BindingChatValue.string(preparedObject["status"]) == "error" ? "blocked" : "ok", message: message)
+        if case var .object(object) = reply {
+            object["preparedInvite"] = prepared
+            object["relationID"] = .string(relationID)
+            reply = .object(object)
+        }
+        return reply
+    }
+
+    private func recordRelationInteraction(
+        relationID: String,
+        kind: String,
+        channel: String,
+        resolver: CellResolver,
+        requester: Identity
+    ) async {
+        guard let relations = try? await resolver.cellAtEndpoint(endpoint: "cell:///Relations", requester: requester) as? Meddle else { return }
+        _ = try? await relations.set(
+            keypath: "relations.recordInteraction",
+            value: .object([
+                "id": .string(relationID),
+                "kind": .string(kind),
+                "channel": .string(channel),
+                "direction": .string("outbound"),
+                "sourceCell": .string("BindingPersonalChatHubCell")
+            ]),
+            requester: requester
+        )
     }
 
     private func createInvite(value: ValueType, requester: Identity) async -> ValueType {
@@ -8374,18 +8578,183 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         ])
     }
 
+    /// The synchronous composer path has no requester and cannot ask the
+    /// relations cell. It offers no candidates rather than invented ones; the
+    /// async analysis fills them in.
     private func candidateRows(for suggestion: BindingChatIntentClassification) -> [ValueType] {
-        guard suggestion.helperID == "invite" else { return [] }
-        let ambiguous = suggestion.status == "needs_candidate_selection"
-        let rows: [Object] = ambiguous
-            ? [
-                ["id": .string("anna-kollega"), "displayName": .string("Anna Kollega"), "headline": .string("Kollega"), "summary": .string("Mulig treff fra granted profile descriptor.")],
-                ["id": .string("anja-kollega"), "displayName": .string("Anja Kollega"), "headline": .string("Kollega"), "summary": .string("Mulig treff fra granted profile descriptor.")]
+        []
+    }
+
+    /// Surfaces from `cell:///ConfigurationCatalog` whose purpose description
+    /// answers the prompt, shaped like the static `cell_configuration` matches
+    /// so the rest of the butler treats them identically.
+    private func catalogSurfaceMatches(
+        prompt: String,
+        excluding existing: [Object],
+        requester: Identity
+    ) async -> [Object] {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 3,
+              let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let catalog = try? await resolver.cellAtEndpoint(endpoint: "cell:///ConfigurationCatalog", requester: requester) as? Meddle,
+              let response = try? await catalog.set(
+                keypath: "matching.query",
+                value: .object(["prompt": .string(trimmed), "limit": .integer(3)]),
+                requester: requester
+              ),
+              let result = BindingChatValue.object(response),
+              let matches = BindingChatValue.list(result["matches"]) else {
+            return []
+        }
+        let knownTitles = Set(existing.compactMap { BindingChatValue.string($0["configurationName"]) ?? BindingChatValue.string($0["title"]) }.map { $0.lowercased() })
+        return matches.compactMap { item -> Object? in
+            guard let match = BindingChatValue.object(item),
+                  let name = BindingChatValue.string(match["name"]),
+                  !knownTitles.contains(name.lowercased()) else { return nil }
+            let displayName = BindingChatValue.string(match["displayName"]) ?? name
+            let score = BindingChatValue.double(match["score"]) ?? 0
+            let terms = BindingChatValue.stringList(match["matchedTerms"])
+            let purposeRefs = BindingChatValue.stringList(match["purposeRefs"])
+            return [
+                "kind": .string("cell_configuration"),
+                "id": .string("configuration:" + name.lowercased().replacingOccurrences(of: " ", with: "-")),
+                "title": .string(displayName),
+                "summary": .string(BindingChatValue.string(match["summary"]).flatMap { $0.isEmpty ? nil : $0 }
+                    ?? BindingChatValue.string(match["purposeDescription"]) ?? ""),
+                "purposeRef": .string(purposeRefs.first ?? "personal.chat.assist.resource-router"),
+                "purposeRefs": .list(Array(Set(purposeRefs + ["personal.chat.assist.resource-router"])).sorted().map(ValueType.string)),
+                "interests": match["interests"] ?? .list([]),
+                "score": .float(min(1.0, score / 3.0)),
+                "availability": .string("visible_configuration"),
+                "reason": .string("Katalogen matchet på: " + terms.joined(separator: ", ") + "."),
+                "sourceCellEndpoint": match["sourceCellEndpoint"] ?? .null,
+                "sourceCellName": match["sourceCellName"] ?? .null,
+                "configurationName": .string(name),
+                "actionKeypath": .null,
+                "readKeypaths": .list(["configuration", "discovery"].map(ValueType.string)),
+                "writeKeypaths": .list([]),
+                "requiresGrant": .bool(true),
+                "requiresUserApproval": .bool(true),
+                "catalogMatch": .bool(true)
             ]
-            : [
-                ["id": .string("anna-kollega"), "displayName": .string("Anna Kollega"), "headline": .string("Naermeste kollega"), "summary": .string("Beste lokale treff i chat-scope.")]
+        }
+    }
+
+    private struct RelationCandidateLookup {
+        var rows: [ValueType]
+        var status: String
+        var reason: String?
+        var source: String
+    }
+
+    /// «Inviter Vegar» → the actual Vegar, from `cell:///Relations`, with the
+    /// channel HAVEN recommends for reaching him. Two Vegars come back as a
+    /// question. Nobody comes back as an honest «fant ingen».
+    private func relationCandidates(
+        for suggestion: BindingChatIntentClassification,
+        draft: String,
+        requester: Identity
+    ) async -> RelationCandidateLookup {
+        guard suggestion.helperID == "invite" else {
+            return RelationCandidateLookup(rows: [], status: suggestion.status, reason: nil, source: "none")
+        }
+        let query = Self.inviteTargetName(in: draft)
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let relations = try? await resolver.cellAtEndpoint(endpoint: "cell:///Relations", requester: requester) as? Meddle else {
+            return RelationCandidateLookup(
+                rows: [], status: "low_confidence",
+                reason: "Relasjonene er ikke tilgjengelige akkurat nå, så jeg kan ikke slå opp hvem du mener.",
+                source: "relations_unavailable"
+            )
+        }
+        guard !query.isEmpty else {
+            return RelationCandidateLookup(
+                rows: [], status: "needs_candidate_selection",
+                reason: "Hvem vil du invitere? Skriv navnet, så slår jeg opp i relasjonene dine.",
+                source: "relations"
+            )
+        }
+        let response = try? await relations.set(
+            keypath: "relations.reach",
+            value: .object(["query": .string(query), "limit": .integer(5)]),
+            requester: requester
+        )
+        guard let result = BindingChatValue.object(response ?? .null) else {
+            return RelationCandidateLookup(rows: [], status: "low_confidence", reason: "Oppslaget i relasjonene feilet.", source: "relations")
+        }
+        let status = BindingChatValue.string(result["status"]) ?? "noMatch"
+        switch status {
+        case "reachable", "unreachable":
+            guard let relation = BindingChatValue.object(result["relation"]) else { break }
+            let reach = BindingChatValue.object(result["reach"]) ?? [:]
+            let recommended = BindingChatValue.object(reach["recommended"])
+            let row: Object = [
+                "id": relation["id"] ?? .null,
+                "relationID": relation["id"] ?? .null,
+                "displayName": relation["displayName"] ?? .null,
+                "headline": .string(Self.nonEmpty(BindingChatValue.string(relation["roleSummary"])) ?? BindingChatValue.string(relation["subtitle"]) ?? ""),
+                "summary": .string(BindingChatValue.string(result["summaryText"]) ?? ""),
+                "reachAction": recommended?["action"] ?? .null,
+                "reachChannel": recommended?["channel"] ?? .null,
+                "reachable": .bool(status == "reachable"),
+                "entityRef": relation["entityRef"] ?? .null,
+                "lastContact": result["lastContact"] ?? .null,
+                "source": .string("cell:///Relations")
             ]
-        return rows.map(ValueType.object)
+            return RelationCandidateLookup(
+                rows: [.object(row)],
+                status: "suggested",
+                reason: BindingChatValue.string(result["summaryText"]),
+                source: "relations"
+            )
+        case "ambiguous":
+            let rows = (BindingChatValue.list(result["matches"]) ?? []).prefix(5).map { match -> ValueType in
+                let object = BindingChatValue.object(match) ?? [:]
+                return .object([
+                    "id": object["id"] ?? .null,
+                    "relationID": object["id"] ?? .null,
+                    "displayName": object["displayName"] ?? .null,
+                    "headline": .string(Self.nonEmpty(BindingChatValue.string(object["roleSummary"])) ?? BindingChatValue.string(object["subtitle"]) ?? ""),
+                    "summary": .string(BindingChatValue.string(object["matchReason"]) ?? ""),
+                    "source": .string("cell:///Relations")
+                ])
+            }
+            return RelationCandidateLookup(
+                rows: Array(rows),
+                status: "needs_candidate_selection",
+                reason: BindingChatValue.string(result["clarifyingQuestion"]) ?? "Flere passer — hvem mente du?",
+                source: "relations"
+            )
+        default:
+            break
+        }
+        return RelationCandidateLookup(
+            rows: [],
+            status: "low_confidence",
+            reason: BindingChatValue.string(result["summaryText"]) ?? "Jeg fant ingen som heter «\(query)» blant relasjonene dine.",
+            source: "relations"
+        )
+    }
+
+    /// Strips the verb and the filler and keeps the name: «inviter Vegar inn
+    /// i chatten» → «Vegar». Good enough for the search, which is fuzzy.
+    static func inviteTargetName(in draft: String) -> String {
+        let stopWords: Set<String> = [
+            "inviter", "invitere", "invite", "invit", "kan", "du", "vil", "jeg", "gjerne", "inn", "i", "til",
+            "chatten", "chat", "samtalen", "samtale", "en", "et", "denne", "her", "hit", "med", "meg", "oss",
+            "please", "into", "the", "this", "to", "vær", "så", "snill", "og", "som", "the"
+        ]
+        let cleaned = draft
+            .replacingOccurrences(of: "[,.!?;:]", with: " ", options: .regularExpression)
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+            .filter { !stopWords.contains($0.lowercased()) }
+        return cleaned.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     private func currentButlerState() -> Object {

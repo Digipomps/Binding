@@ -11,11 +11,16 @@ nonisolated enum RemoteEndpointAccessSupport {
     static let stagingHost = "staging.haven.digipomps.org"
     static let localCatalogEndpoint = "cell:///ConfigurationCatalog"
 
-    private static let defaultRemoteRoute = RemoteCellHostRoute(
+    /// Loopback development is the only place a cleartext WebSocket is allowed.
+    /// `.automatic` is what defers that decision to the runtime.
+    private static let loopbackRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: "bridgehead",
         schemePreference: .automatic
     )
-    private static let stagingRemoteRoute = RemoteCellHostRoute(
+    /// Every host that is not loopback is reached over TLS. This is a rule, not a
+    /// per-host allowlist: a public host must never be downgraded to cleartext ws,
+    /// not even in a debug build.
+    private static let secureRemoteRoute = RemoteCellHostRoute(
         websocketEndpoint: "bridgehead",
         schemePreference: .wss,
         pathLayout: .endpointThenPublisherUUID
@@ -252,9 +257,19 @@ nonisolated enum RemoteEndpointAccessSupport {
         return normalizedPath == "bridgehead" || normalizedPath.hasPrefix("bridgehead/")
     }
 
-    private static func isLoopbackHost(_ host: String) -> Bool {
+    static func isLoopbackHost(_ host: String) -> Bool {
         let normalized = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized == "localhost" || normalized == "127.0.0.1"
+        return normalized == "localhost"
+            || normalized == "127.0.0.1"
+            || normalized == "::1"
+            || normalized == "[::1]"
+    }
+
+    /// The wire scheme HAVEN will actually use for `host`. Cleartext is reserved for
+    /// loopback, so a debug build can no longer downgrade a public host to `ws`.
+    static func websocketScheme(forHost host: String) -> String {
+        guard isLoopbackHost(host), CellBase.allowsInsecureWebSockets else { return "wss" }
+        return "ws"
     }
 
     private static func isPublicSkeletonParityFixtureEndpoint(_ endpoint: String) -> Bool {
@@ -297,7 +312,7 @@ nonisolated enum RemoteEndpointAccessSupport {
             return RemoteOrigin(host: host, route: route(forHost: host))
         case "ws", "wss":
             if host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == stagingHost {
-                return RemoteOrigin(host: host, route: stagingRemoteRoute)
+                return RemoteOrigin(host: host, route: secureRemoteRoute)
             }
             let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let routePath: String
@@ -307,7 +322,10 @@ nonisolated enum RemoteEndpointAccessSupport {
                 let parts = normalizedPath.split(separator: "/")
                 routePath = parts.dropLast().joined(separator: "/")
             }
-            let schemePreference: RemoteCellHostRoute.SchemePreference = scheme == "ws" ? .ws : .wss
+            // A cleartext ws endpoint is honoured only for loopback. Anything else is
+            // upgraded rather than attempting a connection ATS will block anyway.
+            let schemePreference: RemoteCellHostRoute.SchemePreference =
+                (scheme == "ws" && isLoopbackHost(host)) ? .ws : .wss
             return RemoteOrigin(
                 host: host,
                 route: RemoteCellHostRoute(websocketEndpoint: routePath, schemePreference: schemePreference)
@@ -317,11 +335,8 @@ nonisolated enum RemoteEndpointAccessSupport {
         }
     }
 
-    private static func route(forHost host: String) -> RemoteCellHostRoute {
-        if host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == stagingHost {
-            return stagingRemoteRoute
-        }
-        return defaultRemoteRoute
+    static func route(forHost host: String) -> RemoteCellHostRoute {
+        isLoopbackHost(host) ? loopbackRemoteRoute : secureRemoteRoute
     }
 
     private static func routesMatch(_ lhs: RemoteCellHostRoute, _ rhs: RemoteCellHostRoute) -> Bool {

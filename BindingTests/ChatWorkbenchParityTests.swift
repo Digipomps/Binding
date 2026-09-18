@@ -806,16 +806,34 @@ struct ChatWorkbenchParityTests {
         let descriptorObjects = descriptors.compactMap(asObject)
         #expect(descriptorObjects.isEmpty == false)
 
+        // Ekstern modell er tillatt. Garantien er ikke lenger "bare lokalt",
+        // men "ingen leverandoer utenfor den kjente lista, og en ekstern maa
+        // si at den er ekstern".
         let allowedProviderIDs: Set<String> = [
             "chat.local-rules",
             "binding.apple-intelligence",
-            "binding.local-llm"
+            "binding.local-llm",
+            "binding.remote-llm"
         ]
         let providerIDs = descriptorObjects.compactMap { descriptor in
             asString(descriptor["providerID"]) ?? asString(descriptor["id"])
         }
         #expect(providerIDs.isEmpty == false)
         #expect(providerIDs.allSatisfy { allowedProviderIDs.contains($0) })
+
+        // BindingChatProviderRouter.descriptor(from:defaultKind:) er skrevet
+        // for to typer, og lar alt som ikke er apple_intelligence falle ned paa
+        // lokale standardverdier: privacyLevel "local_device_or_localhost" og
+        // requiresNetwork false. Utelater en ekstern leverandoer-state ett av
+        // disse feltene, publiseres den som lokal og uten nett. Det er nettopp
+        // feltene en personvernvurdering hviler paa, saa denne sjekken skal
+        // falle hoeylytt hvis det noen gang skjer.
+        for descriptor in descriptorObjects {
+            let providerID = asString(descriptor["providerID"]) ?? asString(descriptor["id"])
+            guard providerID == "binding.remote-llm" else { continue }
+            #expect(asBool(descriptor["requiresNetwork"]) == true)
+            #expect(asString(descriptor["privacyLevel"]) == "external_provider")
+        }
 
         let descriptorJSON = try ValueType.list(descriptors).jsonString()
         for forbidden in [
