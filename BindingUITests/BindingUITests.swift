@@ -23,6 +23,27 @@ final class BindingUITests: XCTestCase {
     }
 
     @MainActor
+    func testPersonalEntityInvitationRequiresVisibleReviewAndCanCancel() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--binding-person-link-ui-test")
+        app.launch()
+        let confirm = app.buttons["Dette er mine entiteter — fortsett"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 15))
+        XCTAssertTrue(confirm.isHittable)
+        XCTAssertTrue(app.staticTexts["Syntetisk person"].exists)
+        XCTAssertTrue(app.staticTexts["Min entitet i denne HAVEN-appen"].exists)
+        XCTAssertTrue(app.staticTexts["staging.haven.digipomps.org"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Person entity invitation before any signature"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["Avbryt"].click()
+        XCTAssertTrue(app.staticTexts["Isolert personkoblingstest"].waitForExistence(timeout: 5))
+        XCTAssertFalse(confirm.exists)
+        app.terminate()
+    }
+
+    @MainActor
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
