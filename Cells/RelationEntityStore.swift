@@ -100,7 +100,8 @@ nonisolated enum HavenRelationEntityMapper {
             notes: record.notes,
             createdAt: existing?.createdAt ?? record.createdAt,
             updatedAt: now,
-            revision: (existing?.revision ?? 0) + 1
+            revision: (existing?.revision ?? 0) + 1,
+            entityRepresentation: existing?.entityRepresentation
         )
     }
 
@@ -275,7 +276,7 @@ nonisolated enum BindingRelationEntityStore {
             try EntityRelationRecordV1.validate(record)
             mutations.append(EntityBatchPersistMutation(
                 keypath: EntityRelationRecordV1.keypath(relationID: record.relationID),
-                value: EntityRelationCodec.value(record)
+                value: try EntityRelationCodec.persistenceValue(record)
             ))
         }
         let envelope = EntityBatchPersistEnvelope(
@@ -367,10 +368,10 @@ nonisolated enum BindingRelationEntityStore {
         let envelope = EntityBatchPersistEnvelope(
             schema: EntityRelationRecordV1.envelopeSchema,
             mutations: [
-                EntityBatchPersistMutation(keypath: chronicleKeypath, value: EntityRelationCodec.value(event)),
+                EntityBatchPersistMutation(keypath: chronicleKeypath, value: try EntityRelationCodec.persistenceValue(event)),
                 EntityBatchPersistMutation(
                     keypath: EntityRelationRecordV1.keypath(relationID: updated.relationID),
-                    value: EntityRelationCodec.value(updated)
+                    value: try EntityRelationCodec.persistenceValue(updated)
                 )
             ],
             metadata: [

@@ -36,15 +36,21 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     private let durable: Bool
     private let store: any BindingStartupIdentityStore
     private let vaultReference: String
+    private var scopedRootSecret: Data?
+    private var persistenceMigrationPrepared = false
+    private let persistenceRoot: URL?
+    static let scopedSecretAccount = "__binding_scoped_root_v1"
 
     static let keychainService = "org.digipomps.haven.startup-identity"
 
     init(
         durable: Bool = BindingStartupIdentityVault.shouldPersistAcrossLaunches(),
-        store: any BindingStartupIdentityStore = BindingKeychainStartupIdentityStore()
+        store: any BindingStartupIdentityStore = BindingKeychainStartupIdentityStore(),
+        persistenceRoot: URL? = nil
     ) {
         self.durable = durable
         self.store = store
+        self.persistenceRoot = persistenceRoot
         // A durable vault needs a stable name: `homeVaultReference` travels with
         // the identity, and a name that changed per launch would make the
         // restored identity look foreign to its own data.
@@ -298,6 +304,10 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     }
 
     func randomBytes64() async -> Data? {
+        Self.makeRandomBytes64()
+    }
+
+    private nonisolated static func makeRandomBytes64() -> Data? {
         var bytes = [UInt8](repeating: 0, count: 64)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else {
@@ -314,18 +324,49 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     }
 
     func scopedSecretData(tag: String, minimumLength: Int) async throws -> Data {
-        let requiredLength = max(32, minimumLength)
+        guard minimumLength <= 1_024 else { throw BindingStartupIdentityStoreError.invalidData }
+        let root: Data
+        if let cached = scopedRootSecret {
+            root = cached
+        } else {
+            let candidate: Data
+            if durable, let existing = try store.read(account: Self.scopedSecretAccount) {
+                candidate = existing
+            } else {
+                // Initialize without suspension so concurrent calls cannot
+                // produce different in-memory roots for this vault.
+                guard let generated = Self.makeRandomBytes64() else {
+                    throw ScopedSecretProviderError.unavailable
+                }
+                candidate = durable
+                    ? try store.insertIfAbsent(account: Self.scopedSecretAccount, data: generated)
+                    : generated
+            }
+            guard candidate.count == 64 else { throw BindingStartupIdentityStoreError.invalidData }
+            scopedRootSecret = candidate
+            root = candidate
+        }
+        let secret = Self.deriveScopedSecret(root: root, tag: tag, minimumLength: minimumLength)
+        if durable, tag == "cell.persistence.master.v1", !persistenceMigrationPrepared {
+            let rootURL = persistenceRoot ?? CellBase.documentRootPath.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            guard let rootURL else { throw ScopedSecretProviderError.unavailable }
+            try BindingStartupSecretMigration.prepare(documentRoot: rootURL, newSeed: Data(secret.prefix(32)))
+            persistenceMigrationPrepared = true
+        }
+        return secret
+    }
+
+    nonisolated static func deriveScopedSecret(root: Data, tag: String, minimumLength: Int) -> Data {
         var buffer = Data()
         var counter: UInt64 = 0
-
-        while buffer.count < requiredLength {
-            var payload = Data(tag.utf8)
+        while buffer.count < max(32, minimumLength) {
+            var payload = Data("binding.scoped-secret.v1\0".utf8)
+            payload.append(Data(tag.utf8))
             payload.append(contentsOf: withUnsafeBytes(of: counter.bigEndian, Array.init))
-            buffer.append(contentsOf: SHA256.hash(data: payload))
+            buffer.append(contentsOf: HMAC<SHA256>.authenticationCode(for: payload, using: SymmetricKey(data: root)))
             counter += 1
         }
-
-        return buffer.prefix(requiredLength)
+        return buffer.prefix(max(32, minimumLength))
     }
 
     func publicSecureKey(for identity: Identity, role: IdentityKeyRole) async throws -> SecureKey? {
@@ -356,6 +397,8 @@ protocol BindingStartupIdentityStore: Sendable {
     /// Only a genuinely absent item returns nil; access/corruption errors throw.
     func read(account: String) throws -> Data?
     func write(account: String, data: Data) throws
+    /// Atomic create-or-read; secret initialization may never overwrite another launch.
+    func insertIfAbsent(account: String, data: Data) throws -> Data
 }
 
 enum BindingStartupIdentityStoreError: Error {
@@ -389,6 +432,18 @@ struct BindingKeychainStartupIdentityStore: BindingStartupIdentityStore {
             throw BindingStartupIdentityStoreError.invalidData
         }
         return data
+    }
+
+    func insertIfAbsent(account: String, data: Data) throws -> Data {
+        var insert = query(account: account)
+        insert[kSecValueData as String] = data
+        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(insert as CFDictionary, nil)
+        if status == errSecSuccess { return data }
+        guard status == errSecDuplicateItem, let existing = try read(account: account) else {
+            throw BindingStartupIdentityStoreError.keychainStatus(status)
+        }
+        return existing
     }
 
     func write(account: String, data: Data) throws {
@@ -425,6 +480,13 @@ final class BindingInMemoryStartupIdentityStore: BindingStartupIdentityStore, @u
     func write(account: String, data: Data) {
         lock.lock(); defer { lock.unlock() }
         items[account] = data
+    }
+
+    func insertIfAbsent(account: String, data: Data) -> Data {
+        lock.lock(); defer { lock.unlock() }
+        if let existing = items[account] { return existing }
+        items[account] = data
+        return data
     }
 }
 

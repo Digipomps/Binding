@@ -1406,7 +1406,8 @@ struct ContentView: View {
     ) -> some View {
         let configuration = personalCopilotVisibleConfiguration(for: destination)
         let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
-        let showsSurfaceHeader = shouldShowPersonalCopilotSurfaceHeader(configuration: configuration)
+        let isNearbyScanner = configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "entity scanner"
+        let showsSurfaceHeader = !isNearbyScanner && shouldShowPersonalCopilotSurfaceHeader(configuration: configuration)
 
         return ZStack {
             personalCopilotShellBackground
@@ -1430,7 +1431,7 @@ struct ContentView: View {
                 .frame(maxWidth: personalCopilotContentMaxWidth(for: metadata), maxHeight: .infinity, alignment: .top)
                 .frame(maxWidth: .infinity, alignment: .center)
 
-                if showInspector {
+                if showInspector && !isNearbyScanner {
                     personalCopilotInspector(metadata: metadata)
                         .frame(width: 220)
                 }
@@ -2101,16 +2102,11 @@ struct ContentView: View {
                 return
             }
 
-            if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-                guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
-                    loadErrorMessage = "Kunne ikke klargjøre den lokale HAVEN-runtime-en."
-                    return
-                }
-            } else {
-                await AppInitializer.initialize()
-            }
-            guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
-                loadErrorMessage = "Kunne ikke validere HAVEN-runtime etter autentisering. Prøv igjen."
+            let outcome = await BindingRuntimeBootstrap.requestAuthenticatedRuntime(retryAfterFailure: true)
+            guard outcome == .ready, !Task.isCancelled else {
+                loadErrorMessage = outcome == .authenticationUnavailable
+                    ? "Autentisering ble ikke fullført. Åpne flaten på nytt for å prøve igjen."
+                    : "Kunne ikke validere HAVEN-runtime. Prøv igjen."
                 return
             }
             await repairPersistedConferencePortalIfNeeded()
@@ -2231,6 +2227,9 @@ struct ContentView: View {
 
     @MainActor
     private func refreshMenusFromCatalogIfAvailable() async {
+        // Background menu refresh can keep the compiled local entries. Only
+        // an explicit protected-surface load may request vault authentication.
+        guard BindingRuntimeBootstrap.authenticatedRuntimeIsReady else { return }
         guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
             diagnosticsStore.record(
                 severity: .error,
@@ -5424,43 +5423,15 @@ struct ContentView: View {
             "Venter på autentisering og runtime-bootstrap for \(configurationName)…",
             requestID: requestID
         )
-        await BindingRuntimeBootstrap.ensureBaseline()
-        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-            await AppInitializer.initialize()
-        }
-        await BindingRuntimeBootstrap.ensureBaseline()
-        let initiallyRegistered = await BindingLocalCellRegistration.shared.ensureRegistered()
-        if runtimeBootstrapIsReady, initiallyRegistered {
+        let outcome = await BindingRuntimeBootstrap.requestAuthenticatedRuntime(retryAfterFailure: true)
+        guard !Task.isCancelled, activeLoadingRequestID == requestID else { return false }
+        if outcome == .ready {
             return true
         }
-        if runtimeBootstrapIsReady, !initiallyRegistered {
+        if outcome == .registrationUnavailable {
             return reportRuntimeRegistrationFailure(configurationName: configurationName)
         }
-
-        let maxAttempts = 60
-        let retryDelayNanoseconds: UInt64 = 250_000_000
-
-        for attempt in 1...maxAttempts {
-            guard !Task.isCancelled else { return false }
-            if runtimeBootstrapIsReady {
-                guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
-                    return reportRuntimeRegistrationFailure(configurationName: configurationName)
-                }
-                return true
-            }
-            if attempt == 1 || attempt.isMultiple(of: 10) {
-                await BindingRuntimeBootstrap.ensureBaseline()
-            }
-            if attempt < maxAttempts {
-                updateLoadingStatus(
-                    "Venter på autentisering og runtime-bootstrap for \(configurationName)… (\(attempt)/\(maxAttempts))",
-                    requestID: requestID
-                )
-                try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
-            }
-        }
-
-        let message = "Runtime ble ikke klar i tide. Bekreft autentisering og prøv igjen."
+        let message = "Autentisering ble ikke fullført. Lastingen er stoppet. Åpne flaten på nytt for å prøve igjen."
         loadErrorMessage = message
         diagnosticsStore.record(
             severity: .error,
@@ -8649,7 +8620,9 @@ private struct PortholeCanvas: View {
                 onSelect: onSelectPath
             )
         } else {
-            if let mode = nativeNearbyRadarMode {
+            if activeConfigurationName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "entity scanner" {
+                NearbyScannerSurfaceView()
+            } else if let mode = nativeNearbyRadarMode {
                 nativeNearbyRadarCanvas(mode: mode)
             } else {
                 BindingSkeletonView(element: skeleton)

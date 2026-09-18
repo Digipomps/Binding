@@ -105,7 +105,7 @@ import CellBase
     }
 }
 
-private final class FailingStartupIdentityStore: BindingStartupIdentityStore, @unchecked Sendable {
+final class FailingStartupIdentityStore: BindingStartupIdentityStore, @unchecked Sendable {
     private let lock = NSLock()
     private var writes = 0
     let failReads: Bool
@@ -126,5 +126,10 @@ private final class FailingStartupIdentityStore: BindingStartupIdentityStore, @u
         lock.lock(); defer { lock.unlock() }
         writes += 1
         throw BindingStartupIdentityStoreError.invalidData
+    }
+
+    func insertIfAbsent(account: String, data: Data) throws -> Data {
+        try write(account: account, data: data)
+        return data
     }
 }

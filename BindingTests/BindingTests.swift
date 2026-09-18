@@ -1034,7 +1034,11 @@ struct BindingTests {
     @Test func personalCopilotInviteChatStaysChatFirstAndDropsTechnicalInviteFields() throws {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
 
-        #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(configuration))
+        // The full Butler workbench is distinct from the narrow release catalog.
+        #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(configuration))
+        #expect(BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(
+            ConfigurationCatalogCell.arendalsukaCopilotMenuConfiguration()
+        ))
         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: configuration).contains("cell:///PersonalChatHub"))
 
         guard let skeleton = configuration.skeleton else {
@@ -1082,11 +1086,11 @@ struct BindingTests {
                 Issue.record("Co-Pilot Chat Samtale tab should render the prompt log")
             }
             #expect(!skeletonContainsButton(keypath: "chatHub.assistant.analyzeDraft", in: conversationPanel))
-            #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: conversationPanel))
+            #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: conversationPanel))
             func primaryActionButton(in element: SkeletonElement) -> SkeletonButton? {
                 switch element {
                 case .Button(let button):
-                    return button.keypath == "chatHub.ui.openSuggestedHelper" && button.label == "↑" ? button : nil
+                    return button.keypath == "chatHub.prompt.submit" && button.label == "↑" ? button : nil
                 case .VStack(let stack):
                     return stack.elements.lazy.compactMap(primaryActionButton).first
                 case .HStack(let stack):
@@ -1110,7 +1114,7 @@ struct BindingTests {
             #expect(skeletonContainsTextKeypath("chatHub.state.ui.primaryActionHint", in: conversationPanel))
             #expect(skeletonContainsTabs(tabsKeypath: "chatHub.state.ui.activeHelpers", in: conversationElement))
             #expect(!skeletonContainsLiteralText("Trykk pilen", in: conversationPanel))
-            #expect(!skeletonContainsButton(keypath: "chatHub.prompt.submit", in: conversationPanel))
+            #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "Åpne forslag", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.clearComposer", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.voice.requestPermission", in: conversationPanel))
@@ -1443,7 +1447,7 @@ struct BindingTests {
         // Every configuration the menu offers must be reachable from a sidebar
         // section — a surface in the list but in no section is invisible.
         let sidebar = Set(BindingPersonalCopilotDestination.sidebarSections.flatMap(\.destinations))
-        #expect(sidebar == Set(BindingPersonalCopilotDestination.allCases))
+        #expect(sidebar == Set(BindingPersonalCopilotDestination.visibleDestinations))
         #expect(BindingPersonalCopilotDestination.matching(configurationName: "Relasjoner") == .relations)
         #expect(BindingPersonalCopilotDestination.relations.configuration.name == HavenRelationsWorkbench.configuration().name)
     }
@@ -1504,8 +1508,9 @@ struct BindingTests {
         #expect(mergeResult.mergedReferences.first?.label == "teamChat")
         #expect(skeletonContainsTextArea(targetKeypath: "teamChat.setComposer", in: mergeResult.rewrittenFragment))
         #expect(!skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: mergeResult.rewrittenFragment))
+        #expect(skeletonTextArea(targetKeypath: "teamChat.setComposer", in: mergeResult.rewrittenFragment)?.submitActionKeypath == "teamChat.prompt.submit")
         #expect(skeletonContainsList(keypath: "teamChat.state.ui.promptMessages", topic: nil, in: mergeResult.rewrittenFragment))
-        #expect(skeletonContainsButton(keypath: "teamChat.ui.openSuggestedHelper", label: "↑", in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsButton(keypath: "teamChat.prompt.submit", label: "↑", in: mergeResult.rewrittenFragment))
         #expect(!skeletonContainsButton(keypath: "teamChat.sendComposedMessage", in: mergeResult.rewrittenFragment))
     }
 
@@ -1753,7 +1758,7 @@ struct BindingTests {
         #expect(references.contains(where: { $0.endpoint == "cell:///PersonalChatHub" && $0.label == "chatHub" }))
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: workingSkeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.ui.promptMessages", topic: nil, in: workingSkeleton))
-        #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: workingSkeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: workingSkeleton))
         #expect(!skeletonContainsButton(keypath: "chatHub.sendComposedMessage", in: workingSkeleton))
     }
 
@@ -4410,10 +4415,23 @@ struct BindingTests {
                 Issue.record("\(decoded.name) mangler lokal EntityScanner-referanse")
                 continue
             }
-            #expect(scannerReference.setKeysAndValues.first(where: { $0.key == "start" })?.value == .bool(true))
+            if configuration.name == ConfigurationCatalogCell.entityScannerWorkbenchConfiguration().name {
+                #expect(scannerReference.setKeysAndValues.first(where: { $0.key == "start" }) == nil)
+            } else {
+                #expect(scannerReference.setKeysAndValues.first(where: { $0.key == "start" })?.value == .bool(true))
+            }
 
             guard let skeleton = decoded.skeleton else {
                 Issue.record("\(decoded.name) mangler skeleton")
+                continue
+            }
+
+            if configuration.name == ConfigurationCatalogCell.entityScannerWorkbenchConfiguration().name {
+                #expect(skeletonContainsButton(keypath: "scanner.start", label: "Start", in: skeleton))
+                #expect(skeletonContainsButton(keypath: "scanner.stop", label: "Stopp", in: skeleton))
+                let encodedSkeleton = try String(decoding: JSONEncoder().encode(skeleton), as: UTF8.self)
+                #expect(encodedSkeleton.contains("scanner.radar"))
+                #expect(encodedSkeleton.contains("scanner.select"))
                 continue
             }
 
@@ -4879,7 +4897,10 @@ struct BindingTests {
         let startupIdentityBefore = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
 
         let authenticatedVault = EphemeralIdentityVault()
-        await BindingRuntimeBootstrap.ensureBaseline(authenticatedIdentityVault: authenticatedVault)
+        // This tests startup-vault continuity across a synthetic runtime swap.
+        // It does not bypass or certify the production owner's authentication.
+        _ = await authenticatedVault.initialize()
+        CellBase.defaultIdentityVault = authenticatedVault
         let startupIdentityAfter = await BindingStartupIdentityVault.shared.identity(for: "private", makeNewIfNotFound: true)
 
         #expect(startupIdentityBefore?.uuid == startupIdentityAfter?.uuid)
@@ -6055,10 +6076,12 @@ struct BindingTests {
             return
         }
         #expect(primaryAction["label"] == .string("Åpne profilflate"))
-        #expect(selectedEntityActions.contains { value in
-            guard case let .object(action) = value else { return false }
-            return action["label"] == .string("Start chat")
-        })
+        let actionLabels = selectedEntityActions.compactMap { value -> String? in
+            guard case let .object(action) = value,
+                  case let .string(label)? = action["label"] else { return nil }
+            return label
+        }
+        #expect(actionLabels.contains("Start chat"))
 
         guard case let .list(hiddenNearby)? = stateObject["hiddenNearby"],
               case let .object(hiddenApprox)? = hiddenNearby.first else {

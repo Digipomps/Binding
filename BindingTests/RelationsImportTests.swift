@@ -806,6 +806,23 @@ import CellBase
 /// the entity's own memory — evidence, interactions, verification — intact.
 @Suite struct HavenRelationEntityMapperTests {
 
+    @Test func resyncPreservesCanonicalGraphInsteadOfRebuildingItFromTags() throws {
+        let device = try vegar()
+        var stored = HavenRelationEntityMapper.entityRecord(from: device, existing: nil, perspectiveRef: "e-stable")
+        let purpose = Purpose(name: "Review", description: "Authored purpose")
+        purpose.nodeIdentifier = "purpose-review"
+        stored.entityRepresentation = EntityRepresentation(
+            purposes: [Weight<Purpose>(weight: 0.83, value: purpose)], name: "Owner knowledge", nodeIdentifier: "e-stable"
+        )
+        let next = HavenRelationEntityMapper.entityRecord(from: device, existing: stored, perspectiveRef: "e-stable")
+        let graph = try #require(next.entityRepresentation)
+        #expect(graph.name == "Owner knowledge")
+        #expect(graph.purposes.first?.weight == 0.83)
+        let projected = try next.matchingRepresentation(reference: "e-salted", source: "cell:///Relations", includeGraph: true)
+        #expect(projected.purposes.first?.value?.reference == "purpose-review")
+        #expect(stored.entityRepresentation?.nodeIdentifier == "e-stable")
+    }
+
     private func vegar() throws -> HavenRelationRecord {
         let document = HavenTabularDocument(
             headers: ["Navn", "Firma", "Stilling", "Gruppe", "Oppgave i nettverket", "Interesser", "E-post"],

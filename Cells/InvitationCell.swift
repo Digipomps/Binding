@@ -163,6 +163,22 @@ final class BindingInvitationCell: GeneralCell {
     }
 
     private func setup(owner: Identity) async {
+        await registerExploreContract(
+            requester: owner,
+            key: "viewState",
+            method: .get,
+            input: .null,
+            returns: .object([
+                "type": .string("array"),
+                "items": ExploreContract.objectSchema(properties: [
+                    "invitation": ExploreContract.objectSchema(properties: [
+                        "state": ExploreContract.schema(type: "object")
+                    ], requiredKeys: ["state"])
+                ], requiredKeys: ["invitation"])
+            ]),
+            permissions: ["r---"],
+            description: .string("One owner-authorized state row for reactive skeleton visibility. Read-only; no side effects.")
+        )
         for key in readableKeys {
             agreementTemplate.addGrant("r---", for: key)
             await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
@@ -184,6 +200,7 @@ final class BindingInvitationCell: GeneralCell {
     private var readableKeys: [String] {
         [
             "state",
+            "viewState",
             "invite.state",
             "invite.outbox",
             "invite.inbox",
@@ -217,6 +234,8 @@ final class BindingInvitationCell: GeneralCell {
 
     private func readValue(for key: String) -> ValueType {
         switch key {
+        case "viewState":
+            return .list([.object(["invitation": .object(["state": .object(stateObject())])])])
         case "state", "invite.state":
             return .object(stateObject())
         case "invite.outbox":

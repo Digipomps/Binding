@@ -71,16 +71,26 @@ nonisolated enum HavenRelationsWorkbench {
         configuration.skeleton = .ScrollView(SkeletonScrollView(elements: [
             .VStack(SkeletonVStack(elements: [
                 header(),
-                repliesSection(),
-                emptyStateSection(),
-                importReviewSection(),
-                preparedMessageSection(),
-                everydaySection(),
-                outboxSection(),
-                footerSection()
+                stateRow("invitation", content: repliesSection()),
+                stateRow("relations", content: emptyStateSection()),
+                stateRow("contactImport", content: importReviewSection()),
+                stateRow("invitation", content: preparedMessageSection()),
+                stateRow("relations", content: everydaySection()),
+                stateRow("invitation", content: outboxSection()),
+                stateRow("invitation", content: footerSection())
             ], spacing: 18))
         ]))
         return configuration
+    }
+
+    // A root skeleton has no value for visibility conditions. Bind the existing
+    // owner-authorized state into one row, retaining fully qualified paths.
+    private static func stateRow(_ label: String, content: SkeletonElement) -> SkeletonElement {
+        .List(SkeletonList(
+            topic: nil,
+            keypath: "\(label).viewState",
+            flowElementSkeleton: SkeletonVStack(elements: [content])
+        ))
     }
 
     // MARK: - Sections

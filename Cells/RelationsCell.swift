@@ -32,6 +32,7 @@ final class BindingRelationsCell: GeneralCell {
         case projectionSalt
         case projectionEpoch
         case projectionEnabled
+        case projectionIncludesGraph
     }
 
     private let stateQueue = DispatchQueue(label: "Binding.BindingRelationsCell.State")
@@ -52,6 +53,7 @@ final class BindingRelationsCell: GeneralCell {
     /// Projection is off until the owner turns it on. It is a real disclosure —
     /// names and interests leave this cell for a graph built to be matched.
     private nonisolated(unsafe) var projectionEnabled: Bool = false
+    private nonisolated(unsafe) var projectionIncludesGraph: Bool = false
 
     /// Entity sync bookkeeping — in memory on purpose. On a fresh process the
     /// first mutation resyncs everything, which is the honest thing to do
@@ -78,6 +80,7 @@ final class BindingRelationsCell: GeneralCell {
         projectionSalt = try container.decodeIfPresent(String.self, forKey: .projectionSalt) ?? ""
         projectionEpoch = try container.decodeIfPresent(Int.self, forKey: .projectionEpoch) ?? 0
         projectionEnabled = try container.decodeIfPresent(Bool.self, forKey: .projectionEnabled) ?? false
+        projectionIncludesGraph = try container.decodeIfPresent(Bool.self, forKey: .projectionIncludesGraph) ?? false
         try super.init(from: decoder)
     }
 
@@ -89,7 +92,7 @@ final class BindingRelationsCell: GeneralCell {
         try super.encode(to: encoder)
         var container = encoder.container(keyedBy: CodingKeys.self)
         let snapshot = stateQueue.sync {
-            (records, lastSearch, lastMutation, region, projectionSalt, projectionEpoch, projectionEnabled)
+            (records, lastSearch, lastMutation, region, projectionSalt, projectionEpoch, projectionEnabled, projectionIncludesGraph)
         }
         try container.encode(snapshot.0, forKey: .records)
         try container.encode(snapshot.1, forKey: .lastSearch)
@@ -98,9 +101,26 @@ final class BindingRelationsCell: GeneralCell {
         try container.encode(snapshot.4, forKey: .projectionSalt)
         try container.encode(snapshot.5, forKey: .projectionEpoch)
         try container.encode(snapshot.6, forKey: .projectionEnabled)
+        try container.encode(snapshot.7, forKey: .projectionIncludesGraph)
     }
 
     private func setup(owner: Identity) async {
+        await registerExploreContract(
+            requester: owner,
+            key: "viewState",
+            method: .get,
+            input: .null,
+            returns: .object([
+                "type": .string("array"),
+                "items": ExploreContract.objectSchema(properties: [
+                    "relations": ExploreContract.objectSchema(properties: [
+                        "state": ExploreContract.schema(type: "object")
+                    ], requiredKeys: ["state"])
+                ], requiredKeys: ["relations"])
+            ]),
+            permissions: ["r---"],
+            description: .string("One owner-authorized state row for reactive skeleton visibility. Read-only; no side effects.")
+        )
         for key in readableKeys {
             agreementTemplate.addGrant("r---", for: key)
             await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
@@ -124,6 +144,7 @@ final class BindingRelationsCell: GeneralCell {
     private var readableKeys: [String] {
         [
             "state",
+            "viewState",
             "relations.state",
             "relations.all",
             "relations.inviteCandidates",
@@ -175,6 +196,8 @@ final class BindingRelationsCell: GeneralCell {
 
     private func readValue(for key: String) -> ValueType {
         switch key {
+        case "viewState":
+            return .list([.object(["relations": .object(["state": .object(stateObject())])])])
         case "state", "relations.state":
             return .object(stateObject())
         case "relations.all":
@@ -294,7 +317,7 @@ final class BindingRelationsCell: GeneralCell {
         case "relations.setProjectionEnabled":
             return .object(await setProjectionEnabled(value, requester: requester))
         case "relations.projectToPerspective":
-            return .object(await projectToPerspective(requester: requester))
+            return .object(await projectToPerspective(requester: requester, includeGraph: HavenValue.bool(HavenValue.object(value)?["includeGraph"])))
         case "relations.reach":
             return .object(await reach(value, requester: requester))
         case "relations.recordInteraction":
@@ -1010,10 +1033,13 @@ final class BindingRelationsCell: GeneralCell {
     private func setProjectionEnabled(_ value: ValueType, requester: Identity) async -> Object {
         let payload = HavenValue.object(value) ?? [:]
         let enabled = HavenValue.bool(payload["enabled"]) ?? HavenValue.bool(value) ?? false
-        stateQueue.sync { projectionEnabled = enabled }
+        stateQueue.sync {
+            projectionEnabled = enabled
+            if !enabled { projectionIncludesGraph = false }
+        }
 
         if enabled {
-            return await projectToPerspective(requester: requester)
+            return await projectToPerspective(requester: requester, includeGraph: HavenValue.bool(payload["includeGraph"]))
         }
 
         guard let perspective = await perspectiveCell(requester: requester) else {
@@ -1048,17 +1074,21 @@ final class BindingRelationsCell: GeneralCell {
     /// reach the graph. Anything this cell contributed before and does not
     /// contribute now is removed on the other side.
     ///
-    /// What goes: a salted opaque reference, the display name, the interests
-    /// the tags imply, and a weight. What stays here: endpoints, endpoint
-    /// hashes, notes, and which spreadsheet a person arrived in. The
-    /// perspective is built to be compared against other parties; contact
-    /// detail has no business in it.
-    private func projectToPerspective(requester: Identity) async -> Object {
+    /// Default disclosure remains names and direct weighted interests.
+    /// `includeGraph: true` explicitly selects the full weighted graph, including
+    /// purposes and functionality. EntityRepresentation.person is omitted at
+    /// every depth; relationship history and validated contacts stay in storage.
+    /// Matching does not authorize invoking or disclosing referenced resources.
+    private func projectToPerspective(requester: Identity, includeGraph requestedScope: Bool? = nil) async -> Object {
         guard stateQueue.sync(execute: { projectionEnabled }) else {
             return HavenValue.error(
                 code: "projection_disabled",
                 message: "Projeksjonen er av. Slå den på med relations.setProjectionEnabled hvis butleren skal kunne foreslå folk."
             )
+        }
+        let includeGraph = stateQueue.sync {
+            if let requestedScope { projectionIncludesGraph = requestedScope }
+            return projectionIncludesGraph
         }
         guard let perspective = await perspectiveCell(requester: requester) else {
             return HavenValue.error(
@@ -1067,7 +1097,12 @@ final class BindingRelationsCell: GeneralCell {
             )
         }
 
-        let entities = projectedEntities()
+        let entities: [ValueType]
+        do {
+            entities = try await projectedEntities(requester: requester, includeGraph: includeGraph)
+        } catch {
+            return HavenValue.error(code: "projection_source_unavailable", message: "Kunne ikke lese relasjonsgrafen: \(error.localizedDescription)")
+        }
         let epoch = nextProjectionEpoch()
         guard let response = try? await perspective.set(
             keypath: "projectEntities",
@@ -1098,7 +1133,7 @@ final class BindingRelationsCell: GeneralCell {
                 "projectedCount": .integer(entities.count),
                 "epoch": .integer(epoch),
                 "perspectiveResponse": .object(responseObject),
-                "privacyBoundary": .string("names_weights_and_interests_only_no_contact_detail")
+                "privacyBoundary": .string(includeGraph ? "explicit_graph_projection_no_person_fields" : "names_weights_and_interests_only_no_contact_detail")
             ]
         )
         stateQueue.sync { lastMutation = result }
@@ -1117,33 +1152,23 @@ final class BindingRelationsCell: GeneralCell {
         return try? await resolver.cellAtEndpoint(endpoint: "cell:///Perspective", requester: requester) as? Meddle
     }
 
-    /// Canonical `Weight` shape: `{ weight, value }`.
-    ///
-    /// An earlier draft of this put the node under `"object"`, which decodes to
-    /// a weight with no value — the projection would have been accepted and
-    /// then silently dropped every person in it.
-    private func projectedEntities() -> [ValueType] {
+    /// Uses the same EntityRepresentation graph as owner storage. Reading the
+    /// entity must succeed before replacing a projection, so an unavailable
+    /// anchor cannot silently replace a rich graph with a flattened fallback.
+    private func projectedEntities(requester: Identity, includeGraph: Bool) async throws -> [ValueType] {
         let all = stateQueue.sync { records }
+        let stored = try await BindingRelationEntityStore.loadRecords(requester: requester)
         let salt = projectionSaltValue()
-        return all.compactMap { record -> ValueType? in
-            let name = HavenRelationNormalizer.collapseWhitespace(record.displayName)
-            guard !name.isEmpty else { return nil }
+        return try all.compactMap { record -> ValueType? in
+            guard !HavenRelationNormalizer.collapseWhitespace(record.displayName).isEmpty else { return nil }
+            let reference = Self.opaqueReference(for: record, salt: salt)
+            let relation = HavenRelationEntityMapper.entityRecord(
+                from: record, existing: stored[record.id], perspectiveRef: reference
+            )
+            let node = try relation.matchingRepresentation(reference: reference, source: Self.endpoint, includeGraph: includeGraph)
             return .object([
                 "weight": .float(Self.relationSalience(record)),
-                "value": .object([
-                    "name": .string(name),
-                    "nodeIdentifier": .string(Self.opaqueReference(for: record, salt: salt)),
-                    "projectionSource": .string(Self.endpoint),
-                    "types": .list([]),
-                    "subTypes": .list([]),
-                    "parts": .list([]),
-                    "partOf": .list([]),
-                    "purposes": .list([]),
-                    "interests": .list(Self.interestWeights(for: record)),
-                    "entities": .list([]),
-                    "states": .list([]),
-                    "agreementRefs": .list([])
-                ])
+                "value": try EntityRepresentationDataCodec.value(node)
             ])
         }
     }
@@ -1175,35 +1200,14 @@ final class BindingRelationsCell: GeneralCell {
     /// and the graph should not weigh them the same.
     static let inferredTagPrefix = "antatt:"
 
-    /// Tags become interests, which is the whole reason to project at all.
-    /// An entity with no interests matches nothing, so a projection of bare
-    /// names would make the graph bigger without making it smarter.
-    ///
-    /// Declared interests come first and heavier, inferred ones after and
-    /// lighter. Order matters because the list is capped: without sorting, an
-    /// arbitrary insertion order decided which interests survived the cut.
+    /// Compatibility entrypoint for legacy tag importers. The adapter creates
+    /// real Interest nodes; graph-aware callers use the stored representation.
     static func interestWeights(for record: HavenRelationRecord) -> [ValueType] {
-        let declared = record.contextTags.filter { !$0.hasPrefix(inferredTagPrefix) }
-        let inferred = record.contextTags.filter { $0.hasPrefix(inferredTagPrefix) }
-        let ordered = declared.map { (name: $0, weight: 0.75) }
-            + inferred.map { (name: String($0.dropFirst(inferredTagPrefix.count)), weight: 0.35) }
-
-        return ordered.prefix(12).map { entry in
-            .object([
-                "weight": .float(entry.weight),
-                "value": .object([
-                    "name": .string(entry.name),
-                    "types": .list([]),
-                    "subTypes": .list([]),
-                    "parts": .list([]),
-                    "partOf": .list([]),
-                    "purposes": .list([]),
-                    "interests": .list([]),
-                    "entities": .list([]),
-                    "states": .list([])
-                ])
-            ])
-        }
+        let relation = HavenRelationEntityMapper.entityRecord(from: record, existing: nil, perspectiveRef: nil)
+        guard let node = try? relation.matchingRepresentation(reference: record.id, source: Self.endpoint),
+              let value = try? EntityRepresentationDataCodec.value(node),
+              case let .object(object) = value, case let .list(interests)? = object["interests"] else { return [] }
+        return interests
     }
 
     /// Stable for this entity, meaningless anywhere else. Two people called

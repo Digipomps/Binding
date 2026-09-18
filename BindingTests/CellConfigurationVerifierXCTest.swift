@@ -401,7 +401,11 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 sourceCellEndpoint: endpoint
             )
         }
-        XCTAssertGreaterThanOrEqual(descriptors.count, 8, "expected the seeded local catalog")
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            XCTAssertEqual(Set(descriptors.map(\.name)), Set(["Co-Pilot", "Vault / Ideas"]))
+        } else {
+            XCTAssertGreaterThanOrEqual(descriptors.count, 8, "expected the seeded local catalog")
+        }
 
         var vague: [String] = []
         var unfindable: [String] = []
@@ -921,8 +925,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return
         }
 
+        let configurationForCopilot = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         let expectedCopilotLoad = Task {
-            await waitForPortholeLoadBridgeConfiguration(containingName: "Co-Pilot")
+            await waitForPortholeLoadBridgeConfiguration(containingName: configurationForCopilot.name)
         }
         let openCopilotResponse = try await navigator.set(
             keypath: "dispatchAction",
@@ -945,7 +950,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             XCTFail("Expected BindingPortholeLoadBridge request for Co-Pilot")
             return
         }
-        XCTAssertEqual(copilotConfiguration.name, "Co-Pilot")
+        XCTAssertEqual(copilotConfiguration.name, configurationForCopilot.name)
         XCTAssertTrue(copilotConfiguration.cellReferences?.contains(where: { $0.label == "chatHub" }) == true)
 
         let expectedProfileLoad = Task {

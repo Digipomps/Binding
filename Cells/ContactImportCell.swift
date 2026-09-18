@@ -84,6 +84,22 @@ final class BindingContactImportCell: GeneralCell {
     }
 
     private func setup(owner: Identity) async {
+        await registerExploreContract(
+            requester: owner,
+            key: "viewState",
+            method: .get,
+            input: .null,
+            returns: .object([
+                "type": .string("array"),
+                "items": ExploreContract.objectSchema(properties: [
+                    "contactImport": ExploreContract.objectSchema(properties: [
+                        "state": ExploreContract.schema(type: "object")
+                    ], requiredKeys: ["state"])
+                ], requiredKeys: ["contactImport"])
+            ]),
+            permissions: ["r---"],
+            description: .string("One owner-authorized state row for reactive skeleton visibility. Read-only; no side effects.")
+        )
         for key in readableKeys {
             agreementTemplate.addGrant("r---", for: key)
             await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
@@ -105,6 +121,7 @@ final class BindingContactImportCell: GeneralCell {
     private var readableKeys: [String] {
         [
             "state",
+            "viewState",
             "import.state",
             "import.preview",
             "import.assessments",
@@ -130,6 +147,8 @@ final class BindingContactImportCell: GeneralCell {
 
     private func readValue(for key: String) -> ValueType {
         switch key {
+        case "viewState":
+            return .list([.object(["contactImport": .object(["state": .object(stateObject())])])])
         case "state", "import.state":
             return .object(stateObject())
         case "import.preview":

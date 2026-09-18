@@ -17,7 +17,8 @@ enum ReferenceMergeService {
         "selectionValueKeypath",
         "selectionStateKeypath",
         "selectionActionKeypath",
-        "activationActionKeypath"
+        "activationActionKeypath",
+        "submitActionKeypath"
     ]
 
     static func merge(

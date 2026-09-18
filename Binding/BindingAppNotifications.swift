@@ -603,9 +603,7 @@ enum BindingRuntimeBootstrap {
     }
 
     @MainActor
-    static func ensureBaseline(
-        authenticatedIdentityVault: (any IdentityVaultProtocol)? = nil
-    ) async {
+    static func ensureBaseline() async {
         if shouldUseLocalRuntimeOnlyForVerifier() {
             await ensureInfrastructureBaseline()
             return
@@ -613,7 +611,7 @@ enum BindingRuntimeBootstrap {
 
         await ensureInfrastructureBaseline()
 
-        let identityVault: any IdentityVaultProtocol = authenticatedIdentityVault ?? IdentityVault.shared
+        let identityVault = IdentityVault.shared
         _ = await identityVault.initialize()
         // A cancelled or failed Face ID sheet returns from initialize() like a
         // successful one. Swapping the vault in regardless used to hand every

@@ -7791,7 +7791,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     nonisolated static func entityScannerWorkbenchConfiguration() -> CellConfiguration {
         entityScannerToolConfiguration(
             name: "Entity Scanner",
-            description: "Judged-proximity scanner for relevant nearby entities, signed identity exchange, saved relations, encounter proofs and JSON export.",
+            description: "Radar med søk, grupperte treff og formål og interesser som andre selv har valgt å dele.",
             title: "Entity Scanner",
             subtitle: "Start scanning explicitly, inspect only relevant nearby entities, then invite, exchange signed identities and hand off to chat after relation persistence.",
             checklist: [
@@ -9252,6 +9252,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         promptSpeaker.modifiers?.fontWeight = "semibold"
         promptSpeaker.modifiers?.fontSize = 12
         var promptBody = personalBoundText("body", lineLimit: 6)
+        promptBody.modifiers?.lineLimit = nil
         promptBody.modifiers?.fontSize = 14
         var promptStatus = personalBoundText("statusText", lineLimit: 1)
         promptStatus.modifiers?.foregroundColor = BindingPersonalCopilotDesignSystem.textTertiary
@@ -9321,7 +9322,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         var moduleRow = SkeletonVStack(elements: [
             .Text(personalBoundText("title", lineLimit: 1)),
             .Text(personalBoundText("kind", lineLimit: 1)),
-            .Text(personalBoundText("status", lineLimit: 1))
+            .Text(personalBoundText("statusText", lineLimit: 2))
         ], spacing: 4)
         moduleRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
         var workbenchModules = SkeletonList(topic: nil, keypath: "chatHub.state.workbench.modules", flowElementSkeleton: moduleRow)
@@ -9577,7 +9578,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .TextArea(workItemCurrentField),
                 .TextArea(workItemExpectedField),
                 .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.workItem.capture", "Registrer feil")),
+                    .Button(button("chatHub.workItem.capture", "Legg til utkast")),
                     .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary))
                 ], spacing: 8))
             ]
@@ -9589,7 +9590,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .TextField(todoTitleField),
                 .TextArea(todoNoteField),
                 .TextField(todoDueField),
-                .Button(button("chatHub.todo.create", "Opprett oppgave"))
+                .Button(button("chatHub.todo.create", "Legg til utkast"))
             ]
         )
 
@@ -9598,7 +9599,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             content: [
                 .TextField(projectTitleField),
                 .TextArea(projectDescriptionField),
-                .Button(button("chatHub.project.create", "Opprett ide"))
+                .Button(button("chatHub.project.create", "Legg til utkast"))
             ]
         )
 
@@ -9607,7 +9608,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             content: [
                 .TextField(reminderTitleField),
                 .TextField(reminderTimeField),
-                .Button(button("chatHub.reminder.create", "Lagre paaminnelse"))
+                .Text(SkeletonText(text: "Utkastet sender ikke varsler.")),
+                .Button(button("chatHub.reminder.create", "Legg til utkast"))
             ]
         )
 
@@ -9616,7 +9618,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             content: [
                 .TextField(meetingTitleField),
                 .TextField(meetingTimesField),
-                .Button(button("chatHub.meeting.schedule", "Foresla mote"))
+                .Button(button("chatHub.meeting.schedule", "Legg til utkast"))
             ]
         )
 
@@ -9702,15 +9704,16 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         primaryActionHint.modifiers?.fontSize = 12
 
         let primaryPromptButton = button(
-            "chatHub.ui.openSuggestedHelper",
+            "chatHub.prompt.submit",
             "↑",
             style: .iconPrimary
         )
-        var primaryActionStack = SkeletonVStack(
+        var primaryActionStack = SkeletonHStack(
             elements: [
+                .Button(button("chatHub.ui.openSuggestedHelper", "Åpne forslag", style: .secondary)),
                 .Button(primaryPromptButton)
             ],
-            spacing: 0
+            spacing: 8
         )
         primaryActionStack.modifiers = modifier {
             $0.hAlignment = "trailing"
@@ -9718,7 +9721,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         }
         var composerStack = SkeletonVStack(elements: [
             .TextArea(composer),
-            .VStack(primaryActionStack)
+            .HStack(primaryActionStack)
         ], spacing: 10)
         composerStack.modifiers = modifier {
             $0.maxWidthInfinity = true
@@ -16037,7 +16040,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         configuration.description = description
 
         var scannerReference = CellReference(endpoint: "cell:///EntityScanner", label: "scanner")
-        scannerReference.addKeyAndValue(KeyValue(key: "start", value: .bool(true)))
+        if name != "Entity Scanner" {
+            scannerReference.addKeyAndValue(KeyValue(key: "start", value: .bool(true)))
+        }
         configuration.addReference(scannerReference)
         var nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", label: "nearbyRadar")
         nearbyRadarReference.addKeyAndValue(KeyValue(key: "state"))
@@ -16046,6 +16051,44 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
         configuration.addReference(CellReference(endpoint: "cell:///Vault", label: "vault"))
 
+        if name == "Entity Scanner" {
+            // Keep the portable surface small as well. Native sharing controls use
+            // the same scanner and shared radar renderer; diagnostic helpers retain
+            // the longer workbench below.
+            let radar = SkeletonVisualization(kind: "radar", keypath: "scanner.radar", actionKeypath: "scanner.select")
+            configuration.skeleton = .VStack(SkeletonVStack(elements: [
+                .Text(SkeletonText(text: "I nærheten")),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(SkeletonButton(keypath: "scanner.start", label: "Start", payload: .bool(true))),
+                    .Button(SkeletonButton(keypath: "scanner.stop", label: "Stopp", payload: .bool(true)))
+                ])),
+                .Visualization(radar)
+            ]))
+            return configuration
+        }
+
+        return entityScannerDiagnosticConfiguration(
+            configuration: configuration,
+            title: title,
+            subtitle: subtitle,
+            checklist: checklist,
+            includePerspectiveSection: includePerspectiveSection
+        )
+    }
+
+    // Keep the diagnostic workbench's large value-type temporaries out of the
+    // normal radar factory's stack frame. A Debug build reserves that frame on
+    // entry, even when the small Entity Scanner branch returns early. On iPad
+    // this exhausted the UI thread stack before the radar could open.
+    @inline(never)
+    nonisolated private static func entityScannerDiagnosticConfiguration(
+        configuration initialConfiguration: CellConfiguration,
+        title: String,
+        subtitle: String,
+        checklist: [String],
+        includePerspectiveSection: Bool
+    ) -> CellConfiguration {
+        var configuration = initialConfiguration
         let card = conferenceCardModifier(
             padding: 10,
             background: ConferenceSurfacePalette.shellMuted,

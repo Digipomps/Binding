@@ -4593,6 +4593,9 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     nonisolated(unsafe) private var registeredProviders: [BindingChatProviderDescriptor] = []
     nonisolated(unsafe) private var voiceTranscriber = BindingVoiceInputTranscriber()
     nonisolated(unsafe) private var historyPolicyLoaded = false
+    nonisolated(unsafe) private var latestAnalysisID = UUID()
+    // Injected only by local contract tests; no wire action can replace the model.
+    nonisolated(unsafe) var localLanguageResponder: (@Sendable (ButlerLanguageSupport.Request) async -> ButlerLanguageSupport.Reply)?
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -5415,6 +5418,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
 
     private func persistSubmittedPromptHistory(
         turnID: String,
+        threadID: String,
         prompt: String,
         analyzed: ValueType,
         requester: Identity
@@ -5441,12 +5445,14 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let suggestion = BindingChatValue.object(analyzedObject["suggestion"]) ?? [:]
         let purposeRef = BindingChatValue.string(suggestion["purposeRef"]) ?? "purpose://prompt.unknown"
         let helperID = BindingChatValue.string(suggestion["helperID"]) ?? ""
-        let assistantText = BindingChatValue.string(suggestion["explanation"])
+        let turnMessages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
+        let submittedAnswer = turnMessages.compactMap(BindingChatValue.object).last {
+            BindingChatValue.string($0["turnID"]) == turnID && BindingChatValue.string($0["role"]) == "assistant"
+        }
+        let assistantText = submittedAnswer.flatMap { BindingChatValue.string($0["body"]) }
+            ?? BindingChatValue.string(suggestion["explanation"])
             ?? BindingChatValue.string(suggestion["reason"])
             ?? ""
-        let threadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState))
-            ?? "local-copilot-thread"
-
         do {
             let acknowledgement = try await BindingPersonalChatChronicle.persistTurn(
                 turnID: turnID,
@@ -5545,6 +5551,13 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ?? BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
             ?? BindingChatValue.string(BindingChatValue.nested("currentThread.composer.body", in: cachedState))
             ?? ""
+        // Bind the turn before any await. The user can change thread or draft
+        // while providers, catalog lookup or a language model are running.
+        let originatingThreadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread"
+        let originatingComposer = BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState))
+        let originatingMessages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
+        let analysisID = UUID()
+        latestAnalysisID = analysisID
         let capabilityDiscoveryEnabled = BindingChatValue.bool(BindingChatValue.nested("ui.capabilityDiscoveryEnabled", in: cachedState)) ?? false
         let perspective = await perspectiveSummary(requester: requester)
         let perspectiveContext = BindingChatPurposeContext
@@ -5564,6 +5577,18 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             excluding: resourceMatches,
             requester: requester
         ))
+        var localLanguageReply: ButlerLanguageSupport.Reply?
+        let remoteReady = ButlerLanguageSupport.hasConfiguredRemoteProvider(providers)
+        if promptTurnID != nil, !remoteReady,
+           localLanguageResponder != nil || providers.contains(where: { $0.id == "binding.apple-intelligence" }) {
+            let request = ButlerLanguageSupport.Request(prompt: draft,
+                conversation: ButlerLanguageSupport.conversation(from: originatingMessages, threadID: originatingThreadID),
+                resources: resourceMatches.compactMap { BindingChatValue.string($0["title"]) })
+            let responder = localLanguageResponder ?? ButlerLanguageSupport.respond
+            let reply = await responder(request)
+            localLanguageReply = reply
+            suggestion = ButlerLanguageSupport.suggestion(from: reply, fallback: suggestion)
+        }
         let agentStatus = BindingHavenAgentDStatusProvider.snapshot()
         let recommendation = BindingChatProviderRouter.recommend(
             prompt: draft,
@@ -5666,7 +5691,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         var assistantUpdates: Object = [
             "status": .string(suggestion.shouldSuggest ? "suggested" : "low_confidence"),
             "mode": .string("suggestion_first"),
-            "intentEngine": .string("deterministic_with_optional_cell_scoped_provider"),
+            "intentEngine": .string(localLanguageReply?.failure == nil && localLanguageReply != nil
+                ? "on_device_language_understanding" : "deterministic_with_optional_cell_scoped_provider"),
             "latestSuggestion": .object(suggestionObject),
             "suggestions": .list(suggestion.shouldSuggest ? [.object(suggestionObject)] : []),
             "whySummary": .string(suggestion.reason),
@@ -5694,30 +5720,16 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         if let portholeUI {
             assistantUpdates["portholeUI"] = .object(portholeUI)
         }
-        for (key, update) in assistantUpdates {
-            BindingChatValue.set(update, for: "assistant.\(key)", in: &cachedState)
+        if let reply = localLanguageReply, reply.failure == nil, suggestion.helperID == reply.helper {
+            assistantUpdates["languageDraft"] = .object([
+                "helperID": .string(reply.helper), "sourcePrompt": .string(draft),
+                "title": .string(reply.draftTitle), "dateText": .string(reply.dateText)
+            ])
+        } else {
+            assistantUpdates["languageDraft"] = .null
         }
-        let helperCount = BindingChatValue.list(BindingChatValue.nested("ui.helpers", in: cachedState))?.count ?? 0
-        let contextStatus = BindingChatValue.string(purposeContext["status"]) ?? "unknown"
-        BindingChatValue.set(
-            .object(BindingPersonalButlerPolicy.capabilitySnapshot(
-                providers: providers,
-                helperCount: helperCount,
-                contextStatus: contextStatus,
-                agentStatus: agentStatus
-            )),
-            for: "butler.capabilities",
-            in: &cachedState
-        )
-        BindingChatValue.set(.bool(suggestion.shouldSuggest), for: "ui.hasActionableSuggestion", in: &cachedState)
-        BindingChatValue.set(.string(primaryActionHint(for: suggestion)), for: "ui.primaryActionHint", in: &cachedState)
-        updateDraftsFromAnalysis(
-            draft: draft,
-            suggestion: suggestion,
-            resourceMatches: resourceMatches
-        )
-        var generatedAnswer: Object? = nil
-        if promptTurnID != nil {
+        var generatedAnswer: Object? = localLanguageReply?.answerObject
+        if promptTurnID != nil, generatedAnswer == nil {
             generatedAnswer = await generateAssistantAnswer(
                 draft: draft,
                 suggestion: suggestion,
@@ -5726,18 +5738,46 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 requester: requester
             )
         }
+        let analysisContextCurrent = latestAnalysisID == analysisID
+            && (BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread") == originatingThreadID
+            && BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState)) == originatingComposer
+        if analysisContextCurrent {
+            for (key, update) in assistantUpdates {
+                BindingChatValue.set(update, for: "assistant.\(key)", in: &cachedState)
+            }
+            let helperCount = BindingChatValue.list(BindingChatValue.nested("ui.helpers", in: cachedState))?.count ?? 0
+            let contextStatus = BindingChatValue.string(purposeContext["status"]) ?? "unknown"
+            BindingChatValue.set(
+                .object(BindingPersonalButlerPolicy.capabilitySnapshot(
+                    providers: providers,
+                    helperCount: helperCount,
+                    contextStatus: contextStatus,
+                    agentStatus: agentStatus
+                )),
+                for: "butler.capabilities",
+                in: &cachedState
+            )
+            BindingChatValue.set(.bool(suggestion.shouldSuggest), for: "ui.hasActionableSuggestion", in: &cachedState)
+            BindingChatValue.set(.string(primaryActionHint(for: suggestion)), for: "ui.primaryActionHint", in: &cachedState)
+            updateDraftsFromAnalysis(
+                draft: draft,
+                suggestion: suggestion,
+                resourceMatches: resourceMatches
+            )
+        }
         appendPromptMessage(
             draft: draft,
             suggestion: suggestion,
             groundedActionPlan: groundedActionPlan,
             resourceMatches: resourceMatches,
             turnID: promptTurnID,
-            generatedAnswer: generatedAnswer
+            generatedAnswer: generatedAnswer,
+            originatingThreadID: originatingThreadID
         )
-        if let generatedAnswer {
+        if analysisContextCurrent, let generatedAnswer {
             BindingChatValue.set(.object(generatedAnswer), for: "assistant.lastGeneratedAnswer", in: &cachedState)
         }
-        updateButlerSupportAfterAnalysis(suggestion)
+        if analysisContextCurrent { updateButlerSupportAfterAnalysis(suggestion) }
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
         var response: Object = [
@@ -5745,6 +5785,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "status": .string(suggestion.shouldSuggest ? "suggested" : "low_confidence"),
             "suggestion": .object(suggestionObject),
             "priorityIntent": .object(suggestionObject),
+            "analysisContextCurrent": .bool(analysisContextCurrent),
             "providerRecommendation": .object(recommendationObject),
             "resourceMatches": .list(resourceObjects),
             "assistantProviders": .list(providerObjects),
@@ -5779,6 +5820,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let requestedTurnID = BindingChatValue.string(payload["turnID"])
             ?? BindingChatValue.string(payload["requestID"])
         let turnID = BindingPersonalChatChronicle.safeIdentifier(requestedTurnID)
+        let submittedThreadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread"
         let analyzed = await analyzeDraft(
             value: .object(["prompt": .string(prompt)]),
             requester: requester,
@@ -5786,12 +5828,19 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         )
         let historyAcknowledgement = await persistSubmittedPromptHistory(
             turnID: turnID,
+            threadID: submittedThreadID,
             prompt: prompt,
             analyzed: analyzed,
             requester: requester
         )
-        clearComposerAfterPromptSubmission()
-        if BindingChatValue.normalized(prompt).contains("arendalsuka"),
+        let stillInSubmittedThread = (BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread") == submittedThreadID
+        if stillInSubmittedThread,
+           BindingChatValue.string(BindingChatValue.nested("composer.body", in: cachedState)) == prompt {
+            clearComposerAfterPromptSubmission()
+        }
+        if stillInSubmittedThread,
+           BindingChatValue.bool(BindingChatValue.object(analyzed)?["analysisContextCurrent"]) == true,
+           BindingChatValue.normalized(prompt).contains("arendalsuka"),
            let resource = currentCellConfigurationResource() {
             let opened = openMatchedResourceLibrary(
                 .object([
@@ -5931,6 +5980,26 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         suggestion: BindingChatIntentClassification,
         resourceMatches: [Object]
     ) {
+        let draftPaths: [String: (String, String, String?)] = [
+            "todo": ("todoDraft", "note", "dueAtText"),
+            "reminder": ("reminderDraft", "note", "scheduledAtText"),
+            "project": ("projectDraft", "description", nil),
+            "meeting": ("meetingDraft", "note", "proposedTimesText"),
+            "idea-capture": ("ideaDraft", "content", nil)
+        ]
+        if let fields = draftPaths[suggestion.helperID] {
+            let interpretation = BindingChatValue.object(BindingChatValue.nested("assistant.languageDraft", in: cachedState)) ?? [:]
+            let matches = BindingChatValue.string(interpretation["helperID"]) == suggestion.helperID
+                && BindingChatValue.string(interpretation["sourcePrompt"]) == draft
+            let title = matches ? (BindingChatValue.string(interpretation["title"]) ?? "") : ""
+            let prefix = "workbench.\(fields.0)"
+            BindingChatValue.set(.string(title.isEmpty ? String(draft.prefix(160)) : title), for: "\(prefix).title", in: &cachedState)
+            BindingChatValue.set(.string(draft), for: "\(prefix).\(fields.1)", in: &cachedState)
+            if let dateField = fields.2 {
+                BindingChatValue.set(matches ? (interpretation["dateText"] ?? .string("")) : .string(""),
+                    for: "\(prefix).\(dateField)", in: &cachedState)
+            }
+        }
         if suggestion.helperID == "docs-rag"
             || resourceMatches.contains(where: { BindingChatValue.string($0["kind"]) == "rag_case" }) {
             BindingChatValue.set(.string(draft), for: "docsRAG.query", in: &cachedState)
@@ -5952,11 +6021,12 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         groundedActionPlan: Object,
         resourceMatches: [Object],
         turnID: String? = nil,
-        generatedAnswer: Object? = nil
+        generatedAnswer: Object? = nil,
+        originatingThreadID: String? = nil
     ) {
         guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         var messages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
-        let threadID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread"
+        let threadID = originatingThreadID ?? BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) ?? "local-copilot-thread"
         let topResourceTitles = resourceMatches.compactMap { BindingChatValue.string($0["title"]) }
         let resourceSummary = topResourceTitles.isEmpty ? "" : " Treff: \(topResourceTitles.prefix(3).joined(separator: ", "))."
         let nextStep = BindingChatValue.string(groundedActionPlan["nextStep"]) ?? "continue_chat"
@@ -5969,6 +6039,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let userMessage: Object = [
             "id": .string("\(effectiveTurnID)-user"),
             "turnID": .string(effectiveTurnID),
+            "submittedTurn": .bool(turnID != nil),
             "role": .string("user"),
             "speaker": .string("Du"),
             "body": .string(draft),
@@ -5979,6 +6050,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "rowStyleClasses": .list(["chat-prompt-row", "chat-prompt-row-user"].map(ValueType.string))
         ]
         let deterministicBody = "\(suggestion.explanation)\(resourceSummary)"
+        let fallbackReason = generatedAnswer.flatMap { BindingChatValue.string($0["message"]) }
         let generatedBody = generatedAnswer
             .flatMap { BindingChatValue.string($0["answer"]) }?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -5986,14 +6058,15 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let answerReceipt = generatedAnswer.flatMap { BindingChatValue.string($0["receipt"]) }
         let answerModel = generatedAnswer.flatMap { BindingChatValue.string($0["model"]) }
         let resolvedStatusText = generatedBody == nil
-            ? assistantStatus
-            : (answerModel.map { "\(assistantStatus) · \($0)" } ?? assistantStatus)
+            ? "Begrenset lokalt svar · \(assistantStatus)"
+            : (answerReceipt ?? answerModel ?? assistantStatus)
         var assistantMessage: Object = [
             "id": .string("\(effectiveTurnID)-assistant"),
             "turnID": .string(effectiveTurnID),
+            "submittedTurn": .bool(turnID != nil),
             "role": .string("assistant"),
             "speaker": .string(butlerName),
-            "body": .string(generatedBody ?? deterministicBody),
+            "body": .string(generatedBody ?? "\(deterministicBody)\n\n\(fallbackReason ?? "Ingen språkmodell er aktiv i denne samtalen.")"),
             "statusText": .string(resolvedStatusText),
             "kind": .string("assistant_suggestion"),
             "helperID": .string(suggestion.helperID),
@@ -8492,19 +8565,28 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
 
     private func createWorkbenchModule(kind: String) -> ValueType {
         let normalizedKind = workbenchKind(from: kind)
+        let draftKey = ["todo": "todoDraft", "reminder": "reminderDraft", "project": "projectDraft",
+                        "meeting": "meetingDraft", "idea-capture": "ideaDraft", "work-item": "workItemDraft",
+                        "agent-review": "agentReviewDraft", "capability-request": "capabilityRequestDraft"][normalizedKind]
+        let draft = draftKey.flatMap { BindingChatValue.object(BindingChatValue.nested("workbench.\($0)", in: cachedState)) } ?? [:]
+        let title = BindingChatValue.string(draft["title"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var modules = BindingChatValue.list(BindingChatValue.nested("workbench.modules", in: cachedState)) ?? []
         modules.append(.object([
             "id": .string(UUID().uuidString),
-            "title": .string(helperTitle(normalizedKind)),
+            "title": .string(title.isEmpty ? helperTitle(normalizedKind) : title),
             "kind": .string(normalizedKind),
-            "status": .string(normalizedKind == "agent-review" ? "requires_signed_review" : "draft")
+            "status": .string(normalizedKind == "agent-review" ? "requires_signed_review" : "draft"),
+            "statusText": .string("Utkast · ikke utført"),
+            "draft": .object(draft),
+            "requestedActionExecuted": .bool(false)
         ]))
         BindingChatValue.set(.list(modules), for: "workbench.modules", in: &cachedState)
         BindingChatValue.set(.integer(modules.count), for: "workbench.moduleCount", in: &cachedState)
         return .object([
             "status": .string("ok"),
-            "message": .string("Workbench module created after explicit confirmation."),
-            "userMessage": .string("Workbench module created after explicit confirmation."),
+            "message": .string("Utkastet er lagt til i arbeidsflaten. Ingen oppgave er utført, og ingen påminnelse eller invitasjon er sendt."),
+            "userMessage": .string("Utkastet er lagt til i arbeidsflaten. Ingen oppgave er utført, og ingen påminnelse eller invitasjon er sendt."),
+            "requestedActionExecuted": .bool(false),
             "sideEffect": .bool(true),
             "state": .object(cachedState)
         ])

@@ -247,6 +247,11 @@ actor BindingLocalCellRegistration {
 
     @discardableResult
     func ensureRegistered() async -> Bool {
+        // Registration and automatic refresh must not reopen a dismissed
+        // authentication sheet. The user-action bootstrap owns that attempt.
+        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+            guard await BindingRuntimeBootstrap.authenticatedRuntimeIsReady else { return false }
+        }
         if isRegistered {
             if await localRegistrationStillUsableForActiveIdentity() {
                 return true
@@ -5453,6 +5458,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         var refreshedPurposeSignals: [String: PurposeSignal] = [:]
         var refreshedFollowUpTargets: [String: ConferenceNearbyFollowUpTarget] = [:]
+#if DEBUG
+        // Synthetic contacts are an explicit test fixture. A late initial
+        // scanner snapshot must not erase their follow-up targets halfway
+        // through the same test story. Release builds never retain fixtures.
+        refreshedPurposeSignals = purposeSignalsById.filter { testInjectedRemoteUUIDs.contains($0.key) }
+        refreshedFollowUpTargets = followUpTargetsById.filter { testInjectedRemoteUUIDs.contains($0.key) }
+#endif
         for encounterValue in encounters {
             guard let encounter = object(from: encounterValue),
                   let remoteUUID = normalizedRemoteUUID(string(from: encounter["remoteUUID"])) else {
