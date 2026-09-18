@@ -3,6 +3,15 @@ import CryptoKit
 import CellBase
 import Security
 
+/// The identity the app boots with, and the one every `.identityUnique` cell
+/// is keyed on. It used to be minted fresh on every launch, which meant a new
+/// UUID, a new cell container, and nothing to restore: Perspective, Relations
+/// and the chronicle were written under a name nobody would ever ask for again.
+///
+/// The keys now live in the Keychain, per identity context, so the same
+/// identity comes back on the next launch and the entity data written under it
+/// is found. Under XCTest, or when explicitly asked, the vault stays in memory
+/// exactly as before — tests must not inherit a person from an earlier run.
 actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderProtocol, IdentityKeyRoleProviderProtocol {
     static let shared = BindingStartupIdentityVault()
 
@@ -12,9 +21,57 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         let keyAgreementPrivateKey: P256.KeyAgreement.PrivateKey
     }
 
+    /// What survives a relaunch. Private keys are raw P256 scalars; the
+    /// public halves are re-derived on restore so they can never drift apart.
+    private struct PersistedIdentity: Codable {
+        var uuid: String
+        var displayName: String
+        var properties: [String: ValueType]?
+        var signingPrivateKey: Data
+        var keyAgreementPrivateKey: Data
+    }
+
     private var identityUUIDsByContext: [String: String] = [:]
     private var identitiesByUUID: [String: StoredIdentity] = [:]
-    private let vaultReference = "binding.startup.identityvault:\(UUID().uuidString)"
+    private let durable: Bool
+    private let store: any BindingStartupIdentityStore
+    private let vaultReference: String
+    private var scopedRootSecret: Data?
+    private var persistenceMigrationPrepared = false
+    private let persistenceRoot: URL?
+    static let scopedSecretAccount = "__binding_scoped_root_v1"
+
+    static let keychainService = "org.digipomps.haven.startup-identity"
+
+    init(
+        durable: Bool = BindingStartupIdentityVault.shouldPersistAcrossLaunches(),
+        store: any BindingStartupIdentityStore = BindingKeychainStartupIdentityStore(),
+        persistenceRoot: URL? = nil
+    ) {
+        self.durable = durable
+        self.store = store
+        self.persistenceRoot = persistenceRoot
+        // A durable vault needs a stable name: `homeVaultReference` travels with
+        // the identity, and a name that changed per launch would make the
+        // restored identity look foreign to its own data.
+        self.vaultReference = durable
+            ? "binding.startup.identityvault:durable"
+            : "binding.startup.identityvault:\(UUID().uuidString)"
+    }
+
+    /// Tests get a fresh person per process (as the document root does), and
+    /// `--haven-ephemeral-identity` / `HAVEN_EPHEMERAL_IDENTITY=1` let a human
+    /// ask for the same on purpose.
+    nonisolated static func shouldPersistAcrossLaunches(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        launchArguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        if environment["XCTestConfigurationFilePath"] != nil { return false }
+        if launchArguments.contains("--haven-ephemeral-identity") { return false }
+        if let flag = environment["HAVEN_EPHEMERAL_IDENTITY"],
+           ["1", "true", "yes"].contains(flag.lowercased()) { return false }
+        return true
+    }
 
     func identityVaultReference() async -> String? {
         vaultReference
@@ -25,6 +82,20 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     }
 
     func addIdentity(identity: inout Identity, for identityContext: String) async {
+        // A context that already has a person on disk keeps that person.
+        // Minting here would overwrite the stored keys and orphan the data.
+        if identityUUIDsByContext[identityContext] == nil {
+            do {
+                if let restored = try restore(for: identityContext) {
+                    identityUUIDsByContext[identityContext] = restored.identity.uuid
+                    identitiesByUUID[restored.identity.uuid] = restored
+                }
+            } catch {
+                // An unreadable or corrupt record is not an absent identity.
+                // Never overwrite its keys with a newly generated identity.
+                return
+            }
+        }
         if let existingUUID = identityUUIDsByContext[identityContext],
            let existing = identitiesByUUID[existingUUID] {
             existing.identity.displayName = identity.displayName
@@ -69,8 +140,14 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
             signingPrivateKey: signingPrivateKey,
             keyAgreementPrivateKey: keyAgreementPrivateKey
         )
-        identityUUIDsByContext[identityContext] = identity.uuid
-        identitiesByUUID[identity.uuid] = stored
+        do {
+            try persist(stored, for: identityContext)
+            identityUUIDsByContext[identityContext] = identity.uuid
+            identitiesByUUID[identity.uuid] = stored
+        } catch {
+            // Do not advertise a durable identity that cannot survive restart.
+            return
+        }
     }
 
     func identity(for identityContext: String, makeNewIfNotFound: Bool) async -> Identity? {
@@ -79,6 +156,18 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
             stored.identity.identityVault = self
             stored.identity.homeVaultReference = vaultReference
             return stored.identity
+        }
+
+        do {
+            if let restored = try restore(for: identityContext) {
+                identityUUIDsByContext[identityContext] = restored.identity.uuid
+                identitiesByUUID[restored.identity.uuid] = restored
+                restored.identity.identityVault = self
+                restored.identity.homeVaultReference = vaultReference
+                return restored.identity
+            }
+        } catch {
+            return nil
         }
 
         guard makeNewIfNotFound else {
@@ -131,10 +220,69 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         updatedIdentity.properties = identity.properties
         updatedIdentity.identityVault = self
         updatedIdentity.homeVaultReference = vaultReference
-        identitiesByUUID[identity.uuid] = StoredIdentity(
+        let refreshed = StoredIdentity(
             identity: updatedIdentity,
             signingPrivateKey: stored.signingPrivateKey,
             keyAgreementPrivateKey: stored.keyAgreementPrivateKey
+        )
+        identitiesByUUID[identity.uuid] = refreshed
+        if let context = identityUUIDsByContext.first(where: { $0.value == identity.uuid })?.key {
+            try? persist(refreshed, for: context)
+        }
+    }
+
+    // MARK: - Durable storage
+
+    private func persist(_ stored: StoredIdentity, for identityContext: String) throws {
+        guard durable else { return }
+        let payload = PersistedIdentity(
+            uuid: stored.identity.uuid,
+            displayName: stored.identity.displayName,
+            properties: stored.identity.properties,
+            signingPrivateKey: stored.signingPrivateKey.rawRepresentation,
+            keyAgreementPrivateKey: stored.keyAgreementPrivateKey.rawRepresentation
+        )
+        let data = try JSONEncoder().encode(payload)
+        try store.write(account: identityContext, data: data)
+    }
+
+    private func restore(for identityContext: String) throws -> StoredIdentity? {
+        guard durable,
+              let data = try store.read(account: identityContext)
+        else { return nil }
+        let payload = try JSONDecoder().decode(PersistedIdentity.self, from: data)
+        let signingPrivateKey = try P256.Signing.PrivateKey(rawRepresentation: payload.signingPrivateKey)
+        let keyAgreementPrivateKey = try P256.KeyAgreement.PrivateKey(rawRepresentation: payload.keyAgreementPrivateKey)
+
+        let identity = Identity(payload.uuid, displayName: payload.displayName, identityVault: self)
+        identity.properties = payload.properties ?? [:]
+        identity.homeVaultReference = vaultReference
+        identity.publicSecureKey = SecureKey(
+            date: Date(),
+            privateKey: false,
+            use: .signature,
+            algorithm: .ECDSA,
+            size: 256,
+            curveType: .P256,
+            x: nil,
+            y: nil,
+            compressedKey: signingPrivateKey.publicKey.x963Representation
+        )
+        identity.publicKeyAgreementSecureKey = SecureKey(
+            date: Date(),
+            privateKey: false,
+            use: .keyAgreement,
+            algorithm: .ECDH,
+            size: 256,
+            curveType: .P256,
+            x: nil,
+            y: nil,
+            compressedKey: keyAgreementPrivateKey.publicKey.x963Representation
+        )
+        return StoredIdentity(
+            identity: identity,
+            signingPrivateKey: signingPrivateKey,
+            keyAgreementPrivateKey: keyAgreementPrivateKey
         )
     }
 
@@ -156,6 +304,10 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     }
 
     func randomBytes64() async -> Data? {
+        Self.makeRandomBytes64()
+    }
+
+    private nonisolated static func makeRandomBytes64() -> Data? {
         var bytes = [UInt8](repeating: 0, count: 64)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else {
@@ -172,18 +324,49 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
     }
 
     func scopedSecretData(tag: String, minimumLength: Int) async throws -> Data {
-        let requiredLength = max(32, minimumLength)
+        guard minimumLength <= 1_024 else { throw BindingStartupIdentityStoreError.invalidData }
+        let root: Data
+        if let cached = scopedRootSecret {
+            root = cached
+        } else {
+            let candidate: Data
+            if durable, let existing = try store.read(account: Self.scopedSecretAccount) {
+                candidate = existing
+            } else {
+                // Initialize without suspension so concurrent calls cannot
+                // produce different in-memory roots for this vault.
+                guard let generated = Self.makeRandomBytes64() else {
+                    throw ScopedSecretProviderError.unavailable
+                }
+                candidate = durable
+                    ? try store.insertIfAbsent(account: Self.scopedSecretAccount, data: generated)
+                    : generated
+            }
+            guard candidate.count == 64 else { throw BindingStartupIdentityStoreError.invalidData }
+            scopedRootSecret = candidate
+            root = candidate
+        }
+        let secret = Self.deriveScopedSecret(root: root, tag: tag, minimumLength: minimumLength)
+        if durable, tag == "cell.persistence.master.v1", !persistenceMigrationPrepared {
+            let rootURL = persistenceRoot ?? CellBase.documentRootPath.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            guard let rootURL else { throw ScopedSecretProviderError.unavailable }
+            try BindingStartupSecretMigration.prepare(documentRoot: rootURL, newSeed: Data(secret.prefix(32)))
+            persistenceMigrationPrepared = true
+        }
+        return secret
+    }
+
+    nonisolated static func deriveScopedSecret(root: Data, tag: String, minimumLength: Int) -> Data {
         var buffer = Data()
         var counter: UInt64 = 0
-
-        while buffer.count < requiredLength {
-            var payload = Data(tag.utf8)
+        while buffer.count < max(32, minimumLength) {
+            var payload = Data("binding.scoped-secret.v1\0".utf8)
+            payload.append(Data(tag.utf8))
             payload.append(contentsOf: withUnsafeBytes(of: counter.bigEndian, Array.init))
-            buffer.append(contentsOf: SHA256.hash(data: payload))
+            buffer.append(contentsOf: HMAC<SHA256>.authenticationCode(for: payload, using: SymmetricKey(data: root)))
             counter += 1
         }
-
-        return buffer.prefix(requiredLength)
+        return buffer.prefix(max(32, minimumLength))
     }
 
     func publicSecureKey(for identity: Identity, role: IdentityKeyRole) async throws -> SecureKey? {
@@ -206,6 +389,104 @@ actor BindingStartupIdentityVault: IdentityVaultProtocol, ScopedSecretProviderPr
         case .keyAgreement:
             return stored.keyAgreementPrivateKey.rawRepresentation
         }
+    }
+}
+
+/// Where the startup identity's keys sleep between launches.
+protocol BindingStartupIdentityStore: Sendable {
+    /// Only a genuinely absent item returns nil; access/corruption errors throw.
+    func read(account: String) throws -> Data?
+    func write(account: String, data: Data) throws
+    /// Atomic create-or-read; secret initialization may never overwrite another launch.
+    func insertIfAbsent(account: String, data: Data) throws -> Data
+}
+
+enum BindingStartupIdentityStoreError: Error {
+    case keychainStatus(OSStatus)
+    case invalidData
+}
+
+/// The real one: a generic-password item per identity context, this device
+/// only, readable after first unlock so the app can boot before the person
+/// authenticates.
+struct BindingKeychainStartupIdentityStore: BindingStartupIdentityStore {
+    private func query(account: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: BindingStartupIdentityVault.keychainService,
+            kSecAttrAccount as String: account
+        ]
+    }
+
+    func read(account: String) throws -> Data? {
+        var query = query(account: account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else {
+            throw BindingStartupIdentityStoreError.keychainStatus(status)
+        }
+        guard let data = result as? Data else {
+            throw BindingStartupIdentityStoreError.invalidData
+        }
+        return data
+    }
+
+    func insertIfAbsent(account: String, data: Data) throws -> Data {
+        var insert = query(account: account)
+        insert[kSecValueData as String] = data
+        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(insert as CFDictionary, nil)
+        if status == errSecSuccess { return data }
+        guard status == errSecDuplicateItem, let existing = try read(account: account) else {
+            throw BindingStartupIdentityStoreError.keychainStatus(status)
+        }
+        return existing
+    }
+
+    func write(account: String, data: Data) throws {
+        let query = query(account: account)
+        let update: [String: Any] = [kSecValueData as String: data]
+        let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+        if status == errSecSuccess { return }
+        guard status == errSecItemNotFound else {
+            throw BindingStartupIdentityStoreError.keychainStatus(status)
+        }
+        var insert = query
+        insert[kSecValueData as String] = data
+        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let inserted = SecItemAdd(insert as CFDictionary, nil)
+        guard inserted == errSecSuccess else {
+            throw BindingStartupIdentityStoreError.keychainStatus(inserted)
+        }
+    }
+}
+
+/// For tests: two vaults sharing one of these behave like one app across
+/// two launches.
+final class BindingInMemoryStartupIdentityStore: BindingStartupIdentityStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [String: Data] = [:]
+
+    init() {}
+
+    func read(account: String) -> Data? {
+        lock.lock(); defer { lock.unlock() }
+        return items[account]
+    }
+
+    func write(account: String, data: Data) {
+        lock.lock(); defer { lock.unlock() }
+        items[account] = data
+    }
+
+    func insertIfAbsent(account: String, data: Data) -> Data {
+        lock.lock(); defer { lock.unlock() }
+        if let existing = items[account] { return existing }
+        items[account] = data
+        return data
     }
 }
 

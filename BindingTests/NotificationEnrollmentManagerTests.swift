@@ -7,6 +7,28 @@ import Foundation
 @Suite(.serialized)
 struct NotificationEnrollmentManagerTests {
 
+    @Test func pushFailureShowsSafeTextWithoutLosingTheFailureState() throws {
+        let suiteName = "NotificationEnrollmentManagerTests.safe-error.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: EnrollmentEvidenceStore(containsEvidence: false),
+            enrollmentEnabled: true,
+            authenticatedRuntimePreparer: {}
+        )
+        manager.recordAPNSRegistrationFailure(NSError(
+            domain: "synthetic-test", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "synthetic-private-diagnostic"]
+        ))
+        #expect(manager.isDeviceRegistered == false)
+        #expect(manager.pushPermissionGranted == false)
+        #expect(manager.enrollmentPhase == .pushPermissionRequired)
+        let message = try #require(manager.lastRegistrationError)
+        #expect(!message.contains("synthetic-private-diagnostic"))
+        #expect(message.contains("Varsler er ikke slått på ennå"))
+    }
+
     @Test func disabledRolloutCannotPrepareIdentityOrRetainAPNSToken() async throws {
         let suiteName = "NotificationEnrollmentManagerTests.disabled.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

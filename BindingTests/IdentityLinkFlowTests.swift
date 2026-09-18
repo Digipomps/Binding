@@ -36,6 +36,34 @@ final class IdentityLinkFlowTests: XCTestCase {
         }
     }
 
+    func testEndpointLookalikesAndDuplicateTicketFieldsAreRejected() throws {
+        var ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        for endpoint in [origin + ".evil.example/link/api", origin + "@evil.example/link/api", origin + ":8443/link/api", origin + "/link/api/../other"] {
+            ticket.rendezvousURL = endpoint
+            XCTAssertThrowsError(try IdentityLinkTicket.decode(deepLink: deepLink(ticket)))
+        }
+        ticket.rendezvousURL = origin + "/link/api"
+        XCTAssertThrowsError(try IdentityLinkTicket.decode(deepLink: deepLink(ticket) + "&t=duplicate"))
+        ticket.presentationDomain = "https://evil.example"
+        XCTAssertThrowsError(try IdentityLinkTicket.decode(deepLink: deepLink(ticket)))
+        XCTAssertFalse(IdentityLinkTrust.isTrustedOrigin("https://user@staging.haven.digipomps.org"))
+    }
+
+    func testReviewAndResetDoNotLoadKeysOrSendRequests() async throws {
+        let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        let coordinator = IdentityLinkFlowCoordinator(outbox: MemoryIdentityLinkOutbox(), identityProvider: {
+            XCTFail("Review must not request a signing identity")
+            return nil
+        }, completionSaver: { _, _, _, _ in XCTFail("Review must not persist authority") })
+        await coordinator.review(deepLink: try deepLink(ticket))
+        let reviewed = await coordinator.state
+        XCTAssertEqual(reviewed, .reviewing(ticket: ticket))
+        await coordinator.reset()
+        await coordinator.confirmReviewedEntity()
+        let reset = await coordinator.state
+        XCTAssertEqual(reset, .idle)
+    }
+
     // MARK: Forespørselen
 
     func testSignedRequestValidatesAndProducesTheSameWordsAsTheServer() async throws {
@@ -65,7 +93,9 @@ final class IdentityLinkFlowTests: XCTestCase {
         let transport = FakeRendezvous(issuer: web, ticket: ticket)
         let coordinator = IdentityLinkFlowCoordinator(
             transport: transport,
+            outbox: MemoryIdentityLinkOutbox(),
             identityProvider: { phone },
+            completionSaver: { envelope, record, origin, reference in await transport.remember(envelope: envelope, record: record, origin: origin, reference: reference) },
             localRuntimeAvailable: { false }
         )
 
@@ -79,19 +109,21 @@ final class IdentityLinkFlowTests: XCTestCase {
         await coordinator.stopObserving(observer)
 
         let state = await coordinator.state
-        guard case let .done(record, ownerDisplayName, doneOrigin) = state else {
+        guard case let .done(record, ownerDisplayName, doneOrigin, localConfirmed) = state else {
             return XCTFail("forventet done, fikk \(state)")
         }
         XCTAssertEqual(record.status, .active)
         XCTAssertEqual(record.linkedIdentity.uuid, phone.uuid)
         XCTAssertEqual(ownerDisplayName, ticket.ownerDisplayName)
         XCTAssertEqual(doneOrigin, origin)
+        XCTAssertFalse(localConfirmed, "A remote success is not evidence of local activation.")
         let verifiable = await transport.completedEnvelopeWasVerifiable
         XCTAssertTrue(verifiable)
         // test.binding.completion-persisted
-        let stored = IdentityLinkCompletionStore.entry(forOrigin: origin)
+        let stored = await transport.remembered
         XCTAssertEqual(stored?.record.linkID, record.linkID)
         XCTAssertEqual(stored?.envelope.request.newIdentity.uuid, phone.uuid)
+        XCTAssertEqual(stored?.personEvidenceReference, String(repeating: "a", count: 64))
     }
 
     func testCoordinatorRefusesAPackageForAnotherRequest() async throws {
@@ -102,7 +134,7 @@ final class IdentityLinkFlowTests: XCTestCase {
         await vault.addIdentity(identity: &web, for: "web")
         let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
         let transport = FakeRendezvous(issuer: web, ticket: ticket, tamperChallenge: true)
-        let coordinator = IdentityLinkFlowCoordinator(transport: transport, identityProvider: { phone }, localRuntimeAvailable: { false })
+        let coordinator = IdentityLinkFlowCoordinator(transport: transport, outbox: MemoryIdentityLinkOutbox(), identityProvider: { phone }, completionSaver: { _, _, _, _ in }, localRuntimeAvailable: { false })
 
         let failed = expectation(description: "failed")
         let observer = await coordinator.observe { state in
@@ -114,6 +146,166 @@ final class IdentityLinkFlowTests: XCTestCase {
         await coordinator.stopObserving(observer)
         let completeWasCalled = await transport.completeWasCalled
         XCTAssertFalse(completeWasCalled, "ingenting skal sendes når pakken ikke passer")
+    }
+
+    func testCompletionResponseCannotChangeOriginOrPresentationDomain() async throws {
+        for tamper in [FakeRendezvous.Tamper.pollURL, .completeURL, .presentationDomain] {
+            let vault = EphemeralIdentityVault()
+            var phone = Identity(UUID().uuidString, displayName: "phone", identityVault: vault)
+            await vault.addIdentity(identity: &phone, for: "private")
+            var web = Identity(UUID().uuidString, displayName: "web", identityVault: vault)
+            await vault.addIdentity(identity: &web, for: "web")
+            let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+            let transport = FakeRendezvous(issuer: web, ticket: ticket, tamper: tamper)
+            let coordinator = IdentityLinkFlowCoordinator(transport: transport, outbox: MemoryIdentityLinkOutbox(), identityProvider: { phone },
+                completionSaver: { _, _, _, _ in XCTFail("Must not persist a mismatched approval") }, localRuntimeAvailable: { false })
+            let failed = expectation(description: "reject mismatched response")
+            let observer = await coordinator.observe { state in
+                if case .failed = state { failed.fulfill() }
+                if case .done = state { XCTFail("Unexpected completion") }
+            }
+            await coordinator.start(deepLink: try deepLink(ticket))
+            await fulfillment(of: [failed], timeout: 10)
+            await coordinator.stopObserving(observer)
+            let completeWasCalled = await transport.completeWasCalled
+            XCTAssertFalse(completeWasCalled)
+            await coordinator.reset()
+        }
+    }
+
+    func testResetWhileLoadingIdentityCannotResumeSigning() async throws {
+        let vault = EphemeralIdentityVault()
+        var phone = Identity(UUID().uuidString, displayName: "phone", identityVault: vault)
+        await vault.addIdentity(identity: &phone, for: "private")
+        let gate = IdentityLoadGate()
+        let entered = expectation(description: "identity lookup entered")
+        let coordinator = IdentityLinkFlowCoordinator(outbox: MemoryIdentityLinkOutbox(), identityProvider: {
+            entered.fulfill()
+            return await gate.wait()
+        }, completionSaver: { _, _, _, _ in XCTFail("Cancelled flow persisted") })
+        let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        let link = try deepLink(ticket)
+        let pending = Task { await coordinator.start(deepLink: link) }
+        await fulfillment(of: [entered], timeout: 5)
+        await coordinator.reset()
+        await gate.release(phone)
+        await pending.value
+        let state = await coordinator.state
+        XCTAssertEqual(state, .idle)
+    }
+
+    func testResetDuringOutboxReadCannotRestartAnyEntryPoint() async throws {
+        let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        let link = try deepLink(ticket)
+        for fails in [false, true] {
+            for entry in 0..<5 {
+                let entered = expectation(description: "outbox read suspended")
+                let outbox = SuspendedIdentityLinkOutbox(entered: entered, fails: fails)
+                let coordinator = IdentityLinkFlowCoordinator(outbox: outbox,
+                    identityProvider: { XCTFail("Cancelled outbox read reached signing identity"); return nil },
+                    completionSaver: { _, _, _, _ in XCTFail("Cancelled flow persisted authority") })
+                let pending = Task {
+                    switch entry {
+                    case 0: await coordinator.start(deepLink: link)
+                    case 1: await coordinator.review(deepLink: link)
+                    case 2: await coordinator.beginScanning()
+                    case 3: await coordinator.resumePendingCompletion()
+                    default: await coordinator.discardPendingCompletion()
+                    }
+                }
+                await fulfillment(of: [entered], timeout: 5)
+                await coordinator.reset()
+                await outbox.release()
+                await pending.value
+                let state = await coordinator.state
+                XCTAssertEqual(state, .idle, "entry \(entry), failing read \(fails)")
+            }
+        }
+    }
+
+    func testEncryptedExactCompletionSurvivesRestartAndLostResponse() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let key = Data(repeating: 0x51, count: 32)
+        let outbox = EncryptedIdentityLinkOutbox(directory: directory, keyProvider: { _ in key })
+        let vault = EphemeralIdentityVault()
+        var phone = Identity(UUID().uuidString, displayName: "synthetic-phone", identityVault: vault)
+        await vault.addIdentity(identity: &phone, for: "private")
+        var web = Identity(UUID().uuidString, displayName: "synthetic-owner", identityVault: vault)
+        await vault.addIdentity(identity: &web, for: "web")
+        let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        let transport = FakeRendezvous(issuer: web, ticket: ticket, failFirstCompletion: true, outbox: outbox)
+        let first = IdentityLinkFlowCoordinator(transport: transport, outbox: outbox,
+            identityProvider: { phone }, completionSaver: { _, _, _, _ in XCTFail("Lost response cannot activate locally") }, localRuntimeAvailable: { false })
+        let pending = expectation(description: "durable recovery offered")
+        let observer = await first.observe {
+            if case .recovery = $0 { pending.fulfill() }
+            if case let .failed(message) = $0 { XCTFail(message); pending.fulfill() }
+        }
+        await first.start(deepLink: try deepLink(ticket))
+        await fulfillment(of: [pending], timeout: 10)
+        await first.stopObserving(observer)
+        await first.reset()
+        let encrypted = try Data(contentsOf: directory.appendingPathComponent("completion.sealed"))
+        XCTAssertNil(encrypted.range(of: Data(phone.uuid.utf8)))
+        XCTAssertNil(encrypted.range(of: Data(ticket.ownerDisplayName.utf8)))
+        let restarted = EncryptedIdentityLinkOutbox(directory: directory, keyProvider: { _ in key })
+        let recovered = try await restarted.load()
+        XCTAssertNotNil(recovered)
+        let second = IdentityLinkFlowCoordinator(transport: transport, outbox: restarted,
+            identityProvider: { phone }, completionSaver: { envelope, record, origin, reference in
+                await transport.remember(envelope: envelope, record: record, origin: origin, reference: reference)
+            }, localRuntimeAvailable: { false })
+        await second.beginScanning()
+        guard case .recovery = await second.state else { return XCTFail("Restart did not offer recovery") }
+        await second.resumePendingCompletion()
+        guard case .done = await second.state else { return XCTFail("Exact retry did not complete") }
+        let calls = await transport.completionEnvelopes
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(calls.first, calls.last, "Retry must not sign a new envelope")
+        let remaining = try await restarted.load()
+        XCTAssertNil(remaining)
+    }
+
+    func testRevokedCompletionRetryNeverActivatesLocalAuthority() async throws {
+        let outbox = MemoryIdentityLinkOutbox()
+        let vault = EphemeralIdentityVault()
+        var phone = Identity(UUID().uuidString, displayName: "phone", identityVault: vault)
+        await vault.addIdentity(identity: &phone, for: "private")
+        var web = Identity(UUID().uuidString, displayName: "web", identityVault: vault)
+        await vault.addIdentity(identity: &web, for: "web")
+        let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        let transport = FakeRendezvous(issuer: web, ticket: ticket, failFirstCompletion: true, outbox: outbox)
+        let coordinator = IdentityLinkFlowCoordinator(transport: transport, outbox: outbox,
+            identityProvider: { phone }, completionSaver: { _, _, _, _ in XCTFail("Revoked completion persisted") },
+            localRuntimeAvailable: { XCTFail("Revoked completion reached local runtime"); return false })
+        let pending = expectation(description: "lost response")
+        let observer = await coordinator.observe { if case .recovery = $0 { pending.fulfill() } }
+        await coordinator.start(deepLink: try deepLink(ticket))
+        await fulfillment(of: [pending], timeout: 10)
+        await coordinator.stopObserving(observer)
+        await transport.rejectCompletion(status: 410)
+        await coordinator.resumePendingCompletion()
+        guard case let .recovery(_, _, canRetry) = await coordinator.state else { return XCTFail("Expected rejection") }
+        XCTAssertFalse(canRetry)
+        let retained = try await outbox.load()
+        XCTAssertNotNil(retained, "Do not silently destroy recovery evidence")
+        await coordinator.discardPendingCompletion()
+        let discarded = try await outbox.load()
+        XCTAssertNil(discarded)
+    }
+
+    func testCorruptEncryptedOutboxBlocksNewSigning() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data(repeating: 0x32, count: 96).write(to: directory.appendingPathComponent("completion.sealed"))
+        let outbox = EncryptedIdentityLinkOutbox(directory: directory, keyProvider: { _ in Data(repeating: 0x51, count: 32) })
+        let coordinator = IdentityLinkFlowCoordinator(outbox: outbox,
+            identityProvider: { XCTFail("Corrupt outbox must block new signatures"); return nil }, completionSaver: { _, _, _, _ in })
+        let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+        await coordinator.start(deepLink: try deepLink(ticket))
+        guard case .failed = await coordinator.state else { return XCTFail("Corruption failed open") }
     }
 
     // MARK: Hjelpere
@@ -143,6 +335,12 @@ final class IdentityLinkFlowTests: XCTestCase {
 /// En møteplass som godkjenner med utstederens nøkkel med én gang, uten passkey-bevis (det håndhever
 /// scaffoldets EntityAnchor, ikke telefonen).
 private actor FakeRendezvous: IdentityLinkTransport {
+    enum Tamper: Sendable { case none, pollURL, completeURL, presentationDomain }
+    let tamper: Tamper
+    private(set) var remembered: IdentityLinkCompletionStore.Entry?
+    func remember(envelope: IdentityLinkCompletionEnvelope, record: IdentityLinkRecord, origin: String, reference: String?) {
+        remembered = .init(origin: origin, record: record, envelope: envelope, storedAt: "synthetic-test", personEvidenceReference: reference)
+    }
     let issuer: Identity
     let ticket: IdentityLinkTicket
     let tamperChallenge: Bool
@@ -150,8 +348,16 @@ private actor FakeRendezvous: IdentityLinkTransport {
     private var polls = 0
     var completeWasCalled = false
     var completedEnvelopeWasVerifiable = false
+    var completionEnvelopes: [Data] = []
+    var failFirstCompletion: Bool
+    var rejectionStatus: Int?
+    let outbox: (any IdentityLinkOutbox)?
+    func rejectCompletion(status: Int) { rejectionStatus = status }
 
-    init(issuer: Identity, ticket: IdentityLinkTicket, tamperChallenge: Bool = false) {
+    init(issuer: Identity, ticket: IdentityLinkTicket, tamperChallenge: Bool = false, tamper: Tamper = .none, failFirstCompletion: Bool = false, outbox: (any IdentityLinkOutbox)? = nil) {
+        self.failFirstCompletion = failFirstCompletion
+        self.outbox = outbox
+        self.tamper = tamper
         self.issuer = issuer
         self.ticket = ticket
         self.tamperChallenge = tamperChallenge
@@ -173,15 +379,15 @@ private actor FakeRendezvous: IdentityLinkTransport {
             sameEntityCredential: credential,
             issuerIdentity: try IdentityLinkProtocolService.descriptor(for: issuer),
             presentationChallenge: tamperChallenge ? Data(repeating: 7, count: 32) : ticket.presentationChallenge,
-            presentationDomain: ticket.presentationDomain,
+            presentationDomain: tamper == .presentationDomain ? "https://haven.digipomps.org" : ticket.presentationDomain,
             audience: ticket.audience,
             origin: ticket.origin,
-            completeURL: "\(ticket.origin)/link/api/complete"
+            completeURL: tamper == .completeURL ? "https://haven.digipomps.org/link/api/complete" : "\(ticket.origin)/link/api/complete"
         )
         return IdentityLinkSubmitResponse(
             requestHash: IdentityLinkWire.base64URL(hash),
             sas: IdentityLinkSAS.words(requestHash: hash),
-            completionURL: "\(ticket.origin)/link/api/completion/\(IdentityLinkWire.base64URL(hash))"
+            completionURL: tamper == .pollURL ? "https://haven.digipomps.org/link/api/completion/\(IdentityLinkWire.base64URL(hash))" : "\(ticket.origin)/link/api/completion/\(IdentityLinkWire.base64URL(hash))"
         )
     }
 
@@ -192,8 +398,70 @@ private actor FakeRendezvous: IdentityLinkTransport {
 
     func complete(envelope: IdentityLinkCompletionEnvelope, url: String) async throws -> ValueType {
         completeWasCalled = true
+        completionEnvelopes.append(try IdentityLinkWire.encoder.encode(envelope))
+        if let outbox {
+            let saved = try await outbox.load()
+            XCTAssertEqual(try saved.map { try IdentityLinkWire.encoder.encode($0.envelope) }, completionEnvelopes.last,
+                "Exact package must be durable before HTTP completion")
+        }
+        if let rejectionStatus { throw IdentityLinkTransportError.http(rejectionStatus, "revoked") }
+        if failFirstCompletion {
+            failFirstCompletion = false
+            throw URLError(.networkConnectionLost)
+        }
         let result = try await IdentityLinkProtocolService.verifyCompletion(envelope)
         completedEnvelopeWasVerifiable = result.record.status == .active
-        return .object(["status": .string("completed")])
+        return .object(["status": .string("completed"), "evidenceReference": .string(String(repeating: "a", count: 64)), "linkID": .string(result.record.linkID)])
     }
+}
+
+private actor IdentityLoadGate {
+    private var continuation: CheckedContinuation<Identity?, Never>?
+    private var released = false
+    private var identity: Identity?
+    func wait() async -> Identity? {
+        if released { return identity }
+        return await withCheckedContinuation { continuation = $0 }
+    }
+    func release(_ value: Identity) {
+        released = true
+        identity = value
+        continuation?.resume(returning: value)
+        continuation = nil
+    }
+}
+
+private actor MemoryIdentityLinkOutbox: IdentityLinkOutbox {
+    var entry: IdentityLinkPendingCompletion?
+    func load() -> IdentityLinkPendingCompletion? { entry }
+    func save(_ entry: IdentityLinkPendingCompletion) throws { self.entry = entry }
+    func remove(requestID: String) throws {
+        guard entry?.requestID == requestID else { throw IdentityLinkOutboxError.occupied }
+        entry = nil
+    }
+}
+
+private actor SuspendedIdentityLinkOutbox: IdentityLinkOutbox {
+    private let entered: XCTestExpectation
+    private let fails: Bool
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+    init(entered: XCTestExpectation, fails: Bool) { self.entered = entered; self.fails = fails }
+    func load() async throws -> IdentityLinkPendingCompletion? {
+        if !released {
+            await withCheckedContinuation {
+                continuation = $0
+                entered.fulfill()
+            }
+        }
+        if fails { throw IdentityLinkOutboxError.invalidFile }
+        return nil
+    }
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
+    }
+    func save(_ entry: IdentityLinkPendingCompletion) { XCTFail("Cancelled flow saved a package") }
+    func remove(requestID: String) { XCTFail("Cancelled flow discarded a package") }
 }

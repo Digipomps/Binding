@@ -22,14 +22,24 @@ struct BindingApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .modifier(BindingPersonalButlerLifecycleModifier())
+            #if DEBUG && os(macOS)
+            if IdentityLinkUIFixture.enabled {
+                IdentityLinkUIFixtureView()
+            } else {
+                RootView().modifier(BindingPersonalButlerLifecycleModifier())
+            }
+            #else
+            RootView().modifier(BindingPersonalButlerLifecycleModifier())
+            #endif
         }
 #if os(macOS)
         .restorationBehavior(.disabled)
 #endif
 #if os(macOS)
         .commands {
+            CommandMenu("Min entitet") {
+                Button("Utvid min entitet …") { IdentityLinkFlowPresenter.shared.presentScanner() }
+            }
             BindingConferenceAutomationCommands()
         }
 #endif

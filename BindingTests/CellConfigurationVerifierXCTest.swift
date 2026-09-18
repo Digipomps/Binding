@@ -163,7 +163,18 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             ConfigurationCatalogCell.personalVaultIdeasMenuConfiguration(),
             ConfigurationCatalogCell.personalMeetingIntentMenuConfiguration(),
             ConfigurationCatalogCell.personalPrivacyAuditMenuConfiguration(),
-            ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration()
+            ConfigurationCatalogCell.personalCopilotCatalogMenuConfiguration(),
+            // Co-Pilot is the primary surface and was previously untested here.
+            // Its `perspective.perspective.*` bindings regressed unnoticed because
+            // of that gap; keep it in this list.
+            ConfigurationCatalogCell.personalInviteChatMenuConfiguration(),
+            // The relation, contact-import and invitation surface, and the two
+            // entity-governance surfaces. These are the ones a person actually
+            // touches when they invite somebody, so they belong in the same
+            // guarantee as the rest of Personal Co-Pilot.
+            HavenRelationsWorkbench.configuration(),
+            BindingEntityResidencyCell.menuConfiguration(),
+            BindingEntityScaffoldExtensionCell.menuConfiguration()
         ] {
             let localConfiguration = CellConfigurationEndpointRetargeting
                 .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: configuration)
@@ -198,6 +209,309 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
                 )
             }
         }
+    }
+
+    /// Guarantees that everything the catalog presents as loadable actually renders.
+    /// The list comes from the catalog itself, not from a hand-maintained array, so a
+    /// newly offered surface cannot ship unverified. Failures are collected and reported
+    /// together rather than fail-fast, so one broken surface does not hide the others.
+    func testEveryOfferedCatalogConfigurationHasReadableRoots() async throws {
+        let offered = await ConfigurationCatalogCell.offeredCatalogConfigurationsForVerification()
+        XCTAssertFalse(offered.isEmpty, "Catalog offered no configurations to verify.")
+
+        var failures: [String] = []
+        var unverifiedRemote: [String] = []
+        var verifiedCount = 0
+
+        for entry in offered {
+            let localConfiguration = CellConfigurationEndpointRetargeting
+                .rewritingStagingPersonalCopilotEndpointsToLocalFallbacks(in: entry.configuration)
+
+            let report: CellConfigurationVerifier.ContractReport
+            do {
+                report = try await CellConfigurationVerifier.contractReport(
+                    for: localConfiguration,
+                    buttonsToExecute: [],
+                    identityMode: .startup
+                )
+            } catch {
+                // A surface hosted on a remote scaffold cannot be verified when
+                // that scaffold is unreachable, and staging being down is not a
+                // defect in the surface. Only transport errors against a remote
+                // endpoint are excused — anything else is still a failure, so a
+                // genuinely broken surface cannot hide behind this.
+                if Self.isRemoteEndpoint(entry.endpoint), Self.isTransportError(error) {
+                    unverifiedRemote.append("\(entry.name) [\(entry.endpoint)]: \(Self.transportSummary(error))")
+                    continue
+                }
+                failures.append("\(entry.name) [\(entry.endpoint)]: threw \(error)")
+                continue
+            }
+
+            verifiedCount += 1
+            if report.validation.errorCount != 0 {
+                failures.append("\(entry.name): validation \(report.validation.issues)")
+            }
+            if !report.unresolvedReferences.isEmpty {
+                failures.append("\(entry.name): unresolved references \(report.unresolvedReferences)")
+            }
+            if !report.unreadableRootProbes.isEmpty {
+                failures.append("\(entry.name): unreadable roots \(report.unreadableRootProbes)")
+                // Print every probe on a surface that has a bad one. A lone
+                // failing root tells you nothing about whether the reference
+                // resolved at all; the neighbours do.
+                let allProbes = report.rootProbeResolutions
+                    .map { "    \($0.probe.label).\($0.probe.rootKeypath) -> \($0.outcome)" }
+                    .sorted()
+                    .joined(separator: "\n")
+                print("Root probes for \(entry.name):\n\(allProbes)")
+            }
+        }
+
+        if !unverifiedRemote.isEmpty {
+            // Printed, never silent: a reader of the log must be able to see
+            // exactly which surfaces this run did not actually cover.
+            print("Not verified — remote scaffold unreachable:\n" + unverifiedRemote.joined(separator: "\n"))
+        }
+
+        XCTAssertTrue(
+            failures.isEmpty,
+            "\(failures.count) of \(offered.count) offered configurations are not fully loadable "
+                + "(verified \(verifiedCount), \(unverifiedRemote.count) skipped as unreachable):\n"
+                + failures.joined(separator: "\n")
+        )
+    }
+
+    /// The budget a local surface gets from «open» to «bindings readable».
+    /// Kjetil's number, not a measured convenience: a surface that takes
+    /// longer is a surface people stop opening.
+    static let localSurfaceLoadBudgetMilliseconds = 100.0
+
+    /// Surfaces known to miss the budget, each with a ceiling of its own so
+    /// it cannot quietly get worse while it waits to be fixed. An entry here
+    /// is a debt with a number on it, not a pass: remove the entry, don't
+    /// raise the ceiling. Tracked as work-binding-copilot-surface-load-budget.
+    static let knownSlowSurfaces: [String: Double] = [
+        // 332 ms measured 2026-09-02. Twelve references and eighteen root
+        // probes on one surface; the fix is fewer probes or a leaner
+        // reference set, not a bigger number.
+        "Co-Pilot": 400.0,
+        "Butler Chat": 400.0
+    ]
+
+    /// Every local surface, three ways: it loads inside the budget on a warm
+    /// runtime, its description passes the audit, and the butler finds it by
+    /// that description alone. The table is printed on every run so the slow
+    /// and the vague are named, not just counted.
+    func testEveryLocalSurfaceLoadsFastIsDescribedAndFindable() async throws {
+        let offered = await ConfigurationCatalogCell.offeredCatalogConfigurationsForVerification()
+            .filter { !Self.isRemoteEndpoint($0.endpoint) }
+        XCTAssertFalse(offered.isEmpty, "No local surfaces offered.")
+
+        // Warm the runtime once: the first load of anything creates cells and
+        // persistence and says nothing about rendering.
+        for entry in offered.prefix(3) {
+            _ = try? await CellConfigurationVerifier.contractReport(for: entry.configuration, buttonsToExecute: [], identityMode: .startup)
+        }
+
+        var timings: [(name: String, ms: Double)] = []
+        var slow: [String] = []
+        var knownSlow: [String] = []
+        var broken: [String] = []
+        let clock = ContinuousClock()
+        for entry in offered {
+            _ = try? await CellConfigurationVerifier.contractReport(for: entry.configuration, buttonsToExecute: [], identityMode: .startup)
+            let start = clock.now
+            do {
+                let report = try await CellConfigurationVerifier.contractReport(for: entry.configuration, buttonsToExecute: [], identityMode: .startup)
+                let elapsed = clock.now - start
+                let ms = Double(elapsed.components.seconds) * 1_000 + Double(elapsed.components.attoseconds) / 1e15
+                timings.append((entry.name, ms))
+                if let ceiling = Self.knownSlowSurfaces[entry.name] {
+                    // Known debt: still measured, still printed, and still
+                    // failing if it gets worse than the ceiling it was
+                    // admitted with.
+                    if ms > ceiling {
+                        slow.append(String(
+                            format: "%@: %.0f ms — over its own %.0f ms ceiling as a known-slow surface. It got worse; fix it or say why.",
+                            entry.name, ms, ceiling
+                        ))
+                    } else {
+                        knownSlow.append(String(format: "%@: %.0f ms (budget %.0f, ceiling %.0f)", entry.name, ms, Self.localSurfaceLoadBudgetMilliseconds, ceiling))
+                    }
+                } else if ms > Self.localSurfaceLoadBudgetMilliseconds {
+                    // Name the phase, not just the total: references, probes, load.
+                    let references = report.referenceResolutions
+                        .sorted { $0.durationMilliseconds > $1.durationMilliseconds }
+                        .prefix(4)
+                        .map { String(format: "%@ %.0f ms", $0.endpoint, $0.durationMilliseconds) }
+                        .joined(separator: ", ")
+                    let probes = report.rootProbeResolutions
+                        .sorted { $0.durationMilliseconds > $1.durationMilliseconds }
+                        .prefix(4)
+                        .map { String(format: "%@.%@ %.0f ms", $0.probe.label, $0.probe.rootKeypath, $0.durationMilliseconds) }
+                        .joined(separator: ", ")
+                    slow.append(String(
+                        format: "%@: %.0f ms (load %.0f ms, verifier total %.0f ms; references: %@; probes: %@)",
+                        entry.name, ms, report.loadMilliseconds, report.totalMilliseconds, references, probes
+                    ))
+                }
+                if report.validation.errorCount != 0 || !report.unresolvedReferences.isEmpty || !report.unreadableRootProbes.isEmpty {
+                    broken.append("\(entry.name): validation \(report.validation.errorCount), unresolved \(report.unresolvedReferences), unreadable \(report.unreadableRootProbes)")
+                }
+            } catch {
+                broken.append("\(entry.name): threw \(error)")
+            }
+        }
+        let table = timings.sorted { $0.ms > $1.ms }
+            .map { String(format: "  %6.1f ms  %@%@", $0.ms, $0.name, Self.knownSlowSurfaces[$0.name] != nil ? "  [known slow]" : "") }
+            .joined(separator: "\n")
+        print("Local surface load times (warm, startup identity):\n\(table)")
+        if !knownSlow.isEmpty {
+            print("Known slow, tracked as debt (work-binding-copilot-surface-load-budget):\n  " + knownSlow.joined(separator: "\n  "))
+        }
+
+        // Descriptions, from the real catalog so seeded entries count too.
+        let owner = await makeStaticCatalogAuditOwnerIdentity()
+        let catalog = await ConfigurationCatalogCell(owner: owner)
+        _ = try? await catalog.set(keypath: "syncScaffoldPurposeGoals", value: .null, requester: owner)
+        guard case let .list(items) = try await catalog.get(keypath: "catalogEntries", requester: owner) else {
+            XCTFail("catalogEntries did not return a list")
+            return
+        }
+        let descriptors: [HavenSurfaceDescriptor] = items.compactMap { item in
+            guard case let .object(object) = item,
+                  case let .cellConfiguration(configuration)? = object["configuration"],
+                  case let .string(endpoint)? = object["sourceCellEndpoint"],
+                  !Self.isRemoteEndpoint(endpoint),
+                  case let .string(purpose)? = object["purpose"] else { return nil }
+            func text(_ key: String) -> String? { if case let .string(value)? = object[key] { return value } else { return nil } }
+            func list(_ key: String) -> [String] {
+                guard case let .list(values)? = object[key] else { return [] }
+                return values.compactMap { if case let .string(value) = $0 { return value } else { return nil } }
+            }
+            return HavenSurfaceDescriptor(
+                name: configuration.name,
+                displayName: text("displayName"),
+                purpose: purpose,
+                purposeDescription: text("purposeDescription") ?? configuration.description,
+                summary: text("summary"),
+                tags: list("tags"),
+                interests: list("interests"),
+                sourceCellEndpoint: endpoint
+            )
+        }
+        if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
+            XCTAssertEqual(Set(descriptors.map(\.name)), Set(["Co-Pilot", "Vault / Ideas"]))
+        } else {
+            XCTAssertGreaterThanOrEqual(descriptors.count, 8, "expected the seeded local catalog")
+        }
+
+        var vague: [String] = []
+        var unfindable: [String] = []
+        for descriptor in descriptors {
+            let issues = HavenSurfaceRelevance.audit(descriptor)
+            if !issues.isEmpty {
+                vague.append(issues.map(\.description).joined(separator: "; "))
+                continue
+            }
+            let probe = HavenSurfaceRelevance.findabilityProbe(for: descriptor)
+            let top = HavenSurfaceRelevance.rank(prompt: probe, descriptors: descriptors, limit: 3)
+            if !top.contains(where: { $0.descriptor.name == descriptor.name }) {
+                unfindable.append("\(descriptor.shownName): «\(probe)» finner \(top.map(\.descriptor.shownName)) i stedet")
+            }
+        }
+
+        var failures: [String] = []
+        if !broken.isEmpty { failures.append("Broken (\(broken.count)):\n" + broken.joined(separator: "\n")) }
+        if !slow.isEmpty { failures.append("Over \(Int(Self.localSurfaceLoadBudgetMilliseconds)) ms (\(slow.count) of \(timings.count)):\n" + slow.joined(separator: "\n")) }
+        if !vague.isEmpty { failures.append("Described too poorly to be found (\(vague.count) of \(descriptors.count)):\n" + vague.joined(separator: "\n")) }
+        if !unfindable.isEmpty { failures.append("Not found by own description (\(unfindable.count)):\n" + unfindable.joined(separator: "\n")) }
+        XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n\n"))
+    }
+
+    /// A surface may not hide its own ways in.
+    ///
+    /// This is the check that was missing when the Relations workbench
+    /// shipped: every root-level section was gated on `relations.state…`,
+    /// the renderer passes no value at root, so every gate evaluated false
+    /// and the surface rendered a title over nothing. Every other test was
+    /// green, because every other test reads through `porthole.get` — the
+    /// path the renderer does not use for this decision.
+    func testNoLocalSurfaceHidesItsOwnWaysIn() async throws {
+        // The corpus is what the owner can actually open, not what the
+        // verification helper happens to offer. Those were two different
+        // lists, and Relations was only ever in the second one — which is a
+        // large part of why nothing pointed at it for two weeks.
+        var corpus: [(name: String, configuration: CellConfiguration)] = []
+        for entry in await ConfigurationCatalogCell.offeredCatalogConfigurationsForVerification()
+        where !Self.isRemoteEndpoint(entry.endpoint) {
+            corpus.append((entry.name, entry.configuration))
+        }
+        for configuration in ConfigurationCatalogCell.personalCopilotV1MenuConfigurations() {
+            corpus.append((configuration.name, configuration))
+        }
+        for destination in BindingPersonalCopilotDestination.allCases {
+            corpus.append((destination.title, destination.configuration))
+        }
+        var seenNames = Set<String>()
+        corpus = corpus.filter { seenNames.insert($0.name).inserted }
+        XCTAssertGreaterThan(corpus.count, 15, "The audited corpus is smaller than the app's own menu.")
+
+        var report: [String] = []
+        var deadSurfaces = 0
+        var auditedWithSkeleton = 0
+
+        for entry in corpus.sorted(by: { $0.name < $1.name }) {
+            guard let skeleton = entry.configuration.skeleton else { continue }
+            auditedWithSkeleton += 1
+            let findings = SkeletonReachabilityAudit.audit(skeleton)
+            guard !findings.isEmpty else { continue }
+            deadSurfaces += 1
+            let reachable = SkeletonReachabilityAudit.reachableActionKeypaths(skeleton)
+            let lost = Set(findings.flatMap(\.lostActionKeypaths)).subtracting(reachable).sorted()
+            report.append("\(entry.name): \(findings.count) unreachable element(s)")
+            for finding in findings {
+                report.append("    [\(finding.kind.rawValue)] \(finding.path) — \(finding.detail)")
+            }
+            if !lost.isEmpty {
+                report.append("    the owner cannot reach: \(lost.joined(separator: ", "))")
+            }
+        }
+
+        print("Reachability audit: \(auditedWithSkeleton) surfaces with a skeleton, \(deadSurfaces) with unreachable elements.")
+        XCTAssertTrue(
+            report.isEmpty,
+            "\(deadSurfaces) of \(auditedWithSkeleton) surfaces hide part of themselves:\n" + report.joined(separator: "\n")
+        )
+    }
+
+    /// A `cell://host/...` endpoint points at someone else's scaffold. A bare
+    /// `cell:///...` is local and always has to work.
+    private static func isRemoteEndpoint(_ endpoint: String) -> Bool {
+        guard let host = URLComponents(string: endpoint)?.host?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+        return !host.isEmpty && host.lowercased() != "localhost"
+    }
+
+    /// Network weather, not a binding defect: the socket never carried a usable
+    /// answer. Deliberately narrow — a decoding or contract error is not a
+    /// transport error and must still fail the test.
+    private static func isTransportError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain { return true }
+        if nsError.domain == NSPOSIXErrorDomain { return true }
+        let text = String(describing: error).lowercased()
+        return text.contains("bad response from the server")
+            || text.contains("notconnected")
+            || text.contains("could not connect")
+            || text.contains("network connection was lost")
+    }
+
+    private static func transportSummary(_ error: Error) -> String {
+        let nsError = error as NSError
+        return "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription)"
     }
 
     private func personalCopilotButtonsToExecute(for configuration: CellConfiguration) -> Set<String> {
@@ -611,8 +925,9 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return
         }
 
+        let configurationForCopilot = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
         let expectedCopilotLoad = Task {
-            await waitForPortholeLoadBridgeConfiguration(containingName: "Co-Pilot")
+            await waitForPortholeLoadBridgeConfiguration(containingName: configurationForCopilot.name)
         }
         let openCopilotResponse = try await navigator.set(
             keypath: "dispatchAction",
@@ -635,7 +950,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             XCTFail("Expected BindingPortholeLoadBridge request for Co-Pilot")
             return
         }
-        XCTAssertEqual(copilotConfiguration.name, "Co-Pilot")
+        XCTAssertEqual(copilotConfiguration.name, configurationForCopilot.name)
         XCTAssertTrue(copilotConfiguration.cellReferences?.contains(where: { $0.label == "chatHub" }) == true)
 
         let expectedProfileLoad = Task {

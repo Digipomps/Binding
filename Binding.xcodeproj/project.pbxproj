@@ -11,6 +11,7 @@
 		2430C8F52F18FB57008F5B80 /* NearbyInteraction.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2430C8F42F18FB57008F5B80 /* NearbyInteraction.framework */; platformFilters = (ios, macos, ); };
 		24FEA0052F421297000334E1 /* CellBase in Frameworks */ = {isa = PBXBuildFile; productRef = 24FEA0042F421297000334E1 /* CellBase */; };
 		24FEA0072F42129D000334E1 /* CellApple in Frameworks */ = {isa = PBXBuildFile; productRef = 24FEA0062F42129D000334E1 /* CellApple */; };
+		EC2026091100000000000001 /* CellNearby in Frameworks */ = {isa = PBXBuildFile; productRef = EC2026091100000000000002 /* CellNearby */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -98,6 +99,7 @@
 				2430C8F52F18FB57008F5B80 /* NearbyInteraction.framework in Frameworks */,
 				2430C8F32F18FB4B008F5B80 /* MultipeerConnectivity.framework in Frameworks */,
 				24FEA0072F42129D000334E1 /* CellApple in Frameworks */,
+				EC2026091100000000000001 /* CellNearby in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -176,6 +178,7 @@
 			packageProductDependencies = (
 				24FEA0042F421297000334E1 /* CellBase */,
 				24FEA0062F42129D000334E1 /* CellApple */,
+				EC2026091100000000000002 /* CellNearby */,
 			);
 			productName = HAVEN;
 			productReference = 24D800152EF195A000021B5A /* HAVEN.app */;
@@ -314,8 +317,11 @@
 			files = (
 			);
 			inputFileListPaths = (
+				"$(SRCROOT)/.binding-build/ProvenanceInputs.xcfilelist",
 			);
 			inputPaths = (
+				"$(BUILD_DIR)/../../SourcePackages/checkouts/CellProtocol",
+				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)",
 				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_NAME).SwiftFileList",
 				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_NAME).LinkFileList",
 				"$(OBJECT_FILE_DIR_normal)/$(ARCHS)/$(PRODUCT_MODULE_NAME).swiftmodule",
@@ -531,6 +537,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "HAVEN leser kontakter kun etter at du selv har valgt hvem, eller gitt full tilgang, for aa foresla hvem du kan invitere. Kontaktene blir liggende paa enheten din.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";
@@ -608,6 +615,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "HAVEN bruker kalenderen kun etter eksplisitt samtykke for å vise dagens agenda og neste møte i din lokale co-pilot.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "HAVEN leser kontakter kun etter at du selv har valgt hvem, eller gitt full tilgang, for aa foresla hvem du kan invitere. Kontaktene blir liggende paa enheten din.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";
@@ -800,7 +808,7 @@
 			repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
 			requirement = {
 				kind = revision;
-				revision = e03923cb2f1d5a339eaf62585ddc9dddf7750cec;
+				revision = b5b7282b495e96a7899a189087592581426f4bfb;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -816,6 +824,7 @@
 			package = 24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../CellProtocol" */;
 			productName = CellApple;
 		};
+		EC2026091100000000000002 /* CellNearby */ = {isa = XCSwiftPackageProductDependency; package = 24FEA0022F4203AB000334E1; productName = CellNearby; };
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24D8000D2EF195A000021B5A /* Project object */;

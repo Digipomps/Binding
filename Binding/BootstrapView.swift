@@ -110,6 +110,7 @@ actor BindingLocalCellRegistration {
             // An ephemeral first registration cannot later be upgraded safely.
             await Self.registerChatWorkbenchParityCells(on: resolver)
             await Self.registerVaultGraphLocalCells(on: resolver)
+            await Self.registerRelationsAndInviteCells(on: resolver)
             // Keep the launch path free of eager Porthole setup, owner-access
             // checks, LocalAuthentication and keychain prompts. Binding owns
             // local startup registration explicitly; AppInitializer.prepareLocalRuntime()
@@ -246,6 +247,11 @@ actor BindingLocalCellRegistration {
 
     @discardableResult
     func ensureRegistered() async -> Bool {
+        // Registration and automatic refresh must not reopen a dismissed
+        // authentication sheet. The user-action bootstrap owns that attempt.
+        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+            guard await BindingRuntimeBootstrap.authenticatedRuntimeIsReady else { return false }
+        }
         if isRegistered {
             if await localRegistrationStillUsableForActiveIdentity() {
                 return true
@@ -270,6 +276,7 @@ actor BindingLocalCellRegistration {
             await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
             await Self.registerChatWorkbenchParityCells(on: resolver)
             await Self.registerVaultGraphLocalCells(on: resolver)
+            await Self.registerRelationsAndInviteCells(on: resolver)
             await AppInitializer.initialize()
             await Self.registerAll(on: resolver)
             return await ensureLocallyRegistered()
@@ -394,9 +401,15 @@ actor BindingLocalCellRegistration {
             type: FolderWatchCell.self,
             resolver: resolver
         )
+        // Identity-unique like Porthole and Perspective, not scaffold-unique:
+        // a scaffold-unique instance belongs to whichever identity created it,
+        // and every other identity — the verifier's, the authenticated vault's
+        // after Face ID — was denied `matching` and the surfaces built on it
+        // reported «kunne ikke valideres». The catalog's learned purpose
+        // weights are the owner's anyway.
         await register(
             name: "ConfigurationCatalog",
-            cellScope: .scaffoldUnique,
+            cellScope: .identityUnique,
             persistency: .persistant,
             identityDomain: "private",
             type: ConfigurationCatalogCell.self,
@@ -419,6 +432,7 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await registerVaultGraphLocalCells(on: resolver)
+        await registerRelationsAndInviteCells(on: resolver)
         await register(
             name: "PersonalAgendaContext",
             cellScope: .identityUnique,
@@ -806,6 +820,14 @@ actor BindingLocalCellRegistration {
             resolver: resolver
         )
         await register(
+            name: "RemoteLLM",
+            cellScope: .identityUnique,
+            persistency: persistency,
+            identityDomain: "private",
+            type: BindingRemoteLLMCell.self,
+            resolver: resolver
+        )
+        await register(
             name: "ContactEndpoint",
             cellScope: .identityUnique,
             persistency: persistency,
@@ -830,6 +852,63 @@ actor BindingLocalCellRegistration {
             persistency: .persistant,
             identityDomain: "private",
             type: BindingGraphIndexCell.self,
+            resolver: resolver
+        )
+    }
+
+    /// Relations, contact import, the address book bridge, invitations,
+    /// residency and entity extension.
+    ///
+    /// All `.identityUnique` and `.persistant`: these belong to the entity, not
+    /// to the device, and they have to survive a restart or the whole point of
+    /// "my relations live in my entity" collapses.
+    private static func registerRelationsAndInviteCells(on resolver: CellResolver) async {
+        await register(
+            name: "Relations",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingRelationsCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "ContactImport",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingContactImportCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "AddressBook",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingAddressBookCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "Invitation",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingInvitationCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "EntityResidency",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingEntityResidencyCell.self,
+            resolver: resolver
+        )
+        await register(
+            name: "EntityScaffoldExtension",
+            cellScope: .identityUnique,
+            persistency: .persistant,
+            identityDomain: "private",
+            type: BindingEntityScaffoldExtensionCell.self,
             resolver: resolver
         )
     }
@@ -4050,7 +4129,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private var followUpMarkedRemoteUUIDs: Set<String> = []
     private var launchedChatRemoteUUIDs: Set<String> = []
     private var testInjectedRemoteUUIDs: Set<String> = []
+    private var pendingTransportInvitationRemoteUUIDs: Set<String> = []
     private var showLowerMatches = false
+    private var beaconConsentAcknowledged = false
+    private var beaconCandidates: [Object] = []
+    private var selectedBeaconPurposeRefs = Set<String>()
+    private var selectedBeaconInterestRefs = Set<String>()
+    private var disclosurePolicySummary = "Beacon er av. Ingen formål eller interesser kringkastes."
     private var lastError: String?
     private var lastActionSummary = "Nearby-radaren er klar. Be om kontakt for å verifisere formål og interesser."
 
@@ -4081,6 +4166,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "start")
         agreementTemplate.addGrant("rw--", for: "stop")
         agreementTemplate.addGrant("rw--", for: "invite")
+        agreementTemplate.addGrant("rw--", for: "respondToInvitation")
         agreementTemplate.addGrant("rw--", for: "requestContact")
         agreementTemplate.addGrant("rw--", for: "acceptContact")
         agreementTemplate.addGrant("rw--", for: "openFollowUpChat")
@@ -4090,6 +4176,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         agreementTemplate.addGrant("rw--", for: "selectEntity")
         agreementTemplate.addGrant("rw--", for: "toggleLowerMatches")
         agreementTemplate.addGrant("rw--", for: "toggleFollowUp")
+        agreementTemplate.addGrant("rw--", for: "beaconConsentAcknowledged")
+        agreementTemplate.addGrant("rw--", for: "toggleBeaconReference")
+        agreementTemplate.addGrant("rw--", for: "approveBeacon")
         agreementTemplate.addGrant("rw--", for: "dispatchAction")
 #if DEBUG
         agreementTemplate.addGrant("rw--", for: "testInjectNearbyCandidate")
@@ -4119,6 +4208,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "invite", for: requester) else { return .string("denied") }
             return await self.forwardMutation(keypath: "invite", value: value, requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "respondToInvitation", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "respondToInvitation", for: requester) else { return .string("denied") }
+            return await self.forwardMutation(keypath: "respondToInvitation", value: value, requester: requester)
         })
 
         await addInterceptForSet(requester: owner, key: "requestContact", setValueIntercept: { [weak self] _, value, requester in
@@ -4173,6 +4268,36 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             guard let self else { return .string("failure") }
             guard await self.validateAccess("rw--", at: "toggleFollowUp", for: requester) else { return .string("denied") }
             return await self.toggleFollowUp(value: value, requester: requester)
+        })
+
+        await addInterceptForGet(requester: owner, key: "beaconConsentAcknowledged", getValueIntercept: { [weak self] _, requester in
+            guard let self else { return .bool(false) }
+            guard await self.validateAccess("rw--", at: "beaconConsentAcknowledged", for: requester) else { return .string("denied") }
+            return .bool(self.beaconConsentAcknowledged)
+        })
+
+        await addInterceptForSet(requester: owner, key: "beaconConsentAcknowledged", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "beaconConsentAcknowledged", for: requester),
+                  let acknowledged = self.bool(from: value) else { return .string("denied") }
+            self.beaconConsentAcknowledged = acknowledged
+            self.lastActionSummary = acknowledged
+                ? "Du har bekreftet at beacon-tokenene kan gjettes fra offentlige vokabularer."
+                : "Beacon-samtykket er ikke bekreftet."
+            self.emitSnapshot(requester: requester)
+            return .object(self.snapshotObject())
+        })
+
+        await addInterceptForSet(requester: owner, key: "toggleBeaconReference", setValueIntercept: { [weak self] _, value, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "toggleBeaconReference", for: requester) else { return .string("denied") }
+            return await self.toggleBeaconReference(value: value, requester: requester)
+        })
+
+        await addInterceptForSet(requester: owner, key: "approveBeacon", setValueIntercept: { [weak self] _, _, requester in
+            guard let self else { return .string("failure") }
+            guard await self.validateAccess("rw--", at: "approveBeacon", for: requester) else { return .string("denied") }
+            return await self.approveSelectedBeacon(requester: requester)
         })
 
         await addInterceptForSet(requester: owner, key: "dispatchAction", setValueIntercept: { [weak self] _, value, requester in
@@ -4241,6 +4366,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 try await self.subscribeToScannerFlow(emitter: emit, requester: scannerRequester)
                 await self.refreshCapabilitySnapshot(requester: scannerRequester)
                 await self.refreshEncounterSnapshot(requester: scannerRequester)
+                await self.refreshDisclosurePolicy(requester: scannerRequester)
+                await self.refreshBeaconCandidates(requester: scannerRequester)
                 self.emitSnapshot(requester: requester)
             } catch {
                 self.lastError = "Failed to connect nearby scanner: \(error)"
@@ -4376,7 +4503,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         let actionPayload = actionObject["payload"] ?? .bool(true)
         switch actionKeypath {
-        case "start", "stop", "invite", "requestContact", "acceptContact":
+        case "start", "stop", "invite", "respondToInvitation", "requestContact", "acceptContact":
             return await forwardMutation(keypath: actionKeypath, value: actionPayload, requester: requester)
         case "openFollowUpChat":
             return await openFollowUpChat(value: actionPayload, requester: requester)
@@ -4386,6 +4513,10 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return await toggleLowerMatches(value: actionPayload, requester: requester)
         case "toggleFollowUp":
             return await toggleFollowUp(value: actionPayload, requester: requester)
+        case "toggleBeaconReference":
+            return await toggleBeaconReference(value: actionPayload, requester: requester)
+        case "approveBeacon":
+            return await approveSelectedBeacon(requester: requester)
         case "openExpandedRadarWorkbench":
             return await openExpandedRadarWorkbench(requester: requester)
         case "openSelectedParticipantWorkbench":
@@ -4447,6 +4578,167 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             lastError = "Could not refresh nearby encounter summaries: \(error)"
         }
     }
+
+    private func refreshDisclosurePolicy(requester: Identity) async {
+        guard let scannerMeddle else { return }
+        do {
+            let value = try await scannerMeddle.get(keypath: "disclosurePolicy", requester: requester)
+            guard let policy = object(from: value) else { return }
+            let enabled = bool(from: policy["beaconEnabled"]) == true
+            let purposeCount = list(from: policy["beaconPurposeRefs"])?.count ?? 0
+            let interestCount = list(from: policy["beaconInterestRefs"])?.count ?? 0
+            let expiresAt = double(from: policy["expiresAt"]).map { Date(timeIntervalSince1970: $0) }
+            if enabled {
+                let expiry = expiresAt.map { Self.beaconExpiryFormatter.string(from: $0) } ?? "ukjent tidspunkt"
+                disclosurePolicySummary = "Beacon er på med \(purposeCount) formål og \(interestCount) interesser. Godkjenningen utløper \(expiry)."
+            } else {
+                disclosurePolicySummary = "Beacon er av. Ingen formål eller interesser kringkastes."
+            }
+        } catch {
+            lastError = "Could not refresh nearby disclosure policy: \(error)"
+        }
+    }
+
+    private func refreshBeaconCandidates(requester: Identity) async {
+        guard let resolver = CellBase.defaultCellResolver else { return }
+        do {
+            guard let perspective = try await resolver.cellAtEndpoint(
+                endpoint: "cell:///Perspective",
+                requester: requester
+            ) as? Meddle,
+            let response = try await perspective.set(
+                keypath: "perspective.query.activePurposes",
+                value: .object([
+                    "includeInterests": .bool(true),
+                    "referenceMode": .string("portable"),
+                    "limit": .integer(100)
+                ]),
+                requester: requester
+            ),
+            let responseObject = object(from: response) else { return }
+
+            var candidates = [Object]()
+            for purposeValue in list(from: responseObject["purposes"]) ?? [] {
+                guard let purpose = object(from: purposeValue),
+                      let reference = string(from: purpose["portablePurposeRef"]) else { continue }
+                candidates.append(beaconCandidate(
+                    reference: reference,
+                    title: string(from: purpose["purposeName"]) ?? reference,
+                    kind: "purpose"
+                ))
+                for interestValue in list(from: purpose["interests"]) ?? [] {
+                    guard let interest = object(from: interestValue),
+                          let interestReference = string(from: interest["portableInterestRef"]) else { continue }
+                    candidates.append(beaconCandidate(
+                        reference: interestReference,
+                        title: string(from: interest["interestName"]) ?? interestReference,
+                        kind: "interest"
+                    ))
+                }
+            }
+            var seen = Set<String>()
+            beaconCandidates = candidates.filter {
+                guard let reference = string(from: $0["reference"]) else { return false }
+                return seen.insert(reference).inserted
+            }
+        } catch {
+            lastError = "Could not load active Perspective references for beacon consent: \(error)"
+        }
+    }
+
+    private func beaconCandidate(reference: String, title: String, kind: String) -> Object {
+        let selected = kind == "purpose"
+            ? selectedBeaconPurposeRefs.contains(reference)
+            : selectedBeaconInterestRefs.contains(reference)
+        return [
+            "title": .string(title),
+            "subtitle": .string(kind == "purpose" ? "Formål" : "Interesse"),
+            "detail": .string(reference),
+            "note": .string(selected ? "Valgt for token-annonsering" : "Ikke valgt"),
+            "reference": .string(reference),
+            "kind": .string(kind),
+            "keypath": .string("nearbyRadar.dispatchAction"),
+            "label": .string(selected ? "Fjern valg" : "Velg"),
+            "payload": .object([
+                "keypath": .string("toggleBeaconReference"),
+                "payload": .object([
+                    "reference": .string(reference),
+                    "kind": .string(kind)
+                ])
+            ])
+        ]
+    }
+
+    private func toggleBeaconReference(value: ValueType, requester: Identity) async -> ValueType {
+        guard let object = object(from: value),
+              let reference = string(from: object["reference"]),
+              let kind = string(from: object["kind"]),
+              kind == "purpose" || kind == "interest" else {
+            lastError = "Beacon-valget mangler en gyldig ref eller type."
+            return .object(snapshotObject())
+        }
+        if kind == "purpose" {
+            if selectedBeaconPurposeRefs.remove(reference) == nil {
+                selectedBeaconPurposeRefs.insert(reference)
+            }
+        } else if selectedBeaconInterestRefs.remove(reference) == nil {
+            selectedBeaconInterestRefs.insert(reference)
+        }
+        beaconCandidates = beaconCandidates.compactMap { candidate in
+            guard let candidateReference = string(from: candidate["reference"]),
+                  let candidateKind = string(from: candidate["kind"]) else { return nil }
+            return beaconCandidate(
+                reference: candidateReference,
+                title: string(from: candidate["title"]) ?? candidateReference,
+                kind: candidateKind
+            )
+        }
+        lastError = nil
+        lastActionSummary = "Beacon-utvalget er oppdatert. Ingenting sendes før du godkjenner."
+        emitSnapshot(requester: requester)
+        return .object(snapshotObject())
+    }
+
+    private func approveSelectedBeacon(requester: Identity) async -> ValueType {
+        guard beaconConsentAcknowledged else {
+            lastError = "Bekreft først at tokenene er usaltede, kan brute-forces og ikke er kryptert."
+            lastActionSummary = lastError ?? "Beacon-samtykke mangler."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+        guard !selectedBeaconPurposeRefs.isEmpty || !selectedBeaconInterestRefs.isEmpty else {
+            lastError = "Velg minst ett aktivt formål eller én interesse eksplisitt."
+            lastActionSummary = lastError ?? "Beacon-utvalg mangler."
+            emitSnapshot(requester: requester)
+            return .object(snapshotObject())
+        }
+        let payload: ValueType = .object([
+            "entityKind": .string(NearbyEntityKind.person.rawValue),
+            "beaconPurposeRefs": .list(selectedBeaconPurposeRefs.sorted().map(ValueType.string)),
+            "beaconInterestRefs": .list(selectedBeaconInterestRefs.sorted().map(ValueType.string)),
+            "contextRefs": .list([]),
+            "probeMode": .string(NearbyDisclosurePolicy.ProbeMode.onOverlap.rawValue),
+            "probeDisclosureRefs": .list((selectedBeaconPurposeRefs.union(selectedBeaconInterestRefs)).sorted().map(ValueType.string)),
+            "contactRequestMode": .string(NearbyDisclosurePolicy.ContactRequestMode.manualOnly.rawValue),
+            "minimumOverlapForSuggestion": .integer(1)
+        ])
+        let result = await forwardMutation(keypath: "approveBeacon", value: payload, requester: requester)
+        if lastError == nil {
+            await refreshDisclosurePolicy(requester: scannerAccessRequester)
+            if lastError == nil {
+                lastActionSummary = "Beacon er godkjent for det eksplisitte utvalget i opptil åtte timer."
+            }
+        }
+        emitSnapshot(requester: requester)
+        return result
+    }
+
+    private static let beaconExpiryFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     private func openFollowUpChat(value: ValueType, requester: Identity) async -> ValueType {
         guard let remoteUUID = normalizedRemoteUUID(string(from: object(from: value)?["remoteUUID"]) ?? string(from: value)),
@@ -4986,6 +5278,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         guard let remoteUUID = normalizedRemoteUUID(update.remoteUUID) else {
             return
         }
+        pendingTransportInvitationRemoteUUIDs.remove(remoteUUID)
         if var entity = entitiesById[remoteUUID] {
             var lostUpdate = update
             lostUpdate.remoteUUID = remoteUUID
@@ -5020,15 +5313,42 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         keysToRemove.forEach { entitiesById.removeValue(forKey: $0) }
         let remainingRemoteUUIDs = Set(entitiesById.keys)
         followUpMarkedRemoteUUIDs.formIntersection(remainingRemoteUUIDs)
+        pendingTransportInvitationRemoteUUIDs.formIntersection(remainingRemoteUUIDs)
         if let selectedRemoteUUID, remainingRemoteUUIDs.contains(selectedRemoteUUID) == false {
             self.selectedRemoteUUID = nil
         }
     }
 
     private func applyMutationResult(keypath: String, result: ValueType?, payload: ValueType) {
-        guard keypath == "requestContact" || keypath == "acceptContact",
+        guard keypath == "requestContact" || keypath == "acceptContact" || keypath == "respondToInvitation",
               let resultObject = object(from: result),
-              let remoteUUID = normalizedRemoteUUID(string(from: resultObject["remoteUUID"]) ?? string(from: payload)) else {
+              let remoteUUID = normalizedRemoteUUID(
+                string(from: resultObject["remoteUUID"])
+                    ?? string(from: object(from: payload)?["remoteUUID"])
+                    ?? string(from: payload)
+              ) else {
+            return
+        }
+
+        if keypath == "respondToInvitation" {
+            pendingTransportInvitationRemoteUUIDs.remove(remoteUUID)
+            let status = string(from: resultObject["status"]) ?? "notFound"
+            if status == "accepted" {
+                selectedRemoteUUID = remoteUUID
+                contactSignalsById[remoteUUID] = ContactSignal(
+                    status: "transportAccepted",
+                    summary: "Enhetslenken er godkjent. Dette verifiserer ikke identitet og gir ikke tillit eller profiltilgang.",
+                    actionLabel: "Transport godkjent"
+                )
+                lastActionSummary = "Enhetslenken er godkjent uten at identitet eller tillit er bekreftet."
+            } else if status == "rejected" {
+                contactSignalsById[remoteUUID] = ContactSignal(
+                    status: "transportRejected",
+                    summary: "Invitasjonen til enhetslenke ble avvist.",
+                    actionLabel: "Invitasjon avvist"
+                )
+                lastActionSummary = "Invitasjonen til enhetslenke ble avvist."
+            }
             return
         }
 
@@ -5082,6 +5402,15 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
 
         switch topic {
+        case "scanner.invitation.received":
+            pendingTransportInvitationRemoteUUIDs.insert(remoteUUID)
+            selectedRemoteUUID = remoteUUID
+            contactSignalsById[remoteUUID] = ContactSignal(
+                status: "transportInvitation",
+                summary: string(from: object["message"]) ?? "En nearby-enhet ber om en transportforbindelse. Godkjenning verifiserer ikke identitet.",
+                actionLabel: "Svar på invitasjon"
+            )
+            lastActionSummary = "En nearby-enhet venter på eksplisitt godkjenning av transportforbindelsen."
         case "scanner.contact.pending":
             selectedRemoteUUID = remoteUUID
             contactSignalsById[remoteUUID] = ContactSignal(
@@ -5129,6 +5458,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         var refreshedPurposeSignals: [String: PurposeSignal] = [:]
         var refreshedFollowUpTargets: [String: ConferenceNearbyFollowUpTarget] = [:]
+#if DEBUG
+        // Synthetic contacts are an explicit test fixture. A late initial
+        // scanner snapshot must not erase their follow-up targets halfway
+        // through the same test story. Release builds never retain fixtures.
+        refreshedPurposeSignals = purposeSignalsById.filter { testInjectedRemoteUUIDs.contains($0.key) }
+        refreshedFollowUpTargets = followUpTargetsById.filter { testInjectedRemoteUUIDs.contains($0.key) }
+#endif
         for encounterValue in encounters {
             guard let encounter = object(from: encounterValue),
                   let remoteUUID = normalizedRemoteUUID(string(from: encounter["remoteUUID"])) else {
@@ -5208,6 +5544,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         }
         if let purposeSignal = purposeSignalsById[remoteUUID] {
             return purposeSignal.summary
+        }
+        if let entity = entitiesById[remoteUUID], entity.beaconOverlapCount > 0 {
+            return "\(entity.beaconOverlapCount) uverifisert(e) beacon-overlapp · tokenhint, ikke identitets- eller tillitsbevis"
         }
         return "Proximity only · request contact to verify purpose and interest fit"
     }
@@ -5331,6 +5670,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "detectedEntityCount": .integer(entities.count),
             "hiddenEntityCount": .integer(hiddenEntities.count),
             "showingLowerMatches": .bool(showLowerMatches),
+            "beaconConsentAcknowledged": .bool(beaconConsentAcknowledged),
+            "beaconConsentCandidates": .list(beaconCandidates.map(ValueType.object)),
+            "selectedBeaconPurposeCount": .integer(selectedBeaconPurposeRefs.count),
+            "selectedBeaconInterestCount": .integer(selectedBeaconInterestRefs.count),
+            "disclosurePolicySummary": .string(disclosurePolicySummary),
+            "beaconConsentSummary": .string("Valgt: \(selectedBeaconPurposeRefs.count) formål og \(selectedBeaconInterestRefs.count) interesser. Tokenene er usaltede, kan gjettes og er ikke kryptert."),
             "lowerMatchesSummary": .string(lowerMatchesSummary),
             "showLowerMatchesLabel": .string(showLowerMatchesLabel),
             "statusSummary": .string(statusSummary),
@@ -5530,6 +5875,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 : "Ingen live retning i signalet. Noden plasseres ikke som presis retning."),
             "connected": .bool(entity.connected),
             "status": .string(entity.status),
+            "entityKind": .string(entity.kind?.rawValue ?? "u"),
+            "entityKindLabel": .string(entityKindLabel(entity.kind)),
+            "beaconOverlapCount": .integer(entity.beaconOverlapCount),
+            "beaconOverlapBadge": .string(entity.beaconOverlapCount > 0 ? "BEACON-HINT · \(entity.beaconOverlapCount)" : "INGEN BEACON-OVERLAPP"),
+            "matchVerificationLabel": .string(purposeSignalsById[entity.remoteUUID] != nil ? "VERIFISERT FORMÅLSFIT" : "UVERIFISERT TOKENHINT"),
+            "overlapTokens": .list(beaconTokenChips(for: entity)),
             "isSelected": .bool(entity.remoteUUID == focusedRemoteUUID),
             "isStale": .bool(entity.status == "lost" || (!entity.connected && ageSeconds > 4.0)),
             "ageSeconds": .float(ageSeconds),
@@ -5675,6 +6026,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "distanceText": .string(distanceText),
             "directionConfidence": .string(directionConfidence),
             "relationBadge": .string(relationBadge),
+            "entityKind": .string(entity.kind?.rawValue ?? "u"),
+            "entityKindLabel": .string(entityKindLabel(entity.kind)),
+            "beaconOverlapCount": .integer(entity.beaconOverlapCount),
+            "beaconOverlapBadge": .string(entity.beaconOverlapCount > 0 ? "BEACON-HINT · \(entity.beaconOverlapCount)" : "INGEN BEACON-OVERLAPP"),
+            "matchVerificationLabel": .string(purposeSignal != nil ? "VERIFISERT FORMÅLSFIT" : "UVERIFISERT TOKENHINT"),
+            "overlapTokens": .list(beaconTokenChips(for: entity)),
             "relevanceSummary": .string(relevance.summary),
             "purposeSummary": .string(purposeSignal?.summary ?? fallbackPurposeSummary(for: entity.remoteUUID, liveScore: entity.matchScore)),
             "purposeDetail": .string(purposeSignal?.detail ?? "Purpose fit remains approximate until signed contact is established."),
@@ -5798,6 +6155,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             "scoreText": .string(relevance.scoreText),
             "proximitySummary": .string(positionDetail(for: entity, directionIsPrecise: directionIsPrecise)),
             "directionConfidence": .string(directionIsPrecise ? "precise direction" : "direction uncertain"),
+            "entityKind": .string(entity.kind?.rawValue ?? "u"),
+            "entityKindLabel": .string(entityKindLabel(entity.kind)),
+            "beaconOverlapCount": .integer(entity.beaconOverlapCount),
+            "beaconOverlapBadge": .string(entity.beaconOverlapCount > 0 ? "BEACON-HINT · \(entity.beaconOverlapCount)" : "INGEN BEACON-OVERLAPP"),
+            "matchVerificationLabel": .string(purposeSignal != nil ? "VERIFISERT FORMÅLSFIT" : "UVERIFISERT TOKENHINT"),
+            "overlapTokens": .list(beaconTokenChips(for: entity)),
             "publicSectionLabel": .string("OPENLY PUBLISHED"),
             "publicHeadline": .string(target?.role ?? "No public headline available yet."),
             "publicInterests": .string(purposeSignal?.summary ?? "No public interests loaded yet."),
@@ -5876,33 +6239,51 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             ]
         } else {
             let isIncoming = contactStatus == "incoming"
+            let hasTransportInvitation = pendingTransportInvitationRemoteUUIDs.contains(remoteUUID)
             let isWaiting = contactStatus == "sent" || contactStatus == "pendingConnection"
             primaryAction = [
                 "title": .string("Kontakt"),
-                "subtitle": .string(isIncoming ? "Fullfør signert identitetsutveksling" : "Be om signert kontakt"),
-                "detail": .string(isIncoming
-                    ? "Accepting completes signed identity exchange, persists the relation and saves encounter proof locally."
-                    : "Etabler kontakt først. Når identiteten er lagret, kan du starte chat med høyere presisjon i match-signalet."),
+                "subtitle": .string(hasTransportInvitation
+                    ? "Godkjenn transportforbindelse"
+                    : (isIncoming ? "Fullfør signert identitetsutveksling" : "Be om signert kontakt")),
+                "detail": .string(hasTransportInvitation
+                    ? "Godkjenning oppretter bare den krypterte enhetslenken. Identitet og tillit er fortsatt uverifisert."
+                    : (isIncoming
+                        ? "Accepting completes signed identity exchange, persists the relation and saves encounter proof locally."
+                        : "Etabler kontakt først. Når identiteten er lagret, kan du starte chat med høyere presisjon i match-signalet.")),
                 "note": .string(contactSignalsById[remoteUUID]?.summary ?? "Kontaktbeviset er første steg før verifisert purpose/interest-match."),
                 "keypath": .string("nearbyRadar.dispatchAction"),
-                "label": .string(isIncoming ? "Accept + exchange" : (isWaiting ? "Awaiting exchange" : "Request contact")),
+                "label": .string(hasTransportInvitation
+                    ? "Godkjenn enhetslenke"
+                    : (isIncoming ? "Accept + exchange" : (isWaiting ? "Awaiting exchange" : "Request contact"))),
                 "payload": .object([
-                    "keypath": .string(isIncoming ? "acceptContact" : "requestContact"),
-                    "payload": .string(remoteUUID)
+                    "keypath": .string(hasTransportInvitation
+                        ? "respondToInvitation"
+                        : (isIncoming ? "acceptContact" : "requestContact")),
+                    "payload": hasTransportInvitation
+                        ? .object(["remoteUUID": .string(remoteUUID), "accept": .bool(true)])
+                        : .string(remoteUUID)
                 ])
             ]
         }
 
+        let hasTransportInvitation = pendingTransportInvitationRemoteUUIDs.contains(remoteUUID)
         let inviteAction: Object = [
-            "title": .string("Invite"),
-            "subtitle": .string("Low-friction invitation"),
-            "detail": .string("Send invite is separate from signed contact. It never implies automatic chat or profile access."),
-            "note": .string(contactStatus == nil ? "Available for relevant nearby entities." : "Contact state already exists for this entity."),
+            "title": .string(hasTransportInvitation ? "Avvis" : "Invite"),
+            "subtitle": .string(hasTransportInvitation ? "Avvis transportforbindelsen" : "Low-friction invitation"),
+            "detail": .string(hasTransportInvitation
+                ? "Avvis forespørselen uten å opprette en enhetslenke."
+                : "Send invite is separate from signed contact. It never implies automatic chat or profile access."),
+            "note": .string(hasTransportInvitation
+                ? "Ny discovery og peer-sesjon kreves før et nytt forsøk."
+                : (contactStatus == nil ? "Available for relevant nearby entities." : "Contact state already exists for this entity.")),
             "keypath": .string("nearbyRadar.dispatchAction"),
-            "label": .string("Send invite"),
+            "label": .string(hasTransportInvitation ? "Avvis invitasjon" : "Send invite"),
             "payload": .object([
-                "keypath": .string("invite"),
-                "payload": .string(remoteUUID)
+                "keypath": .string(hasTransportInvitation ? "respondToInvitation" : "invite"),
+                "payload": hasTransportInvitation
+                    ? .object(["remoteUUID": .string(remoteUUID), "accept": .bool(false)])
+                    : .string(remoteUUID)
             ])
         ]
 
@@ -6000,6 +6381,16 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         let hasVerifiedContact = contactSignalsById[remoteUUID]?.status == "verified"
 
         guard let score else {
+            if entity.beaconOverlapCount > 0 {
+                return RelevanceSignal(
+                    badge: "BEACON-HINT",
+                    summary: "\(entity.beaconOverlapCount) uverifisert(e) tokenoverlapp gjør denne entiteten synlig før tilkobling.",
+                    detail: "Tokenoverlapp er bare et søkehint. Det beviser ikke identitet, tillit eller tilgang.",
+                    tier: "beacon",
+                    scoreText: "\(entity.beaconOverlapCount)",
+                    visibleByDefault: true
+                )
+            }
             return RelevanceSignal(
                 badge: "NÆRHET FØRST",
                 summary: "Nearby-signal oppdaget, men matchen må verifiseres videre.",
@@ -6071,6 +6462,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     }
 
     private func shouldShowEntityByDefault(_ entity: NearbyEntity) -> Bool {
+        if entity.beaconOverlapCount > 0 {
+            return true
+        }
         if entity.remoteUUID == selectedRemoteUUID {
             return true
         }
@@ -6085,6 +6479,35 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             return true
         }
         return relevanceSignal(for: entity.remoteUUID, entity: entity).visibleByDefault
+    }
+
+    private func entityKindLabel(_ kind: NearbyEntityKind?) -> String {
+        switch kind {
+        case .person: return "Person"
+        case .organization: return "Organisasjon"
+        case .place: return "Sted"
+        case .event: return "Arrangement"
+        case .agent: return "Agent"
+        case .unspecified, nil: return "Uspesifisert entitet"
+        }
+    }
+
+    private func beaconTokenChips(for entity: NearbyEntity) -> [ValueType] {
+        let purposeChips = entity.matchedPurposeTokens.map { token in
+            ValueType.object([
+                "token": .string("P · \(token)"),
+                "axis": .string("purpose"),
+                "verification": .string("unverified")
+            ])
+        }
+        let interestChips = entity.matchedInterestTokens.map { token in
+            ValueType.object([
+                "token": .string("I · \(token)"),
+                "axis": .string("interest"),
+                "verification": .string("unverified")
+            ])
+        }
+        return purposeChips + interestChips
     }
 
     private func followUpSummary(

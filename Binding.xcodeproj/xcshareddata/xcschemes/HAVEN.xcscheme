@@ -6,6 +6,15 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       buildArchitectures = "Automatic">
+      <PreActions>
+         <ExecutionAction ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent title = "Prepare provenance read inputs" scriptText = "cd &quot;${SRCROOT}&quot;&#10;python3 scripts/prepare_binding_provenance_inputs.py&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference BuildableIdentifier = "primary" BlueprintIdentifier = "24D800142EF195A000021B5A" BuildableName = "HAVEN.app" BlueprintName = "HAVEN" ReferencedContainer = "container:Binding.xcodeproj" />
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"

@@ -44,6 +44,22 @@ private actor RecordingStatusRequest {
 }
 
 @Suite struct HavenAgentDRegistrationAdapterTests {
+    @Test(arguments: ["entity.synthetic.createAndConfigure", "entity.purposeLibrary.initialize"])
+    func reportedCandidateEntityActionsAreNotAdvertisedAsInstalled(actionID: String) throws {
+        let statusJSON = try makeStatusJSON(observation: [
+            "schema": "haven.agentd-registration-observation.v1",
+            "status": "registered",
+            "evidenceKind": "haven-agentd.status-json",
+            "availableActionIDs": [actionID, "mac.finder.close-all-windows"],
+            "bridgeEndpoint": "ws://127.0.0.1:43110/bridgehead",
+            "observedAt": "2026-09-08T10:00:00Z",
+            "containsAccessToken": false
+        ])
+        let observation = try BindingHavenAgentDRegistrationAdapter.observation(from: statusJSON)
+        #expect(observation.availableActionIDs == ["mac.finder.close-all-windows"])
+        #expect(observation.objectValue["evidenceAuthority"] == .string("owner-reported-runtime-observation-not-a-grant"))
+    }
+
     @Test func reportsSanitizedStatusObservationThroughRequesterIdentity() async throws {
         let statusJSON = try makeStatusJSON(
             observation: [

@@ -3,6 +3,8 @@
 This repository hosts the HAVEN app and integrates the CellProtocol ecosystem.
 
 ## Architecture notes
+
+- [Praktisk personkobling: QR, nærhet og avbruddstester](Personal_Entity_Link_Test_Runbook_2026-09-11.md)
 - [SkeletonPortabilityRequirement.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonPortabilityRequirement.md)
 - [SkeletonParitySuite.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonParitySuite.md)
 - [BindingStandaloneSeparationPlan-2026-04-16.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneSeparationPlan-2026-04-16.md)
