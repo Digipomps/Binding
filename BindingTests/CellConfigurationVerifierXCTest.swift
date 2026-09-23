@@ -683,6 +683,12 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         report.elementCount += 1
 
         switch element {
+        case .Tree(let tree):
+            inspectSkeleton(.VStack(tree.rowSkeleton), path: path + ["treeRow"], report: &report)
+        case .ComponentSurface(let surface):
+            if surface.sourceKeypath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) component has empty sourceKeypath"))
+            }
         case .Text(let text):
             inspectVisibleText(text.text, at: path, report: &report)
         case .AttachmentField:

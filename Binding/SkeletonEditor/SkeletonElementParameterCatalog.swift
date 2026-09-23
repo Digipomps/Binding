@@ -1350,7 +1350,7 @@ enum SkeletonElementParameterCatalog {
                 .supportsDrop,
                 .uploadMode
             ]
-        case .AttachmentField, .Object, .HStack, .VStack, .Divider, .Section, .ZStack, .Tabs, .NavigationBar, .Unsupported:
+        case .Tree, .ComponentSurface, .AttachmentField, .Object, .HStack, .VStack, .Divider, .Section, .ZStack, .Tabs, .NavigationBar, .Unsupported:
             return []
         }
     }

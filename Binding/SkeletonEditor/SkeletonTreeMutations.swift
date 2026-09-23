@@ -159,6 +159,16 @@ enum SkeletonTreeMutations {
         mutate: (inout SkeletonModifiers) -> Void
     ) -> SkeletonElement {
         switch element {
+        case .Tree(var tree):
+            var modifiers = tree.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            tree.modifiers = modifiers
+            return .Tree(tree)
+        case .ComponentSurface(var surface):
+            var modifiers = surface.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            surface.modifiers = modifiers
+            return .ComponentSurface(surface)
         case .List(var list):
             var modifiers = list.modifiers ?? SkeletonModifiers()
             mutate(&modifiers)
