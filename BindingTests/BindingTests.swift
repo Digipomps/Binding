@@ -9447,6 +9447,11 @@ struct BindingTests {
             guard depth < 64 else { continue }
             var children: [SkeletonElement] = []
             switch element {
+            case .Tree(let tree):
+                append(tree.modifiers)
+                children = [.VStack(tree.rowSkeleton)]
+            case .ComponentSurface(let surface):
+                append(surface.modifiers)
             case .Text(let text):
                 append(text.modifiers)
             case .AttachmentField(let attachmentField):

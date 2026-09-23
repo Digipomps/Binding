@@ -41,6 +41,14 @@ struct BindingApp: App {
                 Button("Utvid min entitet …") { IdentityLinkFlowPresenter.shared.presentScanner() }
             }
             BindingConferenceAutomationCommands()
+            CommandGroup(after: .appSettings) {
+                DatabaseKeyCustodyCommand()
+            }
+        }
+#endif
+#if os(macOS)
+        Window("Private celledata", id: "database-key-custody") {
+            DatabaseKeyCustodyView()
         }
 #endif
     }
@@ -145,6 +153,15 @@ struct BindingConferenceAutomationCommands: Commands {
                 ?? NSApp.mainWindow?.windowNumber
                 ?? NSApp.orderedWindows.first(where: \.isVisible)?.windowNumber
         )
+    }
+}
+#endif
+
+#if os(macOS)
+private struct DatabaseKeyCustodyCommand: View {
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Button("Private celledata …") { openWindow(id: "database-key-custody") }
     }
 }
 #endif

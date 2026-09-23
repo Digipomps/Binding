@@ -16,6 +16,8 @@ enum SkeletonTreeQueries {
 
     static func modifiers(on element: SkeletonElement) -> SkeletonModifiers? {
         switch element {
+        case .Tree(let tree): return tree.modifiers
+        case .ComponentSurface(let surface): return surface.modifiers
         case .List(let list): return list.modifiers
         case .Object(let object): return object.modifiers
         case .Spacer(let spacer): return spacer.modifiers
@@ -51,6 +53,8 @@ enum SkeletonTreeQueries {
 
     static func displayName(for element: SkeletonElement) -> String {
         switch element {
+        case .Tree: return "Tree"
+        case .ComponentSurface: return "ComponentSurface"
         case .List: return "List"
         case .Object: return "Object"
         case .Spacer: return "Spacer"

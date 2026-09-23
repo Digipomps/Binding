@@ -29,6 +29,10 @@ nonisolated enum LibraryPreviewSkeletonSupport {
 
     private static func sanitize(_ element: SkeletonElement) -> PreparedPreview {
         switch element {
+        case .Tree(let tree):
+            return placeholderCollection(title: "Tree", detail: "Statisk forhåndsvisning av tredata.", modifiers: tree.modifiers)
+        case .ComponentSurface(let surface):
+            return placeholderCollection(title: "Component surface", detail: "Komponenten åpnes med autorisert runtime-data.", modifiers: surface.modifiers)
         case .Text(var text):
             var usedPlaceholder = false
             if text.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
