@@ -268,6 +268,12 @@ nonisolated enum LibraryPreviewSkeletonSupport {
                     tabs.selectionActionKeypath != nil
             )
 
+        case .NavigationBar(let navigationBar):
+            return PreparedPreview(
+                element: .NavigationBar(navigationBar),
+                usesPlaceholders: false
+            )
+
         case .Visualization(let visualization):
             return placeholderCollection(
                 title: "Preview \(visualization.kind)",

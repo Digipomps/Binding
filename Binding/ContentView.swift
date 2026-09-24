@@ -669,6 +669,8 @@ struct ContentView: View {
     @AppStorage("binding.demoStartConfigurationJSON")
     private var demoStartConfigurationJSON = ""
     @State private var editorMode: EditorMode = .view
+    // PDD haven-visionos steg 3 (gren B): baksiden av flaten.
+    @State private var showsPortholeBackside = UserDefaults.standard.bool(forKey: "HAVENShowBackside")
     @AppStorage("edgeMenus.hidden")
     private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
@@ -1123,6 +1125,16 @@ struct ContentView: View {
     }
 
     private var portholeCanvas: some View {
+        PortholeFlipContainer(showsBackside: showsPortholeBackside, onToggle: {
+            showsPortholeBackside.toggle()
+        }, front: {
+            portholeFrontCanvas
+        }, back: {
+            PortholeBacksideView(viewModel: viewModel, fallbackConfiguration: activeConfiguration)
+        })
+    }
+
+    private var portholeFrontCanvas: some View {
         PortholeCanvas(
             skeleton: renderedSkeleton,
             isEditing: editorMode == .edit,
@@ -1682,18 +1694,23 @@ struct ContentView: View {
     }
 
     private var personalCopilotPlatformCanvasColor: Color {
-#if os(iOS)
+        // PDD haven-visionos steg 2: API-gate med canImport og nøytral #else (auditen §4.1).
+#if canImport(UIKit)
         Color(uiColor: .systemGroupedBackground)
-#else
+#elseif canImport(AppKit)
         Color(nsColor: .windowBackgroundColor)
+#else
+        Color.clear
 #endif
     }
 
     private var personalCopilotPlatformSurfaceColor: Color {
-#if os(iOS)
+#if canImport(UIKit)
         Color(uiColor: .systemBackground)
-#else
+#elseif canImport(AppKit)
         Color(nsColor: .controlBackgroundColor)
+#else
+        Color.clear
 #endif
     }
 
@@ -1990,6 +2007,12 @@ struct ContentView: View {
                     editorMode = .edit
                 } label: {
                     Label("Rediger", systemImage: "square.and.pencil")
+                }
+
+                Button {
+                    showsPortholeBackside.toggle()
+                } label: {
+                    Label(showsPortholeBackside ? "Forside" : "Bakside", systemImage: "arrow.2.squarepath")
                 }
 
                 Button {

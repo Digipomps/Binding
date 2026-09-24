@@ -182,10 +182,13 @@ struct RootView: View {
     }
 
     private var launchBackgroundColor: Color {
-#if os(iOS)
+        // PDD haven-visionos steg 2: API-gate med canImport og nøytral #else (auditen §4.1).
+#if canImport(UIKit)
         Color(uiColor: .systemBackground)
-#else
+#elseif canImport(AppKit)
         Color(nsColor: .windowBackgroundColor)
+#else
+        Color.clear
 #endif
     }
 }

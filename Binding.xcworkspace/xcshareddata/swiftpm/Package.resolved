@@ -1,5 +1,5 @@
 {
-  "originHash" : "cf9a400c03d04962bcf74660b53032eb5334d1223f59a4d3009b4c07d8b8be2d",
+  "originHash" : "18178c0db14e33737542c2ffacd4e562a6c580f7b7dc907218b6968fe8cddf23",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -51,7 +51,6 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Digipomps/FileUtils-c.git",
       "state" : {
-        "branch" : "main",
         "revision" : "26f365ca39955ee693e138ef028560df3bdf218c"
       }
     },
