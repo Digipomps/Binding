@@ -23,6 +23,11 @@
 //  be re-pointed at a different key: changing anything invalidates the
 //  approval that was issued for it.
 //
+//  Verktøylenker (B10, 2026-09-24): «Ber om tilgang», «Gi tilgang» og verktøyene under
+//  «Koblede steder» er entitetslenker mellom deg og verktøycellene i HAVEN Agent. Lenken
+//  kan startes fra begge sider, og begge ender viser hvem som svarte og når. Logikken ligger
+//  i BindingToolLinkController.swift; her er bare nøklene og flaten.
+//
 
 import Foundation
 import CellBase
@@ -51,6 +56,10 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
     private nonisolated(unsafe) var links: [IdentityLinkRecord] = []
     private nonisolated(unsafe) var outgoingRequests: [OutgoingRequest] = []
     private nonisolated(unsafe) var lastResult: Object = [:]
+
+    /// Lenker mellom deg og verktøycellene i den lokale agenten.
+    nonisolated let toolLinks = BindingToolLinkController()
+    nonisolated private static let toolLinkReadKeys: Set<String> = ["state", "extension.state", "extension.toolLinks"]
 
     required init(owner: Identity) async {
         await super.init(owner: owner)
@@ -87,6 +96,9 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             await addInterceptForGet(requester: owner, key: key) { [weak self] _, requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
+                if Self.toolLinkReadKeys.contains(key) {
+                    await self.toolLinks.refreshForRead(ownerKey: ToolLinkSigner.publicKey(of: self.storedOwnerIdentity))
+                }
                 return self.readValue(for: key)
             }
         }
@@ -108,6 +120,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "extension.pending",
             "extension.defaultScopes",
             "extension.lastResult",
+            "extension.toolLinks",
             "providerDescriptor",
             "purposeGoal",
             "skeletonConfiguration"
@@ -121,7 +134,14 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "extension.approveRequest",
             "extension.acceptApproval",
             "extension.revokeLink",
-            "extension.clearPending"
+            "extension.clearPending",
+            "extension.toolLinks.refresh",
+            "extension.toolLinks.approve",
+            "extension.toolLinks.decline",
+            "extension.toolLinks.offer",
+            "extension.toolLinks.revoke",
+            "extension.toolLinks.selectTool",
+            "extension.toolLinks.selectScope"
         ]
     }
 
@@ -144,6 +164,8 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             })
         case "extension.lastResult":
             return .object(stateQueue.sync { lastResult })
+        case "extension.toolLinks":
+            return .object(toolLinks.stateFields())
         case "providerDescriptor":
             return .object(providerDescriptor())
         case "purposeGoal":
@@ -169,8 +191,52 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             return .object(await revokeLink(value))
         case "extension.clearPending":
             return .object(clearPending())
+        case "extension.toolLinks.refresh":
+            return .object(await toolLinks.refresh(ownerKey: ToolLinkSigner.publicKey(of: toolLinkIdentity(requester))))
+        case "extension.toolLinks.approve", "extension.toolLinks.decline", "extension.toolLinks.revoke":
+            return .object(await answerToolLink(key, value: value, requester: requester))
+        case "extension.toolLinks.offer":
+            guard let signer = ToolLinkSigner.from(toolLinkIdentity(requester)) else {
+                return .object(HavenValue.error(code: "no_key", message: "Denne HAVEN-en har ingen nøkkel som kan signere."))
+            }
+            return .object(await toolLinks.offer(signer: signer))
+        case "extension.toolLinks.selectTool":
+            return .object(toolLinks.selectTool(value))
+        case "extension.toolLinks.selectScope":
+            return .object(toolLinks.selectScope(value))
         default:
             return .object(HavenValue.error(code: "unsupported_keypath", message: "Ukjent utvidelses-handling."))
+        }
+    }
+
+    // MARK: - Verktøylenker
+
+    /// Samme valg som paringen gjør (AgentEnrollmentCell): den som trykker, når den har navn
+    /// og nøkkel; ellers eieren av cellen. Agenten avviser en annen nøkkel enn den den er
+    /// paret med, og flaten sier fra før du trykker.
+    private func toolLinkIdentity(_ requester: Identity) -> Identity {
+        if requester.displayName.isEmpty == false, ToolLinkSigner.publicKey(of: requester) != nil {
+            return requester
+        }
+        return storedOwnerIdentity
+    }
+
+    private func answerToolLink(_ key: String, value: ValueType, requester: Identity) async -> Object {
+        let payload = HavenValue.object(value)
+        guard let contractID = HavenValue.string(payload?["contractID"]) ?? HavenValue.string(value),
+              contractID.isEmpty == false else {
+            return HavenValue.error(code: "missing_id", message: "Mangler `contractID`.")
+        }
+        guard let signer = ToolLinkSigner.from(toolLinkIdentity(requester)) else {
+            return HavenValue.error(code: "no_key", message: "Denne HAVEN-en har ingen nøkkel som kan signere.")
+        }
+        switch key {
+        case "extension.toolLinks.approve":
+            return await toolLinks.approve(contractID: contractID, signer: signer)
+        case "extension.toolLinks.decline":
+            return await toolLinks.decline(contractID: contractID, signer: signer)
+        default:
+            return await toolLinks.revoke(contractID: contractID, signer: signer)
         }
     }
 
@@ -736,7 +802,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         let snapshot = stateQueue.sync { (links, outgoingRequests) }
         let active = snapshot.0.filter { $0.status == .active }.count
         let waiting = snapshot.1.filter { $0.approvedAt == nil }.count
-        return [
+        var state: Object = [
             "schema": .string("haven.entityExtension.state.v1"),
             "summary": .string(
                 active == 0 && waiting == 0
@@ -753,6 +819,8 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "lastResult": .object(stateQueue.sync { lastResult }),
             "updatedAt": .string(HavenValue.iso(Date()))
         ]
+        state.merge(toolLinks.stateFields()) { current, _ in current }
+        return state
     }
 
     private func fail(_ error: Object) -> Object {
@@ -910,27 +978,209 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         pendingList.modifiers = SkeletonModifiers()
         pendingList.modifiers?.height = 180
 
+        var elements: SkeletonElementList = [
+            .Text(SkeletonText(text: "Utvid entiteten")),
+            .Text(SkeletonText(keypath: "entityExtension.state.summary")),
+            .Text(SkeletonText(keypath: "entityExtension.state.safetyLine")),
+            .TextField(SkeletonTextField(
+                targetKeypath: "entityExtension.extension.beginRequest",
+                placeholder: "Adressen til scaffoldet du vil utvide til"
+            )),
+            .Text(SkeletonText(keypath: "entityExtension.state.lastResult.message")),
+            .Text(SkeletonText(keypath: "entityExtension.state.lastResult.humanCode")),
+            .Text(SkeletonText(keypath: "entityExtension.state.lastResult.nextStep"))
+        ]
+        elements += toolLinkRequestSection()
+        elements += toolLinkOfferSection()
+        elements += [
+            .Divider(SkeletonDivider()),
+            .Text(SkeletonText(text: "Venter på godkjenning")),
+            .List(pendingList),
+            .Divider(SkeletonDivider()),
+            .Text(SkeletonText(text: "Koblede steder")),
+            .List(linkList)
+        ]
+        elements += toolLinkLinkedSection()
         configuration.skeleton = .ScrollView(SkeletonScrollView(elements: [
-            .VStack(SkeletonVStack(elements: [
-                .Text(SkeletonText(text: "Utvid entiteten")),
-                .Text(SkeletonText(keypath: "entityExtension.state.summary")),
-                .Text(SkeletonText(keypath: "entityExtension.state.safetyLine")),
-                .TextField(SkeletonTextField(
-                    targetKeypath: "entityExtension.extension.beginRequest",
-                    placeholder: "Adressen til scaffoldet du vil utvide til"
-                )),
-                .Text(SkeletonText(keypath: "entityExtension.state.lastResult.message")),
-                .Text(SkeletonText(keypath: "entityExtension.state.lastResult.humanCode")),
-                .Text(SkeletonText(keypath: "entityExtension.state.lastResult.nextStep")),
-                .Divider(SkeletonDivider()),
-                .Text(SkeletonText(text: "Venter på godkjenning")),
-                .List(pendingList),
-                .Divider(SkeletonDivider()),
-                .Text(SkeletonText(text: "Koblede steder")),
-                .List(linkList)
-            ], spacing: 12))
+            .VStack(SkeletonVStack(elements: elements, spacing: 12))
         ]))
         return configuration
+    }
+
+    // MARK: - Verktøylenker: flaten (G1-GUI v2, HavenAgentD Docs/PDD_testflyt-verktoycelle_20260923/images/haven-lenke-begge-veier-v2.png)
+
+    /// A: verktøyet ber — du svarer her.
+    nonisolated private static func toolLinkRequestSection() -> SkeletonElementList {
+        var warning = SkeletonText(keypath: "warning")
+        var warningModifiers = SkeletonModifiers()
+        warningModifiers.foregroundColor = "#B91C1C"
+        warningModifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .item, keypath: "hasWarning", equals: .bool(true)))
+        warning.modifiers = warningModifiers
+
+        var row = SkeletonVStack(elements: [
+            toolText("title", weight: "semibold"),
+            toolText("detailLine", color: "#64748B"),
+            toolText("securityCode", color: "#5B21B6", weight: "semibold"),
+            toolText("question"),
+            .Text(warning),
+            .HStack(SkeletonHStack(elements: [
+                .Button(SkeletonButton(
+                    keypath: "entityExtension.extension.toolLinks.approve",
+                    label: "Godkjenn",
+                    payloadKeypath: "contractID"
+                )),
+                .Button(SkeletonButton(
+                    keypath: "entityExtension.extension.toolLinks.decline",
+                    label: "Avvis",
+                    payloadKeypath: "contractID"
+                ))
+            ], spacing: 8))
+        ], spacing: 6)
+        row.modifiers = toolCard(borderColor: "#A78BFA")
+
+        var list = SkeletonList(topic: nil, keypath: "entityExtension.state.toolIncoming", flowElementSkeleton: row)
+        list.modifiers = visible(whenNotZero: "entityExtension.state.toolIncomingCount")
+        list.modifiers?.height = 240
+
+        var none = SkeletonText(text: "Ingen verktøy ber om tilgang akkurat nå.")
+        var noneModifiers = SkeletonModifiers()
+        noneModifiers.foregroundColor = "#64748B"
+        noneModifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(
+            scope: .root,
+            keypath: "entityExtension.state.toolIncomingCount",
+            equals: .integer(0)
+        ))
+        none.modifiers = noneModifiers
+
+        return [
+            .Divider(SkeletonDivider()),
+            toolHeading("Ber om tilgang"),
+            toolText("entityExtension.state.toolSummary", color: "#64748B"),
+            .Button(SkeletonButton(keypath: "entityExtension.extension.toolLinks.refresh", label: "Oppdater")),
+            .Text(none),
+            .List(list),
+            toolText("entityExtension.state.toolAnswerMessage")
+        ]
+    }
+
+    /// B: du tilbyr her — svaret gis i HAVEN Agent.
+    nonisolated private static func toolLinkOfferSection() -> SkeletonElementList {
+        var outgoingRow = SkeletonVStack(elements: [
+            toolText("title"),
+            toolText("securityCode", color: "#5B21B6", weight: "semibold"),
+            toolText("statusLine", color: "#92400E")
+        ], spacing: 4)
+        outgoingRow.modifiers = toolCard(borderColor: "#FCD34D")
+
+        var outgoing = SkeletonList(topic: nil, keypath: "entityExtension.state.toolOutgoing", flowElementSkeleton: outgoingRow)
+        outgoing.modifiers = visible(whenNotZero: "entityExtension.state.toolOutgoingCount")
+        outgoing.modifiers?.height = 150
+
+        return [
+            .Divider(SkeletonDivider()),
+            toolHeading("Gi tilgang"),
+            .Text(SkeletonText(text: "Gi et verktøy i agenten din tilgang")),
+            .Picker(SkeletonPicker(
+                label: "Verktøy",
+                placeholder: "Velg verktøy",
+                keypath: "entityExtension.state.toolChoices",
+                optionLabelKeypath: "label",
+                selectionValueKeypath: "value",
+                selectionStateKeypath: "entityExtension.state.selectedToolID",
+                selectionActionKeypath: "entityExtension.extension.toolLinks.selectTool",
+                selectionPayloadMode: .item
+            )),
+            .Picker(SkeletonPicker(
+                label: "Tilgang",
+                placeholder: "Velg tilgang",
+                keypath: "entityExtension.state.toolScopeChoices",
+                optionLabelKeypath: "label",
+                selectionValueKeypath: "value",
+                selectionStateKeypath: "entityExtension.state.selectedScope",
+                selectionActionKeypath: "entityExtension.extension.toolLinks.selectScope",
+                selectionPayloadMode: .item
+            )),
+            .Button(SkeletonButton(keypath: "entityExtension.extension.toolLinks.offer", label: "Tilby")),
+            .List(outgoing),
+            toolText("entityExtension.state.toolOfferMessage")
+        ]
+    }
+
+    /// Etter svaret: aktive lenker med «Trekk tilbake», og de siste svarene som spor.
+    nonisolated private static func toolLinkLinkedSection() -> SkeletonElementList {
+        var activeRow = SkeletonVStack(elements: [
+            toolText("title", weight: "semibold"),
+            toolText("statusLine", color: "#15803D"),
+            toolText("detailLine", color: "#64748B"),
+            .Button(SkeletonButton(
+                keypath: "entityExtension.extension.toolLinks.revoke",
+                label: "Trekk tilbake",
+                payloadKeypath: "contractID"
+            ))
+        ], spacing: 4)
+        activeRow.modifiers = toolCard(borderColor: "#CBD5E1")
+
+        var activeList = SkeletonList(topic: nil, keypath: "entityExtension.state.toolActive", flowElementSkeleton: activeRow)
+        activeList.modifiers = visible(whenNotZero: "entityExtension.state.toolActiveCount")
+        activeList.modifiers?.height = 200
+
+        var historyRow = SkeletonVStack(elements: [
+            toolText("title"),
+            toolText("statusLine", color: "#64748B"),
+            toolText("detailLine", color: "#94A3B8")
+        ], spacing: 2)
+        historyRow.modifiers = SkeletonModifiers()
+        historyRow.modifiers?.padding = 6
+
+        var historyList = SkeletonList(topic: nil, keypath: "entityExtension.state.toolHistory", flowElementSkeleton: historyRow)
+        historyList.modifiers = visible(whenNotZero: "entityExtension.state.toolHistoryCount")
+        historyList.modifiers?.height = 180
+
+        var historyHeading = SkeletonText(text: "Siste svar")
+        historyHeading.modifiers = visible(whenNotZero: "entityExtension.state.toolHistoryCount")
+
+        return [
+            toolHeading("Verktøy i agenten din"),
+            .List(activeList),
+            toolText("entityExtension.state.toolLinkedMessage"),
+            .Text(historyHeading),
+            .List(historyList)
+        ]
+    }
+
+    nonisolated private static func toolText(_ keypath: String, color: String? = nil, weight: String? = nil) -> SkeletonElement {
+        var text = SkeletonText(keypath: keypath)
+        if color != nil || weight != nil {
+            var modifiers = SkeletonModifiers()
+            modifiers.foregroundColor = color
+            modifiers.fontWeight = weight
+            text.modifiers = modifiers
+        }
+        return .Text(text)
+    }
+
+    nonisolated private static func toolHeading(_ title: String) -> SkeletonElement {
+        var heading = SkeletonText(text: title)
+        var modifiers = SkeletonModifiers()
+        modifiers.fontWeight = "semibold"
+        heading.modifiers = modifiers
+        return .Text(heading)
+    }
+
+    nonisolated private static func visible(whenNotZero keypath: String) -> SkeletonModifiers {
+        var modifiers = SkeletonModifiers()
+        modifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .root, keypath: keypath, notEquals: .integer(0)))
+        return modifiers
+    }
+
+    nonisolated private static func toolCard(borderColor: String) -> SkeletonModifiers {
+        var modifiers = SkeletonModifiers()
+        modifiers.padding = 10
+        modifiers.cornerRadius = 8
+        modifiers.borderWidth = 1
+        modifiers.borderColor = borderColor
+        modifiers.maxWidthInfinity = true
+        return modifiers
     }
 }
 
