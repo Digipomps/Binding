@@ -97,7 +97,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
                 if Self.toolLinkReadKeys.contains(key) {
-                    await self.toolLinks.refreshForRead(ownerKey: ToolLinkSigner.publicKey(of: self.storedOwnerIdentity))
+                    await self.toolLinks.refreshForRead(ownerKey: ToolLinkSigner.publicKey(of: self.toolLinkIdentity(requester)))
                 }
                 return self.readValue(for: key)
             }
@@ -121,6 +121,8 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "extension.defaultScopes",
             "extension.lastResult",
             "extension.toolLinks",
+            "extension.toolLinks.selection",
+            "extension.toolLinks.scopeSelection",
             "providerDescriptor",
             "purposeGoal",
             "skeletonConfiguration"
@@ -141,7 +143,10 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "extension.toolLinks.offer",
             "extension.toolLinks.revoke",
             "extension.toolLinks.selectTool",
-            "extension.toolLinks.selectScope"
+            "extension.toolLinks.selectScope",
+            "extension.toolLinks.selection",
+            "extension.toolLinks.scopeSelection",
+            "extension.toolLinks.pairAgent"
         ]
     }
 
@@ -166,6 +171,10 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             return .object(stateQueue.sync { lastResult })
         case "extension.toolLinks":
             return .object(toolLinks.stateFields())
+        case "extension.toolLinks.selection":
+            return .object(toolLinks.toolSelection())
+        case "extension.toolLinks.scopeSelection":
+            return .object(toolLinks.scopeSelection())
         case "providerDescriptor":
             return .object(providerDescriptor())
         case "purposeGoal":
@@ -200,10 +209,12 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
                 return .object(HavenValue.error(code: "no_key", message: "Denne HAVEN-en har ingen nøkkel som kan signere."))
             }
             return .object(await toolLinks.offer(signer: signer))
-        case "extension.toolLinks.selectTool":
+        case "extension.toolLinks.selectTool", "extension.toolLinks.selection":
             return .object(toolLinks.selectTool(value))
-        case "extension.toolLinks.selectScope":
+        case "extension.toolLinks.selectScope", "extension.toolLinks.scopeSelection":
             return .object(toolLinks.selectScope(value))
+        case "extension.toolLinks.pairAgent":
+            return .object(await pairAgentHere(requester: requester))
         default:
             return .object(HavenValue.error(code: "unsupported_keypath", message: "Ukjent utvidelses-handling."))
         }
@@ -238,6 +249,39 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         default:
             return await toolLinks.revoke(contractID: contractID, signer: signer)
         }
+    }
+
+    /// Parer agenten med identiteten som brukes her — samme handling som «Opprett paring» i
+    /// agentoppsettet (`AgentEnrollmentCell`, `enrollment.createPairingArtifact`): agenten
+    /// attesterer, du signerer med Touch ID, og paringen og entitetslenken skrives der agenten
+    /// leser dem. Rører ikke agentens config eller oppstart. Agenten tar i bruk den nye
+    /// forankringen ved neste oppstart.
+    private func pairAgentHere(requester: Identity) async -> Object {
+        let identity = toolLinkIdentity(requester)
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver,
+              let enrollment = try? await resolver.cellAtEndpoint(endpoint: "cell:///AgentEnrollment", requester: identity) as? Meddle else {
+            return toolLinks.note(HavenValue.error(
+                code: "enrollment_unavailable",
+                message: "Paring med agenten er ikke slått på i denne HAVEN-en (agentoppsettet)."
+            ), in: .pairing)
+        }
+        let response: ValueType? = try? await enrollment.set(
+            keypath: "enrollment.createPairingArtifact",
+            value: .bool(true),
+            requester: identity
+        )
+        let status = HavenValue.object(HavenValue.object(response)?["status"])
+        if response == nil {
+            return toolLinks.note(HavenValue.error(code: "pairing_failed", message: "Paringen fikk ikke svar fra agentoppsettet."), in: .pairing)
+        }
+        if let lastError = HavenValue.string(status?["lastError"]) {
+            return toolLinks.note(HavenValue.error(code: "pairing_failed", message: "Paringen feilet: \(lastError)"), in: .pairing)
+        }
+        let key = ToolLinkSigner.publicKey(of: identity).map { ToolLinkCrypto.fingerprint(of: $0) } ?? "?"
+        return toolLinks.note(HavenValue.ok(
+            "Agenten er paret med denne HAVEN-en (nøkkel \(key)). Den bruker den nye paringen etter neste omstart; trykk Oppdater etterpå.",
+            sideEffect: true
+        ), in: .pairing)
     }
 
     // MARK: - Scopes
@@ -288,10 +332,14 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
     /// can review.
     private func beginRequest(_ value: ValueType) async -> Object {
         let payload = HavenValue.object(value) ?? [:]
-        guard let audience = HavenValue.string(payload["audience"]) else {
+        // Tekstfeltet på flaten sender adressen som ren tekst; chat og andre kallere sender
+        // `{audience: …}`.
+        let typed = (HavenValue.string(payload["audience"]) ?? HavenValue.string(value))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let audience = typed, audience.isEmpty == false else {
             return fail(HavenValue.error(
                 code: "missing_audience",
-                message: "Si hvilket scaffold dette gjelder — `audience`, for eksempel https://staging.haven.digipomps.org."
+                message: "Skriv adressen til scaffoldet du vil utvide til, for eksempel https://staging.haven.digipomps.org."
             ))
         }
         guard let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity) else {
@@ -799,16 +847,17 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
     }
 
     private func stateObject() -> Object {
-        let snapshot = stateQueue.sync { (links, outgoingRequests) }
+        let snapshot = stateQueue.sync { (links, outgoingRequests, lastResult) }
         let active = snapshot.0.filter { $0.status == .active }.count
         let waiting = snapshot.1.filter { $0.approvedAt == nil }.count
+        let toolFields = toolLinks.stateFields()
         var state: Object = [
             "schema": .string("haven.entityExtension.state.v1"),
-            "summary": .string(
-                active == 0 && waiting == 0
-                    ? "Entiteten din finnes bare her. Du kan utvide den til et scaffold eller en annen enhet."
-                    : "\(active) aktive koblinger" + (waiting > 0 ? ", \(waiting) venter på godkjenning." : ".")
-            ),
+            "summary": .string(Self.summaryLine(
+                active: active,
+                waiting: waiting,
+                agentHere: toolLinks.pairingState() == .here
+            )),
             "activeLinkCount": .integer(active),
             "pendingCount": .integer(waiting),
             "links": .list(linkRows().map(ValueType.object)),
@@ -816,11 +865,92 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "safetyLine": .string(
                 "Godkjenn bare en forespørsel du selv startet, og bare når koden er den samme på begge skjermene."
             ),
-            "lastResult": .object(stateQueue.sync { lastResult }),
+            "lastResult": .object(snapshot.2),
+            // Radene i «Koblede steder» og «Nytt sted». Hver del av flaten er én liste; se
+            // kommentaren over `surfacePage`.
+            "linkedRows": .list(linkedPlaceRows(
+                toolRows: HavenValue.list(toolFields["toolLinkedRows"]) ?? [],
+                historyRows: HavenValue.list(toolFields["toolHistoryRows"]) ?? []
+            ).map(ValueType.object)),
+            "newPlaceRows": .list(newPlaceRows(lastResult: snapshot.2).map(ValueType.object)),
             "updatedAt": .string(HavenValue.iso(Date()))
         ]
-        state.merge(toolLinks.stateFields()) { current, _ in current }
+        state.merge(toolFields) { current, _ in current }
         return state
+    }
+
+    /// Hvor entiteten finnes: her, i HAVEN Agent på denne maskinen når den er paret her, og på
+    /// stedene den er utvidet til.
+    private static func summaryLine(active: Int, waiting: Int, agentHere: Bool) -> String {
+        let elsewhere = active == 1 ? "ett annet sted" : "\(active) andre steder"
+        var line: String
+        switch (agentHere, active) {
+        case (true, 0):
+            line = "Entiteten din finnes her og i HAVEN Agent på denne maskinen."
+        case (true, _):
+            line = "Entiteten din finnes her, i HAVEN Agent på denne maskinen og på \(elsewhere)."
+        case (false, 0):
+            line = "Entiteten din finnes bare her."
+        case (false, _):
+            line = "Entiteten din finnes her og på \(elsewhere)."
+        }
+        if waiting > 0 {
+            line += waiting == 1 ? " Én forespørsel venter på godkjenning." : " \(waiting) forespørsler venter på godkjenning."
+        }
+        return line
+    }
+
+    /// «Koblede steder»: verktøyene i agenten som har tilgang, stedene entiteten er utvidet til,
+    /// og de siste svarene.
+    private func linkedPlaceRows(toolRows: [ValueType], historyRows: [ValueType]) -> [Object] {
+        var rows = toolRows.compactMap { HavenValue.object($0) }
+        let hasTools = rows.contains { HavenValue.string($0["kind"]) == "tool" }
+        let devices: [Object] = linkRows().map { link in
+            var row = link
+            row["kind"] = .string("device")
+            switch HavenValue.string(link["status"]) {
+            case "active": row["tone"] = .string("success")
+            case "revoked": row["tone"] = .string("danger")
+            default: row["tone"] = .string("warning")
+            }
+            let scopes = HavenValue.string(link["scopeSummary"]).map { "Rettigheter: \($0)" }
+            let linked = HavenValue.string(link["linkedAtText"]).map { "koblet \($0)" }
+            row["detailLine"] = .string([scopes, linked].compactMap { $0 }.joined(separator: " · "))
+            return row
+        }
+        rows += devices
+        if hasTools == false && devices.isEmpty {
+            rows.insert(["kind": .string("note"), "text": .string("Ingen koblede steder ennå.")], at: 0)
+        }
+        rows += historyRows.compactMap { HavenValue.object($0) }
+        return rows
+    }
+
+    /// «Nytt sted»: svaret på det du sist gjorde her, og forespørslene som venter på godkjenning.
+    private func newPlaceRows(lastResult: Object) -> [Object] {
+        var rows: [Object] = []
+        let failed = HavenValue.string(lastResult["status"]) == "error"
+        let acted = HavenValue.bool(lastResult["sideEffect"]) == true
+        if let message = HavenValue.string(lastResult["message"]), failed || acted {
+            rows.append(["kind": .string(failed ? "failure" : "success"), "text": .string(message)])
+            if let code = HavenValue.string(lastResult["humanCode"]) {
+                rows.append([
+                    "kind": .string("code"),
+                    "text": .string("Koden du skal se på den andre skjermen:"),
+                    "code": .string(code)
+                ])
+            }
+        }
+        let pending = pendingRows()
+        if pending.isEmpty == false {
+            rows.append(["kind": .string("subheading"), "text": .string("Venter på godkjenning"), "hasRefresh": .bool(false)])
+            rows += pending.map { entry in
+                var row = entry
+                row["kind"] = .string("pending")
+                return row
+            }
+        }
+        return rows
     }
 
     private func fail(_ error: Object) -> Object {
@@ -937,250 +1067,371 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         )
         configuration.addReference(CellReference(endpoint: endpoint, subscribeFeed: false, label: "entityExtension"))
 
-        var linkRow = SkeletonVStack(elements: [
-            .Text(SkeletonText(keypath: "displayName")),
-            .Text(SkeletonText(keypath: "summaryLine")),
-            .Text(SkeletonText(keypath: "scopeSummary")),
-            .Text(SkeletonText(keypath: "linkedAtText")),
-            .Button(SkeletonButton(
-                keypath: "entityExtension.extension.revokeLink",
-                label: "Trekk tilbake",
-                payloadKeypath: "linkID"
-            ))
-        ], spacing: 4)
-        linkRow.modifiers = SkeletonModifiers()
-        linkRow.modifiers?.padding = 10
-        linkRow.modifiers?.cornerRadius = 8
-        linkRow.modifiers?.borderWidth = 1
-        linkRow.modifiers?.borderColor = "#CBD5E1"
-
-        var linkList = SkeletonList(
-            topic: nil,
-            keypath: "entityExtension.state.links",
-            flowElementSkeleton: linkRow
-        )
-        linkList.modifiers = SkeletonModifiers()
-        linkList.modifiers?.height = 260
-
-        var pendingRow = SkeletonVStack(elements: [
-            .Text(SkeletonText(keypath: "audience")),
-            .Text(SkeletonText(keypath: "statusLine")),
-            .Text(SkeletonText(keypath: "createdAtText"))
-        ], spacing: 3)
-        pendingRow.modifiers = SkeletonModifiers()
-        pendingRow.modifiers?.padding = 8
-
-        var pendingList = SkeletonList(
-            topic: nil,
-            keypath: "entityExtension.state.pending",
-            flowElementSkeleton: pendingRow
-        )
-        pendingList.modifiers = SkeletonModifiers()
-        pendingList.modifiers?.height = 180
-
-        var elements: SkeletonElementList = [
-            .Text(SkeletonText(text: "Utvid entiteten")),
-            .Text(SkeletonText(keypath: "entityExtension.state.summary")),
-            .Text(SkeletonText(keypath: "entityExtension.state.safetyLine")),
-            .TextField(SkeletonTextField(
-                targetKeypath: "entityExtension.extension.beginRequest",
-                placeholder: "Adressen til scaffoldet du vil utvide til"
-            )),
-            .Text(SkeletonText(keypath: "entityExtension.state.lastResult.message")),
-            .Text(SkeletonText(keypath: "entityExtension.state.lastResult.humanCode")),
-            .Text(SkeletonText(keypath: "entityExtension.state.lastResult.nextStep"))
-        ]
-        elements += toolLinkRequestSection()
-        elements += toolLinkOfferSection()
-        elements += [
-            .Divider(SkeletonDivider()),
-            .Text(SkeletonText(text: "Venter på godkjenning")),
-            .List(pendingList),
-            .Divider(SkeletonDivider()),
-            .Text(SkeletonText(text: "Koblede steder")),
-            .List(linkList)
-        ]
-        elements += toolLinkLinkedSection()
-        configuration.skeleton = .ScrollView(SkeletonScrollView(elements: [
-            .VStack(SkeletonVStack(elements: elements, spacing: 12))
-        ]))
+        configuration.skeleton = surfacePage()
         return configuration
     }
 
-    // MARK: - Verktøylenker: flaten (G1-GUI v2, HavenAgentD Docs/PDD_testflyt-verktoycelle_20260923/images/haven-lenke-begge-veier-v2.png)
+    // MARK: - Flaten
+    //
+    // Godkjent skisse: G1-GUI v2 (HavenAgentD Docs/PDD_testflyt-verktoycelle_20260923/images/
+    // haven-lenke-begge-veier-v2.png), i HAVENs designsystem (BindingPersonalCopilotDesignSystem):
+    // kort, ekte knapper, ordene som merkelapp.
+    //
+    // Hvert kort har én liste der cellen bestemmer radene (`kind`). En skjult rad tar ingen plass,
+    // men en tom liste gjør det, og synlighet med rot-scope virker ikke på toppnivå — der finnes
+    // ingen verdi å sjekke mot (lesson.unresolvable-condition-is-invisible). Inne i en rad virker
+    // `scope: .item`. Merkelapper står på egen linje i en HStack med `wrap`, som legger dem etter
+    // hverandre fra venstre i sin egen bredde; knapper står i en vanlig HStack, som kan krympe
+    // dem. Tekst står aldri på samme linje som en knapp eller merkelapp, fordi `wrap`
+    // toppstiller elementene.
 
-    /// A: verktøyet ber — du svarer her.
-    nonisolated private static func toolLinkRequestSection() -> SkeletonElementList {
-        var warning = SkeletonText(keypath: "warning")
-        var warningModifiers = SkeletonModifiers()
-        warningModifiers.foregroundColor = "#B91C1C"
-        warningModifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .item, keypath: "hasWarning", equals: .bool(true)))
-        warning.modifiers = warningModifiers
+    private typealias Style = BindingPersonalCopilotDesignSystem
 
-        var row = SkeletonVStack(elements: [
-            toolText("title", weight: "semibold"),
-            toolText("detailLine", color: "#64748B"),
-            toolText("securityCode", color: "#5B21B6", weight: "semibold"),
-            toolText("question"),
-            .Text(warning),
-            .HStack(SkeletonHStack(elements: [
-                .Button(SkeletonButton(
-                    keypath: "entityExtension.extension.toolLinks.approve",
-                    label: "Godkjenn",
-                    payloadKeypath: "contractID"
-                )),
-                .Button(SkeletonButton(
-                    keypath: "entityExtension.extension.toolLinks.decline",
-                    label: "Avvis",
-                    payloadKeypath: "contractID"
-                ))
-            ], spacing: 8))
+    nonisolated private static func surfacePage() -> SkeletonElement {
+        var hero = SkeletonVStack(elements: [
+            .Text(Style.headingText("Utvid entiteten")),
+            boundText("entityExtension.state.summary", color: Style.textPrimary),
+            boundText("entityExtension.state.safetyLine", color: Style.textTertiary, size: 12)
         ], spacing: 6)
-        row.modifiers = toolCard(borderColor: "#A78BFA")
+        hero.modifiers = Style.compactHeroPanel()
 
-        var list = SkeletonList(topic: nil, keypath: "entityExtension.state.toolIncoming", flowElementSkeleton: row)
-        list.modifiers = visible(whenNotZero: "entityExtension.state.toolIncomingCount")
-        list.modifiers?.height = 240
+        var root = SkeletonVStack(elements: [
+            .VStack(hero),
+            .VStack(agentCard()),
+            .VStack(linkedPlacesCard()),
+            .VStack(newPlaceCard())
+        ], spacing: 12)
+        root.modifiers = Style.pageCard()
 
-        var none = SkeletonText(text: "Ingen verktøy ber om tilgang akkurat nå.")
-        var noneModifiers = SkeletonModifiers()
-        noneModifiers.foregroundColor = "#64748B"
-        noneModifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(
-            scope: .root,
-            keypath: "entityExtension.state.toolIncomingCount",
-            equals: .integer(0)
-        ))
-        none.modifiers = noneModifiers
+        var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(root)])
+        var scrollModifiers = SkeletonModifiers()
+        scrollModifiers.padding = 6
+        scrollModifiers.background = Style.canvas
+        scrollModifiers.maxWidthInfinity = true
+        scroll.modifiers = scrollModifiers
+        return .ScrollView(scroll)
+    }
 
-        return [
-            .Divider(SkeletonDivider()),
-            toolHeading("Ber om tilgang"),
-            toolText("entityExtension.state.toolSummary", color: "#64748B"),
-            .Button(SkeletonButton(keypath: "entityExtension.extension.toolLinks.refresh", label: "Oppdater")),
-            .Text(none),
-            .List(list),
-            toolText("entityExtension.state.toolAnswerMessage")
-        ]
+    /// «HAVEN Agent på denne maskinen»: A (verktøyet ber, du svarer her) og B (du tilbyr her,
+    /// svaret gis i HAVEN Agent). Er agenten paret med en annen identitet, er paringen alt kortet
+    /// viser. Radene: `BindingToolLinkController.agentRowsLocked`.
+    nonisolated private static func agentCard() -> SkeletonVStack {
+        card("HAVEN Agent på denne maskinen", [
+            rowList("entityExtension.state.toolAgentRows", [
+                pairingRow(),
+                problemRow(),
+                subheadingRow(),
+                requestRow(),
+                offerFormRow(),
+                outgoingRow(),
+                messageRow("note", color: Style.textSecondary),
+                messageRow("success", color: Style.success),
+                messageRow("failure", color: Style.danger)
+            ])
+        ])
+    }
+
+    /// «Koblede steder»: verktøyene som har tilgang, stedene entiteten er utvidet til, og de
+    /// siste svarene som spor. Radene: `linkedPlaceRows`.
+    nonisolated private static func linkedPlacesCard() -> SkeletonVStack {
+        card("Koblede steder", [
+            rowList("entityExtension.state.linkedRows", [
+                toolLinkRow(),
+                deviceLinkRow(),
+                subheadingRow(),
+                historyRow(),
+                messageRow("note", color: Style.textSecondary),
+                messageRow("success", color: Style.success),
+                messageRow("failure", color: Style.danger)
+            ])
+        ])
+    }
+
+    /// «Nytt sted»: be om å bli koblet til entiteten fra et nytt scaffold. Radene: `newPlaceRows`.
+    nonisolated private static func newPlaceCard() -> SkeletonVStack {
+        card("Nytt sted", [
+            staticText("Skriv adressen til scaffoldet du vil utvide til, og trykk Enter. Du får en kode og en pakke du godkjenner fra et sted du allerede bruker. Ingen hemmeligheter flyttes."),
+            .TextField(SkeletonTextField(
+                targetKeypath: "entityExtension.extension.beginRequest",
+                placeholder: "Adressen til scaffoldet, for eksempel https://staging.haven.digipomps.org"
+            )),
+            rowList("entityExtension.state.newPlaceRows", [
+                codeRow(),
+                subheadingRow(),
+                pendingRow(),
+                messageRow("note", color: Style.textSecondary),
+                messageRow("success", color: Style.success),
+                messageRow("failure", color: Style.danger)
+            ])
+        ])
+    }
+
+    // MARK: Radene
+
+    nonisolated private static func pairingRow() -> SkeletonElement {
+        var modifiers = SkeletonModifiers()
+        modifiers.padding = 12
+        modifiers.background = Style.warningSoft
+        modifiers.cornerRadius = 14
+        modifiers.borderWidth = 1
+        modifiers.borderColor = Style.warning
+        return kind("pairing", [
+            boundText("title", color: Style.textPrimary, size: 15, weight: "semibold"),
+            boundText("body"),
+            buttonRow([
+                button("Par agenten med denne HAVEN-en", "entityExtension.extension.toolLinks.pairAgent", primary: true),
+                button("Oppdater", "entityExtension.extension.toolLinks.refresh", primary: false)
+            ]),
+            boundText("footnote", color: Style.textTertiary, size: 12)
+        ], spacing: 8, modifiers: modifiers)
+    }
+
+    nonisolated private static func problemRow() -> SkeletonElement {
+        kind("problem", [
+            boundText("text", color: Style.warning),
+            buttonRow([button("Prøv igjen", "entityExtension.extension.toolLinks.refresh", primary: false)])
+        ], spacing: 8)
+    }
+
+    /// Overskrift i et kort; «Oppdater» til høyre når raden ber om det.
+    nonisolated private static func subheadingRow() -> SkeletonElement {
+        let line = SkeletonHStack(elements: [
+            boundText("text", color: Style.textPrimary, size: 15, weight: "semibold"),
+            button("Oppdater", "entityExtension.extension.toolLinks.refresh", primary: false, visibleWhen: ("hasRefresh", .bool(true)))
+        ], spacing: 8)
+        return kind("subheading", [.HStack(line)], spacing: 0)
+    }
+
+    /// A: verktøyet ber — du svarer her. Knappene finnes bare når HAVEN har sjekket forespørselen.
+    nonisolated private static func requestRow() -> SkeletonElement {
+        var modifiers = SkeletonModifiers()
+        modifiers.padding = 12
+        modifiers.background = Style.surface
+        modifiers.cornerRadius = 14
+        modifiers.borderWidth = 1
+        modifiers.borderColor = Style.brandPrimary
+        return kind("request", [
+            boundText("headline", color: Style.textPrimary, size: 15, markdown: true),
+            boundText("detailLine", color: Style.textTertiary, size: 12),
+            inline([chip("securityCode", tone: "words")]),
+            boundText("question", color: Style.textPrimary, visibleWhen: ("canAnswer", .bool(true))),
+            boundText("warning", color: Style.danger, visibleWhen: ("hasWarning", .bool(true))),
+            buttonRow([
+                button("Godkjenn", "entityExtension.extension.toolLinks.approve", payload: "contractID", primary: true),
+                button("Avvis", "entityExtension.extension.toolLinks.decline", payload: "contractID", primary: false)
+            ], visibleWhen: ("canAnswer", .bool(true)))
+        ], spacing: 8, modifiers: modifiers)
     }
 
     /// B: du tilbyr her — svaret gis i HAVEN Agent.
-    nonisolated private static func toolLinkOfferSection() -> SkeletonElementList {
-        var outgoingRow = SkeletonVStack(elements: [
-            toolText("title"),
-            toolText("securityCode", color: "#5B21B6", weight: "semibold"),
-            toolText("statusLine", color: "#92400E")
-        ], spacing: 4)
-        outgoingRow.modifiers = toolCard(borderColor: "#FCD34D")
-
-        var outgoing = SkeletonList(topic: nil, keypath: "entityExtension.state.toolOutgoing", flowElementSkeleton: outgoingRow)
-        outgoing.modifiers = visible(whenNotZero: "entityExtension.state.toolOutgoingCount")
-        outgoing.modifiers?.height = 150
-
-        return [
-            .Divider(SkeletonDivider()),
-            toolHeading("Gi tilgang"),
-            .Text(SkeletonText(text: "Gi et verktøy i agenten din tilgang")),
-            .Picker(SkeletonPicker(
-                label: "Verktøy",
-                placeholder: "Velg verktøy",
-                keypath: "entityExtension.state.toolChoices",
-                optionLabelKeypath: "label",
-                selectionValueKeypath: "value",
-                selectionStateKeypath: "entityExtension.state.selectedToolID",
-                selectionActionKeypath: "entityExtension.extension.toolLinks.selectTool",
-                selectionPayloadMode: .item
-            )),
-            .Picker(SkeletonPicker(
-                label: "Tilgang",
-                placeholder: "Velg tilgang",
-                keypath: "entityExtension.state.toolScopeChoices",
-                optionLabelKeypath: "label",
-                selectionValueKeypath: "value",
-                selectionStateKeypath: "entityExtension.state.selectedScope",
-                selectionActionKeypath: "entityExtension.extension.toolLinks.selectScope",
-                selectionPayloadMode: .item
-            )),
-            .Button(SkeletonButton(keypath: "entityExtension.extension.toolLinks.offer", label: "Tilby")),
-            .List(outgoing),
-            toolText("entityExtension.state.toolOfferMessage")
-        ]
+    nonisolated private static func offerFormRow() -> SkeletonElement {
+        kind("offerForm", [
+            staticText("Gi et verktøy i agenten din tilgang. Du signerer først; svaret gis i HAVEN Agent."),
+            picker("Verktøy", options: "entityExtension.state.toolChoices", selection: "entityExtension.extension.toolLinks.selection"),
+            picker("Tilgang", options: "entityExtension.state.toolScopeChoices", selection: "entityExtension.extension.toolLinks.scopeSelection"),
+            buttonRow([button("Tilby", "entityExtension.extension.toolLinks.offer", primary: true)])
+        ], spacing: 8)
     }
 
-    /// Etter svaret: aktive lenker med «Trekk tilbake», og de siste svarene som spor.
-    nonisolated private static func toolLinkLinkedSection() -> SkeletonElementList {
-        var activeRow = SkeletonVStack(elements: [
-            toolText("title", weight: "semibold"),
-            toolText("statusLine", color: "#15803D"),
-            toolText("detailLine", color: "#64748B"),
-            .Button(SkeletonButton(
-                keypath: "entityExtension.extension.toolLinks.revoke",
-                label: "Trekk tilbake",
-                payloadKeypath: "contractID"
-            ))
-        ], spacing: 4)
-        activeRow.modifiers = toolCard(borderColor: "#CBD5E1")
-
-        var activeList = SkeletonList(topic: nil, keypath: "entityExtension.state.toolActive", flowElementSkeleton: activeRow)
-        activeList.modifiers = visible(whenNotZero: "entityExtension.state.toolActiveCount")
-        activeList.modifiers?.height = 200
-
-        var historyRow = SkeletonVStack(elements: [
-            toolText("title"),
-            toolText("statusLine", color: "#64748B"),
-            toolText("detailLine", color: "#94A3B8")
-        ], spacing: 2)
-        historyRow.modifiers = SkeletonModifiers()
-        historyRow.modifiers?.padding = 6
-
-        var historyList = SkeletonList(topic: nil, keypath: "entityExtension.state.toolHistory", flowElementSkeleton: historyRow)
-        historyList.modifiers = visible(whenNotZero: "entityExtension.state.toolHistoryCount")
-        historyList.modifiers?.height = 180
-
-        var historyHeading = SkeletonText(text: "Siste svar")
-        historyHeading.modifiers = visible(whenNotZero: "entityExtension.state.toolHistoryCount")
-
-        return [
-            toolHeading("Verktøy i agenten din"),
-            .List(activeList),
-            toolText("entityExtension.state.toolLinkedMessage"),
-            .Text(historyHeading),
-            .List(historyList)
-        ]
+    nonisolated private static func outgoingRow() -> SkeletonElement {
+        kind("outgoing", [
+            boundText("title", color: Style.textPrimary),
+            inline([chip("securityCode", tone: "words"), chip("statusLine", tone: "warning")])
+        ], spacing: 6)
     }
 
-    nonisolated private static func toolText(_ keypath: String, color: String? = nil, weight: String? = nil) -> SkeletonElement {
+    /// Etter svaret: verktøyet som har tilgang, hvem som svarte og når, og «Trekk tilbake».
+    nonisolated private static func toolLinkRow() -> SkeletonElement {
+        kind("tool", [
+            boundText("title", color: Style.textPrimary, weight: "semibold"),
+            inline([
+                chip("statusLine", tone: "success"),
+                button("Trekk tilbake", "entityExtension.extension.toolLinks.revoke", payload: "contractID", primary: false)
+            ]),
+            boundText("detailLine", color: Style.textTertiary, size: 12)
+        ], spacing: 6)
+    }
+
+    nonisolated private static func deviceLinkRow() -> SkeletonElement {
+        kind("device", [
+            boundText("displayName", color: Style.textPrimary, weight: "semibold"),
+            inline([
+                chip("statusText", tone: "success", whenTone: "success"),
+                chip("statusText", tone: "danger", whenTone: "danger"),
+                chip("statusText", tone: "warning", whenTone: "warning"),
+                button("Trekk tilbake", "entityExtension.extension.revokeLink", payload: "linkID", primary: false, visibleWhen: ("status", .string("active")))
+            ]),
+            boundText("detailLine", color: Style.textTertiary, size: 12)
+        ], spacing: 6)
+    }
+
+    /// Et svar som spor: én linje, farget etter hva svaret ble.
+    nonisolated private static func historyRow() -> SkeletonElement {
+        kind("history", [
+            boundText("summaryLine", color: Style.success, size: 13, visibleWhen: ("tone", .string("success"))),
+            boundText("summaryLine", color: Style.danger, size: 13, visibleWhen: ("tone", .string("danger"))),
+            boundText("summaryLine", color: Style.warning, size: 13, visibleWhen: ("tone", .string("warning"))),
+            boundText("summaryLine", color: Style.textSecondary, size: 13, visibleWhen: ("tone", .string("neutral")))
+        ], spacing: 0)
+    }
+
+    nonisolated private static func codeRow() -> SkeletonElement {
+        kind("code", [
+            boundText("text", color: Style.textPrimary),
+            inline([chip("code", tone: "words")])
+        ], spacing: 6)
+    }
+
+    nonisolated private static func pendingRow() -> SkeletonElement {
+        kind("pending", [
+            boundText("audience", color: Style.textPrimary, weight: "semibold"),
+            boundText("statusLine"),
+            boundText("createdAtText", color: Style.textTertiary, size: 12)
+        ], spacing: 4)
+    }
+
+    nonisolated private static func messageRow(_ name: String, color: String) -> SkeletonElement {
+        kind(name, [boundText("text", color: color)], spacing: 0)
+    }
+
+    // MARK: Byggesteiner
+
+    nonisolated private static func card(_ title: String, _ elements: SkeletonElementList) -> SkeletonVStack {
+        var card = SkeletonVStack(elements: [.Text(Style.headingText(title))] + elements, spacing: 8)
+        card.modifiers = Style.sectionCard()
+        return card
+    }
+
+    /// Én liste med rader av ulike slag. Radens `kind` velger hvilken del som vises.
+    nonisolated private static func rowList(_ keypath: String, _ kinds: SkeletonElementList) -> SkeletonElement {
+        .List(SkeletonList(topic: nil, keypath: keypath, flowElementSkeleton: SkeletonVStack(elements: kinds, spacing: 0)))
+    }
+
+    nonisolated private static func kind(
+        _ name: String,
+        _ elements: SkeletonElementList,
+        spacing: Double,
+        modifiers: SkeletonModifiers = SkeletonModifiers()
+    ) -> SkeletonElement {
+        var stack = SkeletonVStack(elements: elements, spacing: spacing)
+        var stackModifiers = modifiers
+        stackModifiers.visibility = whenItem("kind", equals: .string(name))
+        stack.modifiers = stackModifiers
+        return .VStack(stack)
+    }
+
+    nonisolated private static func whenItem(_ keypath: String, equals value: ValueType) -> SkeletonVisibilityRule {
+        SkeletonVisibilityRule(when: SkeletonCondition(scope: .item, keypath: keypath, equals: value))
+    }
+
+    nonisolated private static func boundText(
+        _ keypath: String,
+        color: String = Style.textSecondary,
+        size: Double = 14,
+        weight: String? = nil,
+        markdown: Bool = false,
+        visibleWhen: (String, ValueType)? = nil
+    ) -> SkeletonElement {
         var text = SkeletonText(keypath: keypath)
-        if color != nil || weight != nil {
-            var modifiers = SkeletonModifiers()
-            modifiers.foregroundColor = color
-            modifiers.fontWeight = weight
-            text.modifiers = modifiers
-        }
+        text.modifiers = textModifiers(color: color, size: size, weight: weight, markdown: markdown, visibleWhen: visibleWhen)
         return .Text(text)
     }
 
-    nonisolated private static func toolHeading(_ title: String) -> SkeletonElement {
-        var heading = SkeletonText(text: title)
-        var modifiers = SkeletonModifiers()
-        modifiers.fontWeight = "semibold"
-        heading.modifiers = modifiers
-        return .Text(heading)
+    nonisolated private static func staticText(_ value: String, color: String = Style.textSecondary, size: Double = 14) -> SkeletonElement {
+        var text = SkeletonText(text: value)
+        text.modifiers = textModifiers(color: color, size: size, weight: nil, markdown: false, visibleWhen: nil)
+        return .Text(text)
     }
 
-    nonisolated private static func visible(whenNotZero keypath: String) -> SkeletonModifiers {
+    nonisolated private static func textModifiers(
+        color: String,
+        size: Double,
+        weight: String?,
+        markdown: Bool,
+        visibleWhen: (String, ValueType)?
+    ) -> SkeletonModifiers {
         var modifiers = SkeletonModifiers()
-        modifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .root, keypath: keypath, notEquals: .integer(0)))
+        modifiers.foregroundColor = color
+        modifiers.fontSize = size
+        modifiers.fontWeight = weight
+        modifiers.multilineTextAlignment = "leading"
+        if markdown { modifiers.styleRole = "markdown" }
+        if let visibleWhen { modifiers.visibility = whenItem(visibleWhen.0, equals: visibleWhen.1) }
         return modifiers
     }
 
-    nonisolated private static func toolCard(borderColor: String) -> SkeletonModifiers {
+    /// Merkelapper (og en kort knapp ved siden av) etter hverandre fra venstre, i sin egen
+    /// bredde. `wrap` gir hvert element dets ideelle bredde, så bare korte ting hører hjemme her.
+    nonisolated private static func inline(_ elements: SkeletonElementList, visibleWhen: (String, ValueType)? = nil) -> SkeletonElement {
+        var row = SkeletonHStack(elements: elements, spacing: 8)
         var modifiers = SkeletonModifiers()
-        modifiers.padding = 10
+        modifiers.wrap = true
+        if let visibleWhen { modifiers.visibility = whenItem(visibleWhen.0, equals: visibleWhen.1) }
+        row.modifiers = modifiers
+        return .HStack(row)
+    }
+
+    /// Knapper på én linje. En vanlig HStack kan krympe knappene og bryte en lang tekst, i
+    /// stedet for å la dem gå ut over kortet slik `wrap` gjør.
+    nonisolated private static func buttonRow(_ buttons: SkeletonElementList, visibleWhen: (String, ValueType)? = nil) -> SkeletonElement {
+        var row = SkeletonHStack(elements: buttons, spacing: 8)
+        if let visibleWhen {
+            var modifiers = SkeletonModifiers()
+            modifiers.visibility = whenItem(visibleWhen.0, equals: visibleWhen.1)
+            row.modifiers = modifiers
+        }
+        return .HStack(row)
+    }
+
+    nonisolated private static func button(
+        _ label: String,
+        _ keypath: String,
+        payload: String? = nil,
+        primary: Bool,
+        visibleWhen: (String, ValueType)? = nil
+    ) -> SkeletonElement {
+        var button = SkeletonButton(keypath: keypath, label: label, payloadKeypath: payload)
+        var modifiers = primary ? Style.primaryButton() : Style.secondaryButton()
+        modifiers.padding = 8
+        modifiers.fontSize = 14
+        modifiers.fontWeight = primary ? "semibold" : "medium"
+        if let visibleWhen { modifiers.visibility = whenItem(visibleWhen.0, equals: visibleWhen.1) }
+        button.modifiers = modifiers
+        return .Button(button)
+    }
+
+    /// Merkelapp: ordene (lilla), eller et svar (grønn, rød, gul).
+    nonisolated private static func chip(_ keypath: String, tone: String, whenTone: String? = nil) -> SkeletonElement {
+        let colors: (background: String, text: String)
+        switch tone {
+        case "success": colors = (Style.successSoft, Style.success)
+        case "danger": colors = (Style.dangerSoft, Style.danger)
+        case "warning": colors = (Style.warningSoft, Style.warning)
+        default: colors = (Style.brandSubtle, Style.brandStrong)
+        }
+        var text = SkeletonText(keypath: keypath)
+        var modifiers = Style.badgeModifier(background: colors.background, borderColor: colors.background, foregroundColor: colors.text)
         modifiers.cornerRadius = 8
-        modifiers.borderWidth = 1
-        modifiers.borderColor = borderColor
-        modifiers.maxWidthInfinity = true
-        return modifiers
+        modifiers.fontSize = tone == "words" ? 15 : 13
+        modifiers.fontWeight = tone == "words" ? "semibold" : "medium"
+        if let whenTone { modifiers.visibility = whenItem("tone", equals: .string(whenTone)) }
+        text.modifiers = modifiers
+        return .Text(text)
+    }
+
+    /// Velger som viser valget sitt ved siden av navnet («Verktøy: Losen (verktøycelle)»).
+    /// `selectionStateKeypath` leses og skrives (lesson.picker-state-keypath-is-read-and-written).
+    nonisolated private static func picker(_ name: String, options: String, selection: String) -> SkeletonElement {
+        let picker = SkeletonPicker(
+            label: nil,
+            placeholder: name,
+            keypath: options,
+            optionLabelKeypath: "label",
+            selectionValueKeypath: "value",
+            selectionStateKeypath: selection,
+            selectionPayloadMode: .itemID
+        )
+        return .Picker(picker)
     }
 }
 

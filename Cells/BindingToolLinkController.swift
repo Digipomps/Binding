@@ -321,11 +321,26 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
     typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
     typealias EndpointProvider = @Sendable () -> ToolLinkAgentEndpoint?
 
-    /// Hvor en melding vises: under «Ber om tilgang», under «Tilby», eller under «Koblede steder».
+    /// Hvor en melding vises: under «Ber om tilgang», under «Gi tilgang», under «Koblede
+    /// steder», eller under paringen.
     nonisolated enum MessageSlot: Hashable, Sendable {
         case answer
         case offer
         case linked
+        case pairing
+    }
+
+    /// Svaret på det du sist trykket, og om det gikk.
+    nonisolated struct Note: Sendable, Equatable {
+        var text: String
+        var ok: Bool
+    }
+
+    /// Om agenten er paret med nøkkelen som brukes her.
+    nonisolated enum AgentPairing: String, Sendable {
+        case unknown
+        case here
+        case elsewhere
     }
 
     nonisolated enum AgentError: Error, LocalizedError {
@@ -361,7 +376,11 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
     private var scaffoldDomain: String?
     private var knownOwnerKey: String?
     private var summary = "Henter lenker fra agenten …"
-    private var messages: [MessageSlot: String] = [:]
+    private var agentPairing: AgentPairing = .unknown
+    private var agentProblem: String?
+    private var agentMissing = false
+    private var hasLoaded = false
+    private var notes: [MessageSlot: Note] = [:]
     private var lastRefresh: Date?
     private var inflight: Task<Void, Never>?
     private var checked: [String: ToolLinkReview.Checked] = [:]
@@ -386,6 +405,14 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
     func stateFields() -> Object {
         locked {
             [
+                // Flaten viser tre lister med rader av ulike slag (`kind`). En skjult rad tar
+                // ingen plass, en tom liste gjør det, og synlighet med rot-scope virker ikke på
+                // toppnivå (lesson.unresolvable-condition-is-invisible). Derfor bestemmer
+                // radene her hva som vises, og hver del av flaten er én liste.
+                "toolAgentRows": .list(agentRowsLocked().map(ValueType.object)),
+                "toolLinkedRows": .list(linkedRowsLocked().map(ValueType.object)),
+                "toolHistoryRows": .list(historyRowsLocked().map(ValueType.object)),
+                "agentPairing": .string(agentPairing.rawValue),
                 "toolSummary": .string(summary),
                 "toolIncoming": .list(incoming.map(ValueType.object)),
                 "toolIncomingCount": .integer(incoming.count),
@@ -401,11 +428,101 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
                 ]),
                 "selectedToolID": selectedToolID.map(ValueType.string) ?? .null,
                 "selectedScope": .string(ToolLinkReview.scope),
-                "toolAnswerMessage": .string(messages[.answer] ?? ""),
-                "toolOfferMessage": .string(messages[.offer] ?? ""),
-                "toolLinkedMessage": .string(messages[.linked] ?? "")
+                "toolAnswerMessage": .string(notes[.answer]?.text ?? ""),
+                "toolOfferMessage": .string(notes[.offer]?.text ?? ""),
+                "toolLinkedMessage": .string(notes[.linked]?.text ?? ""),
+                "toolPairingMessage": .string(notes[.pairing]?.text ?? "")
             ]
         }
+    }
+
+    /// Om agenten er paret med nøkkelen som brukes her, slik det så ut ved siste henting.
+    func pairingState() -> AgentPairing {
+        locked { agentPairing }
+    }
+
+    // MARK: - Radene flaten viser (kalles med låsen holdt)
+
+    /// Kortet «HAVEN Agent på denne maskinen». Er agenten paret med en annen identitet,
+    /// eller ikke paret, er paringen det eneste kortet tilbyr — ingen svarknapper og ingen
+    /// «Tilby», fordi agenten ville avvist dem.
+    private func agentRowsLocked() -> [Object] {
+        if hasLoaded == false {
+            return [Self.row("note", ["text": .string("Henter status fra HAVEN Agent …")])]
+        }
+        if agentMissing {
+            return [Self.row("note", ["text": .string("HAVEN Agent er ikke satt opp på denne maskinen.")])]
+        }
+        if let agentProblem {
+            return [Self.row("problem", ["text": .string(agentProblem)])]
+        }
+        if agentPairing == .elsewhere || ownerKeyAtAgent == nil {
+            var rows = [agentPairing == .elsewhere
+                ? Self.pairingRow(
+                    title: "HAVEN Agent er paret med en annen identitet",
+                    body: "Agenten på denne maskinen ble paret med en HAVEN-identitet du ikke bruker her. Par den med denne HAVEN-en, så kan du svare på forespørsler og gi tilgang herfra."
+                )
+                : Self.pairingRow(
+                    title: "HAVEN Agent er ikke paret ennå",
+                    body: "Par agenten på denne maskinen med denne HAVEN-en, så kan verktøy i agenten be om tilgang, og du kan gi tilgang herfra."
+                )]
+            if let note = notes[.pairing] { rows.append(Self.noteRow(note)) }
+            return rows
+        }
+        var rows: [Object] = [Self.subheading("Ber om tilgang", withRefresh: true)]
+        rows += incoming.map { Self.row("request", $0) }
+        if incoming.isEmpty {
+            rows.append(Self.row("note", ["text": .string("Ingen verktøy ber om tilgang akkurat nå.")]))
+        }
+        if let note = notes[.answer] { rows.append(Self.noteRow(note)) }
+        rows.append(Self.subheading("Gi tilgang", withRefresh: false))
+        if tools.isEmpty {
+            rows.append(Self.row("note", ["text": .string("Agenten har ingen verktøycelle å gi tilgang til.")]))
+        } else if scaffoldDomain?.isEmpty ?? true {
+            rows.append(Self.row("note", ["text": .string("Agenten er ikke forankret hos deg ennå, så den kan ikke ta imot et tilbud.")]))
+        } else {
+            rows.append(Self.row("offerForm", [:]))
+        }
+        rows += outgoing.map { Self.row("outgoing", $0) }
+        // Et vellykket tilbud vises som raden over («venter på svar i HAVEN Agent»); bare
+        // det som gikk galt trenger en egen linje.
+        if let note = notes[.offer], note.ok == false { rows.append(Self.noteRow(note)) }
+        return rows
+    }
+
+    /// Verktøyene som har tilgang nå, til «Koblede steder» — med «Trekk tilbake».
+    private func linkedRowsLocked() -> [Object] {
+        var rows = active.map { Self.row("tool", $0) }
+        if let note = notes[.linked] { rows.append(Self.noteRow(note)) }
+        return rows
+    }
+
+    /// De siste svarene, som spor i begge ender.
+    private func historyRowsLocked() -> [Object] {
+        guard history.isEmpty == false else { return [] }
+        return [Self.subheading("Siste svar", withRefresh: false)] + history.map { Self.row("history", $0) }
+    }
+
+    private static func row(_ kind: String, _ fields: Object) -> Object {
+        var row = fields
+        row["kind"] = .string(kind)
+        return row
+    }
+
+    private static func subheading(_ text: String, withRefresh: Bool) -> Object {
+        row("subheading", ["text": .string(text), "hasRefresh": .bool(withRefresh)])
+    }
+
+    private static func noteRow(_ note: Note) -> Object {
+        row(note.ok ? "success" : "failure", ["text": .string(note.text)])
+    }
+
+    private static func pairingRow(title: String, body: String) -> Object {
+        row("pairing", [
+            "title": .string(title),
+            "body": .string(body),
+            "footnote": .string("Du bekrefter med Touch ID. Agenten tar i bruk paringen når den starter på nytt.")
+        ])
     }
 
     /// Nytt bilde når skjelettet leser tilstanden, høyst hvert femte sekund. Lesinger som
@@ -437,7 +554,13 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
             let approvals = try await call("GET", "test-flow/approvals", timeout: timeout)
             if let status = approvals["status"] as? String, status == "unavailable" {
                 let message = approvals["message"] as? String ?? "Agenten har ingen godkjenningscelle ennå."
-                locked { summary = message }
+                locked {
+                    summary = message
+                    agentProblem = message
+                    agentMissing = false
+                    hasLoaded = true
+                    agentPairing = .unknown
+                }
                 return HavenValue.error(code: "agent_unavailable", message: message)
             }
             let ownerAtAgent = toolsResponse["ownerPublicKeyBase64URL"] as? String
@@ -456,7 +579,7 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
             let view = Self.rows(of: items, checkingAgainst: hereKey ?? ownerAtAgent)
             let line: String
             if let hereKey, let ownerAtAgent, hereKey != ownerAtAgent {
-                line = "Denne HAVEN-en har ikke nøkkelen agenten er paret med (agenten: \(ToolLinkCrypto.fingerprint(of: ownerAtAgent)), her: \(ToolLinkCrypto.fingerprint(of: hereKey))). Svar herfra vil bli avvist av agenten."
+                line = "Agenten er paret med en annen HAVEN-identitet (nøkkel \(ToolLinkCrypto.fingerprint(of: ownerAtAgent))) enn den som brukes her (\(ToolLinkCrypto.fingerprint(of: hereKey))). Svar herfra blir avvist til agenten er paret med denne HAVEN-en."
             } else {
                 line = "\(view.incoming.count) ber om tilgang · \(view.outgoing.count) venter på svar i HAVEN Agent · \(view.active.count) aktive"
             }
@@ -477,11 +600,36 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
                 ownerKeyAtAgent = ownerAtAgent
                 scaffoldDomain = domain
                 summary = line
+                agentProblem = nil
+                agentMissing = false
+                hasLoaded = true
+                if let hereKey, let ownerAtAgent {
+                    agentPairing = hereKey == ownerAtAgent ? .here : .elsewhere
+                } else {
+                    agentPairing = .unknown
+                }
             }
             return HavenValue.ok(line, sideEffect: false)
+        } catch AgentError.notConfigured {
+            // Ingen agent på denne maskinen er ikke en feil; flaten sier det med én linje.
+            let message = "HAVEN Agent er ikke satt opp på denne maskinen."
+            locked {
+                summary = message
+                agentProblem = nil
+                agentMissing = true
+                hasLoaded = true
+                agentPairing = .unknown
+            }
+            return HavenValue.error(code: "agent_not_configured", message: message)
         } catch {
-            let message = "Fikk ikke kontakt med agenten: \(error.localizedDescription)"
-            locked { summary = message }
+            let message = "Fikk ikke kontakt med HAVEN Agent: \(error.localizedDescription)"
+            locked {
+                summary = message
+                agentProblem = message
+                agentMissing = false
+                hasLoaded = true
+                agentPairing = .unknown
+            }
             return HavenValue.error(code: "agent_unreachable", message: message)
         }
     }
@@ -507,24 +655,42 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
             let answered = ToolLinkCrypto.clock(item["answeredAt"] as? String)
             let answeredBy = item["answeredBy"] as? String
             let byAgent = answeredBy == "HAVEN Agent"
-            let localWords = ToolLinkReview.contract(from: item).map { ToolLinkSecurityWords.words(forCanonical: $0.canonical) }
+            let parsed = ToolLinkReview.contract(from: item)
+            // Lenker til en annen identitet (en tidligere paring) er ikke dine: de vises ikke, og
+            // du kan ikke trekke dem tilbake herfra. Forespørsler sjekkes for seg under.
+            if state != "awaiting-owner", let ownerKey, let owner = parsed?.contract.pubkey_a, owner != ownerKey {
+                continue
+            }
+            let localWords = parsed.map { ToolLinkSecurityWords.words(forCanonical: $0.canonical) }
             let words = localWords.map(ToolLinkSecurityWords.display) ?? (item["securityCode"] as? String ?? "")
             switch state {
             case "awaiting-owner":
                 var row: Object = [
                     "contractID": .string(contractID),
-                    "title": .string("\(label) — verktøycelle i agenten din ber om å sende testinstruksjoner til agenten din"),
+                    "label": .string(label),
+                    // Som i skissen v2: verktøyet og hva det ber om i halvfet.
+                    "headline": .string("**\(label) — verktøycelle i agenten din** ber om å **sende testinstruksjoner til agenten din**"),
+                    "title": .string("\(label) — verktøycelle i agenten din"),
+                    "summaryLine": .string("ber om å sende testinstruksjoner til agenten din"),
                     "detailLine": .string(trimmed("omfang \(ToolLinkReview.scope) · nøkkel \(item["toolKeyFingerprint"] as? String ?? "?") · startet av verktøyet \(created)")),
                     "securityCode": .string(words),
                     "question": .string("Stemmer ordene med dem i HAVEN Agent?"),
                     "warning": .string(""),
-                    "hasWarning": .bool(false)
+                    "hasWarning": .bool(false),
+                    "canAnswer": .bool(false)
                 ]
                 if let ownerKey {
                     do {
                         let result = try ToolLinkReview.checkToolRequest(item, ownerKey: ownerKey)
                         view.checked[contractID] = result
                         row["securityCode"] = .string(ToolLinkSecurityWords.display(result.words))
+                        row["canAnswer"] = .bool(true)
+                    } catch ToolLinkReview.Problem.notForThisOwner {
+                        // Forespørselen gjelder en annen identitet enn den som brukes her. Den er
+                        // ikke din å svare på, og vises ikke; er agenten paret et annet sted, er
+                        // paringen det flaten tilbyr. Godkjenn og avvis sier fortsatt hvorfor.
+                        view.problems[contractID] = ToolLinkReview.Problem.notForThisOwner.localizedDescription
+                        continue
                     } catch {
                         view.problems[contractID] = error.localizedDescription
                         row["warning"] = .string("⚠︎ \(error.localizedDescription)")
@@ -541,30 +707,37 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
                     "contractID": .string(contractID),
                     "title": .string(trimmed("Tilbudt til \(label) \(created)")),
                     "securityCode": .string(words),
-                    "statusLine": .string("venter på svar i HAVEN Agent")
+                    "statusLine": .string("venter på svar i HAVEN Agent"),
+                    "tone": .string("warning")
                 ])
             case "active":
                 view.active.append([
                     "contractID": .string(contractID),
                     "title": .string("\(label) — sende testinstruksjoner"),
                     "statusLine": .string(trimmed(byAgent ? "✓ godtatt i HAVEN Agent \(answered)" : "✓ godkjent av deg \(answered)")),
-                    "detailLine": .string(item["initiatorText"] as? String ?? "")
+                    "detailLine": .string(item["initiatorText"] as? String ?? ""),
+                    "tone": .string("success")
                 ])
             default:
                 let line: String
+                let tone: String
                 let at: Date?
                 switch state {
                 case "declined":
                     line = trimmed(byAgent ? "✗ avvist i HAVEN Agent \(answered)" : "✗ avvist av deg \(answered)")
+                    tone = "danger"
                     at = ToolLinkCrypto.parse(item["answeredAt"] as? String)
                 case "revoked":
                     line = trimmed("trukket tilbake av deg \(ToolLinkCrypto.clock(item["revokedAt"] as? String))")
+                    tone = "danger"
                     at = ToolLinkCrypto.parse(item["revokedAt"] as? String)
                 case "expired":
                     line = answeredBy.map { "utløpt (\($0))" } ?? "utløpt uten svar"
+                    tone = "warning"
                     at = ToolLinkCrypto.parse(item["expiresAt"] as? String)
                 default:
                     line = item["stateText"] as? String ?? state
+                    tone = "neutral"
                     at = nil
                 }
                 let when = at ?? ToolLinkCrypto.parse(item["createdAt"] as? String) ?? .distantPast
@@ -572,6 +745,9 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
                     "contractID": .string(contractID),
                     "title": .string("\(label) — sende testinstruksjoner"),
                     "statusLine": .string(line),
+                    // Sporet i «Koblede steder» er én linje: hva, og hva svaret ble.
+                    "summaryLine": .string("\(label) — sende testinstruksjoner · \(line)"),
+                    "tone": .string(tone),
                     "detailLine": .string(trimmed("\(item["initiatorText"] as? String ?? "") \(created)"))
                 ]))
             }
@@ -616,8 +792,11 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
     /// A: verktøyet ba — du avslår. Avslaget signeres, så agenten kan vise hvem som sa nei.
     func decline(contractID: String, signer: ToolLinkSigner) async -> Object {
         await refresh(ownerKey: signer.publicKeyBase64URL)
-        guard locked({ incomingIDs.contains(contractID) }) else {
-            return remember(HavenValue.error(code: "not_found", message: "Fant ikke forespørselen hos agenten. Den kan være besvart eller utløpt."), in: .answer)
+        let known = locked { (incomingIDs.contains(contractID), problems[contractID]) }
+        guard known.0 else {
+            let message = known.1.map { "Ikke avvist: \($0)" }
+                ?? "Fant ikke forespørselen hos agenten. Den kan være besvart eller utløpt."
+            return remember(HavenValue.error(code: "not_found", message: message), in: .answer)
         }
         var statement = ToolLinkDecline(
             contract_id: contractID,
@@ -640,15 +819,31 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
         }
     }
 
+    /// Tar imot valget fra velgeren: `{selectedIndex, selected}` der `selected` er verktøyets
+    /// id (`itemID`) eller hele raden (`item`), eller bare id-en.
     func selectTool(_ value: ValueType) -> Object {
-        let id = HavenValue.string(HavenValue.object(value)?["value"]) ?? HavenValue.string(value)
+        let payload = HavenValue.object(value)
+        let selected = payload?["selected"]
+        let id = HavenValue.string(selected)
+            ?? HavenValue.string(HavenValue.object(selected)?["value"])
+            ?? HavenValue.string(payload?["value"])
+            ?? HavenValue.string(value)
         locked { if let id, id.isEmpty == false { selectedToolID = id } }
         return HavenValue.ok("Valgt.", sideEffect: false)
+    }
+
+    /// Det velgeren leser for å vise hva som er valgt (`selectionStateKeypath`).
+    func toolSelection() -> Object {
+        ["selected": locked { selectedToolID }.map(ValueType.string) ?? .null]
     }
 
     /// Bare ett omfang finnes ennå; valget er med så flaten viser hva som gis.
     func selectScope(_ value: ValueType) -> Object {
         HavenValue.ok("Tilgang: \(ToolLinkReview.scopeLabel).", sideEffect: false)
+    }
+
+    func scopeSelection() -> Object {
+        ["selected": .string(ToolLinkReview.scope)]
     }
 
     /// B: du tilbyr. Lenken signeres av deg først; verktøyet signerer når du godtar i HAVEN Agent.
@@ -723,8 +918,15 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
 
     // MARK: - Hjelpere
 
+    /// For handlinger cellen gjør selv (paring), så svaret vises på samme sted.
+    func note(_ result: Object, in slot: MessageSlot) -> Object {
+        remember(result, in: slot)
+    }
+
     private func remember(_ result: Object, in slot: MessageSlot) -> Object {
-        locked { messages[slot] = HavenValue.string(result["message"]) ?? "" }
+        let text = HavenValue.string(result["message"]) ?? ""
+        let ok = HavenValue.string(result["status"]) == "ok"
+        locked { notes[slot] = text.isEmpty ? nil : Note(text: text, ok: ok) }
         return result
     }
 

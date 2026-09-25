@@ -146,6 +146,11 @@ private func lines(_ state: Object, _ key: String) -> [String] {
     rows(state, key).compactMap { HavenValue.string($0["statusLine"]) }
 }
 
+/// Hvilke slags rader en del av flaten viser, i rekkefølge.
+private func kinds(_ state: Object, _ key: String) -> [String] {
+    rows(state, key).compactMap { HavenValue.string($0["kind"]) }
+}
+
 @Suite struct ToolLinkControllerTests {
     /// Samme testvektor som agentens `TestFlowContractTests`: samme kanoniske bytes gir
     /// samme fire ord i HAVEN og i HAVEN Agent.
@@ -255,6 +260,15 @@ private func lines(_ state: Object, _ key: String) -> [String] {
         #expect(history.contains { $0.hasPrefix("✗ avvist av deg") })
         #expect(history.contains { $0.hasPrefix("trukket tilbake av deg") })
         #expect(history.contains("utløpt uten svar"))
+        // Hver rad i sporet har linjen flaten viser (ellers står det «Innholdet er ikke tilgjengelig»).
+        #expect(rows(state, "toolHistory").allSatisfy { HavenValue.string($0["summaryLine"])?.hasPrefix("Losen — sende testinstruksjoner · ") == true })
+
+        // Flaten: forespørselen og tilbudet i kortet for agenten, de aktive under «Koblede
+        // steder», og svarene som spor.
+        #expect(kinds(state, "toolAgentRows") == ["subheading", "request", "subheading", "offerForm", "outgoing"])
+        #expect(kinds(state, "toolLinkedRows") == ["tool", "tool"])
+        #expect(kinds(state, "toolHistoryRows") == ["subheading", "history", "history", "history", "history"])
+        #expect(rows(state, "toolLinkedRows").compactMap { HavenValue.string($0["tone"]) } == ["success", "success"])
 
         #expect(await agent.seenTokens().allSatisfy { $0 == "test-token" })
         #expect(await agent.postedBodies().isEmpty)
@@ -274,6 +288,8 @@ private func lines(_ state: Object, _ key: String) -> [String] {
         let result = await links.approve(contractID: request.contract.contract_id, signer: keys.ownerSigner())
         #expect(HavenValue.string(result["status"]) == "ok")
         #expect(HavenValue.string(links.stateFields()["toolAnswerMessage"])?.hasPrefix("Godkjent: Losen kan sende testinstruksjoner.") == true)
+        let answered = rows(links.stateFields(), "toolAgentRows").first { HavenValue.string($0["kind"]) == "success" }
+        #expect(HavenValue.string(answered?["text"])?.hasSuffix("HAVEN Agent viser at du godkjente.") == true)
 
         let posts = await agent.postedBodies()
         #expect(posts.map { $0.path } == ["/test-flow/approval"])
@@ -313,8 +329,15 @@ private func lines(_ state: Object, _ key: String) -> [String] {
         #expect(await counter.count == 0)
         #expect(await agent.postedBodies().isEmpty)
 
-        let warnings = rows(links.stateFields(), "toolIncoming").compactMap { HavenValue.bool($0["hasWarning"]) }
-        #expect(warnings == [true, true])
+        // Den endrede vises med varsel og uten svarknapper; den til en annen identitet er ikke
+        // din å svare på og vises ikke.
+        let shown = rows(links.stateFields(), "toolIncoming")
+        #expect(shown.compactMap { HavenValue.string($0["contractID"]) } == [tampered.contract.contract_id])
+        #expect(shown.compactMap { HavenValue.bool($0["hasWarning"]) } == [true])
+        #expect(shown.compactMap { HavenValue.bool($0["canAnswer"]) } == [false])
+        let declined = await links.decline(contractID: foreign.contract.contract_id, signer: keys.ownerSigner(counting: counter))
+        #expect(HavenValue.string(declined["message"])?.contains("ikke ment for nøkkelen") == true)
+        #expect(await counter.count == 0)
     }
 
     /// B: tilbudet signeres av eieren først, for verktøyets nøkkel agenten oppga, og svaret gis i HAVEN Agent.
@@ -355,7 +378,95 @@ private func lines(_ state: Object, _ key: String) -> [String] {
         #expect(HavenValue.string(result["code"]) == "wrong_owner")
         #expect(await counter.count == 0)
         #expect(await agent.postedBodies().isEmpty)
-        #expect(HavenValue.string(links.stateFields()["toolSummary"])?.contains("har ikke nøkkelen agenten er paret med") == true)
+        #expect(HavenValue.string(links.stateFields()["toolSummary"])?.contains("Svar herfra blir avvist") == true)
+    }
+
+    /// Når nøkkelen ikke stemmer, tilbyr flaten bare paringen: ingen forespørsler, ingen
+    /// svarknapper og ingen «Tilby». Det samme når agenten ikke er paret i det hele tatt.
+    @Test func onlyPairingIsOfferedWhenTheKeyDiffers() async throws {
+        let keys = Keys()
+        let otherOwner = Keys()
+        let foreign = try toolRequest(keys, ownerPublic: otherOwner.ownerPublic)
+        let foreignActive = try toolRequest(keys, id: "elc_tool_foreignactive", ownerPublic: otherOwner.ownerPublic)
+        let foreignExpired = try toolRequest(keys, id: "elc_tool_foreignexpire", ownerPublic: otherOwner.ownerPublic)
+        let links = controller(for: FakeAgent(
+            tools: toolsResponse(keys, ownerPublic: otherOwner.ownerPublic),
+            items: [
+                try agentItem(foreign.contract, canonical: foreign.canonical, state: "awaiting-owner"),
+                try agentItem(foreignActive.contract, canonical: foreignActive.canonical, state: "active", extra: ["answeredBy": "HAVEN Agent", "answeredAt": ToolLinkCrypto.iso(Date())]),
+                try agentItem(foreignExpired.contract, canonical: foreignExpired.canonical, state: "expired")
+            ]
+        ))
+        await links.refresh(ownerKey: keys.ownerPublic)
+        let state = links.stateFields()
+        #expect(links.pairingState() == .elsewhere)
+        #expect(kinds(state, "toolAgentRows") == ["pairing"])
+        #expect(HavenValue.string(rows(state, "toolAgentRows").first?["title"]) == "HAVEN Agent er paret med en annen identitet")
+        #expect(rows(state, "toolIncoming").isEmpty)
+        // Lenkene til den andre identiteten er ikke dine: ingen «Trekk tilbake», ikke noe spor.
+        #expect(rows(state, "toolLinkedRows").isEmpty)
+        #expect(rows(state, "toolHistoryRows").isEmpty)
+
+        // Svaret på paringen vises rett under paringen.
+        _ = links.note(HavenValue.ok("Agenten er paret med denne HAVEN-en.", sideEffect: true), in: .pairing)
+        #expect(kinds(links.stateFields(), "toolAgentRows") == ["pairing", "success"])
+
+        // Ikke paret med noen: også bare paringen.
+        var unpairedTools = toolsResponse(keys)
+        unpairedTools.removeValue(forKey: "ownerPublicKeyBase64URL")
+        let unpaired = controller(for: FakeAgent(tools: unpairedTools, items: []))
+        await unpaired.refresh(ownerKey: keys.ownerPublic)
+        #expect(kinds(unpaired.stateFields(), "toolAgentRows") == ["pairing"])
+        #expect(HavenValue.string(rows(unpaired.stateFields(), "toolAgentRows").first?["title"]) == "HAVEN Agent er ikke paret ennå")
+
+        // Samme nøkkel: forespørselen med svarknapper, og «Tilby»; paringen er borte.
+        let own = try toolRequest(keys)
+        let matching = controller(for: FakeAgent(
+            tools: toolsResponse(keys),
+            items: [try agentItem(own.contract, canonical: own.canonical, state: "awaiting-owner")]
+        ))
+        await matching.refresh(ownerKey: keys.ownerPublic)
+        let ok = matching.stateFields()
+        #expect(matching.pairingState() == .here)
+        #expect(kinds(ok, "toolAgentRows") == ["subheading", "request", "subheading", "offerForm"])
+        let card = rows(ok, "toolAgentRows")[1]
+        #expect(HavenValue.bool(card["canAnswer"]) == true)
+        #expect(HavenValue.string(card["headline"])?.hasPrefix("**Losen — verktøycelle i agenten din**") == true)
+    }
+
+    /// Uten agent på maskinen sier kortet det med én linje, ikke som en feil.
+    @Test func withoutAgentTheCardSaysSoInOneLine() async throws {
+        let links = BindingToolLinkController(endpoint: { nil }, transport: { _ in throw URLError(.cannotConnectToHost) })
+        #expect(kinds(links.stateFields(), "toolAgentRows") == ["note"])
+        await links.refresh(ownerKey: Keys().ownerPublic)
+        let state = links.stateFields()
+        #expect(kinds(state, "toolAgentRows") == ["note"])
+        #expect(HavenValue.string(rows(state, "toolAgentRows").first?["text"]) == "HAVEN Agent er ikke satt opp på denne maskinen.")
+
+        let unreachable = BindingToolLinkController(
+            endpoint: { ToolLinkAgentEndpoint(base: URL(string: "http://127.0.0.1:43110")!, accessToken: nil) },
+            transport: { _ in throw URLError(.cannotConnectToHost) }
+        )
+        await unreachable.refresh(ownerKey: Keys().ownerPublic)
+        #expect(kinds(unreachable.stateFields(), "toolAgentRows") == ["problem"])
+    }
+
+    /// Velgeren i «Gi tilgang» leser `{selected}` og skriver `{selectedIndex, selected}` tilbake.
+    @Test func pickerSelectionRoundTrips() async throws {
+        let keys = Keys()
+        let agent = FakeAgent(tools: toolsResponse(keys), items: [])
+        let links = controller(for: agent)
+        await links.refresh(ownerKey: keys.ownerPublic)
+        #expect(HavenValue.string(links.toolSelection()["selected"]) == "tool-uuid-losen")
+        let state = links.stateFields()
+        #expect(kinds(state, "toolAgentRows") == ["subheading", "note", "subheading", "offerForm"])
+        #expect(HavenValue.string(rows(state, "toolAgentRows")[1]["text"]) == "Ingen verktøy ber om tilgang akkurat nå.")
+        #expect(rows(state, "toolHistoryRows").isEmpty)
+        _ = links.selectTool(.object(["selectionMode": .string("single"), "trigger": .string("select"), "selectedIndex": .integer(0), "selected": .string("annet-verktoy")]))
+        #expect(HavenValue.string(links.toolSelection()["selected"]) == "annet-verktoy")
+        _ = links.selectTool(.object(["selectedIndex": .integer(0), "selected": .object(["value": .string("tool-uuid-losen")])]))
+        #expect(HavenValue.string(links.toolSelection()["selected"]) == "tool-uuid-losen")
+        #expect(HavenValue.string(links.scopeSelection()["selected"]) == ToolLinkReview.scope)
     }
 
     /// Avslag og tilbaketrekking er signerte utsagn agenten kan sjekke selv.
@@ -379,6 +490,8 @@ private func lines(_ state: Object, _ key: String) -> [String] {
         #expect(HavenValue.string(declined["status"]) == "ok")
         #expect(HavenValue.string(revoked["status"]) == "ok")
         #expect(HavenValue.string(unknown["code"]) == "not_found")
+        // «Trekk tilbake» svarer under «Koblede steder»; den mislykkede sist gir feillinjen.
+        #expect(kinds(links.stateFields(), "toolLinkedRows").last == "failure")
 
         let posts = await agent.postedBodies()
         #expect(posts.map { $0.path } == ["/test-flow/decline", "/test-flow/revoke"])

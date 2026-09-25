@@ -10,21 +10,33 @@ HavenAgentD `Docs/Testflyt_Verktoycelle.md`; beslutningene (B7, B10) og testresu
 
 ## Det du ser
 
-«Utvid entiteten» har tre nye deler (godkjent skisse: HavenAgentD
-`Docs/PDD_testflyt-verktoycelle_20260923/images/haven-lenke-begge-veier-v2.png`):
+«Utvid entiteten» er fire kort i HAVENs designsystem (`BindingPersonalCopilotDesignSystem`),
+venstrestilt (godkjent skisse: HavenAgentD
+`Docs/PDD_testflyt-verktoycelle_20260923/images/haven-lenke-begge-veier-v2.png`; runde 3, 25.09):
 
-- **Ber om tilgang** — verktøy som ber (A). Hver forespørsel viser hvem, hva
-  (`agent.tool.instruct`), verktøynøkkelens fingeravtrykk, når den ble startet, og **de fire ordene**
-  med spørsmålet «Stemmer ordene med dem i HAVEN Agent?». **Godkjenn** legger din signatur ved siden
-  av verktøyets; **Avvis** sender et signert avslag. Begge ber om Touch ID.
-- **Gi tilgang** — du tilbyr (B): velg verktøy og tilgang, trykk **Tilby** (Touch ID). Tilbudet står
-  som «venter på svar i HAVEN Agent» med de fire ordene til det er besvart der.
-- **Koblede steder → Verktøy i agenten din** — aktive lenker med hvem som svarte og når
-  («✓ godkjent av deg 12:34», «✓ godtatt i HAVEN Agent 12:41») og **Trekk tilbake** (Touch ID), og
-  de siste svarene som spor («✗ avvist i HAVEN Agent», «trukket tilbake av deg», «utløpt uten svar»).
-
-Øverst i «Ber om tilgang» står en linje med antall, eller en advarsel når HAVEN-en ikke har nøkkelen
-agenten er paret med — da vil agenten avvise svar herfra, og flaten sier det før du trykker.
+1. **Utvid entiteten** — hvor entiteten finnes («… her og i HAVEN Agent på denne maskinen» når
+   agenten er paret her), og sikkerhetslinjen.
+2. **HAVEN Agent på denne maskinen** — én av disse:
+   - agenten er paret med en annen identitet (eller ikke paret): **bare paringen** — et gult kort med
+     **Par agenten med denne HAVEN-en** og **Oppdater**. Forespørsler og lenker til den andre
+     identiteten vises ikke, og det finnes ingen svarknapper eller «Tilby», fordi agenten ville
+     avvist dem. Paringen kjører den vanlige paringen (`cell:///AgentEnrollment`,
+     `enrollment.createPairingArtifact`: agenten attesterer, du signerer med Touch ID, paringen og
+     entitetslenken skrives der agenten leser dem) uten å røre agentens config eller oppstart; agenten
+     tar den i bruk ved neste oppstart. Paringsflaten finnes bare når agentoppsettet er slått på
+     (utviklerbygg: `--enable-agent-setup-workbench`).
+   - agenten er paret her: **Ber om tilgang** (A) med **Oppdater** — hver forespørsel er et kort med
+     verktøyet og hva det ber om i halvfet, omfang, verktøynøkkelens fingeravtrykk og når den ble
+     startet, **de fire ordene som merkelapp**, «Stemmer ordene med dem i HAVEN Agent?», og
+     **Godkjenn**/**Avvis** (Touch ID). Svaret står under («Godkjent: … HAVEN Agent viser at du
+     godkjente.»). Så **Gi tilgang** (B): velg verktøy og tilgang, **Tilby** (Touch ID); tilbudet står
+     med ordene og «venter på svar i HAVEN Agent».
+   - ingen agent på maskinen: én linje, «HAVEN Agent er ikke satt opp på denne maskinen.»; får HAVEN
+     ikke kontakt: grunnen og **Prøv igjen**.
+3. **Koblede steder** — verktøyene som har tilgang («✓ godkjent av deg 12:34», «✓ godtatt i HAVEN
+   Agent 12:41») med **Trekk tilbake** (Touch ID), stedene entiteten er utvidet til, og **Siste svar**
+   som én farget linje hver («… · ✗ avvist i HAVEN Agent 12:41», «… · utløpt uten svar»).
+4. **Nytt sted** — adressefeltet (Enter starter forespørselen), koden og forespørslene som venter.
 
 ## Det HAVEN sjekker før din nøkkel signerer
 
@@ -36,7 +48,8 @@ agenten er paret med — da vil agenten avvise svar herfra, og flaten sier det f
 4. verktøyets signatur holder over de bytene,
 5. de fire ordene HAVEN regner ut er de samme som agenten viser.
 
-Feiler én av dem, får raden en advarsel, og **Godkjenn** signerer ikke. Ordene regnes ut som i
+Feiler én av dem, får kortet en advarsel og ingen svarknapper, og **Godkjenn** signerer ikke. En
+forespørsel til en annen identitet (punkt 1) vises ikke; paringen er svaret på den. Ordene regnes ut som i
 CellBase `IdentityLinkSAS` (256 ord, ett per byte av SHA-256). Ordlisten er kopiert fordi
 CellProtocol-versjonen HAVEN bygger mot ennå ikke har den; testvektoren
 `elc_tool_testvector0001` → `db5de536…` → «ås · juv · selje · frosk» står i begge repoer.
@@ -50,11 +63,18 @@ CellProtocol-versjonen HAVEN bygger mot ennå ikke har den; testvektoren
 | `extension.toolLinks.approve` / `.decline` | svar på en forespørsel; payload `contractID` |
 | `extension.toolLinks.offer` | tilby valgt verktøy tilgang |
 | `extension.toolLinks.revoke` | trekk tilbake en aktiv lenke; payload `contractID` |
-| `extension.toolLinks.selectTool` / `.selectScope` | valgene i «Gi tilgang» |
+| `extension.toolLinks.selection` / `.scopeSelection` | velgernes tilstand: les gir `{selected}`, skriv tar imot `{selectedIndex, selected}` fra velgeren |
+| `extension.toolLinks.selectTool` / `.selectScope` | samme valg, for kall utenfra |
+| `extension.toolLinks.pairAgent` | par agenten med identiteten som brukes her (se over) |
 
-Felter i `state`: `toolSummary`, `toolIncoming`, `toolOutgoing`, `toolActive`, `toolHistory` (+
-`…Count`), `toolChoices`, `toolScopeChoices`, `selectedToolID`, `selectedScope`,
-`toolAnswerMessage`, `toolOfferMessage`, `toolLinkedMessage`.
+Felter i `state` som flaten leser: `summary`, `safetyLine`, `toolAgentRows` (kortet for agenten),
+`linkedRows` (koblede steder: verktøy, steder, siste svar), `newPlaceRows` (svar og ventende
+forespørsler), `toolChoices`, `toolScopeChoices`. Hver rad har `kind` (`pairing`, `problem`,
+`subheading`, `request`, `offerForm`, `outgoing`, `tool`, `device`, `history`, `code`, `pending`,
+`note`, `success`, `failure`), og flaten viser bare delen for den typen. Øvrige felter:
+`toolSummary`, `toolIncoming`, `toolOutgoing`, `toolActive`, `toolHistory` (+ `…Count`),
+`toolLinkedRows`, `toolHistoryRows`, `agentPairing`, `selectedToolID`, `selectedScope`,
+`toolAnswerMessage`, `toolOfferMessage`, `toolLinkedMessage`, `toolPairingMessage`.
 
 Signeringen bruker samme identitet som paringen: den som trykker, når den har navn og nøkkel, ellers
 cellens eier. Nøkkelen sendes i samme form som i paringen (`publicSecureKey.compressedKey`,
@@ -70,21 +90,47 @@ leser den, høyst hvert femte sekund, og etter hver handling.
 
 ## Tester
 
-`BindingTests/ToolLinkControllerTests.swift` (Swift Testing, falsk agent i minnet):
+`BindingTests/ToolLinkControllerTests.swift` (Swift Testing, falsk agent i minnet), 11 tester:
 
 - ordene og JCS følger agentens testvektor;
 - kontrollen stopper feil eier, endrede bytes, forfalsket verktøysignatur og ulike ord;
-- begge ender forteller det samme om hvem som svarte og hva svaret ble;
+- begge ender forteller det samme om hvem som svarte og hva svaret ble, og flaten får radene i riktig
+  rekkefølge (også sporlinjen, så det aldri står «Innholdet er ikke tilgjengelig»);
 - **Godkjenn** legger eierens signatur ved siden av verktøyets, og den verifiserer;
-- eierens nøkkel signerer aldri noe som ikke besto kontrollen (ingen signering, ingen POST);
-- **Tilby** signeres av eieren først, for verktøyets nøkkel agenten oppga;
-- tilbud stoppes her når HAVEN har en annen nøkkel enn agenten er paret med;
+- eierens nøkkel signerer aldri noe som ikke besto kontrollen (ingen signering, ingen POST), og en
+  forespørsel til en annen identitet vises ikke;
+- **Tilby** signeres av eieren først, for verktøyets nøkkel agenten oppga, og stoppes her når HAVEN har
+  en annen nøkkel enn agenten er paret med;
+- når nøkkelen ikke stemmer, eller agenten ikke er paret, er paringen det eneste kortet viser — ingen
+  forespørsler, ingen «Trekk tilbake» og ikke noe spor fra den andre identiteten;
+- uten agent på maskinen sier kortet det med én linje;
+- velgeren leser og skriver `{selected}`;
 - avslag og tilbaketrekking er signerte utsagn som verifiserer.
+
+Flaten: `CellConfigurationVerifierXCTest/testNoLocalSurfaceHidesItsOwnWaysIn` finner ingenting i
+«Utvid entiteten» (testen feiler på «Relasjoner», som den gjorde før denne grenen), og
+`testPersonalCopilotLocalSurfacesLoadWithoutReferenceFailures` er grønn.
 
 ## Kjente grenser
 
-- Synlighetsreglene (skjul tomme lister, vis advarsel bare når den finnes) forutsetter at
-  rendereren støtter `visibility` i `SkeletonModifiers`. Uten den vises tomme lister og tomme linjer.
+- **Venstrestilt tekst krever paritetsendringen i rendreren.** I CellProtocol-versjonen HAVEN bygget
+  mot (tilstanden fra 16.09) sentrerer `CellTextView` teksten i sin egen ramme, og VStack/HStack er
+  sentrert; `hAlignment` kan ikke overstyre det. HAVEN-grenen bygger derfor mot en lokal commit i
+  CellProtocol (`claude/haven-lenke-base-20260924`, 291f1fb) med de samme linjene som 6218ed5/fa7982d
+  og 410a0c6 i `codex/prod-complete-20260917`. Den gjør alle flater i bygget venstrestilte, og er ikke
+  til main.
+- Synlighetsregler med `scope: .root` virker ikke på toppnivå (de evalueres mot en verdi som ikke
+  finnes der). Hvert kort er derfor én liste der cellen bestemmer radene; en skjult rad tar ingen
+  plass, men en tom liste gjør det. Inne i en rad virker `scope: .item`.
+- `wrap` (FlowLayout) gir hvert element sin ideelle bredde og bryter aldri tekst: bare korte
+  merkelapper der. Knapper står i en vanlig HStack, som kan krympe dem og bryte en lang tekst.
+- `maxWidthInfinity` gjør også høyden strekkbar i denne rendereren; i en listerad kuttet det teksten ved
+  siden av med «…». Den brukes ikke i radene.
+- Kort i en liste står 8 pt inn fra venstre og 16 pt inn fra høyre i kortet rundt (radens polstring og
+  mellomrom i rendreren).
+- Tekstfeltet følger systemets mørke modus, resten av flaten har faste lyse farger.
+- En velger (`Picker`) skriver valget til `selectionStateKeypath` og leser `{selected}` derfra når den
+  vises. Nøkkelen må derfor være både lesbar og skrivbar; ellers står velgeren på «Velg …».
 - Flaten oppdaterer seg når den leses, ikke av seg selv. **Oppdater** henter nytt bilde med én gang.
 - Når HAVEN ikke får lest agentens `config.json` (sandkasse uten tilgang til Application Support),
-  sier flaten «Fant ikke agentens kontrollbro …».
+  sier kortet at HAVEN Agent ikke er satt opp på maskinen.
