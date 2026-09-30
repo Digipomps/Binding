@@ -4,7 +4,7 @@ This document defines the non-negotiable direction for skeleton rendering in the
 
 Related architectural rule:
 
-- [SkeletonPortabilityRequirement.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonPortabilityRequirement.md)
+- [SkeletonPortabilityRequirement.md](SkeletonPortabilityRequirement.md)
 
 ## Requirement
 
@@ -38,12 +38,74 @@ Binding already contains two useful pieces:
 
 That gives us a good base, but it is not yet a full parity suite.
 
-## Current gap
+## Original gap
 
 Today the local verifier proves that Binding can render a fixture-backed contract.
 It does not yet prove that the exact same skeleton payload hosted remotely by CellScaffold renders identically in Binding.
 
 That gap is where many "small Binding fixes" keep coming from.
+
+## Original-payload native/web captures (September 2026)
+
+The snapshot test now hosts **BindingSkeletonView** in a real NSHostingView on
+macOS, including AppKit-backed inputs. It decodes the original `skeleton.json`
+and `root.json` and preserves style metadata. A legacy `skeleton.static.json`
+is used only when no original exists, and the artifact records that distinction.
+Style parity findings are diagnostics, not a reason to strip styles before testing.
+
+The Binding host preserves List/Grid row templates and item/root data instead
+of flattening Lists into VStacks. Extracted presentation panels retain row data
+and stable identities scoped to their list. A light host opts into CellApple's
+`skeletonHostTheme(.portholeLight)` defaults; dark mode retains the platform theme.
+The matching CellProtocol renderer changes are required. Do not infer that the
+unchanged production package pin contains those changes: use the coordinated
+local workspace for integration, then update release dependencies together.
+
+Create comparable inputs from the Binding repository:
+
+```sh
+python3 Scripts/capture_skeleton_parity_corpus.py \
+  --base-url "$STAGING_BASE_URL" --output "$ARTIFACTS/original"
+python3 Scripts/capture_skeleton_parity_corpus.py \
+  --source-corpus "$ARTIFACTS/original" --output "$ARTIFACTS/candidate-host"
+python3 Scripts/create_skeleton_element_corpus.py \
+  --matrix "$CELLSCAFFOLD/Tests/fixtures/SkeletonElementParityMatrix.v1.json" \
+  --output "$ARTIFACTS/elements"
+node Scripts/render_skeleton_parity_web.cjs \
+  --cellscaffold "$CELLSCAFFOLD" \
+  --playwright-package "$CELLSCAFFOLD/node_modules/@playwright/test/package.json" \
+  --corpus "$ARTIFACTS/elements" --output "$ARTIFACTS/web"
+```
+
+The first capture performs public GETs with an ephemeral cookie jar. The second
+uses frozen bytes without network access and composes aliases only for identical
+cell endpoints; it is explicitly a candidate host root, not the originally
+deployed composition. The element generator covers the current 26 enum cases
+at 390 and 1280 logical width. Supplemental Tree/ComponentSurface inputs come
+from existing semantic oracles and are distinct from raw all-modifier stress fixtures.
+
+For native execution, build the coordinated workspace for testing and set
+`BINDING_SNAPSHOT_CORPUS_DIR` and `BINDING_SNAPSHOT_OUTPUT_DIR` in the BindingTests
+test target's environment. For `test-without-building`, copy the generated
+`.xctestrun` beside the original and edit its `TestConfigurations[].TestTargets[]`
+`EnvironmentVariables`; this preserves `__TESTROOT__`. Run
+`BindingTests/SkeletonSnapshotRenderXCTest/testRenderCorpusToPNG`, alongside
+`SkeletonRendererParityTests`, `SkeletonPresentationOverlayTests` and
+`CellConfigurationVerifierXCTest/testNoLocalSurfaceHidesItsOwnWaysIn`.
+
+Every capture reports visible-string expectations, style findings and failures.
+Image cases additionally require known raster colors; the web harness checks
+decode, natural dimensions and visible geometry. `img.complete` alone is not
+proof: the original Image fixture had invalid CRC/zlib bytes and Chromium
+tolerated it as a white pixel. Empty text expectations are marked raster-only,
+not counted as meaningful content assertions. Spacer/Divider still require
+layout/paint interpretation; ZStack's canonical labels intentionally overlap.
+
+The comparison host is explicitly **light Porthole (`porthole-webo.css`)**.
+Published fixture pages use conference CSS with different typography and colors.
+Successful text/raster checks do not establish pixel identity, arbitrary CSS
+parity, live remote action delivery, authentication, or general bridge readiness.
+Keep the live bridge gate separate; HTTP fixture success must never make it green.
 
 ## Target architecture
 

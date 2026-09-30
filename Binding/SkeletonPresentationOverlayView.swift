@@ -21,6 +21,7 @@ struct BindingSkeletonView: View {
     let userInfoValue: ValueType?
 
     @EnvironmentObject private var viewModel: PortholeViewModel
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.bindingRuntimeSurfaceTargetSceneID) private var runtimeSurfaceTargetSceneID
 
     init(element: SkeletonElement, userInfoValue: ValueType? = nil) {
@@ -35,7 +36,7 @@ struct BindingSkeletonView: View {
             targetSceneID: runtimeSurfaceTargetSceneID
         )
 
-        ZStack {
+        ZStack(alignment: .topLeading) {
             if let baseElement = extraction.baseElement {
                 SkeletonView(element: baseElement, userInfoValue: userInfoValue)
                     .environmentObject(viewModel)
@@ -47,13 +48,17 @@ struct BindingSkeletonView: View {
             )
             .environmentObject(viewModel)
         }
+        // The shared light Porthole host has explicit typography/control defaults.
+        // A conference CSS theme is a separate contract; dark mode keeps the
+        // native adaptive theme until a matching shared dark host is defined.
+        .skeletonHostTheme(colorScheme == .light ? .portholeLight : .platformDefault)
         .environment(
             \.skeletonButtonResolutionTransform,
             BindingRuntimeSurfaceLaunchSupport.buttonResolutionTransform(
                 targetSceneID: runtimeSurfaceTargetSceneID
             )
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -68,6 +73,7 @@ struct BindingSkeletonRenderContext {
     var context: ValueType?
     var buttonContext: ValueType?
     var runtimeSurfaceTargetSceneID: UUID?
+    var scopeID: String = "root"
 
     static func root(
         _ value: ValueType?,
@@ -82,13 +88,15 @@ struct BindingSkeletonRenderContext {
         )
     }
 
-    func row(_ value: ValueType) -> BindingSkeletonRenderContext {
-        BindingSkeletonRenderContext(
+    func row(_ value: ValueType, index: Int = 0) -> BindingSkeletonRenderContext {
+        let identity = (try? value["id"]?.jsonString()) ?? (try? value["uuid"]?.jsonString()) ?? "index:\(index)"
+        return BindingSkeletonRenderContext(
             root: root,
             item: value,
             context: Self.mergedContext(root: root, item: value),
             buttonContext: value,
-            runtimeSurfaceTargetSceneID: runtimeSurfaceTargetSceneID
+            runtimeSurfaceTargetSceneID: runtimeSurfaceTargetSceneID,
+            scopeID: "\(scopeID)/\(identity.utf8.count):\(identity)"
         )
     }
 
@@ -109,10 +117,11 @@ struct BindingSkeletonRenderContext {
 }
 
 struct BindingSkeletonPresentationNode: Identifiable {
-    var id: UUID { element.id }
+    var id: String
     var element: SkeletonElement
     var presentation: SkeletonPresentation
     var sourceIndex: Int
+    var renderData: SkeletonRenderDataContext
 }
 
 enum BindingSkeletonPresentationSupport {
@@ -229,9 +238,11 @@ enum BindingSkeletonPresentationSupport {
             }
             nodes.append(
                 BindingSkeletonPresentationNode(
+                    id: "\(context.scopeID)/\(preparedElement.id)",
                     element: preparedElement,
                     presentation: presentation,
-                    sourceIndex: nodes.count
+                    sourceIndex: nodes.count,
+                    renderData: SkeletonRenderDataContext(root: context.root, item: context.item)
                 )
             )
             return nil
@@ -261,13 +272,17 @@ enum BindingSkeletonPresentationSupport {
             return .ZStack(value)
         case .Grid(var value):
             value.elements = extractBaseElements(from: value.elements, context: context, nodes: &nodes)
-            value.itemSkeleton = value.itemSkeleton.flatMap {
-                extractBaseElement(from: $0, context: context, nodes: &nodes)
+            if let item = value.itemSkeleton {
+                value.itemSkeleton = preparedRepeatedTemplate(item, ownerID: element.id, keypath: value.keypath, staticElements: [],
+                                                               context: context, nodes: &nodes)
             }
             return .Grid(value)
         case .List(var value):
-            if let materialized = materializedList(value, context: context, nodes: &nodes) {
-                return materialized
+            if let row = value.flowElementSkeleton,
+               case let .VStack(prepared) = preparedRepeatedTemplate(.VStack(row), ownerID: element.id, keypath: value.keypath,
+                                                                     staticElements: value.elements,
+                                                                     context: context, nodes: &nodes) {
+                value.flowElementSkeleton = prepared
             }
             if let rowSkeleton = value.flowElementSkeleton,
                case let .VStack(preparedRow) = adaptRuntimeSurfaceButtons(
@@ -432,118 +447,74 @@ enum BindingSkeletonPresentationSupport {
         resolveButton(button, context: .root(nil).row(item))
     }
 
-    private static func materializedList(
-        _ list: SkeletonList,
-        context: BindingSkeletonRenderContext,
-        nodes: inout [BindingSkeletonPresentationNode]
+    private static func preparedRepeatedTemplate(
+        _ template: SkeletonElement, ownerID: UUID, keypath: String?, staticElements: ValueTypeList,
+        context: BindingSkeletonRenderContext, nodes: inout [BindingSkeletonPresentationNode]
+    ) -> SkeletonElement {
+        var removedPresentation = false
+        let inline = inlineRowTemplate(template, removedPresentation: &removedPresentation)
+        let data = SkeletonRenderDataContext(root: context.root, item: context.item)
+        let boundRows: ValueTypeList
+        if case let .list(rows)? = data.resolve(keypath) { boundRows = rows } else { boundRows = [] }
+        let rows = boundRows + staticElements
+        // The native renderer may load remote/feed rows later. Do not discard
+        // their content before the host has data from which to create overlays.
+        guard removedPresentation, !rows.isEmpty else {
+            return adaptRuntimeSurfaceButtons(in: template, targetSceneID: context.runtimeSurfaceTargetSceneID)
+        }
+        var repeatedContext = context
+        repeatedContext.scopeID += "/\(ownerID)"
+        for (index, row) in rows.enumerated() {
+            _ = extractBaseElement(from: template, context: repeatedContext.row(row, index: index), nodes: &nodes)
+        }
+        // nil means "render raw item" to Grid, so a fully presented template
+        // needs an explicit empty inline node to prevent a data fallback.
+        return adaptRuntimeSurfaceButtons(in: inline ?? .VStack(SkeletonVStack(elements: [])),
+                                           targetSceneID: context.runtimeSurfaceTargetSceneID)
+    }
+
+    /// Remove only explicit presentation nodes from a row template. Dynamic
+    /// visibility, relative keypaths, styles and actions remain the renderer's
+    /// responsibility; expanding List into VStack would discard its item context.
+    private static func inlineRowTemplate(
+        _ element: SkeletonElement,
+        removedPresentation: inout Bool
     ) -> SkeletonElement? {
-        guard let rowSkeleton = list.flowElementSkeleton,
-              canMaterializeList(list) else {
+        if presentation(for: element) != nil {
+            removedPresentation = true
             return nil
         }
-
-        let rows = resolvedRows(
-            keypath: list.keypath,
-            staticElements: list.elements,
-            root: context.root
-        )
-        guard let rowElements = materializedRows(
-            from: rows,
-            rowSkeleton: rowSkeleton,
-            listStyleRole: list.modifiers?.styleRole,
-            context: context,
-            nodes: &nodes
-        ) else {
-            return nil
+        func children(_ elements: SkeletonElementList) -> SkeletonElementList {
+            elements.compactMap { inlineRowTemplate($0, removedPresentation: &removedPresentation) }
         }
-
-        return .VStack(SkeletonVStack(elements: rowElements, spacing: 8, modifiers: list.modifiers))
-    }
-
-    private static func canMaterializeList(_ list: SkeletonList) -> Bool {
-        if list.topic?.isEmpty == false {
-            return false
-        }
-        if list.filterTypes?.isEmpty == false {
-            return false
-        }
-        if let selectionMode = list.selectionMode, selectionMode != .none {
-            return false
-        }
-        return list.selectionValueKeypath == nil
-            && list.selectionStateKeypath == nil
-            && list.selectionActionKeypath == nil
-            && list.activationActionKeypath == nil
-            && list.selectionPayloadMode == nil
-    }
-
-    private static func materializedRows(
-        from rows: ValueTypeList,
-        rowSkeleton: SkeletonVStack,
-        listStyleRole: String?,
-        context: BindingSkeletonRenderContext,
-        nodes: inout [BindingSkeletonPresentationNode]
-    ) -> SkeletonElementList? {
-        guard rows.isEmpty == false else {
-            return nil
-        }
-
-        return rows.compactMap { row in
-            var preparedRow = rowSkeleton
-            if listStyleRole == "chat-prompt-log" {
-                preparedRow.modifiers = chatPromptRowModifiers(
-                    role: stringValue(at: "role", in: row)
-                )
+        switch element {
+        case .HStack(var value):
+            value.elements = children(value.elements); return .HStack(value)
+        case .VStack(var value):
+            value.elements = children(value.elements); return .VStack(value)
+        case .ZStack(var value):
+            value.elements = children(value.elements); return .ZStack(value)
+        case .ScrollView(var value):
+            value.elements = children(value.elements); return .ScrollView(value)
+        case .Section(var value):
+            value.header = value.header.flatMap { inlineRowTemplate($0, removedPresentation: &removedPresentation) }
+            value.content = children(value.content)
+            value.footer = value.footer.flatMap { inlineRowTemplate($0, removedPresentation: &removedPresentation) }
+            return .Section(value)
+        case .Tabs(var value):
+            value.panels = value.panels.map { panel in
+                var updated = panel; updated.content = children(panel.content); return updated
             }
-            let rowElement = SkeletonElement.VStack(preparedRow)
-            return extractBaseElement(from: rowElement, context: context.row(row), nodes: &nodes)
+            return .Tabs(value)
+        case .Grid(var value):
+            value.elements = children(value.elements)
+            return .Grid(value)
+        case .Object(var value):
+            value.elements = value.elements.compactMapValues { inlineRowTemplate($0, removedPresentation: &removedPresentation) }
+            return .Object(value)
+        default:
+            return element
         }
-    }
-
-    private static func chatPromptRowModifiers(role: String?) -> SkeletonModifiers {
-        let isUser = role == "user"
-        var modifiers = SkeletonModifiers()
-        modifiers.padding = 12
-        modifiers.maxWidthInfinity = true
-        modifiers.hAlignment = isUser ? "trailing" : "leading"
-        modifiers.background = isUser ? "#E8F1FF" : "#F4F5F7"
-        modifiers.cornerRadius = 14
-        modifiers.borderWidth = 1
-        modifiers.borderColor = isUser ? "#9FC1F8" : "#D7DCE2"
-        modifiers.styleRole = isUser ? "chat-prompt-row-user" : "chat-prompt-row-assistant"
-        modifiers.styleClasses = ["chat-prompt-row", modifiers.styleRole ?? ""]
-        return modifiers
-    }
-
-    private static func stringValue(at keypath: String, in source: ValueType) -> String? {
-        guard case let .string(string)? = value(at: keypath, in: source) else {
-            return nil
-        }
-        return string
-    }
-
-    private static func resolvedRows(
-        keypath: String?,
-        staticElements: ValueTypeList,
-        root: ValueType?
-    ) -> ValueTypeList {
-        var rows = staticElements
-        if let keypath,
-           keypath.hasPrefix("cell://") == false,
-           case let .list(resolvedRows)? = value(at: keypath, in: root) {
-            rows.append(contentsOf: resolvedRows)
-        }
-        return rows
-    }
-
-    private static func value(at keypath: String, in value: ValueType?) -> ValueType? {
-        guard keypath.isEmpty == false else {
-            return nil
-        }
-        if keypath == "." || keypath == "$" {
-            return value
-        }
-        return value?[keypath]
     }
 
     private static func resolveButton(
@@ -754,7 +725,7 @@ private struct BindingSkeletonPresentationLayer: View {
                 backdrop(for: effectivePresentation)
             }
 
-            SkeletonView(element: node.element, userInfoValue: userInfoValue)
+            SkeletonView(element: node.element, userInfoValue: userInfoValue, renderData: node.renderData)
                 .environmentObject(viewModel)
                 .frame(
                     maxWidth: maxPanelWidth(for: effectivePresentation),

@@ -1,0 +1,84 @@
+{
+  "attachment-field-base64": [
+    "Attachment field"
+  ],
+  "button-action": [
+    "Run"
+  ],
+  "component-surface-two-local-mounts": [
+    "Program",
+    "Sesjoner",
+    "Fra verten",
+    "Oppdater"
+  ],
+  "divider-basic": [],
+  "file-upload-base64": [
+    "File upload"
+  ],
+  "grid-adaptive-bound": [
+    "Grid card A",
+    "Grid card B"
+  ],
+  "horizontal-stack": [
+    "HStack"
+  ],
+  "image-data-url": [],
+  "list-static-and-bound": [
+    "Static row",
+    "List row A",
+    "List row B"
+  ],
+  "navigation-bar-action-and-link": [
+    "Overview",
+    "Chat"
+  ],
+  "object-child-composition": [
+    "object-rendered"
+  ],
+  "picker-static-options": [
+    "Priority"
+  ],
+  "reference-bound-list": [
+    "Reference row"
+  ],
+  "scroll-view-horizontal": [
+    "Scrollable content"
+  ],
+  "section-header-content-footer": [
+    "Header",
+    "Content",
+    "Footer"
+  ],
+  "spacer-fixed-width": [],
+  "tabs-two-static-panels": [
+    "Overview panel"
+  ],
+  "text-area-submit": [
+    "Initial body"
+  ],
+  "text-field-binding": [
+    "Initial title"
+  ],
+  "text-static": [
+    "Skeleton element catalog"
+  ],
+  "toggle-action": [
+    "Enabled"
+  ],
+  "tree-confirmed-visible-nodes": [
+    "Root",
+    "Other"
+  ],
+  "unsupported-diagnostic": [
+    "FutureBadge"
+  ],
+  "vertical-stack": [
+    "VStack"
+  ],
+  "visualization-static-table": [
+    "Rendered"
+  ],
+  "z-stack-two-layers": [
+    "Layer"
+  ]
+}

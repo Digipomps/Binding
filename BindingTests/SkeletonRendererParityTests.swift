@@ -30,6 +30,44 @@ final class SkeletonRendererParityTests: XCTestCase {
     }
 
 #if canImport(AppKit)
+    func testHAVENHostKeepsOrdinaryContentAtTopOfViewport() async throws {
+        var text = SkeletonText(text: "Top aligned surface")
+        var modifiers = SkeletonModifiers()
+        modifiers.foregroundColor = "#000000"
+        text.modifiers = modifiers
+        let host = NSHostingView(rootView:
+            BindingSkeletonView(element: .Text(text))
+                .environmentObject(PortholeViewModel())
+                .environment(\.colorScheme, .light)
+                .background(Color.white)
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 480, height: 320)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
+        window.contentView = host
+        defer { window.close() }
+        for _ in 0..<4 {
+            host.layoutSubtreeIfNeeded()
+            host.displayIfNeeded()
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        var firstInkRow: Int?
+        for y in 0..<bitmap.pixelsHigh {
+            if (0..<bitmap.pixelsWide).contains(where: { x in
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
+                return color.alphaComponent > 0.5 && max(color.redComponent, color.greenComponent, color.blueComponent) < 0.5
+            }) {
+                firstInkRow = y
+                break
+            }
+        }
+        let firstInkPoint = CGFloat(try XCTUnwrap(firstInkRow)) * host.bounds.height / CGFloat(bitmap.pixelsHigh)
+        XCTAssertLessThan(firstInkPoint, 30, "The presentation overlay host must not center ordinary content in a tall viewport.")
+    }
+
     func testHAVENHostsButterpopButtonAndNavigationOpensExactlyOnce() async throws {
         let environmentKey = "CELL_SCAFFOLD_PUBLIC_BASE_URL"
         let previousValue = ProcessInfo.processInfo.environment[environmentKey]
@@ -247,7 +285,7 @@ final class SkeletonRendererParityTests: XCTestCase {
         XCTAssertNil(fallback.payload?["laneID"])
     }
 
-    func testLaneChipListFixtureMaterializesVisibleDynamicButtonRows() {
+    func testLaneChipListFixturePreservesNativeDynamicButtonRows() throws {
         var chipVisibility = SkeletonModifiers()
         chipVisibility.visibility = SkeletonVisibilityRule(
             when: SkeletonCondition(
@@ -288,11 +326,15 @@ final class SkeletonRendererParityTests: XCTestCase {
             from: .List(laneList),
             context: .root(root)
         )
-        let buttons = buttons(in: extraction.baseElement)
-
-        XCTAssertEqual(buttons.map(\.label), ["Co-Pilot"])
-        XCTAssertEqual(buttons.first?.payload?["laneID"], .string("copilot"))
-        XCTAssertNil(buttons.first?.payload?["static"])
+        guard case let .List(preserved)? = extraction.baseElement,
+              case let .Button(template)? = preserved.flowElementSkeleton?.elements.first,
+              case let .list(rows)? = root["lanes"] else { return XCTFail("Expected a native repeated template") }
+        let visibleRows = rows.filter { template.modifiers?.visibility?.isVisible(root: root, item: $0, context: $0) == true }
+        XCTAssertEqual(visibleRows.count, 1)
+        let resolved = SkeletonButtonResolutionSupport.resolve(template: template, userInfoValue: try XCTUnwrap(visibleRows.first))
+        XCTAssertEqual(resolved.label, "Co-Pilot")
+        XCTAssertEqual(resolved.payload?["laneID"], .string("copilot"))
+        XCTAssertNil(resolved.payload?["static"])
     }
 
     func testNavigationBarSchemaActionAndVisibilityParity() throws {

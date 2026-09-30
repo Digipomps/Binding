@@ -1,0 +1,172 @@
+[
+  {
+    "id": "tree-confirmed-visible-nodes",
+    "case": "Tree",
+    "fixture": {
+      "Tree": {
+        "keypath": "tree.visibleNodes",
+        "idKeypath": "nodeID",
+        "parentIDKeypath": "parentID",
+        "levelKeypath": "level",
+        "leadingInsetKeypath": "leadingInset",
+        "hasChildrenKeypath": "hasChildren",
+        "expandedKeypath": "expanded",
+        "selectedIDStateKeypath": "tree.selectedID",
+        "selectionActionKeypath": "tree.select",
+        "expansionActionKeypath": "tree.expand",
+        "rowSkeleton": {
+          "VStack": [
+            {
+              "Text": {
+                "keypath": "label"
+              }
+            }
+          ]
+        },
+        "disclosureModifiers": {
+          "accessibilityLabel": "Expand"
+        },
+        "rowModifiers": {
+          "paddingInsets": {
+            "leading": 0
+          },
+          "interactionStyles": {
+            "dragSource": {
+              "opacity": 0.42
+            }
+          }
+        },
+        "modifiers": {
+          "accessibilityLabel": "Tasks"
+        }
+      }
+    },
+    "root": {
+      "tree": {
+        "visibleNodes": [
+          {
+            "nodeID": "r",
+            "label": "Root",
+            "parentID": null,
+            "level": 1,
+            "leadingInset": 8,
+            "hasChildren": true,
+            "expanded": false
+          },
+          {
+            "nodeID": "z",
+            "label": "Other",
+            "parentID": null,
+            "level": 1,
+            "leadingInset": 8,
+            "hasChildren": false,
+            "expanded": false
+          }
+        ],
+        "selectedID": "z"
+      }
+    },
+    "expectedText": [
+      "Root",
+      "Other"
+    ]
+  },
+  {
+    "id": "component-surface-two-local-mounts",
+    "case": "ComponentSurface",
+    "fixture": {
+      "VStack": [
+        {
+          "ComponentSurface": {
+            "sourceKeypath": "mounts.A",
+            "instanceID": "A",
+            "variant": "pinned"
+          }
+        },
+        {
+          "ComponentSurface": {
+            "sourceKeypath": "mounts.B",
+            "instanceID": "B",
+            "variant": "pinned"
+          }
+        }
+      ]
+    },
+    "root": {
+      "title": "Vertens tittel",
+      "subtitle": "Fra verten",
+      "mounts": {
+        "A": {
+          "componentID": "program-card",
+          "revision": "r1",
+          "sourceCellEndpoint": "cell:///ProgramFixture",
+          "skeleton": {
+            "VStack": [
+              {
+                "Text": {
+                  "keypath": "title"
+                }
+              },
+              {
+                "Text": {
+                  "keypath": "subtitle"
+                }
+              },
+              {
+                "Button": {
+                  "label": "Oppdater",
+                  "keypath": "actions.refresh",
+                  "payload": {
+                    "reason": "manual",
+                    "instanceID": "user-payload"
+                  }
+                }
+              }
+            ]
+          },
+          "item": {
+            "title": "Program"
+          }
+        },
+        "B": {
+          "componentID": "program-card",
+          "revision": "r1",
+          "sourceCellEndpoint": "cell:///ProgramFixture",
+          "skeleton": {
+            "VStack": [
+              {
+                "Text": {
+                  "keypath": "title"
+                }
+              },
+              {
+                "Text": {
+                  "keypath": "subtitle"
+                }
+              },
+              {
+                "Button": {
+                  "label": "Oppdater",
+                  "keypath": "actions.refresh",
+                  "payload": {
+                    "reason": "manual",
+                    "instanceID": "user-payload"
+                  }
+                }
+              }
+            ]
+          },
+          "item": {
+            "title": "Sesjoner"
+          }
+        }
+      }
+    },
+    "expectedText": [
+      "Program",
+      "Sesjoner",
+      "Fra verten",
+      "Oppdater"
+    ]
+  }
+]

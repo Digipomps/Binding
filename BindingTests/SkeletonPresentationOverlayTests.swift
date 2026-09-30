@@ -3,6 +3,7 @@
 
 import XCTest
 import CellBase
+import CellApple
 @testable import Binding
 
 @MainActor
@@ -71,7 +72,7 @@ final class SkeletonPresentationOverlayTests: XCTestCase {
         XCTAssertEqual(extraction.nodes.flatMap { textValues(in: $0.element) }, ["Lower", "Higher", "Same Layer"])
     }
 
-    func testChatPromptLogMaterializesDistinctUserAndAssistantRows() throws {
+    func testChatPromptLogRetainsNativeListAndRelativeBindings() throws {
         var row = SkeletonVStack(elements: [
             .Text(SkeletonText(keypath: "speaker")),
             .Text(SkeletonText(keypath: "body"))
@@ -102,21 +103,135 @@ final class SkeletonPresentationOverlayTests: XCTestCase {
             from: .List(list),
             context: .root(root)
         )
-        guard case let .VStack(container)? = extraction.baseElement else {
-            return XCTFail("Expected the prompt list to materialize as a VStack")
+        guard case let .List(preserved)? = extraction.baseElement else {
+            return XCTFail("Expected the prompt log to retain native List row context")
         }
-        let rows = container.elements.compactMap { element -> SkeletonVStack? in
-            guard case let .VStack(row) = element else { return nil }
-            return row
+        XCTAssertEqual(preserved.keypath, "messages")
+        XCTAssertEqual(preserved.modifiers?.styleRole, "chat-prompt-log")
+        XCTAssertEqual(preserved.flowElementSkeleton?.elements.count, 2)
+        guard case let .Text(speaker)? = preserved.flowElementSkeleton?.elements.first else {
+            return XCTFail("Expected the original speaker binding")
         }
+        XCTAssertEqual(speaker.keypath, "speaker")
+        XCTAssertNil(speaker.text)
+        XCTAssertTrue(extraction.nodes.isEmpty)
+    }
 
-        XCTAssertEqual(rows.count, 2)
-        XCTAssertEqual(rows[0].modifiers?.styleRole, "chat-prompt-row-user")
-        XCTAssertEqual(rows[0].modifiers?.hAlignment, "trailing")
-        XCTAssertEqual(rows[0].modifiers?.background, "#E8F1FF")
-        XCTAssertEqual(rows[1].modifiers?.styleRole, "chat-prompt-row-assistant")
-        XCTAssertEqual(rows[1].modifiers?.hAlignment, "leading")
-        XCTAssertEqual(rows[1].modifiers?.background, "#F4F5F7")
+    func testRowOverlayRetainsItemAndRootWithoutFlatteningList() throws {
+        var overlay = SkeletonText(keypath: "detail")
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal)
+        modifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .item, keypath: "open", equals: .bool(true)))
+        overlay.modifiers = modifiers
+        let row = SkeletonVStack(elements: [.Text(SkeletonText(keypath: "title")), .Text(overlay)])
+        let list = SkeletonList(topic: nil, keypath: "rows", flowElementSkeleton: row)
+        let root = ValueType.object([
+            "headline": .string("Root preserved"),
+            "rows": .list([
+                .object(["title": .string("First"), "detail": .string("First detail"), "open": .bool(true)]),
+                .object(["title": .string("Second"), "detail": .string("Second detail"), "open": .bool(false)])
+            ])
+        ])
+        let extraction = BindingSkeletonPresentationSupport.extract(from: .List(list), userInfoValue: root)
+        guard case let .List(preserved)? = extraction.baseElement else { return XCTFail("List must retain its row scope") }
+        XCTAssertEqual(preserved.flowElementSkeleton?.elements.count, 1)
+        XCTAssertEqual(extraction.nodes.count, 1)
+        let data = try XCTUnwrap(extraction.nodes.first?.renderData)
+        XCTAssertEqual(data.resolve("detail"), .string("First detail"))
+        XCTAssertEqual(data.resolve("headline"), .string("Root preserved"))
+    }
+
+    func testGridItemVisibilityIsNotEvaluatedAgainstRoot() throws {
+        var text = SkeletonText(keypath: "title")
+        var modifiers = SkeletonModifiers()
+        modifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .item, keypath: "visible", equals: .bool(true)))
+        text.modifiers = modifiers
+        let grid = SkeletonGrid(columns: [], keypath: "cards", itemSkeleton: .Text(text))
+        let root = ValueType.object(["visible": .bool(false), "cards": .list([
+            .object(["title": .string("Visible card"), "visible": .bool(true)])
+        ])])
+        let extraction = BindingSkeletonPresentationSupport.extract(from: .Grid(grid), userInfoValue: root)
+        guard case let .Grid(preserved)? = extraction.baseElement,
+              case let .Text(item)? = preserved.itemSkeleton else { return XCTFail("The item template must survive until its row scope exists") }
+        XCTAssertEqual(item.keypath, "title")
+        XCTAssertNotNil(item.modifiers?.visibility)
+    }
+
+    func testFullyPresentedGridUsesEmptyInlineTemplateInsteadOfRawItemFallback() {
+        var text = SkeletonText(keypath: "detail")
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal)
+        text.modifiers = modifiers
+        let grid = SkeletonGrid(columns: [], keypath: "cards", itemSkeleton: .Text(text))
+        let root = ValueType.object(["cards": .list([.object(["detail": .string("Panel detail")])])])
+        let extraction = BindingSkeletonPresentationSupport.extract(from: .Grid(grid), userInfoValue: root)
+        guard case let .Grid(preserved)? = extraction.baseElement,
+              case let .VStack(inline)? = preserved.itemSkeleton else { return XCTFail("Explicit empty template prevents raw object fallback") }
+        XCTAssertTrue(inline.elements.isEmpty)
+        XCTAssertEqual(extraction.nodes.count, 1)
+    }
+
+    func testRemoteRowTemplateIsNotStrippedBeforeItsDataArrives() {
+        var text = SkeletonText(keypath: "detail")
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal)
+        text.modifiers = modifiers
+        let list = SkeletonList(topic: nil, keypath: "cell://example.test/Rows/state", flowElementSkeleton: SkeletonVStack(elements: [.Text(text)]))
+        let extraction = BindingSkeletonPresentationSupport.extract(from: .List(list), userInfoValue: nil)
+        guard case let .List(preserved)? = extraction.baseElement,
+              let row = preserved.flowElementSkeleton?.elements.first else { return XCTFail("Remote template must remain intact") }
+        XCTAssertNotNil(BindingSkeletonPresentationSupport.presentation(for: row))
+        XCTAssertTrue(extraction.nodes.isEmpty)
+    }
+
+    func testOpenRowPanelKeepsIdentityWhenAnotherPanelCloses() throws {
+        var text = SkeletonText(keypath: "detail")
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal)
+        modifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .item, keypath: "open", equals: .bool(true)))
+        text.modifiers = modifiers
+        let list = SkeletonList(topic: nil, keypath: "rows", flowElementSkeleton: SkeletonVStack(elements: [.Text(text)]))
+        func root(firstOpen: Bool) -> ValueType { .object(["rows": .list([
+            .object(["id": .string("first"), "open": .bool(firstOpen), "detail": .string("First")]),
+            .object(["id": .string("second"), "open": .bool(true), "detail": .string("Second")])
+        ])]) }
+        let both = BindingSkeletonPresentationSupport.extract(from: .List(list), userInfoValue: root(firstOpen: true))
+        let second = BindingSkeletonPresentationSupport.extract(from: .List(list), userInfoValue: root(firstOpen: false))
+        XCTAssertEqual(both.nodes.count, 2)
+        XCTAssertEqual(second.nodes.count, 1)
+        XCTAssertEqual(try XCTUnwrap(both.nodes.last?.id), try XCTUnwrap(second.nodes.first?.id))
+    }
+
+    func testRepeatedPanelsFollowNativeBoundThenStaticOrderAndKeepListScopesDistinct() {
+        var panel = SkeletonText(keypath: "detail")
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal)
+        panel.modifiers = modifiers
+        let template = SkeletonVStack(elements: [.Text(panel)])
+        var first = SkeletonList(topic: nil, keypath: "rows", flowElementSkeleton: template)
+        first.elements = [.object(["id": .string("static"), "detail": .string("Static")])]
+        let second = SkeletonList(topic: nil, keypath: "rows", flowElementSkeleton: template)
+        let root = ValueType.object(["rows": .list([
+            .object(["id": .string("same"), "detail": .string("Bound")])
+        ])])
+        let result = BindingSkeletonPresentationSupport.extract(
+            from: .VStack(SkeletonVStack(elements: [.List(first), .List(second)])), userInfoValue: root)
+        XCTAssertEqual(result.nodes.map { $0.renderData.resolve("detail") },
+                       [.string("Bound"), .string("Static"), .string("Bound")])
+        XCTAssertEqual(Set(result.nodes.map(\.id)).count, 3, "The same row ID in distinct lists must not collide")
+    }
+
+    func testNestedItemNullDoesNotResurrectRootRowsInPanels() {
+        var panel = SkeletonText(keypath: "detail")
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal)
+        panel.modifiers = modifiers
+        let list = SkeletonList(topic: nil, keypath: "rows", flowElementSkeleton: SkeletonVStack(elements: [.Text(panel)]))
+        let context = BindingSkeletonRenderContext.root(.object([
+            "rows": .list([.object(["detail": .string("Stale root row")])])
+        ])).row(.object(["rows": .null]))
+        let result = BindingSkeletonPresentationSupport.extract(from: .List(list), context: context)
+        XCTAssertTrue(result.nodes.isEmpty)
     }
 
     private func makeRootSkeleton(
