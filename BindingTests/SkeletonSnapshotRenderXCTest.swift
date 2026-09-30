@@ -186,14 +186,18 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let background = Self.rgb(fromHex: surface.backgroundHex).map { Color(red: $0.r, green: $0.g, blue: $0.b) } ?? .white
+        let viewModel = PortholeViewModel()
+        viewModel.skeletonRootData = root
         let content = VStack(spacing: 0) {
-            BindingSkeletonView(element: element, userInfoValue: root)
+            // Exercise the actual host's observable root-state delivery path,
+            // including mount data and presentation extraction.
+            BindingSkeletonView(element: element)
                 .frame(maxWidth: surface.contentMaxWidth, alignment: .topLeading)
                 .frame(maxWidth: .infinity, alignment: .top)
             Spacer(minLength: 0)
         }
         .padding(surface.padding)
-        .environmentObject(PortholeViewModel())
+        .environmentObject(viewModel)
         .defaultAppStorage(defaults)
         .environment(\.colorScheme, surface.isDarkMode ? .dark : .light)
         .frame(width: surface.width, height: surface.height, alignment: .topLeading)
@@ -324,6 +328,8 @@ private struct RenderMetadata: Encodable {
     let styleNormalizationApplied = false
     let materialized: Bool
     let rootDataSupplied: Bool
+    let rootDelivery = "PortholeViewModel.skeletonRootData"
+    let navigationBaseURL = SkeletonButtonNavigation.configuredBaseURL()?.absoluteString
     let recognizedText: String
     let expectedTextCount: Int
     let missingExpectedText: [String]

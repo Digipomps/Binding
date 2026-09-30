@@ -70,6 +70,14 @@ def main():
                 "padding": 16, "contentMaxWidth": 1180, "backgroundHex": "#FFFFFF",
             })
             write(directory / "source.json", entry)
+            if case["case"] == "Picker":
+                write(directory / "expected-selection.json", ["Normal"])
+            if case["case"] == "ComponentSurface":
+                write(directory / "capabilities.json", {
+                    "localMountRender": True,
+                    "sourceActions": "Requires a real host adapter preserving source and separate mount metadata",
+                    "liveTransportVerified": False,
+                })
             if case["case"] == "Image":
                 # Four visible quadrants in the corrected, CRC-valid 32x32 oracle.
                 # This catches a blank/failed Image even when text expectations are empty.

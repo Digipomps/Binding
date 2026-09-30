@@ -96,6 +96,14 @@ async function main() {
       }
       const content = await page.locator('#root').innerText();
       const fieldValues = await page.locator('#root input, #root textarea').evaluateAll(nodes => nodes.map(n => n.value));
+      const selectedTexts = await page.locator('#root select').evaluateAll(nodes =>
+        nodes.map(node => [...node.selectedOptions].map(option => option.textContent.trim()).join(', ')));
+      const selectionPath = path.join(dir, 'expected-selection.json');
+      if (fs.existsSync(selectionPath)) {
+        const expectedSelection = JSON.parse(fs.readFileSync(selectionPath));
+        if (JSON.stringify(selectedTexts) !== JSON.stringify(expectedSelection))
+          errors.push(`Expected selected options ${JSON.stringify(expectedSelection)}, saw ${JSON.stringify(selectedTexts)}`);
+      }
       const visible = [content, ...fieldValues].join('\n');
       const expected = read('expected-text.json');
       const missingExpectedText = expected.filter(value => !visible.includes(value));
@@ -110,8 +118,9 @@ async function main() {
       }));
       await page.screenshot({path: path.join(output, name + '.png'), fullPage: false});
       const result = {name, host: 'porthole-webo.css light baseline', viewport, deviceScaleFactor: 2,
+        navigationBaseURL: 'http://skeleton-parity.test/',
         materialized: false, styleNormalizationApplied: false, content, fieldValues, expectedTextCount: expected.length,
-        missingExpectedText, errors, geometry, controls, images, assetHashes};
+        missingExpectedText, errors, geometry, controls, images, selectedTexts, assetHashes};
       fs.writeFileSync(path.join(output, name + '.json'), JSON.stringify(result, null, 2) + '\n');
       results.push(result);
       await context.close();

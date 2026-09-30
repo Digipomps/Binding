@@ -29,7 +29,7 @@ Binding already contains two useful pieces:
    - `BindingTests/SkeletonParityRemoteXCTest.swift`
    - reads the CellScaffold catalog at `/skeleton-parity/api/catalog`
    - verifies remote `text`, `list`, `grid`, `form`, and `invalid` fixture contracts over HTTP
-   - verifies one bridge-backed pass against `cell://staging.haven.digipomps.org/SkeletonParityTextFixture`
+   - contains a separate bridge-backed gate against `cell://staging.haven.digipomps.org/SkeletonParityTextFixture`; HTTP passes do not establish that this gate currently works
    - reuses one in-memory cookie jar per test case so mutable fixture behavior stays deterministic
 3. remote staging smoke
    - `Scripts/run_conference_demo_smoke.sh`
@@ -52,6 +52,9 @@ macOS, including AppKit-backed inputs. It decodes the original `skeleton.json`
 and `root.json` and preserves style metadata. A legacy `skeleton.static.json`
 is used only when no original exists, and the artifact records that distinction.
 Style parity findings are diagnostics, not a reason to strip styles before testing.
+The native corpus enters through observable `PortholeViewModel.skeletonRootData`
+and the actual Binding host, so supplying data directly to a lower renderer
+cannot hide a missing host-state connection.
 
 The Binding host preserves List/Grid row templates and item/root data instead
 of flattening Lists into VStacks. Extracted presentation panels retain row data
@@ -92,6 +95,7 @@ test target's environment. For `test-without-building`, copy the generated
 `BindingTests/SkeletonSnapshotRenderXCTest/testRenderCorpusToPNG`, alongside
 `SkeletonRendererParityTests`, `SkeletonPresentationOverlayTests` and
 `CellConfigurationVerifierXCTest/testNoLocalSurfaceHidesItsOwnWaysIn`.
+Also run `BindingSkeletonMountedActionSupportTests` for the mounted action path.
 
 Every capture reports visible-string expectations, style findings and failures.
 Image cases additionally require known raster colors; the web harness checks
@@ -100,12 +104,38 @@ proof: the original Image fixture had invalid CRC/zlib bytes and Chromium
 tolerated it as a white pixel. Empty text expectations are marked raster-only,
 not counted as meaningful content assertions. Spacer/Divider still require
 layout/paint interpretation; ZStack's canonical labels intentionally overlap.
+Picker cases check the selected option, not just the label or the hidden menu
+options. Capture host geometry to detect horizontal overflow; inspect the actual
+painted widths and bounds even when all text checks pass.
 
 The comparison host is explicitly **light Porthole (`porthole-webo.css`)**.
 Published fixture pages use conference CSS with different typography and colors.
 Successful text/raster checks do not establish pixel identity, arbitrary CSS
 parity, live remote action delivery, authentication, or general bridge readiness.
 Keep the live bridge gate separate; HTTP fixture success must never make it green.
+
+### Local ComponentSurface actions
+
+Last verified against the isolated candidate code: 2026-09-30.
+
+Binding supplies `skeletonMountedActionHandler` to the host. CellApple installs
+it as the normal action handler only inside a mounted ComponentSurface, leaving
+ordinary URL buttons outside the mount on their navigation path. The adapter
+accepts local `cell:///SingleCellName` sources and source-relative keypaths.
+It uses `executionRequesterIdentity()` and the normal CellResolver for both
+resolution and get/set; missing identities and remote endpoints fail explicitly.
+
+Mount instance/component/revision metadata stays in host context, separate from
+the source payload and authorization. An absent payload reads; explicit null
+writes. A nil SET reply reports missing confirmation with an unknown outcome
+and never automatically retries. The tests exercise real Cells and Agreements,
+two mounted instances, ordinary URL navigation, an active-requester change,
+denial, malformed endpoints, and a source that writes but returns no reply.
+
+This is a local action adapter, not a replacement remote bridge. Source-aware
+Reference, AttachmentField, FileUpload, NavigationBar and Visualization inside
+mounts still retain the renderer's explicit unsupported diagnostic. The generic
+remote bridge remains a separate integration and security acceptance gate.
 
 ## Target architecture
 

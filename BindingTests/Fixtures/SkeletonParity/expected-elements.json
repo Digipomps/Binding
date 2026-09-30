@@ -36,7 +36,8 @@
     "object-rendered"
   ],
   "picker-static-options": [
-    "Priority"
+    "Priority",
+    "Normal"
   ],
   "reference-bound-list": [
     "Reference row"

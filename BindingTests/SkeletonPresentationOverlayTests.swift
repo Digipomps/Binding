@@ -234,6 +234,42 @@ final class SkeletonPresentationOverlayTests: XCTestCase {
         XCTAssertTrue(result.nodes.isEmpty)
     }
 
+    func testTreeAndComponentSurfacePresentationsHonorVisibilityAndKeepTheirContracts() throws {
+        func surfaces(_ modifiers: SkeletonModifiers) -> [SkeletonElement] {
+            [
+                .Tree(SkeletonTree(keypath: "nodes", idKeypath: "id", parentIDKeypath: "parentID",
+                    levelKeypath: "level", leadingInsetKeypath: "inset", hasChildrenKeypath: "hasChildren",
+                    expandedKeypath: "expanded", selectedIDStateKeypath: "selected",
+                    selectionActionKeypath: "select", expansionActionKeypath: "expand",
+                    rowSkeleton: SkeletonVStack(elements: [.Text(SkeletonText(keypath: "label"))]), modifiers: modifiers)),
+                .ComponentSurface(SkeletonComponentSurface(sourceKeypath: "mounts.A", instanceID: "A",
+                    variant: .pinned, modifiers: modifiers))
+            ]
+        }
+        var modifiers = SkeletonModifiers()
+        modifiers.presentation = SkeletonPresentation(kind: .modal)
+        modifiers.visibility = SkeletonVisibilityRule(when: SkeletonCondition(scope: .root, keypath: "open", equals: .bool(true)))
+        for original in surfaces(modifiers) {
+            let closed = BindingSkeletonPresentationSupport.extract(from: original, userInfoValue: .object(["open": .bool(false)]))
+            XCTAssertNil(closed.baseElement)
+            XCTAssertTrue(closed.nodes.isEmpty)
+            let open = BindingSkeletonPresentationSupport.extract(from: original, userInfoValue: .object(["open": .bool(true)]))
+            XCTAssertNil(open.baseElement, "A modal must not also appear inline")
+            let node = try XCTUnwrap(open.nodes.first)
+            XCTAssertEqual(open.nodes.count, 1)
+            XCTAssertNil(BindingSkeletonPresentationSupport.presentation(for: node.element), "Extraction must remove presentation to avoid recursion")
+            switch node.element {
+            case .Tree(let tree):
+                XCTAssertEqual(tree.keypath, "nodes")
+                XCTAssertEqual(tree.selectionActionKeypath, "select")
+            case .ComponentSurface(let component):
+                XCTAssertEqual(component.sourceKeypath, "mounts.A")
+                XCTAssertEqual(component.instanceID, "A")
+            default: XCTFail("The original element type must survive")
+            }
+        }
+    }
+
     private func makeRootSkeleton(
         panelTitle: String,
         presentation: SkeletonPresentation

@@ -30,21 +30,22 @@ struct BindingSkeletonView: View {
     }
 
     var body: some View {
+        let rootData = userInfoValue ?? viewModel.skeletonRootData
         let extraction = BindingSkeletonPresentationSupport.extract(
             from: element,
-            userInfoValue: userInfoValue,
+            userInfoValue: rootData,
             targetSceneID: runtimeSurfaceTargetSceneID
         )
 
         ZStack(alignment: .topLeading) {
             if let baseElement = extraction.baseElement {
-                SkeletonView(element: baseElement, userInfoValue: userInfoValue)
+                SkeletonView(element: baseElement, userInfoValue: rootData)
                     .environmentObject(viewModel)
             }
 
             BindingSkeletonPresentationOverlay(
                 nodes: extraction.nodes,
-                userInfoValue: userInfoValue
+                userInfoValue: rootData
             )
             .environmentObject(viewModel)
         }
@@ -52,6 +53,7 @@ struct BindingSkeletonView: View {
         // A conference CSS theme is a separate contract; dark mode keeps the
         // native adaptive theme until a matching shared dark host is defined.
         .skeletonHostTheme(colorScheme == .light ? .portholeLight : .platformDefault)
+        .environment(\.skeletonMountedActionHandler, BindingSkeletonMountedActionSupport.handler(viewModel: viewModel))
         .environment(
             \.skeletonButtonResolutionTransform,
             BindingRuntimeSurfaceLaunchSupport.buttonResolutionTransform(
@@ -205,6 +207,10 @@ enum BindingSkeletonPresentationSupport {
         case .ZStack(let value):
             return value.modifiers
         case .Grid(let value):
+            return value.modifiers
+        case .Tree(let value):
+            return value.modifiers
+        case .ComponentSurface(let value):
             return value.modifiers
         case .Toggle(let value):
             return value.modifiers
@@ -665,6 +671,12 @@ enum BindingSkeletonPresentationSupport {
         case .Grid(var value):
             value.modifiers = modifiers
             return .Grid(value)
+        case .Tree(var value):
+            value.modifiers = modifiers
+            return .Tree(value)
+        case .ComponentSurface(var value):
+            value.modifiers = modifiers
+            return .ComponentSurface(value)
         case .Toggle(var value):
             value.modifiers = modifiers
             return .Toggle(value)
